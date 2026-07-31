@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "status": "failed",
+  "phenix_version": "not-installed-foundation-fixture",
+  "installation_prefix": "/nonexistent/phenix",
+  "phenix_env_sh": "/nonexistent/phenix/phenix_env.sh",
+  "phenix_env_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "installer_basename": null,
+  "installer_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "platform": {
+    "os": "fixture",
+    "architecture": "fixture",
+    "glibc": null,
+    "os_version": null
+  },
+  "installed_at": "2026-07-31T00:00:00Z",
+  "required_commands": [
+    {
+      "name": "phenix.xtriage",
+      "path": "/nonexistent/phenix/phenix.xtriage",
+      "smoke_test_status": "not_run",
+      "version_text": null
+    }
+  ],
+  "warnings": [
+    "Foundation fixture only; Phenix is external and not installed."
+  ]
+}

@@ -1,0 +1,2 @@
+checkpoint	item_id	decision	reviewer	reviewed_at	comment	override_reason
+sequence_candidate	seq_REPLACE_WITH_IMMUTABLE_ID	retain_alternative	REVIEWER	2026-07-31T00:00:00Z	Keep in final equivalence set	""

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/nf-genome-to-diffraction/nextflow_schema.json",
+  "title": "nf-genome_to_diffraction operator parameters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "catalogues",
+    "crystals",
+    "config",
+    "database_manifest",
+    "phenix_manifest"
+  ],
+  "properties": {
+    "catalogues": { "type": "string", "format": "file-path" },
+    "crystals": { "type": "string", "format": "file-path" },
+    "config": { "type": "string", "format": "file-path" },
+    "database_manifest": { "type": "string", "format": "file-path" },
+    "phenix_manifest": { "type": "string", "format": "file-path" },
+    "outdir": { "type": "string", "default": "results" },
+    "cache_root": { "type": "string", "default": ".cache" },
+    "review_mode": {
+      "type": "string",
+      "enum": ["prepare", "continue", "auto_future"],
+      "default": "prepare"
+    },
+    "approved_mr_seeds": { "type": ["string", "null"] },
+    "approved_sequence_groups": { "type": ["string", "null"] },
+    "profile_mode": {
+      "type": "string",
+      "enum": ["smoke", "pilot", "extended"],
+      "default": "smoke"
+    }
+  }
+}

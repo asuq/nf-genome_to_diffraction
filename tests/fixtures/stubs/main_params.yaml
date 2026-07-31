@@ -1,0 +1,11 @@
+catalogues: examples/catalogue_manifest.json
+crystals: examples/crystal_manifest.json
+config: examples/config.yaml
+database_manifest: tests/fixtures/stubs/database_manifest.json
+phenix_manifest: tests/fixtures/stubs/phenix_install_manifest.json
+outdir: test-results/main
+cache_root: build/nextflow-cache
+review_mode: prepare
+approved_mr_seeds: null
+approved_sequence_groups: null
+profile_mode: smoke

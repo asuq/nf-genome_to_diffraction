@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/genome-to-diffraction/phenix_install_manifest.schema.json",
+  "title": "Phenix installation manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "phenix_version",
+    "installation_prefix",
+    "phenix_env_sh",
+    "installer_sha256",
+    "platform",
+    "installed_at",
+    "required_commands"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "status": {"enum": ["verified", "failed"]},
+    "phenix_version": {"type": "string", "minLength": 1},
+    "installation_prefix": {"type": "string", "minLength": 1},
+    "phenix_env_sh": {"type": "string", "minLength": 1},
+    "phenix_env_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "installer_basename": {"type": ["string", "null"]},
+    "installer_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "platform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "architecture"],
+      "properties": {
+        "os": {"type": "string"},
+        "architecture": {"type": "string"},
+        "glibc": {"type": ["string", "null"]},
+        "os_version": {"type": ["string", "null"]}
+      }
+    },
+    "installed_at": {"type": "string", "format": "date-time"},
+    "required_commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "path", "smoke_test_status"],
+        "properties": {
+          "name": {"type": "string"},
+          "path": {"type": "string"},
+          "smoke_test_status": {"enum": ["passed", "failed", "not_run"]},
+          "version_text": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  }
+}

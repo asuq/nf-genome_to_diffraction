@@ -1,0 +1,44 @@
+# Untracked project documentation (kept separately by policy)
+/docs/
+/prompts/
+/scaffold/
+/CODEX_START_HERE.md
+
+# Local confidential context
+/.untracked/
+
+# Pixi and Python
+/.pixi/
+/.cache/
+/.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+/.pytest_cache/
+/.mypy_cache/
+/.ruff_cache/
+/.coverage
+/coverage.xml
+/htmlcov/
+/dist/
+/build/
+
+# Nextflow execution artefacts
+/.nextflow/
+/.nextflow.log*
+/work/
+/results/
+/test-results/
+/timeline*.html
+/report*.html
+/trace*.txt
+/trace*.tsv
+/dag*.html
+
+# Logs, editors, and operating systems
+*.log
+.DS_Store
+.idea/
+.vscode/
+*~
+*.swp

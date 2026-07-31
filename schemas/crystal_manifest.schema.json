@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/genome-to-diffraction/crystal_manifest.schema.json",
+  "title": "Crystal manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "crystals"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "crystals": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/crystal"}
+    }
+  },
+  "$defs": {
+    "crystal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["crystal_id", "mtz", "catalogue_id", "allow_remote_sequence_submission"],
+      "properties": {
+        "crystal_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "mtz": {"type": "string", "minLength": 1},
+        "catalogue_id": {"type": "string", "minLength": 1},
+        "obs_labels": {"type": ["string", "null"]},
+        "free_flag_labels": {"type": ["string", "null"]},
+        "space_group_override": {"type": ["string", "null"]},
+        "high_resolution_override": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "low_resolution_override": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "sds_page_mass_kda": {
+          "type": "array",
+          "items": {"type": "number", "exclusiveMinimum": 0},
+          "default": []
+        },
+        "sds_page_condition": {
+          "type": ["string", "null"],
+          "enum": ["reducing", "nonreducing", "unknown", null]
+        },
+        "sds_page_band_roles": {
+          "type": "array",
+          "items": {"enum": ["dominant", "minor", "uncertain"]},
+          "default": []
+        },
+        "sds_page_tolerance_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "default": 0.3
+        },
+        "allow_remote_sequence_submission": {"type": "boolean", "default": false},
+        "notes": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

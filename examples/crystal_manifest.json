@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "crystals": [
+    {
+      "crystal_id": "test_crystal_01",
+      "mtz": "/absolute/path/to/test_crystal_01.mtz",
+      "catalogue_id": "example_archaeon_refseq",
+      "obs_labels": null,
+      "free_flag_labels": null,
+      "space_group_override": null,
+      "high_resolution_override": null,
+      "low_resolution_override": null,
+      "sds_page_mass_kda": [42.0],
+      "sds_page_condition": "reducing",
+      "sds_page_band_roles": ["dominant"],
+      "sds_page_tolerance_fraction": 0.3,
+      "allow_remote_sequence_submission": false,
+      "notes": "Ground truth must be stored outside this pipeline-visible manifest for a blinded test."
+    }
+  ]
+}

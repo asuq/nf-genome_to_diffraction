@@ -1,0 +1,7 @@
+database_root: tests/fixtures/stubs/database_root
+outdir: test-results/databases
+prepare_pdb_foldseek: false
+prepare_pdb_sequences: false
+prepare_prostt5: false
+initialise_coordinate_cache: true
+verify_only: true

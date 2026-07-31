@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nf-genome-to-diffraction"
+version = "0.1.0.dev0"
+description = "Foundation for genome-to-diffraction protein candidate identification"
+readme = "README.md"
+requires-python = "==3.14.6"
+license = "BSD-3-Clause"
+authors = [{ name = "Akito Shima" }]
+dependencies = [
+  "jsonschema>=4.25,<5",
+  "PyYAML>=6.0,<7",
+]
+
+[project.scripts]
+genome-to-diffraction = "genome_to_diffraction.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/genome_to_diffraction"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+markers = [
+  "integration: foundation integration-scaffold tests",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+files = ["src", "tests"]
+warn_unused_configs = true
+exclude = ["tests/fixtures"]

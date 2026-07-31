@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/genome-to-diffraction/mr_hypothesis.schema.json",
+  "title": "Molecular-replacement hypothesis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "hypothesis_id",
+    "crystal_id",
+    "sequence_group_id",
+    "model_id",
+    "copy_count_expected",
+    "copy_number_to_search",
+    "space_group",
+    "search_stage",
+    "resource_profile",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "hypothesis_id": {"type": "string"},
+    "crystal_id": {"type": "string"},
+    "sequence_group_id": {"type": "string"},
+    "model_id": {"type": "string"},
+    "copy_count_expected": {"type": "integer", "minimum": 1},
+    "copy_number_to_search": {"type": "integer", "minimum": 1},
+    "fixed_solution_id": {"type": ["string", "null"]},
+    "space_group": {"type": "string"},
+    "obs_labels": {"type": ["string", "null"]},
+    "search_stage": {"enum": ["first_copy", "add_copy", "multi_copy_rescue"]},
+    "resource_profile": {"enum": ["smoke", "pilot", "extended"]},
+    "priority_features": {"type": "object"},
+    "status": {"enum": ["queued", "running", "completed_hit", "completed_no_hit", "skipped", "failed"]}
+  }
+}

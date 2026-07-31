@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "catalogues": [
+    {
+      "catalogue_id": "example_archaeon_refseq",
+      "proteome_faa": "/absolute/path/to/protein.faa",
+      "annotation_provider": "NCBI RefSeq PGAP",
+      "annotation_version": "record exact assembly annotation release",
+      "assembly_accession": "GCF_XXXXXXXXX.X",
+      "assembly_version": "X",
+      "genome_fasta": "/absolute/path/to/genome.fna",
+      "annotation_gff": "/absolute/path/to/genomic.gff",
+      "annotation_gbff": "/absolute/path/to/genomic.gbff",
+      "protein_locus_map": null,
+      "translation_table": 11,
+      "source_pipeline": null,
+      "source_pipeline_version": null,
+      "is_contaminant_catalogue": false,
+      "notes": "Use one trusted annotation only."
+    }
+  ]
+}

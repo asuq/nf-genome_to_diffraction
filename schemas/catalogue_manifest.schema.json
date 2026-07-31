@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/genome-to-diffraction/catalogue_manifest.schema.json",
+  "title": "Protein catalogue manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "catalogues"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "catalogues": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/catalogue"}
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {"type": "string", "minLength": 1},
+    "catalogue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "catalogue_id",
+        "proteome_faa",
+        "annotation_provider",
+        "annotation_version",
+        "is_contaminant_catalogue"
+      ],
+      "properties": {
+        "catalogue_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "proteome_faa": {"$ref": "#/$defs/nonEmptyString"},
+        "annotation_provider": {"$ref": "#/$defs/nonEmptyString"},
+        "annotation_version": {"$ref": "#/$defs/nonEmptyString"},
+        "assembly_accession": {"type": ["string", "null"]},
+        "assembly_version": {"type": ["string", "null"]},
+        "genome_fasta": {"type": ["string", "null"]},
+        "annotation_gff": {"type": ["string", "null"]},
+        "annotation_gbff": {"type": ["string", "null"]},
+        "protein_locus_map": {"type": ["string", "null"]},
+        "translation_table": {"type": ["integer", "null"], "minimum": 1},
+        "source_pipeline": {"type": ["string", "null"]},
+        "source_pipeline_version": {"type": ["string", "null"]},
+        "is_contaminant_catalogue": {"type": "boolean"},
+        "notes": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

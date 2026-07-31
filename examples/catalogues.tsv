@@ -1,0 +1,2 @@
+catalogue_id	proteome_faa	annotation_provider	annotation_version	assembly_accession	assembly_version	genome_fasta	annotation_gff	annotation_gbff	protein_locus_map	translation_table	source_pipeline	source_pipeline_version	is_contaminant_catalogue	notes
+example_archaeon_refseq	/absolute/path/to/protein.faa	NCBI RefSeq PGAP	record_exact_release	GCF_XXXXXXXXX.X	X	/absolute/path/to/genome.fna	/absolute/path/to/genomic.gff	/absolute/path/to/genomic.gbff	NA	11	NA	NA	false	Use one trusted annotation only

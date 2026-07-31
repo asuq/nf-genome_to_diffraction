@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "decisions": [
+    {
+      "checkpoint": "mr_seed",
+      "item_id": "hyp_stub_foundation",
+      "decision": "defer",
+      "reviewer": "foundation_fixture",
+      "reviewed_at": "2026-07-31T00:00:00Z",
+      "comment": "Foundation fixture only.",
+      "override_reason": null
+    }
+  ]
+}

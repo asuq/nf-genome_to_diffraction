@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "hypothesis_id": "hyp_stub_foundation",
+  "crystal_id": "test_crystal_01",
+  "sequence_group_id": "seq_stub_foundation",
+  "model_id": "model_stub_foundation",
+  "copy_count_expected": 1,
+  "copy_number_to_search": 1,
+  "fixed_solution_id": null,
+  "space_group": "P 1",
+  "obs_labels": null,
+  "search_stage": "first_copy",
+  "resource_profile": "smoke",
+  "priority_features": {},
+  "status": "queued"
+}

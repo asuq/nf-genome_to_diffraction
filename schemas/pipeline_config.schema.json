@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/genome-to-diffraction/pipeline_config.schema.json",
+  "title": "Pipeline configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "prototype",
+    "catalogue",
+    "providers",
+    "matthews",
+    "search_limits",
+    "review",
+    "retention"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "prototype": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "asu_model",
+        "profile"
+      ],
+      "properties": {
+        "asu_model": {
+          "const": "single_protein_species_multi_copy"
+        },
+        "profile": {
+          "enum": [
+            "smoke",
+            "pilot",
+            "extended"
+          ]
+        }
+      }
+    },
+    "catalogue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_length_aa",
+        "ambiguous_residue_policy"
+      ],
+      "properties": {
+        "min_length_aa": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ambiguous_residue_policy": {
+          "enum": [
+            "warn",
+            "exclude",
+            "error"
+          ]
+        },
+        "remove_terminal_stop": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "providers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pdb_sequence",
+        "foldseek_prostt5_pdb",
+        "esm_atlas",
+        "afdb_exact"
+      ],
+      "properties": {
+        "pdb_sequence": {
+          "$ref": "#/$defs/provider"
+        },
+        "foldseek_prostt5_pdb": {
+          "$ref": "#/$defs/provider"
+        },
+        "esm_atlas": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "max_hits",
+            "requests_per_minute",
+            "max_sequence_length"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "max_hits": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "requests_per_minute": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max_sequence_length": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "afdb_exact": {
+          "$ref": "#/$defs/provider"
+        }
+      }
+    },
+    "matthews": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_copy_count",
+        "max_copy_count",
+        "max_hypotheses_per_candidate",
+        "min_solvent_fraction",
+        "max_solvent_fraction"
+      ],
+      "properties": {
+        "min_copy_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_copy_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_hypotheses_per_candidate": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "min_solvent_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "max_solvent_fraction": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "reference_backend": {
+          "enum": [
+            "phenix_xtriage",
+            "none"
+          ]
+        }
+      }
+    },
+    "search_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_structural_hypotheses",
+        "max_first_copy_jobs",
+        "max_refinement_finalists",
+        "max_sequence_map_finalists"
+      ],
+      "properties": {
+        "max_structural_hypotheses": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_first_copy_jobs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_refinement_finalists": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_sequence_map_finalists": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_concurrent_mr_jobs": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary_shortlist_size",
+        "extended_shortlist_size",
+        "require_mr_seed_checkpoint",
+        "require_sequence_checkpoint"
+      ],
+      "properties": {
+        "primary_shortlist_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "extended_shortlist_size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "require_mr_seed_checkpoint": {
+          "type": "boolean"
+        },
+        "require_sequence_checkpoint": {
+          "type": "boolean"
+        }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_full_artifact_finalists",
+        "retain_all_logs",
+        "retain_all_normalised_results"
+      ],
+      "properties": {
+        "max_full_artifact_finalists": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "retain_all_logs": {
+          "type": "boolean"
+        },
+        "retain_all_normalised_results": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "max_hits"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_hits": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "manifest_id": "db_stub_foundation",
+  "created_at": "2026-07-31T00:00:00Z",
+  "resources": [
+    {
+      "database_id": "db_stub_placeholder",
+      "name": "foundation_stub",
+      "source": "local_test_fixture",
+      "release_or_snapshot": "foundation-only",
+      "retrieved_at": null,
+      "root_path": "tests/fixtures/stubs/database_root",
+      "prepared_with": {
+        "tool": "foundation_stub",
+        "version": "0.1.0.dev0"
+      },
+      "parameters": {},
+      "prepared_at": "2026-07-31T00:00:00Z",
+      "file_count": 0,
+      "total_bytes": 0,
+      "manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "smoke_test_status": "not_run",
+      "status": "incomplete",
+      "warnings": [
+        "Foundation fixture only; no database has been prepared."
+      ]
+    }
+  ]
+}

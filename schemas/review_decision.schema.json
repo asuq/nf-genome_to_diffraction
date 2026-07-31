@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/genome-to-diffraction/review_decision.schema.json",
+  "title": "Human review decisions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "decisions"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["checkpoint", "item_id", "decision", "reviewer", "reviewed_at"],
+        "properties": {
+          "checkpoint": {"enum": ["mr_seed", "sequence_candidate"]},
+          "item_id": {"type": "string", "minLength": 1},
+          "decision": {"enum": ["approve", "reject", "defer", "retain_alternative"]},
+          "reviewer": {"type": "string", "minLength": 1},
+          "reviewed_at": {"type": "string", "format": "date-time"},
+          "comment": {"type": ["string", "null"]},
+          "override_reason": {"type": ["string", "null"]}
+        }
+      }
+    }
+  }
+}
