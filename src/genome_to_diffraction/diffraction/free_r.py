@@ -6,7 +6,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-import gemmi  # type: ignore[import-untyped]
+import gemmi
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (

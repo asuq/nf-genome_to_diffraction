@@ -9,7 +9,7 @@ import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
-import gemmi  # type: ignore[import-untyped]
+import gemmi
 import numpy as np
 
 REPOSITORY = Path(__file__).resolve().parents[2]

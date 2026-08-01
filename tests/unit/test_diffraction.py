@@ -6,7 +6,7 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
-import gemmi  # type: ignore[import-untyped]
+import gemmi
 import numpy as np
 import polars as pl
 import pytest

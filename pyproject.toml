@@ -49,3 +49,7 @@ strict = true
 files = ["src", "tests"]
 warn_unused_configs = true
 exclude = ["tests/fixtures"]
+
+[[tool.mypy.overrides]]
+module = "gemmi"
+ignore_missing_imports = true

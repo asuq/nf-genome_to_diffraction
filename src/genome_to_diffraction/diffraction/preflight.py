@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal, cast
 
-import gemmi  # type: ignore[import-untyped]
+import gemmi
 from pydantic import JsonValue
 from tqdm import tqdm
 
