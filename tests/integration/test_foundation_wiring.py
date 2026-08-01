@@ -23,11 +23,14 @@ def test_module_cli_version() -> None:
 
 @pytest.mark.integration
 def test_nextflow_processes_are_fail_loud_and_have_stubs() -> None:
-    for relative_path in (
-        "modules/local/foundation_main_stub.nf",
-        "modules/local/foundation_database_stub.nf",
-    ):
-        source = (REPOSITORY / relative_path).read_text(encoding="utf-8")
-        assert "foundation_only_not_implemented" in source
-        assert "stub:" in source
-        assert "nextflow.enable.types = true" in source
+    main_source = (REPOSITORY / "modules/local/foundation_main_stub.nf").read_text(
+        encoding="utf-8"
+    )
+    assert "foundation_only_not_implemented" in main_source
+    assert "stub:" in main_source
+    database_source = (
+        REPOSITORY / "modules/local/prepare_database_resources.nf"
+    ).read_text(encoding="utf-8")
+    assert "genome-to-diffraction --no-progress databases prepare" in database_source
+    assert "stub:" in database_source
+    assert "nextflow.enable.types = true" in database_source

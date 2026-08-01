@@ -4,4 +4,10 @@ prepare_pdb_foldseek: false
 prepare_pdb_sequences: false
 prepare_prostt5: false
 initialise_coordinate_cache: true
+verify_esm_atlas_connectivity: false
 verify_only: true
+force_rebuild: false
+full_verify: false
+storage_limit_bytes: "1800000000000"
+minimum_free_bytes: "0"
+threads: 1

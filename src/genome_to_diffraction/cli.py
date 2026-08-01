@@ -9,12 +9,17 @@ from typing import cast
 
 from genome_to_diffraction import __version__
 from genome_to_diffraction.checksums import atomic_write_text
+from genome_to_diffraction.databases.prepare import (
+    DEFAULT_MINIMUM_FREE_BYTES,
+    DEFAULT_STORAGE_LIMIT_BYTES,
+    ESM_ATLAS_PROBE_URL,
+    PDB_SEQUENCE_URL,
+    DatabasePreparationRequest,
+    prepare,
+)
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.logging import configure_logging, parse_log_level
-from genome_to_diffraction.phenix.errors import (
-    PhenixError,
-    PhenixInstallCommandError,
-)
+from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
 from genome_to_diffraction.phenix.runtime import (
     execute_from_manifest,
@@ -28,6 +33,7 @@ from genome_to_diffraction.schemas.io import (
     contract_kinds,
     load_contract,
 )
+from genome_to_diffraction.status import GenomeToDiffractionError
 
 
 def _add_contract_input(parser: argparse.ArgumentParser) -> None:
@@ -190,6 +196,35 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs=argparse.REMAINDER,
         help="exact command and arguments, conventionally after --",
     )
+
+    database_parser = subparsers.add_parser(
+        "databases", help="prepare or verify shared reference databases"
+    )
+    database_actions = database_parser.add_subparsers(
+        dest="database_action", required=True
+    )
+    prepare_parser = database_actions.add_parser(
+        "prepare", help="run explicit idempotent database preparation"
+    )
+    prepare_parser.add_argument("--database-root", type=Path, required=True)
+    prepare_parser.add_argument("--manifest", type=Path, required=True)
+    prepare_parser.add_argument("--prepare-pdb-foldseek", action="store_true")
+    prepare_parser.add_argument("--prepare-pdb-sequences", action="store_true")
+    prepare_parser.add_argument("--prepare-prostt5", action="store_true")
+    prepare_parser.add_argument("--initialise-coordinate-cache", action="store_true")
+    prepare_parser.add_argument("--verify-esm-atlas-connectivity", action="store_true")
+    prepare_parser.add_argument("--verify-only", action="store_true")
+    prepare_parser.add_argument("--force-rebuild", action="store_true")
+    prepare_parser.add_argument("--full-verify", action="store_true")
+    prepare_parser.add_argument("--threads", type=int, default=4)
+    prepare_parser.add_argument(
+        "--storage-limit-bytes", type=int, default=DEFAULT_STORAGE_LIMIT_BYTES
+    )
+    prepare_parser.add_argument(
+        "--minimum-free-bytes", type=int, default=DEFAULT_MINIMUM_FREE_BYTES
+    )
+    prepare_parser.add_argument("--pdb-sequence-url", default=PDB_SEQUENCE_URL)
+    prepare_parser.add_argument("--esm-atlas-probe-url", default=ESM_ATLAS_PROBE_URL)
     return parser
 
 
@@ -269,6 +304,33 @@ def _run_phenix(args: argparse.Namespace, logger: logging.Logger) -> int:
     raise AssertionError(f"unhandled Phenix action: {args.phenix_action}")
 
 
+def _run_databases(args: argparse.Namespace) -> int:
+    if args.database_action != "prepare":
+        raise AssertionError(f"unhandled database action: {args.database_action}")
+    manifest = prepare(
+        DatabasePreparationRequest(
+            database_root=args.database_root,
+            manifest_path=args.manifest,
+            prepare_pdb_foldseek=args.prepare_pdb_foldseek,
+            prepare_pdb_sequences=args.prepare_pdb_sequences,
+            prepare_prostt5=args.prepare_prostt5,
+            initialise_coordinate_cache=args.initialise_coordinate_cache,
+            verify_esm_atlas_connectivity=args.verify_esm_atlas_connectivity,
+            verify_only=args.verify_only,
+            force_rebuild=args.force_rebuild,
+            full_verify=args.full_verify,
+            storage_limit_bytes=args.storage_limit_bytes,
+            minimum_free_bytes=args.minimum_free_bytes,
+            threads=args.threads,
+            progress=not args.no_progress,
+            pdb_sequence_url=args.pdb_sequence_url,
+            esm_atlas_probe_url=args.esm_atlas_probe_url,
+        )
+    )
+    print(f"Prepared {len(manifest.resources)} database resources: {args.manifest}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
@@ -295,13 +357,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_contract(args, logger)
         if args.command == "phenix":
             return _run_phenix(args, logger)
+        if args.command == "databases":
+            return _run_databases(args)
     except PhenixInstallCommandError as error:
         logger.error(
             "Phenix installer command failed",
             extra={"error": str(error), "exit_status": error.returncode},
         )
         return error.returncode
-    except (ContractError, PhenixError, OSError, ValueError) as error:
+    except (
+        ContractError,
+        GenomeToDiffractionError,
+        OSError,
+        ValueError,
+    ) as error:
         logger.error("command failed", extra={"error": str(error)})
         return 1
     raise AssertionError(f"unhandled command: {args.command}")

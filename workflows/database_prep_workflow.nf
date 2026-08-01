@@ -1,6 +1,6 @@
 nextflow.enable.types = true
 
-include { FOUNDATION_DATABASE_STUB } from '../modules/local/foundation_database_stub'
+include { PREPARE_DATABASE_RESOURCES } from '../modules/local/prepare_database_resources'
 
 workflow DATABASE_PREP_WORKFLOW {
     take:
@@ -9,17 +9,29 @@ workflow DATABASE_PREP_WORKFLOW {
     prepare_pdb_sequences: Boolean
     prepare_prostt5: Boolean
     initialise_coordinate_cache: Boolean
+    verify_esm_atlas_connectivity: Boolean
     verify_only: Boolean
+    force_rebuild: Boolean
+    full_verify: Boolean
+    storage_limit_bytes: String
+    minimum_free_bytes: String
+    threads: Integer
     database_fixture: Path
 
     main:
-    database_manifest = FOUNDATION_DATABASE_STUB(
+    database_manifest = PREPARE_DATABASE_RESOURCES(
         database_root,
         prepare_pdb_foldseek,
         prepare_pdb_sequences,
         prepare_prostt5,
         initialise_coordinate_cache,
+        verify_esm_atlas_connectivity,
         verify_only,
+        force_rebuild,
+        full_verify,
+        storage_limit_bytes,
+        minimum_free_bytes,
+        threads,
         database_fixture
     )
 

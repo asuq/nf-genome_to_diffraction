@@ -2,6 +2,7 @@
 
 import json
 import logging
+import sys
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -77,6 +78,16 @@ class HumanFormatter(logging.Formatter):
         return message
 
 
+class DynamicStderrHandler(logging.StreamHandler[Any]):
+    """Write to the current stderr so redirected/captured streams do not go stale."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Refresh the stream immediately before rendering a record."""
+
+        self.stream = sys.stderr
+        super().emit(record)
+
+
 def configure_logging(
     *,
     level: int = logging.INFO,
@@ -87,7 +98,7 @@ def configure_logging(
 
     logger = logging.getLogger(logger_name)
     logger.handlers.clear()
-    handler = logging.StreamHandler()
+    handler = DynamicStderrHandler()
     formatter: logging.Formatter = (
         JsonFormatter() if log_format == "json" else HumanFormatter()
     )

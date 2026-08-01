@@ -16,11 +16,13 @@ All notable changes to this project are documented here.
   contract commands with structured logging and optional progress reporting.
 - Checksum-gated external Phenix bootstrap, isolated runtime verifier/executor,
   atomic current-symlink promotion, progress reporting, and preserved logs.
+- Idempotent Foldseek PDB, ProstT5, PDB-sequence/MMseqs2, coordinate-cache, and
+  opt-in ESM Atlas connectivity preparation with a 1.8 TB storage guard.
 
 ### Not implemented
 
 - Catalogue import, diffraction analysis, molecular-mass and Matthews calculations.
-- Real-site Phenix validation, database preparation, structural search, and MR.
+- Real-site Phenix/database validation, structural search, and MR.
 
 ## 1.0 - 31 July 2026
 

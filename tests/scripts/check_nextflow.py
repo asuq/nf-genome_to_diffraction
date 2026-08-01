@@ -137,7 +137,7 @@ def check_stubs() -> None:
             "--outdir",
             str(database_out),
             "--database_root",
-            str(REPOSITORY / "tests/fixtures/stubs/database_root"),
+            str(temporary_root / "database-root"),
         ]
         _run(database_command, environment=environment)
         _assert_files(
@@ -155,10 +155,27 @@ def check_stubs() -> None:
             [part for part in main_command if part != "-stub-run"],
             environment=environment,
         )
-        _assert_fail_loud(
-            [part for part in database_command if part != "-stub-run"],
-            environment=environment,
+        real_database_command = [
+            part for part in database_command if part != "-stub-run"
+        ]
+        real_database_command.extend(
+            [
+                "--verify_only",
+                "false",
+                "--minimum_free_bytes",
+                "0",
+                "--storage_limit_bytes",
+                "100000000",
+            ]
         )
+        _run(real_database_command, environment=environment)
+        _assert_files(database_out, {"database_manifest.json"})
+        verified_database_command = [
+            *real_database_command,
+            "--verify_only",
+            "true",
+        ]
+        _run(verified_database_command, environment=environment)
 
 
 def _build_parser() -> argparse.ArgumentParser:

@@ -28,6 +28,7 @@ __pycache__/
 /.nextflow.log*
 /work/
 /results/
+/databases/
 /test-results/
 /timeline*.html
 /report*.html

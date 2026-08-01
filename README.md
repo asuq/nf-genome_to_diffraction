@@ -5,12 +5,12 @@ narrow an unidentified prokaryotic crystal to reviewable protein candidates.
 
 ## Current status
 
-This repository contains the completed foundation, typed data contracts, and an
-external Phenix bootstrap/runtime boundary. Scientific catalogue and diffraction
-processing are not yet implemented. Running either Nextflow entry point without
-`-stub-run` fails deliberately instead of producing a misleading scientific
-result. The Phenix integration is tested with a synthetic installer; real-site
-validation remains required before it can be described as operational.
+This repository contains the completed foundation, typed data contracts, an
+external Phenix bootstrap/runtime boundary, and explicit reference-database
+preparation. Scientific catalogue and diffraction processing are not yet
+implemented. `main.nf` still fails deliberately outside stub mode instead of
+producing a misleading scientific result. Phenix and full database preparation
+have synthetic/local acceptance coverage; real-site validation remains required.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -124,15 +124,64 @@ pixi run nextflow-stub
 
 Stub execution publishes schema-valid fixture manifests and standard Nextflow
 report, timeline, trace, and DAG files under a disposable `/tmp/...` directory.
-Normal runs fail with an explicit `foundation_only_not_implemented` message.
+Non-stub `main.nf` runs still fail with an explicit
+`foundation_only_not_implemented` message; non-stub database preparation is
+implemented as the separate administrative workflow below.
+
+## Reference-database preparation
+
+The Linux-only `hpc` environment pins Foldseek 10.941cd33 and MMseqs2 18.8cc5c.
+The preparation workflow writes directly to a shared absolute database root, so
+terabyte-scale resources are never staged into Nextflow work directories. Its
+default hard project cap is 1.8 TB and it requires 200 GB of filesystem headroom.
+
+An intended full preparation run is:
+
+```bash
+pixi install -e hpc --frozen
+pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
+  --database_root /absolute/shared/nf-genome-to-diffraction/databases \
+  --outdir /absolute/shared/nf-genome-to-diffraction/database-results \
+  --prepare_pdb_foldseek true \
+  --prepare_pdb_sequences true \
+  --prepare_prostt5 true \
+  --initialise_coordinate_cache true
+```
+
+This explicit operation contacts Foldseek's documented PDB/ProstT5 sources and
+the public RCSB PDB SEQRES URL. It sends no catalogue sequences or credentials.
+The optional `--verify_esm_atlas_connectivity true` probe fetches one documented
+public MGYP sequence by accession and never submits a user sequence. ESM Atlas
+sequence submission remains disabled by default, and no local ESMAtlas30 is
+prepared. Resource metadata records PDB data as CC0-1.0, ProstT5 weights as MIT,
+and the optional ESM Atlas response as CC-BY-4.0.
+
+Every immutable resource records the locked tool version, parameters, retrieval
+metadata, full file inventory, byte count, SHA-256 identity, and smoke-test
+status. Existing valid resources are reused; incomplete resources fail loudly;
+forced builds are side-by-side. The coordinate cache uses provider namespaces,
+atomic sidecars, content hashes, and POSIX advisory locks. Revalidation never
+downloads or repairs resources:
+
+```bash
+pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
+  --database_root /absolute/shared/nf-genome-to-diffraction/databases \
+  --outdir /absolute/shared/nf-genome-to-diffraction/database-verify \
+  --prepare_pdb_foldseek true \
+  --prepare_pdb_sequences true \
+  --prepare_prostt5 true \
+  --initialise_coordinate_cache true \
+  --verify_only true \
+  --full_verify true
+```
 
 ## Repository layout
 
 - `src/genome_to_diffraction/`: Python infrastructure, contracts, and Phenix
-  boundary; later scientific subsystems remain reserved.
+  boundary plus database preparation; later scientific subsystems remain reserved.
 - `schemas/`: stable draft scientific contracts from the approved handoff.
 - `examples/`: schema and operator-contract examples.
-- `workflows/`, `modules/local/`: typed foundation-only Nextflow wiring.
+- `workflows/`, `modules/local/`: typed Nextflow wiring and process adapters.
 - `conf/`: base, local, Slurm, test, and site-example configuration.
 - `tests/`: unit, contract, integration-scaffold, and workflow checks.
 

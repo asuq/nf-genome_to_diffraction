@@ -41,6 +41,8 @@ platforms = ["linux-64"]
 
 [feature.hpc.dependencies]
 bash = ">=5,<6"
+foldseek = "==10.941cd33"
+mmseqs2 = "==18.8cc5c"
 
 [environments]
 default = ["dev"]
