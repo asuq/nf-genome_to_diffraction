@@ -26,6 +26,15 @@ def test_sha256_file_rejects_non_positive_chunk_size(tmp_path: Path) -> None:
         sha256_file(source, chunk_size=0)
 
 
+def test_sha256_file_can_report_byte_progress(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "progress.bin"
+    source.write_bytes(b"abcdef")
+    sha256_file(source, chunk_size=2, progress=True, description="Digest fixture")
+    assert "Digest fixture" in capsys.readouterr().err
+
+
 def test_atomic_write_text_replaces_existing_file(tmp_path: Path) -> None:
     destination = tmp_path / "nested folder" / "output.txt"
     atomic_write_text(destination, "first")

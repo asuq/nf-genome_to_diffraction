@@ -321,6 +321,8 @@ class PhenixInstallManifest(ContractModel):
 
     schema_version: Literal["1.0"]
     status: Literal["verified", "failed"]
+    requested_release: str | None = None
+    requested_build: str | None = None
     phenix_version: NonEmptyString
     installation_prefix: NonEmptyString
     phenix_env_sh: NonEmptyString
@@ -330,7 +332,31 @@ class PhenixInstallManifest(ContractModel):
     platform: PlatformRecord
     installed_at: UtcTimestamp
     required_commands: tuple[PhenixCommandRecord, ...] = Field(min_length=1)
+    install_log: str | None = None
+    verification_log: str | None = None
+    current_symlink: str | None = None
+    operator_notes: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _verified_runtime_is_complete(self) -> Self:
+        command_names = [command.name for command in self.required_commands]
+        if len(command_names) != len(set(command_names)):
+            raise ValueError("required Phenix command names must be unique")
+        if self.status == "verified":
+            if self.phenix_env_sha256 is None:
+                raise ValueError("verified Phenix manifest requires phenix_env_sha256")
+            failed = [
+                command.name
+                for command in self.required_commands
+                if command.smoke_test_status is not SmokeTestStatus.PASSED
+            ]
+            if failed:
+                raise ValueError(
+                    "verified Phenix manifest contains unverified commands: "
+                    + ", ".join(failed)
+                )
+        return self
 
 
 class RunInputRecord(ContractModel):

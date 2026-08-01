@@ -159,6 +159,19 @@ def test_remote_submission_requires_two_explicit_authorisations() -> None:
     )
 
 
+def test_verified_phenix_manifest_cannot_contain_failed_command(tmp_path: Path) -> None:
+    document = json.loads(
+        (REPOSITORY / "tests/fixtures/stubs/phenix_install_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    document["status"] = "verified"
+    path = tmp_path / "invalid-verified-phenix.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(ContractValidationError, match="smoke_test_status"):
+        load_contract(path, "phenix-install-manifest", progress=False)
+
+
 @pytest.mark.parametrize("kind", contract_kinds())
 def test_generated_contract_schema_is_draft_2020_12(kind: str) -> None:
     schema = contract_json_schema(kind)

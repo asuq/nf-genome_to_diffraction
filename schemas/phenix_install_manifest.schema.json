@@ -15,9 +15,30 @@
     "installed_at",
     "required_commands"
   ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {"status": {"const": "verified"}},
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["phenix_env_sha256"],
+        "properties": {
+          "phenix_env_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "required_commands": {
+            "items": {
+              "properties": {"smoke_test_status": {"const": "passed"}}
+            }
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "schema_version": {"const": "1.0"},
     "status": {"enum": ["verified", "failed"]},
+    "requested_release": {"type": ["string", "null"]},
+    "requested_build": {"type": ["string", "null"]},
     "phenix_version": {"type": "string", "minLength": 1},
     "installation_prefix": {"type": "string", "minLength": 1},
     "phenix_env_sh": {"type": "string", "minLength": 1},
@@ -51,6 +72,10 @@
         }
       }
     },
+    "install_log": {"type": ["string", "null"]},
+    "verification_log": {"type": ["string", "null"]},
+    "current_symlink": {"type": ["string", "null"]},
+    "operator_notes": {"type": "array", "items": {"type": "string"}},
     "warnings": {"type": "array", "items": {"type": "string"}}
   }
 }

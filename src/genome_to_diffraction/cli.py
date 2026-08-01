@@ -11,6 +11,15 @@ from genome_to_diffraction import __version__
 from genome_to_diffraction.checksums import atomic_write_text
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.logging import configure_logging, parse_log_level
+from genome_to_diffraction.phenix.errors import (
+    PhenixError,
+    PhenixInstallCommandError,
+)
+from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
+from genome_to_diffraction.phenix.runtime import (
+    execute_from_manifest,
+    verify_manifest,
+)
 from genome_to_diffraction.schema_check import validate_repository
 from genome_to_diffraction.schemas.io import (
     ContractError,
@@ -91,6 +100,96 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="output path (default: standard output)",
     )
+
+    phenix_parser = subparsers.add_parser(
+        "phenix", help="install, verify, or execute the external Phenix runtime"
+    )
+    phenix_actions = phenix_parser.add_subparsers(dest="phenix_action", required=True)
+    install_parser = phenix_actions.add_parser(
+        "install", help="install a user-supplied Phenix command-line installer"
+    )
+    install_parser.add_argument(
+        "--installer", type=Path, required=True, help="user-supplied installer file"
+    )
+    install_parser.add_argument(
+        "--installer-sha256",
+        required=True,
+        help="expected full SHA-256 of the installer file",
+    )
+    install_parser.add_argument(
+        "--prefix",
+        type=Path,
+        required=True,
+        help="new absolute versioned prefix, such as /opt/phenix-2.1-XXXX",
+    )
+    install_parser.add_argument(
+        "--expected-release",
+        default="2.1",
+        help="required PHENIX_VERSION release family (default: 2.1)",
+    )
+    install_parser.add_argument(
+        "--expected-build", help="optional exact PHENIX_VERSION value"
+    )
+    install_parser.add_argument(
+        "--temp-dir",
+        type=Path,
+        required=True,
+        help="absolute executable temporary directory with at least 25 GiB free",
+    )
+    install_parser.add_argument(
+        "--manifest", type=Path, required=True, help="new manifest output path"
+    )
+    install_parser.add_argument(
+        "--current-link",
+        type=Path,
+        help="optional controlled symlink updated only after verification",
+    )
+    install_parser.add_argument(
+        "--operator-note",
+        action="append",
+        default=[],
+        help="repeatable provenance note stored in the manifest",
+    )
+    install_parser.add_argument(
+        "--minimum-install-free-gb",
+        type=float,
+        default=15.0,
+        help="minimum installation-filesystem free space (default: 15 GiB)",
+    )
+    install_parser.add_argument(
+        "--minimum-temp-free-gb",
+        type=float,
+        default=25.0,
+        help="minimum temporary-filesystem free space (default: 25 GiB)",
+    )
+    install_parser.add_argument(
+        "--allow-home-root",
+        action="store_true",
+        help="allow the home root itself as an administrative target",
+    )
+    install_parser.add_argument(
+        "--command-timeout-seconds",
+        type=float,
+        default=120.0,
+        help="per-command smoke-test timeout (default: 120)",
+    )
+
+    verify_parser = phenix_actions.add_parser(
+        "verify", help="revalidate a recorded Phenix installation manifest"
+    )
+    verify_parser.add_argument("--manifest", type=Path, required=True)
+    verify_parser.add_argument("--verification-log", type=Path)
+    verify_parser.add_argument("--command-timeout-seconds", type=float, default=120.0)
+
+    execute_parser = phenix_actions.add_parser(
+        "exec", help="execute one command in an isolated verified Phenix shell"
+    )
+    execute_parser.add_argument("--manifest", type=Path, required=True)
+    execute_parser.add_argument(
+        "phenix_command",
+        nargs=argparse.REMAINDER,
+        help="exact command and arguments, conventionally after --",
+    )
     return parser
 
 
@@ -129,6 +228,47 @@ def _run_contract(args: argparse.Namespace, logger: logging.Logger) -> int:
     return 0
 
 
+def _run_phenix(args: argparse.Namespace, logger: logging.Logger) -> int:
+    gib = 1024**3
+    if args.phenix_action == "install":
+        request = InstallRequest(
+            installer=args.installer,
+            installer_sha256=args.installer_sha256,
+            installation_prefix=args.prefix,
+            expected_release=args.expected_release,
+            expected_build=args.expected_build,
+            temporary_directory=args.temp_dir,
+            manifest_path=args.manifest,
+            current_symlink=args.current_link,
+            operator_notes=tuple(args.operator_note),
+            minimum_install_free_bytes=int(args.minimum_install_free_gb * gib),
+            minimum_temporary_free_bytes=int(args.minimum_temp_free_gb * gib),
+            allow_home_root=args.allow_home_root,
+            progress=not args.no_progress,
+            command_timeout_seconds=args.command_timeout_seconds,
+        )
+        manifest = install_phenix(request)
+        print(f"Verified Phenix {manifest.phenix_version}: {args.manifest}")
+        return 0
+    if args.phenix_action == "verify":
+        inspection = verify_manifest(
+            args.manifest,
+            progress=not args.no_progress,
+            timeout_seconds=args.command_timeout_seconds,
+            verification_log=args.verification_log,
+        )
+        print(
+            f"Verified Phenix {inspection.phenix_version}: {inspection.phenix_prefix}"
+        )
+        return 0
+    if args.phenix_action == "exec":
+        command = list(args.phenix_command)
+        if command and command[0] == "--":
+            command = command[1:]
+        return execute_from_manifest(args.manifest, command)
+    raise AssertionError(f"unhandled Phenix action: {args.phenix_action}")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
@@ -153,7 +293,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "contract":
             return _run_contract(args, logger)
-    except (ContractError, OSError, ValueError) as error:
+        if args.command == "phenix":
+            return _run_phenix(args, logger)
+    except PhenixInstallCommandError as error:
+        logger.error(
+            "Phenix installer command failed",
+            extra={"error": str(error), "exit_status": error.returncode},
+        )
+        return error.returncode
+    except (ContractError, PhenixError, OSError, ValueError) as error:
         logger.error("command failed", extra={"error": str(error)})
         return 1
     raise AssertionError(f"unhandled command: {args.command}")

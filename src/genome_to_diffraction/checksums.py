@@ -8,19 +8,37 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from tqdm import tqdm
+
 DEFAULT_CHUNK_SIZE = 1024 * 1024
 
 
-def sha256_file(path: Path, *, chunk_size: int = DEFAULT_CHUNK_SIZE) -> str:
-    """Calculate a SHA-256 digest without loading the full file into memory."""
+def sha256_file(
+    path: Path,
+    *,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    progress: bool = False,
+    description: str | None = None,
+) -> str:
+    """Calculate a streaming SHA-256 digest with optional byte progress."""
 
     if chunk_size < 1:
         raise ValueError("chunk_size must be positive")
 
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
+    with (
+        path.open("rb") as handle,
+        tqdm(
+            total=path.stat().st_size,
+            desc=description or f"Checksumming {path.name}",
+            unit="B",
+            unit_scale=True,
+            disable=not progress,
+        ) as progress_bar,
+    ):
         for chunk in iter(lambda: handle.read(chunk_size), b""):
             digest.update(chunk)
+            progress_bar.update(len(chunk))
     return digest.hexdigest()
 
 
