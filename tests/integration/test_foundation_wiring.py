@@ -38,3 +38,69 @@ def test_nextflow_task05_processes_are_typed_and_have_stubs() -> None:
     assert "genome-to-diffraction --no-progress databases prepare" in database_source
     assert "stub:" in database_source
     assert "nextflow.enable.types = true" in database_source
+
+
+@pytest.mark.integration
+def test_project_layout_preparation_is_idempotent_and_space_safe(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "pilot project"
+    command = [
+        str(REPOSITORY / "bootstrap" / "prepare_project_layout.sh"),
+        "--root",
+        str(project_root),
+    ]
+
+    first = subprocess.run(command, check=True, capture_output=True, text=True)
+    second = subprocess.run(command, check=True, capture_output=True, text=True)
+
+    for relative_path in (
+        "input/genome",
+        "input/diffraction",
+        "manifests",
+        "software/manifests",
+        "databases",
+        "cache/nextflow-home",
+        "cache/work",
+        "logs",
+        "results",
+    ):
+        assert (project_root / relative_path).is_dir()
+    assert f"[prepare] project root: {project_root}" in first.stdout
+    assert f"[prepare] project root: {project_root}" in second.stdout
+
+
+@pytest.mark.integration
+def test_project_layout_dry_run_does_not_write(tmp_path: Path) -> None:
+    project_root = tmp_path / "dry run"
+    result = subprocess.run(
+        [
+            str(REPOSITORY / "bootstrap" / "prepare_project_layout.sh"),
+            "--root",
+            str(project_root),
+            "--dry-run",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "[prepare:dry-run]" in result.stdout
+    assert not project_root.exists()
+
+
+@pytest.mark.integration
+def test_project_layout_rejects_relative_root() -> None:
+    result = subprocess.run(
+        [
+            str(REPOSITORY / "bootstrap" / "prepare_project_layout.sh"),
+            "--root",
+            "relative/path",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "--root must be an absolute path" in result.stderr

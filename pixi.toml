@@ -67,4 +67,5 @@ docs-check = "python tests/scripts/check_docs.py"
 actionlint-check = "actionlint .github/workflows/ci.yml"
 nextflow-check = "python tests/scripts/check_nextflow.py --syntax"
 nextflow-stub = "python tests/scripts/check_nextflow.py --stub"
+prepare-project-layout = "bootstrap/prepare_project_layout.sh"
 check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "docs-check", "actionlint-check", "nextflow-check", "nextflow-stub"] }
