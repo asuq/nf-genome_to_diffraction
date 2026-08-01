@@ -38,6 +38,7 @@ __pycache__/
 
 # Logs, editors, and operating systems
 *.log
+!tests/fixtures/**/*.log
 .DS_Store
 .idea/
 .vscode/

@@ -17,6 +17,7 @@ params {
     approved_mr_seeds: Path? = null
     approved_sequence_groups: Path? = null
     profile_mode: String = 'smoke'
+    skip_xtriage: Boolean = false
 }
 
 workflow {
@@ -29,6 +30,7 @@ workflow {
         params.phenix_manifest,
         params.cache_root.toString(),
         params.review_mode,
-        params.profile_mode
+        params.profile_mode,
+        params.skip_xtriage
     )
 }

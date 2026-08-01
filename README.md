@@ -8,10 +8,14 @@ narrow an unidentified prokaryotic crystal to reviewable protein candidates.
 This repository contains the completed foundation, typed data contracts, an
 external Phenix bootstrap/runtime boundary, explicit reference-database
 preparation, and trusted protein-catalogue normalisation. Diffraction processing
-and candidate-search stages are not yet implemented. `main.nf` still fails
-deliberately outside stub mode instead of producing a misleading scientific
-result. Phenix and full database preparation have synthetic/local acceptance
-coverage; real-site validation remains required.
+now implements independent MTZ preflight and candidate-specific Matthews/SDS-PAGE
+hypotheses. Structural search, molecular replacement, refinement, map-based
+sequence assessment, ranking, and final identification are not yet implemented.
+`main.nf` therefore ends with an explicit
+`task05_preflight_complete_downstream_deferred` scope record; its successful exit
+does not mean that a protein identity was found. Phenix and full database
+preparation have synthetic/local acceptance coverage; real-site validation remains
+required.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -104,6 +108,77 @@ boundaries and use `tqdm` for checksumming and protein-level progress. Use
 `--log-format json` for machine-readable debugging or `--no-progress` when a
 scheduler captures non-interactive logs.
 
+## MTZ preflight and Free-R policy
+
+Gemmi independently reads MTZ unit-cell, space-group, resolution, reflection, and
+column metadata. Observation selection prefers an explicit override, then an
+unambiguous intensity/sigma array, then amplitude/sigma. When several arrays are
+present, a documented deterministic label priority may select one with a warning;
+an unresolved tie fails. Map coefficients such as `FWT/PHWT` are never accepted as
+observations.
+
+Normal preflight runs verified `phenix.xtriage` once per crystal through the
+isolated Phenix boundary and preserves its complete log:
+
+```bash
+pixi run genome-to-diffraction diffraction preflight \
+  --crystals /absolute/input/crystal_manifest.json \
+  --phenix-manifest /absolute/software/manifests/phenix.json \
+  --outdir /absolute/results/preflight
+```
+
+`--skip-xtriage` exists for preparation and automated tests only. It always adds
+`xtriage_not_run` and yields `pass_with_review`, never a clean pass. Xtriage
+anisotropy, translational-NCS, twinning, and symmetry concerns are normalised but
+the raw log remains authoritative. A map-only MTZ, ambiguous observation arrays,
+an invalid Free-R override, or incompatible cell/symmetry yields `fail` and stops
+the workflow.
+
+Existing Free-R flags are preserved. Missing flags are reported and are not
+silently generated during preflight. A separate one-time command creates a new
+immutable MTZ derivative through `phenix.reflection_file_converter`, using lattice
+symmetry, an explicit fraction/cap, CNS convention, and a recorded random seed:
+
+```bash
+pixi run genome-to-diffraction diffraction generate-free-r \
+  --source-mtz /absolute/input/without_free_r.mtz \
+  --output-mtz /absolute/input/derived/with_free_r.mtz \
+  --phenix-manifest /absolute/software/manifests/phenix.json \
+  --command-log /absolute/input/derived/free_r.log \
+  --record /absolute/input/derived/free_r_generation.json
+```
+
+The command refuses a source that already has flags, refuses an existing output,
+checks that the source did not change, validates the generated Free-R column, and
+records both MTZ checksums.
+
+## Matthews and SDS-PAGE hypotheses
+
+For candidate mass `M`, copy count `n`, and independently calculated ASU volume
+`V_ASU`, the implementation records `V_M = V_ASU / (n M)` and solvent fraction
+`1 - 1.23 / V_M`. Every configured copy count is retained in JSONL/TSV/Parquet;
+the top configured number (three by default) is marked for downstream use. Mass
+bounds produce corresponding Matthews and solvent bounds rather than a fabricated
+midpoint.
+
+```bash
+pixi run genome-to-diffraction matthews enumerate \
+  --crystals /absolute/input/crystal_manifest.json \
+  --config /absolute/input/config.yaml \
+  --preflight /absolute/results/preflight/mtz_preflight.jsonl \
+  --sequence-groups /absolute/results/catalogue/sequence_groups.jsonl \
+  --source-records /absolute/results/catalogue/source_records.jsonl \
+  --outdir /absolute/results/matthews
+```
+
+The current fast backend is explicitly named
+`broad_solvent_centrality_v1_uncalibrated`: it is a transparent broad physical
+ranking heuristic, not an empirical probability. Real Phenix/Xtriage comparison
+must be completed before treating it as calibrated. SDS-PAGE uses the nearest of
+multiple supplied apparent monomer-mass bands, respects reducing/non-reducing
+context and band roles, and remains a soft label only; it never excludes a
+candidate by itself.
+
 ## External Phenix runtime
 
 Phenix is user-supplied licensed software. The bootstrap does not download it,
@@ -153,17 +228,31 @@ for debugging; an existing versioned installation is never overwritten.
 - `prepare_databases.nf` exposes database-root, output, preparation switches,
   coordinate-cache initialisation, and verify-only inputs.
 
-The safe foundation smoke test is:
+The safe workflow smoke test is:
 
 ```bash
 pixi run nextflow-stub
 ```
 
-Stub execution publishes schema-valid fixture manifests and standard Nextflow
-report, timeline, trace, and DAG files under a disposable `/tmp/...` directory.
-Non-stub `main.nf` runs still fail with an explicit
-`foundation_only_not_implemented` message; non-stub database preparation is
-implemented as the separate administrative workflow below.
+Stub execution publishes schema-valid fixture manifests, catalogue/preflight/
+Matthews records, and standard Nextflow report, timeline, trace, and DAG files
+under a disposable `/tmp/...` directory. A real `main.nf` run executes Tasks 04
+and 05, with Xtriage enabled by default, and publishes `scope/pipeline_scope.json`
+to state that all downstream scientific stages remain deferred. Non-stub database
+preparation is the separate administrative workflow below.
+
+For the implemented partial workflow:
+
+```bash
+pixi run nextflow run main.nf -profile local \
+  --catalogues /absolute/input/catalogue_manifest.json \
+  --crystals /absolute/input/crystal_manifest.json \
+  --config /absolute/input/config.yaml \
+  --database_manifest /absolute/shared/database_manifest.json \
+  --phenix_manifest /absolute/software/manifests/phenix.json \
+  --outdir /absolute/results/task05 \
+  --cache_root /absolute/cache/nf-genome-to-diffraction
+```
 
 ## Reference-database preparation
 
@@ -225,3 +314,16 @@ pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
 
 Generated workflow work directories, results, local environments, logs, and the
 untracked documentation tree are intentionally excluded from Git.
+
+## Method and software references
+
+- Gemmi official documentation: [MTZ/reflection handling](https://gemmi.readthedocs.io/en/stable/hkl.html)
+  and [Matthews coefficient](https://gemmi.readthedocs.io/en/stable/analysis.html).
+- Phenix official documentation: [Xtriage](https://phenix-online.org/download/documentation/cci_apps/xtriage/phenix.xtriage.html)
+  and [reflection-file tools](https://phenix-online.org/version_docs/dev-2486/reference/reflection_file_tools.html).
+- Matthews, B. W. “Solvent content of protein crystals.” *Journal of Molecular
+  Biology* (1968), DOI [10.1016/0022-2836(68)90205-2](https://doi.org/10.1016/0022-2836(68)90205-2).
+- Kantardjieff, K. A. and Rupp, B. “Matthews coefficient probabilities: improved
+  estimates for unit cell contents of proteins, DNA, and protein-nucleic acid
+  complex crystals.” *Protein Science* (2003), DOI
+  [10.1110/ps.0350503](https://doi.org/10.1110/ps.0350503).

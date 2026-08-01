@@ -30,6 +30,11 @@
       "type": "string",
       "enum": ["smoke", "pilot", "extended"],
       "default": "smoke"
+    },
+    "skip_xtriage": {
+      "type": "boolean",
+      "default": false,
+      "description": "Skip Xtriage and force review status; intended only for preparation/tests."
     }
   }
 }

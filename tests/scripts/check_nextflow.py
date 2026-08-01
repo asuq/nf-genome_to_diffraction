@@ -1,12 +1,16 @@
 """Parse and exercise the foundation-only Nextflow entry points."""
 
 import argparse
+import json
 import os
 import subprocess
 import sys
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
+
+import gemmi  # type: ignore[import-untyped]
+import numpy as np
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
@@ -66,18 +70,93 @@ def _assert_files(root: Path, names: set[str]) -> None:
         raise RuntimeError(f"missing outputs under {root}: {sorted(missing)}")
 
 
-def _assert_fail_loud(command: Sequence[str], *, environment: dict[str, str]) -> None:
-    result = _run(command, environment=environment, expected_success=False)
-    combined = f"{result.stdout}\n{result.stderr}"
-    if "foundation_only_not_implemented" not in combined:
-        raise RuntimeError(
-            "non-stub execution failed without the foundation-only diagnostic:\n"
-            f"{combined}"
-        )
+def _write_real_inputs(root: Path) -> Path:
+    """Create tiny local contracts and MTZ for real Task 05 workflow acceptance."""
+
+    inputs = root / "real-inputs"
+    inputs.mkdir()
+    fasta = inputs / "trusted proteins.faa"
+    fasta.write_text(f">protein_a\n{'A' * 50}\n", encoding="utf-8")
+    catalogue_manifest = inputs / "catalogues.json"
+    catalogue_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "catalogues": [
+                    {
+                        "catalogue_id": "test_catalogue",
+                        "proteome_faa": str(fasta),
+                        "annotation_provider": "synthetic trusted fixture",
+                        "annotation_version": "1",
+                        "is_contaminant_catalogue": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    mtz_path = inputs / "integrated intensities.mtz"
+    mtz = gemmi.Mtz(with_base=True)
+    mtz.spacegroup = gemmi.find_spacegroup_by_name("P 21 21 21")
+    mtz.set_cell_for_all(gemmi.UnitCell(50, 50, 50, 90, 90, 90))
+    mtz.add_dataset("synthetic")
+    mtz.add_column("I", "J")
+    mtz.add_column("SIGI", "Q")
+    mtz.add_column("FREE", "I")
+    data = np.asarray(
+        [
+            [index, 1, 1, 1000 + index, 10 + index, 1 if index == 1 else 0]
+            for index in range(1, 11)
+        ],
+        dtype=np.float32,
+    )
+    mtz.set_data(data)
+    mtz.update_reso()
+    mtz.write_to_file(str(mtz_path))
+    crystal_manifest = inputs / "crystals.json"
+    crystal_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "crystals": [
+                    {
+                        "crystal_id": "test_crystal",
+                        "mtz": str(mtz_path),
+                        "catalogue_id": "test_catalogue",
+                        "sds_page_mass_kda": [],
+                        "allow_remote_sequence_submission": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    params = inputs / "params.json"
+    params.write_text(
+        json.dumps(
+            {
+                "catalogues": str(catalogue_manifest),
+                "crystals": str(crystal_manifest),
+                "config": str(REPOSITORY / "examples/config.yaml"),
+                "database_manifest": str(
+                    REPOSITORY / "tests/fixtures/stubs/database_manifest.json"
+                ),
+                "phenix_manifest": str(
+                    REPOSITORY / "tests/fixtures/stubs/phenix_install_manifest.json"
+                ),
+                "review_mode": "prepare",
+                "profile_mode": "smoke",
+                "skip_xtriage": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return params
 
 
 def check_stubs() -> None:
-    """Run both stubs, verify reports/outputs, resume, and fail-loud paths."""
+    """Run both stubs and real Task 05, verify outputs, and exercise resume."""
 
     with tempfile.TemporaryDirectory(
         prefix="nf-genome-to-diffraction-stub-", dir="/tmp"
@@ -111,6 +190,13 @@ def check_stubs() -> None:
                 "pipeline_config.yaml",
                 "database_manifest.json",
                 "phenix_install_manifest.json",
+                "pipeline_scope.json",
+                "sequence_groups.jsonl",
+                "source_records.jsonl",
+                "mtz_preflight.jsonl",
+                "matthews_hypotheses.jsonl",
+                "matthews_hypotheses.parquet",
+                "matthews_report.md",
                 "report.html",
                 "timeline.html",
                 "trace.tsv",
@@ -151,10 +237,44 @@ def check_stubs() -> None:
             },
         )
 
-        _assert_fail_loud(
-            [part for part in main_command if part != "-stub-run"],
-            environment=environment,
+        real_main_out = temporary_root / "main-real-results"
+        real_main_cache = temporary_root / "main-real-cache"
+        real_params = _write_real_inputs(temporary_root)
+        real_main_command = [
+            "nextflow",
+            "run",
+            "main.nf",
+            "-profile",
+            "test",
+            "-params-file",
+            str(real_params),
+            "--outdir",
+            str(real_main_out),
+            "--cache_root",
+            str(real_main_cache),
+        ]
+        _run(real_main_command, environment=environment)
+        _assert_files(
+            real_main_out,
+            {
+                "catalogue_import_manifest.json",
+                "mtz_preflight.jsonl",
+                "preflight_report.md",
+                "matthews_hypotheses.jsonl",
+                "matthews_hypotheses.tsv",
+                "matthews_hypotheses.parquet",
+                "matthews_report.md",
+                "pipeline_scope.json",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
         )
+        real_resumed = _run([*real_main_command, "-resume"], environment=environment)
+        if "cached" not in f"{real_resumed.stdout}\n{real_resumed.stderr}".lower():
+            raise RuntimeError("resumed real Task 05 run did not report cached work")
+
         real_database_command = [
             part for part in database_command if part != "-stub-run"
         ]
@@ -198,7 +318,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (OSError, RuntimeError) as error:
         print(error, file=sys.stderr)
         return 1
-    print("Nextflow foundation check passed.")
+    print("Nextflow workflow check passed.")
     return 0
 
 

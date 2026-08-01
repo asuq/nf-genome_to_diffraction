@@ -90,6 +90,7 @@ def _child_shell(
     *,
     timeout_seconds: float | None,
     capture_output: bool,
+    working_directory: Path | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     """Source exactly one environment file and execute one argument array."""
 
@@ -107,6 +108,7 @@ def _child_shell(
         ],
         check=False,
         capture_output=capture_output,
+        cwd=working_directory,
         env=_clean_child_environment(),
         timeout=timeout_seconds,
     )
@@ -389,3 +391,59 @@ def execute_from_manifest(
         extra={"command": arguments[0], "exit_status": completed.returncode},
     )
     return completed.returncode
+
+
+def capture_from_manifest(
+    manifest_path: Path,
+    arguments: Sequence[str],
+    *,
+    working_directory: Path,
+    timeout_seconds: float,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run a verified recorded Phenix command and capture its byte streams.
+
+    The executable is replaced with the absolute, previously verified path from
+    the manifest. This boundary is used by parsers that must preserve and inspect
+    external-tool logs without modifying the parent Pixi environment.
+    """
+
+    if not arguments:
+        raise ValueError("a Phenix command and optional arguments are required")
+    manifest = validate_manifest_environment(manifest_path)
+    requested = arguments[0]
+    command = next(
+        (record for record in manifest.required_commands if record.name == requested),
+        None,
+    )
+    if command is None or command.smoke_test_status is not SmokeTestStatus.PASSED:
+        raise PhenixRuntimeVerificationError(
+            f"Phenix command is not verified in the manifest: {requested}"
+        )
+    executable = Path(command.path).resolve(strict=True)
+    prefix = Path(manifest.installation_prefix).resolve(strict=True)
+    if not executable.is_file() or not executable.is_relative_to(prefix):
+        raise PhenixRuntimeVerificationError(
+            f"verified Phenix command escapes installation prefix: {requested}"
+        )
+    working_directory.mkdir(parents=True, exist_ok=True)
+    resolved_arguments = [str(executable), *arguments[1:]]
+    _LOGGER.info(
+        "executing captured Phenix command",
+        extra={
+            "command": requested,
+            "arguments": list(arguments[1:]),
+            "working_directory": str(working_directory),
+        },
+    )
+    completed = _child_shell(
+        Path(manifest.phenix_env_sh).resolve(strict=True),
+        resolved_arguments,
+        timeout_seconds=timeout_seconds,
+        capture_output=True,
+        working_directory=working_directory,
+    )
+    _LOGGER.info(
+        "captured Phenix command finished",
+        extra={"command": requested, "exit_status": completed.returncode},
+    )
+    return completed

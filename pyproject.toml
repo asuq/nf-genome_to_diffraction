@@ -13,6 +13,8 @@ authors = [{ name = "Akito Shima" }]
 dependencies = [
   "jsonschema>=4.25,<5",
   "biopython>=1.85,<2",
+  "gemmi>=0.7.3,<0.8",
+  "numpy>=2.3,<3",
   "polars>=1.32,<2",
   "pydantic>=2.11,<3",
   "PyYAML>=6.0,<7",

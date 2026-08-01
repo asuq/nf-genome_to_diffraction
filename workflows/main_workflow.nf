@@ -1,6 +1,9 @@
 nextflow.enable.types = true
 
-include { FOUNDATION_MAIN_STUB } from '../modules/local/foundation_main_stub'
+include { ENUMERATE_MATTHEWS } from '../modules/local/enumerate_matthews'
+include { IMPORT_CATALOGUES } from '../modules/local/import_catalogues'
+include { MTZ_PREFLIGHT } from '../modules/local/mtz_preflight'
+include { VALIDATE_TASK05_INPUTS } from '../modules/local/validate_task05_inputs'
 
 workflow MAIN_WORKFLOW {
     take:
@@ -12,9 +15,10 @@ workflow MAIN_WORKFLOW {
     cache_root: String
     review_mode: String
     profile_mode: String
+    skip_xtriage: Boolean
 
     main:
-    foundation_bundle = FOUNDATION_MAIN_STUB(
+    validation_scope = VALIDATE_TASK05_INPUTS(
         catalogues,
         crystals,
         pipeline_config,
@@ -24,7 +28,27 @@ workflow MAIN_WORKFLOW {
         review_mode,
         profile_mode
     )
+    catalogue_bundle = IMPORT_CATALOGUES(
+        catalogues,
+        pipeline_config,
+        validation_scope
+    )
+    preflight_bundle = MTZ_PREFLIGHT(
+        crystals,
+        phenix_manifest,
+        skip_xtriage,
+        validation_scope
+    )
+    matthews_bundle = ENUMERATE_MATTHEWS(
+        crystals,
+        pipeline_config,
+        preflight_bundle,
+        catalogue_bundle
+    )
 
     emit:
-    bundle: Path = foundation_bundle
+    scope: Path = validation_scope
+    catalogue: Path = catalogue_bundle
+    preflight: Path = preflight_bundle
+    matthews: Path = matthews_bundle
 }

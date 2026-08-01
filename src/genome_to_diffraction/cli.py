@@ -18,8 +18,15 @@ from genome_to_diffraction.databases.prepare import (
     DatabasePreparationRequest,
     prepare,
 )
+from genome_to_diffraction.diffraction import (
+    FreeRGenerationRequest,
+    PreflightRequest,
+    generate_free_r,
+    preflight_crystals,
+)
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.logging import configure_logging, parse_log_level
+from genome_to_diffraction.matthews import MatthewsRequest, enumerate_matthews
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
 from genome_to_diffraction.phenix.runtime import (
@@ -245,6 +252,56 @@ def _build_parser() -> argparse.ArgumentParser:
     import_parser.add_argument(
         "--outdir", type=Path, required=True, help="stable output directory"
     )
+
+    diffraction_parser = subparsers.add_parser(
+        "diffraction", help="inspect crystallographic diffraction inputs"
+    )
+    diffraction_actions = diffraction_parser.add_subparsers(
+        dest="diffraction_action", required=True
+    )
+    preflight_parser = diffraction_actions.add_parser(
+        "preflight", help="inspect MTZ files and optionally run Phenix Xtriage"
+    )
+    preflight_parser.add_argument("--crystals", type=Path, required=True)
+    preflight_parser.add_argument("--phenix-manifest", type=Path)
+    preflight_parser.add_argument("--outdir", type=Path, required=True)
+    preflight_parser.add_argument(
+        "--skip-xtriage",
+        action="store_true",
+        help="skip Xtriage and force pass-with-review (testing/preparation only)",
+    )
+    preflight_parser.add_argument(
+        "--xtriage-timeout-seconds", type=float, default=3600.0
+    )
+    free_r_parser = diffraction_actions.add_parser(
+        "generate-free-r",
+        help="create one immutable Free-R derivative with verified Phenix",
+    )
+    free_r_parser.add_argument("--source-mtz", type=Path, required=True)
+    free_r_parser.add_argument("--output-mtz", type=Path, required=True)
+    free_r_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    free_r_parser.add_argument("--command-log", type=Path, required=True)
+    free_r_parser.add_argument("--record", type=Path, required=True)
+    free_r_parser.add_argument("--test-fraction", type=float, default=0.05)
+    free_r_parser.add_argument("--maximum-free-reflections", type=int, default=2000)
+    free_r_parser.add_argument("--random-seed", type=int, default=20260801)
+    free_r_parser.add_argument("--timeout-seconds", type=float, default=3600.0)
+
+    matthews_parser = subparsers.add_parser(
+        "matthews", help="enumerate candidate-specific ASU copy hypotheses"
+    )
+    matthews_actions = matthews_parser.add_subparsers(
+        dest="matthews_action", required=True
+    )
+    enumerate_parser = matthews_actions.add_parser(
+        "enumerate", help="calculate Matthews and soft SDS-PAGE priors"
+    )
+    enumerate_parser.add_argument("--crystals", type=Path, required=True)
+    enumerate_parser.add_argument("--config", type=Path, required=True)
+    enumerate_parser.add_argument("--preflight", type=Path, required=True)
+    enumerate_parser.add_argument("--sequence-groups", type=Path, required=True)
+    enumerate_parser.add_argument("--source-records", type=Path, required=True)
+    enumerate_parser.add_argument("--outdir", type=Path, required=True)
     return parser
 
 
@@ -369,6 +426,60 @@ def _run_catalogue(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_diffraction(args: argparse.Namespace) -> int:
+    if args.diffraction_action == "generate-free-r":
+        record = generate_free_r(
+            FreeRGenerationRequest(
+                source_mtz=args.source_mtz,
+                output_mtz=args.output_mtz,
+                phenix_manifest=args.phenix_manifest,
+                command_log=args.command_log,
+                record_path=args.record,
+                test_fraction=args.test_fraction,
+                maximum_free_reflections=args.maximum_free_reflections,
+                random_seed=args.random_seed,
+                timeout_seconds=args.timeout_seconds,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Generated immutable Free-R MTZ {record.generation_id}: {args.output_mtz}"
+        )
+        return 0
+    if args.diffraction_action != "preflight":
+        raise AssertionError(f"unhandled diffraction action: {args.diffraction_action}")
+    result = preflight_crystals(
+        PreflightRequest(
+            crystal_manifest=args.crystals,
+            output_directory=args.outdir,
+            phenix_manifest=args.phenix_manifest,
+            skip_xtriage=args.skip_xtriage,
+            progress=not args.no_progress,
+            xtriage_timeout_seconds=args.xtriage_timeout_seconds,
+        )
+    )
+    print(f"Preflighted {len(result.records)} MTZ file(s): {args.outdir}")
+    return 0
+
+
+def _run_matthews(args: argparse.Namespace) -> int:
+    if args.matthews_action != "enumerate":
+        raise AssertionError(f"unhandled Matthews action: {args.matthews_action}")
+    result = enumerate_matthews(
+        MatthewsRequest(
+            crystal_manifest=args.crystals,
+            pipeline_config=args.config,
+            preflight_jsonl=args.preflight,
+            sequence_groups_jsonl=args.sequence_groups,
+            source_records_jsonl=args.source_records,
+            output_directory=args.outdir,
+            progress=not args.no_progress,
+        )
+    )
+    print(f"Enumerated {len(result.hypotheses)} Matthews hypotheses: {args.outdir}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
@@ -399,6 +510,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_databases(args)
         if args.command == "catalogue":
             return _run_catalogue(args)
+        if args.command == "diffraction":
+            return _run_diffraction(args)
+        if args.command == "matthews":
+            return _run_matthews(args)
     except PhenixInstallCommandError as error:
         logger.error(
             "Phenix installer command failed",

@@ -21,6 +21,8 @@ pyyaml = ">=6.0,<7"
 pydantic = ">=2.11,<3"
 tqdm = ">=4.67,<5"
 biopython = ">=1.85,<2"
+gemmi = ">=0.7.3,<0.8"
+numpy = ">=2.3,<3"
 polars = ">=1.32,<2"
 
 [pypi-dependencies]

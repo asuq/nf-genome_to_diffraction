@@ -6,6 +6,7 @@ from enum import StrEnum
 class ExecutionStatus(StrEnum):
     """Normalised execution outcomes for adapters and workflow stages."""
 
+    COMPLETED_SUCCESS = "completed_success"
     COMPLETED_HIT = "completed_hit"
     COMPLETED_NO_HIT = "completed_no_hit"
     COMPLETED_WARNING = "completed_warning"

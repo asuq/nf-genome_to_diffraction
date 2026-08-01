@@ -21,10 +21,14 @@ All notable changes to this project are documented here.
 - Trusted FASTA catalogue normalisation with lossless source provenance, exact
   sequence grouping, explicit residue review policies, molecular-mass bounds,
   GFF3/GenBank/TSV locus adapters, and JSONL/TSV/Parquet registries.
+- Independent Gemmi MTZ inspection, isolated Xtriage parsing, immutable one-time
+  Free-R generation, soft SDS-PAGE features, bounded Matthews calculations, and
+  real resumable Nextflow wiring through the Task 05 boundary.
 
 ### Not implemented
 
-- Diffraction analysis and Matthews calculations.
+- Structural search, model preparation, molecular replacement, refinement,
+  map-based sequence assessment, final ranking, and final scientific reporting.
 - Real-site Phenix/database validation, structural search, and MR.
 
 ## 1.0 - 31 July 2026

@@ -20,6 +20,11 @@ from genome_to_diffraction.schemas.manifests import (
     require_remote_submission_authorisation,
     validate_manifest_references,
 )
+from genome_to_diffraction.schemas.results import (
+    MtzPreflightRecord,
+    SequenceGroupRecord,
+    SourceProteinRecord,
+)
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
@@ -188,3 +193,22 @@ def test_tqdm_progress_can_be_enabled_for_tabular_input(
         progress=True,
     )
     assert "Reading catalogues.tsv" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("filename", "model"),
+    (
+        ("sequence_groups.jsonl", SequenceGroupRecord),
+        ("source_records.jsonl", SourceProteinRecord),
+        ("mtz_preflight.jsonl", MtzPreflightRecord),
+    ),
+)
+def test_task05_stub_jsonl_records_validate(
+    filename: str,
+    model: type[SequenceGroupRecord | SourceProteinRecord | MtzPreflightRecord],
+) -> None:
+    path = REPOSITORY / "tests/fixtures/stubs" / filename
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line]
+    assert lines
+    for line in lines:
+        model.model_validate_json(line)

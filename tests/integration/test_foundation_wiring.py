@@ -1,4 +1,4 @@
-"""Lightweight integration-scaffold tests that do not execute scientific work."""
+"""Lightweight integration checks for typed workflow source wiring."""
 
 import subprocess
 import sys
@@ -22,12 +22,16 @@ def test_module_cli_version() -> None:
 
 
 @pytest.mark.integration
-def test_nextflow_processes_are_fail_loud_and_have_stubs() -> None:
-    main_source = (REPOSITORY / "modules/local/foundation_main_stub.nf").read_text(
-        encoding="utf-8"
-    )
-    assert "foundation_only_not_implemented" in main_source
-    assert "stub:" in main_source
+def test_nextflow_task05_processes_are_typed_and_have_stubs() -> None:
+    for name in (
+        "validate_task05_inputs.nf",
+        "import_catalogues.nf",
+        "mtz_preflight.nf",
+        "enumerate_matthews.nf",
+    ):
+        source = (REPOSITORY / "modules/local" / name).read_text(encoding="utf-8")
+        assert "nextflow.enable.types = true" in source
+        assert "stub:" in source
     database_source = (
         REPOSITORY / "modules/local/prepare_database_resources.nf"
     ).read_text(encoding="utf-8")

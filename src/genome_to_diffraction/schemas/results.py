@@ -5,6 +5,7 @@ scientific interpretation. They contain no external-tool execution logic.
 """
 
 import hashlib
+import math
 from enum import StrEnum
 from typing import Literal, Self
 
@@ -18,7 +19,7 @@ from genome_to_diffraction.schemas.base import (
     Sha256Hex,
     UtcTimestamp,
 )
-from genome_to_diffraction.schemas.manifests import PrototypeProfile
+from genome_to_diffraction.schemas.manifests import PrototypeProfile, SdsPageCondition
 from genome_to_diffraction.status import ExecutionStatus, ScientificStatus
 
 
@@ -179,14 +180,25 @@ class MatthewsHypothesis(ContractModel):
     sequence_mass_lower_da: PositiveFloat | None = None
     sequence_mass_upper_da: PositiveFloat | None = None
     total_mass_da: PositiveFloat | None = None
+    total_mass_lower_da: PositiveFloat | None = None
+    total_mass_upper_da: PositiveFloat | None = None
     v_asu_a3: PositiveFloat
     matthews_coefficient: PositiveFloat | None = None
+    matthews_coefficient_lower: PositiveFloat | None = None
+    matthews_coefficient_upper: PositiveFloat | None = None
     solvent_fraction: float | None = None
+    solvent_fraction_lower: float | None = None
+    solvent_fraction_upper: float | None = None
     matthews_prior: float = Field(ge=0, le=1)
+    prior_backend: NonEmptyString
     rank_within_candidate: PositiveInt
     retained: bool
     physical_status: PhysicalStatus
+    sds_page_nearest_band_kda: PositiveFloat | None = None
+    sds_page_absolute_difference_kda: float | None = Field(default=None, ge=0)
     sds_page_fractional_difference: float | None = Field(default=None, ge=0)
+    sds_page_prior_label: Literal["strong", "compatible", "weak", "unavailable"]
+    sds_page_condition: SdsPageCondition | None = None
     warnings: tuple[str, ...] = ()
 
     @model_validator(mode="after")
@@ -202,8 +214,46 @@ class MatthewsHypothesis(ContractModel):
             self.sequence_mass_lower_da is None or self.sequence_mass_upper_da is None
         ):
             raise ValueError("both mass bounds are required")
-        if self.solvent_fraction is not None and not 0 <= self.solvent_fraction <= 1:
-            raise ValueError("solvent_fraction must be between zero and one")
+        exact_metrics = (
+            self.total_mass_da,
+            self.matthews_coefficient,
+            self.solvent_fraction,
+        )
+        bounded_metrics = (
+            self.total_mass_lower_da,
+            self.total_mass_upper_da,
+            self.matthews_coefficient_lower,
+            self.matthews_coefficient_upper,
+            self.solvent_fraction_lower,
+            self.solvent_fraction_upper,
+        )
+        if exact and any(value is None for value in exact_metrics):
+            raise ValueError("exact sequence mass requires exact Matthews metrics")
+        if exact and any(value is not None for value in bounded_metrics):
+            raise ValueError("exact sequence mass cannot use bounded Matthews metrics")
+        if bounded and any(value is None for value in bounded_metrics):
+            raise ValueError("bounded sequence mass requires bounded Matthews metrics")
+        if bounded and any(value is not None for value in exact_metrics):
+            raise ValueError("bounded sequence mass cannot use exact Matthews metrics")
+        for lower, upper, name in (
+            (
+                self.total_mass_lower_da,
+                self.total_mass_upper_da,
+                "total mass",
+            ),
+            (
+                self.matthews_coefficient_lower,
+                self.matthews_coefficient_upper,
+                "Matthews coefficient",
+            ),
+            (
+                self.solvent_fraction_lower,
+                self.solvent_fraction_upper,
+                "solvent fraction",
+            ),
+        ):
+            if lower is not None and upper is not None and lower > upper:
+                raise ValueError(f"{name} lower bound must not exceed upper bound")
         return self
 
 
@@ -213,6 +263,22 @@ class PreflightDecision(StrEnum):
     PASS = "pass"
     PASS_WITH_REVIEW = "pass_with_review"
     FAIL = "fail"
+
+
+class AssessmentStatus(StrEnum):
+    """Normalised Xtriage assessment when a condition can be detected."""
+
+    NOT_ASSESSED = "not_assessed"
+    NOT_DETECTED = "not_detected"
+    SUSPECTED = "suspected"
+
+
+class MtzColumnRecord(ContractModel):
+    """One independently inspected MTZ column."""
+
+    label: NonEmptyString
+    type_code: NonEmptyString
+    dataset_id: int = Field(ge=0)
 
 
 class MtzPreflightRecord(ContractModel):
@@ -241,11 +307,58 @@ class MtzPreflightRecord(ContractModel):
     resolution_low_a: PositiveFloat
     resolution_high_a: PositiveFloat
     reflection_count: int = Field(ge=0)
+    available_columns: tuple[MtzColumnRecord, ...] = ()
+    observation_candidates: tuple[str, ...] = ()
+    completeness: float | None = Field(default=None, ge=0, le=1)
+    mean_i_over_sigma: float | None = None
+    anisotropy_status: AssessmentStatus = AssessmentStatus.NOT_ASSESSED
+    tncs_status: AssessmentStatus = AssessmentStatus.NOT_ASSESSED
+    twinning_status: AssessmentStatus = AssessmentStatus.NOT_ASSESSED
+    symmetry_status: AssessmentStatus = AssessmentStatus.NOT_ASSESSED
     xtriage_version: str | None = None
     xtriage_command: tuple[str, ...] = ()
+    xtriage_log: str | None = None
+    xtriage_summary: dict[str, JsonValue] = Field(default_factory=dict)
     decision: PreflightDecision
     warning_codes: tuple[str, ...] = ()
     execution_status: ExecutionStatus
+
+    @model_validator(mode="after")
+    def _validate_geometry_and_decision(self) -> Self:
+        expected_asu = self.cell_volume_a3 / self.general_position_multiplicity
+        if not math.isclose(
+            self.asu_volume_a3, expected_asu, rel_tol=1e-8, abs_tol=1e-6
+        ):
+            raise ValueError("asu_volume_a3 does not match cell volume/multiplicity")
+        if self.resolution_high_a > self.resolution_low_a:
+            raise ValueError("resolution_high_a must not exceed resolution_low_a")
+        if self.decision is PreflightDecision.PASS and (
+            self.selected_observation_labels is None
+            or self.selected_observation_type is None
+        ):
+            raise ValueError("pass decision requires selected observations")
+        return self
+
+
+class FreeRGenerationRecord(ContractModel):
+    """One immutable, dedicated Phenix Free-R generation operation."""
+
+    schema_version: Literal["1.0"]
+    generation_id: NonEmptyString
+    source_mtz_path: NonEmptyString
+    source_mtz_sha256: Sha256Hex
+    output_mtz_path: NonEmptyString
+    output_mtz_sha256: Sha256Hex
+    free_flag_labels: NonEmptyString
+    test_fraction: float = Field(gt=0, lt=1)
+    maximum_free_reflections: PositiveInt
+    random_seed: PositiveInt
+    use_lattice_symmetry: bool
+    flag_convention: Literal["cns"]
+    phenix_manifest_sha256: Sha256Hex
+    command: tuple[str, ...] = Field(min_length=1)
+    command_log: NonEmptyString
+    generated_at: UtcTimestamp
 
 
 class MrSearchStage(StrEnum):

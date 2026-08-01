@@ -25,6 +25,7 @@ from genome_to_diffraction.schemas.manifests import (
 )
 from genome_to_diffraction.schemas.results import (
     CoordinateSourceRecord,
+    FreeRGenerationRecord,
     MatthewsHypothesis,
     MrHypothesis,
     MtzPreflightRecord,
@@ -206,6 +207,7 @@ CONTRACTS: dict[str, ContractSpec] = {
     "source-protein": ContractSpec(SourceProteinRecord),
     "structural-hit": ContractSpec(StructuralSearchHit),
     "coordinate-source": ContractSpec(CoordinateSourceRecord),
+    "free-r-generation": ContractSpec(FreeRGenerationRecord),
     "processed-model": ContractSpec(ProcessedModelRecord),
     "mtz-preflight": ContractSpec(MtzPreflightRecord),
     "matthews-hypothesis": ContractSpec(MatthewsHypothesis),
