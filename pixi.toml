@@ -18,9 +18,12 @@ nextflow = "==26.04.6"
 openjdk = "21.*"
 jsonschema = ">=4.25,<5"
 pyyaml = ">=6.0,<7"
+pydantic = ">=2.11,<3"
+tqdm = ">=4.67,<5"
 
 [pypi-dependencies]
 nf-genome-to-diffraction = { path = ".", editable = true }
+rfc8785 = ">=0.1,<1"
 
 [feature.dev.dependencies]
 pytest = ">=8.4,<9"
@@ -31,6 +34,7 @@ actionlint = ">=1.7,<2"
 [feature.dev.pypi-dependencies]
 types-jsonschema = ">=4.25,<5"
 types-pyyaml = ">=6.0,<7"
+types-tqdm = ">=4.67,<5"
 
 [feature.hpc]
 platforms = ["linux-64"]

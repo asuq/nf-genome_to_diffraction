@@ -10,6 +10,13 @@ import yaml
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
 
+from genome_to_diffraction.schemas.io import ContractError, load_contract
+from genome_to_diffraction.schemas.manifests import (
+    CatalogueManifest,
+    CrystalManifest,
+    validate_manifest_references,
+)
+
 _FIXTURE_MAP = {
     "catalogue_manifest.schema.json": Path("examples/catalogue_manifest.json"),
     "crystal_manifest.schema.json": Path("examples/crystal_manifest.json"),
@@ -32,6 +39,25 @@ _REVIEW_COLUMNS = (
     "reviewed_at",
     "comment",
     "override_reason",
+)
+
+_TYPED_FIXTURES = (
+    ("catalogue-manifest", Path("examples/catalogue_manifest.json")),
+    ("catalogue-manifest", Path("examples/catalogues.tsv")),
+    ("crystal-manifest", Path("examples/crystal_manifest.json")),
+    ("crystal-manifest", Path("examples/crystals.tsv")),
+    ("pipeline-config", Path("examples/config.yaml")),
+    ("database-manifest", Path("tests/fixtures/stubs/database_manifest.json")),
+    (
+        "phenix-install-manifest",
+        Path("tests/fixtures/stubs/phenix_install_manifest.json"),
+    ),
+    ("mr-hypothesis", Path("tests/fixtures/stubs/mr_hypothesis.json")),
+    ("review-decisions", Path("examples/approvals/approved_mr_seeds.tsv")),
+    (
+        "review-decisions",
+        Path("examples/approvals/approved_sequence_groups.tsv"),
+    ),
 )
 
 
@@ -124,4 +150,29 @@ def validate_repository(repository: Path) -> list[str]:
         errors.append(f"{nextflow_schema_path}: invalid schema: {error}")
 
     errors.extend(_validate_review_tsvs(repository))
+
+    typed_models: dict[str, list[Any]] = {}
+    for kind, relative_path in _TYPED_FIXTURES:
+        fixture_path = repository / relative_path
+        try:
+            model = load_contract(fixture_path, kind, progress=False)
+        except ContractError as error:
+            errors.append(
+                f"{fixture_path}: application-model validation failed: {error}"
+            )
+            continue
+        typed_models.setdefault(kind, []).append(model)
+
+    catalogue_models = typed_models.get("catalogue-manifest", [])
+    crystal_models = typed_models.get("crystal-manifest", [])
+    if catalogue_models and crystal_models:
+        catalogue = catalogue_models[0]
+        crystal = crystal_models[0]
+        if isinstance(catalogue, CatalogueManifest) and isinstance(
+            crystal, CrystalManifest
+        ):
+            try:
+                validate_manifest_references(catalogue, crystal)
+            except ValueError as error:
+                errors.append(f"manifest cross-reference validation failed: {error}")
     return errors

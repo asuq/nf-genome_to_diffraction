@@ -3,7 +3,7 @@
 import json
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 _STANDARD_ATTRIBUTES = frozenset(
     {
@@ -57,16 +57,52 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=True, sort_keys=True, default=str)
 
 
+class HumanFormatter(logging.Formatter):
+    """Render concise progress logs while retaining structured context."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format a record and append non-standard fields as key-value pairs."""
+
+        context = {
+            key: value
+            for key, value in record.__dict__.items()
+            if key not in _STANDARD_ATTRIBUTES and not key.startswith("_")
+        }
+        suffix = " ".join(f"{key}={value}" for key, value in sorted(context.items()))
+        message = f"{record.levelname.lower()}: {record.getMessage()}"
+        if suffix:
+            message = f"{message} [{suffix}]"
+        if record.exc_info:
+            message = f"{message}\n{self.formatException(record.exc_info)}"
+        return message
+
+
 def configure_logging(
-    *, level: int = logging.INFO, logger_name: str = "genome_to_diffraction"
+    *,
+    level: int = logging.INFO,
+    logger_name: str = "genome_to_diffraction",
+    log_format: Literal["json", "human"] = "json",
 ) -> logging.Logger:
     """Configure and return an isolated package logger."""
 
     logger = logging.getLogger(logger_name)
     logger.handlers.clear()
     handler = logging.StreamHandler()
-    handler.setFormatter(JsonFormatter())
+    formatter: logging.Formatter = (
+        JsonFormatter() if log_format == "json" else HumanFormatter()
+    )
+    handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(level)
     logger.propagate = False
     return logger
+
+
+def parse_log_level(value: str) -> int:
+    """Convert a CLI log-level name to a logging level."""
+
+    level = logging.getLevelNamesMapping().get(value.upper())
+    if level is None:
+        choices = ", ".join(("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"))
+        raise ValueError(f"unknown log level {value!r}; choose one of {choices}")
+    return level

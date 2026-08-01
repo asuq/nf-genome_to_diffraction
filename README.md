@@ -55,10 +55,16 @@ input data.
 ```bash
 genome-to-diffraction --version
 genome-to-diffraction schema-check
+genome-to-diffraction contract validate catalogue-manifest examples/catalogues.tsv
+genome-to-diffraction contract canonicalise pipeline-config examples/config.yaml
+genome-to-diffraction contract schema sequence-group
 ```
 
 `schema-check` validates every tracked JSON Schema against Draft 2020-12,
-validates the supplied JSON/YAML fixtures, and checks the review TSV contracts.
+validates the supplied JSON/YAML/TSV fixtures against both JSON Schema and the
+typed application models, and checks cross-manifest references. Contract commands
+log progress and diagnostics to standard error; use `--log-format json` for
+structured logs and `--no-progress` for non-interactive execution.
 
 ## Nextflow entry points
 

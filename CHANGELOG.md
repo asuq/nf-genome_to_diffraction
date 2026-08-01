@@ -11,6 +11,9 @@ All notable changes to this project are documented here.
 - Typed, fail-loud Nextflow entry-point stubs.
 - Python logging, status, checksum, atomic-write, and schema-checking utilities.
 - Unit, contract, integration-scaffold, documentation, and CI checks.
+- Strict typed models for approved manifests and downstream result contracts.
+- RFC 8785 canonical serialisation, content-derived IDs, and JSON/YAML/TSV
+  contract commands with structured logging and optional progress reporting.
 
 ### Not implemented
 

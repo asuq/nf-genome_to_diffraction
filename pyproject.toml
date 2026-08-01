@@ -12,7 +12,10 @@ license = "BSD-3-Clause"
 authors = [{ name = "Akito Shima" }]
 dependencies = [
   "jsonschema>=4.25,<5",
+  "pydantic>=2.11,<3",
   "PyYAML>=6.0,<7",
+  "rfc8785>=0.1,<1",
+  "tqdm>=4.67,<5",
 ]
 
 [project.scripts]
