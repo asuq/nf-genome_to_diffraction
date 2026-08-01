@@ -26,3 +26,23 @@ def test_remote_sequence_submission_defaults_off() -> None:
         encoding="utf-8"
     )
     assert '"allow_remote_sequence_submission": false' in crystal
+
+
+def test_nf_helper_submodule_exposes_marmic_profile() -> None:
+    gitmodules = (REPOSITORY / ".gitmodules").read_text(encoding="utf-8")
+    assert "path = external/nf-helper" in gitmodules
+    assert "url = https://github.com/asuq/nf-helper.git" in gitmodules
+    assert "branch = main" in gitmodules
+
+    wrapper = (REPOSITORY / "conf" / "marmic.config").read_text(encoding="utf-8")
+    assert "external/nf-helper/conf/sites/marmic.config" in wrapper
+
+    nextflow_config = (REPOSITORY / "nextflow.config").read_text(encoding="utf-8")
+    assert "includeConfig 'conf/marmic.config'" in nextflow_config
+
+    site_profile = (
+        REPOSITORY / "external" / "nf-helper" / "conf" / "sites" / "marmic.config"
+    ).read_text(encoding="utf-8")
+    assert "marmic {" in site_profile
+    assert "executor = 'slurm'" in site_profile
+    assert "clusterOptions = '--export=ALL'" in site_profile
