@@ -15,6 +15,7 @@ from pydantic import BaseModel, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.schemas.manifests import (
+    CatalogueImportManifest,
     CatalogueManifest,
     CrystalManifest,
     DatabaseManifest,
@@ -182,6 +183,7 @@ def _review_tsv(rows: Iterator[tuple[int, dict[str, str]]], path: Path) -> objec
 
 
 CONTRACTS: dict[str, ContractSpec] = {
+    "catalogue-import-manifest": ContractSpec(CatalogueImportManifest),
     "catalogue-manifest": ContractSpec(
         CatalogueManifest, "catalogue_manifest.schema.json", _catalogue_tsv
     ),

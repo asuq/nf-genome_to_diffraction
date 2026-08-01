@@ -6,11 +6,12 @@ narrow an unidentified prokaryotic crystal to reviewable protein candidates.
 ## Current status
 
 This repository contains the completed foundation, typed data contracts, an
-external Phenix bootstrap/runtime boundary, and explicit reference-database
-preparation. Scientific catalogue and diffraction processing are not yet
-implemented. `main.nf` still fails deliberately outside stub mode instead of
-producing a misleading scientific result. Phenix and full database preparation
-have synthetic/local acceptance coverage; real-site validation remains required.
+external Phenix bootstrap/runtime boundary, explicit reference-database
+preparation, and trusted protein-catalogue normalisation. Diffraction processing
+and candidate-search stages are not yet implemented. `main.nf` still fails
+deliberately outside stub mode instead of producing a misleading scientific
+result. Phenix and full database preparation have synthetic/local acceptance
+coverage; real-site validation remains required.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -66,6 +67,42 @@ validates the supplied JSON/YAML/TSV fixtures against both JSON Schema and the
 typed application models, and checks cross-manifest references. Contract commands
 log progress and diagnostics to standard error; use `--log-format json` for
 structured logs and `--no-progress` for non-interactive execution.
+
+## Trusted catalogue import
+
+Catalogue import accepts one or more already trusted protein FASTA catalogues;
+it does not predict genes, combine competing annotations, or infer taxonomy.
+Relative input paths are resolved against the catalogue manifest. Every declared
+input is checksummed, and every original FASTA record is retained even when its
+amino-acid sequence is an exact duplicate of another record.
+
+```bash
+pixi run genome-to-diffraction catalogue import \
+  --catalogues /absolute/input/catalogue_manifest.json \
+  --config /absolute/input/config.yaml \
+  --outdir /absolute/results/catalogue
+```
+
+The output contains canonical exact-sequence FASTA, sequence-group and
+source-record registries in JSONL/TSV/Parquet, a group-to-source mapping, and a
+checksummed import manifest. Optional locus metadata can come from a provider's
+GFF3, GenBank flat file, or explicit TSV mapping; conflicting mappings fail.
+Duplicate protein identifiers are flagged rather than overwritten.
+
+Sequences are uppercased and whitespace is removed. A terminal stop is removed
+only when configured and the transformation is recorded; internal stops remain
+visible, have no molecular mass, and are excluded from the search FASTA. Exact
+sequence groups use full SHA-256 identities. Average neutral polypeptide mass,
+including terminal water, is calculated by the locked Biopython version.
+`B/Z/J/X` produce defensible IUPAC mass bounds rather than an invented exact
+mass. Chemically defined `U/O` retain exact masses but are marked for downstream
+review because tool support varies. The configured `warn`, `exclude`, or `error`
+policy controls all such review residues.
+
+Python modules emit contextual logging at file, catalogue, and completion
+boundaries and use `tqdm` for checksumming and protein-level progress. Use
+`--log-format json` for machine-readable debugging or `--no-progress` when a
+scheduler captures non-interactive logs.
 
 ## External Phenix runtime
 
@@ -177,8 +214,9 @@ pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
 
 ## Repository layout
 
-- `src/genome_to_diffraction/`: Python infrastructure, contracts, and Phenix
-  boundary plus database preparation; later scientific subsystems remain reserved.
+- `src/genome_to_diffraction/`: Python infrastructure, contracts, Phenix and
+  database boundaries, and trusted catalogue normalisation; later scientific
+  subsystems remain reserved.
 - `schemas/`: stable draft scientific contracts from the approved handoff.
 - `examples/`: schema and operator-contract examples.
 - `workflows/`, `modules/local/`: typed Nextflow wiring and process adapters.

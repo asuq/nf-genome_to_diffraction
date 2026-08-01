@@ -80,6 +80,7 @@ class SourceProteinRecord(ContractModel):
     gene_name: str | None = None
     product: str | None = None
     source_annotation_provider: NonEmptyString
+    quality_flags: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def _ordered_coordinates(self) -> Self:

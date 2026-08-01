@@ -20,6 +20,8 @@ jsonschema = ">=4.25,<5"
 pyyaml = ">=6.0,<7"
 pydantic = ">=2.11,<3"
 tqdm = ">=4.67,<5"
+biopython = ">=1.85,<2"
+polars = ">=1.32,<2"
 
 [pypi-dependencies]
 nf-genome-to-diffraction = { path = ".", editable = true }

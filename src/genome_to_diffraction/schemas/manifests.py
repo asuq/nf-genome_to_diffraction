@@ -367,6 +367,51 @@ class RunInputRecord(ContractModel):
     sha256: Sha256Hex
 
 
+class CatalogueInputRecord(ContractModel):
+    """Resolved catalogue input retained in the import provenance."""
+
+    catalogue_id: NonEmptyString
+    role: NonEmptyString
+    path: NonEmptyString
+    sha256: Sha256Hex
+
+
+class OutputArtifactRecord(ContractModel):
+    """One checksummed stable output from catalogue normalisation."""
+
+    role: NonEmptyString
+    path: NonEmptyString
+    size_bytes: int = Field(ge=0)
+    sha256: Sha256Hex
+
+
+class CatalogueImportManifest(ContractModel):
+    """Immutable provenance and output inventory for a catalogue import."""
+
+    schema_version: Literal["1.0"]
+    import_id: NonEmptyString
+    created_at: UtcTimestamp
+    software_version: NonEmptyString
+    catalogue_ids: tuple[NonEmptyString, ...] = Field(min_length=1)
+    catalogue_manifest_sha256: Sha256Hex
+    pipeline_config_sha256: Sha256Hex
+    inputs: tuple[CatalogueInputRecord, ...] = Field(min_length=1)
+    outputs: tuple[OutputArtifactRecord, ...] = Field(min_length=1)
+    source_record_count: PositiveInt
+    sequence_group_count: PositiveInt
+    warning_count: int = Field(ge=0)
+    warnings: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _unique_catalogues_and_outputs(self) -> Self:
+        if len(self.catalogue_ids) != len(set(self.catalogue_ids)):
+            raise ValueError("catalogue_ids must be unique")
+        roles = [output.role for output in self.outputs]
+        if len(roles) != len(set(roles)):
+            raise ValueError("catalogue output roles must be unique")
+        return self
+
+
 class RunManifest(ContractModel):
     """Immutable resolved run identity and its versioned dependencies."""
 

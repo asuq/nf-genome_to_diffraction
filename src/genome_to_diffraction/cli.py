@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import cast
 
 from genome_to_diffraction import __version__
+from genome_to_diffraction.catalogue import CatalogueImportRequest, import_catalogues
 from genome_to_diffraction.checksums import atomic_write_text
 from genome_to_diffraction.databases.prepare import (
     DEFAULT_MINIMUM_FREE_BYTES,
@@ -225,6 +226,25 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     prepare_parser.add_argument("--pdb-sequence-url", default=PDB_SEQUENCE_URL)
     prepare_parser.add_argument("--esm-atlas-probe-url", default=ESM_ATLAS_PROBE_URL)
+
+    catalogue_parser = subparsers.add_parser(
+        "catalogue", help="normalise trusted protein catalogues"
+    )
+    catalogue_actions = catalogue_parser.add_subparsers(
+        dest="catalogue_action", required=True
+    )
+    import_parser = catalogue_actions.add_parser(
+        "import", help="import, deduplicate, and inventory trusted catalogues"
+    )
+    import_parser.add_argument(
+        "--catalogues", type=Path, required=True, help="catalogue manifest"
+    )
+    import_parser.add_argument(
+        "--config", type=Path, required=True, help="pipeline configuration"
+    )
+    import_parser.add_argument(
+        "--outdir", type=Path, required=True, help="stable output directory"
+    )
     return parser
 
 
@@ -331,6 +351,24 @@ def _run_databases(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_catalogue(args: argparse.Namespace) -> int:
+    if args.catalogue_action != "import":
+        raise AssertionError(f"unhandled catalogue action: {args.catalogue_action}")
+    result = import_catalogues(
+        CatalogueImportRequest(
+            catalogue_manifest=args.catalogues,
+            pipeline_config=args.config,
+            output_directory=args.outdir,
+            progress=not args.no_progress,
+        )
+    )
+    print(
+        f"Imported {result.manifest.source_record_count} source proteins into "
+        f"{result.manifest.sequence_group_count} exact sequence groups: {args.outdir}"
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
@@ -359,6 +397,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_phenix(args, logger)
         if args.command == "databases":
             return _run_databases(args)
+        if args.command == "catalogue":
+            return _run_catalogue(args)
     except PhenixInstallCommandError as error:
         logger.error(
             "Phenix installer command failed",
