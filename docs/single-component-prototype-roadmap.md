@@ -1,13 +1,14 @@
-# Full-development roadmap
+# Single-component prototype roadmap
 
 ## Purpose and definition of completion
 
 This roadmap carries `nf-genome_to_diffraction` from its validated Task 05
-boundary to a complete, human-reviewed internal research pipeline. It translates
-the separately retained approved handoff into an actionable sequence based on
-the implementation and Marmic evidence available on 2 August 2026.
+boundary to a complete, human-reviewed single-component research pipeline under
+the model `ASU = nA`. It translates the separately retained approved handoff into
+an actionable sequence based on the implementation and Marmic evidence available
+on 2 August 2026.
 
-For this roadmap, **full development** means:
+Completion of this roadmap means:
 
 1. completing the approved single-protein-species model `ASU = nA`;
 2. passing the handoff's prototype 0.1 and 0.2 acceptance gates;
@@ -22,6 +23,11 @@ alternative-space-group branching, special-position enumeration, local
 ESMAtlas30, or Rust. Those remain gated post-prototype programmes. The roadmap
 does not change the scientific semantics in [`AGENTS.md`](../AGENTS.md), the
 schemas, or the examples.
+
+The separate [full-program roadmap](full-program-roadmap.md) shows how this
+single-component release becomes the prerequisite for heteromer support,
+advanced crystallographic/assembly analysis, calibrated automation, and the
+final research platform.
 
 ## Scientific endpoint
 
@@ -501,7 +507,7 @@ become a general source-deployment or arbitrary SSH facility.
 | Identity/locus corruption | Scientifically wrong report | Exact sequence digests, lossless source mappings, round-trip and duplicate-locus tests |
 | Licence/privacy leakage | Legal or confidentiality incident | Data outside Git, provenance/licence inventory, no credential or raw-response logging |
 
-## Post-prototype scope gates
+## Handoff to the full programme
 
 The following work starts only after prototype 0.2, independent validation,
 resource measurement, and an explicit user-approved scope document:

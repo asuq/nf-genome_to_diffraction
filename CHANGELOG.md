@@ -31,10 +31,9 @@ All notable changes to this project are documented here.
 - Repository-specific immutable-commit Marmic smoke testing with a fixed Slurm
   profile, owner-bound job control, structured failure records, bounded
   `logging`/`tqdm` feedback, and approval-gated cleanup.
-- Full-development roadmap from the validated Task 05 boundary through real-site
-  qualification, structural discovery, molecular replacement, sequence
-  narrowing, pilot calibration, independent validation, and a gated internal
-  research release.
+- Paired single-component and full-program roadmaps that distinguish the active
+  `ASU = nA` prototype from later heteromer search, advanced crystallographic and
+  assembly support, calibrated automation, and final platform development.
 
 ### Not implemented
 
