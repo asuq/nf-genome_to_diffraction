@@ -36,6 +36,8 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
 
     wrapper = (REPOSITORY / "conf" / "marmic.config").read_text(encoding="utf-8")
     assert "external/nf-helper/conf/sites/marmic.config" in wrapper
+    assert "beforeScript" in wrapper
+    assert ".pixi/envs/hpc/bin" in wrapper
 
     nextflow_config = (REPOSITORY / "nextflow.config").read_text(encoding="utf-8")
     assert "includeConfig 'conf/marmic.config'" in nextflow_config
