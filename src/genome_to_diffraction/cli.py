@@ -29,6 +29,10 @@ from genome_to_diffraction.logging import configure_logging, parse_log_level
 from genome_to_diffraction.matthews import MatthewsRequest, enumerate_matthews
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
+from genome_to_diffraction.phenix.recovery import (
+    RecoveryRequest,
+    recover_failed_install,
+)
 from genome_to_diffraction.phenix.runtime import (
     execute_from_manifest,
     verify_manifest,
@@ -194,6 +198,20 @@ def _build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--manifest", type=Path, required=True)
     verify_parser.add_argument("--verification-log", type=Path)
     verify_parser.add_argument("--command-timeout-seconds", type=float, default=120.0)
+
+    recover_parser = phenix_actions.add_parser(
+        "recover-failed",
+        help="requalify one exact installer-preserved failed Phenix tree",
+    )
+    recover_parser.add_argument("--failed-prefix", type=Path, required=True)
+    recover_parser.add_argument("--prefix", type=Path, required=True)
+    recover_parser.add_argument("--failed-manifest", type=Path, required=True)
+    recover_parser.add_argument("--failed-manifest-sha256", required=True)
+    recover_parser.add_argument("--manifest", type=Path, required=True)
+    recover_parser.add_argument("--expected-release", default="2.1")
+    recover_parser.add_argument("--expected-build", required=True)
+    recover_parser.add_argument("--current-link", type=Path, required=True)
+    recover_parser.add_argument("--command-timeout-seconds", type=float, default=120.0)
 
     execute_parser = phenix_actions.add_parser(
         "exec", help="execute one command in an isolated verified Phenix shell"
@@ -372,6 +390,23 @@ def _run_phenix(args: argparse.Namespace, logger: logging.Logger) -> int:
         print(
             f"Verified Phenix {inspection.phenix_version}: {inspection.phenix_prefix}"
         )
+        return 0
+    if args.phenix_action == "recover-failed":
+        manifest = recover_failed_install(
+            RecoveryRequest(
+                failed_prefix=args.failed_prefix,
+                installation_prefix=args.prefix,
+                failed_manifest=args.failed_manifest,
+                failed_manifest_sha256=args.failed_manifest_sha256,
+                recovered_manifest=args.manifest,
+                expected_release=args.expected_release,
+                expected_build=args.expected_build,
+                current_symlink=args.current_link,
+                progress=not args.no_progress,
+                command_timeout_seconds=args.command_timeout_seconds,
+            )
+        )
+        print(f"Recovered Phenix {manifest.phenix_version}: {args.manifest}")
         return 0
     if args.phenix_action == "exec":
         command = list(args.phenix_command)

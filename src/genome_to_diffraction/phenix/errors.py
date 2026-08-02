@@ -26,6 +26,10 @@ class PhenixInstallationExistsError(PhenixError):
     """A versioned installation or manifest already exists."""
 
 
+class PhenixRecoveryError(PhenixError):
+    """A preserved failed installation could not be safely requalified."""
+
+
 class PhenixRuntimeVerificationError(PhenixError):
     """An installed Phenix runtime failed environment or command checks."""
 

@@ -26,7 +26,31 @@ from genome_to_diffraction.phenix.runtime import (
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
-def _write_installer(path: Path, *, exit_status: int = 0) -> str:
+def _write_installer(
+    path: Path,
+    *,
+    exit_status: int = 0,
+    xtriage_probe: str = "valid",
+) -> str:
+    xtriage_probe_body = {
+        "valid": (
+            "      printf 'Usage:\\n'\n"
+            "      printf 'phenix.xtriage [options] reflection_file "
+            "parameters [...]\\n'\n"
+            "      exit 1"
+        ),
+        "missing_signature": (
+            "      printf 'generic help without a command signature\\n'\n      exit 1"
+        ),
+        "traceback": (
+            "      printf 'Usage:\\n'\n"
+            "      printf 'phenix.xtriage [options] reflection_file "
+            "parameters [...]\\n'\n"
+            "      printf 'Traceback (most recent call last):\\n' >&2\n"
+            "      printf 'ImportError: broken runtime\\n' >&2\n"
+            "      exit 1"
+        ),
+    }[xtriage_probe]
     commands = " ".join(REQUIRED_COMMANDS)
     script = f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -46,8 +70,25 @@ for command in {commands}; do
   cat > "$prefix/bin/$command" <<'COMMAND'
 #!/usr/bin/env bash
 if [[ "${{1-}}" == "--help" ]]; then
-  printf 'fake Phenix help\n'
-  exit 0
+  case "${{0##*/}}" in
+    phenix.xtriage)
+{xtriage_probe_body}
+      ;;
+    phenix.phaser)
+      printf 'Usage:\n'
+      printf 'phenix.phaser is a multi-function command:\n'
+      printf 'it can launch either mode.\n'
+      exit 1
+      ;;
+    phenix.maps)
+      printf 'phenix.maps: a command line tool to compute various maps and save them.\n'
+      exit 1
+      ;;
+    *)
+      printf 'fake Phenix help\n'
+      exit 0
+      ;;
+  esac
 fi
 printf '%s\n' "$@"
 COMMAND
@@ -137,6 +178,47 @@ def test_mocked_installer_writes_verified_schema_valid_manifest(
     assert json.loads(request.manifest_path.read_text(encoding="utf-8"))["status"] == (
         "verified"
     )
+    verification_log = request.manifest_path.with_suffix(".verify.log").read_text(
+        encoding="utf-8"
+    )
+    assert verification_log.count('probe_args=["--help"]') == len(REQUIRED_COMMANDS)
+    assert verification_log.count("exit=1") == 3
+    assert (
+        verification_log.count(
+            "reason=accepted command-specific non-zero help convention"
+        )
+        == 3
+    )
+
+
+@pytest.mark.parametrize("xtriage_probe", ["missing_signature", "traceback"])
+def test_nonzero_probe_requires_valid_help_without_runtime_failures(
+    tmp_path: Path,
+    xtriage_probe: str,
+) -> None:
+    installer = tmp_path / "phenix installer.sh"
+    digest = _write_installer(installer, xtriage_probe=xtriage_probe)
+    request = _request(tmp_path, installer, digest)
+
+    with pytest.raises(
+        PhenixRuntimeVerificationError,
+        match=r"required Phenix commands failed verification: phenix\.xtriage",
+    ):
+        install_phenix(request)
+
+    manifest = json.loads(request.manifest_path.read_text(encoding="utf-8"))
+    xtriage_record = next(
+        record
+        for record in manifest["required_commands"]
+        if record["name"] == "phenix.xtriage"
+    )
+    assert xtriage_record["smoke_test_status"] == "failed"
+    verification_log = request.manifest_path.with_suffix(".verify.log").read_text(
+        encoding="utf-8"
+    )
+    assert 'probe_args=["--help"]' in verification_log
+    assert "exit=1" in verification_log
+    assert "result=failed" in verification_log
 
 
 def test_mocked_failed_installer_preserves_status_and_exact_exit(

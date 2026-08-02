@@ -6,6 +6,7 @@ Failures are infrastructure errors; scientific no-hit states are not produced
 here. The cache/provenance key is the manifest plus ``phenix_env.sh`` checksum.
 """
 
+import json
 import logging
 import os
 import platform
@@ -41,6 +42,51 @@ REQUIRED_COMMANDS = (
 
 
 @dataclass(frozen=True)
+class _CommandProbe:
+    """One side-effect-free command probe and its accepted help convention."""
+
+    arguments: tuple[str, ...] = ("--help",)
+    accepted_nonzero_exit: int | None = None
+    required_nonzero_markers: tuple[str, ...] = ()
+
+
+_DEFAULT_COMMAND_PROBE = _CommandProbe()
+_COMMAND_PROBES = {
+    "phenix.xtriage": _CommandProbe(
+        accepted_nonzero_exit=1,
+        required_nonzero_markers=(
+            "Usage:",
+            "phenix.xtriage [options] reflection_file parameters",
+        ),
+    ),
+    "phenix.phaser": _CommandProbe(
+        accepted_nonzero_exit=1,
+        required_nonzero_markers=(
+            "Usage:",
+            "phenix.phaser is a multi-function command:",
+        ),
+    ),
+    "phenix.maps": _CommandProbe(
+        accepted_nonzero_exit=1,
+        required_nonzero_markers=(
+            "phenix.maps: a command line tool to compute various maps",
+        ),
+    ),
+}
+_FORBIDDEN_PROBE_MARKERS = (
+    "Traceback (most recent call last)",
+    "ModuleNotFoundError",
+    "ImportError",
+    "dyld:",
+    "dyld[",
+    "Library not loaded:",
+    "Symbol not found:",
+    "error while loading shared libraries:",
+    "cannot open shared object file:",
+)
+
+
+@dataclass(frozen=True)
 class RuntimeInspection:
     """Detected environment and smoke-test results for one Phenix runtime."""
 
@@ -48,6 +94,33 @@ class RuntimeInspection:
     phenix_path: Path
     phenix_prefix: Path
     commands: tuple[PhenixCommandRecord, ...]
+
+
+def _evaluate_command_probe(
+    probe: _CommandProbe,
+    *,
+    returncode: int,
+    output: str,
+) -> tuple[bool, str]:
+    """Validate one probe without treating arbitrary non-zero output as help."""
+
+    forbidden = next(
+        (marker for marker in _FORBIDDEN_PROBE_MARKERS if marker in output), None
+    )
+    if forbidden is not None:
+        return False, f"forbidden failure marker present: {forbidden}"
+    if returncode == 0:
+        return True, "probe exited successfully"
+    if returncode != probe.accepted_nonzero_exit:
+        return False, f"unexpected probe exit status: {returncode}"
+    missing_markers = tuple(
+        marker for marker in probe.required_nonzero_markers if marker not in output
+    )
+    if missing_markers:
+        return False, "accepted non-zero help signature missing: " + ", ".join(
+            repr(marker) for marker in missing_markers
+        )
+    return True, "accepted command-specific non-zero help convention"
 
 
 def platform_record() -> PlatformRecord:
@@ -215,6 +288,8 @@ def inspect_runtime(
         unit="command",
         disable=not progress,
     ):
+        probe = _COMMAND_PROBES.get(command, _DEFAULT_COMMAND_PROBE)
+        probe_arguments = list(probe.arguments)
         resolve_script = 'source "$1" 1>&2 || exit $?\ncommand -v -- "$2"'
         resolution = subprocess.run(
             [
@@ -249,25 +324,32 @@ def inspect_runtime(
                 )
             )
             log_sections.append(
-                f"## {command}\nresolution failed or escaped installation prefix\n"
+                f"## {command}\nprobe_args={json.dumps(probe_arguments)}\n"
+                "exit=not_run\n"
+                "result=failed\n"
+                "reason=resolution failed or escaped installation prefix\n"
             )
             continue
         completed = _child_shell(
             environment_file,
-            [str(resolved_path), "--help"],
+            [str(resolved_path), *probe.arguments],
             timeout_seconds=timeout_seconds,
             capture_output=True,
         )
         output = (completed.stdout + completed.stderr).decode("utf-8", errors="replace")
+        passed, reason = _evaluate_command_probe(
+            probe,
+            returncode=completed.returncode,
+            output=output,
+        )
         log_sections.append(
             f"## {command}\npath={resolved_path}\n"
-            f"exit={completed.returncode}\n{output}\n"
+            f"probe_args={json.dumps(probe_arguments)}\n"
+            f"exit={completed.returncode}\n"
+            f"result={'passed' if passed else 'failed'}\n"
+            f"reason={reason}\n{output}\n"
         )
-        status = (
-            SmokeTestStatus.PASSED
-            if completed.returncode == 0
-            else SmokeTestStatus.FAILED
-        )
+        status = SmokeTestStatus.PASSED if passed else SmokeTestStatus.FAILED
         records.append(
             PhenixCommandRecord(
                 name=command,
@@ -278,7 +360,13 @@ def inspect_runtime(
         )
         _LOGGER.info(
             "Phenix command smoke test finished",
-            extra={"command": command, "exit_status": completed.returncode},
+            extra={
+                "command": command,
+                "probe_arguments": probe_arguments,
+                "exit_status": completed.returncode,
+                "probe_passed": passed,
+                "probe_reason": reason,
+            },
         )
 
     if verification_log is not None:
