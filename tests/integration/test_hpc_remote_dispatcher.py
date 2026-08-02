@@ -113,7 +113,14 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         'case "${1-}" in\n'
         "  --version) echo 'pixi 0.74.0' ;;\n"
         '  install) [[ "${FAKE_PIXI_INSTALL_FAIL:-0}" != 1 ]] || exit 4 ;;\n'
-        '  run) [[ "${FAKE_PIXI_RUN_FAIL:-0}" != 1 ]] || exit 5 ;;\n'
+        "  run)\n"
+        '    [[ "${FAKE_PIXI_RUN_FAIL:-0}" != 1 ]] || exit 5\n'
+        '    if [[ "${FAKE_PIXI_READONLY_TMP:-0}" == 1 ]]; then\n'
+        '      mkdir -p "$TMPDIR/readonly/nested"\n'
+        '      touch "$TMPDIR/readonly/nested/fixture"\n'
+        '      chmod -R a-w "$TMPDIR/readonly"\n'
+        "    fi\n"
+        "    ;;\n"
         "esac\n"
         "exit 0\n",
     )
@@ -184,6 +191,7 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
     job_environment = dict(environment)
     job_environment["SLURM_JOB_ID"] = "123"
     job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+    job_environment["FAKE_PIXI_READONLY_TMP"] = "1"
     spool_directory = tmp_path / "slurm-spool"
     spool_directory.mkdir()
     spooled_job = spool_directory / "slurm_script"
@@ -193,6 +201,8 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         cwd=tmp_path,
         environment=job_environment,
     )
+    scratch = job_environment["SLURM_TMPDIR"] + f"/nf-gtd-123-{RUN_ID}"
+    assert not Path(scratch).exists()
 
     status = _run(
         [str(dispatcher), "status", RUN_ID, OWNER_ID],

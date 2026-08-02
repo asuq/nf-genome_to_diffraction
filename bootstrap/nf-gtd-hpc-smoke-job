@@ -55,6 +55,7 @@ atomic_text() {
 finalise() {
     local exit_code="$?"
     local failure_class scheduler_state ended_at result_tmp active_run="" active_job=""
+    local cleanup_failed=false
     trap - EXIT
     set +e
     if (( exit_code == 0 )); then
@@ -69,6 +70,29 @@ finalise() {
     else
         failure_class=software_failure
         scheduler_state=FAILED
+    fi
+    exec 9>"$ROOT/_locks/submit.lock"
+    flock -x 9
+    if [[ -f "$ROOT/_locks/active-smoke" ]]; then
+        read -r active_run active_job < "$ROOT/_locks/active-smoke" || true
+        if [[ "$active_run" == "$RUN_ID" && "$active_job" == "$SLURM_JOB_ID" ]]; then
+            rm -f -- "$ROOT/_locks/active-smoke"
+        fi
+    fi
+    if [[ -e "$SCRATCH" ]]; then
+        chmod -R u+w "$SCRATCH" 2>/dev/null || true
+        rm -rf -- "$SCRATCH"
+        [[ ! -e "$SCRATCH" ]] || cleanup_failed=true
+    fi
+    if [[ "$cleanup_failed" == true ]]; then
+        printf 'scratch_cleanup_status=failed\n' >&2
+        if (( exit_code == 0 )); then
+            exit_code=6
+            failure_class=filesystem_failure
+            scheduler_state=FAILED
+        fi
+    else
+        printf 'scratch_cleanup_status=success\n'
     fi
     ended_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     atomic_text "$RUN/state/exit-code" "$exit_code"
@@ -95,15 +119,6 @@ EOF
     mv -f -- "$result_tmp" "$RUN/state/job-result.json"
     printf '{"event":"job_completed","timestamp":"%s"}\n' "$ended_at" \
         >> "$RUN/events.jsonl"
-    exec 9>"$ROOT/_locks/submit.lock"
-    flock -x 9
-    if [[ -f "$ROOT/_locks/active-smoke" ]]; then
-        read -r active_run active_job < "$ROOT/_locks/active-smoke" || true
-        if [[ "$active_run" == "$RUN_ID" && "$active_job" == "$SLURM_JOB_ID" ]]; then
-            rm -f -- "$ROOT/_locks/active-smoke"
-        fi
-    fi
-    rm -rf -- "$SCRATCH"
     exit "$exit_code"
 }
 trap finalise EXIT
