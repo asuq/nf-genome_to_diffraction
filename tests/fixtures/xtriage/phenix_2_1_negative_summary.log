@@ -1,6 +1,8 @@
 PHENIX.xtriage version 2.1-6048
 Completeness in resolution range: 0.837033
 Overall <I/sigma> for this dataset is     7.9
+Resolution: 107.352 - 1.42454
+Number of reflections: 532346
 The resolution limit appears to be direction-dependent, which may indicate
 issues with the data collection geometry or processing errors.
 The quarter of Intensities *least* affected by the anisotropy correction show

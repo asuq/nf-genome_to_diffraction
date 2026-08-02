@@ -202,6 +202,9 @@ def test_xtriage_parser_uses_real_final_verdict_not_explanatory_text() -> None:
     parsed = parse_xtriage_output(report)
     assert parsed.completeness == pytest.approx(0.837033)
     assert parsed.mean_i_over_sigma == pytest.approx(7.9)
+    assert parsed.summary["xtriage_resolution_low_a"] == pytest.approx(107.352)
+    assert parsed.summary["xtriage_resolution_high_a"] == pytest.approx(1.42454)
+    assert parsed.summary["xtriage_reflection_count"] == 532346
     assert parsed.summary["patterson_off_origin_peak_fraction"] == pytest.approx(
         0.02435
     )
@@ -334,6 +337,8 @@ def test_preflight_runs_xtriage_through_captured_phenix_boundary(
         report = (
             b"PHENIX.xtriage version 2.1-7000\n"
             b"Completeness overall: 99.0 %\n"
+            b"Resolution: 50.000 - 1.500\n"
+            b"Number of reflections: 900\n"
             b"The data are not significantly anisotropic.\n"
             b"The quarter of Intensities *least* affected by the anisotropy "
             b"correction show\n"
@@ -370,6 +375,8 @@ def test_preflight_runs_xtriage_through_captured_phenix_boundary(
     report_text = (tmp_path / "output/preflight_report.md").read_text(encoding="utf-8")
     assert "Xtriage version: `2.1-7000`" in report_text
     assert "Completeness: `99.00%`" in report_text
+    assert "Xtriage selected-data resolution: `50.000-1.500 A`" in report_text
+    assert "Xtriage selected reflection count: `900`" in report_text
     assert "tncs=not_detected" in report_text
     assert "twinning=not_detected" in report_text
     assert "Patterson off-origin peak: `2.50%`" in report_text

@@ -463,6 +463,33 @@ def parse_xtriage_output(text: str) -> XtriageAssessment:
             r"^\s*Overall\s+<I\s*/\s*sigma>\s+for\s+this\s+dataset\s+is\s+"
             r"([0-9]+(?:\.[0-9]+)?)\s*$",
         )
+    xtriage_resolution_match = re.search(
+        r"^\s*Resolution:\s*"
+        r"([0-9]+(?:\.[0-9]+)?)\s*-\s*"
+        r"([0-9]+(?:\.[0-9]+)?)\s*$",
+        text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    xtriage_resolution_low_a = (
+        float(xtriage_resolution_match.group(1))
+        if xtriage_resolution_match is not None
+        else None
+    )
+    xtriage_resolution_high_a = (
+        float(xtriage_resolution_match.group(2))
+        if xtriage_resolution_match is not None
+        else None
+    )
+    xtriage_reflection_count_match = re.search(
+        r"^\s*Number of reflections:\s*([0-9]+)\s*$",
+        text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    xtriage_reflection_count = (
+        int(xtriage_reflection_count_match.group(1))
+        if xtriage_reflection_count_match is not None
+        else None
+    )
     patterson_peak_fraction = _metric(
         text,
         rf"^\s*Height relative to origin\s*:\s*({_FLOAT_PATTERN})\s*%\s*$",
@@ -542,6 +569,9 @@ def parse_xtriage_output(text: str) -> XtriageAssessment:
             "version": version,
             "completeness": completeness,
             "mean_i_over_sigma": mean_i_over_sigma,
+            "xtriage_resolution_low_a": xtriage_resolution_low_a,
+            "xtriage_resolution_high_a": xtriage_resolution_high_a,
+            "xtriage_reflection_count": xtriage_reflection_count,
             "patterson_off_origin_peak_fraction": patterson_peak_fraction,
             "patterson_peak_p_value": patterson_peak_p_value,
             "l_test_multivariate_z": l_test_multivariate_z,
@@ -875,7 +905,9 @@ def _write_preflight_outputs(
     lines = ["# MTZ preflight report", ""]
     for record in records:
         unit_cell = ", ".join(f"{value:.3f}" for value in record.unit_cell)
-        resolution = f"{record.resolution_low_a:.3f}-{record.resolution_high_a:.3f} A"
+        mtz_resolution = (
+            f"{record.resolution_low_a:.3f}-{record.resolution_high_a:.3f} A"
+        )
         completeness = (
             f"{record.completeness * 100:.2f}%"
             if record.completeness is not None
@@ -888,6 +920,8 @@ def _write_preflight_outputs(
         )
         summary_numbers: dict[str, float | None] = {}
         for key in (
+            "xtriage_resolution_low_a",
+            "xtriage_resolution_high_a",
             "patterson_off_origin_peak_fraction",
             "patterson_peak_p_value",
             "l_test_multivariate_z",
@@ -905,6 +939,23 @@ def _write_preflight_outputs(
         l_test_z = summary_numbers["l_test_multivariate_z"]
         least_anisotropy_z = summary_numbers["anisotropy_noise_z_least_affected"]
         most_anisotropy_z = summary_numbers["anisotropy_noise_z_most_affected"]
+        xtriage_resolution_low = summary_numbers["xtriage_resolution_low_a"]
+        xtriage_resolution_high = summary_numbers["xtriage_resolution_high_a"]
+        xtriage_resolution = (
+            f"{xtriage_resolution_low:.3f}-{xtriage_resolution_high:.3f} A"
+            if xtriage_resolution_low is not None
+            and xtriage_resolution_high is not None
+            else "not available"
+        )
+        xtriage_reflection_count = record.xtriage_summary.get(
+            "xtriage_reflection_count"
+        )
+        xtriage_reflection_count_display = (
+            str(xtriage_reflection_count)
+            if isinstance(xtriage_reflection_count, int)
+            and not isinstance(xtriage_reflection_count, bool)
+            else "not available"
+        )
         patterson_display = (
             f"{patterson_peak * 100:.2f}%"
             if patterson_peak is not None
@@ -934,7 +985,11 @@ def _write_preflight_outputs(
                 f"- Observations: `{record.selected_observation_labels or 'none'}`",
                 f"- Space group: `{record.space_group}`",
                 f"- Unit cell: `{unit_cell}`",
-                f"- Resolution: `{resolution}`",
+                f"- MTZ row resolution: `{mtz_resolution}`",
+                f"- Xtriage selected-data resolution: `{xtriage_resolution}`",
+                f"- MTZ row count: `{record.reflection_count}`",
+                "- Xtriage selected reflection count: "
+                f"`{xtriage_reflection_count_display}`",
                 f"- ASU volume: `{record.asu_volume_a3:.3f} A^3`",
                 f"- Free-R: `{record.free_flag_status}`",
                 f"- Xtriage version: `{record.xtriage_version or 'not run'}`",
