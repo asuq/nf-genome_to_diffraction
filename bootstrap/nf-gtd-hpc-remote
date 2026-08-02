@@ -319,7 +319,7 @@ status_run() {
         failure_class=node_failure
     elif [[ "$scheduler_state" == OUT_OF_MEMORY ]]; then
         failure_class=environment_failure
-    elif [[ -z "$failure_class" && "$scheduler_state" == CANCELLED ]]; then
+    elif [[ "$scheduler_state" == CANCELLED ]]; then
         failure_class=unknown_failure
     elif [[ "$scheduler_state" == TIMEOUT ]]; then
         failure_class=environment_failure

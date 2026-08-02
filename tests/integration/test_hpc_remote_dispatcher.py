@@ -1,6 +1,7 @@
 """Exercise the fixed remote scripts with real Git and fake Slurm commands."""
 
 import base64
+import json
 import os
 import shlex
 import shutil
@@ -120,6 +121,10 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '      touch "$TMPDIR/readonly/nested/fixture"\n'
         '      chmod -R a-w "$TMPDIR/readonly"\n'
         "    fi\n"
+        '    if [[ "${FAKE_PIXI_TERM_PARENT:-0}" == 1 ]]; then\n'
+        '      kill -TERM "$PPID"\n'
+        "      sleep 0.1\n"
+        "    fi\n"
         "    ;;\n"
         "esac\n"
         "exit 0\n",
@@ -213,6 +218,17 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
     assert status_fields["scheduler_state"] == "COMPLETED"
     assert status_fields["failure_class"] == "success"
     assert status_fields["terminal"] == "true"
+
+    cancelled_environment = dict(environment)
+    cancelled_environment["FAKE_SACCT_STATE"] = "CANCELLED"
+    cancelled_status = _run(
+        [str(dispatcher), "status", RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=cancelled_environment,
+    )
+    cancelled_fields = _decode_protocol(cancelled_status.stdout)
+    assert cancelled_fields["failure_class"] == "unknown_failure"
+    assert cancelled_fields["terminal"] == "true"
 
     logs = _run(
         [str(dispatcher), "logs", RUN_ID, OWNER_ID, "200"],
@@ -432,3 +448,40 @@ def test_smoke_job_distinguishes_environment_and_test_failures(
         tmp_path / "remote-root" / "runs" / RUN_ID / "state" / "failure-class"
     ).read_text(encoding="utf-8")
     assert failure.strip() == expected_class
+
+
+def test_smoke_job_records_term_signal_as_cancellation(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "789"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+    job_environment["FAKE_PIXI_TERM_PARENT"] = "1"
+    terminated = _run(
+        [str(smoke_job), RUN_ID, str(smoke_job.parent.parent)],
+        cwd=tmp_path,
+        environment=job_environment,
+        success=False,
+    )
+    assert terminated.returncode == 143
+    result_path = (
+        tmp_path / "remote-root" / "runs" / RUN_ID / "state" / "job-result.json"
+    )
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["scheduler_state"] == "CANCELLED"
+    assert result["failure_class"] == "unknown_failure"
+    assert result["exit_code"] == 143
+    scratch = job_environment["SLURM_TMPDIR"] + f"/nf-gtd-789-{RUN_ID}"
+    assert not Path(scratch).exists()

@@ -56,11 +56,14 @@ finalise() {
     local exit_code="$?"
     local failure_class scheduler_state ended_at result_tmp active_run="" active_job=""
     local cleanup_failed=false
-    trap - EXIT
+    trap - EXIT TERM INT
     set +e
     if (( exit_code == 0 )); then
         failure_class=success
         scheduler_state=COMPLETED
+    elif [[ "$PHASE" == cancelled ]]; then
+        failure_class=unknown_failure
+        scheduler_state=CANCELLED
     elif [[ "$PHASE" == environment ]]; then
         failure_class=environment_failure
         scheduler_state=FAILED
@@ -121,7 +124,18 @@ EOF
         >> "$RUN/events.jsonl"
     exit "$exit_code"
 }
+
+handle_signal() {
+    local exit_code="$1"
+    local signal_name="$2"
+    PHASE=cancelled
+    printf 'received_signal=%s\n' "$signal_name" >&2
+    exit "$exit_code"
+}
+
 trap finalise EXIT
+trap 'handle_signal 143 TERM' TERM
+trap 'handle_signal 130 INT' INT
 
 mkdir -p "$SCRATCH" "$SOURCE" "$SCRATCH/tmp"
 exec > "$RUN/logs/smoke.log" 2>&1
