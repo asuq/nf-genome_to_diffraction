@@ -13,8 +13,8 @@ diagnostics. It never edits or pushes source.
 | `p0` | Real Phenix/database verification plus all-three-crystal Task 05 run and cached resume | M0 execution evidence only; downstream identity search remains deferred |
 
 The reviewed local application is the routine approval boundary. It may request
-only `deploy-tools`, `stage`, `submit`, `status`, `wait`, `logs`, `collect`, or
-`cancel` from the fixed remote dispatcher. Raw SSH, file-transfer tools,
+only `deploy-tools`, `readiness`, `stage`, `submit`, `status`, `wait`, `logs`,
+`collect`, or `cancel` from the fixed remote dispatcher. Raw SSH, file-transfer tools,
 scheduler commands, and `clean` must not receive persistent automatic approval.
 
 Both drivers use partition `slurm`, 2 CPUs, 8 GB memory, and a 45-minute
@@ -123,6 +123,7 @@ terminal progress bars.
 
 ```bash
 nf-gtd-hpc-test deploy-tools --revision HEAD
+nf-gtd-hpc-test readiness p0
 nf-gtd-hpc-test stage smoke --revision HEAD
 nf-gtd-hpc-test submit smoke --run-id RUN_ID
 nf-gtd-hpc-test status --run-id RUN_ID
@@ -142,6 +143,13 @@ nf-gtd-hpc-test wait --run-id RUN_ID
 nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test collect --run-id RUN_ID
 ```
+
+`readiness p0` is a fixed, read-only prerequisite inspection. It accepts no
+path, revision, run ID, or shell fragment; creates no run; and submits no job.
+Its JSON reports the exact Pixi-version status and a sanitised P0 configuration
+status plus checksum, but never returns configured site paths. `ready: true`
+means only that staging prerequisites exist. The staged job independently
+revalidates the configuration and still must verify real Phenix and databases.
 
 `deploy-tools` first requires a clean local worktree. It resolves the exact Git
 commit, reads only `bootstrap/nf-gtd-hpc-remote` and
@@ -233,8 +241,8 @@ run ID, resolves the target below the run root, and deletes only that run. Never
 include `clean` in a persistent Codex allow rule.
 
 After installing and checksumming the immutable local application, add allow
-rules only for its absolute path followed by `deploy-tools`, `stage`, `submit`,
-`status`, `wait`, `logs`, `collect`, or `cancel`. Keep raw SSH, transfer tools,
+rules only for its absolute path followed by `deploy-tools`, `readiness`, `stage`,
+`submit`, `status`, `wait`, `logs`, `collect`, or `cancel`. Keep raw SSH, transfer tools,
 Slurm commands, and the wrapper's `clean` operation approval-gated.
 
 Resolve the installed path literally; shell variables and `~` are not valid rule
@@ -244,12 +252,13 @@ substitutes. The intended Codex rule shape is:
 prefix_rule(
     pattern = [
         "/absolute/path/to/installed/nf-gtd-hpc-test",
-        ["deploy-tools", "stage", "submit", "status", "wait", "logs", "collect", "cancel"],
+        ["deploy-tools", "readiness", "stage", "submit", "status", "wait", "logs", "collect", "cancel"],
     ],
     decision = "allow",
     justification = "Allow only the reviewed nf-genome_to_diffraction HPC interface.",
     match = [
         "/absolute/path/to/installed/nf-gtd-hpc-test deploy-tools --revision HEAD",
+        "/absolute/path/to/installed/nf-gtd-hpc-test readiness p0",
         "/absolute/path/to/installed/nf-gtd-hpc-test status --run-id RUN_ID",
     ],
     not_match = [

@@ -437,6 +437,60 @@ def _write_p0_paths(root: Path, *, unsafe: bool = False) -> Path:
     return p0_config
 
 
+def test_p0_readiness_is_sanitised_and_creates_no_run(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+
+    missing = _run(
+        [str(dispatcher), "readiness", "p0"],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    missing_fields = _decode_protocol(missing.stdout)
+    assert missing_fields == {
+        "operation": "readiness",
+        "profile": "p0",
+        "ready": "false",
+        "pixi_status": "ready",
+        "pixi_version": "pixi 0.74.0",
+        "p0_config_status": "absent_or_unsafe",
+        "p0_config_sha256": "",
+        "scope": "staging_prerequisites_only",
+    }
+    assert list((remote_root / "runs").iterdir()) == []
+
+    p0_config = _write_p0_paths(remote_root)
+    ready = _run(
+        [str(dispatcher), "readiness", "p0"],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    ready_fields = _decode_protocol(ready.stdout)
+    assert ready_fields["ready"] == "true"
+    assert ready_fields["p0_config_status"] == "ready"
+    assert (
+        ready_fields["p0_config_sha256"]
+        == hashlib.sha256(p0_config.read_bytes()).hexdigest()
+    )
+    assert list((remote_root / "runs").iterdir()) == []
+
+    p0_config.write_text(
+        p0_config.read_text(encoding="utf-8").replace(
+            "crystals.json", "crystals.json;touch-bad"
+        ),
+        encoding="utf-8",
+    )
+    unsafe = _run(
+        [str(dispatcher), "readiness", "p0"],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    unsafe_fields = _decode_protocol(unsafe.stdout)
+    assert unsafe_fields["ready"] == "false"
+    assert unsafe_fields["p0_config_status"] == "unsafe_path"
+    assert not (tmp_path / "bad").exists()
+
+
 def test_p0_stage_fingerprints_fixed_config_and_rejects_unsafe_paths_at_run(
     tmp_path: Path,
 ) -> None:

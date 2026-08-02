@@ -34,6 +34,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     deploy_tools.add_argument("--revision", required=True)
 
+    readiness = actions.add_parser(
+        "readiness",
+        help="inspect fixed remote prerequisites without staging or submitting",
+    )
+    readiness.add_argument("profile", choices=("p0",))
+
     stage = actions.add_parser("stage", help="stage an immutable pushed commit")
     stage.add_argument("profile", choices=("smoke", "p0"))
     stage.add_argument("--revision", required=True)
@@ -67,6 +73,8 @@ def _build_parser() -> argparse.ArgumentParser:
 def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, object]:
     if args.operation == "deploy-tools":
         return controller.deploy_tools(args.revision)
+    if args.operation == "readiness":
+        return controller.readiness(args.profile)
     if args.operation == "stage":
         return controller.stage(
             args.profile,

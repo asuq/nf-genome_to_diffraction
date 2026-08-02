@@ -185,6 +185,21 @@ def test_p0_profile_has_a_closed_run_id_and_remote_argument(tmp_path: Path) -> N
         controller.submit("smoke", run_id)
 
 
+def test_p0_readiness_accepts_no_path_or_run_authority(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+
+    result = controller.readiness("p0")
+
+    assert result["operation"] == "readiness"
+    assert result["profile"] == "p0"
+    assert transport.calls == [("readiness", ("p0",))]
+    with pytest.raises(ValidationError, match="only for p0"):
+        controller.readiness("smoke")
+    with pytest.raises(ValidationError):
+        controller.readiness("p0;touch-bad")
+
+
 def test_stage_refuses_dirty_or_injected_revisions(tmp_path: Path) -> None:
     (tmp_path / "pixi.lock").write_text("locked\n", encoding="utf-8")
     transport = FakeTransport()

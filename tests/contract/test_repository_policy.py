@@ -70,7 +70,7 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert "45-minute" in runbook
     assert "nf-gtd-hpc-test deploy-tools --revision HEAD" in runbook
     approved_operations = (
-        '["deploy-tools", "stage", "submit", "status", '
+        '["deploy-tools", "readiness", "stage", "submit", "status", '
         '"wait", "logs", "collect", "cancel"]'
     )
     assert approved_operations in runbook

@@ -328,6 +328,22 @@ class HpcController:
             "local_record": str(local_path),
         }
 
+    def readiness(self, profile: str) -> dict[str, object]:
+        """Inspect one fixed profile's remote prerequisites without creating a run."""
+
+        validate_profile(profile)
+        if profile != "p0":
+            raise ValidationError("readiness inspection is available only for p0")
+        self.logger.info(
+            "inspecting fixed HPC profile readiness",
+            extra={"profile": profile},
+        )
+        return {
+            **self.transport.run("readiness", [profile]),
+            "operation": "readiness",
+            "profile": profile,
+        }
+
     def submit(self, profile: str, run_id: str) -> dict[str, object]:
         """Submit one reviewed fixed profile for an owned staged run."""
 

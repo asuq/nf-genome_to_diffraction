@@ -115,6 +115,105 @@ resolve_pixi() {
     RESOLVED_PIXI="$pixi_bin"
 }
 
+path_within_root() {
+    local root="$1"
+    local path="$2"
+    [[ "$path" == "$root"/* ]]
+}
+
+p0_config_readiness() {
+    local allowed candidate resolved index
+    local -a values=()
+    P0_CONFIG_STATUS=unknown
+    P0_CONFIG_SHA256=""
+    if [[ ! -f "$P0_CONFIG" || -L "$P0_CONFIG" || ! -O "$P0_CONFIG" ]]; then
+        P0_CONFIG_STATUS=absent_or_unsafe
+        return 1
+    fi
+    if [[ "$(stat -c '%a' "$P0_CONFIG")" != 600 ]]; then
+        P0_CONFIG_STATUS=mode_mismatch
+        return 1
+    fi
+    P0_CONFIG_SHA256="$(sha256sum "$P0_CONFIG" | awk '{print $1}')"
+    if [[ ! "$P0_CONFIG_SHA256" =~ $CHECKSUM_RE ]]; then
+        P0_CONFIG_STATUS=checksum_failure
+        return 1
+    fi
+    mapfile -t values < "$P0_CONFIG"
+    if [[ "${#values[@]}" -ne 6 ]]; then
+        P0_CONFIG_STATUS=line_count_mismatch
+        return 1
+    fi
+    for candidate in "${values[@]}"; do
+        if [[ ! "$candidate" =~ $SAFE_PATH_RE ]]; then
+            P0_CONFIG_STATUS=unsafe_path
+            return 1
+        fi
+    done
+    if ! allowed="$(realpath -e "${values[0]}" 2>/dev/null)" || \
+        [[ "$allowed" != "${values[0]}" || ! -d "$allowed" || -L "${values[0]}" || \
+           "$allowed" == / || "$allowed" == "${HOME:-}" ]]; then
+        P0_CONFIG_STATUS=allowed_root_invalid
+        return 1
+    fi
+    for index in 1 2 3 5; do
+        candidate="${values[$index]}"
+        if ! resolved="$(realpath -e "$candidate" 2>/dev/null)" || \
+            [[ "$resolved" != "$candidate" || ! -f "$resolved" || -L "$candidate" ]] || \
+            ! path_within_root "$allowed" "$resolved"; then
+            P0_CONFIG_STATUS=input_file_invalid
+            return 1
+        fi
+    done
+    candidate="${values[4]}"
+    if ! resolved="$(realpath -e "$candidate" 2>/dev/null)" || \
+        [[ "$resolved" != "$candidate" || ! -d "$resolved" || -L "$candidate" ]] || \
+        ! path_within_root "$allowed" "$resolved"; then
+        P0_CONFIG_STATUS=database_root_invalid
+        return 1
+    fi
+    P0_CONFIG_STATUS=ready
+    return 0
+}
+
+readiness_p0() {
+    [[ "$#" -eq 1 ]] || fail wrapper_failure "readiness expects one fixed profile"
+    local profile="$1"
+    local pixi_bin="" pixi_version="" pixi_status=unavailable ready=false
+    validate_profile "$profile"
+    [[ "$profile" == p0 ]] || fail wrapper_failure "readiness is available only for p0"
+
+    if [[ -f "$PIXI_PATH_FILE" ]]; then
+        IFS= read -r pixi_bin < "$PIXI_PATH_FILE"
+    else
+        pixi_bin="$(command -v pixi || true)"
+    fi
+    if [[ "$pixi_bin" =~ $SAFE_PATH_RE && -x "$pixi_bin" ]]; then
+        if pixi_version="$("$pixi_bin" --version 2>&1)"; then
+            if [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.74\.0$ ]]; then
+                pixi_status=ready
+            else
+                pixi_status=version_mismatch
+            fi
+        else
+            pixi_status=version_check_failed
+        fi
+    fi
+    p0_config_readiness || true
+    if [[ "$pixi_status" == ready && "$P0_CONFIG_STATUS" == ready ]]; then
+        ready=true
+    fi
+
+    emit operation readiness
+    emit profile p0
+    emit ready "$ready"
+    emit pixi_status "$pixi_status"
+    emit pixi_version "$pixi_version"
+    emit p0_config_status "$P0_CONFIG_STATUS"
+    emit p0_config_sha256 "$P0_CONFIG_SHA256"
+    emit scope staging_prerequisites_only
+}
+
 cleanup_deploy_staging() {
     local staging="$1"
     [[ "$staging" == "$TOOL_DIR"/.deploy-tools.* ]] || return 1
@@ -649,6 +748,7 @@ main() {
     shift
     case "$operation" in
         deploy-tools) deploy_tools "$@" ;;
+        readiness) readiness_p0 "$@" ;;
         stage) stage_run "$@" ;;
         submit) submit_run "$@" ;;
         status) status_run "$@" ;;
