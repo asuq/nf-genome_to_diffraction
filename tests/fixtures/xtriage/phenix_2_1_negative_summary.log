@@ -1,0 +1,23 @@
+PHENIX.xtriage version 2.1-6048
+Completeness in resolution range: 0.837033
+Overall <I/sigma> for this dataset is     7.9
+The resolution limit appears to be direction-dependent, which may indicate
+issues with the data collection geometry or processing errors.
+The quarter of Intensities *least* affected by the anisotropy correction show
+Fraction of I/sigI > 3 : 2.07e-01 ( Z = 0.09 )
+The quarter of Intensities *most* affected by the anisotropy correction show
+Fraction of I/sigI > 3 : 2.00e-01 ( Z = 0.28 )
+Height relative to origin : 2.435 %
+p_value(height)           : 1.000e+00
+Systematic absence violation: I/sigI > 3.0
+P 21 21 2 (input space group): no absences found
+Possible twin laws:
+  - translational pseudo symmetry (detected elsewhere)
+The point group of data as dictated by the space group is P 2 2 2
+The likely point group of the data is: P 2 2 2
+----------Final verdict----------
+The largest off-origin peak in the Patterson function is 2.43% of the
+height of the origin peak. No significant pseudotranslation is detected.
+The intensity statistics behave as expected. No twinning is suspected.
+----------Statistics independent of twin laws----------
+Multivariate Z score L-test: 0.785

@@ -1,0 +1,11 @@
+PHENIX.xtriage version 2.1-6048
+The data show severe anisotropy.
+The point group of data as dictated by the space group is P 2 2 2
+The likely point group of the data is: P 4 2 2
+----------Final verdict----------
+The analyses of the Patterson function reveals a significant off-origin peak,
+indicating pseudo-translational symmetry.
+As there are twin laws possible given the crystal symmetry, twinning could
+be the reason for the departure of the intensity statistics from normality.
+The symmetry of the intensities suggest that the assumed space group is too low.
+----------Statistics independent of twin laws----------

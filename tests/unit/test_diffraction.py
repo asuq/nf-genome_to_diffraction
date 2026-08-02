@@ -176,28 +176,135 @@ def test_explicit_observation_override_resolves_ambiguity(tmp_path: Path) -> Non
 
 
 def test_xtriage_parser_normalises_warnings_and_metrics() -> None:
-    report = """
-PHENIX.xtriage version 2.1-7000
-Completeness overall: 97.5 %
-Mean I/sigma(I): 8.4
-Significant anisotropy detected
-Translational NCS is present
-No significant twinning detected
-Possible higher symmetry should be reviewed
-"""
+    report = (
+        REPOSITORY / "tests/fixtures/xtriage/phenix_2_1_positive_summary.log"
+    ).read_text(encoding="utf-8")
     parsed = parse_xtriage_output(report)
-    assert parsed.version == "2.1-7000"
-    assert parsed.completeness == pytest.approx(0.975)
-    assert parsed.mean_i_over_sigma == pytest.approx(8.4)
+    assert parsed.version == "2.1-6048"
+    assert parsed.completeness is None
+    assert parsed.mean_i_over_sigma is None
     assert parsed.anisotropy_status is AssessmentStatus.SUSPECTED
     assert parsed.tncs_status is AssessmentStatus.SUSPECTED
-    assert parsed.twinning_status is AssessmentStatus.NOT_DETECTED
+    assert parsed.twinning_status is AssessmentStatus.SUSPECTED
     assert parsed.symmetry_status is AssessmentStatus.SUSPECTED
     assert set(parsed.warning_codes) == {
         "xtriage_anisotropy",
         "xtriage_tncs",
+        "xtriage_twinning",
         "xtriage_symmetry",
     }
+
+
+def test_xtriage_parser_uses_real_final_verdict_not_explanatory_text() -> None:
+    report = (
+        REPOSITORY / "tests/fixtures/xtriage/phenix_2_1_negative_summary.log"
+    ).read_text(encoding="utf-8")
+    parsed = parse_xtriage_output(report)
+    assert parsed.completeness == pytest.approx(0.837033)
+    assert parsed.mean_i_over_sigma == pytest.approx(7.9)
+    assert parsed.summary["patterson_off_origin_peak_fraction"] == pytest.approx(
+        0.02435
+    )
+    assert parsed.summary["patterson_peak_p_value"] == pytest.approx(1.0)
+    assert parsed.summary["l_test_multivariate_z"] == pytest.approx(0.785)
+    assert parsed.summary["anisotropy_noise_z_least_affected"] == pytest.approx(0.09)
+    assert parsed.summary["anisotropy_noise_z_most_affected"] == pytest.approx(0.28)
+    assert parsed.anisotropy_status is AssessmentStatus.NOT_ASSESSED
+    assert parsed.tncs_status is AssessmentStatus.NOT_DETECTED
+    assert parsed.twinning_status is AssessmentStatus.NOT_DETECTED
+    assert parsed.symmetry_status is AssessmentStatus.NOT_DETECTED
+    assert set(parsed.warning_codes) == {
+        "xtriage_completeness_below_90_percent",
+        "xtriage_direction_dependent_resolution",
+    }
+
+
+def test_xtriage_parser_treats_equivalent_centered_settings_as_same_point_group() -> (
+    None
+):
+    report = """
+The point group of data as dictated by the space group is I 1 2 1
+The likely point group of the data is: C 1 2 1 (x+y,z,2*x)
+I 1 2 1 (input space group): no absences found
+"""
+    parsed = parse_xtriage_output(report)
+    assert parsed.symmetry_status is AssessmentStatus.NOT_DETECTED
+    assert parsed.summary["point_group_equivalent"] is True
+
+
+def test_xtriage_parser_requires_absence_evidence_for_equivalent_point_group() -> None:
+    report = """
+The point group of data as dictated by the space group is I 1 2 1
+The likely point group of the data is: C 1 2 1 (x+y,z,2*x)
+"""
+    parsed = parse_xtriage_output(report)
+    assert parsed.symmetry_status is AssessmentStatus.NOT_ASSESSED
+    assert parsed.summary["point_group_equivalent"] is True
+    assert parsed.summary["input_space_group_absences_consistent"] is None
+
+
+def test_xtriage_parser_does_not_classify_explanatory_text() -> None:
+    report = (
+        REPOSITORY / "tests/fixtures/xtriage/phenix_2_1_explanatory_only.log"
+    ).read_text(encoding="utf-8")
+    parsed = parse_xtriage_output(report)
+    assert parsed.anisotropy_status is AssessmentStatus.NOT_ASSESSED
+    assert parsed.tncs_status is AssessmentStatus.NOT_ASSESSED
+    assert parsed.twinning_status is AssessmentStatus.NOT_ASSESSED
+    assert parsed.symmetry_status is AssessmentStatus.NOT_ASSESSED
+    assert parsed.warning_codes == ()
+
+
+def test_xtriage_positive_symmetry_verdict_does_not_invent_group_equivalence() -> None:
+    report = """
+----------Final verdict----------
+The symmetry of the intensities suggest that the assumed space group is too low.
+----------Statistics independent of twin laws----------
+"""
+    parsed = parse_xtriage_output(report)
+    assert parsed.symmetry_status is AssessmentStatus.SUSPECTED
+    assert parsed.summary["point_group_equivalent"] is None
+
+
+def test_xtriage_weak_patterson_signal_is_review_not_tncs_detection() -> None:
+    report = """
+p_value(height) : 1.151e-02
+----------Final verdict----------
+No significant pseudotranslation is detected.
+No twinning is suspected.
+----------Statistics independent of twin laws----------
+"""
+    parsed = parse_xtriage_output(report)
+    assert parsed.tncs_status is AssessmentStatus.NOT_DETECTED
+    assert parsed.summary["patterson_peak_p_value"] == pytest.approx(0.01151)
+    assert parsed.warning_codes == ("xtriage_patterson_peak_review",)
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        "phenix_2_1_negative_summary.log",
+        "phenix_2_1_positive_summary.log",
+        "phenix_2_1_explanatory_only.log",
+    ],
+)
+def test_xtriage_real_format_fixtures_are_sanitised(fixture: str) -> None:
+    text = (REPOSITORY / "tests/fixtures/xtriage" / fixture).read_text(encoding="utf-8")
+    assert "/Users/" not in text
+    assert "AD4QS1P4G2_18" not in text
+    assert "CD4QS2P2G1_15" not in text
+    assert "CD6QS2P2G1_5" not in text
+
+
+def test_xtriage_parser_flags_a_genuinely_different_likely_point_group() -> None:
+    report = """
+The point group of data as dictated by the space group is P 2 2 2
+The likely point group of the data is: P 4 2 2
+"""
+    parsed = parse_xtriage_output(report)
+    assert parsed.symmetry_status is AssessmentStatus.SUSPECTED
+    assert parsed.summary["point_group_equivalent"] is False
+    assert parsed.warning_codes == ("xtriage_symmetry",)
 
 
 def test_preflight_runs_xtriage_through_captured_phenix_boundary(
@@ -227,10 +334,20 @@ def test_preflight_runs_xtriage_through_captured_phenix_boundary(
         report = (
             b"PHENIX.xtriage version 2.1-7000\n"
             b"Completeness overall: 99.0 %\n"
-            b"No significant anisotropy detected\n"
-            b"No translational NCS detected\n"
-            b"No significant twinning detected\n"
-            b"No indication of higher symmetry\n"
+            b"The data are not significantly anisotropic.\n"
+            b"The quarter of Intensities *least* affected by the anisotropy "
+            b"correction show\n"
+            b"Fraction of I/sigI > 3 : 2.00e-01 ( Z = 0.10 )\n"
+            b"The quarter of Intensities *most* affected by the anisotropy "
+            b"correction show\n"
+            b"Fraction of I/sigI > 3 : 1.00e-01 ( Z = 1.20 )\n"
+            b"Height relative to origin : 2.500 %\n"
+            b"p_value(height) : 1.250e-01\n"
+            b"----------Final verdict----------\n"
+            b"No significant pseudotranslation is detected.\n"
+            b"No twinning is suspected.\n"
+            b"----------Statistics independent of twin laws----------\n"
+            b"Multivariate Z score L-test: 0.750\n"
         )
         return subprocess.CompletedProcess(arguments, 0, report, b"")
 
@@ -249,6 +366,18 @@ def test_preflight_runs_xtriage_through_captured_phenix_boundary(
     assert record.completeness == pytest.approx(0.99)
     assert record.xtriage_log == "xtriage/crystal_a.log"
     assert (tmp_path / "output/xtriage/crystal_a.log").is_file()
+    preflight_module._write_preflight_outputs(tmp_path / "output", (record,))
+    report_text = (tmp_path / "output/preflight_report.md").read_text(encoding="utf-8")
+    assert "Xtriage version: `2.1-7000`" in report_text
+    assert "Completeness: `99.00%`" in report_text
+    assert "tncs=not_detected" in report_text
+    assert "twinning=not_detected" in report_text
+    assert "Patterson off-origin peak: `2.50%`" in report_text
+    assert "Patterson peak p-value: `1.250e-01`" in report_text
+    assert "Multivariate L-test Z: `0.750`" in report_text
+    assert "Anisotropy-noise Z (least/most affected quarters): `0.10 / 1.20`" in (
+        report_text
+    )
 
 
 def _sequence_group(

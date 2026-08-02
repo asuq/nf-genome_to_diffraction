@@ -38,6 +38,7 @@ _LOGGER = logging.getLogger("genome_to_diffraction.diffraction")
 _MAP_LABEL = re.compile(
     r"(?:^|[^A-Z0-9])(2?FOFC|DELFWT|FWT|PHWT|FMODEL|FC)(?:$|[^A-Z0-9])"
 )
+_FLOAT_PATTERN = r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
 
 
 class MtzPreflightError(InputContractError):
@@ -265,11 +266,14 @@ def _assessment_status(
     text: str, *, positive: tuple[str, ...], negative: tuple[str, ...]
 ) -> AssessmentStatus:
     lowered = text.lower()
-    negative_detected = any(re.search(pattern, lowered) for pattern in negative)
+    flags = re.IGNORECASE | re.MULTILINE
+    negative_detected = any(
+        re.search(pattern, lowered, flags=flags) for pattern in negative
+    )
     without_negative = lowered
     for pattern in negative:
-        without_negative = re.sub(pattern, "", without_negative)
-    if any(re.search(pattern, without_negative) for pattern in positive):
+        without_negative = re.sub(pattern, "", without_negative, flags=flags)
+    if any(re.search(pattern, without_negative, flags=flags) for pattern in positive):
         return AssessmentStatus.SUSPECTED
     if negative_detected:
         return AssessmentStatus.NOT_DETECTED
@@ -277,45 +281,149 @@ def _assessment_status(
 
 
 def _metric(text: str, pattern: str, *, percentage: bool = False) -> float | None:
-    match = re.search(pattern, text, flags=re.IGNORECASE)
+    match = re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE)
     if match is None:
         return None
     value = float(match.group(1))
     return value / 100.0 if percentage else value
 
 
+def _spanning_metric(text: str, pattern: str) -> float | None:
+    match = re.search(
+        pattern,
+        text,
+        flags=re.IGNORECASE | re.MULTILINE | re.DOTALL,
+    )
+    return float(match.group(1)) if match is not None else None
+
+
+def _final_verdict(text: str) -> str:
+    """Return only Xtriage's final-verdict body, or an empty string."""
+
+    match = re.search(
+        r"^\s*-+\s*Final verdict\s*-+\s*$"
+        r"(?P<body>.*?)"
+        r"(?=^\s*-+\s*Statistics independent|\Z)",
+        text,
+        flags=re.IGNORECASE | re.MULTILINE | re.DOTALL,
+    )
+    return match.group("body") if match is not None else ""
+
+
+def _point_group_assessment(
+    text: str, verdict: str
+) -> tuple[AssessmentStatus, str | None, str | None, bool | None, bool | None]:
+    """Compare Xtriage's input and likely point groups without conflating settings."""
+
+    dictated_match = re.search(
+        r"^The point group of data as dictated by the space group is\s+(.+?)\s*$",
+        text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    likely_match = re.search(
+        r"^The likely point group of the data is:\s+(.+?)\s*$",
+        text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    dictated = dictated_match.group(1).strip() if dictated_match else None
+    likely = likely_match.group(1).strip() if likely_match else None
+    absence_match = re.search(
+        r"^.*\(input space group\):\s+no "
+        r"(?:systematic )?absences (?:found|possible)\s*$",
+        text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    input_absences_consistent: bool | None = True if absence_match is not None else None
+
+    equivalent: bool | None = None
+    if dictated is not None and likely is not None:
+        # Xtriage may append a change-of-basis operator, for example
+        # ``C 1 2 1 (x+y,z,2*x)``.  Compare crystallographic point-group types,
+        # not literal setting strings, so an equivalent centred setting is not
+        # reported as higher symmetry.
+        dictated_symbol = dictated.split(" (", maxsplit=1)[0]
+        likely_symbol = likely.split(" (", maxsplit=1)[0]
+        dictated_group = gemmi.find_spacegroup_by_name(dictated_symbol)
+        likely_group = gemmi.find_spacegroup_by_name(likely_symbol)
+        if dictated_group is not None and likely_group is not None:
+            equivalent = (
+                dictated_group.point_group_hm() == likely_group.point_group_hm()
+            )
+
+    if re.search(
+        r"symmetry (?:of the lattice and intensity|of the intensities).*"
+        r"(?:input(?: input)?|assumed) space group is too low",
+        verdict,
+        flags=re.IGNORECASE | re.DOTALL,
+    ):
+        return (
+            AssessmentStatus.SUSPECTED,
+            dictated,
+            likely,
+            equivalent,
+            input_absences_consistent,
+        )
+    if equivalent is None:
+        return (
+            AssessmentStatus.NOT_ASSESSED,
+            dictated,
+            likely,
+            None,
+            input_absences_consistent,
+        )
+
+    if not equivalent:
+        status = AssessmentStatus.SUSPECTED
+    elif input_absences_consistent is True:
+        status = AssessmentStatus.NOT_DETECTED
+    else:
+        status = AssessmentStatus.NOT_ASSESSED
+    return status, dictated, likely, equivalent, input_absences_consistent
+
+
 def parse_xtriage_output(text: str) -> XtriageAssessment:
     """Parse stable warning concepts while retaining the complete raw log."""
 
+    verdict = _final_verdict(text)
     anisotropy = _assessment_status(
         text,
-        positive=(r"significant anisotrop", r"anisotropy.*(?:suspect|detected)"),
-        negative=(r"no significant anisotrop",),
+        positive=(
+            r"^\s*The data show severe anisotropy\.\s*$",
+            r"^\s*The data are moderately anisotropic\.\s*$",
+        ),
+        negative=(r"^\s*The data are not significantly anisotropic\.\s*$",),
     )
     tncs = _assessment_status(
-        text,
-        positive=(r"translational ncs.*(?:present|detected|suspect|significant)",),
-        negative=(r"no (?:significant )?translational ncs",),
-    )
-    twinning = _assessment_status(
-        text,
+        verdict,
         positive=(
-            r"twinning.*(?:likely|suspect|detected|significant)",
-            r"possible twin law",
-        ),
-        negative=(r"no (?:significant )?twinning",),
-    )
-    symmetry = _assessment_status(
-        text,
-        positive=(
-            r"possible higher symmetry",
-            r"systematic absence.*(?:problem|violation|inconsistent)",
+            r"indicating pseudo[- ]?translational\s+symmetry\.",
+            r"the detected translational ncs",
         ),
         negative=(
-            r"no indication of higher symmetry",
-            r"systematic absences.*consistent",
+            r"no significant pseudo[- ]?translation is detected\.",
+            r"no (?:significant )?translational "
+            r"(?:ncs|pseudo[- ]?symmetry) (?:is )?(?:detected|suspected)\.",
         ),
     )
+    twinning = _assessment_status(
+        verdict,
+        positive=(
+            r"twinning could\s+be the reason for the departure of the "
+            r"intensity statistics from normality",
+            r"as twinning is however suspected",
+        ),
+        negative=(
+            r"no twinning is suspected\.",
+            r"no significant twinning (?:is )?detected\.",
+        ),
+    )
+    (
+        symmetry,
+        dictated_point_group,
+        likely_point_group,
+        equivalent,
+        input_absences_consistent,
+    ) = _point_group_assessment(text, verdict)
     status_codes = {
         "xtriage_anisotropy": anisotropy,
         "xtriage_tncs": tncs,
@@ -333,10 +441,60 @@ def parse_xtriage_output(text: str) -> XtriageAssessment:
         flags=re.IGNORECASE,
     )
     completeness = _metric(
-        text, r"completeness[^\n:=]*[:=]\s*([0-9]+(?:\.[0-9]+)?)\s*%", percentage=True
+        text,
+        r"^\s*Completeness in resolution range:\s*"
+        r"([0-9]+(?:\.[0-9]+)?)\s*$",
     )
+    if completeness is None:
+        completeness = _metric(
+            text,
+            r"^\s*Completeness(?: overall)?:\s*"
+            r"([0-9]+(?:\.[0-9]+)?)\s*%\s*$",
+            percentage=True,
+        )
     mean_i_over_sigma = _metric(
-        text, r"mean\s+I\s*/\s*sigma\s*\(?I\)?[^\n:=]*[:=]\s*([0-9]+(?:\.[0-9]+)?)"
+        text,
+        r"^\s*Mean\s+I\s*/\s*sigma\s*\(?I\)?\s*:\s*"
+        r"([0-9]+(?:\.[0-9]+)?)\s*$",
+    )
+    if mean_i_over_sigma is None:
+        mean_i_over_sigma = _metric(
+            text,
+            r"^\s*Overall\s+<I\s*/\s*sigma>\s+for\s+this\s+dataset\s+is\s+"
+            r"([0-9]+(?:\.[0-9]+)?)\s*$",
+        )
+    patterson_peak_fraction = _metric(
+        text,
+        rf"^\s*Height relative to origin\s*:\s*({_FLOAT_PATTERN})\s*%\s*$",
+        percentage=True,
+    )
+    if patterson_peak_fraction is None:
+        patterson_peak_fraction = _metric(
+            text,
+            r"^\s*The largest off-origin peak in the Patterson function is\s+"
+            r"([0-9]+(?:\.[0-9]+)?)% of the\s*$",
+            percentage=True,
+        )
+    patterson_peak_p_value = _metric(
+        text,
+        rf"^\s*p_value\(height\)\s*:\s*({_FLOAT_PATTERN})\s*$",
+    )
+    l_test_multivariate_z = _metric(
+        text,
+        r"^\s*Multivariate Z score L-test:\s*"
+        r"([0-9]+(?:\.[0-9]+)?)\s*$",
+    )
+    anisotropy_noise_z_least_affected = _spanning_metric(
+        text,
+        r"The quarter of Intensities \*least\* affected by the anisotropy "
+        r"correction show.*?Fraction of I/sigI > 3\s*:\s*\S+\s*"
+        r"\(\s*Z\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*\)",
+    )
+    anisotropy_noise_z_most_affected = _spanning_metric(
+        text,
+        r"The quarter of Intensities \*most\* affected by the anisotropy "
+        r"correction show.*?Fraction of I/sigI > 3\s*:\s*\S+\s*"
+        r"\(\s*Z\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*\)",
     )
     matthews_rows = tuple(
         XtriageMatthewsRow(
@@ -354,6 +512,21 @@ def parse_xtriage_output(text: str) -> XtriageAssessment:
             flags=re.IGNORECASE,
         )
     )
+    direction_dependent_resolution = bool(
+        re.search(
+            r"resolution limit appears to be direction-dependent",
+            text,
+            flags=re.IGNORECASE,
+        )
+    )
+    extra_warnings: list[str] = []
+    if direction_dependent_resolution:
+        extra_warnings.append("xtriage_direction_dependent_resolution")
+    if completeness is not None and completeness < 0.9:
+        extra_warnings.append("xtriage_completeness_below_90_percent")
+    if patterson_peak_p_value is not None and patterson_peak_p_value < 0.05:
+        extra_warnings.append("xtriage_patterson_peak_review")
+    warnings = (*warnings, *extra_warnings)
     version = version_match.group(1) if version_match else None
     return XtriageAssessment(
         version=version,
@@ -369,10 +542,20 @@ def parse_xtriage_output(text: str) -> XtriageAssessment:
             "version": version,
             "completeness": completeness,
             "mean_i_over_sigma": mean_i_over_sigma,
+            "patterson_off_origin_peak_fraction": patterson_peak_fraction,
+            "patterson_peak_p_value": patterson_peak_p_value,
+            "l_test_multivariate_z": l_test_multivariate_z,
+            "anisotropy_noise_z_least_affected": (anisotropy_noise_z_least_affected),
+            "anisotropy_noise_z_most_affected": (anisotropy_noise_z_most_affected),
             "anisotropy_status": anisotropy.value,
             "tncs_status": tncs.value,
             "twinning_status": twinning.value,
             "symmetry_status": symmetry.value,
+            "dictated_point_group": dictated_point_group,
+            "likely_point_group": likely_point_group,
+            "point_group_equivalent": equivalent,
+            "input_space_group_absences_consistent": input_absences_consistent,
+            "direction_dependent_resolution": direction_dependent_resolution,
             "matthews_rows": [
                 {
                     "copy_count": row.copy_count,
@@ -693,6 +876,56 @@ def _write_preflight_outputs(
     for record in records:
         unit_cell = ", ".join(f"{value:.3f}" for value in record.unit_cell)
         resolution = f"{record.resolution_low_a:.3f}-{record.resolution_high_a:.3f} A"
+        completeness = (
+            f"{record.completeness * 100:.2f}%"
+            if record.completeness is not None
+            else "not available"
+        )
+        mean_i_over_sigma = (
+            f"{record.mean_i_over_sigma:.3f}"
+            if record.mean_i_over_sigma is not None
+            else "not available"
+        )
+        summary_numbers: dict[str, float | None] = {}
+        for key in (
+            "patterson_off_origin_peak_fraction",
+            "patterson_peak_p_value",
+            "l_test_multivariate_z",
+            "anisotropy_noise_z_least_affected",
+            "anisotropy_noise_z_most_affected",
+        ):
+            value = record.xtriage_summary.get(key)
+            summary_numbers[key] = (
+                float(value)
+                if isinstance(value, (int, float)) and not isinstance(value, bool)
+                else None
+            )
+        patterson_peak = summary_numbers["patterson_off_origin_peak_fraction"]
+        patterson_p_value = summary_numbers["patterson_peak_p_value"]
+        l_test_z = summary_numbers["l_test_multivariate_z"]
+        least_anisotropy_z = summary_numbers["anisotropy_noise_z_least_affected"]
+        most_anisotropy_z = summary_numbers["anisotropy_noise_z_most_affected"]
+        patterson_display = (
+            f"{patterson_peak * 100:.2f}%"
+            if patterson_peak is not None
+            else "not available"
+        )
+        l_test_display = f"{l_test_z:.3f}" if l_test_z is not None else "not available"
+        patterson_p_value_display = (
+            f"{patterson_p_value:.3e}"
+            if patterson_p_value is not None
+            else "not available"
+        )
+        least_anisotropy_display = (
+            f"{least_anisotropy_z:.2f}"
+            if least_anisotropy_z is not None
+            else "not available"
+        )
+        most_anisotropy_display = (
+            f"{most_anisotropy_z:.2f}"
+            if most_anisotropy_z is not None
+            else "not available"
+        )
         lines.extend(
             (
                 f"## {record.crystal_id}",
@@ -704,6 +937,19 @@ def _write_preflight_outputs(
                 f"- Resolution: `{resolution}`",
                 f"- ASU volume: `{record.asu_volume_a3:.3f} A^3`",
                 f"- Free-R: `{record.free_flag_status}`",
+                f"- Xtriage version: `{record.xtriage_version or 'not run'}`",
+                f"- Completeness: `{completeness}`",
+                f"- Overall mean I/sigma: `{mean_i_over_sigma}`",
+                "- Xtriage assessments: "
+                f"`anisotropy={record.anisotropy_status}; "
+                f"tncs={record.tncs_status}; "
+                f"twinning={record.twinning_status}; "
+                f"symmetry={record.symmetry_status}`",
+                f"- Patterson off-origin peak: `{patterson_display}`",
+                f"- Patterson peak p-value: `{patterson_p_value_display}`",
+                f"- Multivariate L-test Z: `{l_test_display}`",
+                "- Anisotropy-noise Z (least/most affected quarters): "
+                f"`{least_anisotropy_display} / {most_anisotropy_display}`",
                 f"- Warnings: `{'; '.join(record.warning_codes) or 'none'}`",
                 "",
             )
