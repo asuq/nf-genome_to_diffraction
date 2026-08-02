@@ -5,10 +5,13 @@ from pathlib import Path
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
-def test_documentation_tree_is_not_present() -> None:
-    assert not (REPOSITORY / "docs").exists()
+def test_operational_documentation_is_tracked_separately_from_handoff() -> None:
+    assert (REPOSITORY / "docs" / "README.md").is_file()
+    assert (REPOSITORY / "docs" / "marmic-prototype-runbook.md").is_file()
+    assert (REPOSITORY / "docs" / "prototype-test-report-2026-08-02.md").is_file()
     assert not (REPOSITORY / "prompts").exists()
     assert not (REPOSITORY / "scaffold").exists()
+    assert not (REPOSITORY / "CODEX_START_HERE.md").exists()
 
 
 def test_packaging_only_handoff_files_are_absent() -> None:

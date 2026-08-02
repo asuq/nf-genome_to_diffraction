@@ -9,9 +9,11 @@ This file applies to the entire repository unless a deeper `AGENTS.md` explicitl
 3. Example files under `examples/`.
 4. The approved developer handoff retained outside this Git repository.
 
-The documentation tree is intentionally not tracked in this repository. Before
-making a specification-level or scientific-policy change, consult the retained
-handoff and obtain explicit user approval.
+The tracked `docs/` tree contains operational runbooks and verified test reports.
+It summarises implementation and observations but does not supersede the schemas,
+examples, or retained handoff. Before making a specification-level or
+scientific-policy change, consult the retained handoff and obtain explicit user
+approval.
 
 When documents conflict, use the earlier item in this order. Do not silently reconcile contradictions by inventing new policy.
 
@@ -112,4 +114,5 @@ Every new module must document:
 - test coverage.
 
 Reconcile specification-level changes with the retained external handoff before
-implementation. Do not create a tracked `docs/` tree without explicit approval.
+implementation. Keep tracked reports free of private inputs, credentials,
+machine-specific user paths, and generated pipeline outputs.

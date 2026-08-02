@@ -14,8 +14,9 @@ sequence assessment, ranking, and final identification are not yet implemented.
 `main.nf` therefore ends with an explicit
 `task05_preflight_complete_downstream_deferred` scope record; its successful exit
 does not mean that a protein identity was found. Phenix and full database
-preparation have synthetic/local acceptance coverage; real-site validation remains
-required.
+preparation have synthetic/local acceptance coverage. Tasks 04 and 05 have also
+completed a real Slurm pilot on Marmic with Xtriage deliberately skipped; real
+Phenix and reference-database validation remain required.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -303,6 +304,7 @@ pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
 
 ## Repository layout
 
+- `docs/`: tracked operational runbooks and verified prototype test reports.
 - `src/genome_to_diffraction/`: Python infrastructure, contracts, Phenix and
   database boundaries, and trusted catalogue normalisation; later scientific
   subsystems remain reserved.
@@ -313,7 +315,10 @@ pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
 - `tests/`: unit, contract, integration-scaffold, and workflow checks.
 
 Generated workflow work directories, results, local environments, logs, and the
-untracked documentation tree are intentionally excluded from Git.
+separately retained developer handoff are intentionally excluded from Git.
+
+The documentation index, Marmic runbook, and verified initial pilot findings are
+available in [`docs/README.md`](docs/README.md).
 
 ## Method and software references
 

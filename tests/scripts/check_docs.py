@@ -1,4 +1,4 @@
-"""Check essential tracked Markdown and enforce the no-doc-tree policy."""
+"""Check essential and operational Markdown documentation links."""
 
 import re
 import sys
@@ -9,18 +9,24 @@ MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
 
 
 def main() -> int:
-    """Validate local links in essential Markdown files."""
+    """Validate local links in essential and operational Markdown files."""
 
     errors: list[str] = []
-    for forbidden in ("docs", "prompts", "scaffold", "CODEX_START_HERE.md"):
+    for forbidden in ("prompts", "scaffold", "CODEX_START_HERE.md"):
         if (REPOSITORY / forbidden).exists():
-            errors.append(f"untracked documentation path must be absent: {forbidden}")
+            errors.append(f"untracked handoff path must be absent: {forbidden}")
 
     markdown_files = [
         REPOSITORY / "README.md",
         REPOSITORY / "AGENTS.md",
         REPOSITORY / "CHANGELOG.md",
     ]
+    docs_root = REPOSITORY / "docs"
+    docs_index = docs_root / "README.md"
+    if not docs_index.is_file():
+        errors.append("missing operational documentation index: docs/README.md")
+    if docs_root.is_dir():
+        markdown_files.extend(sorted(docs_root.rglob("*.md")))
     for markdown_path in markdown_files:
         if not markdown_path.is_file():
             errors.append(f"missing essential file: {markdown_path.name}")
@@ -37,7 +43,7 @@ def main() -> int:
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print("Essential Markdown files and documentation policy are valid.")
+    print("Essential and operational Markdown links are valid.")
     return 0
 
 

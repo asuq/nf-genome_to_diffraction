@@ -24,6 +24,10 @@ All notable changes to this project are documented here.
 - Independent Gemmi MTZ inspection, isolated Xtriage parsing, immutable one-time
   Free-R generation, soft SDS-PAGE features, bounded Matthews calculations, and
   real resumable Nextflow wiring through the Task 05 boundary.
+- Tracked operational documentation for the Marmic runtime layout, prototype
+  procedure, and verified `GCF_000711905.1`/`CD6QS2P2G1_5` pilot findings.
+- Compound-CDS merging and lossless preservation of distinct loci that share a
+  RefSeq protein accession, validated by the real Marmic Task 05 pilot.
 
 ### Not implemented
 
