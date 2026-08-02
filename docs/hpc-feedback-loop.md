@@ -1,22 +1,27 @@
-# Local-Marmic smoke-test feedback loop
+# Local-Marmic fixed-profile feedback loop
 
 ## Purpose and boundary
 
-Version 1 runs the repository's complete foundation check on Marmic through one
-fixed Slurm profile. Local Git remains the sole source of truth. The HPC fetches
-an exact pushed commit, creates an isolated read-only checkout, runs tests, and
-returns diagnostics. It never edits or pushes source.
+The interface has two closed profiles. Local Git remains the sole source of
+truth. Marmic fetches an exact pushed commit, creates an isolated read-only
+checkout, runs only the selected reviewed job body, and returns bounded
+diagnostics. It never edits or pushes source.
+
+| Profile | Fixed operation | Scientific meaning |
+| --- | --- | --- |
+| `smoke` | Locked `pixi run check` | Software/environment foundation only |
+| `p0` | Real Phenix/database verification plus all-three-crystal Task 05 run and cached resume | M0 execution evidence only; downstream identity search remains deferred |
 
 The reviewed local application is the routine approval boundary. It may request
 only `deploy-tools`, `stage`, `submit`, `status`, `wait`, `logs`, `collect`, or
 `cancel` from the fixed remote dispatcher. Raw SSH, file-transfer tools,
 scheduler commands, and `clean` must not receive persistent automatic approval.
 
-The smoke job uses partition `slurm`, 2 CPUs, 8 GB memory, and a 45-minute
-walltime. Only one managed smoke job may be active. Queue waiting stops after 30
-minutes, execution waiting stops after 45 minutes, and neither timeout silently
-cancels a job. The caller must inspect status and cancel the recorded job when
-appropriate.
+Both drivers use partition `slurm`, 2 CPUs, 8 GB memory, and a 45-minute
+walltime. Only one managed job may be active across both profiles. Queue waiting
+stops after 30 minutes, execution waiting stops after 45 minutes, and neither
+timeout silently cancels a job. The caller must inspect status and cancel the
+recorded job when appropriate.
 
 ## Filesystem and execution model
 
@@ -26,6 +31,7 @@ The remote dispatcher is installed under an approved run root with this layout:
 RUN_ROOT/
 |-- _cache/git/nf-genome_to_diffraction.git/
 |-- _cache/pixi/
+|-- _config/p0.paths
 |-- _locks/
 |-- _tooling/
 |   |-- deployed-tools.json
@@ -34,6 +40,9 @@ RUN_ROOT/
 |   `-- pixi.path
 `-- runs/RUN_ID/
     |-- source/
+    |-- environment/.pixi/
+    |-- cache/
+    |-- execution/
     |-- state/
     |-- logs/
     |-- artifacts/
@@ -42,11 +51,15 @@ RUN_ROOT/
 ```
 
 Each staged source tree is detached at one full commit SHA, includes the pinned
-`nf-helper` submodule, and is made read-only. The Slurm job copies that source to
-`SLURM_TMPDIR` when supplied, otherwise `/dev/shm`, and materialises the locked
-Pixi `default` environment there. Only the shared Pixi package cache, logs, and
-run records use durable storage. Disposable scratch is removed by the job; the
-durable run is retained until explicitly cleaned.
+`nf-helper` submodule, and is made read-only. A per-run locked Pixi environment
+is attached outside that source tree.
+
+The foundation smoke copies source to `SLURM_TMPDIR` or `/dev/shm`. P0 keeps the
+source, Pixi environment, Nextflow cache/work directory, logs, and results on
+shared durable storage because child Slurm nodes cannot see the driver's
+`/dev/shm`. Only P0 driver temporaries use `/dev/shm`; `nf-helper` stages each
+Nextflow process through compute-node `/scratch`. Disposable driver scratch is
+removed by the job, while the durable run is retained until explicitly cleaned.
 
 ## Build and reviewed installation
 
@@ -119,6 +132,17 @@ nf-gtd-hpc-test collect --run-id RUN_ID
 nf-gtd-hpc-test cancel --run-id RUN_ID
 ```
 
+Use the same routine operations with `p0` only after its fixed site
+configuration has been reviewed:
+
+```bash
+nf-gtd-hpc-test stage p0 --revision HEAD
+nf-gtd-hpc-test submit p0 --run-id RUN_ID
+nf-gtd-hpc-test wait --run-id RUN_ID
+nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test collect --run-id RUN_ID
+```
+
 `deploy-tools` first requires a clean local worktree. It resolves the exact Git
 commit, reads only `bootstrap/nf-gtd-hpc-remote` and
 `bootstrap/nf-gtd-hpc-smoke-job`, and calculates their SHA-256 values without
@@ -143,8 +167,33 @@ prior run as the bounded feedback parent:
 nf-gtd-hpc-test stage smoke --revision HEAD --parent-run PREVIOUS_RUN_ID
 ```
 
-The initial run plus five fixes are allowed. A third attempt after two identical
-failure signatures is refused pending manual diagnosis.
+The initial run plus five fixes are allowed per feedback chain. A third attempt
+after two identical failure signatures is refused pending manual diagnosis.
+
+## P0 real-site profile
+
+Create `_config/p0.paths` below the configured remote run root from the tracked
+[example](../conf/hpc-p0.paths.example). The file has exactly six non-empty lines
+and no comments: allowed site root, catalogue manifest, crystal manifest,
+pipeline configuration, database root, and Phenix manifest. It is user-owned,
+mode `0600`, untracked, and contains the real site paths.
+
+P0 accepts none of those paths on the local command line. `stage p0` records the
+file's SHA-256; the job refuses execution if it changes. Every configured child
+must be a canonical non-symlink path below the first-line root. The job then:
+
+1. installs the frozen Linux `hpc` Pixi environment;
+2. re-verifies every required Phenix command and preserves the verification log;
+3. runs database `verify-only` for PDB Foldseek, ProstT5, PDB sequences, and the
+   coordinate cache;
+4. runs `main.nf -profile marmic` with real Xtriage for the configured crystals;
+5. repeats the identical command with `-resume`; and
+6. fails unless all deterministic processes in the second trace are `CACHED`.
+
+It retains complete P0 results on Marmic but collects only fixed small reports,
+manifests, traces, and logs. A successful P0 means
+`task05_preflight_complete_downstream_deferred`; it never claims a protein
+identity or clean crystallographic acceptance merely because the job exited 0.
 
 ## Results and failure interpretation
 
@@ -156,10 +205,10 @@ MiB, and writes locally below the owned run directory.
 
 Failure classes are:
 
-- `success`: all foundation checks passed;
+- `success`: the selected fixed profile completed its explicit gate checks;
 - `software_failure`: the job detected unexpected source mutation or application
   behaviour outside a test assertion;
-- `test_failure`: `pixi run check` failed;
+- `test_failure`: the foundation checks or fixed P0 workflow/cache gate failed;
 - `scheduler_rejection` or `queue_timeout`: scheduling did not start normally;
 - `node_failure`: Slurm reported a failed node;
 - `environment_failure`: Pixi, resources, walltime, or runtime preparation failed;
@@ -213,9 +262,9 @@ prefix_rule(
 Verify the active rule independently in both Codex App and Codex CLI. Routine
 wrapper calls should not prompt; `clean` and raw SSH must still prompt.
 
-## Deferred integration
+## Deferred scope
 
-This interface runs foundation checks only. The real organism/diffraction pair,
-database preparation, Phenix, Task 05 pilot, full runs, and benchmarks are not
-part of this profile. Add the real integration profile only after the scheduled
-smoke test passes and its provenance and collected result are verified.
+P0 consumes already prepared real Phenix and database resources; it does not
+install licensed software, download databases, accept arbitrary Nextflow
+parameters, or expose raw SSH. Structural discovery, MR, refinement, map-based
+sequence work, full pilots, and benchmarks require their later roadmap gates.

@@ -169,6 +169,22 @@ def test_all_owned_operations_use_the_recorded_capability(tmp_path: Path) -> Non
     assert len(owner_values) == 1
 
 
+def test_p0_profile_has_a_closed_run_id_and_remote_argument(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+
+    staged = controller.stage("p0", "HEAD")
+
+    run_id = str(staged["run_id"])
+    assert run_id.startswith("gtd-p0-")
+    operation, arguments = transport.calls[-1]
+    assert operation == "stage"
+    assert arguments[-1] == "p0"
+    assert controller.submit("p0", run_id)["operation"] == "submit"
+    with pytest.raises(ValidationError, match="does not match"):
+        controller.submit("smoke", run_id)
+
+
 def test_stage_refuses_dirty_or_injected_revisions(tmp_path: Path) -> None:
     (tmp_path / "pixi.lock").write_text("locked\n", encoding="utf-8")
     transport = FakeTransport()

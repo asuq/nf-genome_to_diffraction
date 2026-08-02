@@ -74,12 +74,14 @@ typed application models, and checks cross-manifest references. Contract command
 log progress and diagnostics to standard error; use `--log-format json` for
 structured logs and `--no-progress` for non-interactive execution.
 
-## Immutable Marmic smoke tests
+## Immutable Marmic test profiles
 
 The repository includes a repository-specific local controller and fixed remote
-dispatcher for running `pixi run check` through Slurm against one immutable,
-pushed commit. It does not provide arbitrary SSH command execution, source edits
-on Marmic, automatic cleanup, or real-dataset integration. Machine-readable
+dispatcher. The `smoke` profile runs `pixi run check`; the separately bounded
+`p0` profile verifies configured real Phenix/database resources and runs the
+three-crystal Task 05 preflight twice to prove cache reuse. Both use one
+immutable pushed commit. Neither provides arbitrary SSH/paths, source edits on
+Marmic, automatic cleanup, or downstream protein identification. Machine-readable
 results are written to standard output; diagnostic `logging` and optional
 `tqdm` wait/collection progress use standard error.
 
@@ -87,6 +89,8 @@ The controller must be built and installed as a reviewed immutable application
 outside the writable checkout before adding narrow Codex approval rules. See the
 [local-Marmic feedback-loop runbook](docs/hpc-feedback-loop.md) for installation,
 configuration, operations, failure classes, and the clean approval boundary.
+The current M0 evidence and remaining scientific prerequisites are separated in
+the [M0 qualification dashboard](docs/m0-qualification.md).
 
 ## Trusted catalogue import
 

@@ -1,4 +1,4 @@
-"""Machine-readable command-line interface for repository-specific HPC smoke tests."""
+"""Machine-readable interface for repository-specific fixed HPC tests."""
 
 import argparse
 import json
@@ -20,7 +20,7 @@ DEFAULT_CONFIG = Path.home() / ".config" / "nf-gtd-hpc-test" / "config.json"
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="nf-gtd-hpc-test",
-        description="Run one immutable nf-genome_to_diffraction smoke test on Marmic",
+        description="Run one immutable fixed nf-genome_to_diffraction test on Marmic",
     )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--log-level", default="INFO")
@@ -35,12 +35,12 @@ def _build_parser() -> argparse.ArgumentParser:
     deploy_tools.add_argument("--revision", required=True)
 
     stage = actions.add_parser("stage", help="stage an immutable pushed commit")
-    stage.add_argument("profile", choices=("smoke",))
+    stage.add_argument("profile", choices=("smoke", "p0"))
     stage.add_argument("--revision", required=True)
     stage.add_argument("--parent-run")
 
     submit = actions.add_parser("submit", help="submit the fixed Slurm profile")
-    submit.add_argument("profile", choices=("smoke",))
+    submit.add_argument("profile", choices=("smoke", "p0"))
     submit.add_argument("--run-id", required=True)
 
     for operation, help_text in (

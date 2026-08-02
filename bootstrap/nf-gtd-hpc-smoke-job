@@ -1,19 +1,30 @@
 #!/usr/bin/env bash
-# Fixed Slurm job body for the foundation-only smoke profile.
+# Fixed Slurm job body for the reviewed smoke and P0 profiles.
 
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-smoke-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+RUN_ID_RE='^gtd-(smoke|p0)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0)$'
+CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 
 # Slurm executes a spooled copy, so $0 no longer identifies _tooling. The fixed
-# dispatcher derives the trusted run root and passes it as the second argument.
+# dispatcher derives the trusted run root and passes it explicitly.
 RUN_ID="${1-}"
 ROOT="${2-}"
+PROFILE="${3-}"
 [[ "$RUN_ID" =~ $RUN_ID_RE ]] || { printf 'invalid managed run ID\n' >&2; exit 2; }
-[[ "${SLURM_JOB_ID:-}" =~ $INTEGER_RE ]] || { printf 'missing Slurm job ID\n' >&2; exit 2; }
+[[ "$PROFILE" =~ $PROFILE_RE ]] || { printf 'invalid fixed profile\n' >&2; exit 2; }
+[[ "$RUN_ID" == "gtd-${PROFILE}-"* ]] || {
+    printf 'run ID does not match the fixed profile\n' >&2
+    exit 2
+}
+[[ "${SLURM_JOB_ID:-}" =~ $INTEGER_RE ]] || {
+    printf 'missing Slurm job ID\n' >&2
+    exit 2
+}
 [[ "$ROOT" =~ $SAFE_PATH_RE && -d "$ROOT/runs" && -d "$ROOT/_locks" ]] || {
     printf 'invalid managed run root\n' >&2
     exit 2
@@ -26,6 +37,10 @@ ROOT="${2-}"
 RUN="$ROOT/runs/$RUN_ID"
 [[ -d "$RUN/source" && -d "$RUN/state" && -d "$RUN/logs" ]] || {
     printf 'managed run is incomplete\n' >&2
+    exit 2
+}
+[[ "$(<"$RUN/state/profile")" == "$PROFILE" ]] || {
+    printf 'recorded profile does not match the job request\n' >&2
     exit 2
 }
 PIXI_BIN="$(<"$RUN/state/pixi-bin")"
@@ -55,7 +70,7 @@ atomic_text() {
 finalise() {
     local exit_code="$?"
     local failure_class scheduler_state ended_at result_tmp active_run="" active_job=""
-    local cleanup_failed=false
+    local cleanup_failed=false reports_json='[]' retained_json='[]'
     trap - EXIT TERM INT
     set +e
     if (( exit_code == 0 )); then
@@ -97,6 +112,10 @@ finalise() {
     else
         printf 'scratch_cleanup_status=success\n'
     fi
+    if [[ "$PROFILE" == p0 ]]; then
+        reports_json='["artifacts/qualification/resume-check.json"]'
+        retained_json='["artifacts/p0","artifacts/qualification"]'
+    fi
     ended_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     atomic_text "$RUN/state/exit-code" "$exit_code"
     atomic_text "$RUN/state/failure-class" "$failure_class"
@@ -106,6 +125,7 @@ finalise() {
 {
   "schema_version": "1.0",
   "run_id": "$RUN_ID",
+  "profile": "$PROFILE",
   "job_id": "$SLURM_JOB_ID",
   "started_at": "$STARTED_AT",
   "completed_at": "$ended_at",
@@ -114,14 +134,14 @@ finalise() {
   "failure_class": "$failure_class",
   "standard_output": "logs/slurm-${SLURM_JOB_ID}.out",
   "standard_error": "logs/slurm-${SLURM_JOB_ID}.out",
-  "application_log": "logs/smoke.log",
-  "structured_test_reports": [],
-  "retained_artifacts": []
+  "application_log": "logs/${PROFILE}.log",
+  "structured_test_reports": $reports_json,
+  "retained_artifacts": $retained_json
 }
 EOF
     mv -f -- "$result_tmp" "$RUN/state/job-result.json"
-    printf '{"event":"job_completed","timestamp":"%s"}\n' "$ended_at" \
-        >> "$RUN/events.jsonl"
+    printf '{"event":"job_completed","profile":"%s","timestamp":"%s"}\n' \
+        "$PROFILE" "$ended_at" >> "$RUN/events.jsonl"
     exit "$exit_code"
 }
 
@@ -133,46 +153,262 @@ handle_signal() {
     exit "$exit_code"
 }
 
+path_within_root() {
+    local root="$1"
+    local path="$2"
+    [[ "$path" == "$root"/* ]]
+}
+
+load_p0_config() {
+    local config="$ROOT/_config/p0.paths"
+    local expected actual allowed candidate resolved index
+    local -a values=()
+    [[ -f "$config" && ! -L "$config" && -O "$config" ]] || {
+        printf 'fixed P0 configuration is absent or unsafe\n' >&2
+        return 1
+    }
+    [[ "$(stat -c '%a' "$config")" == 600 ]] || {
+        printf 'fixed P0 configuration must have mode 0600\n' >&2
+        return 1
+    }
+    expected="$(<"$RUN/state/p0-config-sha256")"
+    [[ "$expected" =~ $CHECKSUM_RE ]] || {
+        printf 'recorded P0 configuration checksum is invalid\n' >&2
+        return 1
+    }
+    actual="$(sha256sum "$config" | awk '{print $1}')"
+    [[ "$actual" == "$expected" ]] || {
+        printf 'P0 configuration changed after staging\n' >&2
+        return 1
+    }
+    mapfile -t values < "$config"
+    [[ "${#values[@]}" -eq 6 ]] || {
+        printf 'P0 configuration must contain exactly six path lines\n' >&2
+        return 1
+    }
+    for candidate in "${values[@]}"; do
+        [[ "$candidate" =~ $SAFE_PATH_RE ]] || {
+            printf 'P0 configuration contains an unsafe path\n' >&2
+            return 1
+        }
+    done
+    allowed="$(realpath -e "${values[0]}")"
+    [[ "$allowed" == "${values[0]}" && -d "$allowed" && ! -L "${values[0]}" ]] || {
+        printf 'P0 allowed root must be a canonical regular directory\n' >&2
+        return 1
+    }
+    [[ "$allowed" != / && "$allowed" != "${HOME:-}" ]] || {
+        printf 'P0 allowed root is too broad\n' >&2
+        return 1
+    }
+    for index in 1 2 3 5; do
+        candidate="${values[$index]}"
+        resolved="$(realpath -e "$candidate")"
+        [[ "$resolved" == "$candidate" ]] || {
+            printf 'P0 file path is not canonical: %s\n' "$candidate" >&2
+            return 1
+        }
+        path_within_root "$allowed" "$resolved" || {
+            printf 'P0 file escaped the configured allowed root\n' >&2
+            return 1
+        }
+        [[ -f "$resolved" && ! -L "$candidate" ]] || {
+            printf 'P0 input is not a regular file: %s\n' "$candidate" >&2
+            return 1
+        }
+    done
+    candidate="${values[4]}"
+    resolved="$(realpath -e "$candidate")"
+    [[ "$resolved" == "$candidate" ]] || {
+        printf 'P0 database root is not canonical\n' >&2
+        return 1
+    }
+    path_within_root "$allowed" "$resolved" || {
+        printf 'P0 database root escaped the configured allowed root\n' >&2
+        return 1
+    }
+    [[ -d "$resolved" && ! -L "$candidate" ]] || {
+        printf 'P0 database root is not a regular directory\n' >&2
+        return 1
+    }
+
+    P0_ALLOWED_ROOT="$allowed"
+    CATALOGUES="${values[1]}"
+    CRYSTALS="${values[2]}"
+    PIPELINE_CONFIG="${values[3]}"
+    DATABASE_ROOT="${values[4]}"
+    PHENIX_MANIFEST="${values[5]}"
+    P0_CONFIG_PATH="$config"
+}
+
+run_smoke() {
+    mkdir -p "$SOURCE"
+    cp -a "$RUN/source/." "$SOURCE/"
+    chmod -R u+w "$SOURCE"
+    [[ "$(git -C "$SOURCE" rev-parse HEAD)" == "$(<"$RUN/state/commit")" ]] || {
+        printf 'scratch checkout commit mismatch\n' >&2
+        return 2
+    }
+    cd "$SOURCE"
+    printf 'phase=pixi_install profile=smoke\n'
+    "$PIXI_BIN" install --environment default --frozen
+
+    PHASE=test
+    printf 'phase=foundation_check profile=smoke\n'
+    "$PIXI_BIN" run --environment default check
+
+    PHASE=software
+    if [[ -n "$(git status --porcelain=v1 --untracked-files=no)" ]]; then
+        printf 'foundation check modified tracked source files\n' >&2
+        return 3
+    fi
+    printf 'smoke_status=success\n'
+}
+
+run_p0_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/nextflow-${label}.log" \
+        run "$RUN/source/main.nf" \
+        "$@" \
+        -profile marmic \
+        --catalogues "$CATALOGUES" \
+        --crystals "$CRYSTALS" \
+        --config "$PIPELINE_CONFIG" \
+        --database_manifest "$VERIFIED_DATABASE_MANIFEST" \
+        --phenix_manifest "$PHENIX_MANIFEST" \
+        --profile_mode pilot \
+        --review_mode prepare \
+        --outdir "$P0_OUT" \
+        --cache_root "$RUN/cache"
+}
+
+run_p0() {
+    local total cached cache_counts trace
+    local qualification="$RUN/artifacts/qualification"
+    P0_OUT="$RUN/artifacts/p0"
+    VERIFIED_DATABASE_MANIFEST="$qualification/database_manifest.verified.json"
+    mkdir -p "$qualification" "$P0_OUT" "$RUN/cache" "$RUN/execution"
+
+    load_p0_config
+    cp -- "$P0_CONFIG_PATH" "$qualification/p0.paths.snapshot"
+    sha256sum \
+        "$P0_CONFIG_PATH" \
+        "$CATALOGUES" \
+        "$CRYSTALS" \
+        "$PIPELINE_CONFIG" \
+        "$PHENIX_MANIFEST" \
+        > "$qualification/input-checksums.sha256"
+
+    cd "$RUN/source"
+    printf 'phase=pixi_install profile=p0\n'
+    "$PIXI_BIN" install --environment hpc --frozen
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    [[ -x "$GTD" && -x "$NEXTFLOW" ]] || {
+        printf 'locked P0 executables are unavailable\n' >&2
+        return 2
+    }
+
+    printf 'phase=phenix_verify profile=p0\n'
+    "$GTD" --log-format json --no-progress phenix verify \
+        --manifest "$PHENIX_MANIFEST" \
+        --verification-log "$qualification/phenix-verification.log"
+
+    printf 'phase=database_verify profile=p0\n'
+    "$GTD" --log-format json --no-progress databases prepare \
+        --database-root "$DATABASE_ROOT" \
+        --manifest "$VERIFIED_DATABASE_MANIFEST" \
+        --prepare-pdb-foldseek \
+        --prepare-pdb-sequences \
+        --prepare-prostt5 \
+        --initialise-coordinate-cache \
+        --verify-only \
+        --threads 2
+
+    export JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    cd "$RUN/execution"
+    PHASE=test
+    printf 'phase=p0_first_run profile=p0\n'
+    run_p0_nextflow first
+    cp -a "$P0_OUT/pipeline_info" "$qualification/first-pipeline-info"
+
+    printf 'phase=p0_resume_run profile=p0\n'
+    run_p0_nextflow resume -resume
+    cp -a "$P0_OUT/pipeline_info" "$qualification/resume-pipeline-info"
+
+    trace="$qualification/resume-pipeline-info/trace.tsv"
+    [[ -f "$trace" ]] || {
+        printf 'resume trace was not produced\n' >&2
+        return 4
+    }
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$trace")"
+    read -r total cached <<< "$cache_counts"
+    [[ "$total" =~ $INTEGER_RE && "$cached" =~ $INTEGER_RE ]] || {
+        printf 'resume trace cache counts are invalid\n' >&2
+        return 4
+    }
+    [[ "$total" -ge 4 && "$cached" -eq "$total" ]] || {
+        printf 'resume did not cache every deterministic P0 process: total=%s cached=%s\n' \
+            "$total" "$cached" >&2
+        return 4
+    }
+    cat > "$qualification/resume-check.json" <<EOF
+{
+  "schema_version": "1.0",
+  "run_id": "$RUN_ID",
+  "profile": "p0",
+  "process_count": $total,
+  "cached_process_count": $cached,
+  "all_deterministic_processes_cached": true
+}
+EOF
+
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == "$(<"$RUN/state/commit")" ]] || {
+        printf 'P0 source commit changed during execution\n' >&2
+        return 3
+    }
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || {
+        printf 'P0 execution modified tracked source files\n' >&2
+        return 3
+    }
+    printf 'p0_status=preflight_complete_downstream_deferred\n'
+}
+
 trap finalise EXIT
 trap 'handle_signal 143 TERM' TERM
 trap 'handle_signal 130 INT' INT
 
-mkdir -p "$SCRATCH" "$SOURCE" "$SCRATCH/tmp"
-exec > "$RUN/logs/smoke.log" 2>&1
+mkdir -p "$SCRATCH" "$SCRATCH/tmp"
+exec > "$RUN/logs/${PROFILE}.log" 2>&1
 
 printf 'run_id=%s\n' "$RUN_ID"
+printf 'profile=%s\n' "$PROFILE"
 printf 'job_id=%s\n' "$SLURM_JOB_ID"
 printf 'compute_host=%s\n' "$(hostname -f)"
 printf 'source_commit=%s\n' "$(<"$RUN/state/commit")"
 printf 'pixi_executable=%s\n' "$PIXI_BIN"
 "$PIXI_BIN" --version
 
-cp -a "$RUN/source/." "$SOURCE/"
-chmod -R u+w "$SOURCE"
-[[ "$(git -C "$SOURCE" rev-parse HEAD)" == "$(<"$RUN/state/commit")" ]] || {
-    printf 'scratch checkout commit mismatch\n' >&2
-    exit 2
-}
-
 export PIXI_CACHE_DIR="$ROOT/_cache/pixi"
 export TMPDIR="$SCRATCH/tmp"
 export NXF_ANSI_LOG=false
 export NXF_DISABLE_CHECK_LATEST=true
-export NXF_HOME="$SCRATCH/nextflow-home"
 
-cd "$SOURCE"
-printf 'phase=pixi_install\n'
-"$PIXI_BIN" install --environment default --frozen
-
-PHASE=test
-printf 'phase=foundation_check\n'
-"$PIXI_BIN" run --environment default check
-
-PHASE=software
-if [[ -n "$(git status --porcelain=v1 --untracked-files=no)" ]]; then
-    printf 'foundation check modified tracked source files\n' >&2
-    exit 3
-fi
+case "$PROFILE" in
+    smoke) run_smoke ;;
+    p0) run_p0 ;;
+esac
 
 PHASE=success
-printf 'smoke_status=success\n'
+printf 'profile_status=success\n'

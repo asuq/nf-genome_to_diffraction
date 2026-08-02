@@ -10,6 +10,7 @@ from genome_to_diffraction.hpc.models import (
     HpcConfig,
     ValidationError,
     validate_log_lines,
+    validate_profile,
     validate_run_id,
 )
 
@@ -66,9 +67,15 @@ def test_configuration_rejects_authority_expansion(
 
 def test_run_and_log_identifiers_are_bounded() -> None:
     valid = "gtd-smoke-20260802T120000Z-0123456789ab-01234567"
+    valid_p0 = "gtd-p0-20260802T120000Z-0123456789ab-01234567"
     assert validate_run_id(valid) == valid
+    assert validate_run_id(valid_p0) == valid_p0
+    assert validate_profile("smoke") == "smoke"
+    assert validate_profile("p0") == "p0"
     assert validate_log_lines(2_000) == 2_000
     with pytest.raises(ValidationError):
         validate_run_id("../../unrelated")
     with pytest.raises(ValidationError):
         validate_log_lines(2_001)
+    with pytest.raises(ValidationError):
+        validate_profile("p0;touch-bad")

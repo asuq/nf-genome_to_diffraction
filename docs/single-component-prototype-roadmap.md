@@ -114,6 +114,10 @@ scientific controls, licences, and HPC resources are on the critical path.
 
 ## M0 — Real-site qualification and controlled integration loop
 
+Current evidence and open gate items are maintained in the
+[M0 qualification dashboard](m0-qualification.md). The dashboard reports
+observed status; this section remains the acceptance specification.
+
 ### Objectives
 
 Close the gap between synthetic/local acceptance and real Marmic execution

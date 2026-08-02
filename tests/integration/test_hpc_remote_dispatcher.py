@@ -8,6 +8,7 @@ import shlex
 import shutil
 import subprocess
 import tarfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -15,7 +16,23 @@ import pytest
 REPOSITORY = Path(__file__).resolve().parents[2]
 RUN_ID = "gtd-smoke-20260802T120000Z-0123456789ab-01234567"
 SECOND_RUN_ID = "gtd-smoke-20260802T120001Z-0123456789ab-01234568"
+P0_RUN_ID = "gtd-p0-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
+
+
+@pytest.fixture(autouse=True)
+def _restore_test_tree_permissions(tmp_path: Path) -> Iterator[None]:
+    """Make immutable fake checkouts removable after each integration test."""
+
+    yield
+    for directory, subdirectories, files in os.walk(tmp_path):
+        directory_path = Path(directory)
+        if not directory_path.is_symlink():
+            directory_path.chmod(0o700)
+        for name in (*subdirectories, *files):
+            path = directory_path / name
+            if not path.is_symlink():
+                path.chmod(0o700)
 
 
 def _run(
@@ -216,7 +233,16 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
     ).stdout.split()[0]
 
     staged = _run(
-        [str(dispatcher), "stage", RUN_ID, commit, lock_checksum, OWNER_ID, "1"],
+        [
+            str(dispatcher),
+            "stage",
+            RUN_ID,
+            commit,
+            lock_checksum,
+            OWNER_ID,
+            "1",
+            "smoke",
+        ],
         cwd=tmp_path,
         environment=environment,
     )
@@ -232,7 +258,12 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
     )
     remote_root = smoke_job.parent.parent
-    assert submitted_arguments[-3:] == [str(smoke_job), RUN_ID, str(remote_root)]
+    assert submitted_arguments[-4:] == [
+        str(smoke_job),
+        RUN_ID,
+        str(remote_root),
+        "smoke",
+    ]
 
     job_environment = dict(environment)
     job_environment["SLURM_JOB_ID"] = "123"
@@ -243,7 +274,7 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
     spooled_job = spool_directory / "slurm_script"
     shutil.copy2(smoke_job, spooled_job)
     _run(
-        [str(spooled_job), RUN_ID, str(remote_root)],
+        [str(spooled_job), RUN_ID, str(remote_root), "smoke"],
         cwd=tmp_path,
         environment=job_environment,
     )
@@ -373,6 +404,187 @@ def _lock_checksum(tmp_path: Path) -> str:
     ).stdout.split()[0]
 
 
+def _write_p0_paths(root: Path, *, unsafe: bool = False) -> Path:
+    allowed = root / "p0-inputs"
+    allowed.mkdir()
+    database_root = allowed / "databases"
+    database_root.mkdir()
+    inputs = []
+    for name in ("catalogues.json", "crystals.json", "config.yaml", "phenix.json"):
+        path = allowed / name
+        path.write_text("{}\n", encoding="utf-8")
+        inputs.append(path)
+    p0_config = root / "_config" / "p0.paths"
+    p0_config.parent.mkdir()
+    crystal_path = str(inputs[1])
+    if unsafe:
+        crystal_path += ";touch-bad"
+    p0_config.write_text(
+        "\n".join(
+            (
+                str(allowed),
+                str(inputs[0]),
+                crystal_path,
+                str(inputs[2]),
+                str(database_root),
+                str(inputs[3]),
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    p0_config.chmod(0o600)
+    return p0_config
+
+
+def test_p0_stage_fingerprints_fixed_config_and_rejects_unsafe_paths_at_run(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    p0_config = _write_p0_paths(remote_root, unsafe=True)
+
+    staged = _run(
+        [
+            str(dispatcher),
+            "stage",
+            P0_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "p0",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    staged_fields = _decode_protocol(staged.stdout)
+    assert staged_fields["profile"] == "p0"
+    manifest = json.loads(
+        (remote_root / "runs" / P0_RUN_ID / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert (
+        manifest["p0_config_sha256"]
+        == hashlib.sha256(p0_config.read_bytes()).hexdigest()
+    )
+
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "321"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+    failed = _run(
+        [str(smoke_job), P0_RUN_ID, str(remote_root), "p0"],
+        cwd=tmp_path,
+        environment=job_environment,
+        success=False,
+    )
+    assert failed.returncode != 0
+    failure = (remote_root / "runs" / P0_RUN_ID / "state" / "failure-class").read_text(
+        encoding="utf-8"
+    )
+    assert failure.strip() == "environment_failure"
+    assert not (tmp_path / "bad").exists()
+
+
+def _install_fake_p0_runtime(run: Path, *, all_cached: bool = True) -> None:
+    bin_directory = run / "source" / ".pixi" / "envs" / "hpc" / "bin"
+    bin_directory.mkdir(parents=True)
+    _write_executable(
+        bin_directory / "genome-to-diffraction",
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "mode=\n"
+        "previous=\n"
+        'for argument in "$@"; do\n'
+        '  [[ "$argument" != databases ]] || mode=databases\n'
+        '  if [[ "$previous" == --verification-log ]]; then\n'
+        "    printf 'verified\\n' > \"$argument\"\n"
+        '  elif [[ "$mode" == databases && "$previous" == --manifest ]]; then\n'
+        "    printf '{}\\n' > \"$argument\"\n"
+        "  fi\n"
+        '  previous="$argument"\n'
+        "done\n",
+    )
+    status = "CACHED" if all_cached else "COMPLETED"
+    _write_executable(
+        bin_directory / "nextflow",
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "outdir=\n"
+        "previous=\n"
+        'for argument in "$@"; do\n'
+        '  if [[ "$previous" == --outdir ]]; then outdir="$argument"; fi\n'
+        '  previous="$argument"\n'
+        "done\n"
+        '[[ -n "$outdir" ]]\n'
+        'mkdir -p "$outdir/pipeline_info" "$outdir/scope" '
+        '"$outdir/catalogue" "$outdir/preflight" "$outdir/matthews"\n'
+        "printf 'task_id\\tstatus\\n' > \"$outdir/pipeline_info/trace.tsv\"\n"
+        f"for task in 1 2 3 4; do printf '%s\\t{status}\\n' \"$task\"; done "
+        '>> "$outdir/pipeline_info/trace.tsv"\n'
+        "for name in report.html timeline.html dag.html; do "
+        "printf '<html></html>\\n' > \"$outdir/pipeline_info/$name\"; done\n"
+        'printf \'{"status":"task05_preflight_complete_downstream_deferred"}\\n\' '
+        '> "$outdir/scope/pipeline_scope.json"\n'
+        "printf '{}\\n' > \"$outdir/catalogue/catalogue_import_manifest.json\"\n"
+        "printf '{}\\n' > \"$outdir/preflight/mtz_preflight.jsonl\"\n"
+        "printf 'header\\n' > \"$outdir/preflight/mtz_preflight.tsv\"\n"
+        "printf '# preflight\\n' > \"$outdir/preflight/preflight_report.md\"\n"
+        "printf '# matthews\\n' > \"$outdir/matthews/matthews_report.md\"\n",
+    )
+
+
+@pytest.mark.parametrize(
+    ("all_cached", "success", "failure_class"),
+    [(True, True, "success"), (False, False, "test_failure")],
+)
+def test_p0_job_enforces_the_cached_resume_gate(
+    tmp_path: Path,
+    all_cached: bool,
+    success: bool,
+    failure_class: str,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            P0_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "p0",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    run = remote_root / "runs" / P0_RUN_ID
+    _install_fake_p0_runtime(run, all_cached=all_cached)
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "654"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+
+    _run(
+        [str(smoke_job), P0_RUN_ID, str(remote_root), "p0"],
+        cwd=tmp_path,
+        environment=job_environment,
+        success=success,
+    )
+
+    result = json.loads((run / "state" / "job-result.json").read_text(encoding="utf-8"))
+    assert result["failure_class"] == failure_class
+    if all_cached:
+        resume = json.loads(
+            (run / "artifacts" / "qualification" / "resume-check.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert resume["cached_process_count"] == 4
+        assert resume["all_deterministic_processes_cached"] is True
+
+
 def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
     tmp_path: Path,
 ) -> None:
@@ -380,7 +592,16 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
     lock_checksum = _lock_checksum(tmp_path)
     for run_id in (RUN_ID, SECOND_RUN_ID):
         _run(
-            [str(dispatcher), "stage", run_id, commit, lock_checksum, OWNER_ID, "1"],
+            [
+                str(dispatcher),
+                "stage",
+                run_id,
+                commit,
+                lock_checksum,
+                OWNER_ID,
+                "1",
+                "smoke",
+            ],
             cwd=tmp_path,
             environment=environment,
         )
@@ -402,7 +623,16 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
     )
     third_run = "gtd-smoke-20260802T120002Z-0123456789ab-01234569"
     _run(
-        [str(dispatcher), "stage", third_run, commit, lock_checksum, OWNER_ID, "1"],
+        [
+            str(dispatcher),
+            "stage",
+            third_run,
+            commit,
+            lock_checksum,
+            OWNER_ID,
+            "1",
+            "smoke",
+        ],
         cwd=tmp_path,
         environment=environment,
     )
@@ -420,7 +650,16 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
 
     fourth_run = "gtd-smoke-20260802T120003Z-0123456789ab-0123456a"
     _run(
-        [str(dispatcher), "stage", fourth_run, commit, lock_checksum, OWNER_ID, "1"],
+        [
+            str(dispatcher),
+            "stage",
+            fourth_run,
+            commit,
+            lock_checksum,
+            OWNER_ID,
+            "1",
+            "smoke",
+        ],
         cwd=tmp_path,
         environment=environment,
     )
@@ -440,7 +679,16 @@ def test_remote_dispatcher_classifies_node_failure_and_oversized_collection(
     dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
     lock_checksum = _lock_checksum(tmp_path)
     _run(
-        [str(dispatcher), "stage", RUN_ID, commit, lock_checksum, OWNER_ID, "1"],
+        [
+            str(dispatcher),
+            "stage",
+            RUN_ID,
+            commit,
+            lock_checksum,
+            OWNER_ID,
+            "1",
+            "smoke",
+        ],
         cwd=tmp_path,
         environment=environment,
     )
@@ -503,6 +751,7 @@ def test_smoke_job_distinguishes_environment_and_test_failures(
             _lock_checksum(tmp_path),
             OWNER_ID,
             "1",
+            "smoke",
         ],
         cwd=tmp_path,
         environment=environment,
@@ -512,7 +761,7 @@ def test_smoke_job_distinguishes_environment_and_test_failures(
     job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
     job_environment[environment_key] = "1"
     _run(
-        [str(smoke_job), RUN_ID, str(smoke_job.parent.parent)],
+        [str(smoke_job), RUN_ID, str(smoke_job.parent.parent), "smoke"],
         cwd=tmp_path,
         environment=job_environment,
         success=False,
@@ -534,6 +783,7 @@ def test_smoke_job_records_term_signal_as_cancellation(tmp_path: Path) -> None:
             _lock_checksum(tmp_path),
             OWNER_ID,
             "1",
+            "smoke",
         ],
         cwd=tmp_path,
         environment=environment,
@@ -543,7 +793,7 @@ def test_smoke_job_records_term_signal_as_cancellation(tmp_path: Path) -> None:
     job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
     job_environment["FAKE_PIXI_TERM_PARENT"] = "1"
     terminated = _run(
-        [str(smoke_job), RUN_ID, str(smoke_job.parent.parent)],
+        [str(smoke_job), RUN_ID, str(smoke_job.parent.parent), "smoke"],
         cwd=tmp_path,
         environment=job_environment,
         success=False,

@@ -34,6 +34,10 @@ All notable changes to this project are documented here.
 - Paired single-component and full-program roadmaps that distinguish the active
   `ASU = nA` prototype from later heteromer search, advanced crystallographic and
   assembly support, calibrated automation, and final platform development.
+- A fixed `p0` Marmic profile with immutable external configuration
+  fingerprinting, real Phenix and database verification, all-three-crystal Task
+  05 execution, mandatory cached resume, bounded artefact collection, and a
+  tracked M0 qualification dashboard.
 
 ### Not implemented
 

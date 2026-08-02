@@ -1,4 +1,4 @@
-"""Local controller for the fixed Marmic remote smoke-test dispatcher."""
+"""Local controller for the fixed Marmic remote test dispatcher."""
 
 import base64
 import hashlib
@@ -292,13 +292,18 @@ class HpcController:
         commit = self.git.resolve_commit(revision)
         iteration, parent = self._next_iteration(parent_run_id)
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
-        run_id = f"gtd-smoke-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
+        run_id = f"gtd-{profile}-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
         owner_id = secrets.token_hex(16)
         validate_run_id(run_id)
         lock_checksum = sha256_file(self.config.repository / "pixi.lock")
         self.logger.info(
-            "staging immutable HPC smoke run",
-            extra={"run_id": run_id, "commit": commit, "iteration": iteration},
+            "staging immutable HPC run",
+            extra={
+                "run_id": run_id,
+                "commit": commit,
+                "profile": profile,
+                "iteration": iteration,
+            },
         )
         record = LocalRunRecord(
             run_id=run_id,
@@ -311,7 +316,7 @@ class HpcController:
         local_path = record.write(self.config.local_state_root)
         remote = self.transport.run(
             "stage",
-            [run_id, commit, lock_checksum, owner_id, str(iteration)],
+            [run_id, commit, lock_checksum, owner_id, str(iteration), profile],
         )
         return {
             **remote,
@@ -324,13 +329,16 @@ class HpcController:
         }
 
     def submit(self, profile: str, run_id: str) -> dict[str, object]:
-        """Submit the one fixed smoke profile for an owned staged run."""
+        """Submit one reviewed fixed profile for an owned staged run."""
 
         validate_profile(profile)
         record = self._owned_run(run_id)
         if record.profile != profile:
             raise ValidationError("requested profile does not match the staged run")
-        self.logger.info("submitting HPC smoke run", extra={"run_id": run_id})
+        self.logger.info(
+            "submitting fixed HPC run",
+            extra={"run_id": run_id, "profile": profile},
+        )
         return {
             **self.transport.run("submit", [run_id, record.owner_id]),
             "operation": "submit",

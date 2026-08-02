@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Fixed Marmic dispatcher for immutable nf-genome_to_diffraction smoke tests.
+# Fixed Marmic dispatcher for immutable nf-genome_to_diffraction test profiles.
 
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-smoke-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+RUN_ID_RE='^gtd-(smoke|p0)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -19,6 +20,7 @@ RUNS="$ROOT/runs"
 MIRROR="$ROOT/_cache/git/nf-genome_to_diffraction.git"
 LOCKS="$ROOT/_locks"
 PIXI_PATH_FILE="$TOOL_DIR/pixi.path"
+P0_CONFIG="$ROOT/_config/p0.paths"
 DISPATCHER="$TOOL_DIR/nf-gtd-hpc-remote"
 SMOKE_JOB="$TOOL_DIR/nf-gtd-hpc-smoke-job"
 
@@ -46,6 +48,10 @@ validate_run_id() {
 
 validate_owner() {
     [[ "$1" =~ $OWNER_RE ]] || fail wrapper_failure "invalid owner ID"
+}
+
+validate_profile() {
+    [[ "$1" =~ $PROFILE_RE ]] || fail wrapper_failure "invalid fixed profile"
 }
 
 run_directory() {
@@ -226,18 +232,23 @@ EOF
 }
 
 stage_run() {
-    [[ "$#" -eq 5 ]] || fail wrapper_failure "stage expects five fixed arguments"
+    [[ "$#" -eq 6 ]] || fail wrapper_failure "stage expects six fixed arguments"
     local run_id="$1"
     local commit="$2"
     local expected_lock="$3"
     local owner_id="$4"
     local iteration="$5"
+    local profile="$6"
     local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp
+    local p0_config_sha256="" p0_config_json="null"
 
     validate_run_id "$run_id"
     [[ "$commit" =~ $COMMIT_RE ]] || fail wrapper_failure "invalid commit SHA"
     [[ "$expected_lock" =~ $CHECKSUM_RE ]] || fail wrapper_failure "invalid lock checksum"
     validate_owner "$owner_id"
+    validate_profile "$profile"
+    [[ "$run_id" == "gtd-${profile}-"* ]] || \
+        fail wrapper_failure "run ID profile does not match the requested profile"
     [[ "$iteration" =~ $INTEGER_RE ]] || fail wrapper_failure "invalid iteration"
     (( iteration >= 1 && iteration <= 6 )) || fail wrapper_failure "iteration is outside 1..6"
 
@@ -258,11 +269,19 @@ stage_run() {
     flock -x 9
     run="$(run_directory "$run_id")"
     [[ ! -e "$run" ]] || fail wrapper_failure "run ID already exists"
-    mkdir -p "$run/source" "$run/state" "$run/logs" "$run/artifacts"
+    mkdir -p \
+        "$run/source" \
+        "$run/state" \
+        "$run/logs" \
+        "$run/artifacts" \
+        "$run/cache" \
+        "$run/environment/.pixi" \
+        "$run/execution"
     atomic_text "$run/state/owner-id" "$owner_id"
     atomic_text "$run/state/phase" "staging"
     atomic_text "$run/state/commit" "$commit"
     atomic_text "$run/state/pixi-bin" "$pixi_bin"
+    atomic_text "$run/state/profile" "$profile"
     append_event "$run" "stage_started"
 
     if ! git --git-dir="$MIRROR" fetch --prune origin >"$run/logs/git-fetch.log" 2>&1; then
@@ -312,6 +331,24 @@ stage_run() {
         awk '{sha=$1; sub(/^[-+U]/,"",sha); print sha}')"
     [[ "$submodule_commit" =~ $COMMIT_RE ]] || \
         fail transfer_failure "nf-helper submodule commit could not be recorded"
+    ln -s "$run/environment/.pixi" "$run/source/.pixi" || \
+        fail filesystem_failure "cannot attach the per-run Pixi environment"
+
+    if [[ "$profile" == p0 ]]; then
+        [[ -f "$P0_CONFIG" && ! -L "$P0_CONFIG" && -O "$P0_CONFIG" ]] || {
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "environment_failure"
+            append_event "$run" "stage_p0_config_absent"
+            fail environment_failure "fixed P0 configuration is absent, unsafe, or not user-owned"
+        }
+        [[ "$(stat -c '%a' "$P0_CONFIG")" == 600 ]] || \
+            fail environment_failure "fixed P0 configuration must have mode 0600"
+        p0_config_sha256="$(sha256sum "$P0_CONFIG" | awk '{print $1}')"
+        [[ "$p0_config_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "P0 configuration checksum failed"
+        atomic_text "$run/state/p0-config-sha256" "$p0_config_sha256"
+        p0_config_json="\"$p0_config_sha256\""
+    fi
 
     manifest_tmp="$run/manifest.json.tmp.$$"
     cat > "$manifest_tmp" <<EOF
@@ -319,13 +356,14 @@ stage_run() {
   "schema_version": "1.0",
   "run_id": "$run_id",
   "project": "nf-genome_to_diffraction",
-  "profile": "smoke",
+  "profile": "$profile",
   "iteration": $iteration,
   "commit": "$commit",
   "nf_helper_commit": "$submodule_commit",
   "pixi_lock_sha256": "$actual_lock",
   "pixi_executable": "$pixi_bin",
   "pixi_version": "$pixi_version",
+  "p0_config_sha256": $p0_config_json,
   "staged_at": "$(now_utc)",
   "source_snapshot_status": "immutable"
 }
@@ -339,6 +377,7 @@ EOF
     emit commit "$commit"
     emit nf_helper_commit "$submodule_commit"
     emit pixi_version "$pixi_version"
+    emit profile "$profile"
     emit phase staged
 }
 
@@ -346,13 +385,17 @@ submit_run() {
     [[ "$#" -eq 2 ]] || fail wrapper_failure "submit expects run ID and owner ID"
     local run_id="$1"
     local owner_id="$2"
-    local run active_run active_job active_state submission job_id
+    local run active_run active_job active_state submission job_id profile
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     [[ "$(<"$run/state/phase")" == staged ]] || \
         fail wrapper_failure "run is not in the staged state"
     [[ ! -e "$run/state/job-id" ]] || fail wrapper_failure "run already has a scheduler job"
     [[ -x "$SMOKE_JOB" ]] || fail filesystem_failure "fixed smoke job runner is absent"
+    profile="$(<"$run/state/profile")"
+    validate_profile "$profile"
+    [[ "$run_id" == "gtd-${profile}-"* ]] || \
+        fail wrapper_failure "recorded profile does not match the run ID"
 
     exec 9>"$LOCKS/submit.lock"
     flock -x 9
@@ -361,7 +404,7 @@ submit_run() {
         if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
             active_state="$(scheduler_queue_state "$active_job")"
             [[ -z "$active_state" ]] || \
-                fail scheduler_rejection "another managed smoke job is still active"
+                fail scheduler_rejection "another managed test job is still active"
         fi
         rm -f -- "$LOCKS/active-smoke"
     fi
@@ -371,9 +414,10 @@ submit_run() {
         --cpus-per-task=2 \
         --mem=8G \
         --time=00:45:00 \
-        --job-name="nfgtd-${run_id:10:24}" \
+        --job-name="nfgtd-${profile}-${run_id:7:20}" \
         --output="$run/logs/slurm-%j.out" \
-        "$SMOKE_JOB" "$run_id" "$ROOT" 2>"$run/logs/sbatch.err")"; then
+        "$SMOKE_JOB" "$run_id" "$ROOT" "$profile" \
+        2>"$run/logs/sbatch.err")"; then
         atomic_text "$run/state/phase" "submission_failed"
         atomic_text "$run/state/failure-class" "scheduler_rejection"
         append_event "$run" "submission_failed"
@@ -388,6 +432,7 @@ submit_run() {
     emit operation submit
     emit run_id "$run_id"
     emit job_id "$job_id"
+    emit profile "$profile"
     emit scheduler_state SUBMITTED
 }
 
@@ -395,10 +440,12 @@ status_run() {
     [[ "$#" -eq 2 ]] || fail wrapper_failure "status expects run ID and owner ID"
     local run_id="$1"
     local owner_id="$2"
-    local run phase job_id="" scheduler_state exit_code="" failure_class="" terminal=false sacct_line
+    local run phase profile job_id="" scheduler_state exit_code="" failure_class="" terminal=false sacct_line
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     phase="$(<"$run/state/phase")"
+    profile="$(<"$run/state/profile")"
+    validate_profile "$profile"
     if [[ -f "$run/state/job-id" ]]; then
         job_id="$(<"$run/state/job-id")"
         [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
@@ -445,6 +492,7 @@ status_run() {
     fi
     emit operation status
     emit run_id "$run_id"
+    emit profile "$profile"
     emit phase "$phase"
     emit job_id "$job_id"
     emit scheduler_state "$scheduler_state"
@@ -458,13 +506,17 @@ logs_run() {
     local run_id="$1"
     local owner_id="$2"
     local lines="$3"
-    local run job_id="" log_path="" content=""
+    local run job_id="" log_path="" content="" profile=""
     require_owned_run "$run_id" "$owner_id"
     [[ "$lines" =~ $INTEGER_RE ]] || fail wrapper_failure "log line count is invalid"
     (( lines >= 1 && lines <= 2000 )) || fail wrapper_failure "log line count is outside 1..2000"
     run="$(run_directory "$run_id")"
-    if [[ -f "$run/logs/smoke.log" ]]; then
-        log_path="$run/logs/smoke.log"
+    if [[ -f "$run/state/profile" ]]; then
+        profile="$(<"$run/state/profile")"
+        validate_profile "$profile"
+    fi
+    if [[ -n "$profile" && -f "$run/logs/${profile}.log" ]]; then
+        log_path="$run/logs/${profile}.log"
     elif [[ -f "$run/state/job-id" ]]; then
         job_id="$(<"$run/state/job-id")"
         [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
@@ -521,7 +573,28 @@ collect_run() {
         logs/git-fetch.log \
         logs/git-clone.log \
         logs/sbatch.err \
-        logs/smoke.log; do
+        logs/smoke.log \
+        logs/p0.log \
+        logs/nextflow-first.log \
+        logs/nextflow-resume.log \
+        artifacts/qualification/input-checksums.sha256 \
+        artifacts/qualification/phenix-verification.log \
+        artifacts/qualification/database_manifest.verified.json \
+        artifacts/qualification/resume-check.json \
+        artifacts/qualification/first-pipeline-info/report.html \
+        artifacts/qualification/first-pipeline-info/timeline.html \
+        artifacts/qualification/first-pipeline-info/trace.tsv \
+        artifacts/qualification/first-pipeline-info/dag.html \
+        artifacts/qualification/resume-pipeline-info/report.html \
+        artifacts/qualification/resume-pipeline-info/timeline.html \
+        artifacts/qualification/resume-pipeline-info/trace.tsv \
+        artifacts/qualification/resume-pipeline-info/dag.html \
+        artifacts/p0/scope/pipeline_scope.json \
+        artifacts/p0/catalogue/catalogue_import_manifest.json \
+        artifacts/p0/preflight/mtz_preflight.jsonl \
+        artifacts/p0/preflight/mtz_preflight.tsv \
+        artifacts/p0/preflight/preflight_report.md \
+        artifacts/p0/matthews/matthews_report.md; do
         if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then
             size="$(file_size "$run/$candidate")"
             (( size <= MAX_FILE_BYTES )) || fail transfer_failure "artefact exceeds per-file limit"

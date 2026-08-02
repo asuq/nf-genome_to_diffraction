@@ -1,4 +1,4 @@
-"""Validated configuration and run-state types for the Marmic smoke-test loop."""
+"""Validated configuration and run-state types for fixed Marmic test profiles."""
 
 import json
 import re
@@ -9,7 +9,9 @@ from typing import Any
 
 from genome_to_diffraction.checksums import atomic_write_json
 
-RUN_ID_PATTERN = re.compile(r"^gtd-smoke-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$")
+RUN_ID_PATTERN = re.compile(
+    r"^gtd-(smoke|p0)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$"
+)
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 OWNER_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 SSH_ALIAS_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -23,6 +25,7 @@ MAX_FEEDBACK_RUNS = 6
 QUEUE_TIMEOUT_SECONDS = 30 * 60
 EXECUTION_TIMEOUT_SECONDS = 45 * 60
 POLL_SECONDS = 15
+PROFILES = frozenset({"smoke", "p0"})
 
 
 class FailureClass(StrEnum):
@@ -186,6 +189,8 @@ class LocalRunRecord:
         validate_commit(commit)
         validate_owner_id(owner_id)
         validate_profile(profile)
+        if not run_id.startswith(f"gtd-{profile}-"):
+            raise ValidationError("run ID profile does not match the run record")
         if not isinstance(iteration, int) or not 1 <= iteration <= MAX_FEEDBACK_RUNS:
             raise ValidationError("local run iteration is invalid")
         if parent is not None:
@@ -265,10 +270,10 @@ def validate_owner_id(value: str) -> str:
 
 
 def validate_profile(value: str) -> str:
-    """Permit only the fixed version-1 smoke profile."""
+    """Permit only the reviewed fixed execution profiles."""
 
-    if value != "smoke":
-        raise ValidationError("only the smoke profile is available in version 1")
+    if value not in PROFILES:
+        raise ValidationError("profile must be one of: p0, smoke")
     return value
 
 
