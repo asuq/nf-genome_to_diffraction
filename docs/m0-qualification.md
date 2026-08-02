@@ -11,10 +11,10 @@ this gate passes.
 | --- | --- | --- |
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Blocked on scientific metadata | True catalogue sequence, known ASU copy count, trustworthy final model/structure factors where available, and suitable MR model |
-| M0.3 Qualify Phenix | Pending on Marmic | Verified real manifest, all required command smokes, and real Xtriage logs for the three MTZs |
-| M0.4 Qualify databases | Pending on Marmic | Immutable Foldseek PDB, ProstT5, PDB-sequence, and coordinate-cache resources with passing smoke/inventory verification |
+| M0.3 Qualify Phenix | Blocked on licensed runtime | A bounded Marmic inventory found no `phenix.xtriage` command, Phenix module, installer, or non-fixture manifest; a user-supplied Linux installer and checksum are required before command smokes and real Xtriage |
+| M0.4 Qualify databases | Preparation required on Marmic | The only discovered provenance record is the foundation stub (`file_count: 0`, `status: incomplete`, smoke not run); immutable Foldseek PDB, ProstT5, PDB-sequence, and coordinate-cache resources still require preparation and verification |
 | M0.5 Matthews reference | Pending | Selected pipeline hypotheses compared with Phenix/Xtriage without case-specific tuning |
-| M0.6 Fixed HPC P0 profile | Implemented locally; remote acceptance pending | Reviewed wrapper/dispatcher deployment and fixed external P0 path configuration |
+| M0.6 Fixed HPC P0 profile | Deployed; site configuration missing | Commit `1433006` tools are checksum-verified locally and on Marmic; staging failed safely before submission because the protected external P0 path file is absent |
 | M0.7 Three-crystal P0 | Pending | Successful first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
 
 This dashboard describes qualification status, not protein-identification
@@ -73,6 +73,14 @@ absolute, regular files/directories, contain only conservative path characters,
 and use no symlinks. See the
 [six-line example](../conf/hpc-p0.paths.example) and the
 [HPC feedback-loop runbook](hpc-feedback-loop.md#p0-real-site-profile).
+
+The first deployed staging probe used immutable commit `1433006` and was
+classified `environment_failure`/`stage_failed`; no scheduler job was submitted.
+The failure is qualification evidence that the protected site configuration is
+not yet installed, not evidence of a pipeline or scientific failure. A bounded
+read-only site inventory also confirmed that the existing pilot and
+site-acceptance Phenix/database manifests are fixtures. They must not be used to
+satisfy this gate.
 
 ## Operator-held evidence still required
 
