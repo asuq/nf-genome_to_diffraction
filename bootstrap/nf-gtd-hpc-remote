@@ -246,7 +246,7 @@ submit_run() {
         --time=00:45:00 \
         --job-name="nfgtd-${run_id:10:24}" \
         --output="$run/logs/slurm-%j.out" \
-        "$SMOKE_JOB" "$run_id" 2>"$run/logs/sbatch.err")"; then
+        "$SMOKE_JOB" "$run_id" "$ROOT" 2>"$run/logs/sbatch.err")"; then
         atomic_text "$run/state/phase" "submission_failed"
         atomic_text "$run/state/failure-class" "scheduler_rejection"
         append_event "$run" "submission_failed"

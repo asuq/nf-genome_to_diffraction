@@ -2,6 +2,7 @@
 
 import base64
 import os
+import shlex
 import shutil
 import subprocess
 import tarfile
@@ -120,6 +121,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         fake_bin / "sbatch",
         "#!/usr/bin/env bash\n"
         '[[ "${FAKE_SBATCH_REJECT:-0}" != 1 ]] || exit 1\n'
+        f'printf "%s\\n" "$@" > '
+        f"{shlex.quote(str(tmp_path / 'sbatch-args'))}\n"
         "echo 123\n",
     )
     _write_executable(
@@ -170,11 +173,24 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=environment,
     )
     assert _decode_protocol(submitted.stdout)["job_id"] == "123"
+    submitted_arguments = (
+        (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    )
+    remote_root = smoke_job.parent.parent
+    assert submitted_arguments[-3:] == [str(smoke_job), RUN_ID, str(remote_root)]
 
     job_environment = dict(environment)
     job_environment["SLURM_JOB_ID"] = "123"
     job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
-    _run([str(smoke_job), RUN_ID], cwd=tmp_path, environment=job_environment)
+    spool_directory = tmp_path / "slurm-spool"
+    spool_directory.mkdir()
+    spooled_job = spool_directory / "slurm_script"
+    shutil.copy2(smoke_job, spooled_job)
+    _run(
+        [str(spooled_job), RUN_ID, str(remote_root)],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
 
     status = _run(
         [str(dispatcher), "status", RUN_ID, OWNER_ID],
@@ -368,7 +384,7 @@ def test_smoke_job_distinguishes_environment_and_test_failures(
     job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
     job_environment[environment_key] = "1"
     _run(
-        [str(smoke_job), RUN_ID],
+        [str(smoke_job), RUN_ID, str(smoke_job.parent.parent)],
         cwd=tmp_path,
         environment=job_environment,
         success=False,

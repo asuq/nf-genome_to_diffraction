@@ -8,11 +8,20 @@ RUN_ID_RE='^gtd-smoke-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
 INTEGER_RE='^[0-9]+$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 
-TOOL_DIR="$(cd "$(dirname "$0")" && pwd -P)"
-ROOT="$(cd "$TOOL_DIR/.." && pwd -P)"
+# Slurm executes a spooled copy, so $0 no longer identifies _tooling. The fixed
+# dispatcher derives the trusted run root and passes it as the second argument.
 RUN_ID="${1-}"
+ROOT="${2-}"
 [[ "$RUN_ID" =~ $RUN_ID_RE ]] || { printf 'invalid managed run ID\n' >&2; exit 2; }
 [[ "${SLURM_JOB_ID:-}" =~ $INTEGER_RE ]] || { printf 'missing Slurm job ID\n' >&2; exit 2; }
+[[ "$ROOT" =~ $SAFE_PATH_RE && -d "$ROOT/runs" && -d "$ROOT/_locks" ]] || {
+    printf 'invalid managed run root\n' >&2
+    exit 2
+}
+[[ "$(cd "$ROOT" && pwd -P)" == "$ROOT" ]] || {
+    printf 'managed run root is not canonical\n' >&2
+    exit 2
+}
 
 RUN="$ROOT/runs/$RUN_ID"
 [[ -d "$RUN/source" && -d "$RUN/state" && -d "$RUN/logs" ]] || {
