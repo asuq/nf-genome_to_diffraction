@@ -19,6 +19,7 @@ RUNS="$ROOT/runs"
 MIRROR="$ROOT/_cache/git/nf-genome_to_diffraction.git"
 LOCKS="$ROOT/_locks"
 PIXI_PATH_FILE="$TOOL_DIR/pixi.path"
+DISPATCHER="$TOOL_DIR/nf-gtd-hpc-remote"
 SMOKE_JOB="$TOOL_DIR/nf-gtd-hpc-smoke-job"
 
 emit() {
@@ -106,6 +107,122 @@ resolve_pixi() {
         fail environment_failure "Pixi is not available as a safe absolute executable path"
     [[ -x "$pixi_bin" ]] || fail environment_failure "Pixi executable is not executable"
     RESOLVED_PIXI="$pixi_bin"
+}
+
+cleanup_deploy_staging() {
+    local staging="$1"
+    [[ "$staging" == "$TOOL_DIR"/.deploy-tools.* ]] || return 1
+    chmod -R u+w "$staging" 2>/dev/null || true
+    rm -rf -- "$staging"
+}
+
+deploy_failure() {
+    local staging="$1"
+    local failure_class="$2"
+    local message="$3"
+    cleanup_deploy_staging "$staging" || true
+    fail "$failure_class" "$message"
+}
+
+deploy_tools() {
+    [[ "$#" -eq 3 ]] || fail wrapper_failure "deploy-tools expects commit and two checksums"
+    local commit="$1"
+    local expected_dispatcher="$2"
+    local expected_smoke_job="$3"
+    local staging new_dispatcher new_smoke_job actual_dispatcher actual_smoke_job
+    local previous_dispatcher previous_smoke_job record
+
+    [[ "$commit" =~ $COMMIT_RE ]] || fail wrapper_failure "invalid deployment commit SHA"
+    [[ "$expected_dispatcher" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid dispatcher checksum"
+    [[ "$expected_smoke_job" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid smoke-job checksum"
+    [[ -d "$MIRROR" ]] || fail filesystem_failure "bare Git mirror is absent"
+    [[ "$(git --git-dir="$MIRROR" rev-parse --is-bare-repository 2>/dev/null)" == true ]] || \
+        fail filesystem_failure "configured Git mirror is not bare"
+    [[ -f "$DISPATCHER" && ! -L "$DISPATCHER" ]] || \
+        fail filesystem_failure "installed dispatcher is not a regular file"
+    [[ -f "$SMOKE_JOB" && ! -L "$SMOKE_JOB" ]] || \
+        fail filesystem_failure "installed smoke job is not a regular file"
+
+    mkdir -p "$LOCKS"
+    exec 9>"$LOCKS/deploy-tools.lock"
+    flock -x 9
+    staging="$(mktemp -d "$TOOL_DIR/.deploy-tools.XXXXXXXX")" || \
+        fail filesystem_failure "cannot create tool deployment staging directory"
+    new_dispatcher="$staging/nf-gtd-hpc-remote"
+    new_smoke_job="$staging/nf-gtd-hpc-smoke-job"
+    previous_dispatcher="$staging/previous-nf-gtd-hpc-remote"
+    previous_smoke_job="$staging/previous-nf-gtd-hpc-smoke-job"
+    record="$staging/deployed-tools.json"
+
+    if ! git --git-dir="$MIRROR" fetch --prune origin >"$staging/git-fetch.log" 2>&1; then
+        deploy_failure "$staging" transfer_failure "Git mirror fetch failed during tool deployment"
+    fi
+    if ! git --git-dir="$MIRROR" cat-file -e "${commit}^{commit}" 2>/dev/null; then
+        deploy_failure "$staging" transfer_failure "deployment commit is unavailable from the private mirror"
+    fi
+    if ! git --git-dir="$MIRROR" rev-parse --verify refs/heads/main >/dev/null 2>&1 || \
+        ! git --git-dir="$MIRROR" merge-base --is-ancestor "$commit" refs/heads/main; then
+        deploy_failure "$staging" transfer_failure "deployment commit is not reachable from origin main"
+    fi
+    if ! git --git-dir="$MIRROR" show \
+        "${commit}:bootstrap/nf-gtd-hpc-remote" > "$new_dispatcher"; then
+        deploy_failure "$staging" transfer_failure "fixed dispatcher file is absent from deployment commit"
+    fi
+    if ! git --git-dir="$MIRROR" show \
+        "${commit}:bootstrap/nf-gtd-hpc-smoke-job" > "$new_smoke_job"; then
+        deploy_failure "$staging" transfer_failure "fixed smoke-job file is absent from deployment commit"
+    fi
+
+    actual_dispatcher="$(sha256sum "$new_dispatcher" | awk '{print $1}')"
+    actual_smoke_job="$(sha256sum "$new_smoke_job" | awk '{print $1}')"
+    [[ "$actual_dispatcher" == "$expected_dispatcher" ]] || \
+        deploy_failure "$staging" transfer_failure "dispatcher SHA-256 differs from the local review"
+    [[ "$actual_smoke_job" == "$expected_smoke_job" ]] || \
+        deploy_failure "$staging" transfer_failure "smoke-job SHA-256 differs from the local review"
+    bash -n "$new_dispatcher" "$new_smoke_job" || \
+        deploy_failure "$staging" wrapper_failure "deployed tool failed Bash syntax validation"
+    grep -Fq 'deploy-tools) deploy_tools "$@" ;;' "$new_dispatcher" || \
+        deploy_failure "$staging" wrapper_failure "deployed dispatcher would remove the safe upgrade operation"
+
+    cp -p -- "$DISPATCHER" "$previous_dispatcher" || \
+        deploy_failure "$staging" filesystem_failure "cannot preserve previous dispatcher"
+    cp -p -- "$SMOKE_JOB" "$previous_smoke_job" || \
+        deploy_failure "$staging" filesystem_failure "cannot preserve previous smoke job"
+    chmod 0555 "$new_dispatcher" "$new_smoke_job"
+    cat > "$record" <<EOF
+{
+  "schema_version": "1.0",
+  "commit": "$commit",
+  "dispatcher_sha256": "$actual_dispatcher",
+  "smoke_job_sha256": "$actual_smoke_job",
+  "deployed_at": "$(now_utc)"
+}
+EOF
+
+    if ! mv -f -- "$new_smoke_job" "$SMOKE_JOB" || \
+        ! mv -f -- "$new_dispatcher" "$DISPATCHER"; then
+        mv -f -- "$previous_smoke_job" "$SMOKE_JOB" 2>/dev/null || true
+        mv -f -- "$previous_dispatcher" "$DISPATCHER" 2>/dev/null || true
+        deploy_failure "$staging" filesystem_failure "atomic remote-tool replacement failed"
+    fi
+    if [[ "$(sha256sum "$DISPATCHER" | awk '{print $1}')" != "$actual_dispatcher" ]] || \
+        [[ "$(sha256sum "$SMOKE_JOB" | awk '{print $1}')" != "$actual_smoke_job" ]] || \
+        ! mv -f -- "$record" "$TOOL_DIR/deployed-tools.json"; then
+        mv -f -- "$previous_smoke_job" "$SMOKE_JOB" 2>/dev/null || true
+        mv -f -- "$previous_dispatcher" "$DISPATCHER" 2>/dev/null || true
+        deploy_failure "$staging" filesystem_failure "installed remote-tool verification failed"
+    fi
+    cleanup_deploy_staging "$staging" || \
+        fail filesystem_failure "cannot remove deployment staging directory"
+
+    emit operation deploy-tools
+    emit commit "$commit"
+    emit dispatcher_sha256 "$actual_dispatcher"
+    emit smoke_job_sha256 "$actual_smoke_job"
+    emit deployment_record "$TOOL_DIR/deployed-tools.json"
+    emit deployed true
 }
 
 stage_run() {
@@ -458,6 +575,7 @@ main() {
     [[ -n "$operation" ]] || fail wrapper_failure "operation is required"
     shift
     case "$operation" in
+        deploy-tools) deploy_tools "$@" ;;
         stage) stage_run "$@" ;;
         submit) submit_run "$@" ;;
         status) status_run "$@" ;;

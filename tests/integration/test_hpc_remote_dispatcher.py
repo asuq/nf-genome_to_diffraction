@@ -1,6 +1,7 @@
 """Exercise the fixed remote scripts with real Git and fake Slurm commands."""
 
 import base64
+import hashlib
 import json
 import os
 import shlex
@@ -71,10 +72,16 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     source = root / "source-origin"
     source.mkdir()
     _git(source, "init", "-q")
+    _git(source, "branch", "-M", "main")
     _git(source, "config", "user.name", "Test")
     _git(source, "config", "user.email", "test@example.invalid")
     (source / "pixi.lock").write_text("locked test environment\n", encoding="utf-8")
-    _git(source, "add", "pixi.lock")
+    bootstrap = source / "bootstrap"
+    bootstrap.mkdir()
+    for name in ("nf-gtd-hpc-remote", "nf-gtd-hpc-smoke-job"):
+        shutil.copy2(REPOSITORY / "bootstrap" / name, bootstrap / name)
+        (bootstrap / name).chmod(0o755)
+    _git(source, "add", "pixi.lock", "bootstrap")
     _git(
         source,
         "-c",
@@ -167,6 +174,40 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
 
 def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    source_bootstrap = tmp_path / "source-origin" / "bootstrap"
+    dispatcher_digest = hashlib.sha256(
+        (source_bootstrap / dispatcher.name).read_bytes()
+    ).hexdigest()
+    smoke_job_digest = hashlib.sha256(
+        (source_bootstrap / smoke_job.name).read_bytes()
+    ).hexdigest()
+    smoke_job.write_text(
+        smoke_job.read_text(encoding="utf-8") + "# stale installed copy\n",
+        encoding="utf-8",
+    )
+
+    deployed = _run(
+        [
+            str(dispatcher),
+            "deploy-tools",
+            commit,
+            dispatcher_digest,
+            smoke_job_digest,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    deployed_fields = _decode_protocol(deployed.stdout)
+    assert deployed_fields["deployed"] == "true"
+    assert deployed_fields["commit"] == commit
+    assert hashlib.sha256(dispatcher.read_bytes()).hexdigest() == dispatcher_digest
+    assert hashlib.sha256(smoke_job.read_bytes()).hexdigest() == smoke_job_digest
+    deployment_record = json.loads(
+        (dispatcher.parent / "deployed-tools.json").read_text(encoding="utf-8")
+    )
+    assert deployment_record["dispatcher_sha256"] == dispatcher_digest
+    assert deployment_record["smoke_job_sha256"] == smoke_job_digest
+
     lock_checksum = subprocess.run(
         ["sha256sum", tmp_path / "source-origin" / "pixi.lock"],
         check=True,
@@ -289,6 +330,38 @@ def test_remote_dispatcher_rejects_command_injection_before_side_effects(
     )
     assert _decode_protocol(result.stdout)["failure_class"] == "wrapper_failure"
     assert not (tmp_path / "bad").exists()
+
+    original_dispatcher = hashlib.sha256(dispatcher.read_bytes()).hexdigest()
+    rejected_deployment = _run(
+        [str(dispatcher), "deploy-tools", "1" * 39 + ";", "0" * 64, "0" * 64],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(rejected_deployment.stdout)["failure_class"] == (
+        "wrapper_failure"
+    )
+    assert hashlib.sha256(dispatcher.read_bytes()).hexdigest() == original_dispatcher
+
+
+def test_remote_dispatcher_rejects_deployment_checksum_mismatch(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    original_dispatcher = hashlib.sha256(dispatcher.read_bytes()).hexdigest()
+    original_smoke_job = hashlib.sha256(smoke_job.read_bytes()).hexdigest()
+
+    rejected = _run(
+        [str(dispatcher), "deploy-tools", commit, "0" * 64, "0" * 64],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+
+    assert _decode_protocol(rejected.stdout)["failure_class"] == "transfer_failure"
+    assert hashlib.sha256(dispatcher.read_bytes()).hexdigest() == original_dispatcher
+    assert hashlib.sha256(smoke_job.read_bytes()).hexdigest() == original_smoke_job
+    assert not (dispatcher.parent / "deployed-tools.json").exists()
 
 
 def _lock_checksum(tmp_path: Path) -> str:

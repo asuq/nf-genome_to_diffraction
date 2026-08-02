@@ -28,6 +28,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-progress", action="store_true")
     actions = parser.add_subparsers(dest="operation", required=True)
 
+    deploy_tools = actions.add_parser(
+        "deploy-tools",
+        help="deploy the two fixed remote scripts from a pushed commit",
+    )
+    deploy_tools.add_argument("--revision", required=True)
+
     stage = actions.add_parser("stage", help="stage an immutable pushed commit")
     stage.add_argument("profile", choices=("smoke",))
     stage.add_argument("--revision", required=True)
@@ -59,6 +65,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, object]:
+    if args.operation == "deploy-tools":
+        return controller.deploy_tools(args.revision)
     if args.operation == "stage":
         return controller.stage(
             args.profile,

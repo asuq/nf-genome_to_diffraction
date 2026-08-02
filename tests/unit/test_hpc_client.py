@@ -6,7 +6,7 @@ import json
 import tarfile
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -24,6 +24,7 @@ COMMIT = "1" * 40
 @dataclass
 class FakeGit:
     dirty: bool = False
+    repository: Path | None = None
 
     def ensure_clean(self) -> None:
         if self.dirty:
@@ -33,6 +34,11 @@ class FakeGit:
         if revision not in {"HEAD", COMMIT}:
             raise ValidationError("revision")
         return COMMIT
+
+    def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
+        if commit != COMMIT or self.repository is None:
+            raise ValidationError("commit file")
+        return self.repository.joinpath(*path.parts).read_bytes()
 
 
 @dataclass
@@ -81,12 +87,57 @@ def _archive(files: dict[str, bytes]) -> bytes:
 
 def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
     (tmp_path / "pixi.lock").write_text("locked\n", encoding="utf-8")
+    bootstrap = tmp_path / "bootstrap"
+    bootstrap.mkdir(exist_ok=True)
+    for name in ("nf-gtd-hpc-remote", "nf-gtd-hpc-smoke-job"):
+        tool = bootstrap / name
+        tool.write_text(f"#!/usr/bin/env bash\n# {name}\n", encoding="utf-8")
+        tool.chmod(0o755)
     return HpcController(
         _config(tmp_path),
         transport=transport,
-        git=FakeGit(),
+        git=FakeGit(repository=tmp_path),
         progress=False,
     )
+
+
+def test_deploy_tools_sends_only_commit_and_verified_checksums(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+
+    result = controller.deploy_tools("HEAD")
+
+    assert result["operation"] == "deploy-tools"
+    operation, arguments = transport.calls[-1]
+    assert operation == "deploy-tools"
+    assert arguments[0] == COMMIT
+    assert len(arguments) == 3
+    assert all(len(value) == 64 for value in arguments[1:])
+
+
+def test_deploy_tools_refuses_dirty_or_mismatched_worktree(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    controller.git = FakeGit(dirty=True, repository=tmp_path)
+    with pytest.raises(ValidationError, match="dirty"):
+        controller.deploy_tools("HEAD")
+
+    controller.git = FakeGit(repository=tmp_path)
+    (tmp_path / "bootstrap" / "nf-gtd-hpc-smoke-job").write_text(
+        "changed\n", encoding="utf-8"
+    )
+    committed = b"#!/usr/bin/env bash\n# nf-gtd-hpc-smoke-job\n"
+
+    class MismatchedGit(FakeGit):
+        def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
+            if path.name == "nf-gtd-hpc-smoke-job":
+                return committed
+            return super().read_file_at_commit(commit, path)
+
+    controller.git = MismatchedGit(repository=tmp_path)
+    with pytest.raises(ValidationError, match="worktree content differs"):
+        controller.deploy_tools("HEAD")
+    assert transport.calls == []
 
 
 def test_all_owned_operations_use_the_recorded_capability(tmp_path: Path) -> None:
@@ -122,13 +173,19 @@ def test_stage_refuses_dirty_or_injected_revisions(tmp_path: Path) -> None:
     (tmp_path / "pixi.lock").write_text("locked\n", encoding="utf-8")
     transport = FakeTransport()
     dirty = HpcController(
-        _config(tmp_path), transport=transport, git=FakeGit(dirty=True), progress=False
+        _config(tmp_path),
+        transport=transport,
+        git=FakeGit(dirty=True, repository=tmp_path),
+        progress=False,
     )
     with pytest.raises(ValidationError, match="dirty"):
         dirty.stage("smoke", "HEAD")
 
     clean = HpcController(
-        _config(tmp_path), transport=transport, git=FakeGit(), progress=False
+        _config(tmp_path),
+        transport=transport,
+        git=FakeGit(repository=tmp_path),
+        progress=False,
     )
     with pytest.raises(ValidationError):
         clean.stage("smoke", "HEAD; touch bad")

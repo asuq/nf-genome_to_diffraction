@@ -55,6 +55,10 @@ _TERMINAL_STATES = frozenset(
 _QUEUED_STATES = frozenset(
     {"CONFIGURING", "PENDING", "REQUEUE_FED", "REQUEUE_HOLD", "REQUEUED"}
 )
+_REMOTE_TOOL_PATHS = (
+    PurePosixPath("bootstrap/nf-gtd-hpc-remote"),
+    PurePosixPath("bootstrap/nf-gtd-hpc-smoke-job"),
+)
 
 
 class TextTransport(Protocol):
@@ -75,6 +79,9 @@ class GitRepository(Protocol):
 
     def resolve_commit(self, revision: str) -> str:
         """Resolve HEAD or a full SHA to a full commit SHA."""
+
+    def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
+        """Read one fixed repository file from an exact commit."""
 
 
 class SubprocessGitRepository:
@@ -122,6 +129,23 @@ class SubprocessGitRepository:
             )
         commit = self._run(["rev-parse", "--verify", f"{revision}^{{commit}}"])
         return validate_commit(commit)
+
+    def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
+        """Read a fixed path without checking out or interpreting shell syntax."""
+
+        validate_commit(commit)
+        result = subprocess.run(
+            ["git", "show", f"{commit}:{path.as_posix()}"],
+            cwd=self._repository,
+            check=False,
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            detail = result.stderr.decode("utf-8", errors="replace").strip()
+            raise ValidationError(
+                f"cannot read {path.as_posix()} from commit {commit}: {detail}"
+            )
+        return result.stdout
 
 
 class SshTransport:
@@ -212,6 +236,47 @@ class HpcController:
         self.git = git or SubprocessGitRepository(config.repository)
         self.logger = logger or logging.getLogger("genome_to_diffraction.hpc")
         self.progress = progress
+
+    def deploy_tools(self, revision: str) -> dict[str, object]:
+        """Install the two fixed remote scripts from one clean pushed commit."""
+
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        checksums: dict[str, str] = {}
+        for relative in _REMOTE_TOOL_PATHS:
+            committed = self.git.read_file_at_commit(commit, relative)
+            worktree_path = self.config.repository.joinpath(*relative.parts)
+            if worktree_path.is_symlink() or not worktree_path.is_file():
+                raise ValidationError(
+                    f"remote tool must be a regular tracked file: {relative}"
+                )
+            if worktree_path.read_bytes() != committed:
+                raise ValidationError(
+                    f"worktree content differs from commit {commit}: {relative}"
+                )
+            checksums[relative.name] = hashlib.sha256(committed).hexdigest()
+
+        dispatcher_checksum = checksums["nf-gtd-hpc-remote"]
+        smoke_job_checksum = checksums["nf-gtd-hpc-smoke-job"]
+        self.logger.warning(
+            "deploying checksum-verified remote HPC tools",
+            extra={
+                "commit": commit,
+                "dispatcher_sha256": dispatcher_checksum,
+                "smoke_job_sha256": smoke_job_checksum,
+            },
+        )
+        remote = self.transport.run(
+            "deploy-tools",
+            [commit, dispatcher_checksum, smoke_job_checksum],
+        )
+        return {
+            **remote,
+            "operation": "deploy-tools",
+            "commit": commit,
+            "dispatcher_sha256": dispatcher_checksum,
+            "smoke_job_sha256": smoke_job_checksum,
+        }
 
     def stage(
         self,

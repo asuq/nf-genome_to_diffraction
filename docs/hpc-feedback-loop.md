@@ -8,9 +8,9 @@ an exact pushed commit, creates an isolated read-only checkout, runs tests, and
 returns diagnostics. It never edits or pushes source.
 
 The reviewed local application is the routine approval boundary. It may request
-only `stage`, `submit`, `status`, `wait`, `logs`, `collect`, or `cancel` from the
-fixed remote dispatcher. Raw SSH, file-transfer tools, scheduler commands, and
-`clean` must not receive persistent automatic approval.
+only `deploy-tools`, `stage`, `submit`, `status`, `wait`, `logs`, `collect`, or
+`cancel` from the fixed remote dispatcher. Raw SSH, file-transfer tools,
+scheduler commands, and `clean` must not receive persistent automatic approval.
 
 The smoke job uses partition `slurm`, 2 CPUs, 8 GB memory, and a 45-minute
 walltime. Only one managed smoke job may be active. Queue waiting stops after 30
@@ -28,6 +28,7 @@ RUN_ROOT/
 |-- _cache/pixi/
 |-- _locks/
 |-- _tooling/
+|   |-- deployed-tools.json
 |   |-- nf-gtd-hpc-remote
 |   |-- nf-gtd-hpc-smoke-job
 |   `-- pixi.path
@@ -66,10 +67,13 @@ install -m 0555 dist/nf-gtd-hpc-test "$HOME/.local/bin/nf-gtd-hpc-test"
 shasum -a 256 "$HOME/.local/bin/nf-gtd-hpc-test"
 ```
 
-Install the two reviewed remote files from the same pushed commit using the bare
-mirror. Write each file through a temporary path, set mode `0555`, move it into
-`RUN_ROOT/_tooling/`, and record its SHA-256. Resolve the independent PATH-installed
-Pixi once and store only the absolute executable path:
+An existing installation that predates `deploy-tools` needs one manually
+reviewed bootstrap replacement. This is the only upgrade that needs raw SSH;
+do not persist an approval for that command. Once the new dispatcher is active,
+all later remote-tool upgrades use the fixed operation described below.
+
+Resolve the independent PATH-installed Pixi once and store only the absolute
+executable path:
 
 ```bash
 type -P pixi
@@ -79,8 +83,8 @@ chmod 0600 "RUN_ROOT/_tooling/pixi.path"
 ```
 
 `RUN_ROOT` above is a placeholder, not a literal path. Pixi must report 0.74.0.
-The dispatcher refuses another version. Updating either installed controller
-requires another review, immutable commit, checksum, and explicit installation.
+The dispatcher refuses another version. Updating the installed local controller
+requires another review, immutable build, checksum, and local installation.
 
 ## Local configuration
 
@@ -105,6 +109,7 @@ Use `--log-format json` for JSON diagnostic logs and `--no-progress` to suppress
 terminal progress bars.
 
 ```bash
+nf-gtd-hpc-test deploy-tools --revision HEAD
 nf-gtd-hpc-test stage smoke --revision HEAD
 nf-gtd-hpc-test submit smoke --run-id RUN_ID
 nf-gtd-hpc-test status --run-id RUN_ID
@@ -113,6 +118,18 @@ nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test collect --run-id RUN_ID
 nf-gtd-hpc-test cancel --run-id RUN_ID
 ```
+
+`deploy-tools` first requires a clean local worktree. It resolves the exact Git
+commit, reads only `bootstrap/nf-gtd-hpc-remote` and
+`bootstrap/nf-gtd-hpc-smoke-job`, and calculates their SHA-256 values without
+accepting a payload or remote path from the caller. The remote side fetches the
+private bare mirror, requires the commit to be reachable from `origin/main`,
+extracts only those two fixed paths, rechecks both digests, runs `bash -n`, and
+refuses a dispatcher that would remove `deploy-tools`. It preserves the old
+copies until both mode-`0555` replacements and the atomic
+`_tooling/deployed-tools.json` record have been verified. A failure before that
+point leaves the installed pair unchanged or restores it from the preserved
+copies.
 
 `stage` refuses a dirty worktree, a non-full revision other than `HEAD`, a commit
 unavailable from the private mirror, a changed Pixi lock, or a submodule mismatch.
@@ -167,9 +184,9 @@ run ID, resolves the target below the run root, and deletes only that run. Never
 include `clean` in a persistent Codex allow rule.
 
 After installing and checksumming the immutable local application, add allow
-rules only for its absolute path followed by `stage`, `submit`, `status`, `wait`,
-`logs`, `collect`, or `cancel`. Keep raw SSH, transfer tools, Slurm commands, and
-the wrapper's `clean` operation approval-gated.
+rules only for its absolute path followed by `deploy-tools`, `stage`, `submit`,
+`status`, `wait`, `logs`, `collect`, or `cancel`. Keep raw SSH, transfer tools,
+Slurm commands, and the wrapper's `clean` operation approval-gated.
 
 Resolve the installed path literally; shell variables and `~` are not valid rule
 substitutes. The intended Codex rule shape is:
@@ -178,11 +195,12 @@ substitutes. The intended Codex rule shape is:
 prefix_rule(
     pattern = [
         "/absolute/path/to/installed/nf-gtd-hpc-test",
-        ["stage", "submit", "status", "wait", "logs", "collect", "cancel"],
+        ["deploy-tools", "stage", "submit", "status", "wait", "logs", "collect", "cancel"],
     ],
     decision = "allow",
     justification = "Allow only the reviewed nf-genome_to_diffraction HPC interface.",
     match = [
+        "/absolute/path/to/installed/nf-gtd-hpc-test deploy-tools --revision HEAD",
         "/absolute/path/to/installed/nf-gtd-hpc-test status --run-id RUN_ID",
     ],
     not_match = [
