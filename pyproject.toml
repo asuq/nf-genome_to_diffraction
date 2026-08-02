@@ -24,6 +24,7 @@ dependencies = [
 
 [project.scripts]
 genome-to-diffraction = "genome_to_diffraction.cli:main"
+nf-gtd-hpc-test = "genome_to_diffraction.hpc.cli:entrypoint"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/genome_to_diffraction"]

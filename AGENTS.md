@@ -81,7 +81,25 @@ Use local PDB and ProstT5 resources for the prototype. Use the public ESM Atlas 
 - Candidate-specific scientific failures should emit normalised status records and allow the run to continue. Infrastructure or contract failures should fail clearly.
 - Use immutable, content-addressed identifiers for sequences, models, databases, diffraction datasets, and hypotheses.
 
-## 8. Testing policy
+## 8. HPC testing authority
+
+- The local Git repository is the only source of truth. Never edit, commit, or
+  push source on the HPC.
+- Test only clean immutable commits that are available from the private Git
+  remote. Use one isolated remote checkout per run.
+- Routine remote operations must go through the reviewed repository-specific
+  wrapper. Do not grant persistent approval to raw SSH, transfer, or scheduler
+  commands.
+- Version 1 may automate only the fixed smoke profile. Integration requires a
+  separately reviewed profile; full and benchmark runs require explicit
+  approval.
+- Cancel only the scheduler job recorded for the owned run. Remote cleanup
+  always requires explicit approval and exact run-ID confirmation.
+- Retrieve and classify logs before proposing source changes. Do not change
+  source in response to an infrastructure failure without evidence of a
+  software cause.
+
+## 9. Testing policy
 
 Every process adapter requires:
 
@@ -94,14 +112,14 @@ Do not claim a Phenix integration is complete without testing it against a real 
 
 The first three MTZ datasets are feasibility tests, not a general validation set. At least one should be a known positive control consistent with `ASU = nA` if available.
 
-## 9. Development sequencing
+## 10. Development sequencing
 
 The current milestone is Task 00 / Epic 0 only. Follow later milestones in the
 approved external handoff. Do not start heteromer logic, AF3 complex logic, or
 local ESM Atlas deployment before the monomer/domain prototype satisfies its
 acceptance criteria.
 
-## 10. Documentation expectations
+## 11. Documentation expectations
 
 Every new module must document:
 

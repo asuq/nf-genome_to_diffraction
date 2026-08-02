@@ -1,0 +1,461 @@
+#!/usr/bin/env bash
+# Fixed Marmic dispatcher for immutable nf-genome_to_diffraction smoke tests.
+
+set -euo pipefail
+umask 077
+
+RUN_ID_RE='^gtd-smoke-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+COMMIT_RE='^[0-9a-f]{40}$'
+CHECKSUM_RE='^[0-9a-f]{64}$'
+OWNER_RE='^[0-9a-f]{32}$'
+INTEGER_RE='^[0-9]+$'
+SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
+MAX_FILE_BYTES=$((20 * 1024 * 1024))
+MAX_TOTAL_BYTES=$((100 * 1024 * 1024))
+
+TOOL_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+ROOT="$(cd "$TOOL_DIR/.." && pwd -P)"
+RUNS="$ROOT/runs"
+MIRROR="$ROOT/_cache/git/nf-genome_to_diffraction.git"
+LOCKS="$ROOT/_locks"
+PIXI_PATH_FILE="$TOOL_DIR/pixi.path"
+SMOKE_JOB="$TOOL_DIR/nf-gtd-hpc-smoke-job"
+
+emit() {
+    local key="$1"
+    local value="${2-}"
+    printf '%s\t' "$key"
+    printf '%s' "$value" | base64 | tr -d '\n'
+    printf '\n'
+}
+
+fail() {
+    emit failure_class "$1"
+    emit message "$2"
+    exit 1
+}
+
+now_utc() {
+    date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+validate_run_id() {
+    [[ "$1" =~ $RUN_ID_RE ]] || fail wrapper_failure "invalid run ID"
+}
+
+validate_owner() {
+    [[ "$1" =~ $OWNER_RE ]] || fail wrapper_failure "invalid owner ID"
+}
+
+run_directory() {
+    printf '%s/%s' "$RUNS" "$1"
+}
+
+require_owned_run() {
+    local run_id="$1"
+    local owner_id="$2"
+    local run
+    validate_run_id "$run_id"
+    validate_owner "$owner_id"
+    run="$(run_directory "$run_id")"
+    [[ -d "$run" ]] || fail filesystem_failure "remote run does not exist"
+    [[ -f "$run/state/owner-id" ]] || fail wrapper_failure "run owner record is absent"
+    [[ "$(<"$run/state/owner-id")" == "$owner_id" ]] || \
+        fail wrapper_failure "run ownership does not match the local capability"
+}
+
+atomic_text() {
+    local path="$1"
+    local value="$2"
+    local temporary="${path}.tmp.$$"
+    printf '%s\n' "$value" > "$temporary"
+    mv -f -- "$temporary" "$path"
+}
+
+append_event() {
+    local run="$1"
+    local event="$2"
+    local timestamp
+    timestamp="$(now_utc)"
+    printf '{"event":"%s","timestamp":"%s"}\n' "$event" "$timestamp" \
+        >> "$run/events.jsonl"
+}
+
+file_size() {
+    stat -c '%s' "$1" 2>/dev/null || stat -f '%z' "$1"
+}
+
+resolve_pixi() {
+    local pixi_bin=""
+    if [[ -f "$PIXI_PATH_FILE" ]]; then
+        IFS= read -r pixi_bin < "$PIXI_PATH_FILE"
+    else
+        pixi_bin="$(command -v pixi || true)"
+    fi
+    [[ "$pixi_bin" =~ $SAFE_PATH_RE ]] || \
+        fail environment_failure "Pixi is not available as a safe absolute executable path"
+    [[ -x "$pixi_bin" ]] || fail environment_failure "Pixi executable is not executable"
+    RESOLVED_PIXI="$pixi_bin"
+}
+
+stage_run() {
+    [[ "$#" -eq 5 ]] || fail wrapper_failure "stage expects five fixed arguments"
+    local run_id="$1"
+    local commit="$2"
+    local expected_lock="$3"
+    local owner_id="$4"
+    local iteration="$5"
+    local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp
+
+    validate_run_id "$run_id"
+    [[ "$commit" =~ $COMMIT_RE ]] || fail wrapper_failure "invalid commit SHA"
+    [[ "$expected_lock" =~ $CHECKSUM_RE ]] || fail wrapper_failure "invalid lock checksum"
+    validate_owner "$owner_id"
+    [[ "$iteration" =~ $INTEGER_RE ]] || fail wrapper_failure "invalid iteration"
+    (( iteration >= 1 && iteration <= 6 )) || fail wrapper_failure "iteration is outside 1..6"
+
+    mkdir -p "$RUNS" "$LOCKS" "$ROOT/_cache/pixi"
+    [[ -d "$MIRROR" ]] || fail filesystem_failure "bare Git mirror is absent"
+    [[ "$(git --git-dir="$MIRROR" rev-parse --is-bare-repository 2>/dev/null)" == true ]] || \
+        fail filesystem_failure "configured Git mirror is not bare"
+
+    RESOLVED_PIXI=""
+    resolve_pixi
+    pixi_bin="$RESOLVED_PIXI"
+    pixi_version="$("$pixi_bin" --version 2>&1)" || \
+        fail environment_failure "Pixi version check failed"
+    [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.74\.0$ ]] || \
+        fail environment_failure "Pixi 0.74.0 is required"
+
+    exec 9>"$LOCKS/stage.lock"
+    flock -x 9
+    run="$(run_directory "$run_id")"
+    [[ ! -e "$run" ]] || fail wrapper_failure "run ID already exists"
+    mkdir -p "$run/source" "$run/state" "$run/logs" "$run/artifacts"
+    atomic_text "$run/state/owner-id" "$owner_id"
+    atomic_text "$run/state/phase" "staging"
+    atomic_text "$run/state/commit" "$commit"
+    atomic_text "$run/state/pixi-bin" "$pixi_bin"
+    append_event "$run" "stage_started"
+
+    if ! git --git-dir="$MIRROR" fetch --prune origin >"$run/logs/git-fetch.log" 2>&1; then
+        atomic_text "$run/state/phase" "stage_failed"
+        atomic_text "$run/state/failure-class" "transfer_failure"
+        append_event "$run" "stage_fetch_failed"
+        fail transfer_failure "Git mirror fetch failed"
+    fi
+    git --git-dir="$MIRROR" cat-file -e "${commit}^{commit}" 2>/dev/null || {
+        atomic_text "$run/state/phase" "stage_failed"
+        atomic_text "$run/state/failure-class" "transfer_failure"
+        append_event "$run" "stage_commit_unavailable"
+        fail transfer_failure "commit is not available from the private Git mirror"
+    }
+    rmdir "$run/source"
+    if ! git clone --no-hardlinks --no-checkout "$MIRROR" "$run/source" \
+        >"$run/logs/git-clone.log" 2>&1; then
+        atomic_text "$run/state/phase" "stage_failed"
+        atomic_text "$run/state/failure-class" "filesystem_failure"
+        append_event "$run" "stage_clone_failed"
+        fail filesystem_failure "isolated Git clone failed"
+    fi
+    if ! git -C "$run/source" checkout --detach "$commit" \
+        >>"$run/logs/git-clone.log" 2>&1; then
+        atomic_text "$run/state/phase" "stage_failed"
+        atomic_text "$run/state/failure-class" "transfer_failure"
+        append_event "$run" "stage_checkout_failed"
+        fail transfer_failure "exact commit checkout failed"
+    fi
+    if ! git -C "$run/source" submodule update --init --recursive \
+        >>"$run/logs/git-clone.log" 2>&1; then
+        atomic_text "$run/state/phase" "stage_failed"
+        atomic_text "$run/state/failure-class" "transfer_failure"
+        append_event "$run" "stage_submodule_failed"
+        fail transfer_failure "submodule checkout failed"
+    fi
+    [[ "$(git -C "$run/source" rev-parse HEAD)" == "$commit" ]] || \
+        fail wrapper_failure "staged commit does not match the request"
+    actual_lock="$(sha256sum "$run/source/pixi.lock" | awk '{print $1}')"
+    [[ "$actual_lock" == "$expected_lock" ]] || {
+        atomic_text "$run/state/phase" "stage_failed"
+        atomic_text "$run/state/failure-class" "transfer_failure"
+        append_event "$run" "stage_lock_mismatch"
+        fail transfer_failure "Pixi lock checksum differs from the local commit"
+    }
+    submodule_commit="$(git -C "$run/source" submodule status -- external/nf-helper | \
+        awk '{sha=$1; sub(/^[-+U]/,"",sha); print sha}')"
+    [[ "$submodule_commit" =~ $COMMIT_RE ]] || \
+        fail transfer_failure "nf-helper submodule commit could not be recorded"
+
+    manifest_tmp="$run/manifest.json.tmp.$$"
+    cat > "$manifest_tmp" <<EOF
+{
+  "schema_version": "1.0",
+  "run_id": "$run_id",
+  "project": "nf-genome_to_diffraction",
+  "profile": "smoke",
+  "iteration": $iteration,
+  "commit": "$commit",
+  "nf_helper_commit": "$submodule_commit",
+  "pixi_lock_sha256": "$actual_lock",
+  "pixi_executable": "$pixi_bin",
+  "pixi_version": "$pixi_version",
+  "staged_at": "$(now_utc)",
+  "source_snapshot_status": "immutable"
+}
+EOF
+    mv -f -- "$manifest_tmp" "$run/manifest.json"
+    chmod -R a-w "$run/source"
+    atomic_text "$run/state/phase" "staged"
+    append_event "$run" "stage_completed"
+    emit operation stage
+    emit run_id "$run_id"
+    emit commit "$commit"
+    emit nf_helper_commit "$submodule_commit"
+    emit pixi_version "$pixi_version"
+    emit phase staged
+}
+
+submit_run() {
+    [[ "$#" -eq 2 ]] || fail wrapper_failure "submit expects run ID and owner ID"
+    local run_id="$1"
+    local owner_id="$2"
+    local run active_run active_job active_state submission job_id
+    require_owned_run "$run_id" "$owner_id"
+    run="$(run_directory "$run_id")"
+    [[ "$(<"$run/state/phase")" == staged ]] || \
+        fail wrapper_failure "run is not in the staged state"
+    [[ ! -e "$run/state/job-id" ]] || fail wrapper_failure "run already has a scheduler job"
+    [[ -x "$SMOKE_JOB" ]] || fail filesystem_failure "fixed smoke job runner is absent"
+
+    exec 9>"$LOCKS/submit.lock"
+    flock -x 9
+    if [[ -f "$LOCKS/active-smoke" ]]; then
+        read -r active_run active_job < "$LOCKS/active-smoke" || true
+        if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
+            active_state="$(squeue -h -j "$active_job" -o '%T' 2>/dev/null | head -n 1)"
+            [[ -z "$active_state" ]] || \
+                fail scheduler_rejection "another managed smoke job is still active"
+        fi
+        rm -f -- "$LOCKS/active-smoke"
+    fi
+
+    if ! submission="$(sbatch --parsable \
+        --partition=slurm \
+        --cpus-per-task=2 \
+        --mem=8G \
+        --time=00:45:00 \
+        --job-name="nfgtd-${run_id:10:24}" \
+        --output="$run/logs/slurm-%j.out" \
+        "$SMOKE_JOB" "$run_id" 2>"$run/logs/sbatch.err")"; then
+        atomic_text "$run/state/phase" "submission_failed"
+        atomic_text "$run/state/failure-class" "scheduler_rejection"
+        append_event "$run" "submission_failed"
+        fail scheduler_rejection "Slurm rejected the fixed smoke job"
+    fi
+    job_id="${submission%%;*}"
+    [[ "$job_id" =~ $INTEGER_RE ]] || fail scheduler_rejection "sbatch returned an invalid job ID"
+    atomic_text "$run/state/job-id" "$job_id"
+    atomic_text "$run/state/phase" "submitted"
+    printf '%s %s\n' "$run_id" "$job_id" > "$LOCKS/active-smoke"
+    append_event "$run" "submitted"
+    emit operation submit
+    emit run_id "$run_id"
+    emit job_id "$job_id"
+    emit scheduler_state SUBMITTED
+}
+
+status_run() {
+    [[ "$#" -eq 2 ]] || fail wrapper_failure "status expects run ID and owner ID"
+    local run_id="$1"
+    local owner_id="$2"
+    local run phase job_id="" scheduler_state exit_code="" failure_class="" terminal=false sacct_line
+    require_owned_run "$run_id" "$owner_id"
+    run="$(run_directory "$run_id")"
+    phase="$(<"$run/state/phase")"
+    if [[ -f "$run/state/job-id" ]]; then
+        job_id="$(<"$run/state/job-id")"
+        [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
+        scheduler_state="$(squeue -h -j "$job_id" -o '%T' 2>/dev/null | head -n 1)"
+        if [[ -z "$scheduler_state" ]]; then
+            sacct_line="$(sacct -n -P -j "$job_id" --format=State,ExitCode 2>/dev/null | \
+                awk -F'|' '$1 != "" {print; exit}')"
+            scheduler_state="${sacct_line%%|*}"
+            scheduler_state="${scheduler_state%% *}"
+            scheduler_state="${scheduler_state%%+*}"
+            exit_code="${sacct_line#*|}"
+            exit_code="${exit_code%%:*}"
+        fi
+    else
+        if [[ "$phase" == staged ]]; then
+            scheduler_state="STAGED"
+        else
+            scheduler_state="FAILED"
+        fi
+    fi
+    [[ -n "$scheduler_state" ]] || scheduler_state="UNKNOWN"
+    if [[ -f "$run/state/failure-class" ]]; then
+        failure_class="$(<"$run/state/failure-class")"
+    fi
+    if [[ -f "$run/state/exit-code" ]]; then
+        exit_code="$(<"$run/state/exit-code")"
+    fi
+    case "$scheduler_state" in
+        BOOT_FAIL|CANCELLED|COMPLETED|DEADLINE|FAILED|NODE_FAIL|OUT_OF_MEMORY|PREEMPTED|REVOKED|TIMEOUT)
+            terminal=true
+            ;;
+    esac
+    if [[ "$scheduler_state" == NODE_FAIL ]]; then
+        failure_class=node_failure
+    elif [[ "$scheduler_state" == OUT_OF_MEMORY ]]; then
+        failure_class=environment_failure
+    elif [[ -z "$failure_class" && "$scheduler_state" == CANCELLED ]]; then
+        failure_class=unknown_failure
+    elif [[ "$scheduler_state" == TIMEOUT ]]; then
+        failure_class=environment_failure
+    elif [[ -z "$failure_class" && "$scheduler_state" == COMPLETED ]]; then
+        failure_class=success
+    fi
+    emit operation status
+    emit run_id "$run_id"
+    emit phase "$phase"
+    emit job_id "$job_id"
+    emit scheduler_state "$scheduler_state"
+    emit exit_code "$exit_code"
+    emit failure_class "$failure_class"
+    emit terminal "$terminal"
+}
+
+logs_run() {
+    [[ "$#" -eq 3 ]] || fail wrapper_failure "logs expects run ID, owner ID, and line count"
+    local run_id="$1"
+    local owner_id="$2"
+    local lines="$3"
+    local run job_id="" log_path="" content=""
+    require_owned_run "$run_id" "$owner_id"
+    [[ "$lines" =~ $INTEGER_RE ]] || fail wrapper_failure "log line count is invalid"
+    (( lines >= 1 && lines <= 2000 )) || fail wrapper_failure "log line count is outside 1..2000"
+    run="$(run_directory "$run_id")"
+    if [[ -f "$run/logs/smoke.log" ]]; then
+        log_path="$run/logs/smoke.log"
+    elif [[ -f "$run/state/job-id" ]]; then
+        job_id="$(<"$run/state/job-id")"
+        [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
+        log_path="$run/logs/slurm-${job_id}.out"
+    fi
+    if [[ -n "$log_path" && -f "$log_path" ]]; then
+        content="$(tail -n "$lines" -- "$log_path" | base64 | tr -d '\n')"
+    fi
+    emit operation logs
+    emit run_id "$run_id"
+    emit log_path "$log_path"
+    emit content_base64 "$content"
+}
+
+cancel_run() {
+    [[ "$#" -eq 2 ]] || fail wrapper_failure "cancel expects run ID and owner ID"
+    local run_id="$1"
+    local owner_id="$2"
+    local run job_id
+    require_owned_run "$run_id" "$owner_id"
+    run="$(run_directory "$run_id")"
+    [[ -f "$run/state/job-id" ]] || fail wrapper_failure "run has no recorded scheduler job"
+    job_id="$(<"$run/state/job-id")"
+    [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
+    scancel "$job_id" || fail scheduler_rejection "Slurm cancellation failed"
+    atomic_text "$run/state/phase" "cancel_requested"
+    append_event "$run" "cancel_requested"
+    emit operation cancel
+    emit run_id "$run_id"
+    emit job_id "$job_id"
+    emit scheduler_state CANCEL_REQUESTED
+}
+
+collect_run() {
+    [[ "$#" -eq 2 ]] || fail wrapper_failure "collect expects run ID and owner ID"
+    local run_id="$1"
+    local owner_id="$2"
+    local run job_id="" candidate size total=0
+    local -a files=()
+    require_owned_run "$run_id" "$owner_id"
+    run="$(run_directory "$run_id")"
+    if [[ -f "$run/state/job-id" ]]; then
+        job_id="$(<"$run/state/job-id")"
+        [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
+    fi
+    for candidate in \
+        manifest.json \
+        events.jsonl \
+        state/job-id \
+        state/phase \
+        state/job-result.json \
+        state/failure-class \
+        state/exit-code \
+        logs/git-fetch.log \
+        logs/git-clone.log \
+        logs/sbatch.err \
+        logs/smoke.log; do
+        if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then
+            size="$(file_size "$run/$candidate")"
+            (( size <= MAX_FILE_BYTES )) || fail transfer_failure "artefact exceeds per-file limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || fail transfer_failure "artefacts exceed total limit"
+            files+=("$candidate")
+        fi
+    done
+    if [[ -n "$job_id" ]]; then
+        candidate="logs/slurm-${job_id}.out"
+        if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then
+            size="$(file_size "$run/$candidate")"
+            (( size <= MAX_FILE_BYTES )) || fail transfer_failure "scheduler log exceeds per-file limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || fail transfer_failure "artefacts exceed total limit"
+            files+=("$candidate")
+        fi
+    fi
+    ((${#files[@]} > 0)) || fail transfer_failure "no approved artefacts are available"
+    tar -czf - -C "$run" "${files[@]}"
+}
+
+clean_run() {
+    [[ "$#" -eq 3 ]] || fail wrapper_failure "clean expects run ID, owner ID, and confirmation"
+    local run_id="$1"
+    local owner_id="$2"
+    local confirmation="$3"
+    local run job_id scheduler_state resolved
+    require_owned_run "$run_id" "$owner_id"
+    [[ "$confirmation" == "$run_id" ]] || fail wrapper_failure "clean confirmation does not match"
+    run="$(run_directory "$run_id")"
+    resolved="$(realpath "$run")"
+    [[ "$resolved" == "$RUNS/$run_id" ]] || fail wrapper_failure "clean target escaped the run root"
+    if [[ -f "$run/state/job-id" ]]; then
+        job_id="$(<"$run/state/job-id")"
+        [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
+        scheduler_state="$(squeue -h -j "$job_id" -o '%T' 2>/dev/null | head -n 1)"
+        [[ -z "$scheduler_state" ]] || fail scheduler_rejection "cannot clean an active job"
+    fi
+    chmod -R u+w "$run/source"
+    rm -rf -- "$run"
+    emit operation clean
+    emit run_id "$run_id"
+    emit removed true
+}
+
+main() {
+    command -v base64 >/dev/null || fail environment_failure "base64 is unavailable"
+    command -v flock >/dev/null || fail environment_failure "flock is unavailable"
+    local operation="${1-}"
+    [[ -n "$operation" ]] || fail wrapper_failure "operation is required"
+    shift
+    case "$operation" in
+        stage) stage_run "$@" ;;
+        submit) submit_run "$@" ;;
+        status) status_run "$@" ;;
+        logs) logs_run "$@" ;;
+        collect) collect_run "$@" ;;
+        cancel) cancel_run "$@" ;;
+        clean) clean_run "$@" ;;
+        *) fail wrapper_failure "unsupported remote operation" ;;
+    esac
+}
+
+main "$@"

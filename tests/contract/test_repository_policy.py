@@ -9,6 +9,7 @@ def test_operational_documentation_is_tracked_separately_from_handoff() -> None:
     assert (REPOSITORY / "docs" / "README.md").is_file()
     assert (REPOSITORY / "docs" / "marmic-prototype-runbook.md").is_file()
     assert (REPOSITORY / "docs" / "prototype-test-report-2026-08-02.md").is_file()
+    assert (REPOSITORY / "docs" / "hpc-feedback-loop.md").is_file()
     assert not (REPOSITORY / "prompts").exists()
     assert not (REPOSITORY / "scaffold").exists()
     assert not (REPOSITORY / "CODEX_START_HERE.md").exists()
@@ -51,3 +52,19 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
     assert "marmic {" in site_profile
     assert "executor = 'slurm'" in site_profile
     assert "clusterOptions = '--export=ALL'" in site_profile
+
+
+def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> None:
+    dispatcher = REPOSITORY / "bootstrap" / "nf-gtd-hpc-remote"
+    smoke_job = REPOSITORY / "bootstrap" / "nf-gtd-hpc-smoke-job"
+    assert dispatcher.is_file()
+    assert smoke_job.is_file()
+    assert dispatcher.stat().st_mode & 0o111
+    assert smoke_job.stat().st_mode & 0o111
+
+    runbook = (REPOSITORY / "docs" / "hpc-feedback-loop.md").read_text(encoding="utf-8")
+    assert "Never\ninclude `clean` in a persistent Codex allow rule" in runbook
+    assert "Raw SSH" in runbook
+    assert "2 CPUs" in runbook
+    assert "8 GB" in runbook
+    assert "45-minute" in runbook

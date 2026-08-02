@@ -28,6 +28,9 @@ All notable changes to this project are documented here.
   procedure, and verified `GCF_000711905.1`/`CD6QS2P2G1_5` pilot findings.
 - Compound-CDS merging and lossless preservation of distinct loci that share a
   RefSeq protein accession, validated by the real Marmic Task 05 pilot.
+- Repository-specific immutable-commit Marmic smoke testing with a fixed Slurm
+  profile, owner-bound job control, structured failure records, bounded
+  `logging`/`tqdm` feedback, and approval-gated cleanup.
 
 ### Not implemented
 

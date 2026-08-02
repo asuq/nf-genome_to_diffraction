@@ -39,26 +39,24 @@ export RUN_ROOT=/absolute/path/to/pilot_run
 "$REPOSITORY/bootstrap/prepare_project_layout.sh" --root "$RUN_ROOT"
 ```
 
-## Install the pinned Pixi runtime with Mamba
+## Verify the pinned Pixi runtime
 
-Use Mamba to keep the required Pixi version separate from any older global Pixi:
+Pixi is installed independently on Marmic and registered on `PATH`. Do not create
+another Mamba environment for Pixi. Resolve its executable once so scheduled
+commands do not depend on interactive shell initialisation:
 
 ```bash
-export PIXI_PREFIX="$REPOSITORY/.cache/tools/pixi-0.74.0"
-
-/absolute/path/to/mamba create \
-  --yes \
-  --prefix "$PIXI_PREFIX" \
-  --channel conda-forge \
-  'pixi=0.74.0'
-
-export PIXI_BIN="$PIXI_PREFIX/bin/pixi"
+pixi --version
+export PIXI_BIN="$(type -P pixi)"
+test -n "$PIXI_BIN"
+test -x "$PIXI_BIN"
 "$PIXI_BIN" --version
 "$PIXI_BIN" install -e hpc --frozen
 ```
 
-Mamba/Pixi contacts Conda channels for dependency metadata and packages. It does
-not need to transmit biological inputs. Confirm the pinned tools before launch:
+Both version checks must report Pixi 0.74.0. Pixi contacts Conda channels and
+PyPI for dependency metadata and packages; it does not need to transmit
+biological inputs. Confirm the pinned tools before launch:
 
 ```bash
 "$REPOSITORY/.pixi/envs/hpc/bin/python" --version

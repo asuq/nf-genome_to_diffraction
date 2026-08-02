@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "repository": "/absolute/path/to/nf-genome_to_diffraction",
+  "ssh_alias": "approved-hpc-alias",
+  "remote_dispatcher": "/approved/hpc/run-root/_tooling/nf-gtd-hpc-remote",
+  "local_state_root": "/absolute/path/to/nf-genome_to_diffraction/.untracked/hpc-test",
+  "poll_seconds": 15,
+  "queue_timeout_seconds": 1800,
+  "execution_timeout_seconds": 2700
+}

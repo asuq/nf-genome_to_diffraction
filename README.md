@@ -51,6 +51,7 @@ pixi run test-contract
 pixi run schema-check
 pixi run nextflow-check
 pixi run nextflow-stub
+pixi run hpc-wrapper-check
 ```
 
 Environment resolution contacts the public Conda/Bioconda and PyPI package
@@ -72,6 +73,20 @@ validates the supplied JSON/YAML/TSV fixtures against both JSON Schema and the
 typed application models, and checks cross-manifest references. Contract commands
 log progress and diagnostics to standard error; use `--log-format json` for
 structured logs and `--no-progress` for non-interactive execution.
+
+## Immutable Marmic smoke tests
+
+The repository includes a repository-specific local controller and fixed remote
+dispatcher for running `pixi run check` through Slurm against one immutable,
+pushed commit. It does not provide arbitrary SSH command execution, source edits
+on Marmic, automatic cleanup, or real-dataset integration. Machine-readable
+results are written to standard output; diagnostic `logging` and optional
+`tqdm` wait/collection progress use standard error.
+
+The controller must be built and installed as a reviewed immutable application
+outside the writable checkout before adding narrow Codex approval rules. See the
+[local-Marmic feedback-loop runbook](docs/hpc-feedback-loop.md) for installation,
+configuration, operations, failure classes, and the clean approval boundary.
 
 ## Trusted catalogue import
 

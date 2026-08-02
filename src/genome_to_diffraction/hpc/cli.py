@@ -1,0 +1,136 @@
+"""Machine-readable command-line interface for repository-specific HPC smoke tests."""
+
+import argparse
+import json
+import sys
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+from genome_to_diffraction.hpc.client import HpcController
+from genome_to_diffraction.hpc.models import (
+    HpcConfig,
+    HpcInterfaceError,
+)
+from genome_to_diffraction.logging import configure_logging, parse_log_level
+
+DEFAULT_CONFIG = Path.home() / ".config" / "nf-gtd-hpc-test" / "config.json"
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="nf-gtd-hpc-test",
+        description="Run one immutable nf-genome_to_diffraction smoke test on Marmic",
+    )
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument("--log-level", default="INFO")
+    parser.add_argument("--log-format", choices=("human", "json"), default="human")
+    parser.add_argument("--no-progress", action="store_true")
+    actions = parser.add_subparsers(dest="operation", required=True)
+
+    stage = actions.add_parser("stage", help="stage an immutable pushed commit")
+    stage.add_argument("profile", choices=("smoke",))
+    stage.add_argument("--revision", required=True)
+    stage.add_argument("--parent-run")
+
+    submit = actions.add_parser("submit", help="submit the fixed Slurm profile")
+    submit.add_argument("profile", choices=("smoke",))
+    submit.add_argument("--run-id", required=True)
+
+    for operation, help_text in (
+        ("status", "query the recorded scheduler job"),
+        ("wait", "wait with bounded queue and execution time"),
+        ("collect", "collect approved small artefacts"),
+        ("cancel", "cancel only the recorded scheduler job"),
+    ):
+        action = actions.add_parser(operation, help=help_text)
+        action.add_argument("--run-id", required=True)
+
+    logs = actions.add_parser("logs", help="retrieve a bounded log tail")
+    logs.add_argument("--run-id", required=True)
+    logs.add_argument("--tail", type=int, default=200)
+
+    clean = actions.add_parser(
+        "clean", help="delete one inactive run after external approval"
+    )
+    clean.add_argument("--run-id", required=True)
+    clean.add_argument("--confirm", required=True)
+    return parser
+
+
+def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, object]:
+    if args.operation == "stage":
+        return controller.stage(
+            args.profile,
+            args.revision,
+            parent_run_id=args.parent_run,
+        )
+    if args.operation == "submit":
+        return controller.submit(args.profile, args.run_id)
+    if args.operation == "status":
+        return controller.status(args.run_id)
+    if args.operation == "wait":
+        return controller.wait(args.run_id)
+    if args.operation == "logs":
+        return controller.logs(args.run_id, args.tail)
+    if args.operation == "collect":
+        return controller.collect(args.run_id)
+    if args.operation == "cancel":
+        return controller.cancel(args.run_id)
+    if args.operation == "clean":
+        return controller.clean(args.run_id, args.confirm)
+    raise AssertionError(f"unhandled operation: {args.operation}")
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the controller and emit exactly one JSON object on stdout."""
+
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    try:
+        level = parse_log_level(args.log_level)
+    except ValueError as error:
+        parser.error(str(error))
+    logger = configure_logging(
+        level=level,
+        logger_name="genome_to_diffraction.hpc",
+        log_format=args.log_format,
+    )
+    try:
+        config = HpcConfig.load(args.config)
+        controller = HpcController(
+            config,
+            logger=logger,
+            progress=not args.no_progress and sys.stderr.isatty(),
+        )
+        result: dict[str, Any] = _run(args, controller)
+        print(json.dumps(result, ensure_ascii=True, sort_keys=True, default=str))
+        return 0
+    except (HpcInterfaceError, OSError) as error:
+        failure_class = getattr(error, "failure_class", "wrapper_failure")
+        logger.error(
+            "HPC operation failed",
+            extra={
+                "operation": args.operation,
+                "failure_class": str(failure_class),
+                "error": str(error),
+            },
+        )
+        payload = {
+            "operation": args.operation,
+            "ok": False,
+            "failure_class": str(failure_class),
+            "message": str(error),
+        }
+        print(json.dumps(payload, ensure_ascii=True, sort_keys=True))
+        return 1
+
+
+def entrypoint() -> None:
+    """Console-script and zipapp entry point."""
+
+    sys.exit(main())
+
+
+if __name__ == "__main__":
+    entrypoint()
