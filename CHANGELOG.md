@@ -38,6 +38,9 @@ All notable changes to this project are documented here.
   fingerprinting, real Phenix and database verification, all-three-crystal Task
   05 execution, mandatory cached resume, bounded artefact collection, and a
   tracked M0 qualification dashboard.
+- Expected-1UBQ database qualification with explicit search thresholds,
+  SEQRES-to-mmCIF protein-entity sequence binding, immutable coordinate-cache
+  provenance, retained query/result/log evidence, and reproducible rerun records.
 
 ### Not implemented
 

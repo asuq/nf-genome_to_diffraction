@@ -14,6 +14,7 @@ from genome_to_diffraction.databases.prepare import (
     DEFAULT_MINIMUM_FREE_BYTES,
     DEFAULT_STORAGE_LIMIT_BYTES,
     ESM_ATLAS_PROBE_URL,
+    PDB_COORDINATE_URL_TEMPLATE,
     PDB_SEQUENCE_URL,
     DatabasePreparationRequest,
     prepare,
@@ -264,6 +265,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--minimum-free-bytes", type=int, default=DEFAULT_MINIMUM_FREE_BYTES
     )
     prepare_parser.add_argument("--pdb-sequence-url", default=PDB_SEQUENCE_URL)
+    prepare_parser.add_argument(
+        "--pdb-coordinate-url-template", default=PDB_COORDINATE_URL_TEMPLATE
+    )
     prepare_parser.add_argument("--esm-atlas-probe-url", default=ESM_ATLAS_PROBE_URL)
 
     catalogue_parser = subparsers.add_parser(
@@ -453,6 +457,7 @@ def _run_databases(args: argparse.Namespace) -> int:
             threads=args.threads,
             progress=not args.no_progress,
             pdb_sequence_url=args.pdb_sequence_url,
+            pdb_coordinate_url_template=args.pdb_coordinate_url_template,
             esm_atlas_probe_url=args.esm_atlas_probe_url,
         )
     )

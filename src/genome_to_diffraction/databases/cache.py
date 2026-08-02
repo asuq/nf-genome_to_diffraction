@@ -8,19 +8,48 @@ lock, temporary-download, metadata, and digest-index layout.
 import fcntl
 import json
 import logging
+import os
+import re
 import time
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from pydantic import JsonValue
 from tqdm import tqdm
 
-from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.databases.common import DatabaseError
 from genome_to_diffraction.ids import canonical_digest
 
 _LOGGER = logging.getLogger("genome_to_diffraction.databases")
 _PROVIDERS = ("pdb", "afdb", "esm_atlas")
+_PDB_ID = re.compile(r"^[0-9][A-Za-z0-9]{3}$")
+
+
+@dataclass(frozen=True)
+class CachedCoordinate:
+    """Integrity and provenance record for one cached PDB coordinate object."""
+
+    provider: str
+    source_id: str
+    source_url: str
+    retrieved_at: str
+    etag: str | None
+    last_modified: str | None
+    content_type: str | None
+    object_sha256: str
+    size_bytes: int
+    object_relative_path: str
+    metadata_relative_path: str
+    metadata_sha256: str
+
+    def as_json(self) -> dict[str, JsonValue]:
+        """Return a JSON-compatible qualification record."""
+
+        return asdict(self)
 
 
 @contextmanager
@@ -134,3 +163,285 @@ def verify_coordinate_cache(root: Path) -> tuple[str, int, int]:
             f"coordinate-cache layout differs from policy: {layout_path}"
         )
     return canonical_digest(layout), 1, layout_path.stat().st_size
+
+
+def _atomic_copy(source: Path, destination: Path, *, progress: bool) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        with (
+            source.open("rb") as input_handle,
+            temporary.open("xb") as output_handle,
+            tqdm(
+                total=source.stat().st_size,
+                desc=f"Cache {destination.name}",
+                unit="B",
+                unit_scale=True,
+                disable=not progress,
+            ) as progress_bar,
+        ):
+            while chunk := input_handle.read(1024 * 1024):
+                output_handle.write(chunk)
+                progress_bar.update(len(chunk))
+            output_handle.flush()
+            os.fsync(output_handle.fileno())
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def publish_pdb_coordinate(
+    root: Path,
+    source: Path,
+    *,
+    pdb_id: str,
+    source_url: str,
+    retrieved_at: str,
+    etag: str | None,
+    last_modified: str | None,
+    content_type: str | None,
+    progress: bool = True,
+) -> CachedCoordinate:
+    """Atomically publish one verified public PDB mmCIF object into the cache."""
+
+    verify_coordinate_cache(root)
+    if _PDB_ID.fullmatch(pdb_id) is None:
+        raise DatabaseError(f"invalid PDB cache source identifier: {pdb_id!r}")
+    if not source.is_file() or source.is_symlink() or source.stat().st_size == 0:
+        raise DatabaseError(f"PDB coordinate source is missing or unsafe: {source}")
+    normalised_id = pdb_id.lower()
+    digest = sha256_file(source, progress=progress, logger=_LOGGER)
+    size_bytes = source.stat().st_size
+    object_relative = Path("pdb") / "objects" / digest[:2] / f"{digest}.cif.gz"
+    metadata = {
+        "schema_version": "1.0",
+        "provider": "pdb",
+        "source_id": normalised_id,
+        "source_url": source_url,
+        "retrieved_at": retrieved_at,
+        "etag": etag,
+        "last_modified": last_modified,
+        "content_type": content_type,
+        "object_relative_path": object_relative.as_posix(),
+        "object_sha256": digest,
+        "size_bytes": size_bytes,
+    }
+    metadata_id = canonical_digest(metadata)
+    metadata_relative = Path("pdb") / "metadata" / normalised_id / f"{metadata_id}.json"
+    object_path = root / object_relative
+    metadata_path = root / metadata_relative
+    lock_path = root / "pdb" / "locks" / f"{normalised_id}.lock"
+    with exclusive_lock(lock_path, progress=progress):
+        if object_path.exists():
+            if object_path.is_symlink() or not object_path.is_file():
+                raise DatabaseError(f"cached PDB object is unsafe: {object_path}")
+            if sha256_file(object_path, progress=progress, logger=_LOGGER) != digest:
+                raise DatabaseError(
+                    f"cached PDB object checksum mismatch: {object_path}"
+                )
+        else:
+            _atomic_copy(source, object_path, progress=progress)
+            if sha256_file(object_path, progress=False) != digest:
+                raise DatabaseError(
+                    f"published PDB object checksum mismatch: {object_path}"
+                )
+        index_path = root / "digest_index" / f"{digest}.json"
+        atomic_write_json(
+            index_path,
+            {
+                "schema_version": "1.0",
+                "provider": "pdb",
+                "object_relative_path": object_relative.as_posix(),
+                "object_sha256": digest,
+                "size_bytes": size_bytes,
+            },
+        )
+        if metadata_path.exists():
+            try:
+                existing_metadata = json.loads(
+                    metadata_path.read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError) as error:
+                raise DatabaseError(
+                    f"invalid cached PDB coordinate metadata: {metadata_path}"
+                ) from error
+            if existing_metadata != metadata:
+                raise DatabaseError(
+                    f"cached PDB coordinate metadata collision: {metadata_path}"
+                )
+        else:
+            atomic_write_json(metadata_path, metadata)
+        metadata_sha256 = sha256_file(metadata_path, progress=False)
+    record = CachedCoordinate(
+        provider="pdb",
+        source_id=normalised_id,
+        source_url=source_url,
+        retrieved_at=retrieved_at,
+        etag=etag,
+        last_modified=last_modified,
+        content_type=content_type,
+        object_sha256=digest,
+        size_bytes=size_bytes,
+        object_relative_path=object_relative.as_posix(),
+        metadata_relative_path=metadata_relative.as_posix(),
+        metadata_sha256=metadata_sha256,
+    )
+    _LOGGER.info(
+        "PDB coordinate cached",
+        extra={
+            "pdb_id": normalised_id,
+            "object_sha256": digest,
+            "size_bytes": record.size_bytes,
+        },
+    )
+    return record
+
+
+def verify_cached_pdb_coordinate(
+    root: Path,
+    raw_record: object,
+    *,
+    full_checksum: bool,
+    progress: bool = True,
+) -> CachedCoordinate:
+    """Verify one recorded cache entry without downloading or repairing it."""
+
+    if not isinstance(raw_record, dict):
+        raise DatabaseError("coordinate-cache qualification record is invalid")
+    required = {
+        "provider",
+        "source_id",
+        "source_url",
+        "retrieved_at",
+        "etag",
+        "last_modified",
+        "content_type",
+        "object_sha256",
+        "size_bytes",
+        "object_relative_path",
+        "metadata_relative_path",
+        "metadata_sha256",
+    }
+    if set(raw_record) != required:
+        raise DatabaseError("coordinate-cache qualification fields are invalid")
+    textual = (
+        "provider",
+        "source_id",
+        "source_url",
+        "retrieved_at",
+        "object_sha256",
+        "object_relative_path",
+        "metadata_relative_path",
+        "metadata_sha256",
+    )
+    nullable_textual = ("etag", "last_modified", "content_type")
+    if any(not isinstance(raw_record[key], str) for key in textual) or any(
+        raw_record[key] is not None and not isinstance(raw_record[key], str)
+        for key in nullable_textual
+    ):
+        raise DatabaseError("coordinate-cache qualification value types are invalid")
+    size_bytes = raw_record["size_bytes"]
+    if (
+        not isinstance(size_bytes, int)
+        or isinstance(size_bytes, bool)
+        or size_bytes < 1
+    ):
+        raise DatabaseError("coordinate-cache qualification size is invalid")
+
+    def optional_text(key: str) -> str | None:
+        value = raw_record[key]
+        if value is None or isinstance(value, str):
+            return value
+        raise AssertionError("coordinate-cache optional text was already validated")
+
+    record = CachedCoordinate(
+        provider=str(raw_record["provider"]),
+        source_id=str(raw_record["source_id"]),
+        source_url=str(raw_record["source_url"]),
+        retrieved_at=str(raw_record["retrieved_at"]),
+        etag=optional_text("etag"),
+        last_modified=optional_text("last_modified"),
+        content_type=optional_text("content_type"),
+        object_sha256=str(raw_record["object_sha256"]),
+        size_bytes=size_bytes,
+        object_relative_path=str(raw_record["object_relative_path"]),
+        metadata_relative_path=str(raw_record["metadata_relative_path"]),
+        metadata_sha256=str(raw_record["metadata_sha256"]),
+    )
+    if record.provider != "pdb" or _PDB_ID.fullmatch(record.source_id) is None:
+        raise DatabaseError("coordinate-cache qualification source is invalid")
+    digest = record.object_sha256
+    if len(digest) != 64 or any(
+        character not in "0123456789abcdef" for character in digest
+    ):
+        raise DatabaseError("coordinate-cache qualification digest is invalid")
+    if len(record.metadata_sha256) != 64 or any(
+        character not in "0123456789abcdef" for character in record.metadata_sha256
+    ):
+        raise DatabaseError("coordinate-cache metadata digest is invalid")
+    expected_object = (
+        Path("pdb") / "objects" / digest[:2] / f"{digest}.cif.gz"
+    ).as_posix()
+    expected_metadata_document = {
+        "schema_version": "1.0",
+        "provider": record.provider,
+        "source_id": record.source_id,
+        "source_url": record.source_url,
+        "retrieved_at": record.retrieved_at,
+        "etag": record.etag,
+        "last_modified": record.last_modified,
+        "content_type": record.content_type,
+        "object_relative_path": record.object_relative_path,
+        "object_sha256": record.object_sha256,
+        "size_bytes": record.size_bytes,
+    }
+    metadata_id = canonical_digest(expected_metadata_document)
+    expected_metadata = (
+        Path("pdb") / "metadata" / record.source_id.lower() / f"{metadata_id}.json"
+    ).as_posix()
+    if (
+        record.object_relative_path != expected_object
+        or record.metadata_relative_path != expected_metadata
+    ):
+        raise DatabaseError("coordinate-cache qualification paths are inconsistent")
+    object_path = root / expected_object
+    metadata_path = root / expected_metadata
+    index_path = root / "digest_index" / f"{digest}.json"
+    if (
+        not object_path.is_file()
+        or object_path.is_symlink()
+        or object_path.stat().st_size != record.size_bytes
+    ):
+        raise DatabaseError("cached PDB coordinate object is missing or inconsistent")
+    if not metadata_path.is_file() or metadata_path.is_symlink():
+        raise DatabaseError("cached PDB coordinate metadata is missing or unsafe")
+    if sha256_file(metadata_path, progress=False) != record.metadata_sha256:
+        raise DatabaseError("cached PDB coordinate metadata checksum mismatch")
+    try:
+        actual_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise DatabaseError("cached PDB coordinate metadata is invalid") from error
+    if actual_metadata != expected_metadata_document:
+        raise DatabaseError("cached PDB coordinate metadata is inconsistent")
+    expected_index = {
+        "schema_version": "1.0",
+        "provider": "pdb",
+        "object_relative_path": expected_object,
+        "object_sha256": digest,
+        "size_bytes": record.size_bytes,
+    }
+    if not index_path.is_file() or index_path.is_symlink():
+        raise DatabaseError("cached PDB coordinate digest index is missing or unsafe")
+    try:
+        actual_index = json.loads(index_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise DatabaseError("cached PDB coordinate digest index is invalid") from error
+    if actual_index != expected_index:
+        raise DatabaseError("cached PDB coordinate digest index is inconsistent")
+    if (
+        full_checksum
+        and sha256_file(object_path, progress=progress, logger=_LOGGER)
+        != record.object_sha256
+    ):
+        raise DatabaseError("cached PDB coordinate object checksum mismatch")
+    return record

@@ -295,7 +295,10 @@ pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
 ```
 
 This explicit operation contacts Foldseek's documented PDB/ProstT5 sources and
-the public RCSB PDB SEQRES URL. It sends no catalogue sequences or credentials.
+the public RCSB PDB SEQRES URL. The bounded qualification smoke also fetches the
+public 1UBQ mmCIF coordinate after the expected `1ubq_A` hit passes fixed score,
+coverage, SEQRES-sequence, and identifier checks. It sends no catalogue sequences
+or credentials.
 The optional `--verify_esm_atlas_connectivity true` probe fetches one documented
 public MGYP sequence by accession and never submits a user sequence. ESM Atlas
 sequence submission remains disabled by default, and no local ESMAtlas30 is
@@ -305,10 +308,16 @@ and the optional ESM Atlas response as CC-BY-4.0.
 Every immutable resource records the locked tool version, parameters, retrieval
 metadata, full file inventory, byte count, SHA-256 identity, and smoke-test
 status. Existing valid resources are reused; incomplete resources fail loudly;
-forced builds are side-by-side. The coordinate-cache layout uses provider
-namespaces and a POSIX advisory initialisation lock; M0.4 still has to qualify
-atomic object publication and cross-resource PDB mapping. Revalidation never
-downloads or repairs resources. It requires the frozen manifest and its
+forced builds are side-by-side. Preparation requires the expected 1UBQ hit from
+parsed non-empty MMseqs2 and Foldseek results, maps it through the validated
+protein-only SEQRES crosswalk, and binds the legacy suffix to the mmCIF protein
+entity through its author-chain identifier. The canonical polymer and SEQRES
+sequence hashes must agree before publication into the coordinate cache by
+SHA-256 under a per-source POSIX lock. Immutable metadata sidecars and the digest
+index are verified together. The manifest retains query, result, and log
+checksums. Revalidation reruns the local known queries, compares deterministic
+scores and output hashes, and writes `database_manifest.verification.json`, but
+never downloads or repairs resources. It requires the frozen manifest and its
 operator-recorded SHA-256, so mutable `current` links and sidecars are not the
 trust anchor:
 

@@ -12,7 +12,7 @@ this gate passes.
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Blocked on scientific metadata | True catalogue sequence, known ASU copy count, trustworthy final model/structure factors where available, and suitable MR model |
 | M0.3 Qualify Phenix | Local runtime and three real Xtriage smokes qualified; Marmic installation in progress | Phenix 2.1-6048 macOS arm64 passes all seven command probes and all three frozen MTZ files complete real Xtriage; the durable Marmic Linux installation, its real manifest, and equivalent Marmic results are still required |
-| M0.4 Qualify databases | Preparation required on Marmic | The only discovered provenance record is the foundation stub (`file_count: 0`, `status: incomplete`, smoke not run); immutable Foldseek PDB, ProstT5, PDB-sequence, and coordinate-cache resources still require preparation and verification |
+| M0.4 Qualify databases | Qualification implementation hardened; real preparation required on Marmic | Anchored full verification, symlink-aware inventories, non-empty known-query smokes, SEQRES target validation, public mmCIF mapping, and atomic coordinate-cache publication are tested; no real site resources have yet passed them |
 | M0.5 Matthews reference | Pending | Selected pipeline hypotheses compared with Phenix/Xtriage without case-specific tuning |
 | M0.6 Fixed HPC P0 profile | Deployed; site configuration missing | Commit `1433006` tools are checksum-verified locally and on Marmic; staging failed safely before submission because the protected external P0 path file is absent |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
@@ -127,6 +127,54 @@ respectively. Raw MTZ paths, licensed-software logs, and exact local output
 paths remain outside Git. These local results demonstrate real execution and
 parser behaviour; M0.3 still requires the Marmic Linux manifest and scheduled
 P0 evidence.
+
+## Database qualification readiness
+
+The M0.4 implementation was audited before any terabyte-scale site download.
+The original command construction matched Foldseek's documented
+`databases PDB`, `databases ProstT5`, and FASTA-to-PDB search path, but an exit
+status of zero alone could previously mark an empty smoke result as passed.
+`verify_only` also trusted mutable resource sidecars and did not rerun the
+bounded queries.
+
+The hardened boundary now requires all four coupled resources for PDB Foldseek
+qualification and provides the following controls:
+
+- a frozen expected database manifest and separately supplied SHA-256 are
+  mandatory for `verify_only`;
+- content IDs are recomputed, `current` links must resolve to direct resource
+  children, internal symlinks are inventoried, and unlisted or escaping paths
+  fail;
+- protein SEQRES records require a supported target form, declared-length
+  agreement, an accepted residue alphabet, and a lossless suffix token; the
+  suffix is not silently labelled as an entity or chain namespace;
+- MMseqs2 and ProstT5/Foldseek use a fixed public ubiquitin query, require the
+  expected `1ubq_A` target at E-value <= `1e-5`, bit score >= `30`, and query and
+  target coverage >= `0.90`, and retain checksummed query, result, tool-log, and
+  mapping evidence;
+- the 1UBQ SEQRES sequence must have the fixed 76-residue query hash; its public
+  RCSB mmCIF is parsed by entity, the legacy suffix is resolved through
+  `_entity_poly.pdbx_strand_id`, the entity must be a polypeptide, and the
+  canonical coordinate sequence hash must match SEQRES;
+- that coordinate is published by content hash with atomic replacement,
+  immutable content-addressed provenance metadata, a verified digest index, and
+  a per-source advisory lock; and
+- anchored verification reruns all three bounded operations, compares selected
+  identity/score/coverage and output hashes, rechecks the cached coordinate
+  without network access, and retains a structured verification sidecar.
+
+These are implementation tests, not site qualification. Real M0.4 evidence
+still requires one immutable Marmic preparation, the frozen manifest/checksum,
+real command logs, full inventory verification, and measured I/O/runtime. The
+fixed 45-minute P0 allocation is not yet justified for a bytewise audit on the
+observed slow NFS; database qualification and Task 05 should not be conflated
+until that timing is measured. Compute-node outbound network access is also
+unconfirmed, so the first real preparation must use a reviewed site route or an
+offline/adopted snapshot rather than assuming internet access.
+
+The identifier and command assumptions follow the
+[RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)
+and [Foldseek's official documentation](https://github.com/steineggerlab/foldseek).
 
 ## Marmic NFS installation diagnosis
 

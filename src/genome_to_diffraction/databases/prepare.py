@@ -11,7 +11,9 @@ import gzip
 import hashlib
 import json
 import logging
+import math
 import os
+import re
 import shutil
 import tempfile
 import uuid
@@ -19,13 +21,20 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+import gemmi
 from pydantic import JsonValue, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction import __version__
-from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.checksums import (
+    atomic_write_json,
+    atomic_write_text,
+    sha256_file,
+)
 from genome_to_diffraction.databases.cache import (
     initialise_coordinate_cache,
+    publish_pdb_coordinate,
+    verify_cached_pdb_coordinate,
     verify_coordinate_cache,
 )
 from genome_to_diffraction.databases.common import (
@@ -38,7 +47,7 @@ from genome_to_diffraction.databases.common import (
     verify_inventory,
 )
 from genome_to_diffraction.databases.network import download_public_resource
-from genome_to_diffraction.ids import content_id
+from genome_to_diffraction.ids import canonical_digest, content_id
 from genome_to_diffraction.schemas.manifests import (
     DatabaseManifest,
     DatabaseResource,
@@ -50,12 +59,45 @@ from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.databases")
 PDB_SEQUENCE_URL = "https://files.rcsb.org/pub/pdb/derived_data/pdb_seqres.txt.gz"
+PDB_COORDINATE_URL_TEMPLATE = "https://files.rcsb.org/download/{pdb_id}.cif.gz"
 ESM_ATLAS_PROBE_URL = "https://api.esmatlas.com/fetchSequence/MGYP002537940442"
 DEFAULT_STORAGE_LIMIT_BYTES = 1_800_000_000_000
 DEFAULT_MINIMUM_FREE_BYTES = 200_000_000_000
 _SMOKE_SEQUENCE = (
     "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"
 )
+_SMOKE_QUERY_ID = "ubiquitin_smoke"
+_EXPECTED_SMOKE_TARGET = "1ubq_A"
+_SMOKE_MAX_EVALUE = 1.0e-5
+_SMOKE_MIN_BITS = 30.0
+_SMOKE_MIN_COVERAGE = 0.9
+_PDB_SEQRES_TARGET = re.compile(
+    r"^(?P<pdb_id>[0-9][A-Za-z0-9]{3})_(?P<seqres_token>[^\s\t]+)$"
+)
+_DECLARED_LENGTH = re.compile(r"(?:^|\s)length:(?P<length>[0-9]+)(?:\s|$)")
+_PROTEIN_ALPHABET = frozenset("ABCDEFGHIKLMNPQRSTVWXYZOUJ")
+
+
+@dataclass(frozen=True)
+class SmokeHit:
+    """One strictly parsed bounded database-smoke result row."""
+
+    query: str
+    target: str
+    evalue: float
+    bits: float
+    query_coverage: float
+    target_coverage: float
+
+    def as_json(self) -> dict[str, JsonValue]:
+        return {
+            "query": self.query,
+            "target": self.target,
+            "evalue": self.evalue,
+            "bits": self.bits,
+            "query_coverage": self.query_coverage,
+            "target_coverage": self.target_coverage,
+        }
 
 
 @dataclass(frozen=True)
@@ -79,7 +121,173 @@ class DatabasePreparationRequest:
     threads: int = 4
     progress: bool = True
     pdb_sequence_url: str = PDB_SEQUENCE_URL
+    pdb_coordinate_url_template: str = PDB_COORDINATE_URL_TEMPLATE
     esm_atlas_probe_url: str = ESM_ATLAS_PROBE_URL
+
+
+def _parse_pdb_seqres_target(target: str) -> tuple[str, str]:
+    match = _PDB_SEQRES_TARGET.fullmatch(target)
+    if match is None:
+        raise DatabaseError(f"unsupported PDB SEQRES target identifier: {target!r}")
+    return match.group("pdb_id").upper(), match.group("seqres_token")
+
+
+def _parse_smoke_result(path: Path) -> tuple[SmokeHit, ...]:
+    if not path.is_file() or path.is_symlink() or path.stat().st_size == 0:
+        raise DatabaseError(f"database smoke query produced no result rows: {path}")
+    hits: list[SmokeHit] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) != 6 or any(not field for field in fields):
+                raise DatabaseError(
+                    f"malformed database smoke result at line {line_number}: {path}"
+                )
+            query, target, raw_evalue, raw_bits, raw_qcov, raw_tcov = fields
+            try:
+                evalue = float(raw_evalue)
+                bits = float(raw_bits)
+                query_coverage = float(raw_qcov)
+                target_coverage = float(raw_tcov)
+            except ValueError as error:
+                raise DatabaseError(
+                    f"non-numeric database smoke score at line {line_number}: {path}"
+                ) from error
+            if (
+                query != _SMOKE_QUERY_ID
+                or not math.isfinite(evalue)
+                or evalue < 0
+                or not math.isfinite(bits)
+                or bits <= 0
+                or not math.isfinite(query_coverage)
+                or not 0 <= query_coverage <= 1
+                or not math.isfinite(target_coverage)
+                or not 0 <= target_coverage <= 1
+            ):
+                raise DatabaseError(
+                    f"invalid database smoke row at line {line_number}: {path}"
+                )
+            hits.append(
+                SmokeHit(
+                    query=query,
+                    target=target,
+                    evalue=evalue,
+                    bits=bits,
+                    query_coverage=query_coverage,
+                    target_coverage=target_coverage,
+                )
+            )
+            if len(hits) > 1000:
+                raise DatabaseError("database smoke query exceeded 1000 bounded hits")
+    if not hits:
+        raise DatabaseError(f"database smoke query produced no result rows: {path}")
+    return tuple(hits)
+
+
+def _select_expected_smoke_hit(hits: tuple[SmokeHit, ...]) -> SmokeHit:
+    matches = [
+        hit
+        for hit in hits
+        if hit.target.casefold() == _EXPECTED_SMOKE_TARGET.casefold()
+    ]
+    if len(matches) != 1:
+        raise DatabaseError(
+            "database smoke query did not return exactly one expected 1UBQ_A hit"
+        )
+    hit = matches[0]
+    if (
+        hit.evalue > _SMOKE_MAX_EVALUE
+        or hit.bits < _SMOKE_MIN_BITS
+        or hit.query_coverage < _SMOKE_MIN_COVERAGE
+        or hit.target_coverage < _SMOKE_MIN_COVERAGE
+    ):
+        raise DatabaseError(
+            "expected 1UBQ_A smoke hit failed significance or coverage thresholds"
+        )
+    return hit
+
+
+def _smoke_query(path: Path) -> None:
+    path.write_text(f">{_SMOKE_QUERY_ID}\n{_SMOKE_SEQUENCE}\n", encoding="ascii")
+
+
+def _log_evidence(log_path: Path, *, progress: bool) -> dict[str, JsonValue]:
+    return {
+        "path": str(log_path),
+        "sha256": sha256_file(log_path, progress=progress, logger=_LOGGER),
+    }
+
+
+def _preserve_smoke_file(
+    database_root: Path,
+    resource_name: str,
+    label: str,
+    source: Path,
+    *,
+    suffix: str,
+) -> dict[str, JsonValue]:
+    evidence_path = _log_path(database_root, resource_name, label).with_suffix(suffix)
+    atomic_write_text(evidence_path, source.read_text(encoding="utf-8"))
+    return _log_evidence(evidence_path, progress=False)
+
+
+def _stable_smoke_evidence(
+    qualification: object, *, keys: tuple[str, ...], label: str
+) -> dict[str, JsonValue]:
+    if not isinstance(qualification, dict):
+        raise DatabaseError(f"missing database smoke qualification: {label}")
+    stable: dict[str, JsonValue] = {}
+    for key in keys:
+        if key not in qualification:
+            raise DatabaseError(f"incomplete database smoke qualification: {label}")
+        value = qualification[key]
+        if key in {"query", "result"}:
+            if (
+                not isinstance(value, dict)
+                or set(value) != {"path", "sha256"}
+                or not isinstance(value.get("sha256"), str)
+            ):
+                raise DatabaseError(
+                    f"invalid database smoke file evidence: {label}.{key}"
+                )
+            stable[key] = {"sha256": value["sha256"]}
+        else:
+            stable[key] = value
+    return stable
+
+
+def _require_matching_smoke_evidence(
+    expected: object,
+    observed: object,
+    *,
+    keys: tuple[str, ...],
+    label: str,
+) -> None:
+    if _stable_smoke_evidence(expected, keys=keys, label=label) != (
+        _stable_smoke_evidence(observed, keys=keys, label=label)
+    ):
+        raise DatabaseError(f"{label} smoke differs from expected qualification")
+
+
+_SEARCH_SMOKE_KEYS = (
+    "kind",
+    "query_id",
+    "query_sequence_sha256",
+    "thresholds",
+    "hit_count",
+    "selected_hit",
+    "mapping",
+    "query",
+    "result",
+)
+_PROSTT5_SMOKE_KEYS = (
+    "kind",
+    "query_id",
+    "query_sequence_sha256",
+    "query",
+    "output_file_count",
+    "output_manifest_sha256",
+)
 
 
 def _resource_base(database_root: Path, name: str) -> Path:
@@ -121,6 +329,62 @@ def _write_resource(resource: DatabaseResource) -> None:
     atomic_write_json(_resource_sidecar(root), resource.model_dump(mode="json"))
 
 
+def _verify_log_evidence(
+    database_root: Path, raw: object, *, label: str, progress: bool
+) -> None:
+    if not isinstance(raw, dict) or set(raw) != {"path", "sha256"}:
+        raise DatabaseError(f"invalid database log evidence: {label}")
+    path_value = raw.get("path")
+    digest = raw.get("sha256")
+    if not isinstance(path_value, str) or not isinstance(digest, str):
+        raise DatabaseError(f"invalid database log evidence values: {label}")
+    path = Path(path_value)
+    logs_root = (database_root / "logs").resolve(strict=True)
+    try:
+        resolved = path.resolve(strict=True)
+        resolved.relative_to(logs_root)
+    except (OSError, ValueError) as error:
+        raise DatabaseError(f"database log escaped its log root: {label}") from error
+    if not path.is_absolute() or path.is_symlink() or not path.is_file():
+        raise DatabaseError(f"database log is missing or unsafe: {label}")
+    if sha256_file(path, progress=progress, logger=_LOGGER) != digest:
+        raise DatabaseError(f"database log checksum mismatch: {label}")
+
+
+def _verify_resource_logs(
+    database_root: Path, resource: DatabaseResource, *, progress: bool
+) -> None:
+    preparation_log = resource.parameters.get("preparation_log")
+    if preparation_log is not None:
+        _verify_log_evidence(
+            database_root,
+            preparation_log,
+            label=f"{resource.name}.preparation_log",
+            progress=progress,
+        )
+    preparation_logs = resource.parameters.get("preparation_logs")
+    if preparation_logs is not None:
+        if not isinstance(preparation_logs, dict):
+            raise DatabaseError(f"invalid preparation_logs: {resource.name}")
+        for name, evidence in preparation_logs.items():
+            _verify_log_evidence(
+                database_root,
+                evidence,
+                label=f"{resource.name}.preparation_logs.{name}",
+                progress=progress,
+            )
+    qualification = resource.parameters.get("qualification")
+    if isinstance(qualification, dict):
+        for evidence_name in ("log", "query", "result"):
+            if evidence_name in qualification:
+                _verify_log_evidence(
+                    database_root,
+                    qualification[evidence_name],
+                    label=f"{resource.name}.qualification.{evidence_name}",
+                    progress=progress,
+                )
+
+
 def _load_resource(
     database_root: Path,
     name: str,
@@ -153,10 +417,19 @@ def _load_resource(
         raise DatabaseError(
             f"database resource is not ready: {name}: {resource.status}"
         )
+    _verify_resource_logs(database_root, resource, progress=progress)
     if name == "coordinate_cache":
         digest, file_count, total_bytes = verify_coordinate_cache(root)
         if digest != resource.manifest_sha256:
             raise DatabaseError("coordinate-cache layout digest mismatch")
+        qualification = resource.parameters.get("qualification")
+        if qualification is not None:
+            verify_cached_pdb_coordinate(
+                root,
+                qualification,
+                full_checksum=full_checksums,
+                progress=progress,
+            )
     else:
         file_count, total_bytes = verify_inventory(
             root,
@@ -385,10 +658,11 @@ def _prepare_foldseek_resource(
         str(staging / prefix_name),
         str(staging / "tmp"),
     ]
+    download_log = _log_path(database_root, name, "download")
     try:
         run_command(
             command,
-            log_path=_log_path(database_root, name, "download"),
+            log_path=download_log,
             storage_root=database_root,
             storage_limit_bytes=request.storage_limit_bytes,
             progress=request.progress,
@@ -417,6 +691,9 @@ def _prepare_foldseek_resource(
                 ],
                 "gpu": False,
                 "data_license": ("CC0-1.0" if name == "pdb_foldseek" else "MIT"),
+                "preparation_log": _log_evidence(
+                    download_log, progress=request.progress
+                ),
             },
             smoke_status=SmokeTestStatus.NOT_RUN,
             progress=request.progress,
@@ -434,12 +711,19 @@ def _prepare_foldseek_resource(
 
 def _normalise_pdb_sequences(
     compressed: Path, fasta: Path, mapping: Path, *, progress: bool
-) -> int:
-    """Preserve RCSB target IDs and write explicit PDB/chain-or-entity mappings."""
+) -> tuple[int, int]:
+    """Preserve validated protein SEQRES IDs and their explicit suffix tokens."""
 
     count = 0
+    skipped_non_protein = 0
     seen: set[str] = set()
+    current_header: str | None = None
     current_target: str | None = None
+    current_pdb_id: str | None = None
+    current_token: str | None = None
+    current_declared_length: int | None = None
+    current_is_protein = False
+    sequence_parts: list[str] = []
     with (
         gzip.open(compressed, "rt", encoding="utf-8") as source,
         fasta.open("w", encoding="utf-8") as fasta_handle,
@@ -448,38 +732,269 @@ def _normalise_pdb_sequences(
             desc="Normalise PDB sequences", unit="sequence", disable=not progress
         ) as bar,
     ):
-        mapping_handle.write("target_id\tpdb_id\tchain_or_entity\toriginal_header\n")
+        mapping_handle.write(
+            "target_id\tpdb_id\tidentifier_namespace\tseqres_token\t"
+            "sequence_length\tsequence_sha256\toriginal_header\n"
+        )
+
+        def flush_record() -> None:
+            nonlocal count, skipped_non_protein
+            if current_header is None:
+                return
+            if not current_is_protein:
+                skipped_non_protein += 1
+                return
+            if (
+                current_target is None
+                or current_pdb_id is None
+                or current_token is None
+                or current_declared_length is None
+            ):
+                raise AssertionError("protein SEQRES state is incomplete")
+            sequence = "".join(sequence_parts).upper()
+            if not sequence:
+                raise DatabaseError(
+                    f"PDB protein SEQRES target has no sequence: {current_target}"
+                )
+            invalid = sorted(set(sequence) - _PROTEIN_ALPHABET)
+            if invalid:
+                raise DatabaseError(
+                    "PDB protein SEQRES target has unsupported residue symbols: "
+                    f"{current_target}: {''.join(invalid)}"
+                )
+            if len(sequence) != current_declared_length:
+                raise DatabaseError(
+                    "PDB protein SEQRES declared length mismatch: "
+                    f"{current_target}: {current_declared_length} != {len(sequence)}"
+                )
+            key = current_target.casefold()
+            if key in seen:
+                raise DatabaseError(
+                    f"duplicate PDB protein SEQRES target: {current_target}"
+                )
+            seen.add(key)
+            mapping_handle.write(
+                f"{current_target}\t{current_pdb_id}\tlegacy_seqres_suffix\t"
+                f"{current_token}\t{len(sequence)}\t"
+                f"{hashlib.sha256(sequence.encode('ascii')).hexdigest()}\t"
+                f"{current_header}\n"
+            )
+            fasta_handle.write(f">{current_target}\n{sequence}\n")
+            count += 1
+            bar.update(1)
+
         for line_number, line in enumerate(source, start=1):
             if line.startswith(">"):
+                flush_record()
                 header = line[1:].rstrip("\n")
-                target = header.split(maxsplit=1)[0]
-                if len(target) < 4 or target in seen:
+                if "\t" in header or not header:
                     raise DatabaseError(
-                        "invalid or duplicate PDB sequence target at "
-                        f"line {line_number}: {target}"
+                        f"invalid PDB SEQRES header at line {line_number}"
                     )
-                seen.add(target)
-                pdb_id = target[:4].upper()
-                chain_or_entity = target[5:] if len(target) > 5 else ""
-                mapping_handle.write(
-                    f"{target}\t{pdb_id}\t{chain_or_entity}\t{header}\n"
-                )
-                fasta_handle.write(f">{target}\n")
+                target = header.split(maxsplit=1)[0]
+                current_is_protein = "mol:protein" in header.split()
+                current_header = header
                 current_target = target
-                count += 1
-                bar.update(1)
+                sequence_parts = []
+                if current_is_protein:
+                    current_pdb_id, current_token = _parse_pdb_seqres_target(target)
+                    length_match = _DECLARED_LENGTH.search(header)
+                    if length_match is None:
+                        raise DatabaseError(
+                            "PDB protein SEQRES header lacks a declared length at "
+                            f"line {line_number}: {target}"
+                        )
+                    current_declared_length = int(length_match.group("length"))
+                else:
+                    current_pdb_id = None
+                    current_token = None
+                    current_declared_length = None
                 continue
-            if current_target is None:
+            if current_header is None:
                 if line.strip():
                     raise DatabaseError(
                         "PDB sequence data begins before a FASTA header at "
                         f"line {line_number}"
                     )
                 continue
-            fasta_handle.write(line.upper())
+            sequence_line = line.strip()
+            if current_is_protein and sequence_line:
+                if any(character.isspace() for character in sequence_line):
+                    raise DatabaseError(
+                        f"PDB sequence line contains internal whitespace: {line_number}"
+                    )
+                sequence_parts.append(sequence_line)
+        flush_record()
     if count == 0:
-        raise DatabaseError("RCSB PDB sequence resource contains no FASTA records")
-    return count
+        raise DatabaseError("RCSB PDB sequence resource contains no protein records")
+    return count, skipped_non_protein
+
+
+def _require_seqres_mapping(sequence_root: Path, target: str) -> dict[str, JsonValue]:
+    mapping_path = sequence_root / "target_mapping.tsv"
+    expected_header = (
+        "target_id\tpdb_id\tidentifier_namespace\tseqres_token\tsequence_length\t"
+        "sequence_sha256\toriginal_header"
+    )
+    try:
+        with mapping_path.open("r", encoding="utf-8") as handle:
+            header = handle.readline().rstrip("\n")
+            if header != expected_header:
+                raise DatabaseError(
+                    f"unexpected PDB target-mapping header: {mapping_path}"
+                )
+            for line_number, line in enumerate(handle, start=2):
+                fields = line.rstrip("\n").split("\t")
+                if len(fields) != 7:
+                    raise DatabaseError(
+                        f"malformed PDB target mapping at line {line_number}"
+                    )
+                (
+                    mapped_target,
+                    pdb_id,
+                    namespace,
+                    token,
+                    raw_sequence_length,
+                    sequence_sha256,
+                    _,
+                ) = fields
+                if mapped_target.casefold() != target.casefold():
+                    continue
+                parsed_pdb_id, parsed_token = _parse_pdb_seqres_target(mapped_target)
+                if (
+                    pdb_id != parsed_pdb_id
+                    or token != parsed_token
+                    or namespace != "legacy_seqres_suffix"
+                ):
+                    raise DatabaseError(
+                        f"inconsistent PDB target mapping at line {line_number}"
+                    )
+                try:
+                    sequence_length = int(raw_sequence_length)
+                except ValueError as error:
+                    raise DatabaseError(
+                        f"invalid PDB target-mapping length at line {line_number}"
+                    ) from error
+                if (
+                    sequence_length < 1
+                    or len(sequence_sha256) != 64
+                    or any(
+                        character not in "0123456789abcdef"
+                        for character in sequence_sha256
+                    )
+                ):
+                    raise DatabaseError(
+                        f"invalid PDB target-mapping sequence at line {line_number}"
+                    )
+                return {
+                    "target_id": mapped_target,
+                    "pdb_id": pdb_id,
+                    "identifier_namespace": namespace,
+                    "seqres_token": token,
+                    "sequence_length": sequence_length,
+                    "sequence_sha256": sequence_sha256,
+                }
+    except OSError as error:
+        raise DatabaseError(
+            f"cannot read PDB target mapping: {mapping_path}"
+        ) from error
+    raise DatabaseError(f"database smoke target does not map to PDB SEQRES: {target}")
+
+
+def _require_expected_smoke_mapping(
+    sequence_root: Path, hit: SmokeHit
+) -> dict[str, JsonValue]:
+    mapping = _require_seqres_mapping(sequence_root, hit.target)
+    expected_digest = hashlib.sha256(_SMOKE_SEQUENCE.encode("ascii")).hexdigest()
+    if (
+        mapping.get("target_id") != _EXPECTED_SMOKE_TARGET
+        or mapping.get("sequence_length") != len(_SMOKE_SEQUENCE)
+        or mapping.get("sequence_sha256") != expected_digest
+    ):
+        raise DatabaseError(
+            "expected 1UBQ_A SEQRES mapping does not match the fixed ubiquitin query"
+        )
+    return mapping
+
+
+def _smoke_thresholds() -> dict[str, JsonValue]:
+    return {
+        "maximum_evalue": _SMOKE_MAX_EVALUE,
+        "minimum_bits": _SMOKE_MIN_BITS,
+        "minimum_query_coverage": _SMOKE_MIN_COVERAGE,
+        "minimum_target_coverage": _SMOKE_MIN_COVERAGE,
+        "maximum_hits": 1000,
+    }
+
+
+def _run_pdb_sequence_smoke(
+    request: DatabasePreparationRequest,
+    database_root: Path,
+    sequence_root: Path,
+) -> dict[str, JsonValue]:
+    with tempfile.TemporaryDirectory(
+        prefix="pdb-sequence-smoke-", dir=database_root / "tmp"
+    ) as temporary:
+        smoke = Path(temporary)
+        query = smoke / "query.faa"
+        result = smoke / "result.tsv"
+        _smoke_query(query)
+        log_path = _log_path(database_root, "pdb_sequences", "smoke")
+        run_command(
+            [
+                "mmseqs",
+                "easy-search",
+                str(query),
+                str(sequence_root / "pdb_seqres"),
+                str(result),
+                str(smoke / "tmp"),
+                "--threads",
+                "1",
+                "--max-seqs",
+                "1000",
+                "-e",
+                str(_SMOKE_MAX_EVALUE),
+                "-c",
+                str(_SMOKE_MIN_COVERAGE),
+                "--cov-mode",
+                "0",
+                "--format-output",
+                "query,target,evalue,bits,qcov,tcov",
+            ],
+            log_path=log_path,
+            storage_root=database_root,
+            storage_limit_bytes=request.storage_limit_bytes,
+            progress=request.progress,
+        )
+        hits = _parse_smoke_result(result)
+        selected_hit = _select_expected_smoke_hit(hits)
+        mapping = _require_expected_smoke_mapping(sequence_root, selected_hit)
+        return {
+            "kind": "known_ubiquitin_mmseqs_search",
+            "query_id": _SMOKE_QUERY_ID,
+            "query_sequence_sha256": hashlib.sha256(
+                _SMOKE_SEQUENCE.encode("ascii")
+            ).hexdigest(),
+            "thresholds": _smoke_thresholds(),
+            "hit_count": len(hits),
+            "selected_hit": selected_hit.as_json(),
+            "mapping": mapping,
+            "query": _preserve_smoke_file(
+                database_root,
+                "pdb_sequences",
+                "smoke-query",
+                query,
+                suffix=".faa",
+            ),
+            "result": _preserve_smoke_file(
+                database_root,
+                "pdb_sequences",
+                "smoke-result",
+                result,
+                suffix=".tsv",
+            ),
+            "log": _log_evidence(log_path, progress=request.progress),
+        }
 
 
 def _prepare_pdb_sequences(
@@ -506,12 +1021,13 @@ def _prepare_pdb_sequences(
             storage_limit_bytes=request.storage_limit_bytes,
             progress=request.progress,
         )
-        sequence_count = _normalise_pdb_sequences(
+        sequence_count, skipped_non_protein = _normalise_pdb_sequences(
             staging / "pdb_seqres.txt.gz",
             staging / "pdb_seqres.faa",
             staging / "target_mapping.tsv",
             progress=request.progress,
         )
+        createdb_log = _log_path(database_root, name, "createdb")
         run_command(
             [
                 "mmseqs",
@@ -519,12 +1035,13 @@ def _prepare_pdb_sequences(
                 str(staging / "pdb_seqres.faa"),
                 str(staging / "pdb_seqres"),
             ],
-            log_path=_log_path(database_root, name, "createdb"),
+            log_path=createdb_log,
             storage_root=database_root,
             storage_limit_bytes=request.storage_limit_bytes,
             progress=request.progress,
         )
         tmp = staging / "tmp"
+        createindex_log = _log_path(database_root, name, "createindex")
         run_command(
             [
                 "mmseqs",
@@ -534,44 +1051,32 @@ def _prepare_pdb_sequences(
                 "--threads",
                 str(request.threads),
             ],
-            log_path=_log_path(database_root, name, "createindex"),
+            log_path=createindex_log,
             storage_root=database_root,
             storage_limit_bytes=request.storage_limit_bytes,
             progress=request.progress,
         )
         shutil.rmtree(tmp, ignore_errors=True)
-        smoke_dir = staging / "smoke"
-        smoke_dir.mkdir()
-        query = smoke_dir / "query.faa"
-        query.write_text(f">ubiquitin_smoke\n{_SMOKE_SEQUENCE}\n", encoding="ascii")
-        run_command(
-            [
-                "mmseqs",
-                "easy-search",
-                str(query),
-                str(staging / "pdb_seqres"),
-                str(smoke_dir / "result.tsv"),
-                str(smoke_dir / "tmp"),
-                "--threads",
-                "1",
-                "--format-output",
-                "query,target,evalue,bits",
-            ],
-            log_path=_log_path(database_root, name, "smoke"),
-            storage_root=database_root,
-            storage_limit_bytes=request.storage_limit_bytes,
-            progress=request.progress,
-        )
-        shutil.rmtree(smoke_dir)
+        qualification = _run_pdb_sequence_smoke(request, database_root, staging)
         parameters: dict[str, JsonValue] = {
             "url": metadata.url,
             "etag": metadata.etag,
             "last_modified": metadata.last_modified,
             "content_type": metadata.content_type,
             "sequence_count": sequence_count,
+            "skipped_non_protein_count": skipped_non_protein,
             "createindex_threads": request.threads,
-            "mapping": "target_id to PDB entry and chain/entity token",
+            "mapping": (
+                "legacy SEQRES target suffix retained without conflating namespaces"
+            ),
             "data_license": "CC0-1.0",
+            "preparation_logs": {
+                "createdb": _log_evidence(createdb_log, progress=request.progress),
+                "createindex": _log_evidence(
+                    createindex_log, progress=request.progress
+                ),
+            },
+            "qualification": qualification,
         }
         return _finish_immutable_resource(
             staging,
@@ -596,14 +1101,20 @@ def _smoke_prostt5(
     request: DatabasePreparationRequest,
     database_root: Path,
     resource: DatabaseResource,
-) -> DatabaseResource:
+    *,
+    persist: bool,
+) -> tuple[DatabaseResource, dict[str, JsonValue]]:
     root = Path(resource.root_path)
+    current_version = tool_version("foldseek")
+    if current_version != resource.prepared_with.version:
+        raise DatabaseError("current Foldseek version differs from ProstT5 provenance")
     with tempfile.TemporaryDirectory(
         prefix="prostt5-smoke-", dir=database_root / "tmp"
     ) as temporary:
         smoke = Path(temporary)
         query = smoke / "query.faa"
-        query.write_text(f">ubiquitin_smoke\n{_SMOKE_SEQUENCE}\n", encoding="ascii")
+        _smoke_query(query)
+        log_path = _log_path(database_root, "prostt5", "smoke")
         run_command(
             [
                 "foldseek",
@@ -615,14 +1126,148 @@ def _smoke_prostt5(
                 "--threads",
                 "1",
             ],
-            log_path=_log_path(database_root, "prostt5", "smoke"),
+            log_path=log_path,
             storage_root=database_root,
             storage_limit_bytes=request.storage_limit_bytes,
             progress=request.progress,
         )
-    updated = resource.model_copy(update={"smoke_test_status": SmokeTestStatus.PASSED})
+        outputs = sorted(
+            path
+            for path in smoke.glob("query_db*")
+            if path.is_file() and not path.is_symlink() and path.stat().st_size > 0
+        )
+        if not outputs:
+            raise DatabaseError("ProstT5 smoke created no non-empty query database")
+        output_records = [
+            {
+                "name": path.name,
+                "size_bytes": path.stat().st_size,
+                "sha256": sha256_file(path, progress=False),
+            }
+            for path in outputs
+        ]
+        qualification: dict[str, JsonValue] = {
+            "kind": "known_ubiquitin_prostt5_createdb",
+            "query_id": _SMOKE_QUERY_ID,
+            "query_sequence_sha256": hashlib.sha256(
+                _SMOKE_SEQUENCE.encode("ascii")
+            ).hexdigest(),
+            "query": _preserve_smoke_file(
+                database_root,
+                "prostt5",
+                "smoke-query",
+                query,
+                suffix=".faa",
+            ),
+            "output_file_count": len(outputs),
+            "output_manifest_sha256": canonical_digest(output_records),
+            "log": _log_evidence(log_path, progress=request.progress),
+        }
+    existing = resource.parameters.get("qualification")
+    if not persist:
+        _require_matching_smoke_evidence(
+            existing,
+            qualification,
+            keys=_PROSTT5_SMOKE_KEYS,
+            label="ProstT5",
+        )
+        return resource, qualification
+    parameters = dict(resource.parameters)
+    parameters["qualification"] = qualification
+    updated = resource.model_copy(
+        update={
+            "parameters": parameters,
+            "smoke_test_status": SmokeTestStatus.PASSED,
+        }
+    )
     _write_resource(updated)
-    return updated
+    return updated, qualification
+
+
+def _validate_pdb_coordinate(
+    coordinate_path: Path,
+    *,
+    pdb_id: str,
+    seqres_token: str,
+    expected_sequence_length: int,
+    expected_sequence_sha256: str,
+) -> dict[str, JsonValue]:
+    try:
+        with gzip.open(coordinate_path, "rt", encoding="utf-8") as handle:
+            document = gemmi.cif.read_string(handle.read())
+        block = document.sole_block()
+    except (OSError, RuntimeError, ValueError) as error:
+        raise DatabaseError(
+            f"downloaded PDB coordinate is not valid mmCIF: {error}"
+        ) from error
+    entry_id = block.find_value("_entry.id")
+    if entry_id is None or entry_id.upper() != pdb_id.upper():
+        raise DatabaseError(
+            f"downloaded PDB coordinate entry does not match {pdb_id}: {entry_id!r}"
+        )
+    labels_by_entity: dict[str, list[str]] = {}
+    for row in block.find(["_struct_asym.id", "_struct_asym.entity_id"]):
+        label_asym_id, entity_id = (gemmi.cif.as_string(str(value)) for value in row)
+        labels_by_entity.setdefault(entity_id, []).append(label_asym_id)
+    candidates: list[tuple[str, str, str]] = []
+    for row in block.find(
+        [
+            "_entity_poly.entity_id",
+            "_entity_poly.type",
+            "_entity_poly.pdbx_strand_id",
+            "_entity_poly.pdbx_seq_one_letter_code_can",
+        ]
+    ):
+        entity_id, polymer_type, raw_chains, raw_sequence = (
+            gemmi.cif.as_string(str(value)) for value in row
+        )
+        author_chains = {
+            chain.strip() for chain in raw_chains.split(",") if chain.strip()
+        }
+        if seqres_token not in author_chains:
+            continue
+        if not polymer_type.casefold().startswith("polypeptide("):
+            continue
+        candidates.append((entity_id, polymer_type, raw_sequence))
+    if len(candidates) != 1:
+        raise DatabaseError(
+            "PDB SEQRES author-chain suffix did not resolve to exactly one protein "
+            f"polymer entity: {pdb_id}_{seqres_token}"
+        )
+    entity_id, polymer_type, raw_sequence = candidates[0]
+    label_asym_ids = sorted(set(labels_by_entity.get(entity_id, [])))
+    if not label_asym_ids:
+        raise DatabaseError(
+            f"PDB protein polymer entity has no struct_asym mapping: {entity_id}"
+        )
+    sequence = "".join(raw_sequence.split()).upper()
+    invalid = sorted(set(sequence) - _PROTEIN_ALPHABET)
+    if not sequence or invalid:
+        raise DatabaseError(
+            "PDB coordinate polymer has an invalid canonical sequence: "
+            f"{pdb_id}_{seqres_token}"
+        )
+    sequence_sha256 = hashlib.sha256(sequence.encode("ascii")).hexdigest()
+    if (
+        len(sequence) != expected_sequence_length
+        or sequence_sha256 != expected_sequence_sha256
+    ):
+        raise DatabaseError(
+            "PDB coordinate polymer sequence differs from the mapped SEQRES record: "
+            f"{pdb_id}_{seqres_token}"
+        )
+    return {
+        "entry_id": entry_id.upper(),
+        "seqres_token": seqres_token,
+        "resolved_identifier_namespace": (
+            "auth_asym_id_via_entity_poly.pdbx_strand_id"
+        ),
+        "entity_id": entity_id,
+        "label_asym_ids": label_asym_ids,
+        "polymer_type": polymer_type,
+        "sequence_length": len(sequence),
+        "sequence_sha256": sequence_sha256,
+    }
 
 
 def _smoke_pdb_foldseek(
@@ -630,36 +1275,217 @@ def _smoke_pdb_foldseek(
     database_root: Path,
     pdb: DatabaseResource,
     prostt5: DatabaseResource,
-) -> DatabaseResource:
+    sequences: DatabaseResource,
+    coordinate_cache: DatabaseResource,
+    *,
+    persist: bool,
+) -> tuple[DatabaseResource, DatabaseResource, dict[str, JsonValue]]:
+    current_version = tool_version("foldseek")
+    if (
+        current_version != pdb.prepared_with.version
+        or current_version != prostt5.prepared_with.version
+    ):
+        raise DatabaseError("current Foldseek version differs from database provenance")
     with tempfile.TemporaryDirectory(
         prefix="pdb-foldseek-smoke-", dir=database_root / "tmp"
     ) as temporary:
         smoke = Path(temporary)
         query = smoke / "query.faa"
-        query.write_text(f">ubiquitin_smoke\n{_SMOKE_SEQUENCE}\n", encoding="ascii")
+        result = smoke / "result.tsv"
+        _smoke_query(query)
+        log_path = _log_path(database_root, "pdb_foldseek", "smoke")
         run_command(
             [
                 "foldseek",
                 "easy-search",
                 str(query),
                 str(Path(pdb.root_path) / "pdb"),
-                str(smoke / "result.tsv"),
+                str(result),
                 str(smoke / "tmp"),
                 "--prostt5-model",
                 str(Path(prostt5.root_path) / "weights"),
                 "--threads",
                 "1",
+                "--max-seqs",
+                "1000",
+                "-e",
+                str(_SMOKE_MAX_EVALUE),
+                "-c",
+                str(_SMOKE_MIN_COVERAGE),
+                "--cov-mode",
+                "0",
                 "--format-output",
-                "query,target,evalue,bits",
+                "query,target,evalue,bits,qcov,tcov",
             ],
-            log_path=_log_path(database_root, "pdb_foldseek", "smoke"),
+            log_path=log_path,
             storage_root=database_root,
             storage_limit_bytes=request.storage_limit_bytes,
             progress=request.progress,
         )
-    updated = pdb.model_copy(update={"smoke_test_status": SmokeTestStatus.PASSED})
-    _write_resource(updated)
-    return updated
+        hits = _parse_smoke_result(result)
+        selected_hit = _select_expected_smoke_hit(hits)
+        mapping = _require_expected_smoke_mapping(
+            Path(sequences.root_path), selected_hit
+        )
+        pdb_id = mapping["pdb_id"]
+        seqres_token = mapping["seqres_token"]
+        sequence_length = mapping["sequence_length"]
+        sequence_sha256 = mapping["sequence_sha256"]
+        if (
+            not isinstance(pdb_id, str)
+            or not isinstance(seqres_token, str)
+            or not isinstance(sequence_length, int)
+            or isinstance(sequence_length, bool)
+            or not isinstance(sequence_sha256, str)
+        ):
+            raise AssertionError("validated PDB mapping has unexpected value types")
+        base_qualification: dict[str, JsonValue] = {
+            "kind": "known_ubiquitin_prostt5_foldseek_pdb_search",
+            "query_id": _SMOKE_QUERY_ID,
+            "query_sequence_sha256": hashlib.sha256(
+                _SMOKE_SEQUENCE.encode("ascii")
+            ).hexdigest(),
+            "thresholds": _smoke_thresholds(),
+            "hit_count": len(hits),
+            "selected_hit": selected_hit.as_json(),
+            "mapping": mapping,
+            "query": _preserve_smoke_file(
+                database_root,
+                "pdb_foldseek",
+                "smoke-query",
+                query,
+                suffix=".faa",
+            ),
+            "result": _preserve_smoke_file(
+                database_root,
+                "pdb_foldseek",
+                "smoke-result",
+                result,
+                suffix=".tsv",
+            ),
+            "log": _log_evidence(log_path, progress=request.progress),
+        }
+        if not persist:
+            existing_pdb = pdb.parameters.get("qualification")
+            existing_cache = coordinate_cache.parameters.get("qualification")
+            _require_matching_smoke_evidence(
+                existing_pdb,
+                base_qualification,
+                keys=_SEARCH_SMOKE_KEYS,
+                label="PDB Foldseek",
+            )
+            if (
+                not isinstance(existing_pdb, dict)
+                or existing_pdb.get("cache_entry") != existing_cache
+            ):
+                raise DatabaseError("PDB/cache qualification records do not match")
+            cached = verify_cached_pdb_coordinate(
+                Path(coordinate_cache.root_path),
+                existing_cache,
+                full_checksum=request.full_verify,
+                progress=request.progress,
+            )
+            coordinate_mapping = _validate_pdb_coordinate(
+                Path(coordinate_cache.root_path) / cached.object_relative_path,
+                pdb_id=pdb_id,
+                seqres_token=seqres_token,
+                expected_sequence_length=sequence_length,
+                expected_sequence_sha256=sequence_sha256,
+            )
+            if existing_pdb.get("coordinate_mapping") != coordinate_mapping:
+                raise DatabaseError(
+                    "cached PDB coordinate mapping differs from qualification"
+                )
+            base_qualification["coordinate_mapping"] = coordinate_mapping
+            base_qualification["cache_entry"] = cached.as_json()
+            return pdb, coordinate_cache, base_qualification
+
+        pending_parameters = dict(pdb.parameters)
+        pending_parameters.pop("qualification", None)
+        pdb = pdb.model_copy(
+            update={
+                "parameters": pending_parameters,
+                "smoke_test_status": SmokeTestStatus.NOT_RUN,
+            }
+        )
+        _write_resource(pdb)
+        try:
+            coordinate_url = request.pdb_coordinate_url_template.format(
+                pdb_id=pdb_id.lower()
+            )
+        except (KeyError, ValueError) as error:
+            raise DatabaseError("invalid PDB coordinate URL template") from error
+        coordinate_path = smoke / f"{pdb_id.lower()}.cif.gz"
+        coordinate_metadata = download_public_resource(
+            coordinate_url,
+            coordinate_path,
+            storage_root=database_root,
+            storage_limit_bytes=request.storage_limit_bytes,
+            progress=request.progress,
+        )
+        coordinate_mapping = _validate_pdb_coordinate(
+            coordinate_path,
+            pdb_id=pdb_id,
+            seqres_token=seqres_token,
+            expected_sequence_length=sequence_length,
+            expected_sequence_sha256=sequence_sha256,
+        )
+        retrieved_at = utc_now().isoformat().replace("+00:00", "Z")
+        cache_entry = publish_pdb_coordinate(
+            Path(coordinate_cache.root_path),
+            coordinate_path,
+            pdb_id=pdb_id,
+            source_url=coordinate_metadata.url,
+            retrieved_at=retrieved_at,
+            etag=coordinate_metadata.etag,
+            last_modified=coordinate_metadata.last_modified,
+            content_type=coordinate_metadata.content_type,
+            progress=request.progress,
+        )
+        base_qualification["coordinate_mapping"] = coordinate_mapping
+        base_qualification["cache_entry"] = cache_entry.as_json()
+    pdb_parameters = dict(pdb.parameters)
+    pdb_parameters["qualification"] = base_qualification
+    updated_pdb = pdb.model_copy(
+        update={
+            "parameters": pdb_parameters,
+            "smoke_test_status": SmokeTestStatus.PASSED,
+        }
+    )
+    cache_parameters = dict(coordinate_cache.parameters)
+    cache_parameters["qualification"] = cache_entry.as_json()
+    updated_cache = coordinate_cache.model_copy(
+        update={
+            "parameters": cache_parameters,
+            "smoke_test_status": SmokeTestStatus.PASSED,
+        }
+    )
+    # Publish the cache evidence first. If the final PDB sidecar write is
+    # interrupted, its NOT_RUN state makes the coupled smoke safely repeat.
+    _write_resource(updated_cache)
+    _write_resource(updated_pdb)
+    return updated_pdb, updated_cache, base_qualification
+
+
+def _coupled_pdb_cache_qualification_complete(
+    pdb: DatabaseResource, coordinate_cache: DatabaseResource
+) -> bool:
+    """Return whether coupled PDB/cache evidence is complete; reject mismatches."""
+
+    if (
+        pdb.smoke_test_status is not SmokeTestStatus.PASSED
+        or coordinate_cache.smoke_test_status is not SmokeTestStatus.PASSED
+    ):
+        return False
+    pdb_qualification = pdb.parameters.get("qualification")
+    cache_qualification = coordinate_cache.parameters.get("qualification")
+    if not isinstance(pdb_qualification, dict) or not isinstance(
+        cache_qualification, dict
+    ):
+        return False
+    if pdb_qualification.get("cache_entry") != cache_qualification:
+        raise DatabaseError("PDB/cache qualification records do not match")
+    return isinstance(pdb_qualification.get("coordinate_mapping"), dict)
 
 
 def _coordinate_cache(
@@ -670,7 +1496,7 @@ def _coordinate_cache(
         return _load_resource(
             database_root,
             name,
-            full_checksums=False,
+            full_checksums=request.full_verify,
             progress=request.progress,
         )
     root = _resource_base(database_root, name) / "cache"
@@ -812,6 +1638,18 @@ def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
     }
     if not any(selected.values()):
         raise DatabaseError("at least one database resource must be selected")
+    if request.prepare_pdb_foldseek:
+        required_companions = {
+            "prepare_prostt5": request.prepare_prostt5,
+            "prepare_pdb_sequences": request.prepare_pdb_sequences,
+            "initialise_coordinate_cache": request.initialise_coordinate_cache,
+        }
+        missing = [name for name, enabled in required_companions.items() if not enabled]
+        if missing:
+            raise DatabaseError(
+                "PDB Foldseek qualification requires companion resources: "
+                + ", ".join(missing)
+            )
     selected_names = {name for name, enabled in selected.items() if enabled}
     if expected_manifest is not None:
         expected_names = {resource.name for resource in expected_manifest.resources}
@@ -842,7 +1680,7 @@ def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
             resources["coordinate_cache"] = _load_resource(
                 root,
                 "coordinate_cache",
-                full_checksums=False,
+                full_checksums=request.full_verify,
                 progress=request.progress,
             )
         else:
@@ -850,21 +1688,83 @@ def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
     if request.verify_esm_atlas_connectivity:
         resources["esm_atlas_connectivity"] = _esm_atlas_connectivity(request, root)
 
-    if not request.verify_only:
-        prostt5 = resources.get("prostt5")
+    sequences = resources.get("pdb_sequences")
+    prostt5 = resources.get("prostt5")
+    pdb = resources.get("pdb_foldseek")
+    coordinate_cache = resources.get("coordinate_cache")
+    verification_checks: dict[str, JsonValue] = {}
+    if request.verify_only:
+        if sequences is not None:
+            current_mmseqs = tool_version("mmseqs")
+            if current_mmseqs != sequences.prepared_with.version:
+                raise DatabaseError(
+                    "current MMseqs2 version differs from PDB-sequence provenance"
+                )
+            sequence_verification = _run_pdb_sequence_smoke(
+                request, root, Path(sequences.root_path)
+            )
+            expected_sequence_qualification = sequences.parameters.get("qualification")
+            _require_matching_smoke_evidence(
+                expected_sequence_qualification,
+                sequence_verification,
+                keys=_SEARCH_SMOKE_KEYS,
+                label="PDB-sequence",
+            )
+            verification_checks["pdb_sequences"] = sequence_verification
+        if prostt5 is not None:
+            resources["prostt5"], prostt5_verification = _smoke_prostt5(
+                request, root, prostt5, persist=False
+            )
+            verification_checks["prostt5"] = prostt5_verification
+        if (
+            pdb is not None
+            and prostt5 is not None
+            and sequences is not None
+            and coordinate_cache is not None
+        ):
+            (
+                resources["pdb_foldseek"],
+                resources["coordinate_cache"],
+                foldseek_verification,
+            ) = _smoke_pdb_foldseek(
+                request,
+                root,
+                pdb,
+                prostt5,
+                sequences,
+                coordinate_cache,
+                persist=False,
+            )
+            verification_checks["pdb_foldseek"] = foldseek_verification
+    else:
         if (
             prostt5 is not None
             and prostt5.smoke_test_status is not SmokeTestStatus.PASSED
         ):
-            resources["prostt5"] = _smoke_prostt5(request, root, prostt5)
-        pdb = resources.get("pdb_foldseek")
-        prostt5 = resources.get("prostt5")
+            resources["prostt5"], _ = _smoke_prostt5(
+                request, root, prostt5, persist=True
+            )
+            prostt5 = resources["prostt5"]
         if (
             pdb is not None
             and prostt5 is not None
-            and pdb.smoke_test_status is not SmokeTestStatus.PASSED
+            and sequences is not None
+            and coordinate_cache is not None
+            and not _coupled_pdb_cache_qualification_complete(pdb, coordinate_cache)
         ):
-            resources["pdb_foldseek"] = _smoke_pdb_foldseek(request, root, pdb, prostt5)
+            (
+                resources["pdb_foldseek"],
+                resources["coordinate_cache"],
+                _,
+            ) = _smoke_pdb_foldseek(
+                request,
+                root,
+                pdb,
+                prostt5,
+                sequences,
+                coordinate_cache,
+                persist=True,
+            )
     required_unverified = [
         name
         for name, resource in resources.items()
@@ -898,6 +1798,27 @@ def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
         resources=ordered,
     )
     atomic_write_json(request.manifest_path, manifest.model_dump(mode="json"))
+    if request.verify_only:
+        if (
+            request.expected_manifest_path is None
+            or request.expected_manifest_sha256 is None
+        ):
+            raise AssertionError("verify-only trust anchor was already validated")
+        output_sha256 = sha256_file(request.manifest_path, progress=False)
+        verification_body: dict[str, JsonValue] = {
+            "schema_version": "1.0",
+            "created_at": utc_now().isoformat().replace("+00:00", "Z"),
+            "expected_manifest_path": str(request.expected_manifest_path),
+            "expected_manifest_sha256": request.expected_manifest_sha256,
+            "output_manifest_path": str(request.manifest_path),
+            "output_manifest_sha256": output_sha256,
+            "checks": verification_checks,
+        }
+        verification_body["verification_id"] = content_id("dbv_", verification_body)
+        atomic_write_json(
+            request.manifest_path.with_suffix(".verification.json"),
+            verification_body,
+        )
     used_bytes = tree_size(root)
     _LOGGER.info(
         "database preparation complete",

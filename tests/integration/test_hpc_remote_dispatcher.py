@@ -571,6 +571,8 @@ def _install_fake_p0_runtime(run: Path, *, all_cached: bool = True) -> None:
         "    printf 'verified\\n' > \"$argument\"\n"
         '  elif [[ "$mode" == databases && "$previous" == --manifest ]]; then\n'
         "    printf '{}\\n' > \"$argument\"\n"
+        '    printf \'{"schema_version":"1.0"}\\n\' > '
+        '"${argument%.json}.verification.json"\n'
         "  fi\n"
         '  previous="$argument"\n'
         "done\n"
@@ -655,6 +657,18 @@ def test_p0_job_enforces_the_cached_resume_gate(
         )
         assert resume["cached_process_count"] == 4
         assert resume["all_deterministic_processes_cached"] is True
+        archive_path = tmp_path / "p0-collected.tar.gz"
+        archive_path.write_bytes(
+            _run(
+                [str(dispatcher), "collect", P0_RUN_ID, OWNER_ID],
+                cwd=tmp_path,
+                environment=environment,
+            ).stdout
+        )
+        with tarfile.open(archive_path, "r:gz") as archive:
+            assert (
+                "artifacts/qualification/database_manifest.verified.verification.json"
+            ) in archive.getnames()
 
 
 def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(

@@ -196,7 +196,10 @@ must be a canonical non-symlink path below the first-line root. The job then:
 3. fingerprints the frozen database manifest during staging, then runs database
    `verify-only --full-verify` for PDB Foldseek, ProstT5, PDB sequences, and the
    coordinate cache, recomputing stored file checksums and comparing the exact
-   resource records with that trust anchor;
+   resource records with that trust anchor; bounded MMseqs2/ProstT5/Foldseek
+   smokes rerun locally, deterministic result evidence is compared, a structured
+   `database_manifest.verified.verification.json` record is retained, and the
+   previously cached public PDB coordinate is revalidated without a download;
 4. runs `main.nf -profile marmic` with real Xtriage for the configured crystals;
 5. repeats the identical command with `-resume`; and
 6. fails unless all deterministic processes in the second trace are `CACHED`.
