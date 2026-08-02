@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 import os
 import tempfile
 from collections.abc import Mapping, Sequence
@@ -19,17 +20,30 @@ def sha256_file(
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     progress: bool = False,
     description: str | None = None,
+    logger: logging.Logger | None = None,
+    log_interval_bytes: int = 1024 * 1024 * 1024,
 ) -> str:
-    """Calculate a streaming SHA-256 digest with optional byte progress."""
+    """Calculate SHA-256 with optional terminal and structured-log progress."""
 
     if chunk_size < 1:
         raise ValueError("chunk_size must be positive")
+    if log_interval_bytes < 1:
+        raise ValueError("log_interval_bytes must be positive")
 
     digest = hashlib.sha256()
+    total_bytes = path.stat().st_size
+    progress_logger = logger if total_bytes >= log_interval_bytes else None
+    processed_bytes = 0
+    next_log_bytes = log_interval_bytes
+    if progress_logger is not None:
+        progress_logger.info(
+            "checksum started",
+            extra={"path": str(path), "total_bytes": total_bytes},
+        )
     with (
         path.open("rb") as handle,
         tqdm(
-            total=path.stat().st_size,
+            total=total_bytes,
             desc=description or f"Checksumming {path.name}",
             unit="B",
             unit_scale=True,
@@ -38,8 +52,30 @@ def sha256_file(
     ):
         for chunk in iter(lambda: handle.read(chunk_size), b""):
             digest.update(chunk)
+            processed_bytes += len(chunk)
             progress_bar.update(len(chunk))
-    return digest.hexdigest()
+            while progress_logger is not None and processed_bytes >= next_log_bytes:
+                progress_logger.info(
+                    "checksum progress",
+                    extra={
+                        "path": str(path),
+                        "processed_bytes": processed_bytes,
+                        "total_bytes": total_bytes,
+                    },
+                )
+                next_log_bytes += log_interval_bytes
+    result = digest.hexdigest()
+    if progress_logger is not None:
+        progress_logger.info(
+            "checksum complete",
+            extra={
+                "path": str(path),
+                "processed_bytes": processed_bytes,
+                "total_bytes": total_bytes,
+                "sha256": result,
+            },
+        )
+    return result
 
 
 def atomic_write_text(path: Path, text: str, *, encoding: str = "utf-8") -> None:

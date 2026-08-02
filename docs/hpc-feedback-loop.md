@@ -192,8 +192,8 @@ must be a canonical non-symlink path below the first-line root. The job then:
 
 1. installs the frozen Linux `hpc` Pixi environment;
 2. re-verifies every required Phenix command and preserves the verification log;
-3. runs database `verify-only` for PDB Foldseek, ProstT5, PDB sequences, and the
-   coordinate cache;
+3. runs database `verify-only --full-verify` for PDB Foldseek, ProstT5, PDB
+   sequences, and the coordinate cache, recomputing stored file checksums;
 4. runs `main.nf -profile marmic` with real Xtriage for the configured crystals;
 5. repeats the identical command with `-resume`; and
 6. fails unless all deterministic processes in the second trace are `CACHED`.

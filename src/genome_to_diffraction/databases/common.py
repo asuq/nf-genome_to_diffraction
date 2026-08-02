@@ -113,7 +113,7 @@ def inventory_resource(
                 FileRecord(
                     path=path.relative_to(root).as_posix(),
                     size_bytes=size,
-                    sha256=sha256_file(path),
+                    sha256=sha256_file(path, logger=_LOGGER),
                 )
             )
             progress_bar.update(size)
@@ -184,7 +184,7 @@ def verify_inventory(
                 f"resource file size mismatch for {path}: "
                 f"expected {size}, found {actual_size}"
             )
-        if full_checksums and sha256_file(path) != digest:
+        if full_checksums and sha256_file(path, logger=_LOGGER) != digest:
             raise DatabaseError(f"resource checksum mismatch for {path}")
         total_bytes += actual_size
     return len(raw_records), total_bytes

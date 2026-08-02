@@ -548,15 +548,18 @@ def _install_fake_p0_runtime(run: Path, *, all_cached: bool = True) -> None:
         "set -euo pipefail\n"
         "mode=\n"
         "previous=\n"
+        "full_verify=false\n"
         'for argument in "$@"; do\n'
         '  [[ "$argument" != databases ]] || mode=databases\n'
+        '  [[ "$argument" != --full-verify ]] || full_verify=true\n'
         '  if [[ "$previous" == --verification-log ]]; then\n'
         "    printf 'verified\\n' > \"$argument\"\n"
         '  elif [[ "$mode" == databases && "$previous" == --manifest ]]; then\n'
         "    printf '{}\\n' > \"$argument\"\n"
         "  fi\n"
         '  previous="$argument"\n'
-        "done\n",
+        "done\n"
+        '[[ "$mode" != databases || "$full_verify" == true ]]\n',
     )
     status = "CACHED" if all_cached else "COMPLETED"
     _write_executable(

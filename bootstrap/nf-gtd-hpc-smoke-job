@@ -325,6 +325,7 @@ run_p0() {
         --prepare-prostt5 \
         --initialise-coordinate-cache \
         --verify-only \
+        --full-verify \
         --threads 2
 
     export JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"

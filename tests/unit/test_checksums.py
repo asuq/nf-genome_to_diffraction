@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,35 @@ def test_sha256_file_rejects_non_positive_chunk_size(tmp_path: Path) -> None:
     source.write_text("content", encoding="utf-8")
     with pytest.raises(ValueError, match="positive"):
         sha256_file(source, chunk_size=0)
+    with pytest.raises(ValueError, match="positive"):
+        sha256_file(source, log_interval_bytes=0)
+
+
+def test_sha256_file_emits_bounded_structured_progress_for_large_files(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    source = tmp_path / "large fixture.bin"
+    source.write_bytes(b"abcdef")
+    logger = logging.getLogger("tests.checksums")
+
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        digest = sha256_file(
+            source,
+            chunk_size=2,
+            logger=logger,
+            log_interval_bytes=2,
+        )
+
+    assert digest == hashlib.sha256(b"abcdef").hexdigest()
+    assert [record.message for record in caplog.records] == [
+        "checksum started",
+        "checksum progress",
+        "checksum progress",
+        "checksum progress",
+        "checksum complete",
+    ]
+    assert caplog.records[-1].__dict__["processed_bytes"] == 6
+    assert caplog.records[-1].__dict__["total_bytes"] == 6
 
 
 def test_sha256_file_can_report_byte_progress(
