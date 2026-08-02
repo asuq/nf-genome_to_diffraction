@@ -360,6 +360,7 @@ def install_phenix(request: InstallRequest) -> PhenixInstallManifest:
         installer,
         progress=request.progress,
         description="Checksumming Phenix installer",
+        logger=_LOGGER,
     )
     if actual_digest != expected_digest:
         raise PhenixInstallerChecksumError(
