@@ -128,12 +128,14 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
     _write_executable(
         fake_bin / "squeue",
         "#!/usr/bin/env bash\n"
+        '[[ "${FAKE_SQUEUE_FAIL:-0}" != 1 ]] || exit 1\n'
         '[[ -z "${FAKE_SQUEUE_STATE:-}" ]] || echo "$FAKE_SQUEUE_STATE"\n',
     )
     _write_executable(fake_bin / "flock", "#!/usr/bin/env bash\nexit 0\n")
     _write_executable(
         fake_bin / "sacct",
         "#!/usr/bin/env bash\n"
+        '[[ "${FAKE_SACCT_FAIL:-0}" != 1 ]] || exit 1\n'
         'echo "${FAKE_SACCT_STATE:-COMPLETED}|${FAKE_SACCT_EXIT:-0}:0"\n',
     )
     _write_executable(
@@ -317,6 +319,21 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
         "scheduler_rejection"
     )
 
+    fourth_run = "gtd-smoke-20260802T120003Z-0123456789ab-0123456a"
+    _run(
+        [str(dispatcher), "stage", fourth_run, commit, lock_checksum, OWNER_ID, "1"],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    stale_lock_environment = dict(environment)
+    stale_lock_environment["FAKE_SQUEUE_FAIL"] = "1"
+    recovered = _run(
+        [str(dispatcher), "submit", fourth_run, OWNER_ID],
+        cwd=tmp_path,
+        environment=stale_lock_environment,
+    )
+    assert _decode_protocol(recovered.stdout)["job_id"] == "123"
+
 
 def test_remote_dispatcher_classifies_node_failure_and_oversized_collection(
     tmp_path: Path,
@@ -342,6 +359,18 @@ def test_remote_dispatcher_classifies_node_failure_and_oversized_collection(
         environment=node_environment,
     )
     assert _decode_protocol(node_status.stdout)["failure_class"] == "node_failure"
+
+    unavailable_environment = dict(environment)
+    unavailable_environment["FAKE_SQUEUE_FAIL"] = "1"
+    unavailable_environment["FAKE_SACCT_FAIL"] = "1"
+    unavailable_status = _run(
+        [str(dispatcher), "status", RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=unavailable_environment,
+    )
+    unavailable_fields = _decode_protocol(unavailable_status.stdout)
+    assert unavailable_fields["scheduler_state"] == "UNKNOWN"
+    assert unavailable_fields["terminal"] == "false"
 
     smoke_log = tmp_path / "remote-root" / "runs" / RUN_ID / "logs" / "smoke.log"
     smoke_log.touch()
