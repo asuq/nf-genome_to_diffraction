@@ -226,9 +226,21 @@ When NFS is slow:
 - use `/dev/shm` only for disposable driver temporaries;
 - allow the Marmic site profile to stage process work through compute-node
   scratch;
+- avoid installing large, small-file-heavy software stacks directly on a slow
+  home NFS export when a site-approved software filesystem is available;
+- ask the administrators to inspect filer metadata latency and export settings
+  before changing NFS mount options locally;
+- consider a single-file container or image only when site policy and the
+  software licence permit it;
 - avoid relocating the Nextflow cache during a run; and
 - preserve failed work directories until the cause is understood and resume has
   been tested.
+
+`/dev/shm` is node-local, ephemeral, and unsuitable for a durable installation
+or any input that must be visible to Slurm compute nodes. Install Phenix directly
+to its final versioned prefix; do not move a completed prefix between filesystems
+without vendor-supported guidance because its environment may embed absolute
+paths.
 
 Fail loudly on annotation conflicts, ambiguous MTZ observation arrays, invalid
 Free-R selection, missing inputs, or contract violations. A scientific no-hit is

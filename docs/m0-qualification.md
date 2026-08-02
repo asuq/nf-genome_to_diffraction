@@ -11,7 +11,7 @@ this gate passes.
 | --- | --- | --- |
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Blocked on scientific metadata | True catalogue sequence, known ASU copy count, trustworthy final model/structure factors where available, and suitable MR model |
-| M0.3 Qualify Phenix | Blocked on licensed runtime | A bounded Marmic inventory found no `phenix.xtriage` command, Phenix module, installer, or non-fixture manifest; a user-supplied Linux installer and checksum are required before command smokes and real Xtriage |
+| M0.3 Qualify Phenix | Local verifier qualified; Marmic installation in progress | Phenix 2.1-6048 macOS arm64 passes all seven required command probes through the reviewed verifier; the durable Marmic Linux installation, its real manifest, and real Xtriage for all three MTZ files are still required |
 | M0.4 Qualify databases | Preparation required on Marmic | The only discovered provenance record is the foundation stub (`file_count: 0`, `status: incomplete`, smoke not run); immutable Foldseek PDB, ProstT5, PDB-sequence, and coordinate-cache resources still require preparation and verification |
 | M0.5 Matthews reference | Pending | Selected pipeline hypotheses compared with Phenix/Xtriage without case-specific tuning |
 | M0.6 Fixed HPC P0 profile | Deployed; site configuration missing | Commit `1433006` tools are checksum-verified locally and on Marmic; staging failed safely before submission because the protected external P0 path file is absent |
@@ -49,6 +49,70 @@ so each outcome is `pass_with_review`, not a clean crystallographic pass.
 All files were readable and had one selected intensity/sigma pair. This does not
 assess anisotropy, translational NCS, twinning, symmetry alternatives, data
 quality, molecular identity, or copy count; real Xtriage remains mandatory.
+
+## Verified Phenix installer transfer
+
+The user supplied the Phenix 2.1-6048 Linux x86-64 self-extracting installer.
+The local and Marmic-staged copies are both 3,610,320,749 bytes and have
+SHA-256
+`a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`.
+This proves transfer integrity only. The staged copy is on ephemeral,
+login-node-local memory storage and is not visible to Slurm compute nodes. A
+batch installation to a durable, versioned Marmic prefix was subsequently
+started. At the latest bounded observation it was still extracting files, so no
+Marmic command, manifest, or real Xtriage result is yet qualified. The
+current-runtime link must not be updated until repository verification passes.
+
+## Local Phenix verifier qualification
+
+The separately supplied Phenix 2.1-6048 macOS arm64 installer is 3,531,737,697
+bytes with SHA-256
+`e4082d63609cf08ce3f1a72f4d498749b86e7f04ef9dbaa70278cc94ed48eebd`.
+Installation to a per-user, versioned prefix completed in 12 minutes 34 seconds
+and occupied approximately 12.35 GiB.
+
+The first verification exposed a real command-interface convention: in this
+release, `phenix.xtriage`, `phenix.phaser`, and `phenix.maps` print valid help
+but return exit status 1. The verifier now accepts that status only when the
+specific command's expected help signature is present, while still rejecting
+tracebacks, import failures, dynamic-loader failures, and missing signatures.
+The other four required commands must return zero.
+
+The installer-preserved tree was recovered without reinstalling, using the
+immutable failed-manifest SHA-256 and recovery implementation revision
+`688e3b64a7671fae63fc5f6e54cbd99537119785`. The resulting manifest records
+Phenix `2.1-6048`, a verified environment checksum, and seven passed command
+checks. An independent second verification also passed all seven commands. The
+stable link was published only after success, and the failed manifest remained
+byte-identical.
+
+This qualifies the installer/verifier boundary on macOS arm64. It does not
+qualify the Marmic Linux runtime, prove that a real MTZ can be analysed, or
+close M0.3.
+
+## Marmic NFS installation diagnosis
+
+A bounded, read-only snapshot was taken while the Linux installer was spending
+hours in package extraction. The destination was an NFSv4.0 hard TCP mount with
+32 KiB read/write request sizes and no pNFS. CPU, memory, free space, inode
+capacity, and the client network interface were not saturated. Three extractor
+workers were instead blocked in uninterruptible `rpc_wait_bit_killable` state.
+
+During a 10-second sample, approximate average NFS operation latencies were
+263 ms for reads, 56 ms for writes, 62 ms for opens, 31 ms for creates, and
+15--28 ms for common metadata operations. There were no new RPC retransmissions
+or interface errors in that sample. The high-confidence operational diagnosis
+is server-side storage/metadata latency or export contention, exacerbated by a
+small-file-heavy installation. The mount's NFS version and 32 KiB request size
+may amplify the effect but are site-administrator decisions, not repository
+settings.
+
+For future large software installations, ask the Marmic administrators for the
+site-approved software filesystem and whether the current NFS export settings
+are intentional. A single-file container or image may reduce metadata pressure
+only if site policy and the Phenix licence permit it. Do not copy or relocate an
+installed Phenix prefix blindly because its environment can contain embedded
+absolute paths.
 
 ## Fixed P0 execution boundary
 
