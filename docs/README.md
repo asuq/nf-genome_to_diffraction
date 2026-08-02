@@ -6,6 +6,10 @@ remain authoritative for scientific policy and interface contracts.
 
 ## Available documents
 
+- [Full-development roadmap](full-development-roadmap.md): current maturity,
+  milestones from real-site qualification through structural discovery, MR,
+  sequence narrowing, pilot calibration, independent validation, release gates,
+  required decisions, test tiers, risks, and post-prototype scope boundaries.
 - [Initial Marmic prototype report](prototype-test-report-2026-08-02.md): inputs,
   execution history, annotation findings, crystallographic preflight, Matthews
   counts, validation evidence, and limitations from the first real Task 05 run.
