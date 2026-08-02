@@ -11,11 +11,11 @@ this gate passes.
 | --- | --- | --- |
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Blocked on scientific metadata | True catalogue sequence, known ASU copy count, trustworthy final model/structure factors where available, and suitable MR model |
-| M0.3 Qualify Phenix | Local verifier qualified; Marmic installation in progress | Phenix 2.1-6048 macOS arm64 passes all seven required command probes through the reviewed verifier; the durable Marmic Linux installation, its real manifest, and real Xtriage for all three MTZ files are still required |
+| M0.3 Qualify Phenix | Local runtime and three real Xtriage smokes qualified; Marmic installation in progress | Phenix 2.1-6048 macOS arm64 passes all seven command probes and all three frozen MTZ files complete real Xtriage; the durable Marmic Linux installation, its real manifest, and equivalent Marmic results are still required |
 | M0.4 Qualify databases | Preparation required on Marmic | The only discovered provenance record is the foundation stub (`file_count: 0`, `status: incomplete`, smoke not run); immutable Foldseek PDB, ProstT5, PDB-sequence, and coordinate-cache resources still require preparation and verification |
 | M0.5 Matthews reference | Pending | Selected pipeline hypotheses compared with Phenix/Xtriage without case-specific tuning |
 | M0.6 Fixed HPC P0 profile | Deployed; site configuration missing | Commit `1433006` tools are checksum-verified locally and on Marmic; staging failed safely before submission because the protected external P0 path file is absent |
-| M0.7 Three-crystal P0 | Pending | Successful first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
+| M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
 
 This dashboard describes qualification status, not protein-identification
 status. The implemented workflow still ends at Task 05.
@@ -89,6 +89,44 @@ byte-identical.
 This qualifies the installer/verifier boundary on macOS arm64. It does not
 qualify the Marmic Linux runtime, prove that a real MTZ can be analysed, or
 close M0.3.
+
+## Local three-MTZ Xtriage qualification
+
+All three frozen MTZ files completed real `phenix.xtriage` through the verified
+macOS manifest at repository revision
+`71a549af65ea5b01fca0661999e0bbac958be8ec`. Every file retained its selected
+intensity/sigma pair and existing Free-R column. The generated JSONL records
+were independently revalidated with the typed `MtzPreflightRecord` contract.
+
+| Crystal | Decision | Selected reflections / MTZ rows | Completeness | Mean I/sigma | TNCS | Twinning | Symmetry | Review warnings |
+| --- | --- | ---: | ---: | ---: | --- | --- | --- | --- |
+| `AD4QS1P4G2_18` | `pass_with_review` | 127,776 / 169,921 | 75.1553% | 12.4 | Not detected | Not detected | Not assessed | Completeness below 90%; Patterson peak review |
+| `CD4QS2P2G1_15` | `pass_with_review` | 532,346 / 635,409 | 83.7033% | 7.9 | Not detected | Not detected | Not detected | Completeness below 90%; direction-dependent resolution limit |
+| `CD6QS2P2G1_5` | `pass` | 57,222 / 58,707 | 97.4589% | 9.9 | Not detected | Not detected | Not detected | None from the conservative automated rules |
+
+Xtriage's selected-observation low-resolution limit differs from the MTZ-wide
+row limit for `CD4QS2P2G1_15` (107.352 versus 149.184 A) and
+`CD6QS2P2G1_5` (39.553 versus 62.283 A). Both values and both row counts are
+reported; neither is silently substituted for the other.
+
+For `AD4QS1P4G2_18`, the final Xtriage verdict says no significant
+pseudotranslation, while the off-origin Patterson peak is 19.179% with
+p-value 0.01151. Because Xtriage notes that values below 0.05 may indicate weak
+pseudotranslation or an anomalous-scatterer self-vector, this is a review
+warning rather than a positive TNCS classification. `CD4QS2P2G1_15` has an
+explicit direction-dependent resolution-limit warning. `CD6QS2P2G1_5` has an
+outer-shell anisotropy-noise Z value of 9.95, but the command-line report does
+not emit Phenix's explicit anisotropy issue classification; the status remains
+`not_assessed` and the quantitative value is retained for expert review.
+
+The result JSONL and Markdown report have SHA-256 values
+`3832a12d9fbe72400f93157b013ae2cf3acf3a8793d45a67755fc9af2f5331e5`
+and
+`0b3b78bb0db07a910b65798d0075d8d41f4316360cf13283012421834eb9f5e0`,
+respectively. Raw MTZ paths, licensed-software logs, and exact local output
+paths remain outside Git. These local results demonstrate real execution and
+parser behaviour; M0.3 still requires the Marmic Linux manifest and scheduled
+P0 evidence.
 
 ## Marmic NFS installation diagnosis
 
