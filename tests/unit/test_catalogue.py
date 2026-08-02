@@ -209,7 +209,7 @@ def test_gff_and_gbff_adapters_preserve_locus_coordinates(tmp_path: Path) -> Non
         "gene=abc;product=ATP%20protein\n",
         encoding="utf-8",
     )
-    gff_record = read_gff(gff)["protein_1"]
+    gff_record = read_gff(gff)["protein_1"][0]
     assert (gff_record.start, gff_record.end, gff_record.strand) == (5, 34, "-")
     assert gff_record.product == "ATP protein"
 
@@ -229,9 +229,82 @@ def test_gff_and_gbff_adapters_preserve_locus_coordinates(tmp_path: Path) -> Non
         )
     )
     SeqIO.write(record, gbff, "genbank")
-    gbff_record = read_gbff(gbff)["protein_2"]
+    gbff_record = read_gbff(gbff)["protein_2"][0]
     assert (gbff_record.start, gbff_record.end, gbff_record.strand) == (4, 33, "+")
     assert gbff_record.locus_tag == "LOC2"
+
+
+def test_gff_adapter_merges_compatible_compound_cds_segments(tmp_path: Path) -> None:
+    gff = tmp_path / "compound.gff"
+    common = (
+        "ID=cds-WP_1.1;Parent=gene-LOC1;Name=WP_1.1;"
+        "exception=ribosomal%20slippage;locus_tag=LOC1;"
+        "product=IS630%20family%20transposase;protein_id=WP_1.1"
+    )
+    gff.write_text(
+        "##gff-version 3\n"
+        f"contig_1\tPGAP\tCDS\t509\t976\t.\t-\t0\t{common}\n"
+        f"contig_1\tPGAP\tCDS\t56\t507\t.\t-\t0\t{common}\n",
+        encoding="utf-8",
+    )
+
+    metadata = read_gff(gff)["WP_1.1"][0]
+
+    assert (metadata.start, metadata.end, metadata.strand) == (56, 976, "-")
+    assert metadata.locus_tag == "LOC1"
+    assert metadata.product == "IS630 family transposase"
+    assert metadata.gene_name is None
+    assert "compound_cds_segments_merged" in metadata.quality_flags
+
+
+def test_gff_adapter_rejects_conflicting_compound_cds_segments(
+    tmp_path: Path,
+) -> None:
+    gff = tmp_path / "conflicting-compound.gff"
+    gff.write_text(
+        "##gff-version 3\n"
+        "contig_1\tPGAP\tCDS\t509\t976\t.\t-\t0\t"
+        "protein_id=WP_1.1;locus_tag=LOC1;product=transposase\n"
+        "contig_2\tPGAP\tCDS\t56\t507\t.\t-\t0\t"
+        "protein_id=WP_1.1;locus_tag=LOC1;product=transposase\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="conflicting contig for split CDS"):
+        read_gff(gff)
+
+
+def test_catalogue_import_preserves_multiple_loci_for_one_protein(
+    tmp_path: Path,
+) -> None:
+    fasta = tmp_path / "proteins.faa"
+    fasta.write_text(">WP_1.1 shared protein\nACDEFGHIK\n", encoding="utf-8")
+    gff = tmp_path / "annotation.gff"
+    gff.write_text(
+        "##gff-version 3\n"
+        "contig_1\tPGAP\tCDS\t10\t36\t.\t+\t0\t"
+        "ID=cds-1;protein_id=WP_1.1;locus_tag=LOC1;product=protein\n"
+        "contig_2\tPGAP\tCDS\t50\t76\t.\t-\t0\t"
+        "ID=cds-2;protein_id=WP_1.1;locus_tag=LOC2;product=protein\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "catalogues.json"
+    config = tmp_path / "config.json"
+    _write_manifest(manifest, fasta, annotation_gff=gff)
+    _write_config(config)
+
+    result = import_catalogues(
+        CatalogueImportRequest(manifest, config, tmp_path / "output", False)
+    )
+
+    assert len(result.source_records) == 2
+    assert len(result.sequence_groups) == 1
+    assert result.sequence_groups[0].source_record_count == 2
+    assert {record.locus_tag for record in result.source_records} == {"LOC1", "LOC2"}
+    assert all(
+        "multiple_compatible_loci" in record.quality_flags
+        for record in result.source_records
+    )
 
 
 def test_progress_and_structured_logs_are_visible(

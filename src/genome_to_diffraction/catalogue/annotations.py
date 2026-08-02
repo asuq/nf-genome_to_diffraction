@@ -1,12 +1,17 @@
 """Strict locus metadata adapters for trusted catalogue annotations."""
 
 import csv
+import logging
+import re
+from collections import defaultdict
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal, cast
 from urllib.parse import unquote
 
 from Bio import SeqIO
+
+_LOGGER = logging.getLogger("genome_to_diffraction.catalogue.annotations")
 
 
 @dataclass(frozen=True)
@@ -20,6 +25,10 @@ class LocusMetadata:
     strand: Literal["+", "-", "."] | None = None
     gene_name: str | None = None
     product: str | None = None
+    quality_flags: tuple[str, ...] = ()
+
+
+type LocusMap = dict[str, tuple[LocusMetadata, ...]]
 
 
 def _optional(value: str | None) -> str | None:
@@ -27,6 +36,14 @@ def _optional(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped if stripped and stripped != "." else None
+
+
+def _annotation_text(value: str | None) -> str | None:
+    text = _optional(value)
+    if text is None:
+        return None
+    collapsed = " ".join(text.split())
+    return re.sub(r"(?<=\S)-\s+(?=\S)", "-", collapsed)
 
 
 def _coordinate(value: str | None, *, path: Path, row: int, field: str) -> int | None:
@@ -42,23 +59,163 @@ def _coordinate(value: str | None, *, path: Path, row: int, field: str) -> int |
     return coordinate
 
 
-def _add_unique(
-    output: dict[str, LocusMetadata],
+def _locus_sort_key(
+    metadata: LocusMetadata,
+) -> tuple[str, int, int, str, str]:
+    return (
+        metadata.contig or "",
+        metadata.start or 0,
+        metadata.end or 0,
+        metadata.strand or "",
+        metadata.locus_tag or "",
+    )
+
+
+def _same_locus(before: LocusMetadata, after: LocusMetadata) -> bool:
+    if before.locus_tag is not None and after.locus_tag is not None:
+        return before.locus_tag == after.locus_tag
+    coordinates = (
+        before.contig,
+        before.start,
+        before.end,
+        before.strand,
+        after.contig,
+        after.start,
+        after.end,
+        after.strand,
+    )
+    return (
+        all(value is not None for value in coordinates)
+        and coordinates[:4] == (coordinates[4:])
+    )
+
+
+def _merge_locus_metadata(
+    existing: LocusMetadata,
+    incoming: LocusMetadata,
+    protein_id: str,
+    *,
+    source: Path,
+) -> LocusMetadata:
+    values: dict[str, str | int | None] = {}
+    for field in fields(LocusMetadata):
+        if field.name == "quality_flags":
+            continue
+        before = getattr(existing, field.name)
+        after = getattr(incoming, field.name)
+        if before is not None and after is not None and before != after:
+            raise ValueError(
+                f"{source}: conflicting {field.name} for protein "
+                f"{protein_id!r}: {before!r} != {after!r}"
+            )
+        values[field.name] = before if before is not None else after
+    return LocusMetadata(
+        locus_tag=cast(str | None, values["locus_tag"]),
+        contig=cast(str | None, values["contig"]),
+        start=cast(int | None, values["start"]),
+        end=cast(int | None, values["end"]),
+        strand=cast(Literal["+", "-", "."] | None, values["strand"]),
+        gene_name=cast(str | None, values["gene_name"]),
+        product=cast(str | None, values["product"]),
+        quality_flags=tuple(sorted({*existing.quality_flags, *incoming.quality_flags})),
+    )
+
+
+def _append_locus(
+    output: dict[str, list[LocusMetadata]],
     protein_id: str,
     metadata: LocusMetadata,
     *,
     source: Path,
 ) -> None:
-    existing = output.get(protein_id)
-    if existing is not None and existing != metadata:
-        raise ValueError(f"{source}: conflicting locus records for {protein_id!r}")
-    output[protein_id] = metadata
+    records = output.setdefault(protein_id, [])
+    for index, existing in enumerate(records):
+        if existing == metadata:
+            return
+        if _same_locus(existing, metadata):
+            records[index] = _merge_locus_metadata(
+                existing, metadata, protein_id, source=source
+            )
+            return
+    records.append(metadata)
 
 
-def read_locus_tsv(path: Path) -> dict[str, LocusMetadata]:
+def _add_gff_segment(
+    output: dict[tuple[str, str], LocusMetadata],
+    protein_id: str,
+    feature_key: str,
+    metadata: LocusMetadata,
+    *,
+    source: Path,
+    log_merge: bool,
+) -> None:
+    """Merge compatible rows for one compound CDS while rejecting conflicts."""
+
+    key = (protein_id, feature_key)
+    existing = output.get(key)
+    if existing is None or existing == metadata:
+        output[key] = metadata
+        return
+
+    values: dict[str, str | int | None] = {}
+    for field_name in ("locus_tag", "contig", "strand", "gene_name", "product"):
+        before = getattr(existing, field_name)
+        after = getattr(metadata, field_name)
+        if before is not None and after is not None and before != after:
+            raise ValueError(
+                f"{source}: conflicting {field_name} for split CDS "
+                f"{protein_id!r}: {before!r} != {after!r}"
+            )
+        values[field_name] = before if before is not None else after
+
+    if existing.start is None or existing.end is None:
+        raise ValueError(f"{source}: split CDS {protein_id!r} lacks coordinates")
+    if metadata.start is None or metadata.end is None:
+        raise ValueError(f"{source}: split CDS {protein_id!r} lacks coordinates")
+
+    merged = LocusMetadata(
+        locus_tag=cast(str | None, values["locus_tag"]),
+        contig=cast(str | None, values["contig"]),
+        start=min(existing.start, metadata.start),
+        end=max(existing.end, metadata.end),
+        strand=cast(Literal["+", "-", "."] | None, values["strand"]),
+        gene_name=cast(str | None, values["gene_name"]),
+        product=cast(str | None, values["product"]),
+        quality_flags=tuple(
+            sorted(
+                {
+                    *existing.quality_flags,
+                    *metadata.quality_flags,
+                    "compound_cds_segments_merged",
+                }
+            )
+        ),
+    )
+    output[key] = merged
+    if log_merge:
+        _LOGGER.warning(
+            "merged compatible GFF CDS segments",
+            extra={
+                "protein_id": protein_id,
+                "contig": merged.contig,
+                "start": merged.start,
+                "end": merged.end,
+                "source": str(source),
+            },
+        )
+
+
+def _freeze_locus_map(output: dict[str, list[LocusMetadata]]) -> LocusMap:
+    return {
+        protein_id: tuple(sorted(records, key=_locus_sort_key))
+        for protein_id, records in output.items()
+    }
+
+
+def read_locus_tsv(path: Path) -> LocusMap:
     """Load an explicit protein-to-locus TSV with a required ``protein_id``."""
 
-    output: dict[str, LocusMetadata] = {}
+    output: dict[str, list[LocusMetadata]] = {}
     with path.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         if reader.fieldnames is None or "protein_id" not in reader.fieldnames:
@@ -81,7 +238,7 @@ def read_locus_tsv(path: Path) -> dict[str, LocusMetadata]:
             if strand_text not in {None, "+", "-", "."}:
                 raise ValueError(f"{path}:{row_number}:strand: expected +, -, or .")
             strand = cast(Literal["+", "-", "."] | None, strand_text)
-            _add_unique(
+            _append_locus(
                 output,
                 protein_id,
                 LocusMetadata(
@@ -90,12 +247,12 @@ def read_locus_tsv(path: Path) -> dict[str, LocusMetadata]:
                     start=start,
                     end=end,
                     strand=strand,
-                    gene_name=_optional(row.get("gene_name")),
-                    product=_optional(row.get("product")),
+                    gene_name=_annotation_text(row.get("gene_name")),
+                    product=_annotation_text(row.get("product")),
                 ),
                 source=path,
             )
-    return output
+    return _freeze_locus_map(output)
 
 
 def _gff_attributes(text: str) -> dict[str, str]:
@@ -110,10 +267,10 @@ def _gff_attributes(text: str) -> dict[str, str]:
     return attributes
 
 
-def read_gff(path: Path) -> dict[str, LocusMetadata]:
+def read_gff(path: Path) -> LocusMap:
     """Load CDS locus metadata from GFF3 attributes without inferring proteins."""
 
-    output: dict[str, LocusMetadata] = {}
+    segments: dict[tuple[str, str], LocusMetadata] = {}
     with path.open(encoding="utf-8") as handle:
         for row_number, line in enumerate(handle, start=1):
             if line.startswith("##FASTA"):
@@ -131,6 +288,7 @@ def read_gff(path: Path) -> dict[str, LocusMetadata]:
                 aliases.extend(
                     value for value in attributes.get(key, "").split(",") if value
                 )
+            aliases = list(dict.fromkeys(aliases))
             if not aliases:
                 continue
             start = _coordinate(columns[3], path=path, row=row_number, field="start")
@@ -141,12 +299,29 @@ def read_gff(path: Path) -> dict[str, LocusMetadata]:
                 start=start,
                 end=end,
                 strand=cast(Literal["+", "-", "."] | None, _optional(columns[6])),
-                gene_name=_optional(attributes.get("gene") or attributes.get("Name")),
-                product=_optional(attributes.get("product")),
+                gene_name=_annotation_text(attributes.get("gene")),
+                product=_annotation_text(attributes.get("product")),
+            )
+            primary_alias = _optional(attributes.get("protein_id")) or aliases[0]
+            feature_key = (
+                _optional(attributes.get("locus_tag"))
+                or _optional(attributes.get("ID"))
+                or _optional(attributes.get("Parent"))
+                or f"{columns[0]}:{columns[3]}-{columns[4]}:{columns[6]}"
             )
             for alias in aliases:
-                _add_unique(output, alias, metadata, source=path)
-    return output
+                _add_gff_segment(
+                    segments,
+                    alias,
+                    feature_key,
+                    metadata,
+                    source=path,
+                    log_merge=alias == primary_alias,
+                )
+    output: dict[str, list[LocusMetadata]] = defaultdict(list)
+    for (alias, _), metadata in segments.items():
+        _append_locus(output, alias, metadata, source=path)
+    return _freeze_locus_map(output)
 
 
 def _first_qualifier(qualifiers: dict[str, list[str]], name: str) -> str | None:
@@ -154,10 +329,10 @@ def _first_qualifier(qualifiers: dict[str, list[str]], name: str) -> str | None:
     return _optional(values[0]) if values else None
 
 
-def read_gbff(path: Path) -> dict[str, LocusMetadata]:
+def read_gbff(path: Path) -> LocusMap:
     """Load CDS locus metadata from GenBank flat-file records."""
 
-    output: dict[str, LocusMetadata] = {}
+    output: dict[str, list[LocusMetadata]] = {}
     for record in SeqIO.parse(path, "genbank"):  # type: ignore[no-untyped-call]
         for feature in record.features:
             if feature.type != "CDS":
@@ -175,42 +350,30 @@ def read_gbff(path: Path) -> dict[str, LocusMetadata]:
                 start=int(feature.location.start) + 1,
                 end=int(feature.location.end),
                 strand=strand,
-                gene_name=_first_qualifier(feature.qualifiers, "gene"),
-                product=_first_qualifier(feature.qualifiers, "product"),
+                gene_name=_annotation_text(
+                    _first_qualifier(feature.qualifiers, "gene")
+                ),
+                product=_annotation_text(
+                    _first_qualifier(feature.qualifiers, "product")
+                ),
+                quality_flags=(
+                    ("compound_cds_segments_merged",)
+                    if len(feature.location.parts) > 1
+                    else ()
+                ),
             )
-            _add_unique(output, protein_id, metadata, source=path)
-    return output
+            _append_locus(output, protein_id, metadata, source=path)
+    return _freeze_locus_map(output)
 
 
 def merge_locus_maps(
-    maps: list[tuple[Path, dict[str, LocusMetadata]]],
-) -> dict[str, LocusMetadata]:
+    maps: list[tuple[Path, LocusMap]],
+) -> LocusMap:
     """Merge compatible annotation sources and reject conflicting field values."""
 
-    merged: dict[str, LocusMetadata] = {}
+    merged: dict[str, list[LocusMetadata]] = {}
     for source, mapping in maps:
-        for protein_id, incoming in mapping.items():
-            existing = merged.get(protein_id)
-            if existing is None:
-                merged[protein_id] = incoming
-                continue
-            values: dict[str, str | int | None] = {}
-            for field in fields(LocusMetadata):
-                before = getattr(existing, field.name)
-                after = getattr(incoming, field.name)
-                if before is not None and after is not None and before != after:
-                    raise ValueError(
-                        f"{source}: conflicting {field.name} for protein "
-                        f"{protein_id!r}: {before!r} != {after!r}"
-                    )
-                values[field.name] = before if before is not None else after
-            merged[protein_id] = LocusMetadata(
-                locus_tag=cast(str | None, values["locus_tag"]),
-                contig=cast(str | None, values["contig"]),
-                start=cast(int | None, values["start"]),
-                end=cast(int | None, values["end"]),
-                strand=cast(Literal["+", "-", "."] | None, values["strand"]),
-                gene_name=cast(str | None, values["gene_name"]),
-                product=cast(str | None, values["product"]),
-            )
-    return merged
+        for protein_id, incoming_records in mapping.items():
+            for incoming in incoming_records:
+                _append_locus(merged, protein_id, incoming, source=source)
+    return _freeze_locus_map(merged)

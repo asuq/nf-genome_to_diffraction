@@ -16,6 +16,7 @@ from tqdm import tqdm
 
 from genome_to_diffraction import __version__
 from genome_to_diffraction.catalogue.annotations import (
+    LocusMap,
     LocusMetadata,
     merge_locus_maps,
     read_gbff,
@@ -160,10 +161,8 @@ def _read_fasta(path: Path, *, progress: bool) -> list[_ParsedProtein]:
     return output
 
 
-def _metadata_for(
-    entry: CatalogueEntry, paths: dict[str, Path]
-) -> dict[str, LocusMetadata]:
-    maps: list[tuple[Path, dict[str, LocusMetadata]]] = []
+def _metadata_for(entry: CatalogueEntry, paths: dict[str, Path]) -> LocusMap:
+    maps: list[tuple[Path, LocusMap]] = []
     if path := paths.get("protein_locus_map"):
         maps.append((path, read_locus_tsv(path)))
     if path := paths.get("annotation_gff"):
@@ -173,7 +172,14 @@ def _metadata_for(
     merged = merge_locus_maps(maps)
     _LOGGER.info(
         "loaded catalogue locus metadata",
-        extra={"catalogue_id": entry.catalogue_id, "mapped_proteins": len(merged)},
+        extra={
+            "catalogue_id": entry.catalogue_id,
+            "mapped_proteins": len(merged),
+            "mapped_loci": sum(len(records) for records in merged.values()),
+            "multiple_locus_proteins": sum(
+                len(records) > 1 for records in merged.values()
+            ),
+        },
     )
     return merged
 
@@ -233,6 +239,7 @@ def _source_record(
     metadata: LocusMetadata | None,
 ) -> SourceProteinRecord:
     locus = metadata or LocusMetadata()
+    flags = tuple(sorted({*flags, *locus.quality_flags}))
     group_id = sequence_group_id(sequence)
     identity = {
         "catalogue_id": entry.catalogue_id,
@@ -484,14 +491,22 @@ def import_catalogues(request: CatalogueImportRequest) -> CatalogueImportResult:
             )
             group_id = sequence_group_id(sequence)
             sequences[group_id] = sequence
-            source_records.append(
+            loci = metadata.get(parsed.original_id, ())
+            if not loci:
+                loci_with_missing: tuple[LocusMetadata | None, ...] = (None,)
+            else:
+                loci_with_missing = loci
+            if len(loci_with_missing) > 1:
+                flags = tuple(sorted({*flags, "multiple_compatible_loci"}))
+            source_records.extend(
                 _source_record(
                     parsed=parsed,
                     sequence=sequence,
                     flags=flags,
                     entry=entry,
-                    metadata=metadata.get(parsed.original_id),
+                    metadata=locus,
                 )
+                for locus in loci_with_missing
             )
 
     sources = tuple(sorted(source_records, key=lambda record: record.source_record_id))
