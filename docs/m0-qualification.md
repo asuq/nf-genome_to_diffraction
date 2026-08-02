@@ -156,9 +156,10 @@ absolute paths.
 
 The P0 profile extends the accepted foundation-smoke interface without accepting
 an arbitrary path or shell fragment on its command line. It fingerprints a fixed
-six-line remote configuration during `stage`, refuses a change between staging
-and execution, verifies Phenix and database resources, runs Task 05 for the
-configured three-crystal manifest, repeats with `-resume`, and fails unless every
+seven-line remote configuration during `stage`, separately binds the frozen
+database-manifest SHA-256, refuses a change between staging and execution,
+verifies Phenix and database resources, runs Task 05 for the configured
+three-crystal manifest, repeats with `-resume`, and fails unless every
 deterministic process is reported as cached.
 
 The path file is external to Git and must contain, in order:
@@ -167,13 +168,14 @@ The path file is external to Git and must contain, in order:
 2. catalogue manifest;
 3. three-crystal manifest;
 4. pipeline configuration;
-5. database root; and
-6. verified Phenix manifest.
+5. database root;
+6. frozen database manifest; and
+7. verified Phenix manifest.
 
 Every child path must resolve below the allowed root. Paths must be canonical,
 absolute, regular files/directories, contain only conservative path characters,
 and use no symlinks. See the
-[six-line example](../conf/hpc-p0.paths.example) and the
+[seven-line example](../conf/hpc-p0.paths.example) and the
 [HPC feedback-loop runbook](hpc-feedback-loop.md#p0-real-site-profile).
 
 The first deployed staging probe used immutable commit `1433006` and was

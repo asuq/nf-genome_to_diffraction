@@ -126,6 +126,7 @@ p0_config_readiness() {
     local -a values=()
     P0_CONFIG_STATUS=unknown
     P0_CONFIG_SHA256=""
+    P0_DATABASE_MANIFEST=""
     if [[ ! -f "$P0_CONFIG" || -L "$P0_CONFIG" || ! -O "$P0_CONFIG" ]]; then
         P0_CONFIG_STATUS=absent_or_unsafe
         return 1
@@ -140,7 +141,7 @@ p0_config_readiness() {
         return 1
     fi
     mapfile -t values < "$P0_CONFIG"
-    if [[ "${#values[@]}" -ne 6 ]]; then
+    if [[ "${#values[@]}" -ne 7 ]]; then
         P0_CONFIG_STATUS=line_count_mismatch
         return 1
     fi
@@ -156,7 +157,7 @@ p0_config_readiness() {
         P0_CONFIG_STATUS=allowed_root_invalid
         return 1
     fi
-    for index in 1 2 3 5; do
+    for index in 1 2 3 5 6; do
         candidate="${values[$index]}"
         if ! resolved="$(realpath -e "$candidate" 2>/dev/null)" || \
             [[ "$resolved" != "$candidate" || ! -f "$resolved" || -L "$candidate" ]] || \
@@ -172,6 +173,7 @@ p0_config_readiness() {
         P0_CONFIG_STATUS=database_root_invalid
         return 1
     fi
+    P0_DATABASE_MANIFEST="${values[5]}"
     P0_CONFIG_STATUS=ready
     return 0
 }
@@ -340,6 +342,7 @@ stage_run() {
     local profile="$6"
     local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp
     local p0_config_sha256="" p0_config_json="null"
+    local database_manifest_sha256="" database_manifest_json="null"
 
     validate_run_id "$run_id"
     [[ "$commit" =~ $COMMIT_RE ]] || fail wrapper_failure "invalid commit SHA"
@@ -434,19 +437,23 @@ stage_run() {
         fail filesystem_failure "cannot attach the per-run Pixi environment"
 
     if [[ "$profile" == p0 ]]; then
-        [[ -f "$P0_CONFIG" && ! -L "$P0_CONFIG" && -O "$P0_CONFIG" ]] || {
+        p0_config_readiness || true
+        [[ "$P0_CONFIG_STATUS" == ready ]] || {
             atomic_text "$run/state/phase" "stage_failed"
             atomic_text "$run/state/failure-class" "environment_failure"
             append_event "$run" "stage_p0_config_absent"
-            fail environment_failure "fixed P0 configuration is absent, unsafe, or not user-owned"
+            fail environment_failure "fixed P0 configuration is absent or unsafe"
         }
-        [[ "$(stat -c '%a' "$P0_CONFIG")" == 600 ]] || \
-            fail environment_failure "fixed P0 configuration must have mode 0600"
-        p0_config_sha256="$(sha256sum "$P0_CONFIG" | awk '{print $1}')"
+        p0_config_sha256="$P0_CONFIG_SHA256"
         [[ "$p0_config_sha256" =~ $CHECKSUM_RE ]] || \
             fail filesystem_failure "P0 configuration checksum failed"
+        database_manifest_sha256="$(sha256sum "$P0_DATABASE_MANIFEST" | awk '{print $1}')"
+        [[ "$database_manifest_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "expected database manifest checksum failed"
         atomic_text "$run/state/p0-config-sha256" "$p0_config_sha256"
+        atomic_text "$run/state/database-manifest-sha256" "$database_manifest_sha256"
         p0_config_json="\"$p0_config_sha256\""
+        database_manifest_json="\"$database_manifest_sha256\""
     fi
 
     manifest_tmp="$run/manifest.json.tmp.$$"
@@ -463,6 +470,7 @@ stage_run() {
   "pixi_executable": "$pixi_bin",
   "pixi_version": "$pixi_version",
   "p0_config_sha256": $p0_config_json,
+  "database_manifest_sha256": $database_manifest_json,
   "staged_at": "$(now_utc)",
   "source_snapshot_status": "immutable"
 }

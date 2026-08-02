@@ -409,6 +409,8 @@ def _write_p0_paths(root: Path, *, unsafe: bool = False) -> Path:
     allowed.mkdir()
     database_root = allowed / "databases"
     database_root.mkdir()
+    database_manifest = allowed / "database_manifest.json"
+    database_manifest.write_text("{}\n", encoding="utf-8")
     inputs = []
     for name in ("catalogues.json", "crystals.json", "config.yaml", "phenix.json"):
         path = allowed / name
@@ -427,6 +429,7 @@ def _write_p0_paths(root: Path, *, unsafe: bool = False) -> Path:
                 crystal_path,
                 str(inputs[2]),
                 str(database_root),
+                str(database_manifest),
                 str(inputs[3]),
             )
         )
@@ -491,12 +494,12 @@ def test_p0_readiness_is_sanitised_and_creates_no_run(tmp_path: Path) -> None:
     assert not (tmp_path / "bad").exists()
 
 
-def test_p0_stage_fingerprints_fixed_config_and_rejects_unsafe_paths_at_run(
+def test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes(
     tmp_path: Path,
 ) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
-    p0_config = _write_p0_paths(remote_root, unsafe=True)
+    p0_config = _write_p0_paths(remote_root)
 
     staged = _run(
         [
@@ -520,6 +523,18 @@ def test_p0_stage_fingerprints_fixed_config_and_rejects_unsafe_paths_at_run(
     assert (
         manifest["p0_config_sha256"]
         == hashlib.sha256(p0_config.read_bytes()).hexdigest()
+    )
+    database_manifest = Path(p0_config.read_text(encoding="utf-8").splitlines()[5])
+    assert (
+        manifest["database_manifest_sha256"]
+        == hashlib.sha256(database_manifest.read_bytes()).hexdigest()
+    )
+
+    p0_config.write_text(
+        p0_config.read_text(encoding="utf-8").replace(
+            "crystals.json", "crystals.json;touch-bad"
+        ),
+        encoding="utf-8",
     )
 
     job_environment = dict(environment)

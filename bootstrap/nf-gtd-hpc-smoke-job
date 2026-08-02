@@ -182,8 +182,8 @@ load_p0_config() {
         return 1
     }
     mapfile -t values < "$config"
-    [[ "${#values[@]}" -eq 6 ]] || {
-        printf 'P0 configuration must contain exactly six path lines\n' >&2
+    [[ "${#values[@]}" -eq 7 ]] || {
+        printf 'P0 configuration must contain exactly seven path lines\n' >&2
         return 1
     }
     for candidate in "${values[@]}"; do
@@ -201,7 +201,7 @@ load_p0_config() {
         printf 'P0 allowed root is too broad\n' >&2
         return 1
     }
-    for index in 1 2 3 5; do
+    for index in 1 2 3 5 6; do
         candidate="${values[$index]}"
         resolved="$(realpath -e "$candidate")"
         [[ "$resolved" == "$candidate" ]] || {
@@ -237,7 +237,8 @@ load_p0_config() {
     CRYSTALS="${values[2]}"
     PIPELINE_CONFIG="${values[3]}"
     DATABASE_ROOT="${values[4]}"
-    PHENIX_MANIFEST="${values[5]}"
+    EXPECTED_DATABASE_MANIFEST="${values[5]}"
+    PHENIX_MANIFEST="${values[6]}"
     P0_CONFIG_PATH="$config"
 }
 
@@ -298,6 +299,7 @@ run_p0() {
         "$CATALOGUES" \
         "$CRYSTALS" \
         "$PIPELINE_CONFIG" \
+        "$EXPECTED_DATABASE_MANIFEST" \
         "$PHENIX_MANIFEST" \
         > "$qualification/input-checksums.sha256"
 
@@ -317,9 +319,21 @@ run_p0() {
         --verification-log "$qualification/phenix-verification.log"
 
     printf 'phase=database_verify profile=p0\n'
+    EXPECTED_DATABASE_SHA256="$(<"$RUN/state/database-manifest-sha256")"
+    [[ "$EXPECTED_DATABASE_SHA256" =~ $CHECKSUM_RE ]] || {
+        printf 'recorded database manifest checksum is invalid\n' >&2
+        return 2
+    }
+    [[ "$(sha256sum "$EXPECTED_DATABASE_MANIFEST" | awk '{print $1}')" == \
+        "$EXPECTED_DATABASE_SHA256" ]] || {
+        printf 'expected database manifest changed after staging\n' >&2
+        return 2
+    }
     "$GTD" --log-format json --no-progress databases prepare \
         --database-root "$DATABASE_ROOT" \
         --manifest "$VERIFIED_DATABASE_MANIFEST" \
+        --expected-manifest "$EXPECTED_DATABASE_MANIFEST" \
+        --expected-manifest-sha256 "$EXPECTED_DATABASE_SHA256" \
         --prepare-pdb-foldseek \
         --prepare-pdb-sequences \
         --prepare-prostt5 \

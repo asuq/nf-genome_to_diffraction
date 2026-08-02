@@ -181,10 +181,11 @@ after two identical failure signatures is refused pending manual diagnosis.
 ## P0 real-site profile
 
 Create `_config/p0.paths` below the configured remote run root from the tracked
-[example](../conf/hpc-p0.paths.example). The file has exactly six non-empty lines
-and no comments: allowed site root, catalogue manifest, crystal manifest,
-pipeline configuration, database root, and Phenix manifest. It is user-owned,
-mode `0600`, untracked, and contains the real site paths.
+[example](../conf/hpc-p0.paths.example). The file has exactly seven non-empty
+lines and no comments: allowed site root, catalogue manifest, crystal manifest,
+pipeline configuration, database root, frozen database manifest, and Phenix
+manifest. It is user-owned, mode `0600`, untracked, and contains the real site
+paths.
 
 P0 accepts none of those paths on the local command line. `stage p0` records the
 file's SHA-256; the job refuses execution if it changes. Every configured child
@@ -192,8 +193,10 @@ must be a canonical non-symlink path below the first-line root. The job then:
 
 1. installs the frozen Linux `hpc` Pixi environment;
 2. re-verifies every required Phenix command and preserves the verification log;
-3. runs database `verify-only --full-verify` for PDB Foldseek, ProstT5, PDB
-   sequences, and the coordinate cache, recomputing stored file checksums;
+3. fingerprints the frozen database manifest during staging, then runs database
+   `verify-only --full-verify` for PDB Foldseek, ProstT5, PDB sequences, and the
+   coordinate cache, recomputing stored file checksums and comparing the exact
+   resource records with that trust anchor;
 4. runs `main.nf -profile marmic` with real Xtriage for the configured crystals;
 5. repeats the identical command with `-resume`; and
 6. fails unless all deterministic processes in the second trace are `CACHED`.

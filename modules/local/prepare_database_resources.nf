@@ -15,6 +15,8 @@ process PREPARE_DATABASE_RESOURCES {
     verify_only: Boolean
     force_rebuild: Boolean
     full_verify: Boolean
+    expected_manifest: String
+    expected_manifest_sha256: String
     storage_limit_bytes: String
     minimum_free_bytes: String
     threads: Integer
@@ -43,6 +45,12 @@ process PREPARE_DATABASE_RESOURCES {
     [[ '${verify_only}' == 'true' ]] && args+=(--verify-only)
     [[ '${force_rebuild}' == 'true' ]] && args+=(--force-rebuild)
     [[ '${full_verify}' == 'true' ]] && args+=(--full-verify)
+    if [[ -n '${expected_manifest}' ]]; then
+        args+=(--expected-manifest '${expected_manifest}')
+    fi
+    if [[ -n '${expected_manifest_sha256}' ]]; then
+        args+=(--expected-manifest-sha256 '${expected_manifest_sha256}')
+    fi
 
     genome-to-diffraction --no-progress databases prepare "\${args[@]}"
     """

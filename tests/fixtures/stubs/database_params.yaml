@@ -8,6 +8,8 @@ verify_esm_atlas_connectivity: false
 verify_only: true
 force_rebuild: false
 full_verify: false
+expected_manifest: ""
+expected_manifest_sha256: ""
 storage_limit_bytes: "1800000000000"
 minimum_free_bytes: "0"
 threads: 1

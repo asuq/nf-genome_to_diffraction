@@ -11,7 +11,9 @@ import subprocess
 import threading
 from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from hashlib import sha256
+from pathlib import Path, PurePosixPath
+from typing import Literal
 
 from tqdm import tqdm
 
@@ -51,16 +53,55 @@ class FileRecord:
     path: str
     size_bytes: int
     sha256: str
+    kind: Literal["file", "symlink"] = "file"
+    symlink_target: str | None = None
 
 
 def iter_resource_files(root: Path) -> list[Path]:
-    """Return stable regular-file paths, excluding generated inventory sidecars."""
+    """Return stable files and links, excluding generated inventory sidecars."""
 
     return sorted(
         path
         for path in root.rglob("*")
-        if path.is_file() and path.name not in _SIDECARS and not path.is_symlink()
+        if (path.is_file() or path.is_symlink()) and path.name not in _SIDECARS
     )
+
+
+def _safe_relative_path(root: Path, value: str) -> Path:
+    """Resolve one canonical inventory path while forbidding root escape."""
+
+    pure = PurePosixPath(value)
+    if (
+        not value
+        or pure.is_absolute()
+        or value != pure.as_posix()
+        or "\\" in value
+        or any(part in {"", ".", ".."} for part in pure.parts)
+    ):
+        raise DatabaseError(f"unsafe resource inventory path: {value!r}")
+    path = root.joinpath(*pure.parts)
+    try:
+        path.relative_to(root)
+    except ValueError as error:
+        raise DatabaseError(
+            f"resource inventory path escapes root: {value!r}"
+        ) from error
+    return path
+
+
+def _safe_symlink_target(root: Path, path: Path, target: str) -> Path:
+    """Resolve an inventory symlink target and require it to stay below *root*."""
+
+    if not target or Path(target).is_absolute() or "\x00" in target:
+        raise DatabaseError(f"unsafe resource symlink target: {path}: {target!r}")
+    try:
+        resolved = (path.parent / target).resolve(strict=True)
+        resolved.relative_to(root.resolve(strict=True))
+    except (OSError, ValueError) as error:
+        raise DatabaseError(
+            f"resource symlink target is missing or escapes root: {path}: {target!r}"
+        ) from error
+    return resolved
 
 
 def tree_size(root: Path) -> int:
@@ -98,7 +139,11 @@ def inventory_resource(
     """Stream checksums for every resource file and write a stable inventory."""
 
     paths = iter_resource_files(root)
-    total_bytes = sum(path.stat().st_size for path in paths)
+    total_bytes = sum(
+        path.stat().st_size
+        for path in paths
+        if path.is_file() and not path.is_symlink()
+    )
     records: list[FileRecord] = []
     with tqdm(
         total=total_bytes,
@@ -108,10 +153,24 @@ def inventory_resource(
         disable=not progress,
     ) as progress_bar:
         for path in paths:
+            relative = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                target = path.readlink().as_posix()
+                _safe_symlink_target(root, path, target)
+                records.append(
+                    FileRecord(
+                        path=relative,
+                        size_bytes=0,
+                        sha256=sha256(target.encode("utf-8")).hexdigest(),
+                        kind="symlink",
+                        symlink_target=target,
+                    )
+                )
+                continue
             size = path.stat().st_size
             records.append(
                 FileRecord(
-                    path=path.relative_to(root).as_posix(),
+                    path=relative,
                     size_bytes=size,
                     sha256=sha256_file(path, logger=_LOGGER),
                 )
@@ -156,6 +215,10 @@ def verify_inventory(
     raw_records = document.get("files")
     if not isinstance(raw_records, list) or not raw_records:
         raise DatabaseError(f"resource inventory has no files: {inventory_path}")
+    actual_paths = {
+        path.relative_to(root).as_posix() for path in iter_resource_files(root)
+    }
+    recorded_paths: set[str] = set()
     total_bytes = 0
     iterator: Iterable[object] = tqdm(
         raw_records,
@@ -169,15 +232,42 @@ def verify_inventory(
         relative = raw.get("path")
         size = raw.get("size_bytes")
         digest = raw.get("sha256")
+        kind = raw.get("kind", "file")
+        symlink_target = raw.get("symlink_target")
         if (
             not isinstance(relative, str)
             or not isinstance(size, int)
+            or isinstance(size, bool)
             or not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+            or kind not in {"file", "symlink"}
         ):
             raise DatabaseError(f"invalid inventory record in {inventory_path}")
-        path = root / relative
+        if relative in recorded_paths:
+            raise DatabaseError(f"duplicate resource inventory path: {relative}")
+        recorded_paths.add(relative)
+        path = _safe_relative_path(root, relative)
+        if kind == "symlink":
+            if not isinstance(symlink_target, str) or size != 0:
+                raise DatabaseError(f"invalid symlink inventory record: {path}")
+            if not path.is_symlink():
+                raise DatabaseError(f"resource symlink is missing: {path}")
+            actual_target = path.readlink().as_posix()
+            _safe_symlink_target(root, path, actual_target)
+            if actual_target != symlink_target:
+                raise DatabaseError(f"resource symlink target mismatch: {path}")
+            if sha256(actual_target.encode("utf-8")).hexdigest() != digest:
+                raise DatabaseError(f"resource symlink digest mismatch: {path}")
+            continue
+        if symlink_target is not None:
+            raise DatabaseError(f"regular file has a symlink target: {path}")
         if not path.is_file() or path.is_symlink():
             raise DatabaseError(f"resource file is missing or unsafe: {path}")
+        try:
+            path.resolve(strict=True).relative_to(root.resolve(strict=True))
+        except (OSError, ValueError) as error:
+            raise DatabaseError(f"resource file escapes its root: {path}") from error
         actual_size = path.stat().st_size
         if actual_size != size:
             raise DatabaseError(
@@ -187,6 +277,17 @@ def verify_inventory(
         if full_checksums and sha256_file(path, logger=_LOGGER) != digest:
             raise DatabaseError(f"resource checksum mismatch for {path}")
         total_bytes += actual_size
+    if recorded_paths != actual_paths:
+        unexpected = sorted(actual_paths - recorded_paths)
+        missing = sorted(recorded_paths - actual_paths)
+        details = []
+        if unexpected:
+            details.append("unexpected=" + ",".join(unexpected[:10]))
+        if missing:
+            details.append("missing=" + ",".join(missing[:10]))
+        raise DatabaseError(
+            "resource inventory path set mismatch: " + "; ".join(details)
+        )
     return len(raw_records), total_bytes
 
 

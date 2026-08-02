@@ -8,6 +8,7 @@ loudly; there is no scientific no-hit state at this administrative boundary.
 """
 
 import gzip
+import hashlib
 import json
 import logging
 import os
@@ -71,6 +72,8 @@ class DatabasePreparationRequest:
     verify_only: bool = False
     force_rebuild: bool = False
     full_verify: bool = False
+    expected_manifest_path: Path | None = None
+    expected_manifest_sha256: str | None = None
     storage_limit_bytes: int = DEFAULT_STORAGE_LIMIT_BYTES
     minimum_free_bytes: int = DEFAULT_MINIMUM_FREE_BYTES
     threads: int = 4
@@ -84,10 +87,29 @@ def _resource_base(database_root: Path, name: str) -> Path:
 
 
 def _current_root(database_root: Path, name: str) -> Path | None:
-    current = _resource_base(database_root, name) / "current"
-    if not current.exists():
+    base = _resource_base(database_root, name)
+    current = base / "current"
+    try:
+        current.lstat()
+    except FileNotFoundError:
         return None
-    return current.resolve()
+    if not current.is_symlink():
+        raise DatabaseError(f"database current pointer is not a symlink: {current}")
+    try:
+        root = current.resolve(strict=True)
+        resolved_base = base.resolve(strict=True)
+        root.relative_to(resolved_base)
+    except (OSError, ValueError) as error:
+        raise DatabaseError(
+            "database current pointer is missing or escapes its resource base: "
+            f"{current}"
+        ) from error
+    if root.parent != resolved_base or not root.is_dir() or root.is_symlink():
+        raise DatabaseError(
+            "database current pointer must name a direct real directory child: "
+            f"{current}"
+        )
+    return root
 
 
 def _resource_sidecar(root: Path) -> Path:
@@ -123,6 +145,10 @@ def _load_resource(
         raise DatabaseError(
             f"resource root_path does not match current target: {sidecar}"
         )
+    if resource.name != name:
+        raise DatabaseError(
+            f"resource sidecar name does not match current resource: {sidecar}"
+        )
     if resource.status is not DatabaseResourceStatus.READY:
         raise DatabaseError(
             f"database resource is not ready: {name}: {resource.status}"
@@ -140,6 +166,9 @@ def _load_resource(
         )
     if resource.file_count != file_count or resource.total_bytes != total_bytes:
         raise DatabaseError(f"resource count/size summary is inconsistent: {name}")
+    expected_database_id = _database_id(name, resource.manifest_sha256)
+    if resource.database_id != expected_database_id:
+        raise DatabaseError(f"resource database_id is inconsistent: {name}")
     _LOGGER.info(
         "reusing verified database resource",
         extra={"database_id": resource.database_id, "resource_name": name},
@@ -149,13 +178,98 @@ def _load_resource(
 
 def _atomic_current(base: Path, target: Path) -> None:
     base.mkdir(parents=True, exist_ok=True)
+    resolved_base = base.resolve(strict=True)
+    resolved_target = target.resolve(strict=True)
+    if (
+        resolved_target.parent != resolved_base
+        or not resolved_target.is_dir()
+        or resolved_target.is_symlink()
+    ):
+        raise DatabaseError("database current target must be a direct real child")
     current = base / "current"
     temporary = base / f".current.{uuid.uuid4().hex}.tmp"
     try:
-        os.symlink(target, temporary, target_is_directory=True)
+        os.symlink(target.name, temporary, target_is_directory=True)
         os.replace(temporary, current)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _database_id(name: str, inventory_digest: str) -> str:
+    """Return a path- and timestamp-independent resource content identity."""
+
+    return content_id(
+        "db_", {"name": name, "inventory_manifest_sha256": inventory_digest}
+    )
+
+
+def _manifest_id(resources: tuple[DatabaseResource, ...]) -> str:
+    """Bind a combined manifest to resource content and qualification evidence."""
+
+    return content_id(
+        "dbm_",
+        [
+            {
+                "database_id": resource.database_id,
+                "name": resource.name,
+                "smoke_test_status": resource.smoke_test_status,
+                "qualification": resource.parameters.get("qualification"),
+            }
+            for resource in resources
+        ],
+    )
+
+
+def _load_expected_manifest(
+    request: DatabasePreparationRequest,
+) -> DatabaseManifest | None:
+    if not request.verify_only:
+        if (
+            request.expected_manifest_path is not None
+            or request.expected_manifest_sha256 is not None
+        ):
+            raise DatabaseError(
+                "expected manifest inputs are valid only with verify-only mode"
+            )
+        return None
+    if request.force_rebuild:
+        raise DatabaseError("verify-only and force-rebuild are mutually exclusive")
+    if (
+        request.expected_manifest_path is None
+        or request.expected_manifest_sha256 is None
+    ):
+        raise DatabaseError(
+            "verify-only requires an expected manifest path and SHA-256 trust anchor"
+        )
+    expected_digest = request.expected_manifest_sha256
+    if len(expected_digest) != 64 or any(
+        character not in "0123456789abcdef" for character in expected_digest
+    ):
+        raise DatabaseError("expected manifest SHA-256 is invalid")
+    path = request.expected_manifest_path
+    if not path.is_absolute() or path.is_symlink() or not path.is_file():
+        raise DatabaseError(
+            "expected database manifest must be an absolute regular non-symlink file"
+        )
+    if path.resolve(strict=True) == request.manifest_path.resolve():
+        raise DatabaseError("verification output must not overwrite the trust anchor")
+    try:
+        payload = path.read_bytes()
+        actual_digest = hashlib.sha256(payload).hexdigest()
+        document = json.loads(payload)
+        manifest = DatabaseManifest.model_validate(document)
+    except (OSError, json.JSONDecodeError, ValidationError) as error:
+        raise DatabaseError(
+            f"invalid expected database manifest {path}: {error}"
+        ) from error
+    if actual_digest != expected_digest:
+        raise DatabaseError("expected database manifest SHA-256 mismatch")
+    if manifest.manifest_id != _manifest_id(manifest.resources):
+        raise DatabaseError("expected database manifest_id is inconsistent")
+    names = [resource.name for resource in manifest.resources]
+    if len(names) != len(set(names)):
+        raise DatabaseError("expected database manifest has duplicate resource names")
+    return manifest
 
 
 def _finish_immutable_resource(
@@ -173,22 +287,41 @@ def _finish_immutable_resource(
     warnings: tuple[str, ...] = (),
 ) -> DatabaseResource:
     records, inventory_digest = inventory_resource(staging, progress=progress)
-    identity = {
-        "name": name,
-        "source": source,
-        "release_or_snapshot": release_or_snapshot,
-        "retrieved_at": retrieved_at,
-        "prepared_with": prepared_with,
-        "parameters": parameters,
-        "manifest_sha256": inventory_digest,
-    }
-    database_id = content_id("db_", identity)
+    database_id = _database_id(name, inventory_digest)
     final_root = staging.parent / database_id
     if final_root.exists():
         shutil.rmtree(staging)
-        existing = DatabaseResource.model_validate(
-            json.loads(_resource_sidecar(final_root).read_text(encoding="utf-8"))
+        try:
+            existing = DatabaseResource.model_validate(
+                json.loads(_resource_sidecar(final_root).read_text(encoding="utf-8"))
+            )
+        except (OSError, json.JSONDecodeError, ValidationError) as error:
+            raise DatabaseError(
+                f"existing content-addressed resource is invalid: {final_root}: {error}"
+            ) from error
+        if (
+            existing.name != name
+            or existing.database_id != database_id
+            or existing.manifest_sha256 != inventory_digest
+        ):
+            raise DatabaseError(
+                "existing content-addressed resource identity is inconsistent: "
+                f"{final_root}"
+            )
+        existing_count, existing_bytes = verify_inventory(
+            final_root,
+            inventory_digest,
+            full_checksums=True,
+            progress=progress,
         )
+        if (
+            existing.file_count != existing_count
+            or existing.total_bytes != existing_bytes
+        ):
+            raise DatabaseError(
+                "existing content-addressed resource summary is inconsistent: "
+                f"{final_root}"
+            )
         _atomic_current(_resource_base(database_root, name), final_root)
         return existing
     os.replace(staging, final_root)
@@ -544,13 +677,8 @@ def _coordinate_cache(
     digest, file_count, total_bytes = initialise_coordinate_cache(
         root, progress=request.progress
     )
-    identity = {
-        "name": name,
-        "layout_sha256": digest,
-        "layout_version": "1.0",
-    }
     resource = DatabaseResource(
-        database_id=content_id("db_", identity),
+        database_id=_database_id(name, digest),
         name=name,
         source="local content-addressed coordinate cache",
         release_or_snapshot="layout-1.0",
@@ -673,6 +801,7 @@ def _validate_request(request: DatabasePreparationRequest) -> Path:
 def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
     """Prepare/reuse selected resources and write one combined immutable manifest."""
 
+    expected_manifest = _load_expected_manifest(request)
     root = _validate_request(request)
     selected = {
         "pdb_foldseek": request.prepare_pdb_foldseek,
@@ -683,6 +812,13 @@ def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
     }
     if not any(selected.values()):
         raise DatabaseError("at least one database resource must be selected")
+    selected_names = {name for name, enabled in selected.items() if enabled}
+    if expected_manifest is not None:
+        expected_names = {resource.name for resource in expected_manifest.resources}
+        if expected_names != selected_names:
+            raise DatabaseError(
+                "selected resources do not exactly match the expected manifest"
+            )
     _LOGGER.info(
         "database preparation started",
         extra={
@@ -741,9 +877,20 @@ def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
         )
 
     ordered = tuple(resources[name] for name in sorted(resources))
-    manifest_id = content_id(
-        "dbm_", [{"database_id": item.database_id} for item in ordered]
-    )
+    if expected_manifest is not None:
+        expected_by_name = {
+            resource.name: resource for resource in expected_manifest.resources
+        }
+        for resource in ordered:
+            expected_resource = expected_by_name[resource.name]
+            if resource.model_dump(mode="json") != expected_resource.model_dump(
+                mode="json"
+            ):
+                raise DatabaseError(
+                    "verified database resource differs from expected manifest: "
+                    f"{resource.name}"
+                )
+    manifest_id = _manifest_id(ordered)
     manifest = DatabaseManifest(
         schema_version="1.0",
         manifest_id=manifest_id,

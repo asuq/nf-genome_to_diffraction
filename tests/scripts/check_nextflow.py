@@ -1,6 +1,7 @@
 """Parse and exercise the foundation-only Nextflow entry points."""
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -290,10 +291,20 @@ def check_stubs() -> None:
         )
         _run(real_database_command, environment=environment)
         _assert_files(database_out, {"database_manifest.json"})
+        expected_database_manifest = (
+            database_out / "provenance" / "database_manifest.json"
+        )
+        expected_database_sha256 = hashlib.sha256(
+            expected_database_manifest.read_bytes()
+        ).hexdigest()
         verified_database_command = [
             *real_database_command,
             "--verify_only",
             "true",
+            "--expected_manifest",
+            str(expected_database_manifest),
+            "--expected_manifest_sha256",
+            expected_database_sha256,
         ]
         _run(verified_database_command, environment=environment)
 

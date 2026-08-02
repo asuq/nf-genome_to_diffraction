@@ -247,6 +247,15 @@ def _build_parser() -> argparse.ArgumentParser:
     prepare_parser.add_argument("--verify-only", action="store_true")
     prepare_parser.add_argument("--force-rebuild", action="store_true")
     prepare_parser.add_argument("--full-verify", action="store_true")
+    prepare_parser.add_argument(
+        "--expected-manifest",
+        type=Path,
+        help="operator-frozen manifest required by verify-only",
+    )
+    prepare_parser.add_argument(
+        "--expected-manifest-sha256",
+        help="trusted SHA-256 of --expected-manifest",
+    )
     prepare_parser.add_argument("--threads", type=int, default=4)
     prepare_parser.add_argument(
         "--storage-limit-bytes", type=int, default=DEFAULT_STORAGE_LIMIT_BYTES
@@ -437,6 +446,8 @@ def _run_databases(args: argparse.Namespace) -> int:
             verify_only=args.verify_only,
             force_rebuild=args.force_rebuild,
             full_verify=args.full_verify,
+            expected_manifest_path=args.expected_manifest,
+            expected_manifest_sha256=args.expected_manifest_sha256,
             storage_limit_bytes=args.storage_limit_bytes,
             minimum_free_bytes=args.minimum_free_bytes,
             threads=args.threads,

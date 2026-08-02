@@ -16,6 +16,8 @@ params {
     verify_only: Boolean = false
     force_rebuild: Boolean = false
     full_verify: Boolean = false
+    expected_manifest: String = ''
+    expected_manifest_sha256: String = ''
     storage_limit_bytes: String = '1800000000000'
     minimum_free_bytes: String = '200000000000'
     threads: Integer = 4
@@ -33,6 +35,8 @@ workflow {
         params.verify_only,
         params.force_rebuild,
         params.full_verify,
+        params.expected_manifest,
+        params.expected_manifest_sha256,
         params.storage_limit_bytes,
         params.minimum_free_bytes,
         params.threads,

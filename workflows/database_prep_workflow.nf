@@ -13,6 +13,8 @@ workflow DATABASE_PREP_WORKFLOW {
     verify_only: Boolean
     force_rebuild: Boolean
     full_verify: Boolean
+    expected_manifest: String
+    expected_manifest_sha256: String
     storage_limit_bytes: String
     minimum_free_bytes: String
     threads: Integer
@@ -29,6 +31,8 @@ workflow DATABASE_PREP_WORKFLOW {
         verify_only,
         force_rebuild,
         full_verify,
+        expected_manifest,
+        expected_manifest_sha256,
         storage_limit_bytes,
         minimum_free_bytes,
         threads,

@@ -3,4 +3,5 @@
 /absolute/site/root/pilot/manifests/crystals.json
 /absolute/site/root/pilot/manifests/config.yaml
 /absolute/site/root/databases
+/absolute/site/root/databases/manifests/database_manifest.json
 /absolute/site/root/software/manifests/phenix.json

@@ -1,6 +1,7 @@
 """Unit tests for idempotent and fail-loud database preparation."""
 
 import gzip
+import hashlib
 import json
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -10,11 +11,16 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.databases.cache import initialise_coordinate_cache
-from genome_to_diffraction.databases.common import DatabaseError
+from genome_to_diffraction.databases.common import (
+    DatabaseError,
+    inventory_resource,
+    verify_inventory,
+)
 from genome_to_diffraction.databases.prepare import (
     DatabasePreparationRequest,
     prepare,
 )
+from genome_to_diffraction.ids import canonical_digest
 from genome_to_diffraction.schemas.io import load_contract
 
 
@@ -77,6 +83,49 @@ def test_coordinate_cache_initialisation_is_concurrent_safe(tmp_path: Path) -> N
     assert not list(root.rglob("*.partial"))
 
 
+def test_inventory_records_internal_symlinks_and_detects_retargeting(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "resource"
+    root.mkdir()
+    (root / "target-a").write_text("a\n", encoding="ascii")
+    (root / "target-b").write_text("b\n", encoding="ascii")
+    (root / "current").symlink_to("target-a")
+    records, digest = inventory_resource(root, progress=False)
+
+    assert (
+        next(record for record in records if record.path == "current").kind == "symlink"
+    )
+    assert verify_inventory(root, digest, full_checksums=True, progress=False) == (3, 4)
+
+    (root / "current").unlink()
+    (root / "current").symlink_to("target-b")
+    with pytest.raises(DatabaseError, match="symlink target mismatch"):
+        verify_inventory(root, digest, full_checksums=True, progress=False)
+
+
+def test_inventory_rejects_unlisted_and_escaping_paths(tmp_path: Path) -> None:
+    root = tmp_path / "resource"
+    root.mkdir()
+    (root / "listed").write_text("listed\n", encoding="ascii")
+    _, digest = inventory_resource(root, progress=False)
+    (root / "unexpected").write_text("unexpected\n", encoding="ascii")
+    with pytest.raises(DatabaseError, match="path set mismatch"):
+        verify_inventory(root, digest, full_checksums=True, progress=False)
+
+    inventory_path = root / ".gtd-inventory.json"
+    document = json.loads(inventory_path.read_text(encoding="utf-8"))
+    document["files"][0]["path"] = "../outside"
+    inventory_path.write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(DatabaseError, match="unsafe resource inventory path"):
+        verify_inventory(
+            root,
+            canonical_digest(document),
+            full_checksums=True,
+            progress=False,
+        )
+
+
 def test_coordinate_cache_is_reused_and_combined_manifest_validates(
     tmp_path: Path,
 ) -> None:
@@ -100,13 +149,61 @@ def test_verify_only_detects_incomplete_coordinate_cache(tmp_path: Path) -> None
     manifest = prepare(request)
     root = Path(manifest.resources[0].root_path)
     (root / "pdb" / "metadata").rmdir()
+    expected_manifest = request.manifest_path
     verify_request = replace(
         request,
         manifest_path=tmp_path / "verify.json",
         verify_only=True,
+        expected_manifest_path=expected_manifest,
+        expected_manifest_sha256=hashlib.sha256(
+            expected_manifest.read_bytes()
+        ).hexdigest(),
     )
     with pytest.raises(DatabaseError, match="directories are missing"):
         prepare(verify_request)
+
+
+def test_verify_only_requires_and_enforces_external_manifest_anchor(
+    tmp_path: Path,
+) -> None:
+    request = _request(tmp_path)
+    prepared = prepare(request)
+    with pytest.raises(DatabaseError, match="requires an expected manifest"):
+        prepare(
+            replace(
+                request,
+                manifest_path=tmp_path / "unanchored.json",
+                verify_only=True,
+            )
+        )
+
+    expected_path = request.manifest_path
+    expected_sha256 = hashlib.sha256(expected_path.read_bytes()).hexdigest()
+    verified = prepare(
+        replace(
+            request,
+            manifest_path=tmp_path / "verified.json",
+            verify_only=True,
+            expected_manifest_path=expected_path,
+            expected_manifest_sha256=expected_sha256,
+        )
+    )
+    assert verified.manifest_id == prepared.manifest_id
+
+    sidecar = Path(prepared.resources[0].root_path) / ".gtd-resource.json"
+    document = json.loads(sidecar.read_text(encoding="utf-8"))
+    document["source"] = "tampered source"
+    sidecar.write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(DatabaseError, match="differs from expected manifest"):
+        prepare(
+            replace(
+                request,
+                manifest_path=tmp_path / "tampered.json",
+                verify_only=True,
+                expected_manifest_path=expected_path,
+                expected_manifest_sha256=expected_sha256,
+            )
+        )
 
 
 def test_force_rebuild_keeps_content_addressed_coordinate_identity(

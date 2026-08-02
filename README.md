@@ -305,9 +305,12 @@ and the optional ESM Atlas response as CC-BY-4.0.
 Every immutable resource records the locked tool version, parameters, retrieval
 metadata, full file inventory, byte count, SHA-256 identity, and smoke-test
 status. Existing valid resources are reused; incomplete resources fail loudly;
-forced builds are side-by-side. The coordinate cache uses provider namespaces,
-atomic sidecars, content hashes, and POSIX advisory locks. Revalidation never
-downloads or repairs resources:
+forced builds are side-by-side. The coordinate-cache layout uses provider
+namespaces and a POSIX advisory initialisation lock; M0.4 still has to qualify
+atomic object publication and cross-resource PDB mapping. Revalidation never
+downloads or repairs resources. It requires the frozen manifest and its
+operator-recorded SHA-256, so mutable `current` links and sidecars are not the
+trust anchor:
 
 ```bash
 pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
@@ -318,7 +321,9 @@ pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
   --prepare_prostt5 true \
   --initialise_coordinate_cache true \
   --verify_only true \
-  --full_verify true
+  --full_verify true \
+  --expected_manifest /absolute/shared/database_manifest.json \
+  --expected_manifest_sha256 EXPECTED_64_HEX_SHA256
 ```
 
 ## Repository layout
