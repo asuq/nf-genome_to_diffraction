@@ -127,6 +127,7 @@ def _recovery_fixture(
         recovered_manifest=tmp_path / "phenix verified.json",
         expected_release="2.1",
         expected_build="2.1-9999",
+        tool_revision="f" * 40,
         current_symlink=parent / "phenix-current",
         progress=False,
         command_timeout_seconds=10,

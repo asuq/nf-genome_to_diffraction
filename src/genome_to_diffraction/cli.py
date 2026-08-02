@@ -210,6 +210,11 @@ def _build_parser() -> argparse.ArgumentParser:
     recover_parser.add_argument("--manifest", type=Path, required=True)
     recover_parser.add_argument("--expected-release", default="2.1")
     recover_parser.add_argument("--expected-build", required=True)
+    recover_parser.add_argument(
+        "--tool-revision",
+        required=True,
+        help="full Git SHA of the reviewed recovery implementation",
+    )
     recover_parser.add_argument("--current-link", type=Path, required=True)
     recover_parser.add_argument("--command-timeout-seconds", type=float, default=120.0)
 
@@ -401,6 +406,7 @@ def _run_phenix(args: argparse.Namespace, logger: logging.Logger) -> int:
                 recovered_manifest=args.manifest,
                 expected_release=args.expected_release,
                 expected_build=args.expected_build,
+                tool_revision=args.tool_revision,
                 current_symlink=args.current_link,
                 progress=not args.no_progress,
                 command_timeout_seconds=args.command_timeout_seconds,

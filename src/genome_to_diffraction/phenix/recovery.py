@@ -28,6 +28,7 @@ from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.phenix")
 _SHA256 = re.compile(r"^[a-fA-F0-9]{64}$")
+_GIT_SHA = re.compile(r"^[a-f0-9]{40}$")
 _FAILED_SUFFIX = re.compile(r"^[a-f0-9]{32}$")
 
 
@@ -42,6 +43,7 @@ class RecoveryRequest:
     recovered_manifest: Path
     expected_release: str
     expected_build: str
+    tool_revision: str
     current_symlink: Path
     progress: bool = True
     command_timeout_seconds: float = 120.0
@@ -177,6 +179,8 @@ def recover_failed_install(request: RecoveryRequest) -> PhenixInstallManifest:
             f"expected {expected_digest}, found {actual_digest}"
         )
     manifest = _load_failed_manifest(failed_manifest)
+    if _GIT_SHA.fullmatch(request.tool_revision) is None:
+        raise ValueError("recovery tool revision must be a full lowercase Git SHA")
     if manifest.requested_release != request.expected_release:
         raise PhenixRecoveryError(
             "failed manifest release does not match the recovery expectation"
@@ -283,7 +287,8 @@ def recover_failed_install(request: RecoveryRequest) -> PhenixInstallManifest:
                 "operator_notes": [
                     *manifest.operator_notes,
                     "Requalified from the installer-preserved failed tree; "
-                    f"source manifest SHA-256 {expected_digest}.",
+                    f"source manifest SHA-256 {expected_digest}; recovery tool "
+                    f"revision {request.tool_revision}.",
                 ],
                 "warnings": [
                     "A prior verifier rejected documented non-zero Phenix help "
