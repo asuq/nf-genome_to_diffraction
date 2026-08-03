@@ -321,6 +321,15 @@ never downloads or repairs resources. It requires the frozen manifest and its
 operator-recorded SHA-256, so mutable `current` links and sidecars are not the
 trust anchor:
 
+Interrupted public downloads resume only from a checksummed partial prefix bound
+to the requested/effective URL and a strong ETag or Last-Modified validator.
+`Range`, `If-Range`, `Content-Range`, final size, and HTTPS preservation are
+validated before atomic promotion; a server-declined or unvalidated resume starts
+cleanly. Capacity and free-space headroom are checked throughout. External tools
+are monitored through their declared write roots, avoiding a full scan of the
+large shared database tree every 20 seconds, and the complete process group is
+stopped if the scoped watchdog fails or a limit is crossed.
+
 ```bash
 pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
   --database_root /absolute/shared/nf-genome-to-diffraction/databases \

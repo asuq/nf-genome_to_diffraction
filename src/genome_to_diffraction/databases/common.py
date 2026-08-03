@@ -2,11 +2,15 @@
 
 External downloads and tools run only through the explicit database-preparation
 entry point. Each command is logged as an argument array, streams output to a
-preserved log, and is terminated if the configured project storage cap is crossed.
+preserved log, and is terminated if the configured project storage cap or
+free-space headroom is crossed within its declared write roots.
 """
 
 import json
 import logging
+import os
+import shutil
+import signal
 import subprocess
 import threading
 from collections.abc import Iterable, Sequence
@@ -31,6 +35,10 @@ class DatabaseError(InfrastructureError):
 
 class StorageLimitError(DatabaseError):
     """The configured database-project storage cap was exceeded."""
+
+
+class StorageWatchdogError(DatabaseError):
+    """The scoped storage watchdog could not measure or stop writes safely."""
 
 
 class DatabaseCommandError(ToolExecutionError):
@@ -110,9 +118,23 @@ def tree_size(root: Path) -> int:
     if not root.exists():
         return 0
     total = 0
-    for path in root.rglob("*"):
-        if path.is_file() and not path.is_symlink():
-            total += path.stat().st_size
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            pending.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False):
+                            total += entry.stat(follow_symlinks=False).st_size
+                    except FileNotFoundError:
+                        continue
+        except FileNotFoundError:
+            continue
     return total
 
 
@@ -131,6 +153,79 @@ def enforce_storage_limit(root: Path, limit_bytes: int) -> int:
             f"database root uses {used} bytes, exceeding the {limit_bytes}-byte cap"
         )
     return used
+
+
+def enforce_free_space(root: Path, minimum_free_bytes: int) -> int:
+    """Fail loudly when the backing filesystem lacks configured headroom."""
+
+    if minimum_free_bytes < 0:
+        raise ValueError("minimum free bytes must not be negative")
+    free_bytes = shutil.disk_usage(root).free
+    _LOGGER.info(
+        "database filesystem headroom check",
+        extra={
+            "root": str(root),
+            "free_bytes": free_bytes,
+            "minimum_free_bytes": minimum_free_bytes,
+        },
+    )
+    if free_bytes < minimum_free_bytes:
+        raise StorageLimitError(
+            f"database filesystem has {free_bytes} free bytes; "
+            f"{minimum_free_bytes} required"
+        )
+    return free_bytes
+
+
+def _validated_write_roots(
+    storage_root: Path, write_roots: Sequence[Path]
+) -> tuple[Path, ...]:
+    if not write_roots:
+        raise ValueError("database command requires at least one scoped write root")
+    resolved_storage = storage_root.resolve(strict=True)
+    resolved: list[Path] = []
+    for root in write_roots:
+        if root.is_symlink():
+            raise DatabaseError(f"database command write root is unsafe: {root}")
+        try:
+            candidate = root.resolve(strict=True)
+            candidate.relative_to(resolved_storage)
+        except (OSError, ValueError) as error:
+            raise DatabaseError(
+                f"database command write root is missing or escapes storage: {root}"
+            ) from error
+        if not candidate.is_dir():
+            raise DatabaseError(f"database command write root is unsafe: {root}")
+        if any(
+            candidate == existing or candidate.is_relative_to(existing)
+            for existing in resolved
+        ):
+            continue
+        resolved = [
+            existing for existing in resolved if not existing.is_relative_to(candidate)
+        ]
+        resolved.append(candidate)
+    return tuple(resolved)
+
+
+def _terminate_process_group(process: subprocess.Popen[str]) -> None:
+    """Terminate one isolated command process group, escalating after a grace period."""
+
+    if process.poll() is not None:
+        return
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+        process.wait(timeout=5)
+    except ProcessLookupError:
+        return
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait(timeout=5)
+        except ProcessLookupError:
+            return
+        except subprocess.TimeoutExpired as error:
+            raise OSError("process group survived SIGKILL") from error
 
 
 def inventory_resource(
@@ -317,38 +412,74 @@ def run_command(
     *,
     log_path: Path,
     storage_root: Path,
+    write_roots: Sequence[Path],
     storage_limit_bytes: int,
+    minimum_free_bytes: int,
     progress: bool,
+    watchdog_interval_seconds: float = 20.0,
 ) -> None:
-    """Run one exact argument array with log streaming and a storage watchdog."""
+    """Run an argument array with scoped storage and process-group safeguards."""
 
     if not command:
         raise ValueError("database command must not be empty")
+    if watchdog_interval_seconds <= 0:
+        raise ValueError("watchdog interval must be positive")
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    scoped_roots = _validated_write_roots(storage_root, write_roots)
+    initial_used = enforce_storage_limit(storage_root, storage_limit_bytes)
+    enforce_free_space(storage_root, minimum_free_bytes)
+    initial_scoped = sum(tree_size(root) for root in scoped_roots)
+    initial_log_bytes = log_path.stat().st_size if log_path.is_file() else 0
+    inactive_bytes = max(initial_used - initial_scoped - initial_log_bytes, 0)
     _LOGGER.info(
         "starting database command",
-        extra={"command": list(command), "log": str(log_path)},
+        extra={
+            "command": list(command),
+            "log": str(log_path),
+            "write_roots": [str(root) for root in scoped_roots],
+            "inactive_bytes": inactive_bytes,
+        },
     )
     stop = threading.Event()
     exceeded = threading.Event()
+    watchdog_failed = threading.Event()
+    watchdog_message: list[str] = []
     process: subprocess.Popen[str]
 
+    def stop_process_group() -> None:
+        try:
+            _terminate_process_group(process)
+        except OSError as error:
+            watchdog_message.append(f"cannot stop process group: {error}")
+            watchdog_failed.set()
+
     def watch_storage() -> None:
-        while not stop.wait(20):
+        while not stop.wait(watchdog_interval_seconds):
             try:
-                used = tree_size(storage_root)
+                scoped_bytes = sum(tree_size(root) for root in scoped_roots)
+                log_bytes = log_path.stat().st_size if log_path.is_file() else 0
+                used = inactive_bytes + scoped_bytes + log_bytes
+                free_bytes = shutil.disk_usage(storage_root).free
             except OSError as error:
                 _LOGGER.error("storage watchdog failed", extra={"error": str(error)})
-                exceeded.set()
-                process.terminate()
+                watchdog_message.append(str(error))
+                watchdog_failed.set()
+                stop_process_group()
                 return
             _LOGGER.info(
                 "database command storage progress",
-                extra={"used_bytes": used, "limit_bytes": storage_limit_bytes},
+                extra={
+                    "used_bytes": used,
+                    "limit_bytes": storage_limit_bytes,
+                    "free_bytes": free_bytes,
+                    "minimum_free_bytes": minimum_free_bytes,
+                    "scoped_bytes": scoped_bytes,
+                    "log_bytes": log_bytes,
+                },
             )
-            if used > storage_limit_bytes:
+            if used > storage_limit_bytes or free_bytes < minimum_free_bytes:
                 exceeded.set()
-                process.terminate()
+                stop_process_group()
                 return
 
     with (
@@ -365,6 +496,7 @@ def run_command(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            start_new_session=True,
         )
         watchdog = threading.Thread(target=watch_storage, daemon=True)
         watchdog.start()
@@ -379,11 +511,18 @@ def run_command(
         watchdog.join(timeout=2)
         if returncode == 0 and not exceeded.is_set():
             progress_bar.update(1)
+    if watchdog_failed.is_set():
+        detail = watchdog_message[0] if watchdog_message else "unknown scan error"
+        raise StorageWatchdogError(
+            f"database storage watchdog failed: {detail}; see {log_path}"
+        )
     if exceeded.is_set():
         raise StorageLimitError(
-            f"database command crossed the {storage_limit_bytes}-byte project cap; "
+            "database command crossed its project cap or free-space headroom; "
+            f"cap={storage_limit_bytes}, minimum_free={minimum_free_bytes}; "
             f"see {log_path}"
         )
     if returncode != 0:
         raise DatabaseCommandError(command, returncode, log_path)
     enforce_storage_limit(storage_root, storage_limit_bytes)
+    enforce_free_space(storage_root, minimum_free_bytes)

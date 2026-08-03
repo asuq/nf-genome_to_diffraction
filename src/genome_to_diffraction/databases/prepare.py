@@ -39,6 +39,7 @@ from genome_to_diffraction.databases.cache import (
 )
 from genome_to_diffraction.databases.common import (
     DatabaseError,
+    enforce_free_space,
     enforce_storage_limit,
     inventory_resource,
     run_command,
@@ -664,7 +665,9 @@ def _prepare_foldseek_resource(
             command,
             log_path=download_log,
             storage_root=database_root,
+            write_roots=(staging,),
             storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
         )
         shutil.rmtree(staging / "tmp", ignore_errors=True)
@@ -963,7 +966,9 @@ def _run_pdb_sequence_smoke(
             ],
             log_path=log_path,
             storage_root=database_root,
+            write_roots=(smoke,),
             storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
         )
         hits = _parse_smoke_result(result)
@@ -1019,6 +1024,7 @@ def _prepare_pdb_sequences(
             staging / "pdb_seqres.txt.gz",
             storage_root=database_root,
             storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
         )
         sequence_count, skipped_non_protein = _normalise_pdb_sequences(
@@ -1037,7 +1043,9 @@ def _prepare_pdb_sequences(
             ],
             log_path=createdb_log,
             storage_root=database_root,
+            write_roots=(staging,),
             storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
         )
         tmp = staging / "tmp"
@@ -1053,12 +1061,15 @@ def _prepare_pdb_sequences(
             ],
             log_path=createindex_log,
             storage_root=database_root,
+            write_roots=(staging,),
             storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
         )
         shutil.rmtree(tmp, ignore_errors=True)
         qualification = _run_pdb_sequence_smoke(request, database_root, staging)
         parameters: dict[str, JsonValue] = {
+            "requested_url": metadata.requested_url,
             "url": metadata.url,
             "etag": metadata.etag,
             "last_modified": metadata.last_modified,
@@ -1128,7 +1139,9 @@ def _smoke_prostt5(
             ],
             log_path=log_path,
             storage_root=database_root,
+            write_roots=(smoke,),
             storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
         )
         outputs = sorted(
@@ -1319,7 +1332,9 @@ def _smoke_pdb_foldseek(
             ],
             log_path=log_path,
             storage_root=database_root,
+            write_roots=(smoke,),
             storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
         )
         hits = _parse_smoke_result(result)
@@ -1421,6 +1436,7 @@ def _smoke_pdb_foldseek(
             coordinate_path,
             storage_root=database_root,
             storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
         )
         coordinate_mapping = _validate_pdb_coordinate(
@@ -1435,6 +1451,7 @@ def _smoke_pdb_foldseek(
             Path(coordinate_cache.root_path),
             coordinate_path,
             pdb_id=pdb_id,
+            requested_url=coordinate_metadata.requested_url,
             source_url=coordinate_metadata.url,
             retrieved_at=retrieved_at,
             etag=coordinate_metadata.etag,
@@ -1551,6 +1568,7 @@ def _esm_atlas_connectivity(
             response_path,
             storage_root=database_root,
             storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
         )
         if metadata.content_type is not None and "json" not in metadata.content_type:
@@ -1580,6 +1598,7 @@ def _esm_atlas_connectivity(
                 tool="genome-to-diffraction", version=__version__
             ),
             parameters={
+                "requested_url": metadata.requested_url,
                 "url": metadata.url,
                 "etag": metadata.etag,
                 "last_modified": metadata.last_modified,
@@ -1614,12 +1633,7 @@ def _validate_request(request: DatabasePreparationRequest) -> Path:
         raise ValueError("minimum free bytes must not be negative")
     root.mkdir(parents=True, exist_ok=True)
     (root / "tmp").mkdir(exist_ok=True)
-    free_bytes = shutil.disk_usage(root).free
-    if free_bytes < request.minimum_free_bytes:
-        raise DatabaseError(
-            f"database filesystem has {free_bytes} free bytes; "
-            f"{request.minimum_free_bytes} required"
-        )
+    enforce_free_space(root, request.minimum_free_bytes)
     enforce_storage_limit(root, request.storage_limit_bytes)
     return root
 

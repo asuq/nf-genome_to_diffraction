@@ -163,6 +163,16 @@ qualification and provides the following controls:
   identity/score/coverage and output hashes, rechecks the cached coordinate
   without network access, and retains a structured verification sidecar.
 
+The public-resource transport boundary is also fail-safe. A partial download is
+resumable only when its atomically recorded URL, effective redirect URL,
+validator, completed byte count, and prefix SHA-256 all match. Resumed responses
+must return the exact requested `Content-Range` and unchanged representation;
+otherwise the transfer restarts or fails without promotion. Storage monitoring
+uses only explicit active write roots between full start/end reconciliations,
+checks filesystem headroom continuously, and terminates the command process
+group rather than only its parent. This reduces metadata pressure on Marmic NFS
+without weakening the 1.8 TB project cap.
+
 These are implementation tests, not site qualification. Real M0.4 evidence
 still requires one immutable Marmic preparation, the frozen manifest/checksum,
 real command logs, full inventory verification, and measured I/O/runtime. The

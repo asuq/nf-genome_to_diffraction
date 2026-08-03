@@ -35,6 +35,7 @@ class CachedCoordinate:
 
     provider: str
     source_id: str
+    requested_url: str
     source_url: str
     retrieved_at: str
     etag: str | None
@@ -195,6 +196,7 @@ def publish_pdb_coordinate(
     source: Path,
     *,
     pdb_id: str,
+    requested_url: str,
     source_url: str,
     retrieved_at: str,
     etag: str | None,
@@ -217,6 +219,7 @@ def publish_pdb_coordinate(
         "schema_version": "1.0",
         "provider": "pdb",
         "source_id": normalised_id,
+        "requested_url": requested_url,
         "source_url": source_url,
         "retrieved_at": retrieved_at,
         "etag": etag,
@@ -275,6 +278,7 @@ def publish_pdb_coordinate(
     record = CachedCoordinate(
         provider="pdb",
         source_id=normalised_id,
+        requested_url=requested_url,
         source_url=source_url,
         retrieved_at=retrieved_at,
         etag=etag,
@@ -311,6 +315,7 @@ def verify_cached_pdb_coordinate(
     required = {
         "provider",
         "source_id",
+        "requested_url",
         "source_url",
         "retrieved_at",
         "etag",
@@ -327,6 +332,7 @@ def verify_cached_pdb_coordinate(
     textual = (
         "provider",
         "source_id",
+        "requested_url",
         "source_url",
         "retrieved_at",
         "object_sha256",
@@ -357,6 +363,7 @@ def verify_cached_pdb_coordinate(
     record = CachedCoordinate(
         provider=str(raw_record["provider"]),
         source_id=str(raw_record["source_id"]),
+        requested_url=str(raw_record["requested_url"]),
         source_url=str(raw_record["source_url"]),
         retrieved_at=str(raw_record["retrieved_at"]),
         etag=optional_text("etag"),
@@ -386,6 +393,7 @@ def verify_cached_pdb_coordinate(
         "schema_version": "1.0",
         "provider": record.provider,
         "source_id": record.source_id,
+        "requested_url": record.requested_url,
         "source_url": record.source_url,
         "retrieved_at": record.retrieved_at,
         "etag": record.etag,
