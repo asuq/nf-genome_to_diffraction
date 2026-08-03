@@ -170,6 +170,10 @@ configurable timeout. The lock prevents two cooperating administrative runs
 from racing; it cannot protect against unrelated programs that write into the
 database root without taking the same lock.
 
+Incomplete resource staging is retained for diagnosis and blocks a new build of
+that resource. No automatic cleanup or second database-sized download is
+allowed; recovery or removal is a separate, reviewed administrative action.
+
 The public-resource transport boundary is also fail-safe. A partial download is
 resumable only when its atomically recorded URL, effective redirect URL,
 validator, completed byte count, and prefix SHA-256 all match. Resumed responses

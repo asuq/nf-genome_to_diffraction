@@ -348,11 +348,12 @@ stopped if the scoped watchdog fails or a limit is crossed.
 
 The downloads performed internally by `foldseek databases` do not currently
 expose equivalent checkpoint state. A failed Foldseek staging directory is
-retained for diagnosis, but a new attempt starts a new side-by-side staging
-directory and may need the full download space again. Do not describe the whole
-database build as resumable or assume that a 2 TB allocation is sufficient until
-the first retained site measurements confirm active, failed, and immutable-copy
-sizes.
+retained for diagnosis, and any retained incomplete staging blocks a new build
+until an operator inspects and handles it through an approved administrative
+action. The pipeline never deletes it or starts another database-sized download
+automatically. Do not describe the whole database build as resumable or assume
+that a 2 TB allocation is sufficient until the first retained site measurements
+confirm active, failed, and immutable-copy sizes.
 
 ```bash
 pixi run -e hpc nextflow run prepare_databases.nf -profile marmic \

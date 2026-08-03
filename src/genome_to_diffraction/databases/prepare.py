@@ -78,6 +78,8 @@ _PDB_SEQRES_TARGET = re.compile(
 )
 _DECLARED_LENGTH = re.compile(r"(?:^|\s)length:(?P<length>[0-9]+)(?:\s|$)")
 _PROTEIN_ALPHABET = frozenset("ABCDEFGHIKLMNPQRSTVWXYZOUJ")
+_STAGING_NAME = re.compile(r"^\.staging-[0-9a-f]{32}$")
+_FAILED_STAGING_NAME = re.compile(r"^\.?\.staging-[0-9a-f]{32}\.failed$")
 
 
 @dataclass(frozen=True)
@@ -627,9 +629,36 @@ def _finish_immutable_resource(
 def _staging(database_root: Path, name: str) -> Path:
     base = _resource_base(database_root, name)
     base.mkdir(parents=True, exist_ok=True)
+    retained = sorted(
+        child
+        for child in base.iterdir()
+        if _STAGING_NAME.fullmatch(child.name)
+        or _FAILED_STAGING_NAME.fullmatch(child.name)
+    )
+    if retained:
+        raise DatabaseError(
+            "retained incomplete database staging blocks a new build; inspect and "
+            "recover or remove it through an approved administrative action: "
+            f"{retained[0]}"
+        )
     path = base / f".staging-{uuid.uuid4().hex}"
     path.mkdir()
     return path
+
+
+def _retain_failed_staging(staging: Path) -> None:
+    """Retain an incomplete resource without permitting an automatic retry."""
+
+    if not staging.exists():
+        return
+    failed = staging.with_name(f"{staging.name}.failed")
+    if failed.exists():
+        raise DatabaseError(f"failed staging destination already exists: {failed}")
+    os.replace(staging, failed)
+    _LOGGER.error(
+        "retained incomplete database staging",
+        extra={"staging_path": str(failed)},
+    )
 
 
 def _log_path(database_root: Path, name: str, action: str) -> Path:
@@ -708,9 +737,7 @@ def _prepare_foldseek_resource(
             ),
         )
     except BaseException:
-        failed = staging.parent / f".{staging.name}.failed"
-        if staging.exists():
-            os.replace(staging, failed)
+        _retain_failed_staging(staging)
         raise
 
 
@@ -1104,9 +1131,7 @@ def _prepare_pdb_sequences(
             progress=request.progress,
         )
     except BaseException:
-        failed = staging.parent / f".{staging.name}.failed"
-        if staging.exists():
-            os.replace(staging, failed)
+        _retain_failed_staging(staging)
         raise
 
 
@@ -1617,9 +1642,7 @@ def _esm_atlas_connectivity(
             ),
         )
     except BaseException:
-        failed = staging.parent / f".{staging.name}.failed"
-        if staging.exists():
-            os.replace(staging, failed)
+        _retain_failed_staging(staging)
         raise
 
 

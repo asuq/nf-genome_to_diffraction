@@ -23,6 +23,7 @@ from genome_to_diffraction.databases.cache import (
     verify_cached_pdb_coordinate,
 )
 from genome_to_diffraction.databases.common import (
+    DatabaseCommandError,
     DatabaseError,
     inventory_resource,
     verify_inventory,
@@ -135,6 +136,10 @@ if [[ "${{1-}}" == "--version" ]]; then
 fi
 case "${{1-}}" in
   databases)
+    if [[ "${{FAKE_DATABASE_FAILURE:-0}}" == 1 ]]; then
+      printf 'injected database failure\n' >&2
+      exit 70
+    fi
     mkdir -p "$(dirname "$3")"
     printf '%s\n' "$2 database" > "$3"
     printf 'index\n' > "$3.index"
@@ -449,6 +454,62 @@ def test_force_rebuild_keeps_content_addressed_coordinate_identity(
         )
     )
     assert rebuilt.resources[0].database_id == first.resources[0].database_id
+
+
+def test_failed_foldseek_staging_blocks_space_consuming_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_dir = tmp_path / "mock bin"
+    bin_dir.mkdir()
+    _write_mock_tool(bin_dir / "foldseek", "foldseek")
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("FAKE_DATABASE_FAILURE", "1")
+    request = _request(
+        tmp_path,
+        initialise_coordinate_cache=False,
+        prepare_prostt5=True,
+    )
+
+    with pytest.raises(
+        DatabaseCommandError, match="command failed with exit status 70"
+    ):
+        prepare(request)
+    failed = list(
+        (request.database_root / "resources" / "prostt5").glob(".staging-*.failed")
+    )
+    assert len(failed) == 1
+
+    monkeypatch.delenv("FAKE_DATABASE_FAILURE")
+    with pytest.raises(DatabaseError, match="retained incomplete database staging"):
+        prepare(request)
+    assert (
+        list(
+            (request.database_root / "resources" / "prostt5").glob(".staging-*.failed")
+        )
+        == failed
+    )
+
+
+@pytest.mark.parametrize(
+    "retained_name",
+    (
+        f".staging-{'a' * 32}",
+        f"..staging-{'b' * 32}.failed",
+    ),
+)
+def test_crash_or_legacy_staging_blocks_new_allocation(
+    tmp_path: Path, retained_name: str
+) -> None:
+    database_root = tmp_path / "database root"
+    resource_base = database_root / "resources" / "prostt5"
+    retained = resource_base / retained_name
+    retained.mkdir(parents=True)
+
+    with pytest.raises(
+        DatabaseError,
+        match="retained incomplete database staging",
+    ):
+        prepare_module._staging(database_root, "prostt5")
 
 
 def test_mocked_foldseek_resources_prepare_smoke_and_reuse(

@@ -48,6 +48,8 @@ All notable changes to this project are documented here.
   explicitly provisional Marmic preparation allocation for first-site timing.
 - Shared database administration now uses one logged, timeout-bounded advisory
   exclusive lock per database root to prevent cooperating runs from racing.
+- Retained incomplete resource staging now blocks automatic rebuilds, preventing
+  repeated Foldseek failures from silently consuming another full allocation.
 - P0 database checks are explicitly bounded metadata/functional revalidation;
   verification evidence records whether full checksums were computed, while
   long database administration stays outside routine HPC start approvals.
