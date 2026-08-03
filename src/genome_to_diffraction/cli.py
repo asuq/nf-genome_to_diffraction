@@ -10,6 +10,10 @@ from typing import cast
 from genome_to_diffraction import __version__
 from genome_to_diffraction.catalogue import CatalogueImportRequest, import_catalogues
 from genome_to_diffraction.checksums import atomic_write_text
+from genome_to_diffraction.databases.preflight import (
+    DatabasePreflightRequest,
+    preflight_database_administration,
+)
 from genome_to_diffraction.databases.prepare import (
     DEFAULT_MINIMUM_FREE_BYTES,
     DEFAULT_STORAGE_LIMIT_BYTES,
@@ -270,6 +274,22 @@ def _build_parser() -> argparse.ArgumentParser:
         "--pdb-coordinate-url-template", default=PDB_COORDINATE_URL_TEMPLATE
     )
     prepare_parser.add_argument("--esm-atlas-probe-url", default=ESM_ATLAS_PROBE_URL)
+    preflight_parser = database_actions.add_parser(
+        "preflight",
+        help="validate compute-node capacity, scratch, tools, and fixed public routes",
+    )
+    preflight_parser.add_argument("--database-root", type=Path, required=True)
+    preflight_parser.add_argument("--scratch-root", type=Path, required=True)
+    preflight_parser.add_argument("--report", type=Path, required=True)
+    preflight_parser.add_argument("--storage-limit-bytes", type=int, required=True)
+    preflight_parser.add_argument("--minimum-free-bytes", type=int, required=True)
+    preflight_parser.add_argument(
+        "--required-database-capacity-bytes", type=int, required=True
+    )
+    preflight_parser.add_argument(
+        "--minimum-scratch-free-bytes", type=int, required=True
+    )
+    preflight_parser.add_argument("--probe-timeout-seconds", type=int, default=60)
 
     catalogue_parser = subparsers.add_parser(
         "catalogue", help="normalise trusted protein catalogues"
@@ -437,6 +457,24 @@ def _run_phenix(args: argparse.Namespace, logger: logging.Logger) -> int:
 
 
 def _run_databases(args: argparse.Namespace) -> int:
+    if args.database_action == "preflight":
+        result = preflight_database_administration(
+            DatabasePreflightRequest(
+                database_root=args.database_root,
+                scratch_root=args.scratch_root,
+                report_path=args.report,
+                storage_limit_bytes=args.storage_limit_bytes,
+                minimum_free_bytes=args.minimum_free_bytes,
+                required_database_capacity_bytes=(
+                    args.required_database_capacity_bytes
+                ),
+                minimum_scratch_free_bytes=args.minimum_scratch_free_bytes,
+                probe_timeout_seconds=args.probe_timeout_seconds,
+                progress=not args.no_progress,
+            )
+        )
+        print(f"Database administration preflight {result['status']}: {args.report}")
+        return 0
     if args.database_action != "prepare":
         raise AssertionError(f"unhandled database action: {args.database_action}")
     manifest = prepare(

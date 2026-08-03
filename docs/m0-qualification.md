@@ -174,6 +174,15 @@ Incomplete resource staging is retained for diagnosis and blocks a new build of
 that resource. No automatic cleanup or second database-sized download is
 allowed; recovery or removal is a separate, reviewed administrative action.
 
+The large-build compute-node preflight must complete before a database payload
+starts. It requires an explicit scratch directory on a filesystem distinct from
+the durable database root, operator-reviewed required capacities for both
+filesystems, pinned Foldseek/MMseqs2/aria2 tooling, and dry-run reachability of
+the exact Foldseek PDB/ProstT5 and RCSB SEQRES/1UBQ URLs. The resulting JSON
+records pass or failure, device and byte measurements, tool versions, fixed
+routes, and `large_payload_started: false`. It sends no biological input or
+credentials. Generic login-node connectivity is not qualifying evidence.
+
 The public-resource transport boundary is also fail-safe. A partial download is
 resumable only when its atomically recorded URL, effective redirect URL,
 validator, completed byte count, and prefix SHA-256 all match. Resumed responses

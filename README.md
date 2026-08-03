@@ -355,6 +355,30 @@ automatically. Do not describe the whole database build as resumable or assume
 that a 2 TB allocation is sufficient until the first retained site measurements
 confirm active, failed, and immutable-copy sizes.
 
+Before a large administration job, run the compute-node preflight with explicit
+absolute paths and operator-reviewed capacity requirements:
+
+```bash
+genome-to-diffraction --log-format json --no-progress databases preflight \
+  --database-root /absolute/shared/database-root \
+  --scratch-root /absolute/compute-node/scratch \
+  --report /absolute/shared/run/database-preflight.json \
+  --storage-limit-bytes 1800000000000 \
+  --minimum-free-bytes 200000000000 \
+  --required-database-capacity-bytes REVIEWED_REQUIRED_BYTES \
+  --minimum-scratch-free-bytes REVIEWED_SCRATCH_BYTES
+```
+
+The preflight requires scratch on a different filesystem from the durable
+database root, verifies the pinned Foldseek/MMseqs2 tools, measures both capacity
+boundaries, and uses pinned `aria2c --dry-run=true` to probe only the exact PDB,
+ProstT5, SEQRES, and 1UBQ routes. It records a structured pass/fail report with
+`large_payload_started: false`. These endpoints come from the pinned
+[Foldseek 10-941cd33 database script](https://github.com/steineggerlab/foldseek/blob/941cd33/data/structdatabases.sh)
+and this repository's fixed RCSB inputs. The probes transmit no catalogue,
+crystal, sequence, credentials, or licensed data. A generic internet probe is
+not accepted as evidence that the compute node can reach the required routes.
+
 ```bash
 pixi run -e hpc nextflow run prepare_databases.nf -profile marmic \
   --database_root /absolute/shared/nf-genome-to-diffraction/databases \

@@ -50,6 +50,9 @@ All notable changes to this project are documented here.
   exclusive lock per database root to prevent cooperating runs from racing.
 - Retained incomplete resource staging now blocks automatic rebuilds, preventing
   repeated Foldseek failures from silently consuming another full allocation.
+- A fixed compute-node database preflight now verifies distinct scratch,
+  operator-declared capacity, pinned tools, and exact public routes before any
+  large payload starts, with structured logs, progress, and JSON evidence.
 - P0 database checks are explicitly bounded metadata/functional revalidation;
   verification evidence records whether full checksums were computed, while
   long database administration stays outside routine HPC start approvals.
