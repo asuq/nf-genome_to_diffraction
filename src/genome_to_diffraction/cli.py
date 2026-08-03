@@ -8,6 +8,13 @@ from pathlib import Path
 from typing import cast
 
 from genome_to_diffraction import __version__
+from genome_to_diffraction.benchmarks import (
+    PublicControlPreparationRequest,
+    PublicPanelPreparationRequest,
+    load_public_control_panel,
+    prepare_public_control,
+    prepare_public_control_panel,
+)
 from genome_to_diffraction.catalogue import CatalogueImportRequest, import_catalogues
 from genome_to_diffraction.checksums import atomic_write_text
 from genome_to_diffraction.databases.preflight import (
@@ -298,6 +305,45 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     preflight_parser.add_argument("--probe-timeout-seconds", type=int, default=60)
 
+    benchmark_parser = subparsers.add_parser(
+        "benchmark", help="prepare checksum-frozen scientific controls"
+    )
+    benchmark_actions = benchmark_parser.add_subparsers(
+        dest="benchmark_action", required=True
+    )
+    public_control_parser = benchmark_actions.add_parser(
+        "prepare-public-control",
+        help="prepare the tracked public MTZ positive control outside Git",
+    )
+    public_control_parser.add_argument("--specification", type=Path, required=True)
+    public_control_parser.add_argument("--proteome-faa", type=Path, required=True)
+    public_control_parser.add_argument("--outdir", type=Path, required=True)
+    public_control_parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="verify existing source files without downloading missing files",
+    )
+    public_control_parser.add_argument("--storage-limit-mib", type=int, default=256)
+    public_control_parser.add_argument("--minimum-free-mib", type=int, default=64)
+    panel_check_parser = benchmark_actions.add_parser(
+        "check-public-panel",
+        help="validate the tracked public panel and active control mappings",
+    )
+    panel_check_parser.add_argument("--panel", type=Path, required=True)
+    panel_prepare_parser = benchmark_actions.add_parser(
+        "prepare-public-panel",
+        help="download and verify public panel sources outside Git",
+    )
+    panel_prepare_parser.add_argument("--panel", type=Path, required=True)
+    panel_prepare_parser.add_argument("--outdir", type=Path, required=True)
+    panel_prepare_parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="verify existing panel sources without downloading missing files",
+    )
+    panel_prepare_parser.add_argument("--storage-limit-mib", type=int, default=1024)
+    panel_prepare_parser.add_argument("--minimum-free-mib", type=int, default=128)
+
     catalogue_parser = subparsers.add_parser(
         "catalogue", help="normalise trusted protein catalogues"
     )
@@ -546,6 +592,49 @@ def _run_catalogue(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_benchmark(args: argparse.Namespace) -> int:
+    mib = 1024 * 1024
+    if args.benchmark_action == "prepare-public-control":
+        control_result = prepare_public_control(
+            PublicControlPreparationRequest(
+                specification=args.specification,
+                proteome_faa=args.proteome_faa,
+                output_directory=args.outdir,
+                download_missing=not args.offline,
+                progress=not args.no_progress,
+                storage_limit_bytes=args.storage_limit_mib * mib,
+                minimum_free_bytes=args.minimum_free_mib * mib,
+            )
+        )
+        print(
+            f"Prepared public control {control_result.control_id}: "
+            f"{control_result.preparation_manifest}"
+        )
+        return 0
+    if args.benchmark_action == "check-public-panel":
+        panel = load_public_control_panel(args.panel)
+        print(f"Public panel {panel.panel_id} is valid: {len(panel.entries)} entries")
+        return 0
+    if args.benchmark_action == "prepare-public-panel":
+        panel_result = prepare_public_control_panel(
+            PublicPanelPreparationRequest(
+                specification=args.panel,
+                output_directory=args.outdir,
+                download_missing=not args.offline,
+                progress=not args.no_progress,
+                storage_limit_bytes=args.storage_limit_mib * mib,
+                minimum_free_bytes=args.minimum_free_mib * mib,
+            )
+        )
+        print(
+            f"Prepared public panel {panel_result.panel_id} "
+            f"({panel_result.entry_count} entries): "
+            f"{panel_result.preparation_manifest}"
+        )
+        return 0
+    raise AssertionError(f"unhandled benchmark action: {args.benchmark_action}")
+
+
 def _run_diffraction(args: argparse.Namespace) -> int:
     if args.diffraction_action == "generate-free-r":
         record = generate_free_r(
@@ -649,6 +738,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_phenix(args, logger)
         if args.command == "databases":
             return _run_databases(args)
+        if args.command == "benchmark":
+            return _run_benchmark(args)
         if args.command == "catalogue":
             return _run_catalogue(args)
         if args.command == "diffraction":

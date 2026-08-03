@@ -52,6 +52,7 @@ pixi run schema-check
 pixi run nextflow-check
 pixi run nextflow-stub
 pixi run hpc-wrapper-check
+pixi run public-panel-check
 ```
 
 Environment resolution contacts the public Conda/Bioconda and PyPI package
@@ -95,6 +96,26 @@ outside the writable checkout before adding narrow Codex approval rules. See the
 configuration, operations, failure classes, and the clean approval boundary.
 The current M0 evidence and remaining scientific prerequisites are separated in
 the [M0 qualification dashboard](docs/m0-qualification.md).
+
+## Public X-ray control panel
+
+The tracked [public-control panel](docs/public-control-panel.md) freezes ten
+methanogen and methanotroph structures for prototype regression testing. Three
+controls have complete catalogue, construct, model, and MTZ preparation
+specifications; six more have qualified public sources and exact construct
+mappings; one heteromeric membrane complex deliberately violates the current
+single-component assumption. `runnable_control` describes reproducible input
+preparation, not a completed molecular-replacement result.
+
+```bash
+pixi run public-panel-check
+pixi run prepare-public-panel
+```
+
+Public coordinate and structure-factor files, derived MTZs, logs, and preparation
+records are written below ignored `.untracked/public-controls/`; no public binary
+data are committed. Real Phenix runs and the provisional strict Phaser gates
+(`LLG > 100` and `TFZ > 10`) remain separate qualification steps.
 
 ## Trusted catalogue import
 

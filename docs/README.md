@@ -17,6 +17,10 @@ remain authoritative for scientific policy and interface contracts.
 - [M0 qualification status](m0-qualification.md): gate dashboard, frozen
   biological/MTZ evidence, preparatory Gemmi findings, fixed P0 boundary, and
   the operator-held evidence still required before structural discovery.
+- [Public methanogen and methanotroph control panel](public-control-panel.md):
+  ten frozen X-ray structures, catalogue-to-construct mappings, reproducible
+  source/MTZ preparation, runnable-control order, and one deliberate heteromer
+  assumption violation.
 - [Initial Marmic prototype report](prototype-test-report-2026-08-02.md): inputs,
   execution history, annotation findings, crystallographic preflight, Matthews
   counts, validation evidence, and limitations from the first real Task 05 run.

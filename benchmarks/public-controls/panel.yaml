@@ -1,0 +1,598 @@
+schema_version: "1.0"
+panel_id: methane_metabolism_public_xray_v1
+frozen_at: 2026-08-03T00:00:00Z
+selection_policy:
+  - Use only public X-ray entries with deposited structure factors and a frozen catalogue mapping.
+  - Cover methanogens and methanotrophs without treating multiple crystal forms of one protein as independent targets.
+  - Span full-length proteins, affinity-tagged constructs, precursor-cleaved domains, and ASU copy counts from one to six.
+  - Keep heteromeric pMMO as an explicit assumption-violation control outside the ASU=nA positive set.
+entries:
+  - control_id: PDB_8OOX
+    pdb_id: 8OOX
+    pdb_version: "1.1"
+    organism: Methermicoccus shengliensis DSM 18856
+    metabolic_group: methanogen
+    molecular_system: type I glutamine synthetase
+    expected_prototype_outcome: positive
+    qualification_status: runnable_control
+    assembly_accession: GCF_000711905.1
+    assembly_version: ASM71190v1
+    annotation_provider: NCBI RefSeq
+    annotation_version: GCF_000711905.1-RS_2025_11_20
+    expected_proteome_sha256: f8bbc63da7b0f3cb5f206befd0618264a5582789f46c3400267650777727d416
+    catalogue_targets:
+      - protein_id: WP_042685700.1
+        sequence_length: 442
+        sequence_sha256: 102e653b2ce68310033502e10e60f54e7cb143dc71acd0e964d0cad47f961964
+        asu_copy_count: 2
+        construct_mapping:
+          coordinate_sequence_length: 442
+          coordinate_sequence_sha256: 102e653b2ce68310033502e10e60f54e7cb143dc71acd0e964d0cad47f961964
+          catalogue_start: 1
+          catalogue_end: 442
+          coordinate_match_start: 1
+          coordinate_match_end: 442
+    asu_distinct_protein_species: 1
+    asu_protein_copy_count: 2
+    biological_assembly_protein_copy_count: 12
+    resolution_angstrom: 3.09
+    processing_software: [autoPROC, STARANISO]
+    coordinates:
+      role: target_coordinates
+      pdb_id: 8OOX
+      url: https://files.rcsb.org/download/8OOX.cif
+      filename: 8OOX.cif
+      sha256: ba8ccaf405d30ec27545308a3fef548bfa7b3b1ceffdb2aff28a0061f3245d0c
+      size_bytes: 1338023
+    structure_factors:
+      role: target_structure_factors
+      pdb_id: 8OOX
+      url: https://files.rcsb.org/download/8OOX-sf.cif
+      filename: 8OOX-sf.cif
+      sha256: 7edd51190364f052baf2a12cc16474187d4302cfcf5f80393aaf45468264a123
+      size_bytes: 4288628
+    reflection_block_count: 1
+    derived_mtz:
+      filename: 8OOX-autoproc-deposited.mtz
+      gemmi_version: 0.7.5
+      sha256: f72540f651191b00986b0dbca881156c863dc794a0ac3520ced14d092500804d
+      reflection_count: 36961
+      space_group: P 43 3 2
+      unit_cell: [226.465, 226.465, 226.465, 90.0, 90.0, 90.0]
+      observation_labels: IMEAN,SIGIMEAN
+      free_flag_labels: FreeR_flag
+    active_control_specification: pdb_8oox.yaml
+    limitations:
+      - The biological assembly is a dodecamer, whereas the crystallographic ASU contains two copies.
+
+  - control_id: PDB_7P50
+    pdb_id: 7P50
+    pdb_version: "1.1"
+    organism: Methanothermococcus thermolithotrophicus DSM 2095
+    metabolic_group: methanogen
+    molecular_system: P-II family nitrogen regulator GlnK2
+    expected_prototype_outcome: positive
+    qualification_status: runnable_control
+    assembly_accession: GCF_000376965.1
+    assembly_version: ASM37696v1
+    annotation_provider: NCBI RefSeq
+    annotation_version: GCF_000376965.1-RS_2025_11_24
+    expected_proteome_sha256: 091b6fd86b23168c4f0aaf72d1eef20158e29d9051f05fd5d06a397d4e86ff4b
+    catalogue_targets:
+      - protein_id: WP_018153776.1
+        sequence_length: 112
+        sequence_sha256: 2cd439ad9713fb6ea55c4a1326532cfa58f7e39e98b4fd678d8b5a13f04e8a93
+        asu_copy_count: 3
+        construct_mapping:
+          coordinate_sequence_length: 132
+          coordinate_sequence_sha256: 4ede18398a5ae328d61671801af2ac4112a6b993ee1559d35eeb672ef16b0f6d
+          catalogue_start: 1
+          catalogue_end: 112
+          coordinate_match_start: 21
+          coordinate_match_end: 132
+    asu_distinct_protein_species: 1
+    asu_protein_copy_count: 3
+    biological_assembly_protein_copy_count: 3
+    resolution_angstrom: 1.16
+    processing_software: [autoPROC]
+    coordinates:
+      role: target_coordinates
+      pdb_id: 7P50
+      url: https://files.rcsb.org/download/7P50.cif
+      filename: 7P50.cif
+      sha256: 95e3b0c3397f3d869cbf9b63d11dcea272af5b06786dec2fa593afd62d57103d
+      size_bytes: 748683
+    structure_factors:
+      role: target_structure_factors
+      pdb_id: 7P50
+      url: https://files.rcsb.org/download/7P50-sf.cif
+      filename: 7P50-sf.cif
+      sha256: 06bcbdd4d030343b8849aa6327a0c81575aa5ed6f43d1ef30668d92a835d8bcd
+      size_bytes: 15424266
+    reflection_block_count: 1
+    derived_mtz:
+      filename: 7P50-autoproc-deposited.mtz
+      gemmi_version: 0.7.5
+      sha256: 9d7255f089c66773545c1e2792db62fe7d38ff878b623a9bdeca0830a1d414f1
+      reflection_count: 138947
+      space_group: P 43 21 2
+      unit_cell: [58.238, 58.238, 229.304, 90.0, 90.0, 90.0]
+      observation_labels: IMEAN,SIGIMEAN
+      free_flag_labels: FreeR_flag
+    active_control_specification: pdb_7p50.yaml
+    limitations:
+      - The crystallised sequence has a 20-residue non-catalogue affinity-tag prefix.
+
+  - control_id: PDB_8Q5T
+    pdb_id: 8Q5T
+    pdb_version: "1.1"
+    organism: Methanothermococcus thermolithotrophicus DSM 2095
+    metabolic_group: methanogen
+    molecular_system: nitrogenase iron protein 1
+    expected_prototype_outcome: positive
+    qualification_status: source_qualified
+    assembly_accession: GCF_000376965.1
+    assembly_version: ASM37696v1
+    annotation_provider: NCBI RefSeq
+    annotation_version: GCF_000376965.1-RS_2025_11_24
+    expected_proteome_sha256: 091b6fd86b23168c4f0aaf72d1eef20158e29d9051f05fd5d06a397d4e86ff4b
+    catalogue_targets:
+      - protein_id: WP_018154785.1
+        sequence_length: 284
+        sequence_sha256: 007837ab7e0014a72f270b9202dcd4f27f615f703c1e27727d594a3bd17b9abd
+        asu_copy_count: 4
+        construct_mapping:
+          coordinate_sequence_length: 284
+          coordinate_sequence_sha256: 007837ab7e0014a72f270b9202dcd4f27f615f703c1e27727d594a3bd17b9abd
+          catalogue_start: 1
+          catalogue_end: 284
+          coordinate_match_start: 1
+          coordinate_match_end: 284
+    asu_distinct_protein_species: 1
+    asu_protein_copy_count: 4
+    biological_assembly_protein_copy_count: 2
+    resolution_angstrom: 2.31
+    processing_software: [autoPROC]
+    coordinates:
+      role: target_coordinates
+      pdb_id: 8Q5T
+      url: https://files.rcsb.org/download/8Q5T.cif
+      filename: 8Q5T.cif
+      sha256: 813affcb3f906c5ea7f44994625c2af29dcb48cbe25ea128c42824358176599b
+      size_bytes: 1691095
+    structure_factors:
+      role: target_structure_factors
+      pdb_id: 8Q5T
+      url: https://files.rcsb.org/download/8Q5T-sf.cif
+      filename: 8Q5T-sf.cif
+      sha256: 2f922c85a94dcc1fa4b7d30673299b4e4f836958f54150aa94cf3d04756bc4b0
+      size_bytes: 2435701
+    reflection_block_count: 1
+    derived_mtz:
+      filename: 8Q5T-autoproc-deposited.mtz
+      gemmi_version: 0.7.5
+      sha256: 19f986d60c34f8d922c10e54a7355497c063fc6069814e7095f51ade1f60ea8a
+      reflection_count: 45089
+      space_group: P 1 21 1
+      unit_cell: [52.821, 83.984, 116.598, 90.0, 91.141, 90.0]
+      observation_labels: IMEAN,SIGIMEAN
+      free_flag_labels: FreeR_flag
+    limitations:
+      - The ASU contains two biological dimers and an iron-sulfur cluster is part of the native protein.
+
+  - control_id: PDB_6HF7
+    pdb_id: 6HF7
+    pdb_version: "1.2"
+    organism: Methanothermococcus thermolithotrophicus DSM 2095
+    metabolic_group: methanogen
+    molecular_system: adenylate kinase
+    expected_prototype_outcome: positive
+    qualification_status: source_qualified
+    assembly_accession: GCF_000376965.1
+    assembly_version: ASM37696v1
+    annotation_provider: NCBI RefSeq
+    annotation_version: GCF_000376965.1-RS_2025_11_24
+    expected_proteome_sha256: 091b6fd86b23168c4f0aaf72d1eef20158e29d9051f05fd5d06a397d4e86ff4b
+    catalogue_targets:
+      - protein_id: WP_018154177.1
+        sequence_length: 192
+        sequence_sha256: cefc4bad8d4a6944d9ef135e472dcc5acf7b61668c1692a4fa5c554a2ce7531d
+        asu_copy_count: 3
+        construct_mapping:
+          coordinate_sequence_length: 192
+          coordinate_sequence_sha256: cefc4bad8d4a6944d9ef135e472dcc5acf7b61668c1692a4fa5c554a2ce7531d
+          catalogue_start: 1
+          catalogue_end: 192
+          coordinate_match_start: 1
+          coordinate_match_end: 192
+    asu_distinct_protein_species: 1
+    asu_protein_copy_count: 3
+    biological_assembly_protein_copy_count: 3
+    resolution_angstrom: 1.96
+    processing_software: [XDS, SCALA]
+    coordinates:
+      role: target_coordinates
+      pdb_id: 6HF7
+      url: https://files.rcsb.org/download/6HF7.cif
+      filename: 6HF7.cif
+      sha256: 14abeb9760258361183bee3505693ef5d69c366506cc08f77d2ae55ca405e109
+      size_bytes: 960789
+    structure_factors:
+      role: target_structure_factors
+      pdb_id: 6HF7
+      url: https://files.rcsb.org/download/6HF7-sf.cif
+      filename: 6HF7-sf.cif
+      sha256: 8a83542b9003b2d69c3cd64a6b58aa47b8d4cfd892786b0c22a9f2dc10efcb1f
+      size_bytes: 7439440
+    reflection_block_count: 1
+    derived_mtz:
+      filename: 6HF7-xds-deposited.mtz
+      gemmi_version: 0.7.5
+      sha256: 2ae49199665ab4b85df5c0c66ac42a1b83453d9468f65a12b8ab09f1dc8623ed
+      reflection_count: 55927
+      space_group: P 4 21 2
+      unit_cell: [131.326, 131.326, 88.403, 90.0, 90.0, 90.0]
+      observation_labels: IMEAN,SIGIMEAN
+      free_flag_labels: FreeR_flag
+    limitations:
+      - The crystal contains terbium crystallophore/ions and is not ligand-free.
+
+  - control_id: PDB_6P1F
+    pdb_id: 6P1F
+    pdb_version: "1.4"
+    organism: Methylosinus trichosporium OB3b
+    metabolic_group: methanotroph
+    molecular_system: PmoF2 PCuAC domain
+    expected_prototype_outcome: positive
+    qualification_status: runnable_control
+    assembly_accession: GCF_000178815.2
+    assembly_version: ASM17881v2
+    annotation_provider: NCBI RefSeq
+    annotation_version: GCF_000178815.2-RS_2026_04_23
+    expected_proteome_sha256: 6270bdf3c8443ecc109cbcda4568c138394763a092fedfdc260674f4cc5d260f
+    catalogue_targets:
+      - protein_id: WP_003612864.1
+        sequence_length: 193
+        sequence_sha256: c7d319e1c5dce3f84cb73253ac7c0315414a47fd72f0b76ce99b5feede00c1f2
+        asu_copy_count: 1
+        construct_mapping:
+          coordinate_sequence_length: 131
+          coordinate_sequence_sha256: 58fdf4ba84942add6cca01c249c06b9dfed9b5bde61a5d19afa9a437e9732336
+          catalogue_start: 29
+          catalogue_end: 159
+          coordinate_match_start: 1
+          coordinate_match_end: 131
+    asu_distinct_protein_species: 1
+    asu_protein_copy_count: 1
+    biological_assembly_protein_copy_count: 1
+    resolution_angstrom: 1.65
+    processing_software: [XDS]
+    coordinates:
+      role: target_coordinates
+      pdb_id: 6P1F
+      url: https://files.rcsb.org/download/6P1F.cif
+      filename: 6P1F.cif
+      sha256: 5273e09ec7a63c2002a2a8aaf51529a5fde0752f463f2639fe08ebe95689080c
+      size_bytes: 171020
+    structure_factors:
+      role: target_structure_factors
+      pdb_id: 6P1F
+      url: https://files.rcsb.org/download/6P1F-sf.cif
+      filename: 6P1F-sf.cif
+      sha256: 71d3500a5f5d727a0e09d9da8b74730e15c3e38dad320aff215ca9743d81f5b5
+      size_bytes: 1119680
+    reflection_block_count: 1
+    derived_mtz:
+      filename: 6P1F-xds-deposited.mtz
+      gemmi_version: 0.7.5
+      sha256: 7330b8e0e4a13d1b6048532c0582630625bf635dd660167f15d29d9fd0a7d071
+      reflection_count: 17758
+      space_group: P 41 21 2
+      unit_cell: [51.613, 51.613, 105.512, 90.0, 90.0, 90.0]
+      observation_labels: FP,SIGFP
+      free_flag_labels: FreeR_flag
+    active_control_specification: pdb_6p1f.yaml
+    limitations:
+      - Only catalogue residues 29-159 of the 193-residue precursor were crystallised.
+
+  - control_id: PDB_5FJE
+    pdb_id: 5FJE
+    pdb_version: "1.1"
+    organism: Methylosinus trichosporium OB3b
+    metabolic_group: methanotroph
+    molecular_system: copper storage protein 1
+    expected_prototype_outcome: positive
+    qualification_status: source_qualified
+    assembly_accession: GCF_000178815.2
+    assembly_version: ASM17881v2
+    annotation_provider: NCBI RefSeq
+    annotation_version: GCF_000178815.2-RS_2026_04_23
+    expected_proteome_sha256: 6270bdf3c8443ecc109cbcda4568c138394763a092fedfdc260674f4cc5d260f
+    catalogue_targets:
+      - protein_id: WP_003609243.1
+        sequence_length: 146
+        sequence_sha256: e2ad9e61065b7e2136c5378ee729c6c2c5ea98f5ea3a806f811b880734d84a79
+        asu_copy_count: 2
+        construct_mapping:
+          coordinate_sequence_length: 122
+          coordinate_sequence_sha256: 5b1128e84b833642803b3f1008ce211cd63407dc2203401d152ed76741fd27d6
+          catalogue_start: 25
+          catalogue_end: 146
+          coordinate_match_start: 1
+          coordinate_match_end: 122
+    asu_distinct_protein_species: 1
+    asu_protein_copy_count: 2
+    biological_assembly_protein_copy_count: 4
+    resolution_angstrom: 1.90
+    processing_software: [XDS, Aimless]
+    coordinates:
+      role: target_coordinates
+      pdb_id: 5FJE
+      url: https://files.rcsb.org/download/5FJE.cif
+      filename: 5FJE.cif
+      sha256: 066f980f278bffd6e9083bb5ba8a374807c00e9d402ba54faaddee8fd057b284
+      size_bytes: 255899
+    structure_factors:
+      role: target_structure_factors
+      pdb_id: 5FJE
+      url: https://files.rcsb.org/download/5FJE-sf.cif
+      filename: 5FJE-sf.cif
+      sha256: c28a5e42d30182051b60a7245ff380eaa971e9faf754f93c7ffeaee9392f0422
+      size_bytes: 2265447
+    reflection_block_count: 1
+    derived_mtz:
+      filename: 5FJE-xds-deposited.mtz
+      gemmi_version: 0.7.5
+      sha256: 3fa33810df6c04799e5311b3d1398c218cf75422385f6c871a860c1cdda114ea
+      reflection_count: 15211
+      space_group: P 1 2 1
+      unit_cell: [44.41, 41.42, 53.13, 90.0, 92.96, 90.0]
+      observation_labels: IMEAN,SIGIMEAN
+      free_flag_labels: FreeR_flag
+    limitations:
+      - The signal peptide is absent and the copper-loaded state is not representative of all catalogue proteins.
+
+  - control_id: PDB_7L6G
+    pdb_id: 7L6G
+    pdb_version: "1.3"
+    organism: Methylosinus trichosporium OB3b
+    metabolic_group: methanotroph
+    molecular_system: MbnP family copper-binding protein
+    expected_prototype_outcome: positive
+    qualification_status: source_qualified
+    assembly_accession: GCF_000178815.2
+    assembly_version: ASM17881v2
+    annotation_provider: NCBI RefSeq
+    annotation_version: GCF_000178815.2-RS_2026_04_23
+    expected_proteome_sha256: 6270bdf3c8443ecc109cbcda4568c138394763a092fedfdc260674f4cc5d260f
+    catalogue_targets:
+      - protein_id: WP_003614734.1
+        sequence_length: 324
+        sequence_sha256: b13cd9a5092fafae7490c10faa314108c791ee717072a0709d0143cea444631e
+        asu_copy_count: 6
+        construct_mapping:
+          coordinate_sequence_length: 299
+          coordinate_sequence_sha256: 8977215a2e7b3a8beb34e741271c39eb2762bfb065b1b22fd63549db6e392c83
+          catalogue_start: 26
+          catalogue_end: 324
+          coordinate_match_start: 1
+          coordinate_match_end: 299
+    asu_distinct_protein_species: 1
+    asu_protein_copy_count: 6
+    biological_assembly_protein_copy_count: 2
+    resolution_angstrom: 2.04
+    processing_software: [xia2]
+    coordinates:
+      role: target_coordinates
+      pdb_id: 7L6G
+      url: https://files.rcsb.org/download/7L6G.cif
+      filename: 7L6G.cif
+      sha256: c5ac9dd1af8fea3a137c13cf5f3e8fb84ea04226ce69dbf890f80d2f53608575
+      size_bytes: 2656523
+    structure_factors:
+      role: target_structure_factors
+      pdb_id: 7L6G
+      url: https://files.rcsb.org/download/7L6G-sf.cif
+      filename: 7L6G-sf.cif
+      sha256: f22e9b475c52ef59309a393b2f6d68aabd3d4855c5709f1272b194e51a1b6d51
+      size_bytes: 9641837
+    reflection_block_count: 1
+    derived_mtz:
+      filename: 7L6G-xia2-deposited.mtz
+      gemmi_version: 0.7.5
+      sha256: 864239b12c3900b8a5715d5effdedcf5ad1c15868aab0e4ac7628dcb8511ade7
+      reflection_count: 125206
+      space_group: P 61
+      unit_cell: [91.276, 91.276, 383.567, 90.0, 90.0, 120.0]
+      observation_labels: F(+),SIGF(+),F(-),SIGF(-)
+      free_flag_labels: FreeR_flag
+    limitations:
+      - The precursor signal peptide is absent and one tryptophan is post-translationally converted to kynurenine.
+      - Deposited observations are anomalous amplitudes rather than a merged intensity pair.
+
+  - control_id: PDB_8JPV
+    pdb_id: 8JPV
+    pdb_version: "1.0"
+    organism: Methylacidiphilum fumariolicum SolV
+    metabolic_group: methanotroph
+    molecular_system: glutamyl-tRNA synthetase
+    expected_prototype_outcome: positive
+    qualification_status: source_qualified
+    assembly_accession: GCA_000297415.1
+    assembly_version: ASM29741v1
+    annotation_provider: Radboud University Nijmegen Department of Microbiology
+    annotation_version: GCA_000297415.1-submitter-annotation
+    expected_proteome_sha256: 8df6a3593399bdafc06c7745a04196e484abd06ea2f5fe3535f5f26f7042971f
+    catalogue_targets:
+      - protein_id: CCG91288.1
+        sequence_length: 448
+        sequence_sha256: b90803ac0f6f91f296dd3f2fd44613e1f577e57e40369cf1eba1f5bc05b8303f
+        asu_copy_count: 1
+        construct_mapping:
+          coordinate_sequence_length: 448
+          coordinate_sequence_sha256: b90803ac0f6f91f296dd3f2fd44613e1f577e57e40369cf1eba1f5bc05b8303f
+          catalogue_start: 1
+          catalogue_end: 448
+          coordinate_match_start: 1
+          coordinate_match_end: 448
+    asu_distinct_protein_species: 1
+    asu_protein_copy_count: 1
+    biological_assembly_protein_copy_count: 1
+    resolution_angstrom: 2.51
+    processing_software: [MOSFLM, SCALA]
+    coordinates:
+      role: target_coordinates
+      pdb_id: 8JPV
+      url: https://files.rcsb.org/download/8JPV.cif
+      filename: 8JPV.cif
+      sha256: b5a1a173f0dd7e69c92ac6c872eca7e16a3415c5adf14f833c70d01d2bd2108e
+      size_bytes: 427995
+    structure_factors:
+      role: target_structure_factors
+      pdb_id: 8JPV
+      url: https://files.rcsb.org/download/8JPV-sf.cif
+      filename: 8JPV-sf.cif
+      sha256: 878f75a27e7c428156c9cd6813161a47993954725b93ca1b533c5bcfc26a4b9e
+      size_bytes: 2152525
+    reflection_block_count: 1
+    derived_mtz:
+      filename: 8JPV-mosflm-deposited.mtz
+      gemmi_version: 0.7.5
+      sha256: 9dfdd12bef9cf31c558732d0e554fcb6ce92ada86db55eeb0cac67c21c36834a
+      reflection_count: 17211
+      space_group: P 21 21 21
+      unit_cell: [40.31, 62.54, 190.28, 90.0, 90.0, 90.0]
+      observation_labels: IMEAN,SIGIMEAN
+      free_flag_labels: FreeR_flag
+    limitations:
+      - The frozen catalogue is GenBank submitter annotation rather than RefSeq.
+      - No independent exact-sequence crystal form has yet been selected for an operational MR control.
+
+  - control_id: PDB_2Q7E
+    pdb_id: 2Q7E
+    pdb_version: "1.3"
+    organism: Methanosarcina mazei Go1
+    metabolic_group: methanogen
+    molecular_system: pyrrolysyl-tRNA synthetase catalytic domain
+    expected_prototype_outcome: positive
+    qualification_status: source_qualified
+    assembly_accession: GCF_000007065.1
+    assembly_version: ASM706v1
+    annotation_provider: NCBI RefSeq
+    annotation_version: GCF_000007065.1-RS_2024_10_21
+    expected_proteome_sha256: 6df5089fd5e9c60ce3d833e434a66adfbf255f5ea89daa7f3d6cf161afa48fac
+    catalogue_targets:
+      - protein_id: WP_011033391.1
+        sequence_length: 454
+        sequence_sha256: 1e2bf91ab75ac397c5903499353f468687cae7ef63355274f31e85cd9f3fca69
+        asu_copy_count: 1
+        construct_mapping:
+          coordinate_sequence_length: 291
+          coordinate_sequence_sha256: 1a1e0c8723fbd8980dac1b6c404de78c468b451f3822b964d67775bc319b3a4b
+          catalogue_start: 185
+          catalogue_end: 454
+          coordinate_match_start: 22
+          coordinate_match_end: 291
+    asu_distinct_protein_species: 1
+    asu_protein_copy_count: 1
+    biological_assembly_protein_copy_count: 2
+    resolution_angstrom: 1.80
+    processing_software: [HKL-2000, DENZO, SCALEPACK]
+    coordinates:
+      role: target_coordinates
+      pdb_id: 2Q7E
+      url: https://files.rcsb.org/download/2Q7E.cif
+      filename: 2Q7E.cif
+      sha256: 7e4174f7af7a645f7bbe944be31aa4ed02beaba64f59a743df76f3f8d3c68639
+      size_bytes: 330085
+    structure_factors:
+      role: target_structure_factors
+      pdb_id: 2Q7E
+      url: https://files.rcsb.org/download/2Q7E-sf.cif
+      filename: 2Q7E-sf.cif
+      sha256: 6db080445f55e425ccc3492c620cc074ce2f0e83040ac9c6934221f99400d4e0
+      size_bytes: 2709664
+    reflection_block_count: 1
+    derived_mtz:
+      filename: 2Q7E-hkl2000-deposited.mtz
+      gemmi_version: 0.7.5
+      sha256: 8c4b6dcf9f14cbf244861f92475d047b538494c5c26df9951452194996b8f767
+      reflection_count: 41034
+      space_group: P 64
+      unit_cell: [105.124, 105.124, 70.314, 90.0, 90.0, 120.0]
+      observation_labels: FP,SIGFP
+      free_flag_labels: FreeR_flag
+    limitations:
+      - The crystallised catalytic domain maps to catalogue residues 185-454 after a 21-residue non-catalogue prefix.
+
+  - control_id: PDB_6CXH
+    pdb_id: 6CXH
+    pdb_version: "1.4"
+    organism: Methylotuvimicrobium alcaliphilum 20Z
+    metabolic_group: methanotroph
+    molecular_system: particulate methane monooxygenase PmoABC
+    expected_prototype_outcome: assumption_violation
+    qualification_status: assumption_violation
+    assembly_accession: GCF_000968535.2
+    assembly_version: ASM96853v1
+    annotation_provider: NCBI RefSeq
+    annotation_version: GCF_000968535.2-RS_2025_12_13
+    expected_proteome_sha256: e403e9115dab65a01fe5a1aba5677c8e4d32c20508ac3235f4def7ed4072c5b1
+    catalogue_targets:
+      - protein_id: WP_014147022.1
+        sequence_length: 414
+        sequence_sha256: 1e004894d177a1752179ee28a8b570eb925c7181aa33635a3555920087bda930
+        asu_copy_count: 1
+        construct_mapping:
+          coordinate_sequence_length: 414
+          coordinate_sequence_sha256: 1e004894d177a1752179ee28a8b570eb925c7181aa33635a3555920087bda930
+          catalogue_start: 1
+          catalogue_end: 414
+          coordinate_match_start: 1
+          coordinate_match_end: 414
+      - protein_id: WP_014147021.1
+        sequence_length: 247
+        sequence_sha256: 9ddf921caba7274435020204d13ec4429d915b9d8e3ffe7fa7fbd2b58617d7d9
+        asu_copy_count: 1
+        construct_mapping:
+          coordinate_sequence_length: 247
+          coordinate_sequence_sha256: 9ddf921caba7274435020204d13ec4429d915b9d8e3ffe7fa7fbd2b58617d7d9
+          catalogue_start: 1
+          catalogue_end: 247
+          coordinate_match_start: 1
+          coordinate_match_end: 247
+      - protein_id: WP_014147020.1
+        sequence_length: 250
+        sequence_sha256: fd581a58aa6872231d17435a73fd7a9af2e06055d688b4168fde22d9e39be114
+        asu_copy_count: 1
+        construct_mapping:
+          coordinate_sequence_length: 250
+          coordinate_sequence_sha256: fd581a58aa6872231d17435a73fd7a9af2e06055d688b4168fde22d9e39be114
+          catalogue_start: 1
+          catalogue_end: 250
+          coordinate_match_start: 1
+          coordinate_match_end: 250
+    asu_distinct_protein_species: 3
+    asu_protein_copy_count: 3
+    biological_assembly_protein_copy_count: 9
+    resolution_angstrom: 2.70
+    processing_software: [HKL-2000]
+    coordinates:
+      role: target_coordinates
+      pdb_id: 6CXH
+      url: https://files.rcsb.org/download/6CXH.cif
+      filename: 6CXH.cif
+      sha256: 7fb8d292794cad165581eb29849ffd308f06f85eae92714d04deb689dd15b2e5
+      size_bytes: 1177481
+    structure_factors:
+      role: target_structure_factors
+      pdb_id: 6CXH
+      url: https://files.rcsb.org/download/6CXH-sf.cif
+      filename: 6CXH-sf.cif
+      sha256: f6d00180d24c22a1cee1552b4843d1e9b57d9ad6bb49c01e69521fdc8213b2ef
+      size_bytes: 6636946
+    reflection_block_count: 2
+    derived_mtz: null
+    limitations:
+      - This A3B3C3 membrane complex violates the current one-protein-species ASU model by design.
+      - The deposited structure-factor CIF contains two reflection blocks and must not be collapsed silently.

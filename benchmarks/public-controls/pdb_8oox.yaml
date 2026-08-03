@@ -1,0 +1,96 @@
+schema_version: "1.0"
+control_id: PDB_8OOX
+benchmark_class: operational_public_positive_control
+organism: Methermicoccus shengliensis DSM 18856
+assembly_accession: GCF_000711905.1
+assembly_version: ASM71190v1
+annotation_provider: NCBI RefSeq
+annotation_version: GCF_000711905.1-RS_2025_11_20
+expected_proteome_sha256: f8bbc63da7b0f3cb5f206befd0618264a5582789f46c3400267650777727d416
+catalogue_id: msheng_gcf_000711905_1
+target_protein_id: WP_042685700.1
+target_sequence_length: 442
+target_sequence_sha256: 102e653b2ce68310033502e10e60f54e7cb143dc71acd0e964d0cad47f961964
+expected_exact_catalogue_records:
+  - WP_042685700.1
+target_pdb_id: 8OOX
+target_pdb_version: "1.1"
+expected_asu_copy_count: 2
+biological_assembly_copy_count: 12
+asu_model: single_protein_species_multi_copy
+target_construct:
+  coordinate_sequence_length: 442
+  coordinate_sequence_sha256: 102e653b2ce68310033502e10e60f54e7cb143dc71acd0e964d0cad47f961964
+  catalogue_start: 1
+  catalogue_end: 442
+  coordinate_match_start: 1
+  coordinate_match_end: 442
+processing_software:
+  - autoPROC
+  - STARANISO
+sds_page_evidence: not_available
+resources:
+  - role: target_coordinates
+    pdb_id: 8OOX
+    url: https://files.rcsb.org/download/8OOX.cif
+    filename: 8OOX.cif
+    sha256: ba8ccaf405d30ec27545308a3fef548bfa7b3b1ceffdb2aff28a0061f3245d0c
+    size_bytes: 1338023
+  - role: target_structure_factors
+    pdb_id: 8OOX
+    url: https://files.rcsb.org/download/8OOX-sf.cif
+    filename: 8OOX-sf.cif
+    sha256: 7edd51190364f052baf2a12cc16474187d4302cfcf5f80393aaf45468264a123
+    size_bytes: 4288628
+  - role: exact_mr_coordinates
+    pdb_id: 8OOW
+    url: https://files.rcsb.org/download/8OOW.cif
+    filename: 8OOW.cif
+    sha256: a4222126000a594d735fab635c0f61b0a3720e0579f28a501ab6f736083e70a4
+    size_bytes: 7690215
+  - role: homolog_mr_coordinates
+    pdb_id: 8OOO
+    url: https://files.rcsb.org/download/8OOO.cif
+    filename: 8OOO.cif
+    sha256: bcc322c01f747930a92fb240c00f708b68de7e1d97fc5d6aee90f58c4965cc17
+    size_bytes: 8926327
+derived_mtz:
+  filename: 8OOX-autoproc-deposited.mtz
+  gemmi_version: 0.7.5
+  sha256: f72540f651191b00986b0dbca881156c863dc794a0ac3520ced14d092500804d
+  reflection_count: 36961
+  space_group: P 43 3 2
+  unit_cell: [226.465, 226.465, 226.465, 90.0, 90.0, 90.0]
+  observation_labels: IMEAN,SIGIMEAN
+  free_flag_labels: FreeR_flag
+mr_models:
+  - model_id: pdb_8oow_chain_a_exact
+    source_role: exact_mr_coordinates
+    chain_id: A
+    filename: 8OOW-chain-A-polymer.pdb
+    source_sequence_sha256: 102e653b2ce68310033502e10e60f54e7cb143dc71acd0e964d0cad47f961964
+    expected_model_sha256: 8d27603065242753a2464885a5bcebc73e462f26926b1d285c63627438444f42
+    relationship_to_target: 100% sequence identity; different crystal form
+    leakage_class: operational_exact
+    target_fragment_start_in_source: 1
+    target_fragment_end_in_source: 442
+  - model_id: pdb_8ooo_chain_a_homolog
+    source_role: homolog_mr_coordinates
+    chain_id: A
+    filename: 8OOO-chain-A-polymer.pdb
+    source_sequence_sha256: c4c4f885bc444b2026adc8e748e4f619bee630aa3d900ebdb5a7b1e22a65e889
+    expected_model_sha256: e1ec8c96846a5237b7a045a2ca4713abf122e04bdd19e8473b9ec3ce7025a004
+    relationship_to_target: approximately 57% global sequence identity; related archaeal glutamine synthetase
+    leakage_class: homolog_challenge
+score_gate:
+  llg_greater_than: 100
+  tfz_greater_than: 10
+database_exclusions_for_homolog_challenge:
+  - 8OOX
+  - 8OOW
+  - 8OOZ
+limitations:
+  - Deposited merged structure factors test MTZ-to-MR handling, not raw-image integration.
+  - The exact 8OOW model is an intentional operational control and is not leakage-controlled.
+  - The biological assembly is A12, whereas the crystallographic asymmetric unit is 2A.
+  - This control does not establish the identity of any operator pilot crystal.

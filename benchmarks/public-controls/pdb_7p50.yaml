@@ -1,0 +1,95 @@
+schema_version: "1.0"
+control_id: PDB_7P50
+benchmark_class: operational_public_positive_control
+organism: Methanothermococcus thermolithotrophicus DSM 2095
+assembly_accession: GCF_000376965.1
+assembly_version: ASM37696v1
+annotation_provider: NCBI RefSeq
+annotation_version: GCF_000376965.1-RS_2025_11_24
+expected_proteome_sha256: 091b6fd86b23168c4f0aaf72d1eef20158e29d9051f05fd5d06a397d4e86ff4b
+catalogue_id: mthermo_gcf_000376965_1
+target_protein_id: WP_018153776.1
+target_sequence_length: 112
+target_sequence_sha256: 2cd439ad9713fb6ea55c4a1326532cfa58f7e39e98b4fd678d8b5a13f04e8a93
+expected_exact_catalogue_records:
+  - WP_018153776.1
+target_pdb_id: 7P50
+target_pdb_version: "1.1"
+expected_asu_copy_count: 3
+biological_assembly_copy_count: 3
+asu_model: single_protein_species_multi_copy
+target_construct:
+  coordinate_sequence_length: 132
+  coordinate_sequence_sha256: 4ede18398a5ae328d61671801af2ac4112a6b993ee1559d35eeb672ef16b0f6d
+  catalogue_start: 1
+  catalogue_end: 112
+  coordinate_match_start: 21
+  coordinate_match_end: 132
+processing_software:
+  - autoPROC
+sds_page_evidence: not_available
+resources:
+  - role: target_coordinates
+    pdb_id: 7P50
+    url: https://files.rcsb.org/download/7P50.cif
+    filename: 7P50.cif
+    sha256: 95e3b0c3397f3d869cbf9b63d11dcea272af5b06786dec2fa593afd62d57103d
+    size_bytes: 748683
+  - role: target_structure_factors
+    pdb_id: 7P50
+    url: https://files.rcsb.org/download/7P50-sf.cif
+    filename: 7P50-sf.cif
+    sha256: 06bcbdd4d030343b8849aa6327a0c81575aa5ed6f43d1ef30668d92a835d8bcd
+    size_bytes: 15424266
+  - role: exact_mr_coordinates
+    pdb_id: 7P4Y
+    url: https://files.rcsb.org/download/7P4Y.cif
+    filename: 7P4Y.cif
+    sha256: ad2ea23e8b87804bef95758fc876f519e793a9b1ec884b2036823da969c6261c
+    size_bytes: 1768285
+  - role: homolog_mr_coordinates
+    pdb_id: 7P4V
+    url: https://files.rcsb.org/download/7P4V.cif
+    filename: 7P4V.cif
+    sha256: f34101f23ea450dafb22d14fa7655a0a4d4f24a58540445783f97a1251a53c7f
+    size_bytes: 243484
+derived_mtz:
+  filename: 7P50-autoproc-deposited.mtz
+  gemmi_version: 0.7.5
+  sha256: 9d7255f089c66773545c1e2792db62fe7d38ff878b623a9bdeca0830a1d414f1
+  reflection_count: 138947
+  space_group: P 43 21 2
+  unit_cell: [58.238, 58.238, 229.304, 90.0, 90.0, 90.0]
+  observation_labels: IMEAN,SIGIMEAN
+  free_flag_labels: FreeR_flag
+mr_models:
+  - model_id: pdb_7p4y_chain_a_exact
+    source_role: exact_mr_coordinates
+    chain_id: A
+    filename: 7P4Y-chain-A-polymer.pdb
+    source_sequence_sha256: 4ede18398a5ae328d61671801af2ac4112a6b993ee1559d35eeb672ef16b0f6d
+    expected_model_sha256: 54eacd75a1c56b0e40536ba4041c75c4f38afde9d707df5c2fcd24e867f1b7dc
+    relationship_to_target: identical 112-residue GlnK2 sequence after the same 20-residue affinity-tag prefix
+    leakage_class: operational_exact
+    target_fragment_start_in_source: 21
+    target_fragment_end_in_source: 132
+  - model_id: pdb_7p4v_chain_a_paralogue
+    source_role: homolog_mr_coordinates
+    chain_id: A
+    filename: 7P4V-chain-A-polymer.pdb
+    source_sequence_sha256: a6fa9a26243f56f5b91c77b23aeeabf6e5759218a544457ee8fbc07c23d6ce27
+    expected_model_sha256: 14d99fa41a4726ad3ef21e00d2158a7c410a61f3191863cfd62a22a153c88d2f
+    relationship_to_target: GlnK1 paralogue from the same organism; 85.7% identity over the 112-residue native sequence
+    leakage_class: homolog_challenge
+score_gate:
+  llg_greater_than: 100
+  tfz_greater_than: 10
+database_exclusions_for_homolog_challenge:
+  - 7P50
+  - 7P4Y
+  - 7P52
+limitations:
+  - Deposited merged structure factors test MTZ-to-MR handling, not raw-image integration.
+  - The crystallised entity has a 20-residue non-catalogue affinity-tag prefix.
+  - The exact 7P4Y model is an intentional operational control and is not leakage-controlled.
+  - Ligand-bound GlnK2 is a small trimer and does not represent a large monomeric enzyme.

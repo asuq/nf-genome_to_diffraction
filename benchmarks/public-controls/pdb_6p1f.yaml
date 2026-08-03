@@ -1,0 +1,94 @@
+schema_version: "1.0"
+control_id: PDB_6P1F
+benchmark_class: operational_public_positive_control
+organism: Methylosinus trichosporium OB3b
+assembly_accession: GCF_000178815.2
+assembly_version: ASM17881v2
+annotation_provider: NCBI RefSeq
+annotation_version: GCF_000178815.2-RS_2026_04_23
+expected_proteome_sha256: 6270bdf3c8443ecc109cbcda4568c138394763a092fedfdc260674f4cc5d260f
+catalogue_id: mtrichosporium_gcf_000178815_2
+target_protein_id: WP_003612864.1
+target_sequence_length: 193
+target_sequence_sha256: c7d319e1c5dce3f84cb73253ac7c0315414a47fd72f0b76ce99b5feede00c1f2
+expected_exact_catalogue_records:
+  - WP_003612864.1
+target_pdb_id: 6P1F
+target_pdb_version: "1.4"
+expected_asu_copy_count: 1
+biological_assembly_copy_count: 1
+asu_model: single_protein_species_multi_copy
+target_construct:
+  coordinate_sequence_length: 131
+  coordinate_sequence_sha256: 58fdf4ba84942add6cca01c249c06b9dfed9b5bde61a5d19afa9a437e9732336
+  catalogue_start: 29
+  catalogue_end: 159
+  coordinate_match_start: 1
+  coordinate_match_end: 131
+processing_software:
+  - XDS
+sds_page_evidence: not_available
+resources:
+  - role: target_coordinates
+    pdb_id: 6P1F
+    url: https://files.rcsb.org/download/6P1F.cif
+    filename: 6P1F.cif
+    sha256: 5273e09ec7a63c2002a2a8aaf51529a5fde0752f463f2639fe08ebe95689080c
+    size_bytes: 171020
+  - role: target_structure_factors
+    pdb_id: 6P1F
+    url: https://files.rcsb.org/download/6P1F-sf.cif
+    filename: 6P1F-sf.cif
+    sha256: 71d3500a5f5d727a0e09d9da8b74730e15c3e38dad320aff215ca9743d81f5b5
+    size_bytes: 1119680
+  - role: exact_mr_coordinates
+    pdb_id: 6P1G
+    url: https://files.rcsb.org/download/6P1G.cif
+    filename: 6P1G.cif
+    sha256: 684cd05ae4a15ff8771f76c0cfd2b4e58c794f3a823dc1c08f060e06efe9aba9
+    size_bytes: 271078
+  - role: homolog_mr_coordinates
+    pdb_id: 6P16
+    url: https://files.rcsb.org/download/6P16.cif
+    filename: 6P16.cif
+    sha256: 83b0da85b27750c106ef7795ae473b3feef86f3675a129b7fbf245a4c59caea1
+    size_bytes: 418652
+derived_mtz:
+  filename: 6P1F-xds-deposited.mtz
+  gemmi_version: 0.7.5
+  sha256: 7330b8e0e4a13d1b6048532c0582630625bf635dd660167f15d29d9fd0a7d071
+  reflection_count: 17758
+  space_group: P 41 21 2
+  unit_cell: [51.613, 51.613, 105.512, 90.0, 90.0, 90.0]
+  observation_labels: FP,SIGFP
+  free_flag_labels: FreeR_flag
+mr_models:
+  - model_id: pdb_6p1g_chain_a_exact_domain
+    source_role: exact_mr_coordinates
+    chain_id: A
+    filename: 6P1G-chain-A-polymer.pdb
+    source_sequence_sha256: bfe02465573e1fe7d0a5a5fda76240c831d89f3daec2444b21661b35a7415d92
+    expected_model_sha256: 0cd3af73d6e0c1d84dab8a7bf5b50c97ed95e8d4d26935429c2b29c60cdf11b2
+    relationship_to_target: identical crystallised PmoF2 domain after a two-residue SM cloning prefix
+    leakage_class: operational_exact
+    target_fragment_start_in_source: 3
+    target_fragment_end_in_source: 133
+  - model_id: pdb_6p16_chain_a_homolog
+    source_role: homolog_mr_coordinates
+    chain_id: A
+    filename: 6P16-chain-A-polymer.pdb
+    source_sequence_sha256: 0e4a973fbe39eb8da6ef77509a636107b695f9df2e41320864eb4ef132abd821
+    expected_model_sha256: aec80c9f5b74282d83596d1fd8fa3a0be73df111ac7e4466ed6909ad9a3d1999
+    relationship_to_target: PmoF1 PCuAC domain from Methylocystis sp.; approximately 54% ungapped identity over the shorter domain
+    leakage_class: homolog_challenge
+score_gate:
+  llg_greater_than: 100
+  tfz_greater_than: 10
+database_exclusions_for_homolog_challenge:
+  - 6P1F
+  - 6P1G
+limitations:
+  - Deposited merged structure factors test MTZ-to-MR handling, not raw-image integration.
+  - The crystal contains only catalogue residues 29-159 of the 193-residue precursor protein.
+  - The exact 6P1G model includes two extra cloning residues and is not leakage-controlled.
+  - This small soluble PCuAC domain does not test membrane-protein handling by the prototype.
