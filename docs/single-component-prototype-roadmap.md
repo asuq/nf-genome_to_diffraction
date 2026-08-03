@@ -272,8 +272,12 @@ limit, or network failure is not.
    models/MTZ, and warnings. Distinguish hit, no-hit, malformed output, execution
    failure, and infrastructure failure.
 3. **T10.3 — Preliminary credibility classes.** Use an inspectable rule set that
-   preserves raw metrics. Treat thresholds as provisional and do not optimise
-   them against one crystal.
+   preserves raw metrics. For the initial prototype, a top Phaser solution
+   passes the user-defined score gate only when both `LLG > 100` and `TFZ > 10`;
+   these are strict inequalities. Here and in the implementation, the user's
+   term "TTZ" is interpreted as Phaser's standard `TFZ` output. Treat this gate
+   as provisional, do not optimise it against one crystal, and do not present it
+   as a universal Phaser-success criterion.
 4. **T10.4 — Bounded MR subworkflow.** Run independent candidate jobs with
    candidate-specific failure tolerance, fixed concurrency/job caps, conservative
    resources, retry only for classified infrastructure failures, and retain
@@ -289,6 +293,10 @@ limit, or network failure is not.
 - smoke mode runs no more than 25 first-copy hypotheses per crystal;
 - the positive control's correct-family model is not lost through software
   failure;
+- a solution cannot receive the preliminary score-gate pass unless its top
+  `LLG > 100` and top `TFZ > 10`, with both raw values retained;
+- passing the score gate does not override packing/clash warnings, an incorrect
+  placed-copy count, map inspection, or downstream refinement evidence;
 - no-hit jobs complete without terminating unrelated hypotheses;
 - all retained assets and review rows point to immutable hypotheses; and
 - stale or edited approval identifiers fail before downstream work.
@@ -437,7 +445,7 @@ These are explicit gates, not assumptions made by this roadmap.
 | Three feasibility datasets and positive control | During M0 | Retain `CD6QS2P2G1_5` and add two documented cases including one clear `nA` positive | MTZ/catalogue/ground truth/copy number/quality and redistribution constraints |
 | Phenix release/build | During M0 | Use the available stable licensed build only after exact checksum and command verification | Installer provenance, platform compatibility, real command smoke tests |
 | ESM Atlas sequence-search contract | Before T7.3 | Feature-flagged experimental provider; disabled by default | Official machine interface, terms/licence, rate limits, response fixtures |
-| Preliminary MR credibility classes | During M3 | Conservative rule-based labels with no universal hard threshold | Known positive/no-hit fixtures and all raw Phaser metrics |
+| Preliminary MR credibility classes | During M3 | Apply the user-defined prototype gate `top LLG > 100` and `top TFZ > 10` as strict inequalities, while retaining warnings and treating the gate as provisional rather than universal | Known positive/no-hit fixtures, packing/placed-copy checks, maps/refinement evidence, and all raw Phaser metrics |
 | Final caps and heuristic defaults | During M5 | Keep current smoke/pilot hard limits until measured | Three-case resource/effect measurements, then independent benchmark |
 | Research-release performance criteria | Before M6 benchmark execution | Pre-register inclusion, exact-false-assignment, abstention, and resource outcomes | User/scientific review of intended use and tolerable failure modes |
 
