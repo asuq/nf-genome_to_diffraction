@@ -258,6 +258,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="trusted SHA-256 of --expected-manifest",
     )
     prepare_parser.add_argument("--threads", type=int, default=4)
+    prepare_parser.add_argument("--lock-timeout-seconds", type=float, default=30.0)
     prepare_parser.add_argument(
         "--storage-limit-bytes", type=int, default=DEFAULT_STORAGE_LIMIT_BYTES
     )
@@ -455,6 +456,7 @@ def _run_databases(args: argparse.Namespace) -> int:
             storage_limit_bytes=args.storage_limit_bytes,
             minimum_free_bytes=args.minimum_free_bytes,
             threads=args.threads,
+            lock_timeout_seconds=args.lock_timeout_seconds,
             progress=not args.no_progress,
             pdb_sequence_url=args.pdb_sequence_url,
             pdb_coordinate_url_template=args.pdb_coordinate_url_template,

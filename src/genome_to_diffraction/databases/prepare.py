@@ -32,6 +32,7 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.databases.cache import (
+    exclusive_lock,
     initialise_coordinate_cache,
     publish_pdb_coordinate,
     verify_cached_pdb_coordinate,
@@ -120,6 +121,7 @@ class DatabasePreparationRequest:
     storage_limit_bytes: int = DEFAULT_STORAGE_LIMIT_BYTES
     minimum_free_bytes: int = DEFAULT_MINIMUM_FREE_BYTES
     threads: int = 4
+    lock_timeout_seconds: float = 30.0
     progress: bool = True
     pdb_sequence_url: str = PDB_SEQUENCE_URL
     pdb_coordinate_url_template: str = PDB_COORDINATE_URL_TEMPLATE
@@ -1631,6 +1633,8 @@ def _validate_request(request: DatabasePreparationRequest) -> Path:
         raise ValueError("database preparation threads must be positive")
     if request.minimum_free_bytes < 0:
         raise ValueError("minimum free bytes must not be negative")
+    if request.lock_timeout_seconds <= 0:
+        raise ValueError("database lock timeout must be positive")
     root.mkdir(parents=True, exist_ok=True)
     (root / "tmp").mkdir(exist_ok=True)
     enforce_free_space(root, request.minimum_free_bytes)
@@ -1643,6 +1647,22 @@ def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
 
     expected_manifest = _load_expected_manifest(request)
     root = _validate_request(request)
+    lock_path = root / "tmp" / "locks" / "database-administration.lock"
+    with exclusive_lock(
+        lock_path,
+        timeout_seconds=request.lock_timeout_seconds,
+        progress=request.progress,
+    ):
+        return _prepare_locked(request, root, expected_manifest)
+
+
+def _prepare_locked(
+    request: DatabasePreparationRequest,
+    root: Path,
+    expected_manifest: DatabaseManifest | None,
+) -> DatabaseManifest:
+    """Execute one preparation or verification while the root lock is held."""
+
     selected = {
         "pdb_foldseek": request.prepare_pdb_foldseek,
         "pdb_sequences": request.prepare_pdb_sequences,

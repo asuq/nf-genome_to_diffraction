@@ -330,6 +330,13 @@ never downloads or repairs resources. It requires the frozen manifest and its
 operator-recorded SHA-256, so mutable `current` links and sidecars are not the
 trust anchor:
 
+Preparation and verification take one advisory exclusive lock below the
+database root before inspecting or changing shared state. Lock wait,
+acquisition, and release are logged; terminal users see bounded `tqdm` progress,
+and `--lock-timeout-seconds` fails loudly instead of waiting indefinitely.
+This protects cooperating `genome-to-diffraction databases prepare` processes;
+external programs that ignore the lock remain outside this safety boundary.
+
 Python-managed public downloads resume only from a checksummed partial prefix bound
 to the requested/effective URL and a strong ETag or Last-Modified validator.
 `Range`, `If-Range`, `Content-Range`, final size, and HTTPS preservation are

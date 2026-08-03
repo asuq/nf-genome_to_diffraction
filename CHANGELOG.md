@@ -46,6 +46,8 @@ All notable changes to this project are documented here.
   monitoring, and whole-process-group termination on watchdog failures.
 - Database-preparation threads now follow the allocated Nextflow CPUs, with an
   explicitly provisional Marmic preparation allocation for first-site timing.
+- Shared database administration now uses one logged, timeout-bounded advisory
+  exclusive lock per database root to prevent cooperating runs from racing.
 - P0 database checks are explicitly bounded metadata/functional revalidation;
   verification evidence records whether full checksums were computed, while
   long database administration stays outside routine HPC start approvals.

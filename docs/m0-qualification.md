@@ -163,6 +163,13 @@ qualification and provides the following controls:
   identity/score/coverage and output hashes, rechecks the cached coordinate
   without network access, and retains a structured verification sidecar.
 
+All preparation and verification operations using the same database root are
+serialised by one advisory exclusive lock under `tmp/locks`. Lock waiting,
+acquisition, and release are logged, with bounded terminal progress and a
+configurable timeout. The lock prevents two cooperating administrative runs
+from racing; it cannot protect against unrelated programs that write into the
+database root without taking the same lock.
+
 The public-resource transport boundary is also fail-safe. A partial download is
 resumable only when its atomically recorded URL, effective redirect URL,
 validator, completed byte count, and prefix SHA-256 all match. Resumed responses

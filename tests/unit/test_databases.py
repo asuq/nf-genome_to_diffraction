@@ -5,14 +5,19 @@ import hashlib
 import importlib
 import json
 import os
+import threading
+import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from genome_to_diffraction.databases.cache import (
     CachedCoordinate,
+    exclusive_lock,
     initialise_coordinate_cache,
     publish_pdb_coordinate,
     verify_cached_pdb_coordinate,
@@ -28,7 +33,11 @@ from genome_to_diffraction.databases.prepare import (
 )
 from genome_to_diffraction.ids import canonical_digest
 from genome_to_diffraction.schemas.io import load_contract
-from genome_to_diffraction.schemas.manifests import DatabaseResource, SmokeTestStatus
+from genome_to_diffraction.schemas.manifests import (
+    DatabaseManifest,
+    DatabaseResource,
+    SmokeTestStatus,
+)
 
 prepare_module = importlib.import_module("genome_to_diffraction.databases.prepare")
 
@@ -44,6 +53,77 @@ def _request(tmp_path: Path, **updates: object) -> DatabasePreparationRequest:
     }
     values.update(updates)
     return DatabasePreparationRequest(**values)  # type: ignore[arg-type]
+
+
+def test_database_root_lock_serialises_administrative_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _request(tmp_path)
+    original = cast(
+        Callable[
+            [DatabasePreparationRequest, Path, DatabaseManifest | None],
+            DatabaseManifest,
+        ],
+        prepare_module._prepare_locked,
+    )
+    state_lock = threading.Lock()
+    active = 0
+    maximum_active = 0
+
+    def delayed(
+        delayed_request: DatabasePreparationRequest,
+        delayed_root: Path,
+        delayed_expected: DatabaseManifest | None,
+    ) -> DatabaseManifest:
+        nonlocal active, maximum_active
+        with state_lock:
+            active += 1
+            maximum_active = max(maximum_active, active)
+        try:
+            time.sleep(0.1)
+            return original(delayed_request, delayed_root, delayed_expected)
+        finally:
+            with state_lock:
+                active -= 1
+
+    monkeypatch.setattr(prepare_module, "_prepare_locked", delayed)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        manifests = list(
+            executor.map(
+                prepare,
+                (
+                    request,
+                    replace(request, manifest_path=tmp_path / "second.json"),
+                ),
+            )
+        )
+
+    assert len(manifests) == 2
+    assert maximum_active == 1
+
+
+def test_database_root_lock_timeout_fails_without_starting_work(tmp_path: Path) -> None:
+    request = _request(tmp_path, lock_timeout_seconds=0.05)
+    root = request.database_root
+    lock_path = root / "tmp" / "locks" / "database-administration.lock"
+    acquired = threading.Event()
+    release = threading.Event()
+
+    def hold_lock() -> None:
+        with exclusive_lock(lock_path, timeout_seconds=1, progress=False):
+            acquired.set()
+            release.wait(timeout=2)
+
+    thread = threading.Thread(target=hold_lock)
+    thread.start()
+    assert acquired.wait(timeout=1)
+    try:
+        with pytest.raises(DatabaseError, match="timed out waiting for database lock"):
+            prepare(request)
+    finally:
+        release.set()
+        thread.join(timeout=2)
+    assert not request.manifest_path.exists()
 
 
 def _write_mock_tool(path: Path, name: str) -> None:

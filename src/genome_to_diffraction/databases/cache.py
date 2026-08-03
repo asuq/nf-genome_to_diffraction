@@ -59,8 +59,15 @@ def exclusive_lock(
 ) -> Iterator[None]:
     """Acquire an automatically released POSIX advisory lock with a timeout."""
 
+    if timeout_seconds <= 0:
+        raise ValueError("database lock timeout must be positive")
+    started = time.monotonic()
     deadline = time.monotonic() + timeout_seconds
     path.parent.mkdir(parents=True, exist_ok=True)
+    _LOGGER.info(
+        "waiting for database lock",
+        extra={"lock_path": str(path), "timeout_seconds": timeout_seconds},
+    )
     with (
         path.open("a+", encoding="ascii") as handle,
         tqdm(
@@ -81,10 +88,19 @@ def exclusive_lock(
                     ) from error
                 time.sleep(0.1)
                 progress_bar.update(1)
+        waited_seconds = time.monotonic() - started
+        _LOGGER.info(
+            "database lock acquired",
+            extra={"lock_path": str(path), "waited_seconds": waited_seconds},
+        )
         try:
             yield
         finally:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            _LOGGER.info(
+                "database lock released",
+                extra={"lock_path": str(path)},
+            )
 
 
 def _layout() -> dict[str, object]:
