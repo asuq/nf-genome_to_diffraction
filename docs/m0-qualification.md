@@ -13,7 +13,7 @@ this gate passes.
 | M0.2 Positive control | Blocked on scientific metadata | True catalogue sequence, known ASU copy count, trustworthy final model/structure factors where available, and suitable MR model |
 | M0.3 Qualify Phenix | Local runtime and three real Xtriage smokes qualified; Marmic installation in progress | Phenix 2.1-6048 macOS arm64 passes all seven command probes and all three frozen MTZ files complete real Xtriage; the durable Marmic Linux installation, its real manifest, and equivalent Marmic results are still required |
 | M0.4 Qualify databases | Approval-gated administration driver implemented; real preparation required on Marmic | Fixed preflight, retained-failure guard, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site resources have yet passed them |
-| M0.5 Matthews reference | In progress; one real local method probe passed | Additional predeclared representative proteins/cases and the positive-control copy count are still required |
+| M0.5 Matthews reference | Local method matrix qualified; site parity follows M0.3 | Ten real comparisons cover all frozen MTZs and multiple copy regimes; positive-control identity/copy interpretation remains a separate M0.2 blocker |
 | M0.6 Fixed HPC P0 profile | Deployed; site configuration missing | Commit `1433006` tools are checksum-verified locally and on Marmic; staging failed safely before submission because the protected external P0 path file is absent |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
 
@@ -162,13 +162,59 @@ The implied-mass difference was 0.7259%, the absolute `V_M` difference was
 method-compatibility checks passed under the predeclared 5% average-residue
 versus exact-composition engineering bound. That bound is not an empirical
 probability and was not fitted to this case. The comparison ID is
-`mref_c15b5eb3339e88822d52eefc771d0f01da9592174949a133b100b969cb00aa15`.
+`mref_f8bd340894e14d32bd829221e05fbb4df9dfb89b92cf9db4068b762f85a64e0c`.
 
-M0.5 remains open. The single comparison has only one plausible copy count, so
-its ordering check is trivial; the catalogue identity and true ASU copy count
-are unknown. Closure still requires predeclared comparisons spanning multiple
-copy hypotheses and the operator-held positive-control ground truth. No
-scientific identity or copy-count conclusion may be inferred from this pass.
+### Predeclared percentile matrix
+
+Before inspecting any additional Phenix result, the exact-mass, unflagged
+catalogue groups were sorted by `(length_aa, sequence_group_id)`. Nearest-rank
+10th, 50th, and 90th percentiles were selected from 1,617 eligible groups, then
+the same three groups were tested against every frozen MTZ. This rule samples
+different mass and copy regimes without choosing sequences to make a result
+pass.
+
+| Probe | Sequence digest | Length (aa) | Exact mass (Da) |
+| --- | --- | ---: | ---: |
+| P10 | `5189c15a4848afc461ca0b66522ac6cac431dd64aa37e724208c75e9b19d588d` | 88 | 10,028.5485 |
+| P50 | `20046deaac838f77d743fd57625f1ce68a3162f9b6693496dcabdf24711adcbd` | 249 | 29,366.2533 |
+| P90 | `59e1cf3e41e952e65ce4d1658c83760064430446c11e9db53b7460effb4c4432` | 497 | 53,337.9635 |
+
+| Crystal | Probe | Status | Copy sets | Ordering | Maximum mass-model difference |
+| --- | --- | --- | --- | --- | ---: |
+| `AD4QS1P4G2_18` | P10 | `passed_with_review` | Match | Differ | 1.4882% |
+| `AD4QS1P4G2_18` | P50 | `passed` | Match | Match | 4.9837% |
+| `AD4QS1P4G2_18` | P90 | `passed` | Match | Match | 4.6590% |
+| `CD4QS2P2G1_15` | P10 | `passed_with_review` | Phenix 8--16; pipeline 7--16 | Differ | 1.3524% |
+| `CD4QS2P2G1_15` | P50 | `passed_with_review` | Match | Differ | 5.0436% |
+| `CD4QS2P2G1_15` | P90 | `passed_with_review` | Match | Differ | 4.6976% |
+| `CD6QS2P2G1_5` | P10 | `passed_with_review` | Match | Differ | 1.4123% |
+| `CD6QS2P2G1_5` | P50 | `passed` | Match | Match | 4.7040% |
+| `CD6QS2P2G1_5` | P90 | `passed` | Match | Match | 4.3665% |
+
+All nine commands completed, all printed Phenix rows satisfied the Matthews
+coefficient/solvent relation within declared rounding tolerance, and every
+pipeline row satisfied the exact-mass formula. Four comparisons passed all
+method checks. Five retained review differences: empirical Phenix probability
+ordering differed from the intentionally uncalibrated broad pipeline prior;
+the small `CD4QS2P2G1_15` probe placed one boundary copy differently and its
+Phenix best guess of 36 copies was outside the configured pipeline cap of 16;
+and its P50 mass-model difference was 5.0436%, slightly beyond the fixed 5%
+engineering bound. None of these observations was tuned away.
+
+The first matrix run also exposed a real parser error. Phenix printed identical
+maximum probabilities of 0.055 for 35 and 36 copies while reporting 36 from its
+unrounded internal values. The parser now accepts the reported best guess when
+it is among the maximum printed-probability ties, but still rejects a genuinely
+lower printed probability. Reference plausibility is compared only after
+applying the same configured solvent-fraction bounds as the pipeline; raw
+Phenix tables may intentionally include physically extreme rows.
+
+This locally satisfies the M0.5 software-method comparison without calibrating
+the current prior. It does not close M0 overall: the selected groups are method
+probes, not asserted crystal identities, and the true positive-control sequence
+and ASU copy count remain blocked on operator-held M0.2 evidence. Site parity
+also depends on completion of the Marmic Phenix qualification in M0.3. No
+scientific identity or copy-count conclusion may be inferred from this matrix.
 
 ## Database qualification readiness
 

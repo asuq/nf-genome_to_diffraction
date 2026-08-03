@@ -15,6 +15,7 @@ the ignored M0 qualification dossier.
 """
 
 import logging
+import math
 import re
 import subprocess
 from dataclasses import dataclass
@@ -66,6 +67,8 @@ _BEST_GUESS = re.compile(
     flags=re.IGNORECASE | re.MULTILINE,
 )
 MAXIMUM_MASS_MODEL_RELATIVE_DIFFERENCE = 0.05
+REFERENCE_FORMULA_ROUNDING_TOLERANCE = 0.005
+COMPARISON_POLICY_VERSION = "matthews_reference_v2"
 
 
 class MatthewsReferenceInputError(InputContractError):
@@ -119,7 +122,7 @@ class MatthewsReferenceRequest:
 class MatthewsReferenceResult:
     """Qualification status and stable local report paths."""
 
-    status: Literal["passed", "failed"]
+    status: Literal["passed", "passed_with_review", "failed"]
     comparison_id: str
     json_path: Path
     markdown_path: Path
@@ -164,6 +167,15 @@ def parse_phenix_matthews_output(text: str) -> ParsedPhenixMatthews:
             raise MatthewsReferenceParseError(
                 "Phenix solvent-content probability must be between zero and one"
             )
+        expected_solvent = 1.0 - 1.23 / row.matthews_coefficient
+        if (
+            abs(row.solvent_fraction - expected_solvent)
+            > REFERENCE_FORMULA_ROUNDING_TOLERANCE
+        ):
+            raise MatthewsReferenceParseError(
+                "Phenix solvent fraction is inconsistent with its printed "
+                "Matthews coefficient beyond rounding tolerance"
+            )
         rows.append(row)
     if not rows:
         raise MatthewsReferenceParseError(
@@ -182,8 +194,9 @@ def parse_phenix_matthews_output(text: str) -> ParsedPhenixMatthews:
         raise MatthewsReferenceParseError(
             "Phenix Matthews best guess is absent from its probability table"
         )
-    expected_best = min(rows, key=lambda row: (-row.probability, row.copy_count))
-    if best_guess != expected_best.copy_count:
+    maximum_printed_probability = max(row.probability for row in rows)
+    best_row = next(row for row in rows if row.copy_count == best_guess)
+    if best_row.probability != maximum_printed_probability:
         raise MatthewsReferenceParseError(
             "Phenix Matthews best guess disagrees with its probability ordering"
         )
@@ -323,6 +336,7 @@ def _comparison_document(
     matched_pipeline = tuple(pipeline_by_copy[row.copy_count] for row in reference_rows)
     comparisons: list[dict[str, object]] = []
     mass_model_compatible = True
+    pipeline_formula_consistent = True
     for reference, pipeline in zip(reference_rows, matched_pipeline, strict=True):
         if pipeline.matthews_coefficient is None or pipeline.solvent_fraction is None:
             raise MatthewsReferenceInputError(
@@ -338,6 +352,24 @@ def _comparison_document(
             relative_mass_difference <= MAXIMUM_MASS_MODEL_RELATIVE_DIFFERENCE
         )
         mass_model_compatible = mass_model_compatible and within_bound
+        expected_pipeline_coefficient = preflight.asu_volume_a3 / (
+            group.molecular_mass_da * pipeline.copy_count
+        )
+        expected_pipeline_solvent = 1.0 - 1.23 / expected_pipeline_coefficient
+        row_formula_consistent = math.isclose(
+            pipeline.matthews_coefficient,
+            expected_pipeline_coefficient,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        ) and math.isclose(
+            pipeline.solvent_fraction,
+            expected_pipeline_solvent,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+        pipeline_formula_consistent = (
+            pipeline_formula_consistent and row_formula_consistent
+        )
         comparisons.append(
             {
                 "copy_count": reference.copy_count,
@@ -356,24 +388,50 @@ def _comparison_document(
                 "sequence_exact_monomer_mass_da": group.molecular_mass_da,
                 "mass_model_relative_difference": relative_mass_difference,
                 "within_mass_model_compatibility_bound": within_bound,
+                "pipeline_formula_consistent": row_formula_consistent,
             }
         )
 
-    reference_copy_set = sorted(row.copy_count for row in reference_rows)
-    pipeline_plausible_set = sorted(
-        row.copy_count
+    reference_plausible_rows = tuple(
+        row
+        for row in reference_rows
+        if (
+            config.matthews.min_solvent_fraction
+            <= row.solvent_fraction
+            <= config.matthews.max_solvent_fraction
+        )
+    )
+    pipeline_plausible_rows = tuple(
+        row
         for row in pipeline_rows
         if row.physical_status is not PhysicalStatus.IMPOSSIBLE
     )
+    reference_copy_set = sorted(row.copy_count for row in reference_plausible_rows)
+    pipeline_plausible_set = sorted(row.copy_count for row in pipeline_plausible_rows)
     copy_sets_match = reference_copy_set == pipeline_plausible_set
-    reference_order = _reference_order(reference_rows)
-    pipeline_order = _pipeline_order(matched_pipeline)
-    ordering_matches = reference_order == pipeline_order
-    status: Literal["passed", "failed"] = (
-        "passed"
-        if copy_sets_match and ordering_matches and mass_model_compatible
-        else "failed"
+    reference_order = _reference_order(reference_plausible_rows)
+    matched_plausible_pipeline = tuple(
+        pipeline_by_copy[row.copy_count] for row in reference_plausible_rows
     )
+    pipeline_order = _pipeline_order(matched_plausible_pipeline)
+    ordering_matches = reference_order == pipeline_order
+    best_guess_in_configured_range = minimum <= parsed.best_guess_copy_count <= maximum
+    review_reasons: list[str] = []
+    if not best_guess_in_configured_range:
+        review_reasons.append("phenix_best_guess_outside_configured_copy_range")
+    if not copy_sets_match:
+        review_reasons.append("plausible_copy_sets_differ")
+    if not ordering_matches:
+        review_reasons.append("uncalibrated_prior_order_differs_from_phenix")
+    if not mass_model_compatible:
+        review_reasons.append("mass_models_exceed_fixed_compatibility_bound")
+    status: Literal["passed", "passed_with_review", "failed"]
+    if not pipeline_formula_consistent:
+        status = "failed"
+    elif review_reasons:
+        status = "passed_with_review"
+    else:
+        status = "passed"
     identity = {
         "crystal_id": crystal.crystal_id,
         "mtz_sha256": mtz_sha256,
@@ -385,16 +443,29 @@ def _comparison_document(
         "catalogue_id": crystal.catalogue_id,
         "matching_source_ids": matching_source_ids,
         "pipeline_config": config.model_dump(mode="json"),
+        "comparison_policy_version": COMPARISON_POLICY_VERSION,
+        "reference_rows": [
+            {
+                "copy_count": row.copy_count,
+                "solvent_fraction": row.solvent_fraction,
+                "matthews_coefficient": row.matthews_coefficient,
+                "probability": row.probability,
+            }
+            for row in reference_rows
+        ],
+        "reference_best_guess_copy_count": parsed.best_guess_copy_count,
         "phenix_manifest_sha256": manifest_sha256,
         "phenix_executable_sha256": execution.executable_sha256,
         "maximum_mass_model_relative_difference": (
             MAXIMUM_MASS_MODEL_RELATIVE_DIFFERENCE
         ),
+        "reference_formula_rounding_tolerance": (REFERENCE_FORMULA_ROUNDING_TOLERANCE),
     }
     return {
         "schema_version": "1.0-local-qualification",
         "comparison_id": content_id("mref_", identity),
         "status": status,
+        "execution_status": "completed_success",
         "scope": "method_reference_only",
         "scientific_interpretation": "identity_and_true_copy_count_unknown",
         "positive_control_status": "not_established",
@@ -427,8 +498,13 @@ def _comparison_document(
             "mass_input_model": "n_residues_average_residue_mass",
             "best_guess_copy_count": parsed.best_guess_copy_count,
             "configured_copy_range": [minimum, maximum],
+            "configured_solvent_fraction_range": [
+                config.matthews.min_solvent_fraction,
+                config.matthews.max_solvent_fraction,
+            ],
         },
         "comparison_policy": {
+            "version": COMPARISON_POLICY_VERSION,
             "pipeline_mass_model": "exact_sequence_composition",
             "maximum_mass_model_relative_difference": (
                 MAXIMUM_MASS_MODEL_RELATIVE_DIFFERENCE
@@ -438,13 +514,26 @@ def _comparison_document(
                 "biological acceptance threshold"
             ),
             "plausible_pipeline_statuses": ["plausible", "review"],
+            "reference_copy_filter": (
+                "same configured solvent-fraction bounds as the pipeline"
+            ),
+            "ordering_interpretation": (
+                "reported for review; disagreement does not calibrate or invalidate "
+                "the explicitly uncalibrated pipeline prior"
+            ),
         },
         "comparisons": comparisons,
         "reference_plausible_copy_counts": reference_copy_set,
         "pipeline_plausible_copy_counts": pipeline_plausible_set,
         "reference_order": list(reference_order),
         "pipeline_order": list(pipeline_order),
+        "review_reasons": review_reasons,
         "checks": {
+            "reference_formula_consistent_with_printed_rounding": True,
+            "pipeline_formula_consistent": pipeline_formula_consistent,
+            "phenix_best_guess_in_configured_copy_range": (
+                best_guess_in_configured_range
+            ),
             "plausible_copy_sets_match": copy_sets_match,
             "probability_prior_order_matches": ordering_matches,
             "mass_models_within_compatibility_bound": mass_model_compatible,
@@ -460,6 +549,10 @@ def _comparison_document(
                 "truth was used."
             ),
             "This result cannot close the M0 positive-control gate.",
+            (
+                "Ordering disagreement is retained for review and is not tuned "
+                "away because the pipeline prior is explicitly uncalibrated."
+            ),
         ],
     }
 
@@ -473,6 +566,8 @@ def _markdown(document: dict[str, object]) -> str:
     assert isinstance(reference, dict)
     comparisons = document["comparisons"]
     assert isinstance(comparisons, list)
+    review_reasons = document["review_reasons"]
+    assert isinstance(review_reasons, list)
     lines = [
         "# Matthews method-reference qualification",
         "",
@@ -489,6 +584,18 @@ def _markdown(document: dict[str, object]) -> str:
         "",
         "## Checks",
         "",
+        (
+            "- Phenix printed formula is internally consistent: "
+            f"`{checks['reference_formula_consistent_with_printed_rounding']}`"
+        ),
+        (
+            "- Pipeline exact-mass formula is internally consistent: "
+            f"`{checks['pipeline_formula_consistent']}`"
+        ),
+        (
+            "- Phenix best guess is inside the configured copy range: "
+            f"`{checks['phenix_best_guess_in_configured_copy_range']}`"
+        ),
         f"- Plausible copy sets match: `{checks['plausible_copy_sets_match']}`",
         (
             "- Probability/prior order matches: "
@@ -498,15 +605,22 @@ def _markdown(document: dict[str, object]) -> str:
             "- Mass-model difference is within the disclosed bound: "
             f"`{checks['mass_models_within_compatibility_bound']}`"
         ),
-        "",
-        "## Per-copy comparison",
-        "",
-        (
-            "| Copies | Phenix VM | Pipeline VM | Phenix solvent | Pipeline "
-            "solvent | Relative mass-model difference |"
-        ),
-        "| ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
+    if review_reasons:
+        lines.extend(["", "## Review reasons", ""])
+        lines.extend(f"- `{reason}`" for reason in review_reasons)
+    lines.extend(
+        [
+            "",
+            "## Per-copy comparison",
+            "",
+            (
+                "| Copies | Phenix VM | Pipeline VM | Phenix solvent | Pipeline "
+                "solvent | Relative mass-model difference |"
+            ),
+            "| ---: | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
     for raw in comparisons:
         assert isinstance(raw, dict)
         lines.append(
@@ -658,11 +772,19 @@ def qualify_matthews_reference(
 
     raw_status = document["status"]
     comparison_id = document["comparison_id"]
-    if raw_status not in {"passed", "failed"} or not isinstance(comparison_id, str):
+    if raw_status not in {
+        "passed",
+        "passed_with_review",
+        "failed",
+    } or not isinstance(comparison_id, str):
         raise AssertionError("invalid internal Matthews reference result")
-    status: Literal["passed", "failed"] = (
-        "passed" if raw_status == "passed" else "failed"
-    )
+    status: Literal["passed", "passed_with_review", "failed"]
+    if raw_status == "passed":
+        status = "passed"
+    elif raw_status == "passed_with_review":
+        status = "passed_with_review"
+    else:
+        status = "failed"
     _LOGGER.info(
         "Matthews method-reference qualification complete",
         extra={

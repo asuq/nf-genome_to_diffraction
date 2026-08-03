@@ -70,6 +70,10 @@ All notable changes to this project are documented here.
   provenance, preserves the licensed-tool log outside Git, compares copy sets
   and ordering, and keeps method compatibility distinct from identity or
   positive-control evidence.
+- A predeclared three-MTZ/three-protein reference matrix now retains copy-bound,
+  mass-model, and uncalibrated-ordering differences as review outcomes; rounded
+  Phenix probability ties and common solvent-bound comparisons are handled
+  explicitly without tuning the prior.
 
 ### Not implemented
 

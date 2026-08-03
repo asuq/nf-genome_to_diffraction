@@ -218,11 +218,14 @@ The command validates the frozen MTZ checksum, resolves only
 `mmtbx.matthews` inside the verified Phenix prefix, runs the fixed
 `MTZ n_residues=N` interface, preserves the log, and compares plausible copy
 sets and ordering. Its report explicitly separates Phenix's residue-count mass
-model from the pipeline's exact sequence-composition mass. Passing is method
-compatibility only: it does not prove identity, copy number, calibration, or a
-positive control. SDS-PAGE uses the nearest of multiple supplied apparent
-monomer-mass bands, respects reducing/non-reducing context and band roles, and
-remains a soft label only; it never excludes a candidate by itself.
+model from the pipeline's exact sequence-composition mass. `passed_with_review`
+is a successful execution with retained mass-model, copy-boundary, copy-cap, or
+uncalibrated-ordering differences; it is not silently converted to `passed`.
+Either status is method evidence only: it does not prove identity, copy number,
+calibration, or a positive control. SDS-PAGE uses the nearest of multiple
+supplied apparent monomer-mass bands, respects reducing/non-reducing context and
+band roles, and remains a soft label only; it never excludes a candidate by
+itself.
 
 ## External Phenix runtime
 

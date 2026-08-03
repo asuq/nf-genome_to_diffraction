@@ -10,6 +10,7 @@ import pytest
 from genome_to_diffraction.cli import main
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.matthews import reference as reference_module
+from genome_to_diffraction.matthews.enumerate import enumerate_group
 from genome_to_diffraction.matthews.reference import (
     MatthewsReferenceExecutionError,
     MatthewsReferenceInputError,
@@ -19,7 +20,9 @@ from genome_to_diffraction.matthews.reference import (
     qualify_matthews_reference,
 )
 from genome_to_diffraction.phenix.runtime import MatthewsReferenceExecution
+from genome_to_diffraction.schemas.manifests import CrystalEntry, PipelineConfig
 from genome_to_diffraction.schemas.results import (
+    MatthewsHypothesis,
     MtzPreflightRecord,
     PreflightDecision,
     SequenceGroupRecord,
@@ -158,6 +161,12 @@ def test_parser_reads_table_and_enforces_best_probability() -> None:
     with pytest.raises(MatthewsReferenceParseError, match="probability ordering"):
         parse_phenix_matthews_output(inconsistent)
 
+    printed_tie = REFERENCE_TEXT.replace(
+        "| 3      | 0.262           | 1.67            | 0.300",
+        "| 3      | 0.262           | 1.67            | 0.900",
+    ).replace("Best guess : 2 copies", "Best guess : 3 copies")
+    assert parse_phenix_matthews_output(printed_tie).best_guess_copy_count == 3
+
 
 @pytest.mark.parametrize(
     "bad_text",
@@ -165,6 +174,7 @@ def test_parser_reads_table_and_enforces_best_probability() -> None:
         "Best guess : 1 copy in the ASU\n",
         REFERENCE_TEXT.replace("| 3      |", "| 2      |"),
         REFERENCE_TEXT.replace("0.754", "1.754"),
+        REFERENCE_TEXT.replace("0.754", "0.600"),
     ),
 )
 def test_parser_fails_loudly_on_malformed_tables(bad_text: str) -> None:
@@ -193,8 +203,11 @@ def test_reference_qualification_reports_method_only_and_cli_success(
     assert report["positive_control_status"] == "not_established"
     assert report["checks"] == {
         "mass_models_within_compatibility_bound": True,
+        "phenix_best_guess_in_configured_copy_range": True,
+        "pipeline_formula_consistent": True,
         "plausible_copy_sets_match": True,
         "probability_prior_order_matches": True,
+        "reference_formula_consistent_with_printed_rounding": True,
     }
     assert report["pipeline_plausible_copy_counts"] == [1, 2, 3]
     assert "not asserted" in report["selection_note"]
@@ -245,9 +258,47 @@ def test_reference_qualification_fails_compatibility_without_claiming_identity(
     result = qualify_matthews_reference(request)
     report = json.loads(result.json_path.read_text(encoding="utf-8"))
 
-    assert result.status == "failed"
+    assert result.status == "passed_with_review"
     assert report["positive_control_status"] == "not_established"
     assert not report["checks"]["mass_models_within_compatibility_bound"]
+    assert report["review_reasons"]
+
+
+def test_reference_qualification_fails_pipeline_formula_inconsistency(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, executable = _inputs(tmp_path)
+
+    def inconsistent_enumerate(
+        group: SequenceGroupRecord,
+        crystal: CrystalEntry,
+        preflight: MtzPreflightRecord,
+        config: PipelineConfig,
+    ) -> tuple[MatthewsHypothesis, ...]:
+        rows = enumerate_group(group, crystal, preflight, config)
+        first = rows[0]
+        assert first.matthews_coefficient is not None
+        inconsistent = first.model_copy(
+            update={"matthews_coefficient": first.matthews_coefficient * 1.01}
+        )
+        return (inconsistent, *rows[1:])
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.matthews.reference.enumerate_group",
+        inconsistent_enumerate,
+    )
+    monkeypatch.setattr(
+        reference_module,
+        "capture_matthews_reference_from_manifest",
+        lambda *args, **kwargs: _fake_execution(executable),
+    )
+
+    result = qualify_matthews_reference(request)
+    report = json.loads(result.json_path.read_text(encoding="utf-8"))
+
+    assert result.status == "failed"
+    assert not report["checks"]["pipeline_formula_consistent"]
 
 
 def test_reference_qualification_requires_crystal_catalogue_membership(

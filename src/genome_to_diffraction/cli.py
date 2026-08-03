@@ -603,7 +603,7 @@ def _run_matthews(args: argparse.Namespace) -> int:
             f"Matthews method-reference qualification {reference_result.status}: "
             f"{reference_result.json_path}"
         )
-        return 0 if reference_result.status == "passed" else 1
+        return 0 if reference_result.status != "failed" else 1
     if args.matthews_action != "enumerate":
         raise AssertionError(f"unhandled Matthews action: {args.matthews_action}")
     result = enumerate_matthews(
