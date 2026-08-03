@@ -41,6 +41,10 @@ class StorageWatchdogError(DatabaseError):
     """The scoped storage watchdog could not measure or stop writes safely."""
 
 
+class ScratchLimitError(DatabaseError):
+    """The explicit database-build scratch filesystem lost required headroom."""
+
+
 class DatabaseCommandError(ToolExecutionError):
     """A database preparation command returned a non-zero exit status."""
 
@@ -177,6 +181,26 @@ def enforce_free_space(root: Path, minimum_free_bytes: int) -> int:
     return free_bytes
 
 
+def _enforce_scratch_free_space(root: Path, minimum_free_bytes: int) -> int:
+    if minimum_free_bytes <= 0:
+        raise ValueError("scratch minimum free bytes must be positive")
+    free_bytes = shutil.disk_usage(root).free
+    _LOGGER.info(
+        "database scratch headroom check",
+        extra={
+            "root": str(root),
+            "free_bytes": free_bytes,
+            "minimum_free_bytes": minimum_free_bytes,
+        },
+    )
+    if free_bytes < minimum_free_bytes:
+        raise ScratchLimitError(
+            f"database scratch has {free_bytes} free bytes; "
+            f"{minimum_free_bytes} required"
+        )
+    return free_bytes
+
+
 def _validated_write_roots(
     storage_root: Path, write_roots: Sequence[Path]
 ) -> tuple[Path, ...]:
@@ -196,6 +220,51 @@ def _validated_write_roots(
             ) from error
         if not candidate.is_dir():
             raise DatabaseError(f"database command write root is unsafe: {root}")
+        if any(
+            candidate == existing or candidate.is_relative_to(existing)
+            for existing in resolved
+        ):
+            continue
+        resolved = [
+            existing for existing in resolved if not existing.is_relative_to(candidate)
+        ]
+        resolved.append(candidate)
+    return tuple(resolved)
+
+
+def _device_id(path: Path) -> int:
+    return path.stat().st_dev
+
+
+def _validated_scratch_roots(
+    storage_root: Path, scratch_roots: Sequence[Path]
+) -> tuple[Path, ...]:
+    resolved_storage = storage_root.resolve(strict=True)
+    storage_device = _device_id(resolved_storage)
+    resolved: list[Path] = []
+    for root in scratch_roots:
+        if not root.is_absolute() or root.is_symlink():
+            raise DatabaseError(f"database command scratch root is unsafe: {root}")
+        try:
+            candidate = root.resolve(strict=True)
+        except OSError as error:
+            raise DatabaseError(
+                f"database command scratch root is missing: {root}"
+            ) from error
+        if not candidate.is_dir() or candidate != root:
+            raise DatabaseError(f"database command scratch root is unsafe: {root}")
+        if (
+            candidate == resolved_storage
+            or candidate.is_relative_to(resolved_storage)
+            or resolved_storage.is_relative_to(candidate)
+        ):
+            raise DatabaseError(
+                f"database command scratch root overlaps storage: {root}"
+            )
+        if _device_id(candidate) == storage_device:
+            raise DatabaseError(
+                f"database command scratch root shares the storage filesystem: {root}"
+            )
         if any(
             candidate == existing or candidate.is_relative_to(existing)
             for existing in resolved
@@ -416,6 +485,8 @@ def run_command(
     storage_limit_bytes: int,
     minimum_free_bytes: int,
     progress: bool,
+    scratch_roots: Sequence[Path] = (),
+    minimum_scratch_free_bytes: int = 0,
     watchdog_interval_seconds: float = 20.0,
 ) -> None:
     """Run an argument array with scoped storage and process-group safeguards."""
@@ -424,10 +495,17 @@ def run_command(
         raise ValueError("database command must not be empty")
     if watchdog_interval_seconds <= 0:
         raise ValueError("watchdog interval must be positive")
+    if scratch_roots and minimum_scratch_free_bytes <= 0:
+        raise ValueError("scratch minimum free bytes must be positive")
+    if not scratch_roots and minimum_scratch_free_bytes != 0:
+        raise ValueError("scratch headroom requires an explicit scratch root")
     log_path.parent.mkdir(parents=True, exist_ok=True)
     scoped_roots = _validated_write_roots(storage_root, write_roots)
+    scoped_scratch = _validated_scratch_roots(storage_root, scratch_roots)
     initial_used = enforce_storage_limit(storage_root, storage_limit_bytes)
     enforce_free_space(storage_root, minimum_free_bytes)
+    for scratch_root in scoped_scratch:
+        _enforce_scratch_free_space(scratch_root, minimum_scratch_free_bytes)
     initial_scoped = sum(tree_size(root) for root in scoped_roots)
     initial_log_bytes = log_path.stat().st_size if log_path.is_file() else 0
     inactive_bytes = max(initial_used - initial_scoped - initial_log_bytes, 0)
@@ -437,11 +515,13 @@ def run_command(
             "command": list(command),
             "log": str(log_path),
             "write_roots": [str(root) for root in scoped_roots],
+            "scratch_roots": [str(root) for root in scoped_scratch],
             "inactive_bytes": inactive_bytes,
         },
     )
     stop = threading.Event()
     exceeded = threading.Event()
+    scratch_exceeded = threading.Event()
     watchdog_failed = threading.Event()
     watchdog_message: list[str] = []
     process: subprocess.Popen[str]
@@ -460,6 +540,11 @@ def run_command(
                 log_bytes = log_path.stat().st_size if log_path.is_file() else 0
                 used = inactive_bytes + scoped_bytes + log_bytes
                 free_bytes = shutil.disk_usage(storage_root).free
+                scratch_bytes = sum(tree_size(root) for root in scoped_scratch)
+                scratch_free_bytes = min(
+                    (shutil.disk_usage(root).free for root in scoped_scratch),
+                    default=0,
+                )
             except OSError as error:
                 _LOGGER.error("storage watchdog failed", extra={"error": str(error)})
                 watchdog_message.append(str(error))
@@ -475,10 +560,17 @@ def run_command(
                     "minimum_free_bytes": minimum_free_bytes,
                     "scoped_bytes": scoped_bytes,
                     "log_bytes": log_bytes,
+                    "scratch_bytes": scratch_bytes,
+                    "scratch_free_bytes": scratch_free_bytes,
+                    "minimum_scratch_free_bytes": minimum_scratch_free_bytes,
                 },
             )
             if used > storage_limit_bytes or free_bytes < minimum_free_bytes:
                 exceeded.set()
+                stop_process_group()
+                return
+            if scoped_scratch and scratch_free_bytes < minimum_scratch_free_bytes:
+                scratch_exceeded.set()
                 stop_process_group()
                 return
 
@@ -522,7 +614,14 @@ def run_command(
             f"cap={storage_limit_bytes}, minimum_free={minimum_free_bytes}; "
             f"see {log_path}"
         )
+    if scratch_exceeded.is_set():
+        raise ScratchLimitError(
+            "database command crossed its scratch free-space headroom; "
+            f"minimum_free={minimum_scratch_free_bytes}; see {log_path}"
+        )
     if returncode != 0:
         raise DatabaseCommandError(command, returncode, log_path)
     enforce_storage_limit(storage_root, storage_limit_bytes)
     enforce_free_space(storage_root, minimum_free_bytes)
+    for scratch_root in scoped_scratch:
+        _enforce_scratch_free_space(scratch_root, minimum_scratch_free_bytes)

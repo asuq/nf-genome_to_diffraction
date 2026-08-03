@@ -15,6 +15,7 @@ from typing import cast
 
 import pytest
 
+import genome_to_diffraction.databases.common as common_module
 from genome_to_diffraction.databases.cache import (
     CachedCoordinate,
     exclusive_lock,
@@ -62,7 +63,7 @@ def test_database_root_lock_serialises_administrative_runs(
     request = _request(tmp_path)
     original = cast(
         Callable[
-            [DatabasePreparationRequest, Path, DatabaseManifest | None],
+            [DatabasePreparationRequest, Path, DatabaseManifest | None, Path],
             DatabaseManifest,
         ],
         prepare_module._prepare_locked,
@@ -75,6 +76,7 @@ def test_database_root_lock_serialises_administrative_runs(
         delayed_request: DatabasePreparationRequest,
         delayed_root: Path,
         delayed_expected: DatabaseManifest | None,
+        delayed_scratch: Path,
     ) -> DatabaseManifest:
         nonlocal active, maximum_active
         with state_lock:
@@ -82,7 +84,12 @@ def test_database_root_lock_serialises_administrative_runs(
             maximum_active = max(maximum_active, active)
         try:
             time.sleep(0.1)
-            return original(delayed_request, delayed_root, delayed_expected)
+            return original(
+                delayed_request,
+                delayed_root,
+                delayed_expected,
+                delayed_scratch,
+            )
         finally:
             with state_lock:
                 active -= 1
@@ -139,6 +146,9 @@ case "${{1-}}" in
     if [[ "${{FAKE_DATABASE_FAILURE:-0}}" == 1 ]]; then
       printf 'injected database failure\n' >&2
       exit 70
+    fi
+    if [[ -n "${{FAKE_DATABASE_TMP_RECORD:-}}" ]]; then
+      printf '%s\n' "$4" >> "$FAKE_DATABASE_TMP_RECORD"
     fi
     mkdir -p "$(dirname "$3")"
     printf '%s\n' "$2 database" > "$3"
@@ -599,6 +609,39 @@ def test_mocked_foldseek_resources_prepare_smoke_and_reuse(
                 full_verify=True,
             )
         )
+
+
+def test_large_foldseek_temporary_payload_uses_and_cleans_explicit_scratch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _mocked_full_request(tmp_path, monkeypatch)
+    scratch = tmp_path / "compute scratch"
+    scratch.mkdir()
+    scratch_record = tmp_path / "scratch-record.txt"
+    monkeypatch.setenv("FAKE_DATABASE_TMP_RECORD", str(scratch_record))
+    monkeypatch.setattr(
+        prepare_module,
+        "_device_id",
+        lambda path: 2 if path == scratch else 1,
+    )
+    monkeypatch.setattr(
+        common_module,
+        "_device_id",
+        lambda path: 2 if path.is_relative_to(scratch) else 1,
+    )
+    request = replace(
+        request,
+        scratch_root=scratch,
+        minimum_scratch_free_bytes=1,
+    )
+
+    manifest = prepare(request)
+
+    assert len(manifest.resources) == 4
+    recorded = scratch_record.read_text(encoding="utf-8").splitlines()
+    assert len(recorded) == 2
+    assert all(Path(path).is_relative_to(scratch) for path in recorded)
+    assert list(scratch.iterdir()) == []
 
 
 def test_verify_only_rejects_changed_search_evidence(

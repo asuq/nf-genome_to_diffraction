@@ -296,6 +296,8 @@ An intended full preparation run is:
 pixi install -e hpc --frozen
 pixi run -e hpc nextflow run prepare_databases.nf -profile marmic \
   --database_root /absolute/shared/nf-genome-to-diffraction/databases \
+  --scratch_root /absolute/compute-node/scratch \
+  --minimum_scratch_free_bytes REVIEWED_SCRATCH_BYTES \
   --outdir /absolute/shared/nf-genome-to-diffraction/database-results \
   --prepare_pdb_foldseek true \
   --prepare_pdb_sequences true \
@@ -342,9 +344,14 @@ to the requested/effective URL and a strong ETag or Last-Modified validator.
 `Range`, `If-Range`, `Content-Range`, final size, and HTTPS preservation are
 validated before atomic promotion; a server-declined or unvalidated resume starts
 cleanly. Capacity and free-space headroom are checked throughout. External tools
-are monitored through their declared write roots, avoiding a full scan of the
-large shared database tree every 20 seconds, and the complete process group is
-stopped if the scoped watchdog fails or a limit is crossed.
+are monitored through their declared durable and scratch write roots, avoiding
+a full scan of the large shared database tree every 20 seconds, and the complete
+process group is stopped if either filesystem loses headroom, the durable cap is
+crossed, or the scoped watchdog fails. Explicit scratch must be an existing
+canonical directory on a different filesystem; no default `/dev/shm` or other
+implicit fallback is used. Foldseek archives and MMseqs2 index workspace are
+disposable there, while immutable database content remains under the durable
+database root.
 
 The downloads performed internally by `foldseek databases` do not currently
 expose equivalent checkpoint state. A failed Foldseek staging directory is

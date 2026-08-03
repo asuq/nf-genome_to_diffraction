@@ -183,15 +183,23 @@ records pass or failure, device and byte measurements, tool versions, fixed
 routes, and `large_payload_started: false`. It sends no biological input or
 credentials. Generic login-node connectivity is not qualifying evidence.
 
+When explicit compute-node scratch is supplied to preparation, the large
+Foldseek download/extraction temporary files and MMseqs2 index workspace use a
+unique disposable child there. Immutable outputs remain under the shared
+database root. The command watchdog measures both roots, logs their usage and
+free space, terminates the complete process group on either headroom violation,
+and removes only its exact scratch child. There is no implicit `/dev/shm`
+fallback.
+
 The public-resource transport boundary is also fail-safe. A partial download is
 resumable only when its atomically recorded URL, effective redirect URL,
 validator, completed byte count, and prefix SHA-256 all match. Resumed responses
 must return the exact requested `Content-Range` and unchanged representation;
 otherwise the transfer restarts or fails without promotion. Storage monitoring
 uses only explicit active write roots between full start/end reconciliations,
-checks filesystem headroom continuously, and terminates the command process
-group rather than only its parent. This reduces metadata pressure on Marmic NFS
-without weakening the 1.8 TB project cap.
+checks durable and scratch filesystem headroom continuously, and terminates the
+command process group rather than only its parent. This reduces metadata
+pressure on Marmic NFS without weakening the 1.8 TB project cap.
 
 Every anchored verification sidecar now distinguishes
 `inventory_metadata_and_functional_smoke` from

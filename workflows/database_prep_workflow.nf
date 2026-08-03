@@ -15,8 +15,10 @@ workflow DATABASE_PREP_WORKFLOW {
     full_verify: Boolean
     expected_manifest: String
     expected_manifest_sha256: String
+    scratch_root: String
     storage_limit_bytes: String
     minimum_free_bytes: String
+    minimum_scratch_free_bytes: String
     database_fixture: Path
 
     main:
@@ -32,8 +34,10 @@ workflow DATABASE_PREP_WORKFLOW {
         full_verify,
         expected_manifest,
         expected_manifest_sha256,
+        scratch_root,
         storage_limit_bytes,
         minimum_free_bytes,
+        minimum_scratch_free_bytes,
         database_fixture
     )
 

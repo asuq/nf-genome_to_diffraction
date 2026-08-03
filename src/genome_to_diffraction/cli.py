@@ -263,6 +263,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     prepare_parser.add_argument("--threads", type=int, default=4)
     prepare_parser.add_argument("--lock-timeout-seconds", type=float, default=30.0)
+    prepare_parser.add_argument("--scratch-root", type=Path)
+    prepare_parser.add_argument("--minimum-scratch-free-bytes", type=int, default=0)
     prepare_parser.add_argument(
         "--storage-limit-bytes", type=int, default=DEFAULT_STORAGE_LIMIT_BYTES
     )
@@ -495,6 +497,8 @@ def _run_databases(args: argparse.Namespace) -> int:
             minimum_free_bytes=args.minimum_free_bytes,
             threads=args.threads,
             lock_timeout_seconds=args.lock_timeout_seconds,
+            scratch_root=args.scratch_root,
+            minimum_scratch_free_bytes=args.minimum_scratch_free_bytes,
             progress=not args.no_progress,
             pdb_sequence_url=args.pdb_sequence_url,
             pdb_coordinate_url_template=args.pdb_coordinate_url_template,

@@ -17,6 +17,8 @@ import re
 import shutil
 import tempfile
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -124,6 +126,8 @@ class DatabasePreparationRequest:
     minimum_free_bytes: int = DEFAULT_MINIMUM_FREE_BYTES
     threads: int = 4
     lock_timeout_seconds: float = 30.0
+    scratch_root: Path | None = None
+    minimum_scratch_free_bytes: int = 0
     progress: bool = True
     pdb_sequence_url: str = PDB_SEQUENCE_URL
     pdb_coordinate_url_template: str = PDB_COORDINATE_URL_TEMPLATE
@@ -661,12 +665,36 @@ def _retain_failed_staging(staging: Path) -> None:
     )
 
 
+@contextmanager
+def _command_scratch(
+    request: DatabasePreparationRequest,
+    staging: Path,
+    administration_scratch: Path,
+    label: str,
+) -> Iterator[tuple[Path, tuple[Path, ...], int]]:
+    """Yield local retained tmp or disposable external compute-node scratch."""
+
+    if request.scratch_root is None:
+        local = staging / "tmp"
+        local.mkdir()
+        yield local, (), 0
+        return
+    with tempfile.TemporaryDirectory(
+        prefix=f"{label}-", dir=administration_scratch
+    ) as temporary:
+        scratch = Path(temporary)
+        yield scratch, (scratch,), request.minimum_scratch_free_bytes
+
+
 def _log_path(database_root: Path, name: str, action: str) -> Path:
     return database_root / "logs" / f"{name}.{action}.{uuid.uuid4().hex}.log"
 
 
 def _prepare_foldseek_resource(
-    request: DatabasePreparationRequest, database_root: Path, name: str
+    request: DatabasePreparationRequest,
+    database_root: Path,
+    name: str,
+    administration_scratch: Path,
 ) -> DatabaseResource:
     if not request.force_rebuild:
         current = _current_root(database_root, name)
@@ -683,25 +711,32 @@ def _prepare_foldseek_resource(
     staging = _staging(database_root, name)
     database_name = "PDB" if name == "pdb_foldseek" else "ProstT5"
     prefix_name = "pdb" if name == "pdb_foldseek" else "weights"
-    command = [
-        "foldseek",
-        "databases",
-        database_name,
-        str(staging / prefix_name),
-        str(staging / "tmp"),
-    ]
     download_log = _log_path(database_root, name, "download")
     try:
-        run_command(
-            command,
-            log_path=download_log,
-            storage_root=database_root,
-            write_roots=(staging,),
-            storage_limit_bytes=request.storage_limit_bytes,
-            minimum_free_bytes=request.minimum_free_bytes,
-            progress=request.progress,
-        )
-        shutil.rmtree(staging / "tmp", ignore_errors=True)
+        with _command_scratch(request, staging, administration_scratch, name) as (
+            tool_scratch,
+            scratch_roots,
+            minimum_scratch_free_bytes,
+        ):
+            run_command(
+                [
+                    "foldseek",
+                    "databases",
+                    database_name,
+                    str(staging / prefix_name),
+                    str(tool_scratch),
+                ],
+                log_path=download_log,
+                storage_root=database_root,
+                write_roots=(staging,),
+                storage_limit_bytes=request.storage_limit_bytes,
+                minimum_free_bytes=request.minimum_free_bytes,
+                progress=request.progress,
+                scratch_roots=scratch_roots,
+                minimum_scratch_free_bytes=minimum_scratch_free_bytes,
+            )
+        if request.scratch_root is None:
+            shutil.rmtree(staging / "tmp", ignore_errors=True)
         retrieved_at = utc_now()
         return _finish_immutable_resource(
             staging,
@@ -1032,7 +1067,9 @@ def _run_pdb_sequence_smoke(
 
 
 def _prepare_pdb_sequences(
-    request: DatabasePreparationRequest, database_root: Path
+    request: DatabasePreparationRequest,
+    database_root: Path,
+    administration_scratch: Path,
 ) -> DatabaseResource:
     name = "pdb_sequences"
     if not request.force_rebuild and _current_root(database_root, name) is not None:
@@ -1077,25 +1114,30 @@ def _prepare_pdb_sequences(
             minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
         )
-        tmp = staging / "tmp"
         createindex_log = _log_path(database_root, name, "createindex")
-        run_command(
-            [
-                "mmseqs",
-                "createindex",
-                str(staging / "pdb_seqres"),
-                str(tmp),
-                "--threads",
-                str(request.threads),
-            ],
-            log_path=createindex_log,
-            storage_root=database_root,
-            write_roots=(staging,),
-            storage_limit_bytes=request.storage_limit_bytes,
-            minimum_free_bytes=request.minimum_free_bytes,
-            progress=request.progress,
-        )
-        shutil.rmtree(tmp, ignore_errors=True)
+        with _command_scratch(
+            request, staging, administration_scratch, "pdb-sequence-index"
+        ) as (tool_scratch, scratch_roots, minimum_scratch_free_bytes):
+            run_command(
+                [
+                    "mmseqs",
+                    "createindex",
+                    str(staging / "pdb_seqres"),
+                    str(tool_scratch),
+                    "--threads",
+                    str(request.threads),
+                ],
+                log_path=createindex_log,
+                storage_root=database_root,
+                write_roots=(staging,),
+                storage_limit_bytes=request.storage_limit_bytes,
+                minimum_free_bytes=request.minimum_free_bytes,
+                progress=request.progress,
+                scratch_roots=scratch_roots,
+                minimum_scratch_free_bytes=minimum_scratch_free_bytes,
+            )
+        if request.scratch_root is None:
+            shutil.rmtree(staging / "tmp", ignore_errors=True)
         qualification = _run_pdb_sequence_smoke(request, database_root, staging)
         parameters: dict[str, JsonValue] = {
             "requested_url": metadata.requested_url,
@@ -1658,11 +1700,44 @@ def _validate_request(request: DatabasePreparationRequest) -> Path:
         raise ValueError("minimum free bytes must not be negative")
     if request.lock_timeout_seconds <= 0:
         raise ValueError("database lock timeout must be positive")
+    if request.scratch_root is None and request.minimum_scratch_free_bytes != 0:
+        raise ValueError("scratch headroom requires an explicit scratch root")
+    if request.scratch_root is not None and request.minimum_scratch_free_bytes <= 0:
+        raise ValueError("scratch minimum free bytes must be positive")
     root.mkdir(parents=True, exist_ok=True)
     (root / "tmp").mkdir(exist_ok=True)
     enforce_free_space(root, request.minimum_free_bytes)
     enforce_storage_limit(root, request.storage_limit_bytes)
     return root
+
+
+def _device_id(path: Path) -> int:
+    return path.stat().st_dev
+
+
+def _validate_scratch_root(
+    request: DatabasePreparationRequest, database_root: Path
+) -> Path:
+    raw = request.scratch_root
+    if raw is None:
+        return database_root / "tmp"
+    if not raw.is_absolute() or raw.is_symlink() or not raw.is_dir():
+        raise DatabaseError(
+            "scratch_root must be an existing absolute non-symlink directory"
+        )
+    scratch = raw.resolve(strict=True)
+    if scratch != raw or scratch in {Path("/"), Path.home().resolve()}:
+        raise DatabaseError("scratch_root must be canonical and narrowly scoped")
+    if (
+        scratch == database_root
+        or scratch.is_relative_to(database_root)
+        or database_root.is_relative_to(scratch)
+    ):
+        raise DatabaseError("scratch_root must not overlap database_root")
+    if _device_id(scratch) == _device_id(database_root):
+        raise DatabaseError("scratch_root must use a distinct filesystem")
+    enforce_free_space(scratch, request.minimum_scratch_free_bytes)
+    return scratch
 
 
 def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
@@ -1676,13 +1751,30 @@ def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
         timeout_seconds=request.lock_timeout_seconds,
         progress=request.progress,
     ):
-        return _prepare_locked(request, root, expected_manifest)
+        scratch_parent = _validate_scratch_root(request, root)
+        if request.scratch_root is None:
+            return _prepare_locked(request, root, expected_manifest, scratch_parent)
+        with tempfile.TemporaryDirectory(
+            prefix="nf-gtd-database-administration-", dir=scratch_parent
+        ) as temporary:
+            administration_scratch = Path(temporary)
+            _LOGGER.info(
+                "database administration scratch created",
+                extra={"scratch_path": str(administration_scratch)},
+            )
+            return _prepare_locked(
+                request,
+                root,
+                expected_manifest,
+                administration_scratch,
+            )
 
 
 def _prepare_locked(
     request: DatabasePreparationRequest,
     root: Path,
     expected_manifest: DatabaseManifest | None,
+    administration_scratch: Path,
 ) -> DatabaseManifest:
     """Execute one preparation or verification while the root lock is held."""
 
@@ -1725,13 +1817,17 @@ def _prepare_locked(
     )
     resources: dict[str, DatabaseResource] = {}
     if request.prepare_prostt5:
-        resources["prostt5"] = _prepare_foldseek_resource(request, root, "prostt5")
+        resources["prostt5"] = _prepare_foldseek_resource(
+            request, root, "prostt5", administration_scratch
+        )
     if request.prepare_pdb_foldseek:
         resources["pdb_foldseek"] = _prepare_foldseek_resource(
-            request, root, "pdb_foldseek"
+            request, root, "pdb_foldseek", administration_scratch
         )
     if request.prepare_pdb_sequences:
-        resources["pdb_sequences"] = _prepare_pdb_sequences(request, root)
+        resources["pdb_sequences"] = _prepare_pdb_sequences(
+            request, root, administration_scratch
+        )
     if request.initialise_coordinate_cache:
         if request.verify_only:
             resources["coordinate_cache"] = _load_resource(

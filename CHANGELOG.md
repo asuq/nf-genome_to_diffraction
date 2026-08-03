@@ -53,6 +53,9 @@ All notable changes to this project are documented here.
 - A fixed compute-node database preflight now verifies distinct scratch,
   operator-declared capacity, pinned tools, and exact public routes before any
   large payload starts, with structured logs, progress, and JSON evidence.
+- Large Foldseek and MMseqs2 temporary data can now use explicit distinct
+  compute-node scratch with continuous headroom monitoring, process-group
+  termination, and exact-child cleanup; no scratch fallback is inferred.
 - P0 database checks are explicitly bounded metadata/functional revalidation;
   verification evidence records whether full checksums were computed, while
   long database administration stays outside routine HPC start approvals.

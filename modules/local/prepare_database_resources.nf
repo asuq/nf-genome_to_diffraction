@@ -17,8 +17,10 @@ process PREPARE_DATABASE_RESOURCES {
     full_verify: Boolean
     expected_manifest: String
     expected_manifest_sha256: String
+    scratch_root: String
     storage_limit_bytes: String
     minimum_free_bytes: String
+    minimum_scratch_free_bytes: String
     database_fixture: Path
 
     stage:
@@ -34,6 +36,7 @@ process PREPARE_DATABASE_RESOURCES {
         --manifest database_manifest.json
         --storage-limit-bytes '${storage_limit_bytes}'
         --minimum-free-bytes '${minimum_free_bytes}'
+        --minimum-scratch-free-bytes '${minimum_scratch_free_bytes}'
         --threads '${task.cpus}'
     )
     [[ '${prepare_pdb_foldseek}' == 'true' ]] && args+=(--prepare-pdb-foldseek)
@@ -49,6 +52,9 @@ process PREPARE_DATABASE_RESOURCES {
     fi
     if [[ -n '${expected_manifest_sha256}' ]]; then
         args+=(--expected-manifest-sha256 '${expected_manifest_sha256}')
+    fi
+    if [[ -n '${scratch_root}' ]]; then
+        args+=(--scratch-root '${scratch_root}')
     fi
 
     genome-to-diffraction --no-progress databases prepare "\${args[@]}"

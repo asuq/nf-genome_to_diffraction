@@ -10,6 +10,7 @@ import pytest
 import genome_to_diffraction.databases.common as common_module
 from genome_to_diffraction.databases.common import (
     DatabaseError,
+    ScratchLimitError,
     StorageLimitError,
     StorageWatchdogError,
     run_command,
@@ -177,4 +178,96 @@ def test_free_space_headroom_is_checked_before_execution(
             storage_limit_bytes=10_000,
             minimum_free_bytes=1,
             progress=False,
+        )
+
+
+def test_scratch_headroom_is_checked_before_execution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    storage = tmp_path / "storage"
+    scratch = tmp_path / "scratch"
+    active = storage / "active"
+    active.mkdir(parents=True)
+    scratch.mkdir()
+    marker = tmp_path / "must-not-run"
+
+    @dataclass(frozen=True)
+    class Usage:
+        total: int
+        used: int
+        free: int
+
+    monkeypatch.setattr(
+        common_module,
+        "_device_id",
+        lambda path: 2 if path == scratch else 1,
+    )
+    monkeypatch.setattr(
+        "genome_to_diffraction.databases.common.shutil.disk_usage",
+        lambda path: Usage(100, 100, 0) if path == scratch else Usage(100, 0, 100),
+    )
+    with pytest.raises(ScratchLimitError, match="database scratch has 0 free bytes"):
+        run_command(
+            [
+                sys.executable,
+                "-c",
+                "import pathlib,sys; pathlib.Path(sys.argv[1]).touch()",
+                str(marker),
+            ],
+            log_path=storage / "logs" / "scratch-headroom.log",
+            storage_root=storage,
+            write_roots=(active,),
+            storage_limit_bytes=10_000,
+            minimum_free_bytes=0,
+            progress=False,
+            scratch_roots=(scratch,),
+            minimum_scratch_free_bytes=1,
+        )
+    assert not marker.exists()
+
+
+def test_scratch_watchdog_stops_process_when_headroom_drops(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    storage = tmp_path / "storage"
+    scratch = tmp_path / "scratch"
+    active = storage / "active"
+    active.mkdir(parents=True)
+    scratch.mkdir()
+    scratch_checks = 0
+
+    @dataclass(frozen=True)
+    class Usage:
+        total: int
+        used: int
+        free: int
+
+    monkeypatch.setattr(
+        common_module,
+        "_device_id",
+        lambda path: 2 if path == scratch else 1,
+    )
+
+    def disk_usage(path: Path) -> Usage:
+        nonlocal scratch_checks
+        if path == scratch:
+            scratch_checks += 1
+            return Usage(100, 100, 0) if scratch_checks >= 2 else Usage(100, 0, 100)
+        return Usage(100, 0, 100)
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.databases.common.shutil.disk_usage", disk_usage
+    )
+    with pytest.raises(ScratchLimitError, match="scratch free-space headroom"):
+        run_command(
+            [sys.executable, "-c", "import time; time.sleep(2)"],
+            log_path=storage / "logs" / "scratch-watchdog.log",
+            storage_root=storage,
+            write_roots=(active,),
+            storage_limit_bytes=10_000,
+            minimum_free_bytes=0,
+            progress=False,
+            scratch_roots=(scratch,),
+            minimum_scratch_free_bytes=1,
+            watchdog_interval_seconds=0.02,
         )

@@ -18,8 +18,10 @@ params {
     full_verify: Boolean = false
     expected_manifest: String = ''
     expected_manifest_sha256: String = ''
+    scratch_root: String = ''
     storage_limit_bytes: String = '1800000000000'
     minimum_free_bytes: String = '200000000000'
+    minimum_scratch_free_bytes: String = '0'
 }
 
 workflow {
@@ -36,8 +38,10 @@ workflow {
         params.full_verify,
         params.expected_manifest,
         params.expected_manifest_sha256,
+        params.scratch_root,
         params.storage_limit_bytes,
         params.minimum_free_bytes,
+        params.minimum_scratch_free_bytes,
         file("${projectDir}/tests/fixtures/stubs/database_manifest.json")
     )
 }
