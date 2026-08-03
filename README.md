@@ -197,11 +197,32 @@ pixi run genome-to-diffraction matthews enumerate \
 
 The current fast backend is explicitly named
 `broad_solvent_centrality_v1_uncalibrated`: it is a transparent broad physical
-ranking heuristic, not an empirical probability. Real Phenix/Xtriage comparison
-must be completed before treating it as calibrated. SDS-PAGE uses the nearest of
-multiple supplied apparent monomer-mass bands, respects reducing/non-reducing
-context and band roles, and remains a soft label only; it never excludes a
-candidate by itself.
+ranking heuristic, not an empirical probability. One selected hypothesis can be
+checked against the fixed local Phenix Matthews implementation without widening
+the generic Phenix executor:
+
+```bash
+pixi run genome-to-diffraction --no-progress matthews reference-check \
+  --crystals /absolute/input/crystal_manifest.json \
+  --config /absolute/input/config.yaml \
+  --preflight /absolute/results/preflight/mtz_preflight.jsonl \
+  --sequence-groups /absolute/results/catalogue/sequence_groups.jsonl \
+  --source-records /absolute/results/catalogue/source_records.jsonl \
+  --phenix-manifest /absolute/software/manifests/phenix.json \
+  --crystal-id CRYSTAL_ID \
+  --sequence-group-id SEQUENCE_GROUP_ID \
+  --outdir /absolute/results/matthews-reference
+```
+
+The command validates the frozen MTZ checksum, resolves only
+`mmtbx.matthews` inside the verified Phenix prefix, runs the fixed
+`MTZ n_residues=N` interface, preserves the log, and compares plausible copy
+sets and ordering. Its report explicitly separates Phenix's residue-count mass
+model from the pipeline's exact sequence-composition mass. Passing is method
+compatibility only: it does not prove identity, copy number, calibration, or a
+positive control. SDS-PAGE uses the nearest of multiple supplied apparent
+monomer-mass bands, respects reducing/non-reducing context and band roles, and
+remains a soft label only; it never excludes a candidate by itself.
 
 ## External Phenix runtime
 

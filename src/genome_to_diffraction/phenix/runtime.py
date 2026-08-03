@@ -96,6 +96,16 @@ class RuntimeInspection:
     commands: tuple[PhenixCommandRecord, ...]
 
 
+@dataclass(frozen=True)
+class MatthewsReferenceExecution:
+    """Captured fixed ``mmtbx.matthews`` execution and tool provenance."""
+
+    completed: subprocess.CompletedProcess[bytes]
+    executable: Path
+    executable_sha256: str
+    phenix_version: str
+
+
 def _evaluate_command_probe(
     probe: _CommandProbe,
     *,
@@ -535,3 +545,116 @@ def capture_from_manifest(
         extra={"command": requested, "exit_status": completed.returncode},
     )
     return completed
+
+
+def capture_matthews_reference_from_manifest(
+    manifest_path: Path,
+    *,
+    mtz_path: Path,
+    residue_count: int,
+    working_directory: Path,
+    timeout_seconds: float,
+) -> MatthewsReferenceExecution:
+    """Run the fixed Phenix Matthews reference command and capture its output.
+
+    This narrow auxiliary boundary accepts no executable name, shell fragment,
+    or arbitrary Phenix parameter. It validates the existing installation
+    manifest, resolves ``mmtbx.matthews`` inside that installation, verifies its
+    help signature, and runs only ``MTZ n_residues=N``. The command is a
+    qualification reference; it does not infer molecular identity.
+    """
+
+    if residue_count < 1 or residue_count > 1_000_000:
+        raise ValueError("residue_count must be between 1 and 1,000,000")
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be positive")
+    manifest = validate_manifest_environment(manifest_path)
+    prefix = Path(manifest.installation_prefix).resolve(strict=True)
+    resolved_mtz = mtz_path.resolve(strict=True)
+    if not resolved_mtz.is_file():
+        raise PhenixRuntimeVerificationError(
+            f"Matthews reference MTZ is not a regular file: {resolved_mtz}"
+        )
+
+    executable: Path | None = None
+    for candidate in (
+        prefix / "bin" / "mmtbx.matthews",
+        prefix / "phenix_bin" / "mmtbx.matthews",
+    ):
+        try:
+            resolved_candidate = candidate.resolve(strict=True)
+        except FileNotFoundError:
+            continue
+        if (
+            resolved_candidate.is_file()
+            and resolved_candidate.is_relative_to(prefix)
+            and os.access(resolved_candidate, os.X_OK)
+        ):
+            executable = resolved_candidate
+            break
+    if executable is None:
+        raise PhenixRuntimeVerificationError(
+            "executable mmtbx.matthews was not found inside the verified "
+            "Phenix installation"
+        )
+    executable_sha256 = sha256_file(executable)
+
+    environment_file = Path(manifest.phenix_env_sh).resolve(strict=True)
+    help_result = _child_shell(
+        environment_file,
+        [str(executable), "--help"],
+        timeout_seconds=timeout_seconds,
+        capture_output=True,
+    )
+    help_output = (help_result.stdout + help_result.stderr).decode(
+        "utf-8", errors="replace"
+    )
+    forbidden = next(
+        (marker for marker in _FORBIDDEN_PROBE_MARKERS if marker in help_output), None
+    )
+    if (
+        help_result.returncode != 0
+        or forbidden is not None
+        or "n_residues" not in help_output
+    ):
+        detail = f"; forbidden marker: {forbidden}" if forbidden is not None else ""
+        raise PhenixRuntimeVerificationError(
+            "mmtbx.matthews help probe failed or lacked the n_residues signature"
+            f" (exit {help_result.returncode}){detail}"
+        )
+
+    working_directory.mkdir(parents=True, exist_ok=True)
+    arguments = [
+        str(executable),
+        str(resolved_mtz),
+        f"n_residues={residue_count}",
+    ]
+    _LOGGER.info(
+        "executing fixed Phenix Matthews reference",
+        extra={
+            "mtz": str(resolved_mtz),
+            "residue_count": residue_count,
+            "working_directory": str(working_directory),
+        },
+    )
+    completed = _child_shell(
+        environment_file,
+        arguments,
+        timeout_seconds=timeout_seconds,
+        capture_output=True,
+        working_directory=working_directory,
+    )
+    if sha256_file(executable) != executable_sha256:
+        raise PhenixRuntimeVerificationError(
+            "mmtbx.matthews changed during the reference execution"
+        )
+    _LOGGER.info(
+        "fixed Phenix Matthews reference finished",
+        extra={"exit_status": completed.returncode},
+    )
+    return MatthewsReferenceExecution(
+        completed=completed,
+        executable=executable,
+        executable_sha256=executable_sha256,
+        phenix_version=manifest.phenix_version,
+    )

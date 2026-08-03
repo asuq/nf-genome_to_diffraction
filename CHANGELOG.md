@@ -66,6 +66,10 @@ All notable changes to this project are documented here.
 - A tracked local-settings inventory documents recoverable removal and
   restoration of the installed HPC controller, its configuration/capabilities,
   Codex approval boundary, and the verified local Phenix selection/evidence.
+- A fixed local Phenix Matthews method-reference check now validates frozen MTZ
+  provenance, preserves the licensed-tool log outside Git, compares copy sets
+  and ordering, and keeps method compatibility distinct from identity or
+  positive-control evidence.
 
 ### Not implemented
 

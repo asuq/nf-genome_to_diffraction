@@ -31,7 +31,12 @@ from genome_to_diffraction.diffraction import (
 )
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.logging import configure_logging, parse_log_level
-from genome_to_diffraction.matthews import MatthewsRequest, enumerate_matthews
+from genome_to_diffraction.matthews import (
+    MatthewsReferenceRequest,
+    MatthewsRequest,
+    enumerate_matthews,
+    qualify_matthews_reference,
+)
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
 from genome_to_diffraction.phenix.recovery import (
@@ -361,6 +366,20 @@ def _build_parser() -> argparse.ArgumentParser:
     enumerate_parser.add_argument("--sequence-groups", type=Path, required=True)
     enumerate_parser.add_argument("--source-records", type=Path, required=True)
     enumerate_parser.add_argument("--outdir", type=Path, required=True)
+    reference_parser = matthews_actions.add_parser(
+        "reference-check",
+        help="compare one exact-mass hypothesis with fixed local Phenix Matthews",
+    )
+    reference_parser.add_argument("--crystals", type=Path, required=True)
+    reference_parser.add_argument("--config", type=Path, required=True)
+    reference_parser.add_argument("--preflight", type=Path, required=True)
+    reference_parser.add_argument("--sequence-groups", type=Path, required=True)
+    reference_parser.add_argument("--source-records", type=Path, required=True)
+    reference_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    reference_parser.add_argument("--crystal-id", required=True)
+    reference_parser.add_argument("--sequence-group-id", required=True)
+    reference_parser.add_argument("--outdir", type=Path, required=True)
+    reference_parser.add_argument("--timeout-seconds", type=float, default=600.0)
     return parser
 
 
@@ -564,6 +583,27 @@ def _run_diffraction(args: argparse.Namespace) -> int:
 
 
 def _run_matthews(args: argparse.Namespace) -> int:
+    if args.matthews_action == "reference-check":
+        reference_result = qualify_matthews_reference(
+            MatthewsReferenceRequest(
+                crystal_manifest=args.crystals,
+                pipeline_config=args.config,
+                preflight_jsonl=args.preflight,
+                sequence_groups_jsonl=args.sequence_groups,
+                source_records_jsonl=args.source_records,
+                phenix_manifest=args.phenix_manifest,
+                crystal_id=args.crystal_id,
+                sequence_group_id=args.sequence_group_id,
+                output_directory=args.outdir,
+                timeout_seconds=args.timeout_seconds,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Matthews method-reference qualification {reference_result.status}: "
+            f"{reference_result.json_path}"
+        )
+        return 0 if reference_result.status == "passed" else 1
     if args.matthews_action != "enumerate":
         raise AssertionError(f"unhandled Matthews action: {args.matthews_action}")
     result = enumerate_matthews(

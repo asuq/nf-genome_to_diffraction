@@ -13,7 +13,7 @@ this gate passes.
 | M0.2 Positive control | Blocked on scientific metadata | True catalogue sequence, known ASU copy count, trustworthy final model/structure factors where available, and suitable MR model |
 | M0.3 Qualify Phenix | Local runtime and three real Xtriage smokes qualified; Marmic installation in progress | Phenix 2.1-6048 macOS arm64 passes all seven command probes and all three frozen MTZ files complete real Xtriage; the durable Marmic Linux installation, its real manifest, and equivalent Marmic results are still required |
 | M0.4 Qualify databases | Approval-gated administration driver implemented; real preparation required on Marmic | Fixed preflight, retained-failure guard, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site resources have yet passed them |
-| M0.5 Matthews reference | Pending | Selected pipeline hypotheses compared with Phenix/Xtriage without case-specific tuning |
+| M0.5 Matthews reference | In progress; one real local method probe passed | Additional predeclared representative proteins/cases and the positive-control copy count are still required |
 | M0.6 Fixed HPC P0 profile | Deployed; site configuration missing | Commit `1433006` tools are checksum-verified locally and on Marmic; staging failed safely before submission because the protected external P0 path file is absent |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
 
@@ -127,6 +127,48 @@ respectively. Raw MTZ paths, licensed-software logs, and exact local output
 paths remain outside Git. These local results demonstrate real execution and
 parser behaviour; M0.3 still requires the Marmic Linux manifest and scheduled
 P0 evidence.
+
+## Local Matthews method-reference probe
+
+The fixed `matthews reference-check` boundary was exercised with local Phenix
+2.1-6048 and the frozen `CD6QS2P2G1_5` MTZ. The selected catalogue group was the
+lexicographically first exact, unflagged 357-residue sequence group. That rule
+was deterministic and declared before comparison; it is not an assertion that
+this sequence is the crystallised protein. The report therefore remains a
+method probe, not a positive control.
+
+The command resolved only `mmtbx.matthews` inside the verified Phenix prefix,
+verified its `n_residues` help signature, and ran the fixed MTZ plus
+`n_residues=357` interface. The executable SHA-256 is
+`07227a24698efba3ff11788c4a86d43a1d320e5630836fdd45f00286c6472412`;
+the frozen MTZ and sequence digests are
+`5eb16c3cc3a21e4b7f22cd611834529801c1829fc0a3156a2b6abc2b3de2f20d`
+and
+`0f0a48c7d67076d2aa2d875cb70e2836f2769b3f91095ea1a787e4c2d1ee5858`.
+Machine-specific paths and the licensed-tool log remain in the ignored local
+qualification dossier.
+
+| Quantity | Phenix residue-count reference | Pipeline exact sequence mass |
+| --- | ---: | ---: |
+| ASU volume (Å³) | Same frozen preflight geometry | 97,603.3285 |
+| Selected monomer mass (Da) | 40,165.9788 implied by printed `V_M` | 40,457.5391 |
+| Plausible copy counts | 1 | 1 |
+| Best/first copy count | 1 | 1 |
+| `V_M` at one copy | 2.4300 | 2.4125 |
+| Solvent fraction at one copy | 0.4940 | 0.4902 |
+
+The implied-mass difference was 0.7259%, the absolute `V_M` difference was
+0.0175, and the solvent-fraction difference was 0.00385. All three disclosed
+method-compatibility checks passed under the predeclared 5% average-residue
+versus exact-composition engineering bound. That bound is not an empirical
+probability and was not fitted to this case. The comparison ID is
+`mref_c15b5eb3339e88822d52eefc771d0f01da9592174949a133b100b969cb00aa15`.
+
+M0.5 remains open. The single comparison has only one plausible copy count, so
+its ordering check is trivial; the catalogue identity and true ASU copy count
+are unknown. Closure still requires predeclared comparisons spanning multiple
+copy hypotheses and the operator-held positive-control ground truth. No
+scientific identity or copy-count conclusion may be inferred from this pass.
 
 ## Database qualification readiness
 

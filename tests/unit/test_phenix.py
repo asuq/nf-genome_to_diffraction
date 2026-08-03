@@ -18,6 +18,7 @@ from genome_to_diffraction.phenix.errors import (
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
 from genome_to_diffraction.phenix.runtime import (
     REQUIRED_COMMANDS,
+    capture_matthews_reference_from_manifest,
     execute_from_manifest,
     validate_manifest_environment,
     verify_manifest,
@@ -94,6 +95,21 @@ printf '%s\n' "$@"
 COMMAND
   chmod 755 "$prefix/bin/$command"
 done
+cat > "$prefix/bin/mmtbx.matthews" <<'COMMAND'
+#!/usr/bin/env bash
+if [[ "${{1-}}" == "--help" ]]; then
+  printf 'Calculate a Matthews coefficient with n_residues\n'
+  exit 0
+fi
+printf 'argument_1=%s\n' "$1"
+printf 'argument_2=%s\n' "$2"
+printf '| Copies | Solvent content | Matthews coeff. | P(solvent content) |\n'
+printf '| 1 | 0.754 | 5.00 | 0.200 |\n'
+printf '| 2 | 0.508 | 2.50 | 0.900 |\n'
+printf '| 3 | 0.262 | 1.67 | 0.300 |\n'
+printf 'Best guess : 2 copies in the ASU\n'
+COMMAND
+chmod 755 "$prefix/bin/mmtbx.matthews"
 """
     path.write_text(script, encoding="utf-8")
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -291,3 +307,49 @@ def test_manifest_environment_tampering_fails(tmp_path: Path) -> None:
     )
     with pytest.raises(PhenixRuntimeVerificationError, match="checksum"):
         validate_manifest_environment(request.manifest_path)
+
+
+def test_fixed_matthews_reference_is_captured_with_provenance(tmp_path: Path) -> None:
+    installer = tmp_path / "installer.sh"
+    digest = _write_installer(installer)
+    request = _request(tmp_path, installer, digest)
+    install_phenix(request)
+    mtz = tmp_path / "input data.mtz"
+    mtz.write_bytes(b"synthetic fixture")
+
+    execution = capture_matthews_reference_from_manifest(
+        request.manifest_path,
+        mtz_path=mtz,
+        residue_count=100,
+        working_directory=tmp_path / "working directory",
+        timeout_seconds=10,
+    )
+
+    assert execution.completed.returncode == 0
+    assert b"Best guess : 2 copies" in execution.completed.stdout
+    assert f"argument_1={mtz.resolve()}".encode() in execution.completed.stdout
+    assert b"argument_2=n_residues=100" in execution.completed.stdout
+    assert execution.executable.is_relative_to(request.installation_prefix)
+    assert len(execution.executable_sha256) == 64
+    assert execution.phenix_version == "2.1-9999"
+
+
+def test_fixed_matthews_reference_rejects_executable_escape(tmp_path: Path) -> None:
+    installer = tmp_path / "installer.sh"
+    digest = _write_installer(installer)
+    request = _request(tmp_path, installer, digest)
+    install_phenix(request)
+    auxiliary = request.installation_prefix / "bin/mmtbx.matthews"
+    auxiliary.unlink()
+    auxiliary.symlink_to(Path("/bin/echo"))
+    mtz = tmp_path / "input.mtz"
+    mtz.write_bytes(b"synthetic fixture")
+
+    with pytest.raises(PhenixRuntimeVerificationError, match="not found inside"):
+        capture_matthews_reference_from_manifest(
+            request.manifest_path,
+            mtz_path=mtz,
+            residue_count=100,
+            working_directory=tmp_path / "work",
+            timeout_seconds=10,
+        )
