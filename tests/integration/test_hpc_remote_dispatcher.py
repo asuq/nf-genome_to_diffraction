@@ -571,12 +571,13 @@ def _install_fake_p0_runtime(run: Path, *, all_cached: bool = True) -> None:
         "    printf 'verified\\n' > \"$argument\"\n"
         '  elif [[ "$mode" == databases && "$previous" == --manifest ]]; then\n'
         "    printf '{}\\n' > \"$argument\"\n"
-        '    printf \'{"schema_version":"1.0"}\\n\' > '
+        '    printf \'{"schema_version":"1.0","verification_level":'
+        '"inventory_metadata_and_functional_smoke","full_checksums":false}\\n\' > '
         '"${argument%.json}.verification.json"\n'
         "  fi\n"
         '  previous="$argument"\n'
         "done\n"
-        '[[ "$mode" != databases || "$full_verify" == true ]]\n',
+        '[[ "$mode" != databases || "$full_verify" == false ]]\n',
     )
     status = "CACHED" if all_cached else "COMPLETED"
     _write_executable(
@@ -667,8 +668,21 @@ def test_p0_job_enforces_the_cached_resume_gate(
         )
         with tarfile.open(archive_path, "r:gz") as archive:
             assert (
-                "artifacts/qualification/database_manifest.verified.verification.json"
+                "artifacts/qualification/"
+                "database_manifest.p0-revalidated.verification.json"
             ) in archive.getnames()
+        bounded_verification = json.loads(
+            (
+                run
+                / "artifacts"
+                / "qualification"
+                / "database_manifest.p0-revalidated.verification.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert bounded_verification["verification_level"] == (
+            "inventory_metadata_and_functional_smoke"
+        )
+        assert bounded_verification["full_checksums"] is False
 
 
 def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(

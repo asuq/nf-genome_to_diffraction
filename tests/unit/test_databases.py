@@ -332,6 +332,13 @@ def test_verify_only_requires_and_enforces_external_manifest_anchor(
         )
     )
     assert verified.manifest_id == prepared.manifest_id
+    verification = json.loads(
+        (tmp_path / "verified.verification.json").read_text(encoding="utf-8")
+    )
+    assert verification["verification_level"] == (
+        "inventory_metadata_and_functional_smoke"
+    )
+    assert verification["full_checksums"] is False
 
     sidecar = Path(prepared.resources[0].root_path) / ".gtd-resource.json"
     document = json.loads(sidecar.read_text(encoding="utf-8"))
@@ -424,6 +431,8 @@ def test_mocked_foldseek_resources_prepare_smoke_and_reuse(
         ".verification.json"
     )
     verification = json.loads(verification_path.read_text(encoding="utf-8"))
+    assert verification["verification_level"] == ("full_checksums_and_functional_smoke")
+    assert verification["full_checksums"] is True
     assert set(verification["checks"]) == {
         "pdb_foldseek",
         "pdb_sequences",

@@ -173,6 +173,13 @@ checks filesystem headroom continuously, and terminates the command process
 group rather than only its parent. This reduces metadata pressure on Marmic NFS
 without weakening the 1.8 TB project cap.
 
+Every anchored verification sidecar now distinguishes
+`inventory_metadata_and_functional_smoke` from
+`full_checksums_and_functional_smoke` and records the Boolean checksum mode.
+The fixed 45-minute P0 job uses only the bounded level. Full-checksum database
+qualification remains a distinct long administration gate and must not inherit
+the routine `stage`/`submit` approvals.
+
 These are implementation tests, not site qualification. Real M0.4 evidence
 still requires one immutable Marmic preparation, the frozen manifest/checksum,
 real command logs, full inventory verification, and measured I/O/runtime. The
@@ -216,8 +223,8 @@ The P0 profile extends the accepted foundation-smoke interface without accepting
 an arbitrary path or shell fragment on its command line. It fingerprints a fixed
 seven-line remote configuration during `stage`, separately binds the frozen
 database-manifest SHA-256, refuses a change between staging and execution,
-verifies Phenix and database resources, runs Task 05 for the configured
-three-crystal manifest, repeats with `-resume`, and fails unless every
+verifies Phenix and performs bounded anchored database revalidation, runs Task 05
+for the configured three-crystal manifest, repeats with `-resume`, and fails unless every
 deterministic process is reported as cached.
 
 The path file is external to Git and must contain, in order:

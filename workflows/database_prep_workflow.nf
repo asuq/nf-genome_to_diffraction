@@ -17,7 +17,6 @@ workflow DATABASE_PREP_WORKFLOW {
     expected_manifest_sha256: String
     storage_limit_bytes: String
     minimum_free_bytes: String
-    threads: Integer
     database_fixture: Path
 
     main:
@@ -35,7 +34,6 @@ workflow DATABASE_PREP_WORKFLOW {
         expected_manifest_sha256,
         storage_limit_bytes,
         minimum_free_bytes,
-        threads,
         database_fixture
     )
 

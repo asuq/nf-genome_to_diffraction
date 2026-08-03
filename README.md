@@ -78,8 +78,10 @@ structured logs and `--no-progress` for non-interactive execution.
 
 The repository includes a repository-specific local controller and fixed remote
 dispatcher. The `smoke` profile runs `pixi run check`; the separately bounded
-`p0` profile verifies configured real Phenix/database resources and runs the
-three-crystal Task 05 preflight twice to prove cache reuse. Both use one
+`p0` profile verifies real Phenix, performs anchored database metadata and
+functional-smoke revalidation, and runs the three-crystal Task 05 preflight
+twice to prove cache reuse. It deliberately does not perform a terabyte-scale
+full-checksum audit. Both profiles use one
 immutable pushed commit. Neither provides arbitrary SSH/paths, source edits on
 Marmic, automatic cleanup, or downstream protein identification. Machine-readable
 results are written to standard output; diagnostic `logging` and optional
@@ -280,12 +282,19 @@ The Linux-only `hpc` environment pins Foldseek 10.941cd33 and MMseqs2 18.8cc5c.
 The preparation workflow writes directly to a shared absolute database root, so
 terabyte-scale resources are never staged into Nextflow work directories. Its
 default hard project cap is 1.8 TB and it requires 200 GB of filesystem headroom.
+The database CLI thread count is derived from the allocated Nextflow `task.cpus`,
+so MMseqs2 indexing and the bounded search operations do not use the old
+independent four-thread default. The internal concurrency of `foldseek databases`
+still needs confirmation against the pinned Linux executable before the real
+site run. The Marmic profile starts database preparation at 8 CPUs, 64 GB, and
+48 hours; this is an initial measurement allocation, not a runtime or capacity
+guarantee.
 
 An intended full preparation run is:
 
 ```bash
 pixi install -e hpc --frozen
-pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
+pixi run -e hpc nextflow run prepare_databases.nf -profile marmic \
   --database_root /absolute/shared/nf-genome-to-diffraction/databases \
   --outdir /absolute/shared/nf-genome-to-diffraction/database-results \
   --prepare_pdb_foldseek true \
@@ -321,7 +330,7 @@ never downloads or repairs resources. It requires the frozen manifest and its
 operator-recorded SHA-256, so mutable `current` links and sidecars are not the
 trust anchor:
 
-Interrupted public downloads resume only from a checksummed partial prefix bound
+Python-managed public downloads resume only from a checksummed partial prefix bound
 to the requested/effective URL and a strong ETag or Last-Modified validator.
 `Range`, `If-Range`, `Content-Range`, final size, and HTTPS preservation are
 validated before atomic promotion; a server-declined or unvalidated resume starts
@@ -330,8 +339,16 @@ are monitored through their declared write roots, avoiding a full scan of the
 large shared database tree every 20 seconds, and the complete process group is
 stopped if the scoped watchdog fails or a limit is crossed.
 
+The downloads performed internally by `foldseek databases` do not currently
+expose equivalent checkpoint state. A failed Foldseek staging directory is
+retained for diagnosis, but a new attempt starts a new side-by-side staging
+directory and may need the full download space again. Do not describe the whole
+database build as resumable or assume that a 2 TB allocation is sufficient until
+the first retained site measurements confirm active, failed, and immutable-copy
+sizes.
+
 ```bash
-pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
+pixi run -e hpc nextflow run prepare_databases.nf -profile marmic \
   --database_root /absolute/shared/nf-genome-to-diffraction/databases \
   --outdir /absolute/shared/nf-genome-to-diffraction/database-verify \
   --prepare_pdb_foldseek true \
@@ -343,6 +360,15 @@ pixi run -e hpc nextflow run prepare_databases.nf -profile slurm \
   --expected_manifest /absolute/shared/database_manifest.json \
   --expected_manifest_sha256 EXPECTED_64_HEX_SHA256
 ```
+
+`--full_verify true` recomputes the deployed inventories and is a long database
+administration operation, not part of the approval-enabled `p0` job. Its
+verification sidecar records either
+`full_checksums_and_functional_smoke` or
+`inventory_metadata_and_functional_smoke` plus an explicit Boolean checksum
+flag. A future fixed Marmic administration driver must use separate
+approval-gated start commands; the routine `stage`/`submit` approvals remain
+limited to `smoke` and bounded `p0`.
 
 ## Repository layout
 

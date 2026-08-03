@@ -10,7 +10,7 @@ diagnostics. It never edits or pushes source.
 | Profile | Fixed operation | Scientific meaning |
 | --- | --- | --- |
 | `smoke` | Locked `pixi run check` | Software/environment foundation only |
-| `p0` | Real Phenix/database verification plus all-three-crystal Task 05 run and cached resume | M0 execution evidence only; downstream identity search remains deferred |
+| `p0` | Real Phenix verification, bounded anchored database revalidation, all-three-crystal Task 05 run, and cached resume | M0 execution evidence only; downstream identity search remains deferred |
 
 The reviewed local application is the routine approval boundary. It may request
 only `deploy-tools`, `readiness`, `stage`, `submit`, `status`, `wait`, `logs`,
@@ -194,12 +194,13 @@ must be a canonical non-symlink path below the first-line root. The job then:
 1. installs the frozen Linux `hpc` Pixi environment;
 2. re-verifies every required Phenix command and preserves the verification log;
 3. fingerprints the frozen database manifest during staging, then runs database
-   `verify-only --full-verify` for PDB Foldseek, ProstT5, PDB sequences, and the
-   coordinate cache, recomputing stored file checksums and comparing the exact
-   resource records with that trust anchor; bounded MMseqs2/ProstT5/Foldseek
-   smokes rerun locally, deterministic result evidence is compared, a structured
-   `database_manifest.verified.verification.json` record is retained, and the
-   previously cached public PDB coordinate is revalidated without a download;
+   `verify-only` for PDB Foldseek, ProstT5, PDB sequences, and the coordinate
+   cache, checking inventory metadata and comparing the exact resource records
+   with that trust anchor; bounded MMseqs2/ProstT5/Foldseek smokes rerun locally,
+   deterministic result evidence is compared, a structured
+   `database_manifest.p0-revalidated.verification.json` record explicitly marks
+   `inventory_metadata_and_functional_smoke`, and the previously cached public
+   PDB coordinate is revalidated without a download;
 4. runs `main.nf -profile marmic` with real Xtriage for the configured crystals;
 5. repeats the identical command with `-resume`; and
 6. fails unless all deterministic processes in the second trace are `CACHED`.
@@ -208,6 +209,26 @@ It retains complete P0 results on Marmic but collects only fixed small reports,
 manifests, traces, and logs. A successful P0 means
 `task05_preflight_complete_downstream_deferred`; it never claims a protein
 identity or clean crystallographic acceptance merely because the job exited 0.
+It also does not claim that every byte of a terabyte-scale database was rehashed
+during the 45-minute allocation.
+
+## Database administration boundary
+
+Full preparation and `verify-only --full-verify` are separate long-running
+database administration operations. They may contact fixed public Foldseek/RCSB
+routes and mutate a large shared database root, so they are intentionally not
+accepted by the routine `stage` or `submit` commands and are not covered by the
+persistent approval rules below. Until a separate fixed administration driver,
+configuration contract, scratch policy, and start commands are reviewed, run
+them only as an explicitly approved site operation using the documented Marmic
+Nextflow profile.
+
+The future driver must retain one-active-job protection, use a fingerprinted
+external configuration, probe compute-node connectivity before large writes,
+keep durable database content on shared storage, and never fall back to
+`/dev/shm` for database payloads. Its start commands must remain outside the
+routine approval list even though `status`, `wait`, `logs`, `collect`, `cancel`,
+and approval-gated `clean` can share the ownership model.
 
 ## Results and failure interpretation
 

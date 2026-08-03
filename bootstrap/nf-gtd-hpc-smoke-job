@@ -289,7 +289,7 @@ run_p0() {
     local total cached cache_counts trace
     local qualification="$RUN/artifacts/qualification"
     P0_OUT="$RUN/artifacts/p0"
-    VERIFIED_DATABASE_MANIFEST="$qualification/database_manifest.verified.json"
+    VERIFIED_DATABASE_MANIFEST="$qualification/database_manifest.p0-revalidated.json"
     mkdir -p "$qualification" "$P0_OUT" "$RUN/cache" "$RUN/execution"
 
     load_p0_config
@@ -318,7 +318,7 @@ run_p0() {
         --manifest "$PHENIX_MANIFEST" \
         --verification-log "$qualification/phenix-verification.log"
 
-    printf 'phase=database_verify profile=p0\n'
+    printf 'phase=database_revalidate_bounded profile=p0\n'
     EXPECTED_DATABASE_SHA256="$(<"$RUN/state/database-manifest-sha256")"
     [[ "$EXPECTED_DATABASE_SHA256" =~ $CHECKSUM_RE ]] || {
         printf 'recorded database manifest checksum is invalid\n' >&2
@@ -339,7 +339,6 @@ run_p0() {
         --prepare-prostt5 \
         --initialise-coordinate-cache \
         --verify-only \
-        --full-verify \
         --threads 2
 
     export JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"

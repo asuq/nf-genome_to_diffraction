@@ -1822,6 +1822,12 @@ def prepare(request: DatabasePreparationRequest) -> DatabaseManifest:
         verification_body: dict[str, JsonValue] = {
             "schema_version": "1.0",
             "created_at": utc_now().isoformat().replace("+00:00", "Z"),
+            "verification_level": (
+                "full_checksums_and_functional_smoke"
+                if request.full_verify
+                else "inventory_metadata_and_functional_smoke"
+            ),
+            "full_checksums": request.full_verify,
             "expected_manifest_path": str(request.expected_manifest_path),
             "expected_manifest_sha256": request.expected_manifest_sha256,
             "output_manifest_path": str(request.manifest_path),

@@ -42,6 +42,10 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
     assert "external/nf-helper/conf/sites/marmic.config" in wrapper
     assert "beforeScript" in wrapper
     assert ".pixi/envs/hpc/bin" in wrapper
+    assert "withLabel: process_database_download" in wrapper
+    assert "cpus = 8" in wrapper
+    assert "memory = '64 GB'" in wrapper
+    assert "time = '48 hours'" in wrapper
 
     nextflow_config = (REPOSITORY / "nextflow.config").read_text(encoding="utf-8")
     assert "includeConfig 'conf/marmic.config'" in nextflow_config
@@ -74,3 +78,12 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
         '"wait", "logs", "collect", "cancel"]'
     )
     assert approved_operations in runbook
+    job = smoke_job.read_text(encoding="utf-8")
+    assert "phase=database_revalidate_bounded profile=p0" in job
+    assert "--full-verify" not in job
+    database_module = (
+        REPOSITORY / "modules" / "local" / "prepare_database_resources.nf"
+    ).read_text(encoding="utf-8")
+    assert "--threads '${task.cpus}'" in database_module
+    assert "threads: Integer" not in database_module
+    assert "database administration" in runbook.lower()

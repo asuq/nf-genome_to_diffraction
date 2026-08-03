@@ -20,7 +20,6 @@ params {
     expected_manifest_sha256: String = ''
     storage_limit_bytes: String = '1800000000000'
     minimum_free_bytes: String = '200000000000'
-    threads: Integer = 4
 }
 
 workflow {
@@ -39,7 +38,6 @@ workflow {
         params.expected_manifest_sha256,
         params.storage_limit_bytes,
         params.minimum_free_bytes,
-        params.threads,
         file("${projectDir}/tests/fixtures/stubs/database_manifest.json")
     )
 }

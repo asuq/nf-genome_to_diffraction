@@ -686,8 +686,8 @@ collect_run() {
         logs/nextflow-resume.log \
         artifacts/qualification/input-checksums.sha256 \
         artifacts/qualification/phenix-verification.log \
-        artifacts/qualification/database_manifest.verified.json \
-        artifacts/qualification/database_manifest.verified.verification.json \
+        artifacts/qualification/database_manifest.p0-revalidated.json \
+        artifacts/qualification/database_manifest.p0-revalidated.verification.json \
         artifacts/qualification/resume-check.json \
         artifacts/qualification/first-pipeline-info/report.html \
         artifacts/qualification/first-pipeline-info/timeline.html \

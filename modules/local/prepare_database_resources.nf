@@ -19,7 +19,6 @@ process PREPARE_DATABASE_RESOURCES {
     expected_manifest_sha256: String
     storage_limit_bytes: String
     minimum_free_bytes: String
-    threads: Integer
     database_fixture: Path
 
     stage:
@@ -35,7 +34,7 @@ process PREPARE_DATABASE_RESOURCES {
         --manifest database_manifest.json
         --storage-limit-bytes '${storage_limit_bytes}'
         --minimum-free-bytes '${minimum_free_bytes}'
-        --threads '${threads}'
+        --threads '${task.cpus}'
     )
     [[ '${prepare_pdb_foldseek}' == 'true' ]] && args+=(--prepare-pdb-foldseek)
     [[ '${prepare_pdb_sequences}' == 'true' ]] && args+=(--prepare-pdb-sequences)
