@@ -77,6 +77,9 @@ All notable changes to this project are documented here.
 - Fixed SSH connect, operation, and collection timeouts now prevent the reviewed
   HPC controller from hanging indefinitely and classify unreachable or
   unresponsive transport as `transfer_failure` without implicit cancellation.
+- The immutable HPC controller builder now canonicalises archive order,
+  timestamps, permissions, and compression, producing the same SHA-256 for
+  repeated builds from identical source and the same locked interpreter path.
 
 ### Not implemented
 
