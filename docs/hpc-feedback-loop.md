@@ -2,26 +2,32 @@
 
 ## Purpose and boundary
 
-The interface has two closed profiles. Local Git remains the sole source of
-truth. Marmic fetches an exact pushed commit, creates an isolated read-only
-checkout, runs only the selected reviewed job body, and returns bounded
-diagnostics. It never edits or pushes source.
+The interface has two routine closed profiles plus one separately gated
+database-administration profile. Local Git remains the sole source of truth.
+Marmic fetches an exact pushed commit, creates an isolated read-only checkout,
+runs only the selected reviewed job body, and returns bounded diagnostics. It
+never edits or pushes source.
 
 | Profile | Fixed operation | Scientific meaning |
 | --- | --- | --- |
 | `smoke` | Locked `pixi run check` | Software/environment foundation only |
 | `p0` | Real Phenix verification, bounded anchored database revalidation, all-three-crystal Task 05 run, and cached resume | M0 execution evidence only; downstream identity search remains deferred |
+| `database` | Fixed route/capacity preflight, all-resource preparation, and anchored full verification | Shared database administration only; no pipeline or protein-identification claim |
 
-The reviewed local application is the routine approval boundary. It may request
-only `deploy-tools`, `readiness`, `stage`, `submit`, `status`, `wait`, `logs`,
-`collect`, or `cancel` from the fixed remote dispatcher. Raw SSH, file-transfer tools,
-scheduler commands, and `clean` must not receive persistent automatic approval.
+The reviewed local application is the routine approval boundary. Persistent
+rules may cover only `deploy-tools`, `readiness`, `stage`, `submit`, `status`,
+`wait`, `logs`, `collect`, or `cancel`. The distinct `database-stage` and
+`database-submit` start commands deliberately remain approval-gated. Raw SSH,
+file-transfer tools, scheduler commands, and `clean` must not receive persistent
+automatic approval.
 
-Both drivers use partition `slurm`, 2 CPUs, 8 GB memory, and a 45-minute
-walltime. Only one managed job may be active across both profiles. Queue waiting
-stops after 30 minutes, execution waiting stops after 45 minutes, and neither
-timeout silently cancels a job. The caller must inspect status and cancel the
-recorded job when appropriate.
+The routine drivers use partition `slurm`, 2 CPUs, 8 GB memory, and a 45-minute
+walltime. The database driver uses the same partition with 8 CPUs, 64 GB, and a
+48-hour walltime. Only one managed job may be active across all profiles. Queue
+waiting stops after 30 minutes. Local execution waiting is capped at 45 minutes
+for routine jobs and 48 hours for database administration; neither timeout
+silently cancels a job. The caller must inspect status and cancel the recorded
+job when appropriate.
 
 ## Filesystem and execution model
 
@@ -31,6 +37,7 @@ The remote dispatcher is installed under an approved run root with this layout:
 RUN_ROOT/
 |-- _cache/git/nf-genome_to_diffraction.git/
 |-- _cache/pixi/
+|-- _config/database.paths
 |-- _config/p0.paths
 |-- _locks/
 |-- _tooling/
@@ -60,6 +67,14 @@ shared durable storage because child Slurm nodes cannot see the driver's
 `/dev/shm`. Only P0 driver temporaries use `/dev/shm`; `nf-helper` stages each
 Nextflow process through compute-node `/scratch`. Disposable driver scratch is
 removed by the job, while the durable run is retained until explicitly cleaned.
+
+Database administration is stricter: the compute node must expose an explicit,
+canonical, non-symlink `SLURM_TMPDIR` on a filesystem distinct from the durable
+database root. The job rejects a missing value, `/dev/shm`, an overlapping path,
+or a shared device before its fixed preflight can start a large payload. All
+database command scratch lives below one job-owned child, and the finaliser
+removes only that child. Failed durable resource staging is intentionally
+retained and blocks an automatic second database-sized attempt.
 
 ## Build and reviewed installation
 
@@ -214,21 +229,66 @@ during the 45-minute allocation.
 
 ## Database administration boundary
 
-Full preparation and `verify-only --full-verify` are separate long-running
-database administration operations. They may contact fixed public Foldseek/RCSB
-routes and mutate a large shared database root, so they are intentionally not
-accepted by the routine `stage` or `submit` commands and are not covered by the
-persistent approval rules below. Until a separate fixed administration driver,
-configuration contract, scratch policy, and start commands are reviewed, run
-them only as an explicitly approved site operation using the documented Marmic
-Nextflow profile.
+Full preparation and `verify-only --full-verify` use separate, long-running
+database-administration start commands. They may contact fixed public
+Foldseek/RCSB routes and mutate a large shared root, so routine `stage` and
+`submit` explicitly reject the `database` profile. Do not add the two start
+commands to persistent Codex rules.
 
-The future driver must retain one-active-job protection, use a fingerprinted
-external configuration, probe compute-node connectivity before large writes,
-keep durable database content on shared storage, and never fall back to
-`/dev/shm` for database payloads. Its start commands must remain outside the
-routine approval list even though `status`, `wait`, `logs`, `collect`, `cancel`,
-and approval-gated `clean` can share the ownership model.
+Create `_config/database.paths` below the configured remote run root from the
+tracked [example](../conf/hpc-database.paths.example). It is user-owned, mode
+`0600`, outside Git, and has exactly seven lines with no comments:
+
+1. canonical user-owned allowed administration root;
+2. existing user-owned durable database root below line 1;
+3. new immutable manifest output path in a user-owned directory below line 1;
+4. total project storage cap in bytes, at most `2000000000000`;
+5. durable free-space reserve in bytes;
+6. free build capacity required before downloading; and
+7. compute scratch free-space reserve in bytes.
+
+Byte counts must be canonical decimal integers without leading zeroes. The
+tracked example deliberately uses a 1.8 TB project cap and 200 GB reserves on a
+2 TB allocation; these remain conservative first-run assumptions, not evidence
+of the real active/failed/immutable-copy size. The
+manifest path must not exist when readiness and staging run. Use a new dated
+path for a later intentional rebuild; the fixed driver never overwrites an
+existing trust anchor. Actual site paths remain only in this external file.
+
+First perform the path-free readiness check. It reports sanitised Pixi and
+configuration statuses and the configuration SHA-256, but no site paths and no
+compute-node claim:
+
+```bash
+nf-gtd-hpc-test database-readiness
+```
+
+Review the exact commit and external configuration, then explicitly approve the
+two start commands individually:
+
+```bash
+nf-gtd-hpc-test database-stage --revision HEAD
+nf-gtd-hpc-test database-submit --run-id RUN_ID
+nf-gtd-hpc-test wait --run-id RUN_ID
+nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test collect --run-id RUN_ID
+```
+
+`database-stage` fingerprints the external configuration. Execution refuses a
+post-stage edit. `database-submit` has fixed Slurm resources and accepts no URL,
+path, resource, or shell argument. On the compute node the job requires explicit
+distinct scratch, installs the frozen `hpc` Pixi environment, and runs the fixed
+preflight. That preflight checks available capacity, scratch headroom,
+Foldseek/MMseqs2/aria2 versions, and only the pinned PDB, ProstT5, SEQRES, and
+1UBQ routes. Its JSON always records `large_payload_started: false`.
+
+Only after preflight passes does the job prepare PDB Foldseek, PDB sequence,
+ProstT5, and coordinate-cache resources under the durable root. `aria2c` is
+wrapped with `--no-conf=true`, so a user configuration cannot silently change
+the reviewed transfer behaviour. Success requires a frozen manifest checksum
+and a second anchored `--verify-only --full-verify` pass. Fixed small manifests,
+preflight evidence, and logs are collectable; database payloads stay on Marmic.
+There is no automatic retry or cleanup of retained failed durable staging.
 
 ## Results and failure interpretation
 
@@ -297,6 +357,11 @@ prefix_rule(
 
 Verify the active rule independently in both Codex App and Codex CLI. Routine
 wrapper calls should not prompt; `clean` and raw SSH must still prompt.
+
+For a recoverable inventory of every local file and approval changed by this
+integration, plus disable and restoration commands, use the
+[local settings and rollback guide](local-settings-and-rollback.md). Removing
+local settings does not authorise deletion of shared Marmic state.
 
 ## Deferred scope
 

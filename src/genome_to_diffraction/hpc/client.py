@@ -288,6 +288,10 @@ class HpcController:
         """Stage one clean immutable commit and create its local capability record."""
 
         validate_profile(profile)
+        if profile == "database":
+            raise ValidationError(
+                "database administration requires the separate database-stage operation"
+            )
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
         iteration, parent = self._next_iteration(parent_run_id)
@@ -344,10 +348,76 @@ class HpcController:
             "profile": profile,
         }
 
+    def database_readiness(self) -> dict[str, object]:
+        """Inspect fixed database-administration prerequisites without a run."""
+
+        self.logger.info("inspecting fixed database-administration readiness")
+        return {
+            **self.transport.run("database-readiness", []),
+            "operation": "database-readiness",
+            "profile": "database",
+        }
+
+    def database_stage(self, revision: str) -> dict[str, object]:
+        """Stage one immutable commit through the separately named admin boundary."""
+
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+        run_id = f"gtd-database-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
+        owner_id = secrets.token_hex(16)
+        validate_run_id(run_id)
+        lock_checksum = sha256_file(self.config.repository / "pixi.lock")
+        record = LocalRunRecord(
+            run_id=run_id,
+            commit=commit,
+            owner_id=owner_id,
+            profile="database",
+            iteration=1,
+            parent_run_id=None,
+        )
+        local_path = record.write(self.config.local_state_root)
+        self.logger.warning(
+            "staging immutable database-administration run",
+            extra={"run_id": run_id, "commit": commit},
+        )
+        remote = self.transport.run(
+            "database-stage",
+            [run_id, commit, lock_checksum, owner_id],
+        )
+        return {
+            **remote,
+            "operation": "database-stage",
+            "run_id": run_id,
+            "commit": commit,
+            "profile": "database",
+            "local_record": str(local_path),
+        }
+
+    def database_submit(self, run_id: str) -> dict[str, object]:
+        """Submit only an owned run staged by the admin-specific operation."""
+
+        record = self._owned_run(run_id)
+        if record.profile != "database":
+            raise ValidationError("database-submit requires a database run")
+        self.logger.warning(
+            "submitting fixed database-administration job",
+            extra={"run_id": run_id},
+        )
+        return {
+            **self.transport.run("database-submit", [run_id, record.owner_id]),
+            "operation": "database-submit",
+        }
+
     def submit(self, profile: str, run_id: str) -> dict[str, object]:
         """Submit one reviewed fixed profile for an owned staged run."""
 
         validate_profile(profile)
+        if profile == "database":
+            raise ValidationError(
+                "database administration requires the separate "
+                "database-submit operation"
+            )
         record = self._owned_run(run_id)
         if record.profile != profile:
             raise ValidationError("requested profile does not match the staged run")
@@ -372,7 +442,12 @@ class HpcController:
     def wait(self, run_id: str) -> dict[str, object]:
         """Poll with fixed queue and execution deadlines; never cancel implicitly."""
 
-        self._owned_run(run_id)
+        record = self._owned_run(run_id)
+        execution_timeout = (
+            self.config.database_execution_timeout_seconds
+            if record.profile == "database"
+            else self.config.execution_timeout_seconds
+        )
         queued_elapsed = 0
         running_elapsed = 0
         phase = "queue"
@@ -394,7 +469,7 @@ class HpcController:
                     return {**result, "operation": "wait"}
                 if scheduler_state not in _QUEUED_STATES and phase == "queue":
                     phase = "execution"
-                    total = self.config.execution_timeout_seconds
+                    total = execution_timeout
                     progress_bar.reset(total=total)
                     progress_bar.set_description(f"Running {run_id}")
 
@@ -414,7 +489,7 @@ class HpcController:
                         }
                 else:
                     running_elapsed += self.config.poll_seconds
-                    if running_elapsed >= self.config.execution_timeout_seconds:
+                    if running_elapsed >= execution_timeout:
                         return {
                             **result,
                             "operation": "wait",

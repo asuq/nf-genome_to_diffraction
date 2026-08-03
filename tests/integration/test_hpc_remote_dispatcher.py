@@ -7,6 +7,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 import tarfile
 from collections.abc import Iterator
 from pathlib import Path
@@ -17,6 +18,7 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 RUN_ID = "gtd-smoke-20260802T120000Z-0123456789ab-01234567"
 SECOND_RUN_ID = "gtd-smoke-20260802T120001Z-0123456789ab-01234568"
 P0_RUN_ID = "gtd-p0-20260802T120000Z-0123456789ab-01234567"
+DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
 
 
@@ -131,6 +133,31 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
 
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
+    python = shlex.quote(sys.executable)
+    fake_stat = (
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'if [[ "${FAKE_STAT_DISTINCT:-0}" == 1 && "${1-}" == -c && '
+        '"${2-}" == %d ]]; then\n'
+        '  case "${3-}" in\n'
+        "    *db-scratch*) echo 222; exit 0 ;;\n"
+        "    *database-admin/databases*) echo 111; exit 0 ;;\n"
+        "  esac\n"
+        "fi\n"
+        'if [[ "${1-}" == -c ]]; then\n'
+        '  case "${2-}" in\n'
+        f"    %a) exec {python} -c 'import os,stat,sys; "
+        'print(format(stat.S_IMODE(os.lstat(sys.argv[1]).st_mode), "o"))\' '
+        '"${3-}" ;;\n'
+        f"    %d) exec {python} -c 'import os,sys; "
+        'print(os.stat(sys.argv[1]).st_dev)\' "${3-}" ;;\n'
+        f"    %s) exec {python} -c 'import os,sys; "
+        'print(os.stat(sys.argv[1]).st_size)\' "${3-}" ;;\n'
+        "  esac\n"
+        "fi\n"
+        "exit 2\n"
+    )
+    _write_executable(fake_bin / "stat", fake_stat)
     pixi = fake_bin / "pixi"
     _write_executable(
         pixi,
@@ -438,6 +465,270 @@ def _write_p0_paths(root: Path, *, unsafe: bool = False) -> Path:
     )
     p0_config.chmod(0o600)
     return p0_config
+
+
+def _write_database_paths(root: Path, *, storage_limit: str = "2000000000000") -> Path:
+    allowed = root / "database-admin"
+    database_root = allowed / "databases"
+    manifests = allowed / "manifests"
+    database_root.mkdir(parents=True)
+    manifests.mkdir()
+    values = [
+        str(allowed),
+        str(database_root),
+        str(manifests / "database_manifest-20260802.json"),
+        storage_limit,
+        "100000000000",
+        "1800000000000",
+        "200000000000",
+    ]
+    config = root / "_config" / "database.paths"
+    config.parent.mkdir(exist_ok=True)
+    config.write_text("\n".join(values) + "\n", encoding="utf-8")
+    config.chmod(0o600)
+    return config
+
+
+def _install_fake_database_runtime(run: Path, fake_bin: Path) -> None:
+    bin_directory = run / "source" / ".pixi" / "envs" / "hpc" / "bin"
+    bin_directory.mkdir(parents=True)
+    shutil.copy2(fake_bin / "stat", bin_directory / "stat")
+    shutil.copy2(fake_bin / "flock", bin_directory / "flock")
+    sha256sum = shutil.which("sha256sum")
+    assert sha256sum is not None
+    _write_executable(
+        bin_directory / "sha256sum",
+        f'#!/usr/bin/env bash\nexec {shlex.quote(sha256sum)} "$@"\n',
+    )
+    _write_executable(bin_directory / "aria2c", "#!/usr/bin/env bash\nexit 0\n")
+    _write_executable(
+        bin_directory / "genome-to-diffraction",
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "action=\n"
+        "previous=\n"
+        "report=\n"
+        "manifest=\n"
+        "full_verify=false\n"
+        'printf \'%s\\n\' "$*" >> "$FAKE_DATABASE_COMMAND_LOG"\n'
+        'for argument in "$@"; do\n'
+        '  [[ "$argument" != preflight ]] || action=preflight\n'
+        '  [[ "$argument" != prepare ]] || action=prepare\n'
+        '  [[ "$argument" != --full-verify ]] || full_verify=true\n'
+        '  [[ "$previous" != --report ]] || report="$argument"\n'
+        '  [[ "$previous" != --manifest ]] || manifest="$argument"\n'
+        '  previous="$argument"\n'
+        "done\n"
+        'if [[ "$action" == preflight ]]; then\n'
+        '  mkdir -p "$(dirname "$report")"\n'
+        '  printf \'{"status":"passed","large_payload_started":false}\\n\' '
+        '> "$report"\n'
+        'elif [[ "$action" == prepare ]]; then\n'
+        '  mkdir -p "$(dirname "$manifest")"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$manifest"\n'
+        '  if [[ "$full_verify" == true ]]; then\n'
+        '    printf \'{"verification_level":"full_checksums",'
+        '"full_checksums":true}\\n\' > "${manifest%.json}.verification.json"\n'
+        "  fi\n"
+        "else\n"
+        "  exit 9\n"
+        "fi\n",
+    )
+
+
+def test_database_administration_uses_separate_fixed_start_boundary(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+
+    missing = _run(
+        [str(dispatcher), "database-readiness"],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    missing_fields = _decode_protocol(missing.stdout)
+    assert missing_fields["ready"] == "false"
+    assert missing_fields["database_config_status"] == "absent_or_unsafe"
+    assert list((remote_root / "runs").iterdir()) == []
+
+    database_config = _write_database_paths(remote_root)
+    ready = _run(
+        [str(dispatcher), "database-readiness"],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    ready_fields = _decode_protocol(ready.stdout)
+    assert ready_fields["ready"] == "true", ready_fields
+    assert ready_fields["database_config_status"] == "ready"
+    assert (
+        ready_fields["database_config_sha256"]
+        == hashlib.sha256(database_config.read_bytes()).hexdigest()
+    )
+    assert not any(str(remote_root) in value for value in ready_fields.values())
+
+    routine_stage = _run(
+        [
+            str(dispatcher),
+            "stage",
+            DATABASE_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "database",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(routine_stage.stdout)["failure_class"] == "wrapper_failure"
+    assert not (remote_root / "runs" / DATABASE_RUN_ID).exists()
+
+    staged = _run(
+        [
+            str(dispatcher),
+            "database-stage",
+            DATABASE_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(staged.stdout)["profile"] == "database"
+    run = remote_root / "runs" / DATABASE_RUN_ID
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    assert (
+        manifest["database_config_sha256"]
+        == hashlib.sha256(database_config.read_bytes()).hexdigest()
+    )
+
+    routine_submit = _run(
+        [str(dispatcher), "submit", DATABASE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(routine_submit.stdout)["failure_class"] == (
+        "wrapper_failure"
+    )
+
+    submitted = _run(
+        [str(dispatcher), "database-submit", DATABASE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(submitted.stdout)["job_id"] == "123"
+    submitted_arguments = (
+        (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    )
+    assert "--partition=slurm" in submitted_arguments
+    assert "--cpus-per-task=8" in submitted_arguments
+    assert "--mem=64G" in submitted_arguments
+    assert "--time=48:00:00" in submitted_arguments
+    assert submitted_arguments[-4:] == [
+        str(smoke_job),
+        DATABASE_RUN_ID,
+        str(remote_root),
+        "database",
+    ]
+
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "smoke",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    active_environment = dict(environment)
+    active_environment["FAKE_SQUEUE_STATE"] = "RUNNING"
+    concurrent = _run(
+        [str(dispatcher), "submit", RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=active_environment,
+        success=False,
+    )
+    assert _decode_protocol(concurrent.stdout)["failure_class"] == (
+        "scheduler_rejection"
+    )
+
+    _install_fake_database_runtime(run, tmp_path / "fake-bin")
+    scratch_parent = tmp_path / "db-scratch"
+    scratch_parent.mkdir()
+    command_log = tmp_path / "database-commands.log"
+    job_environment = dict(environment)
+    job_environment.update(
+        {
+            "SLURM_JOB_ID": "123",
+            "SLURM_CPUS_PER_TASK": "8",
+            "SLURM_TMPDIR": str(scratch_parent),
+            "FAKE_STAT_DISTINCT": "1",
+            "FAKE_DATABASE_COMMAND_LOG": str(command_log),
+        }
+    )
+    spooled_job = tmp_path / "database-slurm-script"
+    shutil.copy2(smoke_job, spooled_job)
+    _run(
+        [str(spooled_job), DATABASE_RUN_ID, str(remote_root), "database"],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
+
+    result = json.loads((run / "state" / "job-result.json").read_text())
+    assert result["failure_class"] == "success"
+    assert result["profile"] == "database"
+    configured_manifest = Path(database_config.read_text().splitlines()[2])
+    assert configured_manifest.is_file()
+    commands = command_log.read_text(encoding="utf-8")
+    assert "databases preflight" in commands
+    assert "databases prepare" in commands
+    assert "--full-verify" in commands
+    assert "--threads 8" in commands
+    assert str(scratch_parent / f"nf-gtd-database-123-{DATABASE_RUN_ID}") in commands
+    assert list(scratch_parent.iterdir()) == []
+
+    archive_path = tmp_path / "database-collected.tar.gz"
+    archive_path.write_bytes(
+        _run(
+            [str(dispatcher), "collect", DATABASE_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    with tarfile.open(archive_path, "r:gz") as archive:
+        names = archive.getnames()
+    assert "artifacts/database/preflight.json" in names
+    assert "artifacts/database/database_manifest.full-verified.json" in names
+
+
+@pytest.mark.parametrize(
+    "storage_limit",
+    ("02000000000000", "999999999999999999999999999999"),
+)
+def test_database_readiness_rejects_noncanonical_byte_counts(
+    tmp_path: Path, storage_limit: str
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    _write_database_paths(smoke_job.parent.parent, storage_limit=storage_limit)
+
+    result = _run(
+        [str(dispatcher), "database-readiness"],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    fields = _decode_protocol(result.stdout)
+    assert fields["ready"] == "false"
+    assert fields["database_config_status"] == "invalid_capacity"
 
 
 def test_p0_readiness_is_sanitised_and_creates_no_run(tmp_path: Path) -> None:

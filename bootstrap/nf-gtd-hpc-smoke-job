@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Fixed Slurm job body for the reviewed smoke and P0 profiles.
+# Fixed Slurm job body for the reviewed smoke, P0, and separately gated
+# database-administration profiles.
 
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0)$'
+RUN_ID_RE='^gtd-(smoke|p0|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
+BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 
 # Slurm executes a spooled copy, so $0 no longer identifies _tooling. The fixed
@@ -25,6 +27,10 @@ PROFILE="${3-}"
     printf 'missing Slurm job ID\n' >&2
     exit 2
 }
+if [[ "$PROFILE" == database && "${SLURM_CPUS_PER_TASK:-}" != 8 ]]; then
+    printf 'database job requires exactly eight allocated CPUs\n' >&2
+    exit 2
+fi
 [[ "$ROOT" =~ $SAFE_PATH_RE && -d "$ROOT/runs" && -d "$ROOT/_locks" ]] || {
     printf 'invalid managed run root\n' >&2
     exit 2
@@ -49,13 +55,18 @@ PIXI_BIN="$(<"$RUN/state/pixi-bin")"
     exit 2
 }
 
-SCRATCH_PARENT="${SLURM_TMPDIR:-/dev/shm}"
-[[ "$SCRATCH_PARENT" =~ $SAFE_PATH_RE ]] || {
-    printf 'Slurm scratch parent is not a safe absolute path\n' >&2
-    exit 2
-}
-SCRATCH="${SCRATCH_PARENT%/}/nf-gtd-${SLURM_JOB_ID}-${RUN_ID}"
-SOURCE="$SCRATCH/source"
+SCRATCH_PARENT=""
+SCRATCH=""
+SOURCE=""
+if [[ "$PROFILE" != database ]]; then
+    SCRATCH_PARENT="${SLURM_TMPDIR:-/dev/shm}"
+    [[ "$SCRATCH_PARENT" =~ $SAFE_PATH_RE ]] || {
+        printf 'Slurm scratch parent is not a safe absolute path\n' >&2
+        exit 2
+    }
+    SCRATCH="${SCRATCH_PARENT%/}/nf-gtd-${SLURM_JOB_ID}-${RUN_ID}"
+    SOURCE="$SCRATCH/source"
+fi
 STARTED_AT="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 PHASE=environment
 
@@ -70,6 +81,7 @@ atomic_text() {
 finalise() {
     local exit_code="$?"
     local failure_class scheduler_state ended_at result_tmp active_run="" active_job=""
+    local active_lock="$ROOT/_locks/active-smoke"
     local cleanup_failed=false reports_json='[]' retained_json='[]'
     trap - EXIT TERM INT
     set +e
@@ -79,7 +91,7 @@ finalise() {
     elif [[ "$PHASE" == cancelled ]]; then
         failure_class=unknown_failure
         scheduler_state=CANCELLED
-    elif [[ "$PHASE" == environment ]]; then
+    elif [[ "$PHASE" == environment || "$PHASE" == preflight ]]; then
         failure_class=environment_failure
         scheduler_state=FAILED
     elif [[ "$PHASE" == test ]]; then
@@ -91,13 +103,16 @@ finalise() {
     fi
     exec 9>"$ROOT/_locks/submit.lock"
     flock -x 9
-    if [[ -f "$ROOT/_locks/active-smoke" ]]; then
-        read -r active_run active_job < "$ROOT/_locks/active-smoke" || true
+    if [[ "$PROFILE" == database ]]; then
+        active_lock="$ROOT/_locks/active-database"
+    fi
+    if [[ -f "$active_lock" ]]; then
+        read -r active_run active_job < "$active_lock" || true
         if [[ "$active_run" == "$RUN_ID" && "$active_job" == "$SLURM_JOB_ID" ]]; then
-            rm -f -- "$ROOT/_locks/active-smoke"
+            rm -f -- "$active_lock"
         fi
     fi
-    if [[ -e "$SCRATCH" ]]; then
+    if [[ -n "$SCRATCH" && -e "$SCRATCH" ]]; then
         chmod -R u+w "$SCRATCH" 2>/dev/null || true
         rm -rf -- "$SCRATCH"
         [[ ! -e "$SCRATCH" ]] || cleanup_failed=true
@@ -115,6 +130,9 @@ finalise() {
     if [[ "$PROFILE" == p0 ]]; then
         reports_json='["artifacts/qualification/resume-check.json"]'
         retained_json='["artifacts/p0","artifacts/qualification"]'
+    elif [[ "$PROFILE" == database ]]; then
+        reports_json='["artifacts/database/preflight.json"]'
+        retained_json='["artifacts/database"]'
     fi
     ended_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     atomic_text "$RUN/state/exit-code" "$exit_code"
@@ -193,7 +211,8 @@ load_p0_config() {
         }
     done
     allowed="$(realpath -e "${values[0]}")"
-    [[ "$allowed" == "${values[0]}" && -d "$allowed" && ! -L "${values[0]}" ]] || {
+    [[ "$allowed" == "${values[0]}" && -d "$allowed" && \
+        ! -L "${values[0]}" && -O "${values[0]}" ]] || {
         printf 'P0 allowed root must be a canonical regular directory\n' >&2
         return 1
     }
@@ -240,6 +259,105 @@ load_p0_config() {
     EXPECTED_DATABASE_MANIFEST="${values[5]}"
     PHENIX_MANIFEST="${values[6]}"
     P0_CONFIG_PATH="$config"
+}
+
+load_database_config() {
+    local config="$ROOT/_config/database.paths"
+    local expected actual allowed candidate resolved manifest_parent
+    local -a values=()
+    [[ -f "$config" && ! -L "$config" && -O "$config" ]] || {
+        printf 'fixed database configuration is absent or unsafe\n' >&2
+        return 1
+    }
+    [[ "$(stat -c '%a' "$config")" == 600 ]] || {
+        printf 'fixed database configuration must have mode 0600\n' >&2
+        return 1
+    }
+    expected="$(<"$RUN/state/database-config-sha256")"
+    [[ "$expected" =~ $CHECKSUM_RE ]] || {
+        printf 'recorded database configuration checksum is invalid\n' >&2
+        return 1
+    }
+    actual="$(sha256sum "$config" | awk '{print $1}')"
+    [[ "$actual" == "$expected" ]] || {
+        printf 'database configuration changed after staging\n' >&2
+        return 1
+    }
+    mapfile -t values < "$config"
+    [[ "${#values[@]}" -eq 7 ]] || {
+        printf 'database configuration must contain exactly seven lines\n' >&2
+        return 1
+    }
+    for candidate in "${values[0]}" "${values[1]}" "${values[2]}"; do
+        [[ "$candidate" =~ $SAFE_PATH_RE ]] || {
+            printf 'database configuration contains an unsafe path\n' >&2
+            return 1
+        }
+    done
+    for candidate in "${values[3]}" "${values[4]}" "${values[5]}" "${values[6]}"; do
+        [[ "$candidate" =~ $BYTE_COUNT_RE && "${#candidate}" -le 13 ]] || {
+            printf 'database configuration contains an invalid byte count\n' >&2
+            return 1
+        }
+    done
+    allowed="$(realpath -e "${values[0]}")"
+    [[ "$allowed" == "${values[0]}" && -d "$allowed" && ! -L "${values[0]}" ]] || {
+        printf 'database allowed root is invalid\n' >&2
+        return 1
+    }
+    [[ "$allowed" != / && "$allowed" != "${HOME:-}" ]] || {
+        printf 'database allowed root is too broad\n' >&2
+        return 1
+    }
+    resolved="$(realpath -e "${values[1]}")"
+    [[ "$resolved" == "${values[1]}" && -d "$resolved" && \
+        ! -L "${values[1]}" && -O "${values[1]}" ]] || {
+        printf 'database root is invalid\n' >&2
+        return 1
+    }
+    path_within_root "$allowed" "$resolved" || {
+        printf 'database root escaped the allowed root\n' >&2
+        return 1
+    }
+    [[ ! -e "${values[2]}" && ! -L "${values[2]}" ]] || {
+        printf 'immutable database manifest output already exists\n' >&2
+        return 1
+    }
+    manifest_parent="$(dirname "${values[2]}")"
+    resolved="$(realpath -e "$manifest_parent")"
+    [[ "$resolved" == "$manifest_parent" && -d "$resolved" && \
+        ! -L "$manifest_parent" && -O "$manifest_parent" ]] || {
+        printf 'database manifest parent is invalid\n' >&2
+        return 1
+    }
+    path_within_root "$allowed" "${values[2]}" || {
+        printf 'database manifest escaped the allowed root\n' >&2
+        return 1
+    }
+    (( values[3] > 0 && values[3] <= 2000000000000 )) || {
+        printf 'database storage cap is outside the fixed 2 TB boundary\n' >&2
+        return 1
+    }
+    (( values[4] >= 0 && values[4] < values[3] )) || {
+        printf 'database free-space headroom is invalid\n' >&2
+        return 1
+    }
+    (( values[5] > 0 && values[5] <= values[3] )) || {
+        printf 'required database capacity is invalid\n' >&2
+        return 1
+    }
+    (( values[6] > 0 )) || {
+        printf 'required scratch headroom is invalid\n' >&2
+        return 1
+    }
+
+    DATABASE_ALLOWED_ROOT="$allowed"
+    DATABASE_ROOT="${values[1]}"
+    DATABASE_MANIFEST="${values[2]}"
+    STORAGE_LIMIT_BYTES="${values[3]}"
+    MINIMUM_FREE_BYTES="${values[4]}"
+    REQUIRED_DATABASE_CAPACITY_BYTES="${values[5]}"
+    MINIMUM_SCRATCH_FREE_BYTES="${values[6]}"
 }
 
 run_smoke() {
@@ -399,11 +517,141 @@ EOF
     printf 'p0_status=preflight_complete_downstream_deferred\n'
 }
 
+run_database() {
+    local gtd real_aria2 wrapper_bin database_manifest_sha256
+
+    load_database_config
+    [[ -n "${SLURM_TMPDIR:-}" && "$SLURM_TMPDIR" =~ $SAFE_PATH_RE ]] || {
+        printf 'database job requires an explicit safe SLURM_TMPDIR\n' >&2
+        return 2
+    }
+    SCRATCH_PARENT="$(realpath -e "$SLURM_TMPDIR")"
+    [[ "$SCRATCH_PARENT" == "$SLURM_TMPDIR" && -d "$SCRATCH_PARENT" && \
+        ! -L "$SLURM_TMPDIR" && -O "$SLURM_TMPDIR" ]] || {
+        printf 'SLURM_TMPDIR must be a canonical non-symlink directory\n' >&2
+        return 2
+    }
+    [[ "$SCRATCH_PARENT" != /dev/shm && "$SCRATCH_PARENT" != /dev/shm/* ]] || {
+        printf 'database payload scratch must not use /dev/shm\n' >&2
+        return 2
+    }
+    [[ "$(stat -c '%d' "$SCRATCH_PARENT")" != \
+        "$(stat -c '%d' "$DATABASE_ROOT")" ]] || {
+        printf 'database scratch and durable root share a filesystem\n' >&2
+        return 2
+    }
+    SCRATCH="${SCRATCH_PARENT%/}/nf-gtd-database-${SLURM_JOB_ID}-${RUN_ID}"
+    [[ "$SCRATCH" == "$SCRATCH_PARENT"/* ]] || {
+        printf 'database scratch escaped its parent\n' >&2
+        return 2
+    }
+    mkdir "$SCRATCH"
+    SOURCE="$SCRATCH/source"
+    mkdir "$SOURCE" "$SCRATCH/tmp"
+    cp -a "$RUN/source/." "$SOURCE/"
+    chmod -R u+w "$SOURCE"
+    [[ "$(git -C "$SOURCE" rev-parse HEAD)" == "$(<"$RUN/state/commit")" ]] || {
+        printf 'database scratch checkout commit mismatch\n' >&2
+        return 2
+    }
+
+    export TMPDIR="$SCRATCH/tmp"
+    printf 'phase=pixi_install profile=database\n'
+    cd "$SOURCE"
+    "$PIXI_BIN" install --environment hpc --frozen
+    gtd="$SOURCE/.pixi/envs/hpc/bin/genome-to-diffraction"
+    real_aria2="$SOURCE/.pixi/envs/hpc/bin/aria2c"
+    [[ -x "$gtd" && -x "$real_aria2" ]] || {
+        printf 'locked database executables are unavailable\n' >&2
+        return 2
+    }
+
+    wrapper_bin="$SCRATCH/tool-wrappers"
+    mkdir "$wrapper_bin"
+    cat > "$wrapper_bin/aria2c" <<EOF
+#!/usr/bin/env bash
+exec "$real_aria2" --no-conf=true "\$@"
+EOF
+    chmod 0555 "$wrapper_bin/aria2c"
+    export PATH="$wrapper_bin:$SOURCE/.pixi/envs/hpc/bin:/usr/bin:/bin"
+
+    PHASE=preflight
+    printf 'phase=database_preflight profile=database\n'
+    "$gtd" --log-format json --no-progress databases preflight \
+        --database-root "$DATABASE_ROOT" \
+        --scratch-root "$SCRATCH" \
+        --report "$RUN/artifacts/database/preflight.json" \
+        --storage-limit-bytes "$STORAGE_LIMIT_BYTES" \
+        --minimum-free-bytes "$MINIMUM_FREE_BYTES" \
+        --required-database-capacity-bytes "$REQUIRED_DATABASE_CAPACITY_BYTES" \
+        --minimum-scratch-free-bytes "$MINIMUM_SCRATCH_FREE_BYTES"
+
+    PHASE=database
+    printf 'phase=database_prepare profile=database\n'
+    "$gtd" --log-format json --no-progress databases prepare \
+        --database-root "$DATABASE_ROOT" \
+        --scratch-root "$SCRATCH" \
+        --minimum-scratch-free-bytes "$MINIMUM_SCRATCH_FREE_BYTES" \
+        --manifest "$DATABASE_MANIFEST" \
+        --prepare-pdb-foldseek \
+        --prepare-pdb-sequences \
+        --prepare-prostt5 \
+        --initialise-coordinate-cache \
+        --storage-limit-bytes "$STORAGE_LIMIT_BYTES" \
+        --minimum-free-bytes "$MINIMUM_FREE_BYTES" \
+        --lock-timeout-seconds 300 \
+        --threads 8
+
+    database_manifest_sha256="$(sha256sum "$DATABASE_MANIFEST" | awk '{print $1}')"
+    [[ "$database_manifest_sha256" =~ $CHECKSUM_RE ]] || {
+        printf 'database manifest checksum failed\n' >&2
+        return 2
+    }
+    cp -- "$DATABASE_MANIFEST" "$RUN/artifacts/database/database_manifest.json"
+    printf '%s  %s\n' "$database_manifest_sha256" "$(basename "$DATABASE_MANIFEST")" \
+        > "$RUN/artifacts/database/database_manifest.sha256"
+
+    PHASE=verification
+    printf 'phase=database_full_verify profile=database\n'
+    "$gtd" --log-format json --no-progress databases prepare \
+        --database-root "$DATABASE_ROOT" \
+        --scratch-root "$SCRATCH" \
+        --minimum-scratch-free-bytes "$MINIMUM_SCRATCH_FREE_BYTES" \
+        --manifest "$RUN/artifacts/database/database_manifest.full-verified.json" \
+        --expected-manifest "$DATABASE_MANIFEST" \
+        --expected-manifest-sha256 "$database_manifest_sha256" \
+        --prepare-pdb-foldseek \
+        --prepare-pdb-sequences \
+        --prepare-prostt5 \
+        --initialise-coordinate-cache \
+        --verify-only \
+        --full-verify \
+        --storage-limit-bytes "$STORAGE_LIMIT_BYTES" \
+        --minimum-free-bytes "$MINIMUM_FREE_BYTES" \
+        --lock-timeout-seconds 300 \
+        --threads 8
+
+    PHASE=software
+    [[ "$(git -C "$SOURCE" rev-parse HEAD)" == "$(<"$RUN/state/commit")" ]] || {
+        printf 'database source commit changed during execution\n' >&2
+        return 3
+    }
+    [[ -z "$(git -C "$SOURCE" status --porcelain=v1 --untracked-files=no)" ]] || {
+        printf 'database execution modified tracked source files\n' >&2
+        return 3
+    }
+    printf 'database_status=prepared_and_full_verified\n'
+}
+
 trap finalise EXIT
 trap 'handle_signal 143 TERM' TERM
 trap 'handle_signal 130 INT' INT
 
-mkdir -p "$SCRATCH" "$SCRATCH/tmp"
+if [[ "$PROFILE" == database ]]; then
+    mkdir -p "$RUN/artifacts/database"
+else
+    mkdir -p "$SCRATCH" "$SCRATCH/tmp"
+fi
 exec > "$RUN/logs/${PROFILE}.log" 2>&1
 
 printf 'run_id=%s\n' "$RUN_ID"
@@ -415,13 +663,16 @@ printf 'pixi_executable=%s\n' "$PIXI_BIN"
 "$PIXI_BIN" --version
 
 export PIXI_CACHE_DIR="$ROOT/_cache/pixi"
-export TMPDIR="$SCRATCH/tmp"
+if [[ "$PROFILE" != database ]]; then
+    export TMPDIR="$SCRATCH/tmp"
+fi
 export NXF_ANSI_LOG=false
 export NXF_DISABLE_CHECK_LATEST=true
 
 case "$PROFILE" in
     smoke) run_smoke ;;
     p0) run_p0 ;;
+    database) run_database ;;
 esac
 
 PHASE=success

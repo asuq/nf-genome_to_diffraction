@@ -10,7 +10,8 @@ from typing import Any
 from genome_to_diffraction.checksums import atomic_write_json
 
 RUN_ID_PATTERN = re.compile(
-    r"^gtd-(smoke|p0)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$"
+    r"^gtd-(smoke|p0|database)-[0-9]{8}T[0-9]{6}Z-"
+    r"[0-9a-f]{12}-[0-9a-f]{8}$"
 )
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 OWNER_PATTERN = re.compile(r"^[0-9a-f]{32}$")
@@ -24,8 +25,9 @@ MAX_ARTIFACT_TOTAL_BYTES = 100 * 1024 * 1024
 MAX_FEEDBACK_RUNS = 6
 QUEUE_TIMEOUT_SECONDS = 30 * 60
 EXECUTION_TIMEOUT_SECONDS = 45 * 60
+DATABASE_EXECUTION_TIMEOUT_SECONDS = 48 * 60 * 60
 POLL_SECONDS = 15
-PROFILES = frozenset({"smoke", "p0"})
+PROFILES = frozenset({"smoke", "p0", "database"})
 
 
 class FailureClass(StrEnum):
@@ -82,6 +84,7 @@ class HpcConfig:
     poll_seconds: int = POLL_SECONDS
     queue_timeout_seconds: int = QUEUE_TIMEOUT_SECONDS
     execution_timeout_seconds: int = EXECUTION_TIMEOUT_SECONDS
+    database_execution_timeout_seconds: int = DATABASE_EXECUTION_TIMEOUT_SECONDS
 
     @classmethod
     def load(cls, path: Path) -> HpcConfig:
@@ -106,6 +109,7 @@ class HpcConfig:
             "poll_seconds",
             "queue_timeout_seconds",
             "execution_timeout_seconds",
+            "database_execution_timeout_seconds",
         }
         unknown = sorted(set(raw) - allowed)
         if unknown:
@@ -156,6 +160,13 @@ class HpcConfig:
                 EXECUTION_TIMEOUT_SECONDS,
                 60,
                 EXECUTION_TIMEOUT_SECONDS,
+            ),
+            database_execution_timeout_seconds=_bounded_integer(
+                raw,
+                "database_execution_timeout_seconds",
+                DATABASE_EXECUTION_TIMEOUT_SECONDS,
+                60,
+                DATABASE_EXECUTION_TIMEOUT_SECONDS,
             ),
         )
 

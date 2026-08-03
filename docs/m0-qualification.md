@@ -12,7 +12,7 @@ this gate passes.
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Blocked on scientific metadata | True catalogue sequence, known ASU copy count, trustworthy final model/structure factors where available, and suitable MR model |
 | M0.3 Qualify Phenix | Local runtime and three real Xtriage smokes qualified; Marmic installation in progress | Phenix 2.1-6048 macOS arm64 passes all seven command probes and all three frozen MTZ files complete real Xtriage; the durable Marmic Linux installation, its real manifest, and equivalent Marmic results are still required |
-| M0.4 Qualify databases | Qualification implementation hardened; real preparation required on Marmic | Anchored full verification, symlink-aware inventories, non-empty known-query smokes, SEQRES target validation, public mmCIF mapping, and atomic coordinate-cache publication are tested; no real site resources have yet passed them |
+| M0.4 Qualify databases | Approval-gated administration driver implemented; real preparation required on Marmic | Fixed preflight, retained-failure guard, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site resources have yet passed them |
 | M0.5 Matthews reference | Pending | Selected pipeline hypotheses compared with Phenix/Xtriage without case-specific tuning |
 | M0.6 Fixed HPC P0 profile | Deployed; site configuration missing | Commit `1433006` tools are checksum-verified locally and on Marmic; staging failed safely before submission because the protected external P0 path file is absent |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
@@ -205,8 +205,10 @@ Every anchored verification sidecar now distinguishes
 `inventory_metadata_and_functional_smoke` from
 `full_checksums_and_functional_smoke` and records the Boolean checksum mode.
 The fixed 45-minute P0 job uses only the bounded level. Full-checksum database
-qualification remains a distinct long administration gate and must not inherit
-the routine `stage`/`submit` approvals.
+qualification now has distinct `database-stage`/`database-submit` commands, a
+fingerprinted external configuration, and a fixed 48-hour Slurm allocation. It
+remains a long administration gate and does not inherit the routine
+`stage`/`submit` approvals.
 
 These are implementation tests, not site qualification. Real M0.4 evidence
 still requires one immutable Marmic preparation, the frozen manifest/checksum,

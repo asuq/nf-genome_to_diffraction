@@ -4,12 +4,13 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0)$'
+RUN_ID_RE='^gtd-(smoke|p0|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
 INTEGER_RE='^[0-9]+$'
+BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 MAX_FILE_BYTES=$((20 * 1024 * 1024))
 MAX_TOTAL_BYTES=$((100 * 1024 * 1024))
@@ -21,6 +22,7 @@ MIRROR="$ROOT/_cache/git/nf-genome_to_diffraction.git"
 LOCKS="$ROOT/_locks"
 PIXI_PATH_FILE="$TOOL_DIR/pixi.path"
 P0_CONFIG="$ROOT/_config/p0.paths"
+DATABASE_CONFIG="$ROOT/_config/database.paths"
 DISPATCHER="$TOOL_DIR/nf-gtd-hpc-remote"
 SMOKE_JOB="$TOOL_DIR/nf-gtd-hpc-smoke-job"
 
@@ -153,7 +155,8 @@ p0_config_readiness() {
     done
     if ! allowed="$(realpath -e "${values[0]}" 2>/dev/null)" || \
         [[ "$allowed" != "${values[0]}" || ! -d "$allowed" || -L "${values[0]}" || \
-           "$allowed" == / || "$allowed" == "${HOME:-}" ]]; then
+           ! -O "${values[0]}" || "$allowed" == / || \
+           "$allowed" == "${HOME:-}" ]]; then
         P0_CONFIG_STATUS=allowed_root_invalid
         return 1
     fi
@@ -214,6 +217,109 @@ readiness_p0() {
     emit p0_config_status "$P0_CONFIG_STATUS"
     emit p0_config_sha256 "$P0_CONFIG_SHA256"
     emit scope staging_prerequisites_only
+}
+
+database_config_readiness() {
+    local allowed candidate resolved manifest_parent
+    local -a values=()
+    DATABASE_CONFIG_STATUS=unknown
+    DATABASE_CONFIG_SHA256=""
+    if [[ ! -f "$DATABASE_CONFIG" || -L "$DATABASE_CONFIG" || ! -O "$DATABASE_CONFIG" ]]; then
+        DATABASE_CONFIG_STATUS=absent_or_unsafe
+        return 1
+    fi
+    if [[ "$(stat -c '%a' "$DATABASE_CONFIG")" != 600 ]]; then
+        DATABASE_CONFIG_STATUS=mode_mismatch
+        return 1
+    fi
+    DATABASE_CONFIG_SHA256="$(sha256sum "$DATABASE_CONFIG" | awk '{print $1}')"
+    if [[ ! "$DATABASE_CONFIG_SHA256" =~ $CHECKSUM_RE ]]; then
+        DATABASE_CONFIG_STATUS=checksum_failure
+        return 1
+    fi
+    mapfile -t values < "$DATABASE_CONFIG"
+    if [[ "${#values[@]}" -ne 7 ]]; then
+        DATABASE_CONFIG_STATUS=line_count_mismatch
+        return 1
+    fi
+    for candidate in "${values[0]}" "${values[1]}" "${values[2]}"; do
+        if [[ ! "$candidate" =~ $SAFE_PATH_RE ]]; then
+            DATABASE_CONFIG_STATUS=unsafe_path
+            return 1
+        fi
+    done
+    for candidate in "${values[3]}" "${values[4]}" "${values[5]}" "${values[6]}"; do
+        if [[ ! "$candidate" =~ $BYTE_COUNT_RE || "${#candidate}" -gt 13 ]]; then
+            DATABASE_CONFIG_STATUS=invalid_capacity
+            return 1
+        fi
+    done
+    if ! allowed="$(realpath -e "${values[0]}" 2>/dev/null)" || \
+        [[ "$allowed" != "${values[0]}" || ! -d "$allowed" || -L "${values[0]}" || \
+           "$allowed" == / || "$allowed" == "${HOME:-}" ]]; then
+        DATABASE_CONFIG_STATUS=allowed_root_invalid
+        return 1
+    fi
+    if ! resolved="$(realpath -e "${values[1]}" 2>/dev/null)" || \
+        [[ "$resolved" != "${values[1]}" || ! -d "$resolved" || -L "${values[1]}" || \
+           ! -O "${values[1]}" ]] || \
+        ! path_within_root "$allowed" "$resolved"; then
+        DATABASE_CONFIG_STATUS=database_root_invalid
+        return 1
+    fi
+    if [[ -e "${values[2]}" || -L "${values[2]}" ]] || \
+        ! path_within_root "$allowed" "${values[2]}"; then
+        DATABASE_CONFIG_STATUS=manifest_output_invalid
+        return 1
+    fi
+    manifest_parent="$(dirname "${values[2]}")"
+    if ! resolved="$(realpath -e "$manifest_parent" 2>/dev/null)" || \
+        [[ "$resolved" != "$manifest_parent" || ! -d "$resolved" || \
+           -L "$manifest_parent" || ! -O "$manifest_parent" ]]; then
+        DATABASE_CONFIG_STATUS=manifest_parent_invalid
+        return 1
+    fi
+    if (( values[3] <= 0 || values[3] > 2000000000000 || \
+          values[4] < 0 || values[4] >= values[3] || \
+          values[5] <= 0 || values[5] > values[3] || values[6] <= 0 )); then
+        DATABASE_CONFIG_STATUS=capacity_out_of_bounds
+        return 1
+    fi
+    DATABASE_CONFIG_STATUS=ready
+    return 0
+}
+
+database_readiness() {
+    [[ "$#" -eq 0 ]] || fail wrapper_failure "database-readiness accepts no arguments"
+    local pixi_bin="" pixi_version="" pixi_status=unavailable ready=false
+    if [[ -f "$PIXI_PATH_FILE" ]]; then
+        IFS= read -r pixi_bin < "$PIXI_PATH_FILE"
+    else
+        pixi_bin="$(command -v pixi || true)"
+    fi
+    if [[ "$pixi_bin" =~ $SAFE_PATH_RE && -x "$pixi_bin" ]]; then
+        if pixi_version="$("$pixi_bin" --version 2>&1)"; then
+            if [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.74\.0$ ]]; then
+                pixi_status=ready
+            else
+                pixi_status=version_mismatch
+            fi
+        else
+            pixi_status=version_check_failed
+        fi
+    fi
+    database_config_readiness || true
+    if [[ "$pixi_status" == ready && "$DATABASE_CONFIG_STATUS" == ready ]]; then
+        ready=true
+    fi
+    emit operation database-readiness
+    emit profile database
+    emit ready "$ready"
+    emit pixi_status "$pixi_status"
+    emit pixi_version "$pixi_version"
+    emit database_config_status "$DATABASE_CONFIG_STATUS"
+    emit database_config_sha256 "$DATABASE_CONFIG_SHA256"
+    emit scope login_prerequisites_only
 }
 
 cleanup_deploy_staging() {
@@ -281,7 +387,6 @@ deploy_tools() {
         "${commit}:bootstrap/nf-gtd-hpc-smoke-job" > "$new_smoke_job"; then
         deploy_failure "$staging" transfer_failure "fixed smoke-job file is absent from deployment commit"
     fi
-
     actual_dispatcher="$(sha256sum "$new_dispatcher" | awk '{print $1}')"
     actual_smoke_job="$(sha256sum "$new_smoke_job" | awk '{print $1}')"
     [[ "$actual_dispatcher" == "$expected_dispatcher" ]] || \
@@ -332,7 +437,7 @@ EOF
     emit deployed true
 }
 
-stage_run() {
+stage_run_common() {
     [[ "$#" -eq 6 ]] || fail wrapper_failure "stage expects six fixed arguments"
     local run_id="$1"
     local commit="$2"
@@ -343,6 +448,7 @@ stage_run() {
     local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp
     local p0_config_sha256="" p0_config_json="null"
     local database_manifest_sha256="" database_manifest_json="null"
+    local database_config_sha256="" database_config_json="null"
 
     validate_run_id "$run_id"
     [[ "$commit" =~ $COMMIT_RE ]] || fail wrapper_failure "invalid commit SHA"
@@ -454,6 +560,19 @@ stage_run() {
         atomic_text "$run/state/database-manifest-sha256" "$database_manifest_sha256"
         p0_config_json="\"$p0_config_sha256\""
         database_manifest_json="\"$database_manifest_sha256\""
+    elif [[ "$profile" == database ]]; then
+        database_config_readiness || true
+        [[ "$DATABASE_CONFIG_STATUS" == ready ]] || {
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "environment_failure"
+            append_event "$run" "stage_database_config_absent"
+            fail environment_failure "fixed database configuration is absent or unsafe"
+        }
+        database_config_sha256="$DATABASE_CONFIG_SHA256"
+        [[ "$database_config_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "database configuration checksum failed"
+        atomic_text "$run/state/database-config-sha256" "$database_config_sha256"
+        database_config_json="\"$database_config_sha256\""
     fi
 
     manifest_tmp="$run/manifest.json.tmp.$$"
@@ -471,6 +590,7 @@ stage_run() {
   "pixi_version": "$pixi_version",
   "p0_config_sha256": $p0_config_json,
   "database_manifest_sha256": $database_manifest_json,
+  "database_config_sha256": $database_config_json,
   "staged_at": "$(now_utc)",
   "source_snapshot_status": "immutable"
 }
@@ -488,6 +608,18 @@ EOF
     emit phase staged
 }
 
+stage_run() {
+    [[ "$#" -eq 6 ]] || fail wrapper_failure "stage expects six fixed arguments"
+    [[ "$6" != database ]] || \
+        fail wrapper_failure "database profile requires database-stage"
+    stage_run_common "$@"
+}
+
+database_stage_run() {
+    [[ "$#" -eq 4 ]] || fail wrapper_failure "database-stage expects four fixed arguments"
+    stage_run_common "$1" "$2" "$3" "$4" 1 database
+}
+
 submit_run() {
     [[ "$#" -eq 2 ]] || fail wrapper_failure "submit expects run ID and owner ID"
     local run_id="$1"
@@ -501,11 +633,22 @@ submit_run() {
     [[ -x "$SMOKE_JOB" ]] || fail filesystem_failure "fixed smoke job runner is absent"
     profile="$(<"$run/state/profile")"
     validate_profile "$profile"
+    [[ "$profile" != database ]] || \
+        fail wrapper_failure "database profile requires database-submit"
     [[ "$run_id" == "gtd-${profile}-"* ]] || \
         fail wrapper_failure "recorded profile does not match the run ID"
 
     exec 9>"$LOCKS/submit.lock"
     flock -x 9
+    if [[ -f "$LOCKS/active-database" ]]; then
+        read -r active_run active_job < "$LOCKS/active-database" || true
+        if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
+            active_state="$(scheduler_queue_state "$active_job")"
+            [[ -z "$active_state" ]] || \
+                fail scheduler_rejection "a managed database job is still active"
+        fi
+        rm -f -- "$LOCKS/active-database"
+    fi
     if [[ -f "$LOCKS/active-smoke" ]]; then
         read -r active_run active_job < "$LOCKS/active-smoke" || true
         if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
@@ -540,6 +683,62 @@ submit_run() {
     emit run_id "$run_id"
     emit job_id "$job_id"
     emit profile "$profile"
+    emit scheduler_state SUBMITTED
+}
+
+database_submit_run() {
+    [[ "$#" -eq 2 ]] || fail wrapper_failure "database-submit expects run ID and owner ID"
+    local run_id="$1"
+    local owner_id="$2"
+    local run active_lock active_run active_job active_state submission job_id
+    require_owned_run "$run_id" "$owner_id"
+    run="$(run_directory "$run_id")"
+    [[ "$(<"$run/state/phase")" == staged ]] || \
+        fail wrapper_failure "database run is not in the staged state"
+    [[ "$(<"$run/state/profile")" == database ]] || \
+        fail wrapper_failure "database-submit requires a database run"
+    [[ ! -e "$run/state/job-id" ]] || fail wrapper_failure "run already has a scheduler job"
+    [[ -x "$SMOKE_JOB" ]] || fail filesystem_failure "fixed job runner is absent"
+
+    exec 9>"$LOCKS/submit.lock"
+    flock -x 9
+    for active_lock in "$LOCKS/active-smoke" "$LOCKS/active-database"; do
+        if [[ -f "$active_lock" ]]; then
+            read -r active_run active_job < "$active_lock" || true
+            if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
+                active_state="$(scheduler_queue_state "$active_job")"
+                [[ -z "$active_state" ]] || \
+                    fail scheduler_rejection "another managed job is still active"
+            fi
+            rm -f -- "$active_lock"
+        fi
+    done
+
+    if ! submission="$(sbatch --parsable \
+        --partition=slurm \
+        --cpus-per-task=8 \
+        --mem=64G \
+        --time=48:00:00 \
+        --job-name="nfgtd-database-${run_id:13:20}" \
+        --output="$run/logs/slurm-%j.out" \
+        "$SMOKE_JOB" "$run_id" "$ROOT" database \
+        2>"$run/logs/sbatch.err")"; then
+        atomic_text "$run/state/phase" "submission_failed"
+        atomic_text "$run/state/failure-class" "scheduler_rejection"
+        append_event "$run" "database_submission_failed"
+        fail scheduler_rejection "Slurm rejected the fixed database job"
+    fi
+    job_id="${submission%%;*}"
+    [[ "$job_id" =~ $INTEGER_RE ]] || \
+        fail scheduler_rejection "sbatch returned an invalid database job ID"
+    atomic_text "$run/state/job-id" "$job_id"
+    atomic_text "$run/state/phase" "submitted"
+    printf '%s %s\n' "$run_id" "$job_id" > "$LOCKS/active-database"
+    append_event "$run" "database_submitted"
+    emit operation database-submit
+    emit run_id "$run_id"
+    emit job_id "$job_id"
+    emit profile database
     emit scheduler_state SUBMITTED
 }
 
@@ -682,6 +881,7 @@ collect_run() {
         logs/sbatch.err \
         logs/smoke.log \
         logs/p0.log \
+        logs/database.log \
         logs/nextflow-first.log \
         logs/nextflow-resume.log \
         artifacts/qualification/input-checksums.sha256 \
@@ -697,6 +897,11 @@ collect_run() {
         artifacts/qualification/resume-pipeline-info/timeline.html \
         artifacts/qualification/resume-pipeline-info/trace.tsv \
         artifacts/qualification/resume-pipeline-info/dag.html \
+        artifacts/database/preflight.json \
+        artifacts/database/database_manifest.json \
+        artifacts/database/database_manifest.sha256 \
+        artifacts/database/database_manifest.full-verified.json \
+        artifacts/database/database_manifest.full-verified.verification.json \
         artifacts/p0/scope/pipeline_scope.json \
         artifacts/p0/catalogue/catalogue_import_manifest.json \
         artifacts/p0/preflight/mtz_preflight.jsonl \
@@ -758,8 +963,11 @@ main() {
     case "$operation" in
         deploy-tools) deploy_tools "$@" ;;
         readiness) readiness_p0 "$@" ;;
+        database-readiness) database_readiness "$@" ;;
         stage) stage_run "$@" ;;
+        database-stage) database_stage_run "$@" ;;
         submit) submit_run "$@" ;;
+        database-submit) database_submit_run "$@" ;;
         status) status_run "$@" ;;
         logs) logs_run "$@" ;;
         collect) collect_run "$@" ;;

@@ -40,6 +40,21 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     readiness.add_argument("profile", choices=("p0",))
 
+    actions.add_parser(
+        "database-readiness",
+        help="inspect the separate fixed database-administration prerequisites",
+    )
+    database_stage = actions.add_parser(
+        "database-stage",
+        help="stage an immutable commit for fixed database administration",
+    )
+    database_stage.add_argument("--revision", required=True)
+    database_submit = actions.add_parser(
+        "database-submit",
+        help="submit the separately approval-gated database job",
+    )
+    database_submit.add_argument("--run-id", required=True)
+
     stage = actions.add_parser("stage", help="stage an immutable pushed commit")
     stage.add_argument("profile", choices=("smoke", "p0"))
     stage.add_argument("--revision", required=True)
@@ -75,6 +90,12 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.deploy_tools(args.revision)
     if args.operation == "readiness":
         return controller.readiness(args.profile)
+    if args.operation == "database-readiness":
+        return controller.database_readiness()
+    if args.operation == "database-stage":
+        return controller.database_stage(args.revision)
+    if args.operation == "database-submit":
+        return controller.database_submit(args.run_id)
     if args.operation == "stage":
         return controller.stage(
             args.profile,

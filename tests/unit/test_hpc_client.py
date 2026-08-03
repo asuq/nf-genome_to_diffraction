@@ -56,7 +56,10 @@ class FakeTransport:
                 "run_id": arguments[0],
                 "content_base64": base64.b64encode(b"line one\nline two\n").decode(),
             }
-        return {"run_id": arguments[0], "remote_operation": operation}
+        return {
+            "run_id": arguments[0] if arguments else "",
+            "remote_operation": operation,
+        }
 
     def collect(self, run_id: str, owner_id: str) -> bytes:
         self.calls.append(("collect", (run_id, owner_id)))
@@ -72,6 +75,7 @@ def _config(repository: Path) -> HpcConfig:
         poll_seconds=1,
         queue_timeout_seconds=1,
         execution_timeout_seconds=1,
+        database_execution_timeout_seconds=2,
     )
 
 
@@ -198,6 +202,38 @@ def test_p0_readiness_accepts_no_path_or_run_authority(tmp_path: Path) -> None:
         controller.readiness("smoke")
     with pytest.raises(ValidationError):
         controller.readiness("p0;touch-bad")
+
+
+def test_database_start_has_a_separate_local_authority_boundary(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+
+    readiness = controller.database_readiness()
+    staged = controller.database_stage("HEAD")
+    run_id = str(staged["run_id"])
+    submitted = controller.database_submit(run_id)
+
+    assert readiness["profile"] == "database"
+    assert run_id.startswith("gtd-database-")
+    assert submitted["operation"] == "database-submit"
+    assert [operation for operation, _ in transport.calls] == [
+        "database-readiness",
+        "database-stage",
+        "database-submit",
+    ]
+    assert transport.calls[0][1] == ()
+    assert transport.calls[1][1][-1] == transport.calls[2][1][1]
+
+    with pytest.raises(ValidationError, match="separate database-stage"):
+        controller.stage("database", "HEAD")
+    with pytest.raises(ValidationError, match="separate database-submit"):
+        controller.submit("database", run_id)
+
+    smoke_run = str(controller.stage("smoke", "HEAD")["run_id"])
+    with pytest.raises(ValidationError, match="requires a database run"):
+        controller.database_submit(smoke_run)
 
 
 def test_stage_refuses_dirty_or_injected_revisions(tmp_path: Path) -> None:

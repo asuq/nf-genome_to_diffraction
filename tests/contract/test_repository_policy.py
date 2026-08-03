@@ -80,7 +80,12 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert approved_operations in runbook
     job = smoke_job.read_text(encoding="utf-8")
     assert "phase=database_revalidate_bounded profile=p0" in job
-    assert "--full-verify" not in job
+    p0_body, database_body = job.split("run_database()", maxsplit=1)
+    assert "--full-verify" not in p0_body
+    assert "--full-verify" in database_body
+    assert "SLURM_TMPDIR" in database_body
+    assert "database payload scratch must not use /dev/shm" in database_body
+    assert (REPOSITORY / "conf" / "hpc-database.paths.example").is_file()
     database_module = (
         REPOSITORY / "modules" / "local" / "prepare_database_resources.nf"
     ).read_text(encoding="utf-8")

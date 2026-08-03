@@ -39,6 +39,7 @@ def test_configuration_loads_only_the_repository_specific_layout(
     assert config.repository == repository.resolve()
     assert config.local_state_root == repository.resolve() / ".untracked" / "hpc-test"
     assert config.ssh_alias == "marmic"
+    assert config.database_execution_timeout_seconds == 48 * 60 * 60
 
 
 @pytest.mark.parametrize(
@@ -68,10 +69,13 @@ def test_configuration_rejects_authority_expansion(
 def test_run_and_log_identifiers_are_bounded() -> None:
     valid = "gtd-smoke-20260802T120000Z-0123456789ab-01234567"
     valid_p0 = "gtd-p0-20260802T120000Z-0123456789ab-01234567"
+    valid_database = "gtd-database-20260802T120000Z-0123456789ab-01234567"
     assert validate_run_id(valid) == valid
     assert validate_run_id(valid_p0) == valid_p0
+    assert validate_run_id(valid_database) == valid_database
     assert validate_profile("smoke") == "smoke"
     assert validate_profile("p0") == "p0"
+    assert validate_profile("database") == "database"
     assert validate_log_lines(2_000) == 2_000
     with pytest.raises(ValidationError):
         validate_run_id("../../unrelated")
@@ -79,3 +83,16 @@ def test_run_and_log_identifiers_are_bounded() -> None:
         validate_log_lines(2_001)
     with pytest.raises(ValidationError):
         validate_profile("p0;touch-bad")
+
+
+def test_database_wait_limit_is_strictly_bounded(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    (repository / ".git").mkdir()
+    raw = _configuration(repository)
+    raw["database_execution_timeout_seconds"] = 48 * 60 * 60 + 1
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="between"):
+        HpcConfig.load(path)

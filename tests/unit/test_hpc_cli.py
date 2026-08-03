@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from genome_to_diffraction.hpc.cli import main
+from genome_to_diffraction.hpc.cli import _build_parser, main
 
 
 def test_missing_configuration_returns_json_and_diagnostic_log(
@@ -28,3 +28,19 @@ def test_missing_configuration_returns_json_and_diagnostic_log(
     assert payload["failure_class"] == "wrapper_failure"
     assert "configuration not found" in payload["message"]
     assert "HPC operation failed" in captured.err
+
+
+def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
+    parser = _build_parser()
+
+    staged = parser.parse_args(["database-stage", "--revision", "HEAD"])
+    submitted = parser.parse_args(["database-submit", "--run-id", "RUN_ID"])
+    readiness = parser.parse_args(["database-readiness"])
+
+    assert staged.operation == "database-stage"
+    assert submitted.operation == "database-submit"
+    assert readiness.operation == "database-readiness"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["stage", "database", "--revision", "HEAD"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["submit", "database", "--run-id", "RUN_ID"])

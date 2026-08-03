@@ -81,7 +81,9 @@ dispatcher. The `smoke` profile runs `pixi run check`; the separately bounded
 `p0` profile verifies real Phenix, performs anchored database metadata and
 functional-smoke revalidation, and runs the three-crystal Task 05 preflight
 twice to prove cache reuse. It deliberately does not perform a terabyte-scale
-full-checksum audit. Both profiles use one
+full-checksum audit. A third, separately approval-gated `database` profile runs
+fixed route/capacity preflight, full shared-resource preparation, and anchored
+full verification with 8 CPUs, 64 GB, and a 48-hour limit. All profiles use one
 immutable pushed commit. Neither provides arbitrary SSH/paths, source edits on
 Marmic, automatic cleanup, or downstream protein identification. Machine-readable
 results are written to standard output; diagnostic `logging` and optional
@@ -405,9 +407,10 @@ administration operation, not part of the approval-enabled `p0` job. Its
 verification sidecar records either
 `full_checksums_and_functional_smoke` or
 `inventory_metadata_and_functional_smoke` plus an explicit Boolean checksum
-flag. A future fixed Marmic administration driver must use separate
-approval-gated start commands; the routine `stage`/`submit` approvals remain
-limited to `smoke` and bounded `p0`.
+flag. The fixed Marmic administration driver uses `database-stage` and
+`database-submit`, fingerprinted external configuration, and explicit distinct
+compute scratch. Those start commands remain approval-gated; the routine
+`stage`/`submit` approvals remain limited to `smoke` and bounded `p0`.
 
 ## Repository layout
 

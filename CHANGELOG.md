@@ -59,6 +59,13 @@ All notable changes to this project are documented here.
 - P0 database checks are explicitly bounded metadata/functional revalidation;
   verification evidence records whether full checksums were computed, while
   long database administration stays outside routine HPC start approvals.
+- A separately approval-gated Marmic database profile now fingerprints a fixed
+  external capacity/path contract, uses 8 CPUs/64 GB/48 hours, requires explicit
+  non-`/dev/shm` scratch, runs fixed-route preflight before payloads, and accepts
+  no arbitrary paths or shell fragments on its start commands.
+- A tracked local-settings inventory documents recoverable removal and
+  restoration of the installed HPC controller, its configuration/capabilities,
+  Codex approval boundary, and the verified local Phenix selection/evidence.
 
 ### Not implemented
 
