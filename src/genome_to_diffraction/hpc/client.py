@@ -59,6 +59,21 @@ _REMOTE_TOOL_PATHS = (
     PurePosixPath("bootstrap/nf-gtd-hpc-remote"),
     PurePosixPath("bootstrap/nf-gtd-hpc-smoke-job"),
 )
+SSH_CONNECT_TIMEOUT_SECONDS = 15
+SSH_OPERATION_TIMEOUT_SECONDS = 60
+SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
+_SSH_FIXED_OPTIONS = (
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    f"ConnectTimeout={SSH_CONNECT_TIMEOUT_SECONDS}",
+    "-o",
+    "ConnectionAttempts=1",
+    "-o",
+    "ServerAliveInterval=15",
+    "-o",
+    "ServerAliveCountMax=2",
+)
 
 
 class TextTransport(Protocol):
@@ -157,21 +172,33 @@ class SshTransport:
     def _remote_command(self, operation: str, arguments: Sequence[str]) -> str:
         return shlex.join([self._config.remote_dispatcher, operation, *arguments])
 
+    def _command(self, operation: str, arguments: Sequence[str]) -> list[str]:
+        """Build the fixed non-interactive SSH invocation."""
+
+        return [
+            "ssh",
+            *_SSH_FIXED_OPTIONS,
+            "--",
+            self._config.ssh_alias,
+            self._remote_command(operation, arguments),
+        ]
+
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         """Execute an operation and decode its base64 scalar protocol."""
 
-        result = subprocess.run(
-            [
-                "ssh",
-                "-o",
-                "BatchMode=yes",
-                "--",
-                self._config.ssh_alias,
-                self._remote_command(operation, arguments),
-            ],
-            check=False,
-            capture_output=True,
-        )
+        try:
+            result = subprocess.run(
+                self._command(operation, arguments),
+                check=False,
+                capture_output=True,
+                timeout=SSH_OPERATION_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                f"remote {operation} exceeded the fixed "
+                f"{SSH_OPERATION_TIMEOUT_SECONDS}-second transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
         fields = _decode_remote_fields(result.stdout)
         if result.returncode != 0:
             failure = _failure_class(fields.get("failure_class"))
@@ -194,18 +221,19 @@ class SshTransport:
     def collect(self, run_id: str, owner_id: str) -> bytes:
         """Stream the fixed remote archive without scp or arbitrary paths."""
 
-        result = subprocess.run(
-            [
-                "ssh",
-                "-o",
-                "BatchMode=yes",
-                "--",
-                self._config.ssh_alias,
-                self._remote_command("collect", [run_id, owner_id]),
-            ],
-            check=False,
-            capture_output=True,
-        )
+        try:
+            result = subprocess.run(
+                self._command("collect", [run_id, owner_id]),
+                check=False,
+                capture_output=True,
+                timeout=SSH_COLLECTION_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote collection exceeded the fixed "
+                f"{SSH_COLLECTION_TIMEOUT_SECONDS}-second transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
         if result.returncode != 0:
             fields = _decode_remote_fields(result.stdout)
             message = (

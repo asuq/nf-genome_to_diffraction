@@ -14,7 +14,7 @@ this gate passes.
 | M0.3 Qualify Phenix | Local runtime and three real Xtriage smokes qualified; Marmic installation in progress | Phenix 2.1-6048 macOS arm64 passes all seven command probes and all three frozen MTZ files complete real Xtriage; the durable Marmic Linux installation, its real manifest, and equivalent Marmic results are still required |
 | M0.4 Qualify databases | Approval-gated administration driver implemented; real preparation required on Marmic | Fixed preflight, retained-failure guard, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site resources have yet passed them |
 | M0.5 Matthews reference | Local method matrix qualified; site parity follows M0.3 | Ten real comparisons cover all frozen MTZs and multiple copy regimes; positive-control identity/copy interpretation remains a separate M0.2 blocker |
-| M0.6 Fixed HPC P0 profile | Deployed; site configuration missing | Commit `1433006` tools are checksum-verified locally and on Marmic; staging failed safely before submission because the protected external P0 path file is absent |
+| M0.6 Fixed HPC P0 profile | Current local controller installed; Marmic readiness transport unavailable | Commit `1433006` tools were checksum-verified locally and on Marmic; the earlier staging probe found the external P0 path file absent, while the latest bounded read-only readiness retry timed out before remote state could be re-observed |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
 
 This dashboard describes qualification status, not protein-identification
@@ -368,6 +368,16 @@ not yet installed, not evidence of a pipeline or scientific failure. A bounded
 read-only site inventory also confirmed that the existing pilot and
 site-acceptance Phenix/database manifests are fixtures. They must not be used to
 satisfy this gate.
+
+On 3 August 2026, the local immutable controller was rebuilt to include the
+fixed `readiness p0` interface. The first query exposed an unbounded SSH wait in
+the local transport. After adding fixed connection, operation, and collection
+timeouts, the same read-only query terminated after 60 seconds as
+`transfer_failure`. It created no run, submitted no job, cancelled nothing, and
+did not reveal any configured path. This is evidence only that the Marmic SSH
+transaction was unavailable or unresponsive at that observation; it does not
+supersede the earlier configuration finding or establish the current state of
+Phenix, databases, or `p0.paths`.
 
 ## Operator-held evidence still required
 

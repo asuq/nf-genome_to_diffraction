@@ -74,6 +74,9 @@ All notable changes to this project are documented here.
   mass-model, and uncalibrated-ordering differences as review outcomes; rounded
   Phenix probability ties and common solvent-bound comparisons are handled
   explicitly without tuning the prior.
+- Fixed SSH connect, operation, and collection timeouts now prevent the reviewed
+  HPC controller from hanging indefinitely and classify unreachable or
+  unresponsive transport as `transfer_failure` without implicit cancellation.
 
 ### Not implemented
 

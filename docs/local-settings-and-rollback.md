@@ -16,6 +16,12 @@ only these user-controlled locations:
 - Codex persistent command approvals for the installed controller's narrow
   routine operations.
 
+Before replacing the installed controller, preserve the prior mode-`0555`
+binary under `REPOSITORY/.untracked/install-backups/` with a checksum-derived
+suffix. Verify the newly built and installed files have the same SHA-256. To
+roll back that upgrade, install the preserved binary back to the same absolute
+path with mode `0555`, then verify its recorded checksum before use.
+
 Pixi being available on `PATH` was an operator installation, not a repository
 setting. Do not remove it as part of this rollback unless that separate
 installation is intentionally being retired.

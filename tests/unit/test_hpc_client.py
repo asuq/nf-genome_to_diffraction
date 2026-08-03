@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+import subprocess
 import tarfile
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -10,7 +11,13 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from genome_to_diffraction.hpc.client import HpcController
+from genome_to_diffraction.hpc.client import (
+    SSH_COLLECTION_TIMEOUT_SECONDS,
+    SSH_CONNECT_TIMEOUT_SECONDS,
+    SSH_OPERATION_TIMEOUT_SECONDS,
+    HpcController,
+    SshTransport,
+)
 from genome_to_diffraction.hpc.models import (
     FailureClass,
     HpcConfig,
@@ -103,6 +110,44 @@ def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
         git=FakeGit(repository=tmp_path),
         progress=False,
     )
+
+
+def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands: list[tuple[str, ...]] = []
+    timeouts: list[int] = []
+
+    def timeout_run(
+        command: Sequence[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        timeout = kwargs.get("timeout")
+        assert isinstance(timeout, int)
+        commands.append(tuple(command))
+        timeouts.append(timeout)
+        raise subprocess.TimeoutExpired(command, timeout)
+
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.subprocess.run", timeout_run)
+    transport = SshTransport(_config(tmp_path))
+
+    with pytest.raises(RemoteOperationError, match="transport timeout") as operation:
+        transport.run("readiness", ["p0"])
+    with pytest.raises(RemoteOperationError, match="transport timeout") as collection:
+        transport.collect("gtd-p0-20260802T120000Z-0123456789ab-01234567", "1" * 32)
+
+    assert operation.value.failure_class is FailureClass.TRANSFER_FAILURE
+    assert collection.value.failure_class is FailureClass.TRANSFER_FAILURE
+    assert timeouts == [SSH_OPERATION_TIMEOUT_SECONDS, SSH_COLLECTION_TIMEOUT_SECONDS]
+    assert all(command[0] == "ssh" for command in commands)
+    assert all("BatchMode=yes" in command for command in commands)
+    assert all(
+        f"ConnectTimeout={SSH_CONNECT_TIMEOUT_SECONDS}" in command
+        for command in commands
+    )
+    assert all("ConnectionAttempts=1" in command for command in commands)
+    assert all("ServerAliveInterval=15" in command for command in commands)
+    assert all("ServerAliveCountMax=2" in command for command in commands)
 
 
 def test_deploy_tools_sends_only_commit_and_verified_checksums(tmp_path: Path) -> None:

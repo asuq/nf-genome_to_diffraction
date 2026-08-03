@@ -29,6 +29,13 @@ for routine jobs and 48 hours for database administration; neither timeout
 silently cancels a job. The caller must inspect status and cancel the recorded
 job when appropriate.
 
+Every SSH invocation is also independently bounded: connection setup allows one
+attempt with a 15-second connect timeout, routine dispatcher operations have a
+60-second hard client timeout, and fixed artefact collection has a 10-minute
+hard client timeout. Server-alive probes detect an unresponsive established
+connection. A timeout is reported as `transfer_failure`; the controller does not
+fall back to raw SSH, infer that a remote job failed, or cancel it implicitly.
+
 ## Filesystem and execution model
 
 The remote dispatcher is installed under an approved run root with this layout:
