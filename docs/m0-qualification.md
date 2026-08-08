@@ -11,7 +11,7 @@ this gate passes.
 | --- | --- | --- |
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Blocked on scientific metadata | True catalogue sequence, known ASU copy count, trustworthy final model/structure factors where available, and suitable MR model |
-| M0.3 Qualify Phenix | Local runtime and three real Xtriage smokes qualified; Marmic installation in progress | Phenix 2.1-6048 macOS arm64 passes all seven command probes and all three frozen MTZ files complete real Xtriage; the durable Marmic Linux installation, its real manifest, and equivalent Marmic results are still required |
+| M0.3 Qualify Phenix | Local and Marmic runtimes qualified; three real Xtriage smokes qualified locally | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files complete local real Xtriage, while equivalent Marmic real-MTZ and scheduled P0 evidence remain required |
 | M0.4 Qualify databases | Approval-gated administration driver implemented; real preparation required on Marmic | Fixed preflight, retained-failure guard, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site resources have yet passed them |
 | M0.5 Matthews reference | Local method matrix qualified; site parity follows M0.3 | Ten real comparisons cover all frozen MTZs and multiple copy regimes; positive-control identity/copy interpretation remains a separate M0.2 blocker |
 | M0.6 Fixed HPC P0 profile | Current local controller installed; Marmic readiness transport unavailable | Commit `1433006` tools were checksum-verified locally and on Marmic; the earlier staging probe found the external P0 path file absent, while the latest bounded read-only readiness retry timed out before remote state could be re-observed |
@@ -53,15 +53,22 @@ quality, molecular identity, or copy count; real Xtriage remains mandatory.
 ## Verified Phenix installer transfer
 
 The user supplied the Phenix 2.1-6048 Linux x86-64 self-extracting installer.
-The local and Marmic-staged copies are both 3,610,320,749 bytes and have
+The local and checksum-gated Marmic copies were both 3,610,320,749 bytes and had
 SHA-256
 `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`.
-This proves transfer integrity only. The staged copy is on ephemeral,
-login-node-local memory storage and is not visible to Slurm compute nodes. A
-batch installation to a durable, versioned Marmic prefix was subsequently
-started. At the latest bounded observation it was still extracting files, so no
-Marmic command, manifest, or real Xtriage result is yet qualified. The
-current-runtime link must not be updated until repository verification passes.
+The installer was staged only on login-node-local `/tmp`; it was not exposed to
+Slurm compute nodes or committed to Git.
+
+The official batch installer completed on 8 August 2026 in a durable canonical
+versioned prefix without a mutable current-runtime link. The resulting manifest
+has status `verified`, records Phenix `2.1-6048`, Linux x86-64, glibc 2.39, the
+installer checksum above, environment SHA-256
+`9b52b63861b3a6bc1f762f605f933545a7c5179ed6552082da92884dab70539f`, and seven
+passed required-command probes. Its SHA-256 is
+`50a0a6dd90194c6bac5739de64a359ed4340cc7b1b2fc17dbb61cb774718f5be`.
+An independent manifest-based verification at repository revision
+`aa113770fb661a22b22310335edfdad4e52df0cc` passed the same seven probes. Exact
+site paths, licensed installer contents, and logs remain outside Git.
 
 ## Local Phenix verifier qualification
 
@@ -86,9 +93,10 @@ checks. An independent second verification also passed all seven commands. The
 stable link was published only after success, and the failed manifest remained
 byte-identical.
 
-This qualifies the installer/verifier boundary on macOS arm64. It does not
-qualify the Marmic Linux runtime, prove that a real MTZ can be analysed, or
-close M0.3.
+This qualifies the installer/verifier boundary on macOS arm64. The independent
+Marmic verification recorded above also qualifies the Linux x86-64 runtime. The
+help-mode probes do not prove that a real MTZ can be analysed on Marmic and do
+not by themselves close M0.3.
 
 ## Local three-MTZ Xtriage qualification
 
@@ -125,8 +133,8 @@ and
 `0b3b78bb0db07a910b65798d0075d8d41f4316360cf13283012421834eb9f5e0`,
 respectively. Raw MTZ paths, licensed-software logs, and exact local output
 paths remain outside Git. These local results demonstrate real execution and
-parser behaviour; M0.3 still requires the Marmic Linux manifest and scheduled
-P0 evidence.
+parser behaviour; the Marmic Linux manifest is now qualified, while equivalent
+Marmic real-MTZ execution and scheduled P0 evidence remain required.
 
 ## Local Matthews method-reference probe
 
