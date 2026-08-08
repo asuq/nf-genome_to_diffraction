@@ -14,7 +14,7 @@ this gate passes.
 | M0.3 Qualify Phenix | Local and Marmic runtimes qualified; three real Xtriage smokes qualified locally | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files complete local real Xtriage, while equivalent Marmic real-MTZ and scheduled P0 evidence remain required |
 | M0.4 Qualify databases | Approval-gated administration driver implemented; real preparation required on Marmic | Fixed preflight, retained-failure guard, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site resources have yet passed them |
 | M0.5 Matthews reference | Local method matrix qualified; site parity follows M0.3 | Ten real comparisons cover all frozen MTZs and multiple copy regimes; positive-control identity/copy interpretation remains a separate M0.2 blocker |
-| M0.6 Fixed HPC P0 profile | Current local controller installed; Marmic readiness transport unavailable | Commit `1433006` tools were checksum-verified locally and on Marmic; the earlier staging probe found the external P0 path file absent, while the latest bounded read-only readiness retry timed out before remote state could be re-observed |
+| M0.6 Fixed HPC P0 profile | Current local controller and Marmic dispatcher installed; external P0 configuration absent | The bounded readiness interface now reaches Marmic and verifies Pixi 0.74.0, but the protected seven-line P0 path file is still absent; no P0 run has been staged or submitted |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
 
 This dashboard describes qualification status, not protein-identification
@@ -315,6 +315,33 @@ until that timing is measured. Compute-node outbound network access is also
 unconfirmed, so the first real preparation must use a reviewed site route or an
 offline/adopted snapshot rather than assuming internet access.
 
+On 9 August 2026, the deployed fixed `database-readiness` operation reached
+Marmic and verified PATH-installed Pixi 0.74.0. It reported the protected
+seven-line database-administration configuration as absent or unsafe. This
+operation created no run, submitted no job, and returned no site paths. A
+separate bounded read-only filesystem observation found
+`1,132,247,285,760` bytes free on the proposed durable filesystem and no
+existing project database-administration root. The site does not provide the
+standard `quota` command, so no user-specific 2 TB quota was independently
+observable. With the reviewed first-run values of 1.6 TB required build
+capacity and a 0.2 TB durable reserve, only `932,247,285,760` bytes would be
+available to the preflight. The configuration must therefore remain absent
+until capacity is increased or a smaller requirement is justified from measured
+resource expansion and indexing evidence. The gate must not be weakened merely
+to make readiness pass.
+
+The same day, capped one-byte ranged GET probes verified that the three fixed
+public payload routes were live without downloading database content. The
+Foldseek worker redirected PDB100 and ProstT5 to its S3 store and advertised
+compressed representation sizes of `2,326,827,389` and `2,224,976,412` bytes,
+respectively; the RCSB SEQRES representation was `66,084,235` bytes. The pinned
+PDB version record was 121 bytes. The Foldseek worker returned 404 for HEAD but
+206 for ranged GET, so HEAD is not a valid reachability test for these routes.
+These compressed sizes do not bound extracted databases, MMseqs2 indices,
+simultaneous staging, retained failed staging, or scratch use, and therefore do
+not by themselves justify reducing the capacity gate. Compute-node reachability
+still requires the fixed preflight.
+
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)
 and [Foldseek's official documentation](https://github.com/steineggerlab/foldseek).
@@ -386,6 +413,18 @@ did not reveal any configured path. This is evidence only that the Marmic SSH
 transaction was unavailable or unresponsive at that observation; it does not
 supersede the earlier configuration finding or establish the current state of
 Phenix, databases, or `p0.paths`.
+
+On 9 August 2026, the checksum-verified Marmic dispatcher was refreshed from
+immutable revision `aa113770fb661a22b22310335edfdad4e52df0cc`. Its dispatcher
+and fixed job SHA-256 values are
+`fb193ca94a22d6975fef3daddbeb73fbcd0dc9597764899bb0d7b41ba556488c`
+and
+`9956a03f1d720bacf6ce81879ea7575ca2596d805fd696ec19411ecfb3cb8585`.
+Both bounded readiness operations then completed: Pixi 0.74.0 was ready, while
+the protected P0 and database-administration configurations were absent or
+unsafe. This supersedes the earlier transport observation. It does not satisfy
+P0 staging readiness, database qualification, compute-node scratch/network
+qualification, or scheduled real-MTZ execution.
 
 ## Operator-held evidence still required
 
