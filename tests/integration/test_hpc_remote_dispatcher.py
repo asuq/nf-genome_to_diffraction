@@ -178,8 +178,9 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '      previous="$argument"\n'
         "    done\n"
         '    if [[ -n "$manifest" ]]; then\n'
-        '      env_bin="$(dirname "$manifest")/.pixi/envs/hpc/bin"\n'
-        '      mkdir -p "$env_bin"\n'
+        '      env_root="$(dirname "$manifest")/.pixi/envs/hpc"\n'
+        '      env_bin="$env_root/bin"\n'
+        '      mkdir -p "$env_bin" "$env_root/lib/jvm/bin"\n'
         "      cat > \"$env_bin/genome-to-diffraction\" <<'FAKE_GTD'\n"
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
@@ -198,6 +199,10 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"resources":[]}\\n\' > "$output"\n'
         "FAKE_GTD\n"
         '      chmod 0755 "$env_bin/genome-to-diffraction"\n'
+        "      printf '#!/usr/bin/env bash\\nexit 0\\n' > \"$env_bin/nextflow\"\n"
+        "      printf '#!/usr/bin/env bash\\nexit 0\\n' > "
+        '"$env_root/lib/jvm/bin/java"\n'
+        '      chmod 0755 "$env_bin/nextflow" "$env_root/lib/jvm/bin/java"\n'
         "    fi\n"
         "    ;;\n"
         "  run)\n"
@@ -1599,9 +1604,8 @@ def test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes(
     )
     staged_fields = _decode_protocol(staged.stdout)
     assert staged_fields["profile"] == "p0"
-    manifest = json.loads(
-        (remote_root / "runs" / P0_RUN_ID / "manifest.json").read_text(encoding="utf-8")
-    )
+    run = remote_root / "runs" / P0_RUN_ID
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
     assert (
         manifest["p0_config_sha256"]
         == hashlib.sha256(p0_config.read_bytes()).hexdigest()
@@ -1611,6 +1615,8 @@ def test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes(
         manifest["database_manifest_sha256"]
         == hashlib.sha256(database_manifest.read_bytes()).hexdigest()
     )
+    assert (run / "state" / "hpc-environment-status").read_text().strip() == "ready"
+    assert (run / "logs" / "pixi-install.log").is_file()
 
     p0_config.write_text(
         p0_config.read_text(encoding="utf-8").replace(
@@ -1636,9 +1642,40 @@ def test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes(
     assert not (tmp_path / "bad").exists()
 
 
+def test_p0_stage_fails_when_login_environment_install_fails(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
+    failing_environment = dict(environment)
+    failing_environment["FAKE_PIXI_INSTALL_FAIL"] = "1"
+
+    failed = _run(
+        [
+            str(dispatcher),
+            "stage",
+            P0_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "p0",
+        ],
+        cwd=tmp_path,
+        environment=failing_environment,
+        success=False,
+    )
+
+    assert _decode_protocol(failed.stdout)["failure_class"] == "environment_failure"
+    run = remote_root / "runs" / P0_RUN_ID
+    assert (run / "state" / "phase").read_text().strip() == "stage_failed"
+    assert not (run / "state" / "job-id").exists()
+    assert not (run / "state" / "hpc-environment-status").exists()
+    assert (run / "logs" / "pixi-install.log").is_file()
+
+
 def _install_fake_p0_runtime(run: Path, *, all_cached: bool = True) -> None:
     bin_directory = run / "source" / ".pixi" / "envs" / "hpc" / "bin"
-    bin_directory.mkdir(parents=True)
+    bin_directory.mkdir(parents=True, exist_ok=True)
     _write_executable(
         bin_directory / "genome-to-diffraction",
         "#!/usr/bin/env bash\n"
@@ -1722,6 +1759,7 @@ def test_p0_job_enforces_the_cached_resume_gate(
     job_environment = dict(environment)
     job_environment["SLURM_JOB_ID"] = "654"
     job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+    job_environment["FAKE_PIXI_INSTALL_FAIL"] = "1"
 
     _run(
         [str(smoke_job), P0_RUN_ID, str(remote_root), "p0"],
@@ -1732,6 +1770,9 @@ def test_p0_job_enforces_the_cached_resume_gate(
 
     result = json.loads((run / "state" / "job-result.json").read_text(encoding="utf-8"))
     assert result["failure_class"] == failure_class
+    p0_log = (run / "logs" / "p0.log").read_text(encoding="utf-8")
+    assert "phase=pixi_environment_verify profile=p0" in p0_log
+    assert "phase=pixi_install profile=p0" not in p0_log
     if all_cached:
         resume = json.loads(
             (run / "artifacts" / "qualification" / "resume-check.json").read_text(

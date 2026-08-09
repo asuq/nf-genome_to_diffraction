@@ -69,7 +69,9 @@ RUN_ROOT/
 
 Each staged source tree is detached at one full commit SHA, includes the pinned
 `nf-helper` submodule, and is made read-only. A per-run locked Pixi environment
-is attached outside that source tree.
+is attached outside that source tree. For P0 and database profiles, staging
+materialises that environment on the network-enabled login node; compute jobs
+only verify and use it and therefore do not contact package channels.
 
 The foundation smoke copies source to `SLURM_TMPDIR` or `/dev/shm`. P0 keeps the
 source, Pixi environment, Nextflow cache/work directory, logs, and results on
@@ -335,7 +337,12 @@ credentials, other project files, or biological sequences not named by the
 frozen manifests. No remote service receives the biological inputs; bytes travel
 only over the configured private SSH endpoint.
 
-`stage p0` records the file's SHA-256; the job refuses execution if it changes.
+`stage p0` records the file's SHA-256 and installs the exact frozen Linux `hpc`
+Pixi environment on the login node under a fixed 45-minute transport timeout.
+The timeout accommodates cold shared-filesystem materialisation while remaining
+bounded. Staging records `hpc-environment-status=ready` only after the project
+CLI, Nextflow, and Java executables are present. The job refuses execution if
+the configuration changes or this environment-ready record is absent.
 Every configured child must be a canonical non-symlink path below the
 first-line root. The input-staging operation obtains that root from the already
 reviewed dispatcher and database roots rather than from `$HOME`: it walks only
@@ -346,7 +353,8 @@ read-only and no cleanup target is derived from this root, it may be the
 operator-owned durable site directory; `/`, a foreign-owned directory, or a
 symlink remains invalid. The job then:
 
-1. installs the frozen Linux `hpc` Pixi environment;
+1. verifies and reuses the pre-staged frozen Linux `hpc` Pixi environment
+   without resolving or downloading packages;
 2. re-verifies every required Phenix command and preserves the verification log;
 3. fingerprints the frozen database manifest during staging, then runs database
    `verify-only` for PDB Foldseek, ProstT5, PDB sequences, and the coordinate

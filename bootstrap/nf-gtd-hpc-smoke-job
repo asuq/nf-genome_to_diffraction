@@ -427,11 +427,16 @@ run_p0() {
         > "$qualification/input-checksums.sha256"
 
     cd "$RUN/source"
-    printf 'phase=pixi_install profile=p0\n'
-    "$PIXI_BIN" install --environment hpc --frozen
+    printf 'phase=pixi_environment_verify profile=p0\n'
+    [[ -f "$RUN/state/hpc-environment-status" && \
+        "$(<"$RUN/state/hpc-environment-status")" == ready ]] || {
+        printf 'locked P0 environment was not prepared during staging\n' >&2
+        return 2
+    }
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
-    [[ -x "$GTD" && -x "$NEXTFLOW" ]] || {
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || {
         printf 'locked P0 executables are unavailable\n' >&2
         return 2
     }
@@ -464,7 +469,7 @@ run_p0() {
         --verify-only \
         --threads 2
 
-    export JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    export JAVA_CMD
     export NXF_HOME="$RUN/cache/nextflow-home"
     cd "$RUN/execution"
     PHASE=test

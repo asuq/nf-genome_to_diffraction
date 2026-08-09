@@ -131,6 +131,10 @@ All notable changes to this project are documented here.
   Task 05 and Phenix 2.1-6048 reference runs independently place its known
   two-copy, high-solvent ASU hypothesis fourth, so this is a bounded execution
   correction without fitting or changing the uncalibrated ranking heuristic.
+- P0 staging now materialises and verifies its frozen Pixi environment on the
+  network-enabled login node under a fixed transport timeout; the Slurm job
+  reuses that exact environment without attempting package resolution on an
+  offline compute node.
 
 ### Not implemented
 

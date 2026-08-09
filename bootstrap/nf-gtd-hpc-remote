@@ -746,7 +746,8 @@ stage_run_common() {
     local owner_id="$4"
     local iteration="$5"
     local profile="$6"
-    local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp gtd
+    local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp
+    local gtd nextflow java
     local p0_config_sha256="" p0_config_json="null"
     local database_manifest_sha256="" database_manifest_json="null"
     local database_config_sha256="" database_config_json="null"
@@ -875,6 +876,9 @@ stage_run_common() {
             fail filesystem_failure "database configuration checksum failed"
         atomic_text "$run/state/database-config-sha256" "$database_config_sha256"
         database_config_json="\"$database_config_sha256\""
+    fi
+
+    if [[ "$profile" == p0 || "$profile" == database ]]; then
         if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
             --manifest-path "$run/source/pixi.toml" \
             --environment hpc \
@@ -885,15 +889,28 @@ stage_run_common() {
             append_event "$run" "stage_hpc_environment_failed"
             fail environment_failure "locked HPC environment installation failed"
         fi
-        atomic_text "$run/state/hpc-environment-status" "ready"
-        append_event "$run" "stage_hpc_environment_ready"
         gtd="$run/source/.pixi/envs/hpc/bin/genome-to-diffraction"
         [[ -x "$gtd" ]] || {
             atomic_text "$run/state/phase" "stage_failed"
             atomic_text "$run/state/failure-class" "environment_failure"
-            append_event "$run" "stage_database_cli_absent"
-            fail environment_failure "locked database CLI is unavailable"
+            append_event "$run" "stage_${profile}_cli_absent"
+            fail environment_failure "locked HPC CLI is unavailable"
         }
+        if [[ "$profile" == p0 ]]; then
+            nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
+            java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
+            [[ -x "$nextflow" && -x "$java" ]] || {
+                atomic_text "$run/state/phase" "stage_failed"
+                atomic_text "$run/state/failure-class" "environment_failure"
+                append_event "$run" "stage_p0_runtime_absent"
+                fail environment_failure "locked P0 Nextflow/Java runtime is unavailable"
+            }
+        fi
+        atomic_text "$run/state/hpc-environment-status" "ready"
+        append_event "$run" "stage_hpc_environment_ready"
+    fi
+
+    if [[ "$profile" == database ]]; then
         mkdir -p "$run/artifacts/database"
         if ! "$gtd" --log-format json --no-progress databases stage-sources \
             --database-root "$DATABASE_ROOT" \

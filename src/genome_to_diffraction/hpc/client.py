@@ -67,6 +67,7 @@ _REMOTE_TOOL_PATHS = (
 )
 SSH_CONNECT_TIMEOUT_SECONDS = 15
 SSH_OPERATION_TIMEOUT_SECONDS = 60
+P0_STAGE_TIMEOUT_SECONDS = 45 * 60
 DATABASE_STAGE_TIMEOUT_SECONDS = 6 * 60 * 60
 P0_INPUT_STAGE_TIMEOUT_SECONDS = 15 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
@@ -238,11 +239,11 @@ class SshTransport:
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         """Execute an operation and decode its base64 scalar protocol."""
 
-        operation_timeout = (
-            DATABASE_STAGE_TIMEOUT_SECONDS
-            if operation == "database-stage"
-            else SSH_OPERATION_TIMEOUT_SECONDS
-        )
+        operation_timeout = SSH_OPERATION_TIMEOUT_SECONDS
+        if operation == "database-stage":
+            operation_timeout = DATABASE_STAGE_TIMEOUT_SECONDS
+        elif operation == "stage" and len(arguments) == 6 and arguments[5] == "p0":
+            operation_timeout = P0_STAGE_TIMEOUT_SECONDS
         try:
             result = subprocess.run(
                 self._command(operation, arguments),
