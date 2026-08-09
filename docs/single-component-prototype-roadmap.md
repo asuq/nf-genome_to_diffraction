@@ -553,9 +553,10 @@ reusable structural discovery**, with the shortest path to real feedback:
 6. pass the P1 real-data, cache-reuse, mapping, and resource-measurement gate.
 
 The shared contract and direct PDB adapter in item 1 are implemented. The fixed,
-path-closed P1 operation and its positive-control/cache/resource qualifier are
-implemented locally and await the repository gate plus the first real Marmic
-execution. That real run takes priority over further synthetic polish.
+path-closed P1 operation passed its first real Marmic run with exact 8OOX/8OOW
+family retention, model keys, measured resources, and a fully cached resume.
+See the [P1 direct-PDB qualification](p1-direct-pdb-qualification.md). The active
+next work is item 4, followed by provider-aware union and the full P1 gate.
 
 After the focused adapter gate passes, prioritise the real catalogue run over
 additional synthetic test polish. M1 output remains structural/model evidence,

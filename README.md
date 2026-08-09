@@ -11,10 +11,10 @@ preparation, and trusted protein-catalogue normalisation. Diffraction processing
 implements independent MTZ preflight and candidate-specific Matthews/SDS-PAGE
 hypotheses. M0 real-site qualification passed on all three pilot MTZ datasets,
 including real Phenix and database probes. M1 structural discovery is active:
-the first local MMseqs2-to-PDB sequence-search route is implemented, while its
-real catalogue P1 qualification and the remaining structural providers are not
-yet complete. Molecular replacement, refinement, map-based sequence assessment,
-ranking, and final identification remain unimplemented.
+the first local MMseqs2-to-PDB sequence-search route passed its real catalogue
+P1 qualification, while the remaining structural providers and evidence union
+are not yet complete. Molecular replacement, refinement, map-based sequence
+assessment, ranking, and final identification remain unimplemented.
 `main.nf` therefore ends with an explicit
 `task05_preflight_complete_downstream_deferred` scope record; its successful exit
 does not mean that a protein identity was found. The separate
@@ -117,6 +117,8 @@ outside the writable checkout before adding narrow Codex approval rules. See the
 configuration, operations, failure classes, and the clean approval boundary.
 The current M0 evidence and remaining scientific prerequisites are separated in
 the [M0 qualification dashboard](docs/m0-qualification.md).
+The accepted direct-search evidence and its limits are recorded in the
+[P1 direct-PDB qualification](docs/p1-direct-pdb-qualification.md).
 
 ## Public X-ray control panel
 

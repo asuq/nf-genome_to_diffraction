@@ -112,9 +112,10 @@ normalised sequence identity, exact PDB/chain mapping, parameter propagation,
 and fail-loud handling of unmapped targets. The Nextflow acceptance suite checks
 parser-v2 linting, publication, standard reports, and cached stub resume.
 
-The direct provider and fixed qualification boundary are implemented
-functionality, not yet a passed P1 scientific gate. P1 still requires the real
-full-catalogue Marmic run, then the remaining approved M1 providers and evidence
-union. The first real run must retain the 8OOX structural family, complete model
-keys, cache reuse, and measured CPU, memory, process I/O, result size, and
-cache-hit rate.
+The direct provider and fixed qualification boundary passed their first real
+full-catalogue Marmic run. It retained the exact 8OOX/8OOW family, complete
+model keys, a fully cached resume, and measured CPU, memory, process I/O, result
+size, and cache state. See the
+[P1 direct-PDB qualification](p1-direct-pdb-qualification.md). The full M1 P1
+gate still requires the remaining approved providers and provider-aware evidence
+union.

@@ -22,8 +22,8 @@ workflow {
         params.sequence_groups,
         params.database_manifest,
         params.maximum_hits_per_query,
-        params.maximum_evalue,
-        params.minimum_query_coverage,
+        params.maximum_evalue.toFloat(),
+        params.minimum_query_coverage.toFloat(),
         params.maximum_query_length
     )
 }

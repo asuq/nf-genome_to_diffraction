@@ -161,6 +161,10 @@ All notable changes to this project are documented here.
   qualified database manifest, runs catalogue-wide direct PDB discovery through
   the checked `nf-helper` Marmic profile, requires a fully cached resume, and
   emits checksum-validated 8OOX/model-key/resource qualification evidence.
+- The first real P1 run evaluated all 1,621 exact-sequence groups (1,620 search
+  eligible), retained the exact 8OOX/8OOW family, measured the direct-search
+  process, and passed cached resume; the sanitised qualification dossier records
+  counts and limitations.
 
 ### Not implemented
 
@@ -168,8 +172,7 @@ All notable changes to this project are documented here.
   search, provider hit union, model preparation, molecular replacement,
   refinement, map-based sequence assessment, final ranking, and final
   scientific reporting.
-- Real-site execution of the P1 structural-discovery qualification and all
-  downstream MR gates.
+- The remaining multi-provider P1 gate and all downstream MR gates.
 
 ## 1.0 - 31 July 2026
 

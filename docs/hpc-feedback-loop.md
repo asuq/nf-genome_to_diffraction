@@ -429,6 +429,13 @@ manifest, and bounded MMseqs2 log; the full result tree remains on Marmic.
 Passing this profile qualifies the direct-PDB route only. It does not perform
 molecular replacement or identify any blind pilot crystal.
 
+The first real P1 run passed on immutable commit
+`f198884a5d7e6c66c0f6a94f1a28cadb0004fe37` as coordinator job `625575`.
+It evaluated 1,621 exact-sequence groups (1,620 search eligible), retained
+15,401 hits, recovered the exact 8OOX/8OOW family, and cached the sole search
+process on resume. Detailed sanitised evidence and limitations are recorded in the
+[P1 direct-PDB qualification](p1-direct-pdb-qualification.md).
+
 ## Database administration boundary
 
 Full preparation and `verify-only --full-verify` use separate, long-running
