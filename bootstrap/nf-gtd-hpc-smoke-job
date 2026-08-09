@@ -644,6 +644,7 @@ run_p1() {
         return 3
     }
     printf 'p1_status=direct_pdb_sequence_search_qualified\n'
+    printf 'prostt5_foldseek_status=execution_complete_real_qualification_pending\n'
 }
 
 run_database() {

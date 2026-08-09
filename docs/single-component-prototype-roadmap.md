@@ -548,7 +548,8 @@ reusable structural discovery**, with the shortest path to real feedback:
 1. finish the shared result contract and local MMseqs2-to-PDB adapter;
 2. run catalogue-wide direct PDB search through a fixed Marmic P1 operation;
 3. verify that the 8OOX positive-control structural family remains retained;
-4. add local ProstT5/Foldseek-to-PDB search and exact model keys;
+4. qualify the implemented local ProstT5/Foldseek-to-PDB search and exact model
+   keys on the real catalogue;
 5. union provider evidence without collapsing unlike scores; and
 6. pass the P1 real-data, cache-reuse, mapping, and resource-measurement gate.
 
@@ -556,7 +557,8 @@ The shared contract and direct PDB adapter in item 1 are implemented. The fixed,
 path-closed P1 operation passed its first real Marmic run with exact 8OOX/8OOW
 family retention, model keys, measured resources, and a fully cached resume.
 See the [P1 direct-PDB qualification](p1-direct-pdb-qualification.md). The active
-next work is item 4, followed by provider-aware union and the full P1 gate.
+next work is the real-data part of item 4, followed by provider-aware union and
+the full P1 gate.
 
 After the focused adapter gate passes, prioritise the real catalogue run over
 additional synthetic test polish. M1 output remains structural/model evidence,

@@ -238,6 +238,8 @@ def check_stubs() -> None:
                 "search_manifest.json",
                 "mmseqs-results.tsv",
                 "mmseqs.log",
+                "foldseek-results.tsv",
+                "foldseek.log",
                 "report.html",
                 "timeline.html",
                 "trace.tsv",

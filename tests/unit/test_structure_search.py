@@ -18,8 +18,10 @@ from genome_to_diffraction.status import ExecutionStatus, ResultParseError
 from genome_to_diffraction.structure_search import (
     P1QualificationRequest,
     PdbSequenceSearchRequest,
+    ProstT5FoldseekSearchRequest,
     qualify_p1_search,
     search_pdb_sequences,
+    search_prostt5_foldseek,
 )
 from genome_to_diffraction.structure_search import qualification as qualification_module
 
@@ -184,6 +186,184 @@ def test_pdb_sequence_search_rejects_unmapped_hit(
                 sequence_groups_jsonl=sequence_path,
                 database_manifest=manifest_path,
                 output_directory=tmp_path / "output",
+                progress=False,
+            )
+        )
+
+
+def _write_foldseek_inputs(
+    tmp_path: Path,
+) -> tuple[Path, Path, tuple[SequenceGroupRecord, ...]]:
+    sequence_path, sequence_manifest_path, groups = _write_inputs(tmp_path)
+    sequence_manifest = json.loads(sequence_manifest_path.read_text(encoding="utf-8"))
+    sequence_resource = sequence_manifest["resources"][0]
+    sequence_resource["database_id"] = "db_test_pdb_sequences"
+
+    pdb_root = tmp_path / "Foldseek PDB with spaces"
+    pdb_root.mkdir()
+    (pdb_root / "pdb").write_text("mock Foldseek database\n", encoding="utf-8")
+    prostt5_root = tmp_path / "ProstT5 weights with spaces"
+    prostt5_root.mkdir()
+    (prostt5_root / "weights").write_text("mock weights\n", encoding="utf-8")
+    common = {
+        "source": "test",
+        "prepared_at": "2026-08-09T00:00:00Z",
+        "manifest_sha256": "c" * 64,
+        "smoke_test_status": "passed",
+        "status": "ready",
+    }
+    resources = [
+        sequence_resource,
+        {
+            **common,
+            "database_id": "db_test_pdb_foldseek",
+            "name": "pdb_foldseek",
+            "root_path": str(pdb_root),
+            "prepared_with": {"tool": "foldseek", "version": "mock-foldseek-1.0"},
+        },
+        {
+            **common,
+            "database_id": "db_test_prostt5",
+            "name": "prostt5",
+            "root_path": str(prostt5_root),
+            "prepared_with": {"tool": "foldseek", "version": "mock-foldseek-1.0"},
+        },
+    ]
+    manifest_path = tmp_path / "Foldseek database manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "manifest_id": "dbm_foldseek_test",
+                "created_at": "2026-08-09T00:00:00Z",
+                "resources": resources,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return sequence_path, manifest_path, groups
+
+
+def _write_foldseek(
+    path: Path,
+    query_id: str,
+    *,
+    target: str = "1abc-assembly1_A",
+    probability: str = "0.99",
+) -> None:
+    path.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'if [[ "${1-}" == version ]]; then\n'
+        "  printf 'mock-foldseek-1.0\\n'\n"
+        "  exit 0\n"
+        "fi\n"
+        '[[ "${1-}" == easy-search ]] || exit 64\n'
+        "printf '%s\\t%s\\t0.25\\t4\\t1\\t4\\t1\\t4\\t4\\t4\\t"
+        "1\\t1\\t1e-8\\t60\\t%s\\n' "
+        f"'{query_id}' '{target}' '{probability}' > \"$4\"\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
+def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sequence_path, manifest_path, groups = _write_foldseek_inputs(tmp_path)
+    bin_directory = tmp_path / "mock Foldseek bin"
+    bin_directory.mkdir()
+    _write_foldseek(bin_directory / "foldseek", groups[0].sequence_group_id)
+    monkeypatch.setenv("PATH", f"{bin_directory}{os.pathsep}{os.environ['PATH']}")
+
+    output = search_prostt5_foldseek(
+        ProstT5FoldseekSearchRequest(
+            sequence_groups_jsonl=sequence_path,
+            database_manifest=manifest_path,
+            output_directory=tmp_path / "Foldseek output with spaces",
+            threads=7,
+            progress=False,
+        )
+    )
+
+    by_query = {result.sequence_group_id: result for result in output.results}
+    hit = by_query[groups[0].sequence_group_id].hits[0]
+    assert hit.provider == "foldseek_prostt5_pdb"
+    assert hit.model_key == "pdb:1ABC:legacy_seqres_suffix:A"
+    assert hit.target_id == "1abc-assembly1_A"
+    assert hit.query_coverage == 1.0
+    assert hit.target_coverage == 1.0
+    assert hit.probability == pytest.approx(0.99)
+    assert by_query[groups[1].sequence_group_id].execution_status is (
+        ExecutionStatus.COMPLETED_NO_HIT
+    )
+    assert by_query[groups[2].sequence_group_id].execution_status is (
+        ExecutionStatus.SKIPPED_INELIGIBLE
+    )
+    manifest = json.loads(output.search_manifest.read_text(encoding="utf-8"))
+    assert manifest["resource_ids"] == {
+        "pdb_foldseek": "db_test_pdb_foldseek",
+        "pdb_sequences": "db_test_pdb_sequences",
+        "prostt5": "db_test_prostt5",
+    }
+    command_log = (output.search_manifest.parent / "raw" / "foldseek.log").read_text(
+        encoding="utf-8"
+    )
+    assert "--prostt5-model" in command_log
+    assert "--threads 7" in command_log
+    assert "--max-seqs 1000" in command_log
+    assert "--cov-mode 2" in command_log
+    assert "query,target,fident,alnlen,qstart,qend,tstart,tend,qlen,tlen,qcov,tcov" in (
+        command_log
+    )
+    for forbidden in ("qca", "qtmscore", "alntmscore", "lddt", "--gpu"):
+        assert forbidden not in command_log
+
+
+def test_prostt5_foldseek_gpu_is_explicit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sequence_path, manifest_path, groups = _write_foldseek_inputs(tmp_path)
+    bin_directory = tmp_path / "mock-bin"
+    bin_directory.mkdir()
+    _write_foldseek(bin_directory / "foldseek", groups[0].sequence_group_id)
+    monkeypatch.setenv("PATH", f"{bin_directory}{os.pathsep}{os.environ['PATH']}")
+
+    output = search_prostt5_foldseek(
+        ProstT5FoldseekSearchRequest(
+            sequence_groups_jsonl=sequence_path,
+            database_manifest=manifest_path,
+            output_directory=tmp_path / "gpu-output",
+            gpu=True,
+            progress=False,
+        )
+    )
+
+    command_log = (output.search_manifest.parent / "raw" / "foldseek.log").read_text(
+        encoding="utf-8"
+    )
+    assert "--gpu 1" in command_log
+
+
+def test_prostt5_foldseek_rejects_out_of_range_probability(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sequence_path, manifest_path, groups = _write_foldseek_inputs(tmp_path)
+    bin_directory = tmp_path / "mock-bin"
+    bin_directory.mkdir()
+    _write_foldseek(
+        bin_directory / "foldseek",
+        groups[0].sequence_group_id,
+        probability="1.01",
+    )
+    monkeypatch.setenv("PATH", f"{bin_directory}{os.pathsep}{os.environ['PATH']}")
+
+    with pytest.raises(ResultParseError, match="out-of-range Foldseek metric"):
+        search_prostt5_foldseek(
+            ProstT5FoldseekSearchRequest(
+                sequence_groups_jsonl=sequence_path,
+                database_manifest=manifest_path,
+                output_directory=tmp_path / "bad-probability",
                 progress=False,
             )
         )

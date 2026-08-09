@@ -70,8 +70,10 @@ from genome_to_diffraction.status import GenomeToDiffractionError
 from genome_to_diffraction.structure_search import (
     P1QualificationRequest,
     PdbSequenceSearchRequest,
+    ProstT5FoldseekSearchRequest,
     qualify_p1_search,
     search_pdb_sequences,
+    search_prostt5_foldseek,
 )
 
 
@@ -488,6 +490,23 @@ def _build_parser() -> argparse.ArgumentParser:
         "--minimum-query-coverage", type=float, default=0.5
     )
     pdb_sequence_parser.add_argument("--maximum-query-length", type=int, default=10_000)
+    prostt5_parser = search_actions.add_parser(
+        "prostt5-foldseek",
+        help="search exact sequences against local PDB using ProstT5 and Foldseek",
+    )
+    prostt5_parser.add_argument("--sequence-groups", type=Path, required=True)
+    prostt5_parser.add_argument("--database-manifest", type=Path, required=True)
+    prostt5_parser.add_argument("--outdir", type=Path, required=True)
+    prostt5_parser.add_argument("--threads", type=int, default=4)
+    prostt5_parser.add_argument("--maximum-hits-per-query", type=int, default=3)
+    prostt5_parser.add_argument("--maximum-evalue", type=float, default=1.0e-3)
+    prostt5_parser.add_argument("--minimum-query-coverage", type=float, default=0.5)
+    prostt5_parser.add_argument("--maximum-query-length", type=int, default=10_000)
+    prostt5_parser.add_argument(
+        "--gpu",
+        action="store_true",
+        help="enable Foldseek/ProstT5 GPU execution (CPU is the default)",
+    )
     qualify_p1_parser = search_actions.add_parser(
         "qualify-p1",
         help="validate direct-PDB results, positive control, resources, and resume",
@@ -812,6 +831,28 @@ def _run_structure_search(args: argparse.Namespace) -> int:
             )
         )
         print(f"P1 direct-PDB search qualified: {report}")
+        return 0
+    if args.structure_search_action == "prostt5-foldseek":
+        foldseek_result = search_prostt5_foldseek(
+            ProstT5FoldseekSearchRequest(
+                sequence_groups_jsonl=args.sequence_groups,
+                database_manifest=args.database_manifest,
+                output_directory=args.outdir,
+                threads=args.threads,
+                maximum_hits_per_query=args.maximum_hits_per_query,
+                maximum_evalue=args.maximum_evalue,
+                minimum_query_coverage=args.minimum_query_coverage,
+                maximum_query_length=args.maximum_query_length,
+                gpu=args.gpu,
+                progress=not args.no_progress,
+            )
+        )
+        hit_count = sum(item.hit_count for item in foldseek_result.results)
+        print(
+            f"Searched {len(foldseek_result.results)} exact sequence groups and "
+            f"retained {hit_count} ProstT5/Foldseek PDB hits: "
+            f"{foldseek_result.search_manifest}"
+        )
         return 0
     if args.structure_search_action != "pdb-sequence":
         raise AssertionError(

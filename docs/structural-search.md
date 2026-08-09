@@ -3,10 +3,11 @@
 ## Scope and scientific purpose
 
 M1 structural discovery searches each eligible exact catalogue sequence against
-immutable structural-reference resources. The first provider is a local
-MMseqs2 search against the qualified PDB SEQRES database. It maps every retained
-target to a PDB entry and case-sensitive chain/entity token suitable for later
-coordinate retrieval.
+immutable structural-reference resources. Two local providers are implemented:
+MMseqs2 searches the qualified PDB SEQRES database directly, while ProstT5
+translates catalogue sequences into predicted 3Di strings for Foldseek search
+against the qualified PDB100 resource. Both map retained targets to PDB entries
+and case-sensitive chain/entity tokens suitable for later coordinate retrieval.
 
 A structural hit is model or protein-family evidence. It remains tied to the
 supplied `sequence_group_id` and cannot introduce an external sequence as a
@@ -32,6 +33,19 @@ reported `fident` fraction comes from the alignment rather than an estimated
 identity; the field scale follows the
 [official MMseqs2 user guide](https://mmseqs.com/latest/userguide.pdf).
 
+`structure-search prostt5-foldseek` additionally requires exactly one ready,
+smoke-qualified `pdb_foldseek` and `prostt5` resource prepared by the same
+Foldseek version, plus the qualified `pdb_sequences` crosswalk. Its CPU-default
+search retains the best three normalised hits per query after preserving up to
+1,000 raw Foldseek alignments, uses E-value at most `1e-3`, and requires at least
+`0.5` query coverage. GPU execution is available only with explicit `--gpu`.
+The requested fields are query/target identifiers, sequence identity, alignment
+coordinates and lengths, E-value, bit score, and Foldseek homology probability.
+It deliberately does not request query Cα coordinates, TM-scores, LDDT,
+rotations, or translations: ProstT5 produces a 3Di sequence, not atomic query
+coordinates. This follows the [official Foldseek search and ProstT5
+documentation](https://github.com/steineggerlab/foldseek#fast-structure-search-from-fasta-input).
+
 ## Command-line and workflow entry points
 
 ```bash
@@ -43,12 +57,22 @@ pixi run genome-to-diffraction \
   --database-manifest /absolute/databases/database_manifest.json \
   --outdir /absolute/results/pdb-sequence \
   --threads 16
+
+pixi run genome-to-diffraction \
+  --log-format json \
+  --no-progress \
+  structure-search prostt5-foldseek \
+  --sequence-groups /absolute/catalogue/sequence_groups.jsonl \
+  --database-manifest /absolute/databases/database_manifest.json \
+  --outdir /absolute/results/prostt5-foldseek \
+  --threads 16
 ```
 
-The equivalent typed DSL2 entry point is `discover_structures.nf`. It publishes
-the complete `pdb_sequence_search` directory and standard Nextflow report,
-timeline, trace, and DAG files. `-stub-run -profile test` uses only tracked
-schema-valid fixtures. A normal run requires the real qualified database.
+The equivalent typed DSL2 entry point is `discover_structures.nf`. It runs the
+two providers independently and publishes complete `pdb_sequence_search` and
+`prostt5_foldseek_search` directories plus standard Nextflow report, timeline,
+trace, and DAG files. `-stub-run -profile test` uses only tracked schema-valid
+fixtures. A normal run requires the real qualified databases.
 
 ## Outputs
 
@@ -63,6 +87,8 @@ schema-valid fixtures. A normal run requires the real qualified database.
 - `raw/queries.faa`: the exact eligible query batch.
 - `raw/mmseqs-results.tsv`: unmodified tabular MMseqs2 result evidence.
 - `raw/mmseqs.log`: the resolved command and combined tool output.
+- `raw/foldseek-results.tsv` and `raw/foldseek.log`: unmodified structural-hit
+  evidence and the resolved ProstT5/Foldseek command for the second provider.
 
 All output writes are atomic except the tool-owned raw TSV/log while the command
 is running. A non-empty output directory is rejected to prevent mixed evidence.
@@ -75,26 +101,28 @@ is running. A non-empty output directory is rejected to prevent mixed evidence.
 | `completed_no_hit` | `no_hit` | Search completed normally but retained no hit |
 | `skipped_ineligible` | `not_interpretable` | Catalogue policy or sequence content prevented a valid query |
 
-An unavailable or unqualified database, MMseqs2 version mismatch, command
-failure, malformed or truncated result, unknown query, duplicate result, invalid
-metric, or missing PDB mapping fails the provider. Such failures never become a
-scientific no-hit and do not count as evidence against a candidate.
+An unavailable or unqualified database, tool-version mismatch, command failure,
+malformed or truncated result, unknown query, duplicate result, invalid metric,
+or missing PDB mapping fails the affected provider. Such failures never become
+a scientific no-hit and do not count as evidence against a candidate.
 
 ## Reproducibility and cache identity
 
-The batch identity includes the adapter version, database ID, complete
-sequence-group input checksum, MMseqs2 version, and every scientifically
-effective search parameter. Per-query result identities additionally bind the
-exact sequence digest and its eligibility-relevant quality flags, without being
-invalidated by unrelated catalogue records. Thread count is recorded in the
-command but intentionally does not alter the scientific cache identity. Nextflow
-binds the input files and parameters to its process cache; a repeated unchanged
-workflow run must report cached work with `-resume`.
+The batch identity includes the adapter version, all effective database IDs,
+complete sequence-group input checksum, exact tool version, and every
+scientifically effective search parameter. Per-query result identities
+additionally bind the exact sequence digest and its eligibility-relevant quality
+flags, without being invalidated by unrelated catalogue records. Thread count is
+recorded in the command but intentionally does not alter scientific cache
+identity. Nextflow binds input files and parameters to its process cache; a
+repeated unchanged workflow run must report cached work with `-resume`.
 
 The current interface performs no remote calls and accepts no crystal metadata
-or SDS-PAGE values, so those cannot affect direct PDB search identity. Exact
-AFDB retrieval, optional remote ESM Atlas access, ProstT5/Foldseek structural
-search, and hit union remain later M1 work.
+or SDS-PAGE values, so those cannot affect local provider identity. Exact AFDB
+retrieval, optional remote ESM Atlas access, and provider-aware hit union remain
+later M1 work. A ProstT5/Foldseek hit remains structural-family evidence tied to
+the submitted catalogue sequence; it is not a predicted atomic query model and
+must not be treated as reportable protein identity.
 
 The fixed `structure-search qualify-p1` command verifies the complete direct-PDB
 output inventory and checksums, exactly one result per supplied sequence group,
@@ -107,15 +135,18 @@ database-device bytes.
 
 ## Test coverage and present qualification
 
-Focused tests cover hit/no-hit/ineligible separation, paths containing spaces,
-normalised sequence identity, exact PDB/chain mapping, parameter propagation,
-and fail-loud handling of unmapped targets. The Nextflow acceptance suite checks
-parser-v2 linting, publication, standard reports, and cached stub resume.
+Focused tests cover both providers' hit/no-hit/ineligible separation, paths
+containing spaces, normalised sequence identity, exact PDB/chain mapping,
+parameter propagation, explicit GPU activation, valid ProstT5 output fields,
+probability bounds, and fail-loud handling of unmapped targets. The Nextflow
+acceptance suite checks parser-v2 linting, publication, standard reports, and
+cached stub resume.
 
 The direct provider and fixed qualification boundary passed their first real
 full-catalogue Marmic run. It retained the exact 8OOX/8OOW family, complete
 model keys, a fully cached resume, and measured CPU, memory, process I/O, result
 size, and cache state. See the
 [P1 direct-PDB qualification](p1-direct-pdb-qualification.md). The full M1 P1
-gate still requires the remaining approved providers and provider-aware evidence
-union.
+gate still requires real catalogue qualification of ProstT5/Foldseek, exact
+AFDB retrieval, the optional-provider policy decision, and provider-aware
+evidence union.

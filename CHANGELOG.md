@@ -165,11 +165,16 @@ All notable changes to this project are documented here.
   eligible), retained the exact 8OOX/8OOW family, measured the direct-search
   process, and passed cached resume; the sanitised qualification dossier records
   counts and limitations.
+- A CPU-default ProstT5/Foldseek-to-PDB provider now searches the qualified
+  immutable PDB100 and ProstT5 resources, preserves raw candidate output,
+  requests no unavailable query-coordinate metrics, crosswalks assembly-chain
+  targets to reusable PDB model keys, and exposes explicit GPU opt-in through
+  the typed discovery workflow.
 
 ### Not implemented
 
-- ProstT5/Foldseek structural search, exact AFDB retrieval, optional ESM Atlas
-  search, provider hit union, model preparation, molecular replacement,
+- Real-catalogue ProstT5/Foldseek qualification, exact AFDB retrieval, optional
+  ESM Atlas search, provider hit union, model preparation, molecular replacement,
   refinement, map-based sequence assessment, final ranking, and final
   scientific reporting.
 - The remaining multi-provider P1 gate and all downstream MR gates.

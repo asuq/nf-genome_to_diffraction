@@ -11,15 +11,16 @@ preparation, and trusted protein-catalogue normalisation. Diffraction processing
 implements independent MTZ preflight and candidate-specific Matthews/SDS-PAGE
 hypotheses. M0 real-site qualification passed on all three pilot MTZ datasets,
 including real Phenix and database probes. M1 structural discovery is active:
-the first local MMseqs2-to-PDB sequence-search route passed its real catalogue
-P1 qualification, while the remaining structural providers and evidence union
-are not yet complete. Molecular replacement, refinement, map-based sequence
+the local MMseqs2-to-PDB sequence-search route passed its real catalogue P1
+qualification and the CPU-default ProstT5/Foldseek-to-PDB adapter is implemented
+but still awaits its real catalogue gate. The remaining providers and evidence
+union are not yet complete. Molecular replacement, refinement, map-based sequence
 assessment, ranking, and final identification remain unimplemented.
 `main.nf` therefore ends with an explicit
 `task05_preflight_complete_downstream_deferred` scope record; its successful exit
 does not mean that a protein identity was found. The separate
-`discover_structures.nf` entry point currently implements only direct PDB
-sequence search and likewise does not identify a protein by itself.
+`discover_structures.nf` entry point runs both local PDB search providers and
+likewise does not identify a protein by itself.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -71,6 +72,7 @@ genome-to-diffraction contract validate catalogue-manifest examples/catalogues.t
 genome-to-diffraction contract canonicalise pipeline-config examples/config.yaml
 genome-to-diffraction contract schema sequence-group
 genome-to-diffraction structure-search pdb-sequence --help
+genome-to-diffraction structure-search prostt5-foldseek --help
 genome-to-diffraction structure-search qualify-p1 --help
 ```
 
@@ -324,8 +326,8 @@ for debugging; an existing versioned installation is never overwritten.
 - `prepare_databases.nf` exposes database-root, output, preparation switches,
   coordinate-cache initialisation, and verify-only inputs.
 - `discover_structures.nf` exposes exact sequence groups, the qualified database
-  manifest, output/cache roots, and bounded direct PDB sequence-search
-  parameters.
+  manifest, output/cache roots, and bounded direct-PDB and
+  ProstT5/Foldseek-to-PDB parameters.
 
 The safe workflow smoke test is:
 
@@ -353,7 +355,7 @@ pixi run nextflow run main.nf -profile local \
   --cache_root /absolute/cache/nf-genome-to-diffraction
 ```
 
-For the implemented direct PDB structural-discovery route:
+For the implemented local structural-discovery routes:
 
 ```bash
 pixi run -e hpc nextflow run discover_structures.nf -profile local \
@@ -363,8 +365,9 @@ pixi run -e hpc nextflow run discover_structures.nf -profile local \
   --cache_root /absolute/cache/nf-genome-to-diffraction
 ```
 
-This entry point requires the Linux `hpc` environment because MMseqs2 is not in
-the macOS development environment. It is not a final identification workflow.
+This entry point requires the Linux `hpc` environment because MMseqs2 and
+Foldseek are not in the macOS development environment. It is not a final
+identification workflow.
 
 ## Reference-database preparation
 
