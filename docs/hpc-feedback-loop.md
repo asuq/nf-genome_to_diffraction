@@ -289,7 +289,13 @@ path, resource, or shell argument. On the compute node the job requires explicit
 distinct scratch, installs the frozen `hpc` Pixi environment, and runs the fixed
 preflight. That preflight checks available capacity, scratch headroom,
 Foldseek/MMseqs2/aria2 versions, and only the pinned PDB, ProstT5, SEQRES, and
-1UBQ routes. Its JSON always records `large_payload_started: false`.
+1UBQ routes. Route checks are one-byte HTTPS range requests because the
+Foldseek worker serves GET redirects but returns 404 to HEAD-style aria2 dry
+runs. The preflight rejects an unsupported status, malformed range metadata,
+invalid length, oversized ranged body, or non-HTTPS redirect and records
+`large_payload_started: false`. The bounded exception is an HTTP-200 streaming
+response: the client reads exactly one byte, closes immediately, and records an
+unknown representation size when the server supplies no length.
 
 Only after preflight passes does the job prepare PDB Foldseek, PDB sequence,
 ProstT5, and coordinate-cache resources under the durable root. `aria2c` is

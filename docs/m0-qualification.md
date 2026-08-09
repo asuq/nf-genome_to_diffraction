@@ -273,11 +273,12 @@ allowed; recovery or removal is a separate, reviewed administrative action.
 The large-build compute-node preflight must complete before a database payload
 starts. It requires an explicit scratch directory on a filesystem distinct from
 the durable database root, operator-reviewed required capacities for both
-filesystems, pinned Foldseek/MMseqs2/aria2 tooling, and dry-run reachability of
-the exact Foldseek PDB/ProstT5 and RCSB SEQRES/1UBQ URLs. The resulting JSON
-records pass or failure, device and byte measurements, tool versions, fixed
-routes, and `large_payload_started: false`. It sends no biological input or
-credentials. Generic login-node connectivity is not qualifying evidence.
+filesystems, pinned Foldseek/MMseqs2/aria2 tooling, and bounded one-byte HTTPS
+reachability of the exact Foldseek PDB/ProstT5 and RCSB SEQRES/1UBQ URLs. The
+resulting JSON records pass or failure, device and byte measurements, tool
+versions, fixed routes, redirect targets, representation sizes, validators, and
+`large_payload_started: false`. It sends no biological input or credentials.
+Generic login-node connectivity is not qualifying evidence.
 
 When explicit compute-node scratch is supplied to preparation, the large
 Foldseek download/extraction temporary files and MMseqs2 index workspace use a
@@ -296,6 +297,13 @@ uses only explicit active write roots between full start/end reconciliations,
 checks durable and scratch filesystem headroom continuously, and terminates the
 command process group rather than only its parent. This reduces metadata
 pressure on Marmic NFS without weakening the 1.8 TB project cap.
+
+Foldseek's retained PDB version file is now parsed fail-loudly rather than being
+treated as an opaque inventory member. The database resource records its PDB
+snapshot date, provider archive MD5, exact Foldseek database-generation commit,
+and version-file SHA-256. The provider MD5 is provenance, not the repository's
+trust anchor; immutable identity still comes from the full deployed-file
+inventory and its SHA-256.
 
 Every anchored verification sidecar now distinguishes
 `inventory_metadata_and_functional_smoke` from
@@ -337,10 +345,24 @@ compressed representation sizes of `2,326,827,389` and `2,224,976,412` bytes,
 respectively; the RCSB SEQRES representation was `66,084,235` bytes. The pinned
 PDB version record was 121 bytes. The Foldseek worker returned 404 for HEAD but
 206 for ranged GET, so HEAD is not a valid reachability test for these routes.
+An exact aria2 1.37.0 `--dry-run=true` reproduction failed on the same HEAD-like
+behaviour even though normal GET redirected successfully. The implementation
+therefore requires the pinned aria2 executable but uses a strictly bounded
+one-byte GET for route preflight. The small 1UBQ coordinate route currently
+ignores Range and does not declare a body length; the client accepts that route
+only by reading one byte and immediately closing the streaming response. Its
+representation size is therefore recorded as unknown rather than inferred.
 These compressed sizes do not bound extracted databases, MMseqs2 indices,
 simultaneous staging, retained failed staging, or scratch use, and therefore do
 not by themselves justify reducing the capacity gate. Compute-node reachability
 still requires the fixed preflight.
+
+The corrected Python probe subsequently completed against all five fixed routes
+from the local development environment. It recorded the two Foldseek archives,
+PDB version file, and SEQRES file as ranged responses with their effective URLs,
+sizes, validators, and one-byte sample SHA-256 values; 1UBQ was the bounded
+unknown-size HTTP-200 case. This is adapter qualification only. It does not
+establish Marmic compute-node egress, proxy behaviour, or Slurm scratch.
 
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)

@@ -82,6 +82,11 @@ _DECLARED_LENGTH = re.compile(r"(?:^|\s)length:(?P<length>[0-9]+)(?:\s|$)")
 _PROTEIN_ALPHABET = frozenset("ABCDEFGHIKLMNPQRSTVWXYZOUJ")
 _STAGING_NAME = re.compile(r"^\.staging-[0-9a-f]{32}$")
 _FAILED_STAGING_NAME = re.compile(r"^\.?\.staging-[0-9a-f]{32}\.failed$")
+_PDB_ARCHIVE_VERSION = re.compile(r"^(?P<md5>[0-9a-f]{32})[ \t]+pdb100\.tar\.gz$")
+_PDB_DATE_VERSION = re.compile(r"^(?P<date>[0-9]{6})[ \t]+PDB_DATE$")
+_FOLDSEEK_COMMIT_VERSION = re.compile(
+    r"^(?P<commit>[0-9a-f]{40})[ \t]+FOLDSEEK_COMMIT$"
+)
 
 
 @dataclass(frozen=True)
@@ -103,6 +108,26 @@ class SmokeHit:
             "bits": self.bits,
             "query_coverage": self.query_coverage,
             "target_coverage": self.target_coverage,
+        }
+
+
+@dataclass(frozen=True)
+class FoldseekPdbSnapshot:
+    """Provider snapshot metadata retained by ``foldseek databases PDB``."""
+
+    pdb_date: str
+    archive_md5: str
+    foldseek_commit: str
+    version_file_sha256: str
+
+    def as_json(self) -> dict[str, JsonValue]:
+        return {
+            "pdb_date": self.pdb_date,
+            "archive_basename": "pdb100.tar.gz",
+            "archive_md5": self.archive_md5,
+            "archive_digest_algorithm": "MD5 (provider record; not trust anchor)",
+            "foldseek_database_commit": self.foldseek_commit,
+            "version_file_sha256": self.version_file_sha256,
         }
 
 
@@ -690,6 +715,39 @@ def _log_path(database_root: Path, name: str, action: str) -> Path:
     return database_root / "logs" / f"{name}.{action}.{uuid.uuid4().hex}.log"
 
 
+def _parse_foldseek_pdb_snapshot(path: Path) -> FoldseekPdbSnapshot:
+    """Parse the exact provider version record emitted beside the PDB database."""
+
+    if not path.is_file() or path.is_symlink():
+        raise DatabaseError("Foldseek PDB version record is missing or unsafe")
+    try:
+        lines = path.read_text(encoding="ascii").splitlines()
+    except (OSError, UnicodeError) as error:
+        raise DatabaseError("cannot read Foldseek PDB version record") from error
+    if len(lines) != 3:
+        raise DatabaseError("Foldseek PDB version record must contain three lines")
+    archive = _PDB_ARCHIVE_VERSION.fullmatch(lines[0])
+    pdb_date = _PDB_DATE_VERSION.fullmatch(lines[1])
+    commit = _FOLDSEEK_COMMIT_VERSION.fullmatch(lines[2])
+    if archive is None or pdb_date is None or commit is None:
+        raise DatabaseError("Foldseek PDB version record has an unsupported format")
+    raw_date = pdb_date.group("date")
+    try:
+        parsed_date = datetime.strptime(raw_date, "%y%m%d").date()
+    except ValueError as error:
+        raise DatabaseError(
+            "Foldseek PDB version record has an invalid date"
+        ) from error
+    if parsed_date.year < 2000:
+        raise DatabaseError("Foldseek PDB snapshot date predates supported releases")
+    return FoldseekPdbSnapshot(
+        pdb_date=parsed_date.isoformat(),
+        archive_md5=archive.group("md5"),
+        foldseek_commit=commit.group("commit"),
+        version_file_sha256=sha256_file(path, progress=False),
+    )
+
+
 def _prepare_foldseek_resource(
     request: DatabasePreparationRequest,
     database_root: Path,
@@ -738,6 +796,34 @@ def _prepare_foldseek_resource(
         if request.scratch_root is None:
             shutil.rmtree(staging / "tmp", ignore_errors=True)
         retrieved_at = utc_now()
+        pdb_snapshot = (
+            _parse_foldseek_pdb_snapshot(staging / "pdb.version")
+            if name == "pdb_foldseek"
+            else None
+        )
+        parameters: dict[str, JsonValue] = {
+            "command": [
+                "foldseek",
+                "databases",
+                database_name,
+                prefix_name,
+                "tmp",
+            ],
+            "gpu": False,
+            "data_license": ("CC0-1.0" if name == "pdb_foldseek" else "MIT"),
+            "preparation_log": _log_evidence(download_log, progress=request.progress),
+        }
+        if pdb_snapshot is not None:
+            parameters["provider_snapshot"] = pdb_snapshot.as_json()
+        warning = (
+            "Provider records only an archive MD5; the retained version file and "
+            "full deployed-file inventory are the immutable trust evidence."
+            if pdb_snapshot is not None
+            else (
+                "Downloader does not expose an exact source snapshot; retrieval date "
+                "and full file inventory define this resource."
+            )
+        )
         return _finish_immutable_resource(
             staging,
             database_root=database_root,
@@ -747,29 +833,17 @@ def _prepare_foldseek_resource(
                 if name == "pdb_foldseek"
                 else "ProstT5 weights via foldseek databases ProstT5"
             ),
-            release_or_snapshot=f"retrieved-{retrieved_at.date().isoformat()}",
+            release_or_snapshot=(
+                f"pdb-{pdb_snapshot.pdb_date}"
+                if pdb_snapshot is not None
+                else f"retrieved-{retrieved_at.date().isoformat()}"
+            ),
             retrieved_at=retrieved_at,
             prepared_with=PreparedWith(tool="foldseek", version=foldseek_version),
-            parameters={
-                "command": [
-                    "foldseek",
-                    "databases",
-                    database_name,
-                    prefix_name,
-                    "tmp",
-                ],
-                "gpu": False,
-                "data_license": ("CC0-1.0" if name == "pdb_foldseek" else "MIT"),
-                "preparation_log": _log_evidence(
-                    download_log, progress=request.progress
-                ),
-            },
+            parameters=parameters,
             smoke_status=SmokeTestStatus.NOT_RUN,
             progress=request.progress,
-            warnings=(
-                "Downloader does not expose an exact source snapshot; retrieval date "
-                "and full file inventory define this resource.",
-            ),
+            warnings=(warning,),
         )
     except BaseException:
         _retain_failed_staging(staging)

@@ -425,8 +425,15 @@ genome-to-diffraction --log-format json --no-progress databases preflight \
 
 The preflight requires scratch on a different filesystem from the durable
 database root, verifies the pinned Foldseek/MMseqs2 tools, measures both capacity
-boundaries, and uses pinned `aria2c --dry-run=true` to probe only the exact PDB,
-ProstT5, SEQRES, and 1UBQ routes. It records a structured pass/fail report with
+boundaries, requires pinned aria2 1.37.0 for the later Foldseek transfer, and
+probes only the exact PDB, ProstT5, SEQRES, and 1UBQ routes with an in-memory
+HTTPS `Range: bytes=0-0` request. Each route must return status 206, an exact
+one-byte body, and a valid total representation size. A status-200 response is
+accepted only by reading one byte and immediately closing the streaming
+response; its total size remains unknown when the server does not declare one.
+An invalid length, other status, or non-HTTPS redirect fails before a payload
+starts. The report records the
+effective URL, validators, representation size, and
 `large_payload_started: false`. These endpoints come from the pinned
 [Foldseek 10-941cd33 database script](https://github.com/steineggerlab/foldseek/blob/941cd33/data/structdatabases.sh)
 and this repository's fixed RCSB inputs. The probes transmit no catalogue,

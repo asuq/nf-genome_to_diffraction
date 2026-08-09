@@ -2,10 +2,12 @@
 
 import logging
 import os
+import re
 import shutil
-import subprocess
-import tempfile
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import cast
 
@@ -37,6 +39,8 @@ _FIXED_PROBES = (
     ("rcsb_pdb_seqres", PDB_SEQUENCE_URL),
     ("rcsb_1ubq_coordinate", PDB_COORDINATE_SMOKE_URL),
 )
+_CONTENT_RANGE = re.compile(r"^bytes 0-0/(?P<total>[1-9][0-9]*)$")
+_ROUTE_PROBE_USER_AGENT = "nf-genome-to-diffraction/0.1 database-preflight"
 
 
 @dataclass(frozen=True)
@@ -115,67 +119,125 @@ def _available_capacity(
     return used_bytes, usage.free, available_bytes
 
 
+def _probe_one_byte(url: str, *, timeout_seconds: int) -> dict[str, JsonValue]:
+    """Verify one fixed HTTPS representation without downloading its payload."""
+
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept-Encoding": "identity",
+            "Range": "bytes=0-0",
+            "User-Agent": _ROUTE_PROBE_USER_AGENT,
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            status = getattr(response, "status", None)
+            content_length = response.headers.get("Content-Length")
+            if status == 206:
+                content_range = response.headers.get("Content-Range")
+                match = (
+                    _CONTENT_RANGE.fullmatch(content_range)
+                    if content_range is not None
+                    else None
+                )
+                if match is None:
+                    raise DatabaseError(
+                        f"fixed database route returned invalid Content-Range: {url}"
+                    )
+                if content_length != "1":
+                    raise DatabaseError(
+                        "fixed database route returned an unbounded ranged body "
+                        f"length: {url}"
+                    )
+                total_size = int(match.group("total"))
+                range_honoured = True
+            elif status == 200:
+                if content_length is None:
+                    total_size = None
+                elif not content_length.isascii() or not content_length.isdecimal():
+                    raise DatabaseError(
+                        f"fixed database route returned an invalid body length: {url}"
+                    )
+                else:
+                    total_size = int(content_length)
+                    if total_size <= 0:
+                        raise DatabaseError(
+                            f"fixed database route returned an empty body length: {url}"
+                        )
+                range_honoured = False
+            else:
+                raise DatabaseError(
+                    f"fixed database route returned unsupported HTTP status: {url}"
+                )
+            content_encoding = response.headers.get("Content-Encoding")
+            if content_encoding not in {None, "identity"}:
+                raise DatabaseError(
+                    f"fixed database route ignored identity encoding: {url}"
+                )
+            payload = response.read(2 if range_honoured else 1)
+            if len(payload) != 1:
+                raise DatabaseError(
+                    f"fixed database route probe did not return exactly one byte: {url}"
+                )
+            effective_url = response.geturl()
+            if not effective_url.startswith("https://"):
+                raise DatabaseError(
+                    f"fixed database route redirected outside HTTPS: {url}"
+                )
+            return {
+                "effective_url": effective_url,
+                "representation_size_bytes": total_size,
+                "range_honoured": range_honoured,
+                "etag": response.headers.get("ETag"),
+                "last_modified": response.headers.get("Last-Modified"),
+                "sample_sha256": sha256(payload).hexdigest(),
+                "sample_size_bytes": len(payload),
+            }
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as error:
+        raise DatabaseError(
+            f"fixed database route probe failed: {url}: {error}"
+        ) from error
+
+
 def _probe_public_routes(
     scratch_root: Path,
     *,
     timeout_seconds: int,
     progress: bool,
 ) -> tuple[str, list[dict[str, JsonValue]]]:
+    """Probe only pinned routes with bounded one-byte HTTPS requests."""
+
     aria2c = shutil.which("aria2c")
     if aria2c is None or not Path(aria2c).is_absolute():
         raise DatabaseError("pinned aria2c is required for Foldseek route preflight")
     aria2_version = tool_version(aria2c)
+    if "1.37.0" not in aria2_version:
+        raise DatabaseError("aria2 1.37.0 is required")
     probes: list[dict[str, JsonValue]] = []
-    with (
-        tempfile.TemporaryDirectory(
-            prefix="nf-gtd-route-probe-", dir=scratch_root
-        ) as temporary,
-        tqdm(
-            _FIXED_PROBES,
-            desc="Probe database routes",
-            unit="route",
-            disable=not progress,
-        ) as routes,
-    ):
+    _LOGGER.info(
+        "starting bounded public database route probes",
+        extra={"scratch_root": str(scratch_root)},
+    )
+    with tqdm(
+        _FIXED_PROBES,
+        desc="Probe database routes",
+        unit="route",
+        disable=not progress,
+    ) as routes:
         for name, url in routes:
             _LOGGER.info(
                 "probing fixed public database route",
                 extra={"route_name": name, "url": url},
             )
-            command = [
-                aria2c,
-                "--dry-run=true",
-                "--max-tries=1",
-                "--retry-wait=0",
-                "--check-certificate=true",
-                f"--connect-timeout={timeout_seconds}",
-                f"--timeout={timeout_seconds}",
-                f"--dir={temporary}",
-                url,
-            ]
-            try:
-                completed = subprocess.run(
-                    command,
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout_seconds + 10,
-                )
-            except subprocess.TimeoutExpired as error:
-                raise DatabaseError(
-                    f"fixed database route probe timed out: {name}"
-                ) from error
-            if completed.returncode != 0:
-                detail = (completed.stderr or completed.stdout).strip()[-1000:]
-                raise DatabaseError(
-                    f"fixed database route probe failed: {name}: {detail}"
-                )
+            observation = _probe_one_byte(url, timeout_seconds=timeout_seconds)
             probes.append(
                 {
                     "name": name,
                     "url": url,
-                    "probe": "aria2c --dry-run=true",
+                    "probe": "HTTPS Range bytes=0-0; exactly one response byte",
                     "status": "reachable",
+                    **observation,
                 }
             )
     return aria2_version, probes

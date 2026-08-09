@@ -153,6 +153,17 @@ case "${{1-}}" in
     mkdir -p "$(dirname "$3")"
     printf '%s\n' "$2 database" > "$3"
     printf 'index\n' > "$3.index"
+    if [[ "$2" == PDB ]]; then
+      if [[ "${{FAKE_BAD_PDB_VERSION:-0}}" == 1 ]]; then
+        printf 'malformed provider version\n' > "$3.version"
+      else
+        printf '%s\n' \
+          'aefd75e0a5d6acbe8a2b7791b53eb479  pdb100.tar.gz' \
+          $'250101\tPDB_DATE' \
+          $'1815f0d76d7b5807e63b13f9d446dcef43c1f3b1\tFOLDSEEK_COMMIT' \
+          > "$3.version"
+      fi
+    fi
     ;;
   createdb)
     mkdir -p "$(dirname "$3")"
@@ -541,6 +552,25 @@ def test_mocked_foldseek_resources_prepare_smoke_and_reuse(
         resource.database_id for resource in reused.resources
     ]
     resources = {resource.name: resource for resource in first.resources}
+    pdb_resource = resources["pdb_foldseek"]
+    assert pdb_resource.release_or_snapshot == "pdb-2025-01-01"
+    provider_snapshot = pdb_resource.parameters["provider_snapshot"]
+    assert isinstance(provider_snapshot, dict)
+    assert provider_snapshot == {
+        "pdb_date": "2025-01-01",
+        "archive_basename": "pdb100.tar.gz",
+        "archive_md5": "aefd75e0a5d6acbe8a2b7791b53eb479",
+        "archive_digest_algorithm": "MD5 (provider record; not trust anchor)",
+        "foldseek_database_commit": ("1815f0d76d7b5807e63b13f9d446dcef43c1f3b1"),
+        "version_file_sha256": hashlib.sha256(
+            (
+                "aefd75e0a5d6acbe8a2b7791b53eb479  pdb100.tar.gz\n"
+                "250101\tPDB_DATE\n"
+                "1815f0d76d7b5807e63b13f9d446dcef43c1f3b1\t"
+                "FOLDSEEK_COMMIT\n"
+            ).encode("ascii")
+        ).hexdigest(),
+    }
     pdb_qualification = resources["pdb_foldseek"].parameters["qualification"]
     assert isinstance(pdb_qualification, dict)
     mapping_evidence = pdb_qualification["mapping"]
@@ -609,6 +639,21 @@ def test_mocked_foldseek_resources_prepare_smoke_and_reuse(
                 full_verify=True,
             )
         )
+
+
+def test_pdb_foldseek_rejects_malformed_provider_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _mocked_full_request(tmp_path, monkeypatch)
+    monkeypatch.setenv("FAKE_BAD_PDB_VERSION", "1")
+
+    with pytest.raises(DatabaseError, match="version record must contain three lines"):
+        prepare(request)
+
+    retained = list(
+        (request.database_root / "resources" / "pdb_foldseek").glob("*.failed")
+    )
+    assert len(retained) == 1
 
 
 def test_large_foldseek_temporary_payload_uses_and_cleans_explicit_scratch(
