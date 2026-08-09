@@ -411,6 +411,112 @@ def test_pdb_smoke_rejects_weak_best_hit() -> None:
         )
 
 
+def test_pdb_smoke_requires_unique_fixed_positive_control() -> None:
+    expected = SmokeHit("ubiquitin_smoke", "1ubq_A", 1e-20, 100.0, 1.0, 1.0)
+    other = SmokeHit("ubiquitin_smoke", "2xyz_Z", 1e-20, 100.0, 1.0, 1.0)
+
+    assert prepare_module._require_expected_smoke_hit((other, expected)) == expected
+    with pytest.raises(DatabaseError, match="exactly one canonical 1ubq_A"):
+        prepare_module._require_expected_smoke_hit((other,))
+    with pytest.raises(DatabaseError, match="exactly one canonical 1ubq_A"):
+        prepare_module._require_expected_smoke_hit((expected, expected))
+
+
+def test_pdb_smoke_rejects_weak_fixed_positive_control() -> None:
+    with pytest.raises(DatabaseError, match=r"expected 1ubq_A.*failed"):
+        prepare_module._require_expected_smoke_hit(
+            (
+                SmokeHit("ubiquitin_smoke", "1ubq_A", 1e-2, 20.0, 0.8, 0.8),
+                SmokeHit("ubiquitin_smoke", "2xyz_Z", 1e-20, 100.0, 1.0, 1.0),
+            )
+        )
+
+
+def test_search_smoke_comparison_accepts_tied_hit_order_variation() -> None:
+    fixed_mapping = {
+        "target_id": "1ubq_A",
+        "pdb_id": "1UBQ",
+        "identifier_namespace": "legacy_seqres_suffix",
+        "seqres_token": "A",
+        "sequence_length": 76,
+        "sequence_sha256": hashlib.sha256(
+            prepare_module._SMOKE_SEQUENCE.encode("ascii")
+        ).hexdigest(),
+    }
+    expected = {
+        "kind": "known_ubiquitin_mmseqs_search",
+        "query_id": "ubiquitin_smoke",
+        "query_sequence_sha256": fixed_mapping["sequence_sha256"],
+        "thresholds": prepare_module._smoke_thresholds(),
+        "hit_count": 684,
+        "selected_hit": {
+            "query": "ubiquitin_smoke",
+            "target": "11sy_H",
+            "evalue": 1e-42,
+            "bits": 152.0,
+            "query_coverage": 1.0,
+            "target_coverage": 1.0,
+        },
+        "selected_hit_mapping": {"target_id": "11sy_H"},
+        "mapping": fixed_mapping,
+        "query": {"path": "/old/query.faa", "sha256": "a" * 64},
+        "result": {"path": "/old/result.tsv", "sha256": "b" * 64},
+    }
+    observed = {
+        **expected,
+        "hit_count": 676,
+        "selected_hit": {
+            "query": "ubiquitin_smoke",
+            "target": "1wr6_F",
+            "evalue": 1e-42,
+            "bits": 152.0,
+            "query_coverage": 1.0,
+            "target_coverage": 1.0,
+        },
+        "selected_hit_mapping": {"target_id": "1wr6_F"},
+        "query": {"path": "/new/query.faa", "sha256": "a" * 64},
+        "result": {"path": "/new/result.tsv", "sha256": "c" * 64},
+    }
+
+    prepare_module._require_matching_smoke_evidence(
+        expected,
+        observed,
+        keys=prepare_module._SEARCH_SMOKE_STABLE_KEYS,
+        label="PDB-sequence",
+    )
+
+
+def test_search_smoke_comparison_rejects_fixed_mapping_change() -> None:
+    expected = {
+        "kind": "known_ubiquitin_mmseqs_search",
+        "query_id": "ubiquitin_smoke",
+        "query_sequence_sha256": "a" * 64,
+        "thresholds": prepare_module._smoke_thresholds(),
+        "selected_hit": {
+            "query": "ubiquitin_smoke",
+            "target": "1ubq_A",
+            "evalue": 1e-42,
+            "bits": 152.0,
+            "query_coverage": 1.0,
+            "target_coverage": 1.0,
+        },
+        "mapping": {"target_id": "1ubq_A", "sequence_sha256": "a" * 64},
+        "query": {"path": "/old/query.faa", "sha256": "b" * 64},
+    }
+    observed = {
+        **expected,
+        "mapping": {"target_id": "1ubq_A", "sequence_sha256": "c" * 64},
+    }
+
+    with pytest.raises(DatabaseError, match="differs from expected qualification"):
+        prepare_module._require_matching_smoke_evidence(
+            expected,
+            observed,
+            keys=prepare_module._SEARCH_SMOKE_STABLE_KEYS,
+            label="PDB-sequence",
+        )
+
+
 def test_pdb_smoke_requires_selected_hit_to_match_query_sequence(
     tmp_path: Path,
 ) -> None:

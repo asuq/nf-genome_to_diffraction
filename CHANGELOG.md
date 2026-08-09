@@ -142,6 +142,11 @@ All notable changes to this project are documented here.
 - P0 verifies pinned MMseqs2 and Foldseek during staging and prepends the locked
   environment to `PATH`, so offline database revalidation resolves those exact
   tools while retaining the batch system utilities.
+- PDB search revalidation now requires one significant, query-equivalent
+  `1ubq_A` positive-control hit and preserves complete bounded result evidence.
+  It compares the fixed query, thresholds, best-hit scores, and fixed mapping,
+  but no longer treats ordering, tied target identity, bounded hit count, or the
+  complete result checksum as reproducible scientific invariants.
 
 ### Not implemented
 

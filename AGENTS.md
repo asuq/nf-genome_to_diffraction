@@ -108,6 +108,12 @@ Every process adapter requires:
 - a failure-path test;
 - a stub mode suitable for `nextflow -stub-run` where practical.
 
+After an observed failure has one focused regression test and the required
+repository gate passes, prioritise the next real-data prototype run over
+polishing synthetic tests. Add further test cases only when they protect a
+distinct scientific invariant, safety boundary, or demonstrated failure mode;
+do not delay real-data feedback in pursuit of perfect test coverage.
+
 Do not claim a Phenix integration is complete without testing it against a real installed Phenix runtime.
 
 The first three MTZ datasets are feasibility tests, not a general validation set. At least one should be a known positive control consistent with `ASU = nA` if available.

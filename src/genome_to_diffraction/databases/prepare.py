@@ -282,6 +282,30 @@ def _select_functional_smoke_hit(hits: tuple[SmokeHit, ...]) -> SmokeHit:
     return hit
 
 
+def _require_expected_smoke_hit(hits: tuple[SmokeHit, ...]) -> SmokeHit:
+    """Return the unique fixed positive-control hit after checking its scores."""
+    expected_key = _parse_pdb_seqres_target(_EXPECTED_SMOKE_TARGET)
+    matches = tuple(
+        hit for hit in hits if _parse_pdb_seqres_target(hit.target) == expected_key
+    )
+    if len(matches) != 1:
+        raise DatabaseError(
+            "database smoke result must contain exactly one canonical 1ubq_A hit"
+        )
+    hit = matches[0]
+    if (
+        hit.evalue > _SMOKE_MAX_EVALUE
+        or hit.bits < _SMOKE_MIN_BITS
+        or hit.query_coverage < _SMOKE_MIN_COVERAGE
+        or hit.target_coverage < _SMOKE_MIN_COVERAGE
+    ):
+        raise DatabaseError(
+            "expected 1ubq_A database smoke hit failed significance or coverage "
+            "thresholds"
+        )
+    return hit
+
+
 def _smoke_query(path: Path) -> None:
     path.write_text(f">{_SMOKE_QUERY_ID}\n{_SMOKE_SEQUENCE}\n", encoding="ascii")
 
@@ -326,6 +350,29 @@ def _stable_smoke_evidence(
                     f"invalid database smoke file evidence: {label}.{key}"
                 )
             stable[key] = {"sha256": value["sha256"]}
+        elif key == "selected_hit":
+            expected_fields = {
+                "query",
+                "target",
+                "evalue",
+                "bits",
+                "query_coverage",
+                "target_coverage",
+            }
+            if not isinstance(value, dict) or set(value) != expected_fields:
+                raise DatabaseError(
+                    f"invalid selected database smoke hit: {label}.{key}"
+                )
+            stable[key] = {
+                field: value[field]
+                for field in (
+                    "query",
+                    "evalue",
+                    "bits",
+                    "query_coverage",
+                    "target_coverage",
+                )
+            }
         else:
             stable[key] = value
     return stable
@@ -344,17 +391,14 @@ def _require_matching_smoke_evidence(
         raise DatabaseError(f"{label} smoke differs from expected qualification")
 
 
-_SEARCH_SMOKE_KEYS = (
+_SEARCH_SMOKE_STABLE_KEYS = (
     "kind",
     "query_id",
     "query_sequence_sha256",
     "thresholds",
-    "hit_count",
     "selected_hit",
-    "selected_hit_mapping",
     "mapping",
     "query",
-    "result",
 )
 _PROSTT5_SMOKE_KEYS = (
     "kind",
@@ -1439,6 +1483,10 @@ def _run_pdb_sequence_smoke(
         selected_hit_mapping = _require_query_equivalent_smoke_mapping(
             sequence_root, selected_hit
         )
+        expected_hit = _require_expected_smoke_hit(hits)
+        expected_hit_mapping = _require_query_equivalent_smoke_mapping(
+            sequence_root, expected_hit
+        )
         mapping = _require_expected_smoke_mapping(sequence_root)
         return {
             "kind": "known_ubiquitin_mmseqs_search",
@@ -1450,6 +1498,8 @@ def _run_pdb_sequence_smoke(
             "hit_count": len(hits),
             "selected_hit": selected_hit.as_json(),
             "selected_hit_mapping": selected_hit_mapping,
+            "expected_hit": expected_hit.as_json(),
+            "expected_hit_mapping": expected_hit_mapping,
             "mapping": mapping,
             "query": _preserve_smoke_file(
                 database_root,
@@ -1851,8 +1901,12 @@ def _smoke_pdb_foldseek(
         )
         hits = _parse_smoke_result(result)
         selected_hit = _select_functional_smoke_hit(hits)
-        selected_hit_mapping = _require_seqres_mapping(
-            Path(sequences.root_path), selected_hit.target
+        selected_hit_mapping = _require_query_equivalent_smoke_mapping(
+            Path(sequences.root_path), selected_hit
+        )
+        expected_hit = _require_expected_smoke_hit(hits)
+        expected_hit_mapping = _require_query_equivalent_smoke_mapping(
+            Path(sequences.root_path), expected_hit
         )
         mapping = _require_expected_smoke_mapping(Path(sequences.root_path))
         pdb_id = mapping["pdb_id"]
@@ -1877,6 +1931,8 @@ def _smoke_pdb_foldseek(
             "hit_count": len(hits),
             "selected_hit": selected_hit.as_json(),
             "selected_hit_mapping": selected_hit_mapping,
+            "expected_hit": expected_hit.as_json(),
+            "expected_hit_mapping": expected_hit_mapping,
             "mapping": mapping,
             "query": _preserve_smoke_file(
                 database_root,
@@ -1900,7 +1956,7 @@ def _smoke_pdb_foldseek(
             _require_matching_smoke_evidence(
                 existing_pdb,
                 base_qualification,
-                keys=_SEARCH_SMOKE_KEYS,
+                keys=_SEARCH_SMOKE_STABLE_KEYS,
                 label="PDB Foldseek",
             )
             if (
@@ -2323,7 +2379,7 @@ def _prepare_locked(
             _require_matching_smoke_evidence(
                 expected_sequence_qualification,
                 sequence_verification,
-                keys=_SEARCH_SMOKE_KEYS,
+                keys=_SEARCH_SMOKE_STABLE_KEYS,
                 label="PDB-sequence",
             )
             verification_checks["pdb_sequences"] = sequence_verification

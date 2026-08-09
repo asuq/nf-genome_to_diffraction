@@ -369,7 +369,12 @@ symlink remains invalid. The job then:
    `verify-only` for PDB Foldseek, ProstT5, PDB sequences, and the coordinate
    cache, checking inventory metadata and comparing the exact resource records
    with that trust anchor; bounded MMseqs2/ProstT5/Foldseek smokes rerun locally,
-   deterministic result evidence is compared, a structured
+   require exactly one significant query-equivalent `1ubq_A` positive-control
+   hit, and compare the fixed query, thresholds, best-hit scores, and fixed
+   mapping. The full result and first ten hits remain audit evidence, while hit
+   ordering, tied target identity, bounded result count, and full-result checksum
+   are deliberately not compared because equally scoring ubiquitin targets can
+   vary within the capped result set. A structured
    `database_manifest.p0-revalidated.verification.json` record explicitly marks
    `inventory_metadata_and_functional_smoke`, and the previously cached public
    PDB coordinate is revalidated without a download;
