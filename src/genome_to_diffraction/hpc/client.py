@@ -7,6 +7,7 @@ import io
 import json
 import logging
 import os
+import re
 import secrets
 import shlex
 import subprocess
@@ -72,6 +73,18 @@ DATABASE_STAGE_TIMEOUT_SECONDS = 6 * 60 * 60
 P0_INPUT_STAGE_TIMEOUT_SECONDS = 15 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
 MAX_P0_PATHS_BYTES = 4096
+FAILURE_SIGNATURE_LOG_BYTES = 64 * 1024
+_FAILURE_APPLICATION_LOGS = frozenset(
+    {"logs/smoke.log", "logs/p0.log", "logs/database.log"}
+)
+_SIGNATURE_RUN_ID_RE = re.compile(
+    r"gtd-(?:smoke|p0|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}"
+)
+_SIGNATURE_TIMESTAMP_RE = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z"
+)
+_SIGNATURE_SHA_RE = re.compile(r"(?<![0-9a-f])[0-9a-f]{40,64}(?![0-9a-f])")
+_SIGNATURE_SLURM_LOG_RE = re.compile(r"slurm-[0-9]+")
 _SSH_FIXED_OPTIONS = (
     "-o",
     "BatchMode=yes",
@@ -1006,6 +1019,38 @@ def _failure_signature(destination: Path) -> str | None:
         return None
     exit_code = str(value.get("exit_code", "unknown"))
     scheduler_state = str(value.get("scheduler_state", "unknown"))
+    diagnostic = _failure_log_digest(destination, value)
     return hashlib.sha256(
-        f"{failure}\0{exit_code}\0{scheduler_state}".encode()
+        f"{failure}\0{exit_code}\0{scheduler_state}\0{diagnostic}".encode()
     ).hexdigest()
+
+
+def _failure_log_digest(destination: Path, result: Mapping[object, object]) -> str:
+    relative_value = result.get("application_log")
+    if not isinstance(relative_value, str) or relative_value not in (
+        _FAILURE_APPLICATION_LOGS
+    ):
+        return "no-approved-application-log"
+    relative = PurePosixPath(relative_value)
+    path = destination.joinpath(*relative.parts)
+    try:
+        if path.is_symlink() or not path.is_file():
+            return "no-approved-application-log"
+        size = path.stat().st_size
+        with path.open("rb") as handle:
+            handle.seek(max(0, size - FAILURE_SIGNATURE_LOG_BYTES))
+            payload = handle.read(FAILURE_SIGNATURE_LOG_BYTES)
+    except OSError:
+        return "no-approved-application-log"
+    text = payload.decode("utf-8", errors="replace")
+    text = _SIGNATURE_RUN_ID_RE.sub("<run-id>", text)
+    text = _SIGNATURE_TIMESTAMP_RE.sub("<timestamp>", text)
+    text = _SIGNATURE_SHA_RE.sub("<sha>", text)
+    text = _SIGNATURE_SLURM_LOG_RE.sub("slurm-<job-id>", text)
+    stable_lines = [
+        line
+        for line in text.splitlines()
+        if not line.startswith(("job_id=", "compute_host="))
+    ]
+    normalised = "\n".join(stable_lines).encode("utf-8")
+    return hashlib.sha256(normalised).hexdigest()

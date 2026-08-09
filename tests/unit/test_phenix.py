@@ -207,6 +207,41 @@ def test_mocked_installer_writes_verified_schema_valid_manifest(
     )
 
 
+def test_runtime_probe_timeout_is_actionable_and_retained(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    installer = tmp_path / "phenix installer.sh"
+    digest = _write_installer(installer)
+    request = _request(tmp_path, installer, digest)
+    install_phenix(request)
+    verification_log = tmp_path / "timeout verification.log"
+
+    def timeout_probe(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise subprocess.TimeoutExpired(["phenix.xtriage", "--help"], 3)
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.phenix.runtime._child_shell", timeout_probe
+    )
+
+    with pytest.raises(
+        PhenixRuntimeVerificationError,
+        match=r"command probe timed out after 3 seconds: phenix\.xtriage",
+    ):
+        verify_manifest(
+            request.manifest_path,
+            progress=False,
+            timeout_seconds=3,
+            verification_log=verification_log,
+        )
+
+    retained = verification_log.read_text(encoding="utf-8")
+    assert "## phenix.xtriage" in retained
+    assert "exit=timeout" in retained
+    assert "reason=probe timed out after 3 seconds" in retained
+
+
 @pytest.mark.parametrize("xtriage_probe", ["missing_signature", "traceback"])
 def test_nonzero_probe_requires_valid_help_without_runtime_failures(
     tmp_path: Path,

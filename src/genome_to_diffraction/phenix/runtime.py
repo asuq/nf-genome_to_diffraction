@@ -205,21 +205,26 @@ def _read_environment(
         'printf "%s\\0%s\\0%s\\0" "${PHENIX-}" "${PHENIX_PREFIX-}" '
         '"${PHENIX_VERSION-}"'
     )
-    completed = subprocess.run(
-        [
-            _bash(),
-            "--noprofile",
-            "--norc",
-            "-c",
-            script,
-            "genome-to-diffraction-phenix-environment",
-            str(environment_file),
-        ],
-        check=False,
-        capture_output=True,
-        env=_clean_child_environment(),
-        timeout=timeout_seconds,
-    )
+    try:
+        completed = subprocess.run(
+            [
+                _bash(),
+                "--noprofile",
+                "--norc",
+                "-c",
+                script,
+                "genome-to-diffraction-phenix-environment",
+                str(environment_file),
+            ],
+            check=False,
+            capture_output=True,
+            env=_clean_child_environment(),
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise PhenixRuntimeVerificationError(
+            f"phenix_env.sh sourcing timed out after {timeout_seconds:g} seconds"
+        ) from error
     if completed.returncode != 0:
         diagnostic = completed.stderr.decode("utf-8", errors="replace").strip()
         raise PhenixRuntimeVerificationError(
@@ -301,22 +306,49 @@ def inspect_runtime(
         probe = _COMMAND_PROBES.get(command, _DEFAULT_COMMAND_PROBE)
         probe_arguments = list(probe.arguments)
         resolve_script = 'source "$1" 1>&2 || exit $?\ncommand -v -- "$2"'
-        resolution = subprocess.run(
-            [
-                _bash(),
-                "--noprofile",
-                "--norc",
-                "-c",
-                resolve_script,
-                "genome-to-diffraction-phenix-resolve",
-                str(environment_file),
-                command,
-            ],
-            check=False,
-            capture_output=True,
-            env=_clean_child_environment(),
-            timeout=timeout_seconds,
-        )
+        try:
+            resolution = subprocess.run(
+                [
+                    _bash(),
+                    "--noprofile",
+                    "--norc",
+                    "-c",
+                    resolve_script,
+                    "genome-to-diffraction-phenix-resolve",
+                    str(environment_file),
+                    command,
+                ],
+                check=False,
+                capture_output=True,
+                env=_clean_child_environment(),
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as error:
+            records.append(
+                PhenixCommandRecord(
+                    name=command,
+                    path="",
+                    smoke_test_status=SmokeTestStatus.FAILED,
+                    version_text=detected_version,
+                )
+            )
+            log_sections.append(
+                f"## {command}\nprobe_args={json.dumps(probe_arguments)}\n"
+                "exit=timeout\nresult=failed\n"
+                f"reason=resolution timed out after {timeout_seconds:g} seconds\n"
+            )
+            if verification_log is not None:
+                atomic_write_text(verification_log, "\n".join(log_sections))
+            _LOGGER.error(
+                "Phenix command resolution timed out",
+                extra={"command": command, "timeout_seconds": timeout_seconds},
+            )
+            raise PhenixRuntimeVerificationError(
+                f"Phenix command resolution timed out after {timeout_seconds:g} "
+                f"seconds: {command}",
+                commands=records,
+                detected_version=detected_version,
+            ) from error
         resolved_text = resolution.stdout.decode("utf-8", errors="replace").strip()
         resolved_path = Path(resolved_text).resolve() if resolved_text else None
         if (
@@ -340,12 +372,40 @@ def inspect_runtime(
                 "reason=resolution failed or escaped installation prefix\n"
             )
             continue
-        completed = _child_shell(
-            environment_file,
-            [str(resolved_path), *probe.arguments],
-            timeout_seconds=timeout_seconds,
-            capture_output=True,
-        )
+        try:
+            completed = _child_shell(
+                environment_file,
+                [str(resolved_path), *probe.arguments],
+                timeout_seconds=timeout_seconds,
+                capture_output=True,
+            )
+        except subprocess.TimeoutExpired as error:
+            records.append(
+                PhenixCommandRecord(
+                    name=command,
+                    path=str(resolved_path),
+                    smoke_test_status=SmokeTestStatus.FAILED,
+                    version_text=detected_version,
+                )
+            )
+            log_sections.append(
+                f"## {command}\npath={resolved_path}\n"
+                f"probe_args={json.dumps(probe_arguments)}\n"
+                "exit=timeout\nresult=failed\n"
+                f"reason=probe timed out after {timeout_seconds:g} seconds\n"
+            )
+            if verification_log is not None:
+                atomic_write_text(verification_log, "\n".join(log_sections))
+            _LOGGER.error(
+                "Phenix command smoke test timed out",
+                extra={"command": command, "timeout_seconds": timeout_seconds},
+            )
+            raise PhenixRuntimeVerificationError(
+                f"Phenix command probe timed out after {timeout_seconds:g} seconds: "
+                f"{command}",
+                commands=records,
+                detected_version=detected_version,
+            ) from error
         output = (completed.stdout + completed.stderr).decode("utf-8", errors="replace")
         passed, reason = _evaluate_command_probe(
             probe,

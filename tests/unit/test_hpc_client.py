@@ -699,6 +699,39 @@ def test_same_failure_twice_stops_the_feedback_chain(tmp_path: Path) -> None:
         controller.stage("smoke", "HEAD", parent_run_id=second)
 
 
+def test_distinct_application_diagnostics_do_not_collide(tmp_path: Path) -> None:
+    job_result = json.dumps(
+        {
+            "failure_class": "environment_failure",
+            "exit_code": 1,
+            "scheduler_state": "FAILED",
+            "application_log": "logs/smoke.log",
+        }
+    ).encode()
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    first = str(controller.stage("smoke", "HEAD")["run_id"])
+    transport.archive = _archive(
+        {
+            "state/job-result.json": job_result,
+            "logs/smoke.log": b"package resolution failed\n",
+        }
+    )
+    first_result = controller.collect(first)
+    second = str(controller.stage("smoke", "HEAD", parent_run_id=first)["run_id"])
+    transport.archive = _archive(
+        {
+            "state/job-result.json": job_result,
+            "logs/smoke.log": b"phenix.xtriage probe timed out\n",
+        }
+    )
+    second_result = controller.collect(second)
+
+    assert first_result["failure_signature"] != second_result["failure_signature"]
+    third = controller.stage("smoke", "HEAD", parent_run_id=second)
+    assert third["iteration"] == 3
+
+
 def test_unowned_run_cannot_be_cancelled(tmp_path: Path) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)

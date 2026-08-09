@@ -262,8 +262,13 @@ prior run as the bounded feedback parent:
 nf-gtd-hpc-test stage smoke --revision HEAD --parent-run PREVIOUS_RUN_ID
 ```
 
-The initial run plus five fixes are allowed per feedback chain. A third attempt
-after two identical failure signatures is refused pending manual diagnosis.
+The initial run plus five fixes are allowed per feedback chain. A failure
+signature combines the fixed class, exit status, scheduler state, and a SHA-256
+of the bounded approved application-log tail after normalising run IDs,
+timestamps, commit hashes, job IDs, and hostnames. This distinguishes different
+root causes without exposing logs or treating routine provenance changes as a
+new error. A third attempt after two identical signatures is refused pending
+manual diagnosis.
 
 ## P0 real-site profile
 
@@ -355,7 +360,9 @@ symlink remains invalid. The job then:
 
 1. verifies and reuses the pre-staged frozen Linux `hpc` Pixi environment
    without resolving or downloading packages;
-2. re-verifies every required Phenix command and preserves the verification log;
+2. re-verifies every required Phenix command with a fixed 300-second
+   NFS-cold per-command bound and preserves timeout diagnostics in the
+   verification log;
 3. fingerprints the frozen database manifest during staging, then runs database
    `verify-only` for PDB Foldseek, ProstT5, PDB sequences, and the coordinate
    cache, checking inventory metadata and comparing the exact resource records

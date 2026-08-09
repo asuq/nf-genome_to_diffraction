@@ -444,7 +444,8 @@ run_p0() {
     printf 'phase=phenix_verify profile=p0\n'
     "$GTD" --log-format json --no-progress phenix verify \
         --manifest "$PHENIX_MANIFEST" \
-        --verification-log "$qualification/phenix-verification.log"
+        --verification-log "$qualification/phenix-verification.log" \
+        --command-timeout-seconds 300
 
     printf 'phase=database_revalidate_bounded profile=p0\n'
     EXPECTED_DATABASE_SHA256="$(<"$RUN/state/database-manifest-sha256")"
