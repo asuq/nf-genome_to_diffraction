@@ -971,6 +971,7 @@ def test_database_failed_staging_is_archived_without_deletion_or_path_input(
     failed = resource / f".staging-{'a' * 32}.failed"
     failed.mkdir(parents=True)
     (failed / "provider.log").write_text("preserved evidence\n", encoding="ascii")
+    (failed / "provider-link.log").symlink_to("provider.log")
     (run / "logs" / "database.log").write_text(
         f'{{"level": "error", "staging_path": "{failed}"}}\n',
         encoding="ascii",
@@ -993,15 +994,18 @@ def test_database_failed_staging_is_archived_without_deletion_or_path_input(
     destination = Path(result["destination"])
     assert result["archived"] == "true"
     assert result["file_count"] == "1"
+    assert result["symlink_count"] == "1"
     assert result["total_bytes"] == str(len("preserved evidence\n"))
     assert not failed.exists()
     assert destination.is_dir()
     assert (destination / "provider.log").read_text() == "preserved evidence\n"
+    assert (destination / "provider-link.log").is_symlink()
     record = json.loads(
         (run / "state" / "database-failed-staging-archive.json").read_text()
     )
     assert record["source"] == str(failed)
     assert record["destination"] == str(destination)
+    assert record["symlink_count"] == 1
     assert "database_failed_staging_archived" in (run / "events.jsonl").read_text()
     archive_path = tmp_path / "archived-failure-evidence.tar.gz"
     archive_path.write_bytes(
@@ -1127,8 +1131,8 @@ def test_database_failed_staging_archive_reports_absent_directory(
     )
 
     failed.mkdir()
-    (failed / "target.txt").write_text("evidence\n", encoding="ascii")
-    (failed / "link.txt").symlink_to("target.txt")
+    (failed.parent / "outside.txt").write_text("outside\n", encoding="ascii")
+    (failed / "link.txt").symlink_to("../outside.txt")
     symlink_rejected = _run(
         [
             str(dispatcher),
@@ -1144,7 +1148,7 @@ def test_database_failed_staging_archive_reports_absent_directory(
     symlink_fields = _decode_protocol(symlink_rejected.stdout)
     assert symlink_fields["failure_class"] == "filesystem_failure"
     assert symlink_fields["message"] == (
-        "failed-staging directory contains a symbolic link"
+        "failed-staging symbolic link escapes its staging tree"
     )
 
 

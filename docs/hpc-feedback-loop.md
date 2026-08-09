@@ -208,12 +208,14 @@ nf-gtd-hpc-test database-archive-failed \
 The dispatcher requires a completed `software_failure`, the unchanged external
 configuration fingerprint, the fixed database profile, and an owner-controlled
 regular directory cited by the run log directly below one recognised resource
-root. It rejects symlinks, special files, foreign ownership, and escaped paths.
-Success atomically renames the directory to a run-qualified `.reviewed-*`
-archive and records its original path, destination, file count, and byte count.
-It deletes no evidence but releases the resource's `.failed` build guard. Never
-run this before collection and diagnosis, and do not include it in automatic
-feedback or a persistent approval rule.
+root. Existing symbolic links are preserved only when their resolved targets
+remain inside that same staging tree. It rejects broken or escaping links,
+other non-file entries, foreign ownership, and escaped paths. Success atomically
+renames the directory to a run-qualified `.reviewed-*` archive and records its
+original path, destination, regular-file count, symbolic-link count, and regular
+file bytes. It deletes no evidence but releases the resource's `.failed` build
+guard. Never run this before collection and diagnosis, and do not include it in
+automatic feedback or a persistent approval rule.
 
 `readiness p0` is a fixed, read-only prerequisite inspection. It accepts no
 path, revision, run ID, or shell fragment; creates no run; and submits no job.

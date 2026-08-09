@@ -893,8 +893,10 @@ require_database_failed_staging() {
     [[ "$#" -eq 1 ]] || \
         fail wrapper_failure "failed-staging resolver expects one application log"
     local application_log="$1"
-    local line candidate="" basename resource resource_root resolved unsafe
+    local line candidate="" basename resource resource_root resolved unsafe link link_resolved
+    local link_count=0
     DATABASE_FAILED_STAGING=""
+    DATABASE_FAILED_STAGING_SYMLINK_COUNT=0
     while IFS= read -r line; do
         [[ "$line" == *'"staging_path": "'* ]] || continue
         candidate="${line#*\"staging_path\": \"}"
@@ -918,16 +920,21 @@ require_database_failed_staging() {
     [[ "$resolved" == "$candidate" && -d "$candidate" && ! -L "$candidate" && \
         -O "$candidate" ]] || \
         fail filesystem_failure "failed-staging directory is non-canonical, unsafe, or foreign-owned"
-    unsafe="$(find "$candidate" -xdev -type l -print -quit)"
-    [[ -z "$unsafe" ]] || \
-        fail filesystem_failure "failed-staging directory contains a symbolic link"
-    unsafe="$(find "$candidate" -xdev \( ! -type d -a ! -type f \) -print -quit)"
+    while IFS= read -r -d '' link; do
+        link_resolved="$(realpath -e "$link" 2>/dev/null)" || \
+            fail filesystem_failure "failed-staging directory contains a broken symbolic link"
+        path_within_root "$resolved" "$link_resolved" || \
+            fail filesystem_failure "failed-staging symbolic link escapes its staging tree"
+        link_count=$((link_count + 1))
+    done < <(find "$candidate" -xdev -type l -print0)
+    unsafe="$(find "$candidate" -xdev \( ! -type d -a ! -type f -a ! -type l \) -print -quit)"
     [[ -z "$unsafe" ]] || \
         fail filesystem_failure "failed-staging directory contains a non-file entry"
     unsafe="$(find "$candidate" -xdev ! -user "$(id -u)" -print -quit)"
     [[ -z "$unsafe" ]] || \
         fail filesystem_failure "failed-staging directory contains foreign-owned content"
     DATABASE_FAILED_STAGING="$candidate"
+    DATABASE_FAILED_STAGING_SYMLINK_COUNT="$link_count"
 }
 
 logs_run() {
@@ -1010,6 +1017,7 @@ database_archive_failed_run() {
     local confirmation="$3"
     local run profile phase failure_class expected_config source destination
     local basename file_count=0 total_bytes=0 timestamp record temporary candidate size
+    local symlink_count=0
     require_owned_run "$run_id" "$owner_id"
     [[ "$confirmation" == "$run_id" ]] || \
         fail wrapper_failure "database archive confirmation does not match"
@@ -1037,6 +1045,7 @@ database_archive_failed_run() {
         fail wrapper_failure "database configuration changed after the failed run"
     require_database_failed_staging "$run/logs/database.log"
     source="$DATABASE_FAILED_STAGING"
+    symlink_count="$DATABASE_FAILED_STAGING_SYMLINK_COUNT"
     basename="${source##*/}"
     destination="$(dirname "$source")/${basename%.failed}.reviewed-${run_id}"
     [[ ! -e "$destination" && ! -L "$destination" ]] || \
@@ -1063,6 +1072,7 @@ database_archive_failed_run() {
   "source": "$source",
   "destination": "$destination",
   "file_count": $file_count,
+  "symlink_count": $symlink_count,
   "total_bytes": $total_bytes
 }
 EOF
@@ -1074,6 +1084,7 @@ EOF
     emit source "$source"
     emit destination "$destination"
     emit file_count "$file_count"
+    emit symlink_count "$symlink_count"
     emit total_bytes "$total_bytes"
 }
 
