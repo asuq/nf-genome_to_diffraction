@@ -574,6 +574,20 @@ protein records while explicitly skipping `64,793` non-protein records. Real
 M0.4 remains open until a corrected retry completes all resources, fixed
 functional smokes, and anchored full verification.
 
+The corrected immutable revision `2513330b7034e750491f60a82b60ee28ca544a4f`
+passed GitHub CI and ran as Slurm job `625542`. It reused the verified ProstT5
+and PDB Foldseek resources, normalised the full SEQRES snapshot, completed
+MMseqs2 `createdb`, and built the sequence index with 100 threads in job-owned
+`/dev/shm`. The subsequent bounded ubiquitin search completed, but the parser
+did not observe exactly one expected `1ubq_A` result and therefore retained the
+empty durable staging guard rather than publishing the sequence resource. The
+temporary search-result file was correctly removed with scratch, so that run
+does not establish whether the mismatch was zero or multiple expected rows.
+The next diagnostic revision logs the total hit count, expected-target count,
+and at most the first ten scored targets; it keeps the strict cardinality gate
+unchanged until real evidence identifies the mismatch. This is a controlled
+software failure, not a failed scientific search or qualified database.
+
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)
 [RCSB identifier conventions](https://www.rcsb.org/docs/general-help/identifiers-in-pdb),

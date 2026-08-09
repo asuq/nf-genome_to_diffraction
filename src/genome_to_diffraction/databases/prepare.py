@@ -237,9 +237,29 @@ def _select_expected_smoke_hit(hits: tuple[SmokeHit, ...]) -> SmokeHit:
     matches = [
         hit for hit in hits if _parse_pdb_seqres_target(hit.target) == expected_key
     ]
+    _LOGGER.info(
+        "database smoke results parsed",
+        extra={
+            "hit_count": len(hits),
+            "expected_target": _EXPECTED_SMOKE_TARGET,
+            "expected_match_count": len(matches),
+            "top_hits": [
+                {
+                    "target": hit.target,
+                    "evalue": hit.evalue,
+                    "bits": hit.bits,
+                    "query_coverage": hit.query_coverage,
+                    "target_coverage": hit.target_coverage,
+                }
+                for hit in hits[:10]
+            ],
+            "top_hits_truncated": len(hits) > 10,
+        },
+    )
     if len(matches) != 1:
         raise DatabaseError(
-            "database smoke query did not return exactly one expected 1UBQ_A hit"
+            "database smoke query returned "
+            f"{len(matches)} expected 1UBQ_A hits; exactly one is required"
         )
     hit = matches[0]
     if (

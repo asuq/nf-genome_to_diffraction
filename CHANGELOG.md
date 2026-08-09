@@ -44,6 +44,9 @@ All notable changes to this project are documented here.
 - Expected-1UBQ database qualification with explicit search thresholds,
   SEQRES-to-mmCIF protein-entity sequence binding, immutable coordinate-cache
   provenance, retained query/result/log evidence, and reproducible rerun records.
+- Bounded structured MMseqs2 smoke-result diagnostics that retain the hit count,
+  expected-target cardinality, and first ten scored targets when qualification
+  fails, without copying an unrestricted search result into controller logs.
 - Validator-bound resumable public downloads with verified prefix state,
   redirect provenance, continuous capacity/headroom checks, scoped NFS storage
   monitoring, and whole-process-group termination on watchdog failures.

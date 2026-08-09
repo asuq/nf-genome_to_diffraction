@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import importlib
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -316,6 +317,34 @@ def test_pdb_seqres_chain_tokens_are_case_sensitive(tmp_path: Path) -> None:
         )
     )
     assert selected.target == "1ubq_A"
+
+
+def test_pdb_smoke_mismatch_logs_bounded_result_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    records: list[logging.LogRecord] = []
+
+    class RecordHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    hits = tuple(
+        SmokeHit("ubiquitin_smoke", f"2a{index:02d}_A", 1e-20, 100.0, 1.0, 1.0)
+        for index in range(11)
+    )
+
+    monkeypatch.setattr(prepare_module._LOGGER, "handlers", [RecordHandler()])
+    monkeypatch.setattr(prepare_module._LOGGER, "level", logging.INFO)
+    with pytest.raises(DatabaseError, match="returned 0 expected 1UBQ_A hits"):
+        prepare_module._select_expected_smoke_hit(hits)
+
+    record = next(
+        item for item in records if item.getMessage() == "database smoke results parsed"
+    )
+    assert record.__dict__["hit_count"] == 11
+    assert record.__dict__["expected_match_count"] == 0
+    assert len(cast(list[object], record.__dict__["top_hits"])) == 10
+    assert record.__dict__["top_hits_truncated"] is True
 
 
 def test_pdb_seqres_rejects_exact_duplicate_chain_token(tmp_path: Path) -> None:
