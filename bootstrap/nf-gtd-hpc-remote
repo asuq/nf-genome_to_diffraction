@@ -360,7 +360,7 @@ p0_inputs_stage() {
     local source_id="$1" archive_sha256="$2" archive_size="$3"
     local expected_database_sha256="$4" expected_phenix_sha256="$5"
     local site_root phenix_directory phenix_manifest="" phenix_matches=0
-    local candidate actual_sha256 archive staging destination paths_candidate
+    local candidate actual_sha256 archive staging destination paths_candidate parent
     local p0_config_sha256 p0_paths_base64
     [[ "$source_id" =~ $CHECKSUM_RE ]] || fail wrapper_failure "invalid P0 input ID"
     [[ "$archive_sha256" =~ $CHECKSUM_RE ]] || \
@@ -376,11 +376,21 @@ p0_inputs_stage() {
 
     database_config_readiness runtime || \
         fail environment_failure "database configuration is not ready"
-    site_root="$DATABASE_ALLOWED_ROOT"
+    site_root="$ROOT"
+    while [[ "$DATABASE_ALLOWED_ROOT" != "$site_root" ]] && \
+          ! path_within_root "$site_root" "$DATABASE_ALLOWED_ROOT"; do
+        parent="$(dirname "$site_root")"
+        [[ "$parent" != "$site_root" && "$parent" != / ]] || \
+            fail filesystem_failure "qualified site root has no safe common ancestor"
+        site_root="$parent"
+    done
     [[ "$site_root" != / && -d "$site_root" && ! -L "$site_root" && \
        -O "$site_root" ]] || fail filesystem_failure "qualified site root is unsafe"
-    path_within_root "$site_root" "$ROOT" || \
+    [[ "$ROOT" == "$site_root" ]] || path_within_root "$site_root" "$ROOT" || \
         fail filesystem_failure "dispatcher root is outside the qualified site root"
+    [[ "$DATABASE_ALLOWED_ROOT" == "$site_root" ]] || \
+        path_within_root "$site_root" "$DATABASE_ALLOWED_ROOT" || \
+        fail filesystem_failure "database authority is outside the qualified site root"
     path_within_root "$site_root" "$DATABASE_ROOT" || \
         fail environment_failure "qualified database root is outside the site root"
     path_within_root "$site_root" "$DATABASE_MANIFEST" || \

@@ -1388,7 +1388,9 @@ def test_p0_input_bundle_is_checksum_gated_immutable_and_configurable(
     login_home = tmp_path / "login-home"
     login_home.mkdir()
     environment["HOME"] = str(login_home)
-    database_config = _write_database_paths(remote_root, allowed_root=tmp_path)
+    database_config = _write_database_paths(
+        remote_root, allowed_root=tmp_path / "database-storage"
+    )
     database_manifest = Path(
         database_config.read_text(encoding="ascii").splitlines()[2]
     )

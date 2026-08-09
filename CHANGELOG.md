@@ -43,8 +43,8 @@ All notable changes to this project are documented here.
   tracked M0 qualification dashboard.
 - A create-only, checksum-confirmed P0 configuration boundary that validates the
   seven external site paths without exposing them, permits a read-only
-  operator-owned qualified site root, and refuses overwrite or persistent
-  approval.
+  nearest operator-owned common site root across dispatcher and database
+  storage, and refuses overwrite or persistent approval.
 - Checksum-gated, path-closed staging of the seven frozen three-crystal P0
   inputs with deterministic archives, immutable remote publication, structured
   progress, and a separately reviewed private configuration candidate.
