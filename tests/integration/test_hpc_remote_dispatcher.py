@@ -606,6 +606,8 @@ def test_database_administration_uses_separate_fixed_start_boundary(
         manifest["database_config_sha256"]
         == hashlib.sha256(database_config.read_bytes()).hexdigest()
     )
+    assert (run / "state" / "hpc-environment-status").read_text().strip() == "ready"
+    assert (run / "logs" / "pixi-install.log").is_file()
 
     routine_submit = _run(
         [str(dispatcher), "submit", DATABASE_RUN_ID, OWNER_ID],
@@ -730,8 +732,41 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     )
     with tarfile.open(archive_path, "r:gz") as archive:
         names = archive.getnames()
+    assert "logs/pixi-install.log" in names
     assert "artifacts/database/preflight.json" in names
     assert "artifacts/database/database_manifest.full-verified.json" in names
+
+
+def test_database_stage_fails_when_login_environment_install_fails(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_database_paths(remote_root)
+    failing_environment = dict(environment)
+    failing_environment["FAKE_PIXI_INSTALL_FAIL"] = "1"
+
+    failed = _run(
+        [
+            str(dispatcher),
+            "database-stage",
+            DATABASE_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+        ],
+        cwd=tmp_path,
+        environment=failing_environment,
+        success=False,
+    )
+
+    fields = _decode_protocol(failed.stdout)
+    assert fields["failure_class"] == "environment_failure"
+    run = remote_root / "runs" / DATABASE_RUN_ID
+    assert (run / "state" / "phase").read_text().strip() == "stage_failed"
+    assert not (run / "state" / "job-id").exists()
+    assert not (run / "state" / "hpc-environment-status").exists()
+    assert (run / "logs" / "pixi-install.log").is_file()
 
 
 @pytest.mark.parametrize(

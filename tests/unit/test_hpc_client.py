@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 import pytest
 
 from genome_to_diffraction.hpc.client import (
+    DATABASE_STAGE_TIMEOUT_SECONDS,
     SSH_COLLECTION_TIMEOUT_SECONDS,
     SSH_CONNECT_TIMEOUT_SECONDS,
     SSH_OPERATION_TIMEOUT_SECONDS,
@@ -133,12 +134,19 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
 
     with pytest.raises(RemoteOperationError, match="transport timeout") as operation:
         transport.run("readiness", ["p0"])
+    with pytest.raises(RemoteOperationError, match="transport timeout") as staging:
+        transport.run("database-stage", ["1" * 40])
     with pytest.raises(RemoteOperationError, match="transport timeout") as collection:
         transport.collect("gtd-p0-20260802T120000Z-0123456789ab-01234567", "1" * 32)
 
     assert operation.value.failure_class is FailureClass.TRANSFER_FAILURE
+    assert staging.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert collection.value.failure_class is FailureClass.TRANSFER_FAILURE
-    assert timeouts == [SSH_OPERATION_TIMEOUT_SECONDS, SSH_COLLECTION_TIMEOUT_SECONDS]
+    assert timeouts == [
+        SSH_OPERATION_TIMEOUT_SECONDS,
+        DATABASE_STAGE_TIMEOUT_SECONDS,
+        SSH_COLLECTION_TIMEOUT_SECONDS,
+    ]
     assert all(command[0] == "ssh" for command in commands)
     assert all("BatchMode=yes" in command for command in commands)
     assert all(

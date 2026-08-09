@@ -294,10 +294,12 @@ nf-gtd-hpc-test collect --run-id RUN_ID
 ```
 
 `database-stage` fingerprints the external configuration. Execution refuses a
-post-stage edit. `database-submit` has fixed Slurm resources and accepts no URL,
-path, resource, or shell argument. On the compute node the job requires explicit
-distinct scratch, installs the frozen `hpc` Pixi environment, and runs the fixed
-preflight. That preflight checks available capacity, scratch headroom,
+post-stage edit and materialises the frozen per-run `hpc` Pixi environment on
+the login node, with a bounded 30-minute transport timeout and a retained
+install log. `database-submit` has fixed Slurm resources and accepts no URL,
+path, resource, or shell argument. On the compute node the job requires distinct
+scratch, verifies the staged environment with Pixi `--offline`, and runs the
+fixed preflight. That preflight checks available capacity, scratch headroom,
 Foldseek/MMseqs2/aria2 versions, and only the pinned PDB, ProstT5, SEQRES, and
 1UBQ routes. Route checks are one-byte HTTPS range requests because the
 Foldseek worker serves GET redirects but returns 404 to HEAD-style aria2 dry

@@ -403,6 +403,12 @@ insufficient headroom before a payload starts. Foldseek archives and MMseqs2
 index workspace are disposable there, while immutable database content remains
 under the durable database root.
 
+The approval-gated database staging operation materialises the frozen per-run
+`hpc` Pixi environment on the login node. Compute nodes then verify that same
+environment with Pixi offline before preflight; they do not require outbound
+Conda or PyPI access. The environment remains bound to the staged commit and
+`pixi.lock` checksum and is not shared between run IDs.
+
 The downloads performed internally by `foldseek databases` do not currently
 expose equivalent checkpoint state. A failed Foldseek staging directory is
 retained for diagnosis, and any retained incomplete staging blocks a new build

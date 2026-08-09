@@ -376,6 +376,16 @@ The fixed database job therefore uses a job-owned mode-0700 child below that
 site root when `SLURM_TMPDIR` is absent, while preserving the distinct-device,
 ownership, symlink, `/dev/shm`, and capacity checks.
 
+Retry job `625471` then selected the job-owned scratch path successfully and
+reached Pixi setup. It failed before preflight because the compute node could
+not connect to the locked Conda package route after three retries (`Address not
+available`). Again, no database payload or durable resource staging started and
+scratch cleanup succeeded. The fixed staging operation now materialises the
+per-run frozen `hpc` environment on the network-capable login node; the compute
+job performs an offline Pixi verification before using its executables. This
+preserves the exact commit/lock binding without assuming compute-node internet
+access.
+
 The corrected Python probe subsequently completed against all five fixed routes
 from the local development environment. It recorded the two Foldseek archives,
 PDB version file, and SEQRES file as ranged responses with their effective URLs,

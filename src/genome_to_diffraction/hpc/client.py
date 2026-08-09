@@ -61,6 +61,7 @@ _REMOTE_TOOL_PATHS = (
 )
 SSH_CONNECT_TIMEOUT_SECONDS = 15
 SSH_OPERATION_TIMEOUT_SECONDS = 60
+DATABASE_STAGE_TIMEOUT_SECONDS = 30 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
 _SSH_FIXED_OPTIONS = (
     "-o",
@@ -186,17 +187,22 @@ class SshTransport:
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         """Execute an operation and decode its base64 scalar protocol."""
 
+        operation_timeout = (
+            DATABASE_STAGE_TIMEOUT_SECONDS
+            if operation == "database-stage"
+            else SSH_OPERATION_TIMEOUT_SECONDS
+        )
         try:
             result = subprocess.run(
                 self._command(operation, arguments),
                 check=False,
                 capture_output=True,
-                timeout=SSH_OPERATION_TIMEOUT_SECONDS,
+                timeout=operation_timeout,
             )
         except subprocess.TimeoutExpired as error:
             raise RemoteOperationError(
                 f"remote {operation} exceeded the fixed "
-                f"{SSH_OPERATION_TIMEOUT_SECONDS}-second transport timeout",
+                f"{operation_timeout}-second transport timeout",
                 failure_class=FailureClass.TRANSFER_FAILURE,
             ) from error
         fields = _decode_remote_fields(result.stdout)

@@ -573,6 +573,18 @@ stage_run_common() {
             fail filesystem_failure "database configuration checksum failed"
         atomic_text "$run/state/database-config-sha256" "$database_config_sha256"
         database_config_json="\"$database_config_sha256\""
+        if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
+            --manifest-path "$run/source/pixi.toml" \
+            --environment hpc \
+            --frozen \
+            --no-progress >"$run/logs/pixi-install.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "environment_failure"
+            append_event "$run" "stage_hpc_environment_failed"
+            fail environment_failure "locked HPC environment installation failed"
+        fi
+        atomic_text "$run/state/hpc-environment-status" "ready"
+        append_event "$run" "stage_hpc_environment_ready"
     fi
 
     manifest_tmp="$run/manifest.json.tmp.$$"
@@ -878,6 +890,7 @@ collect_run() {
         state/exit-code \
         logs/git-fetch.log \
         logs/git-clone.log \
+        logs/pixi-install.log \
         logs/sbatch.err \
         logs/smoke.log \
         logs/p0.log \

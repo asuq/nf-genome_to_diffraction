@@ -594,10 +594,19 @@ run_database() {
         return 2
     }
 
+    [[ -f "$RUN/state/hpc-environment-status" && \
+        "$(<"$RUN/state/hpc-environment-status")" == ready ]] || {
+        printf 'staged HPC environment readiness record is absent\n' >&2
+        return 2
+    }
     export TMPDIR="$SCRATCH/tmp"
-    printf 'phase=pixi_install profile=database\n'
+    printf 'phase=pixi_verify_offline profile=database\n'
     cd "$SOURCE"
-    "$PIXI_BIN" install --environment hpc --frozen
+    "$PIXI_BIN" install \
+        --environment hpc \
+        --frozen \
+        --offline \
+        --no-progress
     gtd="$SOURCE/.pixi/envs/hpc/bin/genome-to-diffraction"
     real_aria2="$SOURCE/.pixi/envs/hpc/bin/aria2c"
     [[ -x "$gtd" && -x "$real_aria2" ]] || {
