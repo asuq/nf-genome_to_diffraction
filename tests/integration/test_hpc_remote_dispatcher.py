@@ -841,6 +841,43 @@ def test_database_stage_classifies_login_source_transfer_failure(
     assert not (run / "state" / "job-id").exists()
 
 
+def test_database_login_stage_has_nonterminal_status_and_visible_logs(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / DATABASE_RUN_ID
+    (run / "state").mkdir(parents=True)
+    (run / "logs").mkdir()
+    (run / "state" / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (run / "state" / "profile").write_text("database\n", encoding="ascii")
+    (run / "state" / "phase").write_text("staging\n", encoding="ascii")
+    source_log = run / "logs" / "database-source-stage.log"
+    source_log.write_text("downloaded_bytes=1048576\n", encoding="ascii")
+
+    status = _decode_protocol(
+        _run(
+            [str(dispatcher), "status", DATABASE_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert status["phase"] == "staging"
+    assert status["scheduler_state"] == "STAGING"
+    assert status["terminal"] == "false"
+
+    logs = _decode_protocol(
+        _run(
+            [str(dispatcher), "logs", DATABASE_RUN_ID, OWNER_ID, "20"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert logs["log_path"] == str(source_log)
+    assert base64.b64decode(logs["content_base64"]).decode() == (
+        "downloaded_bytes=1048576\n"
+    )
+
+
 @pytest.mark.parametrize(
     "storage_limit",
     ("02000000000000", "999999999999999999999999999999"),

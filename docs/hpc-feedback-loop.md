@@ -79,8 +79,11 @@ Database administration has two deliberately separate phases. The login-node
 `database-stage` operation installs the frozen environment and sequentially
 downloads only the five fixed public inputs directly into immutable durable
 storage. This work is network/I/O-bound, uses no Slurm allocation, and retains
-validator-bound partial state plus structured progress logs. The compute phase
-is stricter: an exported `SLURM_TMPDIR` must be a
+validator-bound partial state plus structured progress logs. While it runs,
+`status` reports non-terminal `STAGING` rather than inventing a scheduler state,
+and `logs` tails `database-source-stage.log`; after submission the same commands
+switch to the recorded Slurm state and compute log. The compute phase is
+stricter: an exported `SLURM_TMPDIR` must be a
 canonical, owned, non-symlink directory on a filesystem distinct from the
 durable database root. Marmic did not export that variable in the first real
 job, so the fixed fallback creates a unique mode-0700 parent below the
