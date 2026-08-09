@@ -12,7 +12,7 @@ this gate passes.
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Qualified with the public same-organism 8OOX control | Offline revalidation and real local Task 05 bind the exact RefSeq sequence, known two-copy ASU, deposited model/structure factors, and exact plus homolog MR models; the copy-two hypothesis is retained without changing the ranking heuristic, and this does not identify any blind pilot crystal |
 | M0.3 Qualify Phenix | Local and Marmic runtimes qualified; three real Xtriage smokes qualified locally | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files complete local real Xtriage, while equivalent Marmic real-MTZ and scheduled P0 evidence remain required |
-| M0.4 Qualify databases | All coupled resources prepared; Foldseek assembly-identifier correction locally qualified and retry pending | The 100-CPU `/dev/shm` builds published PDB Foldseek and the full PDB sequence/MMseqs2 resource after destination checksums; ProstT5 and the coordinate cache are present, and both real searches execute, but no anchored real-site manifest has yet passed the complete functional gate |
+| M0.4 Qualify databases | **Qualified** | Four immutable resources passed inventories, full checksums, metadata checks, MMseqs2/ProstT5/Foldseek functional smokes, PDB sequence/coordinate crosswalking, coordinate-cache reuse, and anchored `verify_only` revalidation in Slurm job `625547` |
 | M0.5 Matthews reference | Local method matrix and positive-control retention qualified; site parity follows M0.3 | Eleven real comparisons cover all frozen MTZs, the 8OOX ground-truth sequence, and multiple copy regimes; blind-pilot identity/copy interpretation remains separate |
 | M0.6 Fixed HPC P0 profile | Current local controller and Marmic dispatcher installed; create-only configuration boundary qualified | The bounded readiness interface verifies Pixi 0.74.0 and can atomically validate/install the protected seven-line file, but the real external P0 configuration is still absent; no P0 run has been staged or submitted |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
@@ -612,8 +612,50 @@ database boundary: Foldseek's PDB100 archive names biological-assembly chains as
 removes that namespace qualifier for crosswalk lookup, canonicalises only the
 PDB entry component, and preserves chain-token case. The original Foldseek
 identifier remains recorded in the selected-hit evidence. Malformed assembly
-labels still fail loudly. M0.4 remains open until this correction passes the
+labels still fail loudly. At that point M0.4 remained open pending the corrected
 real structural search, coordinate mapping, and anchored full verification.
+
+Immutable correction `a0f9dbcfdb1cad49a2f01ba4251284c852a34a2f`
+passed the complete local gate and GitHub Actions before deployment. Marmic run
+`gtd-database-20260809T164146Z-a0f9dbcfdb1c-05e6b6aa` executed that exact
+revision as Slurm job `625547` and closed M0.4. The job reused all four ready
+resources, then performed a second anchored `verify_only` pass with full file
+checksums and fresh functional searches. The resulting database manifest is
+`dbm_b1ecf0751f787e19b42e2e1015e97917eb6382b1d660c7fc04bdfcc4acafd0cf`;
+its verification record is
+`dbv_7f70695a8224be729a60cf3bb931241166f8749443cabcebdb3110afe02afdcb`,
+with output-manifest SHA-256
+`ea20ed9ac9c018851017883eb60facf8e129961b7246042f5ec1c2c7717f8ebe`
+and immutable expected-manifest anchor
+`f89c0a036a04bfd443f9f4270bbb0da3b8a71f691018eba82480dd0631cba52f`.
+
+The full-verification evidence records:
+
+- PDB Foldseek resource
+  `db_f4b943e866a7c015c3b0f8f6c81edf4a146fbeee34cc778662cc729e6707a6af`,
+  ProstT5 resource
+  `db_0c2b0deeb4831e22aea9500f2d92386f9f91900ef28c4df5bb4b3c62460a39cb`,
+  PDB sequence/MMseqs2 resource
+  `db_485ff3f74924baf9e9a5e15d52da221da678c8add3ddf328d4d4a606b3c7552c`,
+  and coordinate cache
+  `db_e5a19162b21dd1e052fd5ce2e34c64ad680b1434e2ef0e1ddddda566ddb20e0a`;
+- 684 significant MMseqs2 hits, with deterministic `11sy_H` selected at
+  E-value `1.005e-42`, 152 bits, full query/target coverage, and the exact fixed
+  76-residue sequence SHA-256;
+- 241 significant Foldseek hits, with deterministic
+  `6isu-assembly1_C` selected at E-value `8.496e-15`, 564 bits, and full
+  query/target coverage; the alias resolves to SEQRES target `6isu_C` with the
+  same fixed sequence SHA-256;
+- fixed `1ubq_A` sequence and mmCIF positive-control binding through entity 1,
+  author chain A, label asymmetry ID A, and the same 76-residue sequence hash;
+- `verification_level = full_checksums_and_functional_smoke`, successful
+  scheduler exit, and successful job-owned `/dev/shm` cleanup.
+
+The collected manifest was independently reloaded through the local
+`database-manifest` contract validator. The preceding assembly-identifier
+failure occurred after all resources had been published and retained no failed
+resource staging directory, so no staging archive or destructive cleanup was
+required.
 
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)
