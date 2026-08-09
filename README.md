@@ -8,15 +8,18 @@ narrow an unidentified prokaryotic crystal to reviewable protein candidates.
 This repository contains the completed foundation, typed data contracts, an
 external Phenix bootstrap/runtime boundary, explicit reference-database
 preparation, and trusted protein-catalogue normalisation. Diffraction processing
-now implements independent MTZ preflight and candidate-specific Matthews/SDS-PAGE
-hypotheses. Structural search, molecular replacement, refinement, map-based
-sequence assessment, ranking, and final identification are not yet implemented.
+implements independent MTZ preflight and candidate-specific Matthews/SDS-PAGE
+hypotheses. M0 real-site qualification passed on all three pilot MTZ datasets,
+including real Phenix and database probes. M1 structural discovery is active:
+the first local MMseqs2-to-PDB sequence-search route is implemented, while its
+real catalogue P1 qualification and the remaining structural providers are not
+yet complete. Molecular replacement, refinement, map-based sequence assessment,
+ranking, and final identification remain unimplemented.
 `main.nf` therefore ends with an explicit
 `task05_preflight_complete_downstream_deferred` scope record; its successful exit
-does not mean that a protein identity was found. Phenix and full database
-preparation have synthetic/local acceptance coverage. Tasks 04 and 05 have also
-completed a real Slurm pilot on Marmic with Xtriage deliberately skipped; real
-Phenix and reference-database validation remain required.
+does not mean that a protein identity was found. The separate
+`discover_structures.nf` entry point currently implements only direct PDB
+sequence search and likewise does not identify a protein by itself.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -67,6 +70,7 @@ genome-to-diffraction schema-check
 genome-to-diffraction contract validate catalogue-manifest examples/catalogues.tsv
 genome-to-diffraction contract canonicalise pipeline-config examples/config.yaml
 genome-to-diffraction contract schema sequence-group
+genome-to-diffraction structure-search pdb-sequence --help
 ```
 
 `schema-check` validates every tracked JSON Schema against Draft 2020-12,
@@ -74,6 +78,11 @@ validates the supplied JSON/YAML/TSV fixtures against both JSON Schema and the
 typed application models, and checks cross-manifest references. Contract commands
 log progress and diagnostics to standard error; use `--log-format json` for
 structured logs and `--no-progress` for non-interactive execution.
+
+The direct local structural search and its Nextflow entry point are documented
+in the [structural-search interface](docs/structural-search.md). A PDB hit is
+model/family evidence tied back to a supplied exact-sequence group; it never
+becomes a reportable catalogue identity by itself.
 
 ## Immutable Marmic test profiles
 
@@ -308,6 +317,9 @@ for debugging; an existing versioned installation is never overwritten.
   Phenix-manifest, output/cache, review, approval, and execution-profile inputs.
 - `prepare_databases.nf` exposes database-root, output, preparation switches,
   coordinate-cache initialisation, and verify-only inputs.
+- `discover_structures.nf` exposes exact sequence groups, the qualified database
+  manifest, output/cache roots, and bounded direct PDB sequence-search
+  parameters.
 
 The safe workflow smoke test is:
 
@@ -334,6 +346,19 @@ pixi run nextflow run main.nf -profile local \
   --outdir /absolute/results/task05 \
   --cache_root /absolute/cache/nf-genome-to-diffraction
 ```
+
+For the implemented direct PDB structural-discovery route:
+
+```bash
+pixi run -e hpc nextflow run discover_structures.nf -profile local \
+  --sequence_groups /absolute/results/catalogue/sequence_groups.jsonl \
+  --database_manifest /absolute/shared/database_manifest.json \
+  --outdir /absolute/results/structural-discovery \
+  --cache_root /absolute/cache/nf-genome-to-diffraction
+```
+
+This entry point requires the Linux `hpc` environment because MMseqs2 is not in
+the macOS development environment. It is not a final identification workflow.
 
 ## Reference-database preparation
 

@@ -100,6 +100,14 @@ class EligibilityStatus(StrEnum):
     DEFERRED = "deferred"
 
 
+class SearchScientificStatus(StrEnum):
+    """Scientific interpretation of one completed provider query."""
+
+    HITS_FOUND = "hits_found"
+    NO_HIT = "no_hit"
+    NOT_INTERPRETABLE = "not_interpretable"
+
+
 class StructuralSearchHit(ContractModel):
     """Normalised provider hit with provider-specific metrics left nullable."""
 
@@ -107,8 +115,11 @@ class StructuralSearchHit(ContractModel):
     hit_id: NonEmptyString
     sequence_group_id: NonEmptyString
     provider: NonEmptyString
+    provider_rank: PositiveInt
     target_id: NonEmptyString
     target_chain_or_entity: str | None = None
+    pdb_id: str | None = Field(default=None, pattern=r"^[0-9A-Za-z]{4}$")
+    identifier_namespace: str | None = None
     query_start: PositiveInt | None = None
     query_end: PositiveInt | None = None
     target_start: PositiveInt | None = None
@@ -122,8 +133,62 @@ class StructuralSearchHit(ContractModel):
     probability: float | None = Field(default=None, ge=0, le=1)
     database_id: NonEmptyString
     raw_result_pointer: NonEmptyString
+    raw_metrics: dict[str, JsonValue] = Field(default_factory=dict)
     eligibility_status: EligibilityStatus
     eligibility_reason: NonEmptyString
+
+
+class StructuralSearchResult(ContractModel):
+    """One provider query with explicit execution and scientific outcomes."""
+
+    schema_version: Literal["1.0"]
+    search_id: NonEmptyString
+    sequence_group_id: NonEmptyString
+    provider: NonEmptyString
+    database_id: NonEmptyString
+    tool: NonEmptyString
+    tool_version: NonEmptyString
+    adapter_version: NonEmptyString
+    cache_key: Sha256Hex
+    execution_status: ExecutionStatus
+    scientific_status: SearchScientificStatus
+    hit_count: int = Field(ge=0)
+    hits: tuple[StructuralSearchHit, ...] = ()
+    raw_result_pointer: NonEmptyString
+    raw_result_sha256: Sha256Hex
+    command_log_pointer: NonEmptyString
+    command_log_sha256: Sha256Hex
+    warnings: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _statuses_match_hits(self) -> Self:
+        if self.hit_count != len(self.hits):
+            raise ValueError("hit_count does not match hits")
+        if self.execution_status is ExecutionStatus.COMPLETED_HIT:
+            if self.scientific_status is not SearchScientificStatus.HITS_FOUND:
+                raise ValueError("completed_hit requires hits_found")
+            if not self.hits:
+                raise ValueError("completed_hit requires at least one hit")
+        elif self.execution_status is ExecutionStatus.COMPLETED_NO_HIT:
+            if self.scientific_status is not SearchScientificStatus.NO_HIT:
+                raise ValueError("completed_no_hit requires no_hit")
+            if self.hits:
+                raise ValueError("completed_no_hit cannot contain hits")
+        elif self.execution_status is ExecutionStatus.SKIPPED_INELIGIBLE:
+            if self.scientific_status is not SearchScientificStatus.NOT_INTERPRETABLE:
+                raise ValueError("skipped_ineligible must be not_interpretable")
+            if self.hits:
+                raise ValueError("skipped_ineligible cannot contain hits")
+        else:
+            raise ValueError("structural-search result has unsupported terminal status")
+        for hit in self.hits:
+            if (
+                hit.sequence_group_id != self.sequence_group_id
+                or hit.provider != self.provider
+                or hit.database_id != self.database_id
+            ):
+                raise ValueError("hit identity does not match its search result")
+        return self
 
 
 class CoordinateSourceRecord(ContractModel):

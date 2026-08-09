@@ -152,12 +152,19 @@ All notable changes to this project are documented here.
   It compares the fixed query, thresholds, best-hit scores, and fixed mapping,
   but no longer treats ordering, tied target identity, bounded hit count, or the
   complete result checksum as reproducible scientific invariants.
+- A shared structural-search result contract and the first M1 provider now run
+  catalogue-wide local MMseqs2 searches against the qualified PDB sequence
+  resource, preserve exact PDB/chain mappings and raw evidence, distinguish
+  hit, no-hit, and ineligible outcomes, and expose a resumable typed Nextflow
+  entry point.
 
 ### Not implemented
 
-- Structural search, model preparation, molecular replacement, refinement,
-  map-based sequence assessment, final ranking, and final scientific reporting.
-- Real-site Phenix/database validation, structural search, and MR.
+- ProstT5/Foldseek structural search, exact AFDB retrieval, optional ESM Atlas
+  search, provider hit union, model preparation, molecular replacement,
+  refinement, map-based sequence assessment, final ranking, and final
+  scientific reporting.
+- Real-site P1 structural-discovery qualification and all downstream MR gates.
 
 ## 1.0 - 31 July 2026
 

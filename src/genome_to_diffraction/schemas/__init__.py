@@ -19,9 +19,11 @@ from genome_to_diffraction.schemas.results import (
     ProcessedModelRecord,
     ReviewDecisionManifest,
     ScientificStatusRecord,
+    SearchScientificStatus,
     SequenceGroupRecord,
     SourceProteinRecord,
     StructuralSearchHit,
+    StructuralSearchResult,
 )
 
 __all__ = [
@@ -39,9 +41,11 @@ __all__ = [
     "ReviewDecisionManifest",
     "RunManifest",
     "ScientificStatusRecord",
+    "SearchScientificStatus",
     "SequenceGroupRecord",
     "SourceProteinRecord",
     "StructuralSearchHit",
+    "StructuralSearchResult",
     "require_remote_submission_authorisation",
     "validate_manifest_references",
 ]

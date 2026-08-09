@@ -542,15 +542,16 @@ or evidence model. None is part of the 26–44 week baseline estimate.
 
 ## Immediate next goal
 
-Start M0, not Epic 7. The next bounded goal should deliver a **real-site
-qualification dossier** containing:
+M0 passed its operational gate on Marmic. The active bounded goal is now **M1
+reusable structural discovery**, with the shortest path to real feedback:
 
-1. a verified Phenix installation manifest and real Xtriage output fixture;
-2. immutable real database manifests and smoke-query results;
-3. a three-dataset/ground-truth inventory with a named positive control;
-4. selected Python-versus-Phenix Matthews comparisons;
-5. a reviewed design for the fixed P0 Marmic integration operation; and
-6. a go/no-go report for beginning structural discovery.
+1. finish the shared result contract and local MMseqs2-to-PDB adapter;
+2. run catalogue-wide direct PDB search through a fixed Marmic P1 operation;
+3. verify that the 8OOX positive-control structural family remains retained;
+4. add local ProstT5/Foldseek-to-PDB search and exact model keys;
+5. union provider evidence without collapsing unlike scores; and
+6. pass the P1 real-data, cache-reuse, mapping, and resource-measurement gate.
 
-No structural-search implementation should begin until the dossier's gate is
-accepted.
+After the focused adapter gate passes, prioritise the real catalogue run over
+additional synthetic test polish. M1 output remains structural/model evidence,
+not a final protein identification.

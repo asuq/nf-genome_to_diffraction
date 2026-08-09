@@ -37,6 +37,7 @@ from genome_to_diffraction.schemas.results import (
     SequenceGroupRecord,
     SourceProteinRecord,
     StructuralSearchHit,
+    StructuralSearchResult,
 )
 
 InputFormat = Literal["auto", "json", "yaml", "tsv"]
@@ -207,6 +208,7 @@ CONTRACTS: dict[str, ContractSpec] = {
     "sequence-group": ContractSpec(SequenceGroupRecord),
     "source-protein": ContractSpec(SourceProteinRecord),
     "structural-hit": ContractSpec(StructuralSearchHit),
+    "structural-search-result": ContractSpec(StructuralSearchResult),
     "coordinate-source": ContractSpec(CoordinateSourceRecord),
     "free-r-generation": ContractSpec(FreeRGenerationRecord),
     "processed-model": ContractSpec(ProcessedModelRecord),

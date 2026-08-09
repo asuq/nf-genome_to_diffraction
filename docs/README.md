@@ -17,6 +17,9 @@ remain authoritative for scientific policy and interface contracts.
 - [M0 qualification status](m0-qualification.md): gate dashboard, frozen
   biological/MTZ evidence, preparatory Gemmi findings, fixed P0 boundary, and
   the operator-held evidence still required before structural discovery.
+- [Structural-search interface](structural-search.md): active M1 provider
+  contract, direct PDB sequence-search command and Nextflow entry point,
+  outputs, cache identity, statuses, and failure semantics.
 - [Public methanogen and methanotroph control panel](public-control-panel.md):
   ten frozen X-ray structures, catalogue-to-construct mappings, reproducible
   source/MTZ preparation, runnable-control order, and one deliberate heteromer

@@ -24,6 +24,8 @@ from genome_to_diffraction.schemas.results import (
     MtzPreflightRecord,
     SequenceGroupRecord,
     SourceProteinRecord,
+    StructuralSearchHit,
+    StructuralSearchResult,
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -208,6 +210,24 @@ def test_task05_stub_jsonl_records_validate(
     model: type[SequenceGroupRecord | SourceProteinRecord | MtzPreflightRecord],
 ) -> None:
     path = REPOSITORY / "tests/fixtures/stubs" / filename
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line]
+    assert lines
+    for line in lines:
+        model.model_validate_json(line)
+
+
+@pytest.mark.parametrize(
+    ("filename", "model"),
+    (
+        ("search_results.jsonl", StructuralSearchResult),
+        ("structural_hits.jsonl", StructuralSearchHit),
+    ),
+)
+def test_structural_search_stub_jsonl_records_validate(
+    filename: str,
+    model: type[StructuralSearchResult | StructuralSearchHit],
+) -> None:
+    path = REPOSITORY / "tests/fixtures/stubs/structure_search" / filename
     lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line]
     assert lines
     for line in lines:

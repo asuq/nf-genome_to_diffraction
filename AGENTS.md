@@ -33,7 +33,10 @@ Use one annotation source per catalogue. Do not merge Prokka, RefSeq, PGAP, GenB
 - External PDB, AlphaFold DB, and ESM Atlas hits may provide coordinates or family evidence, but may not become reportable identities unless mapped to a supplied catalogue sequence.
 - Treat SDS–PAGE molecular weight as an apparent monomer/polypeptide-mass prior only. Never use it as ASU total mass or oligomeric-state evidence.
 - Use sequence-derived mass for Matthews calculations.
-- Retain multiple plausible ASU copy counts; default to the top three per candidate or candidate group.
+- Retain multiple plausible ASU copy counts. The current pilot cap is the top
+  four per candidate or candidate group because that is the smallest
+  predeclared cap that retains the known two-copy 8OOX control; keep the cap
+  configurable and do not treat rank as evidence of the true copy count.
 - Matthews probability is a prior, not proof. Never reject a candidate solely because its Matthews probability is low unless the hypothesis is physically impossible.
 - Scientific no-hit outcomes are valid completed analyses. Separate execution failure from scientific status.
 - Do not use `R_free` as a high-throughput screening objective across large candidate sets.
@@ -120,9 +123,10 @@ The first three MTZ datasets are feasibility tests, not a general validation set
 
 ## 10. Development sequencing
 
-The current milestone is Task 00 / Epic 0 only. Follow later milestones in the
-approved external handoff. Do not start heteromer logic, AF3 complex logic, or
-local ESM Atlas deployment before the monomer/domain prototype satisfies its
+M0 real-site qualification is accepted and M1 structural discovery is the
+active milestone. Follow the tracked single-component roadmap and the approved
+external handoff through M6. Do not start heteromer logic, AF3 complex logic,
+or local ESM Atlas deployment before the monomer/domain prototype satisfies its
 acceptance criteria.
 
 ## 11. Documentation expectations

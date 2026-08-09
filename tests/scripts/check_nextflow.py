@@ -1,4 +1,4 @@
-"""Parse and exercise the foundation-only Nextflow entry points."""
+"""Parse and exercise the implemented Nextflow entry points."""
 
 import argparse
 import hashlib
@@ -157,7 +157,7 @@ def _write_real_inputs(root: Path) -> Path:
 
 
 def check_stubs() -> None:
-    """Run both stubs and real Task 05, verify outputs, and exercise resume."""
+    """Run all stubs and real Task 05, verify outputs, and exercise resume."""
 
     with tempfile.TemporaryDirectory(
         prefix="nf-genome-to-diffraction-stub-", dir="/tmp"
@@ -166,6 +166,7 @@ def check_stubs() -> None:
         environment = _environment(temporary_root / "nxf-home")
         main_out = temporary_root / "main-results"
         database_out = temporary_root / "database-results"
+        discovery_out = temporary_root / "discovery-results"
         cache_root = temporary_root / "cache"
 
         main_command = [
@@ -210,6 +211,49 @@ def check_stubs() -> None:
         if "cached" not in resumed_output:
             raise RuntimeError(
                 "resumed stub run did not report cached work:\n" + resumed_output
+            )
+
+        discovery_command = [
+            "nextflow",
+            "run",
+            "discover_structures.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "--sequence_groups",
+            "tests/fixtures/stubs/sequence_groups.jsonl",
+            "--database_manifest",
+            "tests/fixtures/stubs/database_manifest.json",
+            "--outdir",
+            str(discovery_out),
+            "--cache_root",
+            str(cache_root),
+        ]
+        _run(discovery_command, environment=environment)
+        _assert_files(
+            discovery_out,
+            {
+                "search_results.jsonl",
+                "structural_hits.jsonl",
+                "search_manifest.json",
+                "mmseqs-results.tsv",
+                "mmseqs.log",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        discovery_resumed = _run(
+            [*discovery_command, "-resume"], environment=environment
+        )
+        discovery_resumed_output = (
+            f"{discovery_resumed.stdout}\n{discovery_resumed.stderr}".lower()
+        )
+        if "cached" not in discovery_resumed_output:
+            raise RuntimeError(
+                "resumed structural-discovery stub did not report cached work:\n"
+                + discovery_resumed_output
             )
 
         database_command = [

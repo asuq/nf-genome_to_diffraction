@@ -67,6 +67,10 @@ from genome_to_diffraction.schemas.io import (
     load_contract,
 )
 from genome_to_diffraction.status import GenomeToDiffractionError
+from genome_to_diffraction.structure_search import (
+    PdbSequenceSearchRequest,
+    search_pdb_sequences,
+)
 
 
 def _add_contract_input(parser: argparse.ArgumentParser) -> None:
@@ -461,6 +465,27 @@ def _build_parser() -> argparse.ArgumentParser:
     reference_parser.add_argument("--sequence-group-id", required=True)
     reference_parser.add_argument("--outdir", type=Path, required=True)
     reference_parser.add_argument("--timeout-seconds", type=float, default=600.0)
+
+    search_parser = subparsers.add_parser(
+        "structure-search", help="search immutable structural-reference databases"
+    )
+    search_actions = search_parser.add_subparsers(
+        dest="structure_search_action", required=True
+    )
+    pdb_sequence_parser = search_actions.add_parser(
+        "pdb-sequence",
+        help="search exact catalogue sequences against the local PDB SEQRES database",
+    )
+    pdb_sequence_parser.add_argument("--sequence-groups", type=Path, required=True)
+    pdb_sequence_parser.add_argument("--database-manifest", type=Path, required=True)
+    pdb_sequence_parser.add_argument("--outdir", type=Path, required=True)
+    pdb_sequence_parser.add_argument("--threads", type=int, default=4)
+    pdb_sequence_parser.add_argument("--maximum-hits-per-query", type=int, default=25)
+    pdb_sequence_parser.add_argument("--maximum-evalue", type=float, default=1.0e-5)
+    pdb_sequence_parser.add_argument(
+        "--minimum-query-coverage", type=float, default=0.5
+    )
+    pdb_sequence_parser.add_argument("--maximum-query-length", type=int, default=10_000)
     return parser
 
 
@@ -761,6 +786,32 @@ def _run_matthews(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_structure_search(args: argparse.Namespace) -> int:
+    if args.structure_search_action != "pdb-sequence":
+        raise AssertionError(
+            f"unhandled structure-search action: {args.structure_search_action}"
+        )
+    result = search_pdb_sequences(
+        PdbSequenceSearchRequest(
+            sequence_groups_jsonl=args.sequence_groups,
+            database_manifest=args.database_manifest,
+            output_directory=args.outdir,
+            threads=args.threads,
+            maximum_hits_per_query=args.maximum_hits_per_query,
+            maximum_evalue=args.maximum_evalue,
+            minimum_query_coverage=args.minimum_query_coverage,
+            maximum_query_length=args.maximum_query_length,
+            progress=not args.no_progress,
+        )
+    )
+    hit_count = sum(item.hit_count for item in result.results)
+    print(
+        f"Searched {len(result.results)} exact sequence groups and retained "
+        f"{hit_count} PDB sequence hits: {result.search_manifest}"
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
@@ -797,6 +848,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_diffraction(args)
         if args.command == "matthews":
             return _run_matthews(args)
+        if args.command == "structure-search":
+            return _run_structure_search(args)
     except PhenixInstallCommandError as error:
         logger.error(
             "Phenix installer command failed",
