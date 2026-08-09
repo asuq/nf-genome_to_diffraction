@@ -12,9 +12,9 @@ this gate passes.
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Qualified with the public same-organism 8OOX control | Offline revalidation binds the exact RefSeq sequence, known two-copy ASU, deposited model/structure factors, and exact plus homolog MR models; this does not identify any blind pilot crystal |
 | M0.3 Qualify Phenix | Local and Marmic runtimes qualified; three real Xtriage smokes qualified locally | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files complete local real Xtriage, while equivalent Marmic real-MTZ and scheduled P0 evidence remain required |
-| M0.4 Qualify databases | Approval-gated administration driver implemented; real preparation required on Marmic | Fixed preflight, retained-failure guard, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site resources have yet passed them |
-| M0.5 Matthews reference | Local method matrix qualified; site parity follows M0.3 | Ten real comparisons cover all frozen MTZs and multiple copy regimes; positive-control identity/copy interpretation remains a separate M0.2 blocker |
-| M0.6 Fixed HPC P0 profile | Current local controller and Marmic dispatcher installed; external P0 configuration absent | The bounded readiness interface now reaches Marmic and verifies Pixi 0.74.0, but the protected seven-line P0 path file is still absent; no P0 run has been staged or submitted |
+| M0.4 Qualify databases | Real Marmic preparation in progress under the corrected 8-CPU boundary | Fixed preflight, retained-staging recovery, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site manifest has yet passed the complete gate |
+| M0.5 Matthews reference | Local method matrix qualified; site parity follows M0.3 | Ten real comparisons cover all frozen MTZs and multiple copy regimes; blind-pilot identity/copy interpretation remains separate |
+| M0.6 Fixed HPC P0 profile | Current local controller and Marmic dispatcher installed; create-only configuration boundary qualified | The bounded readiness interface verifies Pixi 0.74.0 and can atomically validate/install the protected seven-line file, but the real external P0 configuration is still absent; no P0 run has been staged or submitted |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
 
 This dashboard describes qualification status, not protein-identification
@@ -487,6 +487,32 @@ fixed source URLs, validates each output below the active resource staging
 directory, and does not execute a network client. This adapter has passed local
 fixed-source, path-escape, and unknown-URL tests; a new Marmic build has not yet
 qualified it.
+
+Revision `38cd0920fbeca5998ca29ddaf262ff419263255b` and Slurm job `625527`
+then passed offline Pixi verification, every tool probe, both capacity gates,
+both multi-gigabyte source checksums, and the complete database preflight. The
+replacement downloader chain copied the 2,224,976,412-byte ProstT5 source into
+the resource staging without a recorded network fallback. Review of the exact
+resolved command exposed a separate scheduler-contract error before large
+extraction was allowed to continue: `foldseek databases` had no explicit
+`--threads`, while this Foldseek release's prior command evidence reported its
+24-thread default and Slurm had allocated eight CPUs. The owner-bound controller
+therefore cancelled only job `625527`; Slurm accounting reported terminal
+`CANCELLED`, and the run evidence was collected.
+
+Because scheduler termination occurred before Python could apply the normal
+`.failed` rename, the active staging name remained outside the run directory.
+The exact-confirmation recovery boundary now accepts such a case only after
+collection, unchanged external configuration, an empty live queue result, and
+independent `CANCELLED` accounting. It derived the sole active write root from
+the structured command record, rejected arbitrary or multiple roots, and
+atomically archived 6 regular files, 1 staging-confined symbolic link, and
+4,642,458,543 regular-file bytes under a run-qualified `.reviewed-*` name. No
+evidence was deleted. Revision
+`06efd8e3c1c05896339c9566f5307796bbbd17a4` now passes `--threads 8` to both
+Foldseek database commands and records that value in resource provenance. Its
+replacement Marmic build is Slurm job `625528`; qualification remains open
+until preparation, full verification, and all fixed smoke queries pass.
 
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)
