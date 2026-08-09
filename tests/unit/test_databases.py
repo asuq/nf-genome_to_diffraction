@@ -37,6 +37,7 @@ from genome_to_diffraction.databases.common import (
 from genome_to_diffraction.databases.network import DownloadMetadata
 from genome_to_diffraction.databases.prepare import (
     DatabasePreparationRequest,
+    SmokeHit,
     prepare,
 )
 from genome_to_diffraction.databases.sources import (
@@ -288,6 +289,48 @@ def _write_pdb_sequence_source(path: Path) -> None:
             "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG\n"
         )
         handle.write(">1ubq_B mol:dna length:4 synthetic DNA\nACGT\n")
+
+
+def test_pdb_seqres_chain_tokens_are_case_sensitive(tmp_path: Path) -> None:
+    source = tmp_path / "case-sensitive-seqres.txt.gz"
+    with gzip.open(source, "wt", encoding="utf-8") as handle:
+        handle.write(">10eg_A mol:protein length:2 upper chain\nAA\n")
+        handle.write(">10eg_a mol:protein length:2 lower chain\nAA\n")
+    fasta = tmp_path / "normalised.faa"
+    mapping = tmp_path / "mapping.tsv"
+
+    count, skipped = prepare_module._normalise_pdb_sequences(
+        source, fasta, mapping, progress=False
+    )
+
+    assert (count, skipped) == (2, 0)
+    assert fasta.read_text(encoding="utf-8") == ">10eg_A\nAA\n>10eg_a\nAA\n"
+    mapping_text = mapping.read_text(encoding="utf-8")
+    assert "10eg_A\t10EG\tlegacy_seqres_suffix\tA\t" in mapping_text
+    assert "10eg_a\t10EG\tlegacy_seqres_suffix\ta\t" in mapping_text
+
+    selected = prepare_module._select_expected_smoke_hit(
+        (
+            SmokeHit("ubiquitin_smoke", "1ubq_a", 1e-20, 100.0, 1.0, 1.0),
+            SmokeHit("ubiquitin_smoke", "1ubq_A", 1e-20, 100.0, 1.0, 1.0),
+        )
+    )
+    assert selected.target == "1ubq_A"
+
+
+def test_pdb_seqres_rejects_exact_duplicate_chain_token(tmp_path: Path) -> None:
+    source = tmp_path / "duplicate-seqres.txt.gz"
+    with gzip.open(source, "wt", encoding="utf-8") as handle:
+        handle.write(">10eg_A mol:protein length:2 first\nAA\n")
+        handle.write(">10EG_A mol:protein length:2 duplicate\nAA\n")
+
+    with pytest.raises(DatabaseError, match="duplicate PDB protein SEQRES target"):
+        prepare_module._normalise_pdb_sequences(
+            source,
+            tmp_path / "normalised.faa",
+            tmp_path / "mapping.tsv",
+            progress=False,
+        )
 
 
 def _write_pdb_coordinate(path: Path, *, sequence: str | None = None) -> None:

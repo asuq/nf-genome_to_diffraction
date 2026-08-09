@@ -233,10 +233,9 @@ def _parse_smoke_result(path: Path) -> tuple[SmokeHit, ...]:
 
 
 def _select_expected_smoke_hit(hits: tuple[SmokeHit, ...]) -> SmokeHit:
+    expected_key = _parse_pdb_seqres_target(_EXPECTED_SMOKE_TARGET)
     matches = [
-        hit
-        for hit in hits
-        if hit.target.casefold() == _EXPECTED_SMOKE_TARGET.casefold()
+        hit for hit in hits if _parse_pdb_seqres_target(hit.target) == expected_key
     ]
     if len(matches) != 1:
         raise DatabaseError(
@@ -1129,7 +1128,7 @@ def _normalise_pdb_sequences(
 
     count = 0
     skipped_non_protein = 0
-    seen: set[str] = set()
+    seen: set[tuple[str, str]] = set()
     current_header: str | None = None
     current_target: str | None = None
     current_pdb_id: str | None = None
@@ -1180,7 +1179,9 @@ def _normalise_pdb_sequences(
                     "PDB protein SEQRES declared length mismatch: "
                     f"{current_target}: {current_declared_length} != {len(sequence)}"
                 )
-            key = current_target.casefold()
+            # Entry IDs are case-insensitive, but wwPDB chain IDs explicitly
+            # distinguish upper- and lower-case tokens (for example A and a).
+            key = (current_pdb_id, current_token)
             if key in seen:
                 raise DatabaseError(
                     f"duplicate PDB protein SEQRES target: {current_target}"
@@ -1249,6 +1250,7 @@ def _require_seqres_mapping(sequence_root: Path, target: str) -> dict[str, JsonV
         "target_id\tpdb_id\tidentifier_namespace\tseqres_token\tsequence_length\t"
         "sequence_sha256\toriginal_header"
     )
+    target_key = _parse_pdb_seqres_target(target)
     try:
         with mapping_path.open("r", encoding="utf-8") as handle:
             header = handle.readline().rstrip("\n")
@@ -1271,9 +1273,9 @@ def _require_seqres_mapping(sequence_root: Path, target: str) -> dict[str, JsonV
                     sequence_sha256,
                     _,
                 ) = fields
-                if mapped_target.casefold() != target.casefold():
-                    continue
                 parsed_pdb_id, parsed_token = _parse_pdb_seqres_target(mapped_target)
+                if (parsed_pdb_id, parsed_token) != target_key:
+                    continue
                 if (
                     pdb_id != parsed_pdb_id
                     or token != parsed_token

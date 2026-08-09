@@ -77,6 +77,10 @@ All notable changes to this project are documented here.
   compute-node scratch. Scratch bytes count towards the project cap; publication
   uses one progress-logged copy-back, full destination checksums, atomic
   promotion, retained failed staging, and exact-child scratch cleanup.
+- PDB SEQRES target identity now canonicalises the case-insensitive entry ID
+  while preserving the case-sensitive chain token, accepting valid pairs such
+  as `10eg_A`/`10eg_a` without weakening exact-duplicate rejection or the fixed
+  `1ubq_A` qualification target.
 - P0 database checks are explicitly bounded metadata/functional revalidation;
   verification evidence records whether full checksums were computed, while
   long database administration stays outside routine HPC start approvals.

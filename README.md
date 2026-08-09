@@ -394,6 +394,11 @@ never downloads or repairs resources. It requires the frozen manifest and its
 operator-recorded SHA-256, so mutable `current` links and sidecars are not the
 trust anchor:
 
+SEQRES compound targets canonicalise the case-insensitive PDB entry component
+but preserve chain-token case. Thus valid chains such as `10eg_A` and `10eg_a`
+remain distinct even when their sequences are identical; a true duplicate of
+the same entry and case-sensitive chain token still fails loudly.
+
 Preparation and verification take one advisory exclusive lock below the
 database root before inspecting or changing shared state. Lock wait,
 acquisition, and release are logged; terminal users see bounded `tqdm` progress,
