@@ -12,7 +12,7 @@ this gate passes.
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Qualified with the public same-organism 8OOX control | Offline revalidation and real local Task 05 bind the exact RefSeq sequence, known two-copy ASU, deposited model/structure factors, and exact plus homolog MR models; the copy-two hypothesis is retained without changing the ranking heuristic, and this does not identify any blind pilot crystal |
 | M0.3 Qualify Phenix | Local and Marmic runtimes qualified; three real Xtriage smokes qualified locally | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files complete local real Xtriage, while equivalent Marmic real-MTZ and scheduled P0 evidence remain required |
-| M0.4 Qualify databases | Revised boundary passed real PDB build/copy-back; SEQRES case-semantics fix locally qualified and retry pending | The 100-CPU `/dev/shm` build published PDB Foldseek after full destination checksums, then exposed a valid upper/lower-case chain pair in the frozen RCSB snapshot; the corrected parser preserves both, but no real site manifest has yet passed the complete gate |
+| M0.4 Qualify databases | All coupled resources prepared; Foldseek assembly-identifier correction locally qualified and retry pending | The 100-CPU `/dev/shm` builds published PDB Foldseek and the full PDB sequence/MMseqs2 resource after destination checksums; ProstT5 and the coordinate cache are present, and both real searches execute, but no anchored real-site manifest has yet passed the complete functional gate |
 | M0.5 Matthews reference | Local method matrix and positive-control retention qualified; site parity follows M0.3 | Eleven real comparisons cover all frozen MTZs, the 8OOX ground-truth sequence, and multiple copy regimes; blind-pilot identity/copy interpretation remains separate |
 | M0.6 Fixed HPC P0 profile | Current local controller and Marmic dispatcher installed; create-only configuration boundary qualified | The bounded readiness interface verifies Pixi 0.74.0 and can atomically validate/install the protected seven-line file, but the real external P0 configuration is still absent; no P0 run has been staged or submitted |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
@@ -601,6 +601,19 @@ control without assuming that MMseqs2 must return a particular redundant
 deposition. M0.4 remains open until the corrected logic passes the real search,
 Foldseek/ProstT5 search, coordinate-cache qualification, and anchored full
 verification.
+
+The next immutable retry completed and published the full MMseqs2 resource with
+`1,081,537` protein records, selected an exact full-length ubiquitin hit, and
+then reached the real ProstT5/Foldseek search. Its strongest structural hit was
+reported as `6isu-assembly1_C`, exposing a second identifier namespace at the
+database boundary: Foldseek's PDB100 archive names biological-assembly chains as
+`PDBID-assemblyN_CHAIN`, whereas the frozen RCSB crosswalk uses
+`PDBID_CHAIN`. The resolver now accepts only a positive decimal assembly number,
+removes that namespace qualifier for crosswalk lookup, canonicalises only the
+PDB entry component, and preserves chain-token case. The original Foldseek
+identifier remains recorded in the selected-hit evidence. Malformed assembly
+labels still fail loudly. M0.4 remains open until this correction passes the
+real structural search, coordinate mapping, and anchored full verification.
 
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)

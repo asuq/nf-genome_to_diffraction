@@ -89,7 +89,9 @@ _SMOKE_MAX_EVALUE = 1.0e-5
 _SMOKE_MIN_BITS = 30.0
 _SMOKE_MIN_COVERAGE = 0.9
 _PDB_SEQRES_TARGET = re.compile(
-    r"^(?P<pdb_id>[0-9][A-Za-z0-9]{3})_(?P<seqres_token>[^\s\t]+)$"
+    r"^(?P<pdb_id>[0-9][A-Za-z0-9]{3})"
+    r"(?:-assembly(?P<assembly_number>[1-9][0-9]*))?"
+    r"_(?P<seqres_token>[^\s\t]+)$"
 )
 _DECLARED_LENGTH = re.compile(r"(?:^|\s)length:(?P<length>[0-9]+)(?:\s|$)")
 _PROTEIN_ALPHABET = frozenset("ABCDEFGHIKLMNPQRSTVWXYZOUJ")
@@ -174,6 +176,8 @@ class DatabasePreparationRequest:
 
 
 def _parse_pdb_seqres_target(target: str) -> tuple[str, str]:
+    """Resolve a SEQRES or Foldseek assembly-chain target to its PDB chain key."""
+
     match = _PDB_SEQRES_TARGET.fullmatch(target)
     if match is None:
         raise DatabaseError(f"unsupported PDB SEQRES target identifier: {target!r}")

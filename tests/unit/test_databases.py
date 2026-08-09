@@ -318,6 +318,63 @@ def test_pdb_seqres_chain_tokens_are_case_sensitive(tmp_path: Path) -> None:
     assert selected.target == "1ubq_A"
 
 
+def test_foldseek_assembly_target_resolves_to_case_sensitive_seqres_chain(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "pdb-seqres.txt.gz"
+    with gzip.open(source, "wt", encoding="utf-8") as handle:
+        handle.write(">6isu_C mol:protein length:2 upper chain\nAA\n")
+        handle.write(">6isu_c mol:protein length:2 lower chain\nAA\n")
+    sequence_root = tmp_path / "pdb-sequences"
+    sequence_root.mkdir()
+    prepare_module._normalise_pdb_sequences(
+        source,
+        sequence_root / "pdb_seqres.faa",
+        sequence_root / "target_mapping.tsv",
+        progress=False,
+    )
+
+    assert prepare_module._parse_pdb_seqres_target("6isu-assembly1_C") == (
+        "6ISU",
+        "C",
+    )
+    assert prepare_module._parse_pdb_seqres_target("6ISU-assembly12_c") == (
+        "6ISU",
+        "c",
+    )
+    mapping = prepare_module._require_seqres_mapping(sequence_root, "6isu-assembly1_C")
+    assert mapping["target_id"] == "6isu_C"
+    assert mapping["seqres_token"] == "C"
+    selected = prepare_module._select_functional_smoke_hit(
+        (
+            SmokeHit(
+                "ubiquitin_smoke",
+                "6isu-assembly1_C",
+                1e-20,
+                100.0,
+                1.0,
+                1.0,
+            ),
+        )
+    )
+    assert selected.target == "6isu-assembly1_C"
+
+
+@pytest.mark.parametrize(
+    "target",
+    (
+        "6isu-assembly0_C",
+        "6isu-assembly01_C",
+        "6isu-assembly_C",
+        "6isu-assemblyx_C",
+        "6isu-assembly1_",
+    ),
+)
+def test_foldseek_assembly_target_rejects_malformed_identifier(target: str) -> None:
+    with pytest.raises(DatabaseError, match="unsupported PDB SEQRES target"):
+        prepare_module._parse_pdb_seqres_target(target)
+
+
 def test_pdb_smoke_logs_bounded_result_evidence_without_requiring_fixed_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

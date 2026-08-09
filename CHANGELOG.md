@@ -18,6 +18,8 @@ All notable changes to this project are documented here.
   atomic current-symlink promotion, progress reporting, and preserved logs.
 - Idempotent Foldseek PDB, ProstT5, PDB-sequence/MMseqs2, coordinate-cache, and
   opt-in ESM Atlas connectivity preparation with a 1.8 TB storage guard.
+- Case-sensitive PDB-chain crosswalking for both legacy `PDBID_CHAIN` records
+  and Foldseek PDB100 `PDBID-assemblyN_CHAIN` result identifiers.
 - Trusted FASTA catalogue normalisation with lossless source provenance, exact
   sequence grouping, explicit residue review policies, molecular-mass bounds,
   GFF3/GenBank/TSV locus adapters, and JSONL/TSV/Parquet registries.

@@ -384,9 +384,12 @@ metadata, full file inventory, byte count, SHA-256 identity, and smoke-test
 status. Existing valid resources are reused; incomplete resources fail loudly;
 forced builds are side-by-side. Preparation parses non-empty MMseqs2 and
 Foldseek results and requires each deterministically strongest hit to resolve
-through the protein-only SEQRES crosswalk. The MMseqs2 sequence hit must have the
-exact fixed query hash; Foldseek additionally enforces its score and coverage
-thresholds without confusing structural rank with sequence identity. Preparation
+through the protein-only SEQRES crosswalk. Plain `PDBID_CHAIN` and Foldseek's
+assembly-qualified `PDBID-assemblyN_CHAIN` targets resolve to the same PDB entry
+and case-sensitive chain key while the original search identifier remains in
+the evidence. The MMseqs2 sequence hit must have the exact fixed query hash;
+Foldseek additionally enforces its score and coverage thresholds without
+confusing structural rank with sequence identity. Preparation
 separately maps `1ubq_A` through the same crosswalk. That fixed control binds the
 legacy suffix to the mmCIF protein entity through its author-chain identifier.
 The canonical polymer and SEQRES sequence hashes must agree before publication
