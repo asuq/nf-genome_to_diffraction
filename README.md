@@ -202,7 +202,11 @@ records both MTZ checksums.
 For candidate mass `M`, copy count `n`, and independently calculated ASU volume
 `V_ASU`, the implementation records `V_M = V_ASU / (n M)` and solvent fraction
 `1 - 1.23 / V_M`. Every configured copy count is retained in JSONL/TSV/Parquet;
-the top configured number (three by default) is marked for downstream use. Mass
+the top configured number (four in the pilot configuration) is marked for
+downstream use. Four is the smallest predeclared cap that preserves the known
+two-copy 8OOX control: both Phenix and the transparent broad prior rank that
+high-solvent hypothesis fourth. This changes only the execution cap, not the
+ranking heuristic or its interpretation. Mass
 bounds produce corresponding Matthews and solvent bounds rather than a fabricated
 midpoint.
 

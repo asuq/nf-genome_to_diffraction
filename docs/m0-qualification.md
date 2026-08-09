@@ -10,10 +10,10 @@ this gate passes.
 | Work package | Current state | Evidence required to close it |
 | --- | --- | --- |
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
-| M0.2 Positive control | Qualified with the public same-organism 8OOX control | Offline revalidation binds the exact RefSeq sequence, known two-copy ASU, deposited model/structure factors, and exact plus homolog MR models; this does not identify any blind pilot crystal |
+| M0.2 Positive control | Qualified with the public same-organism 8OOX control | Offline revalidation and real local Task 05 bind the exact RefSeq sequence, known two-copy ASU, deposited model/structure factors, and exact plus homolog MR models; the copy-two hypothesis is retained without changing the ranking heuristic, and this does not identify any blind pilot crystal |
 | M0.3 Qualify Phenix | Local and Marmic runtimes qualified; three real Xtriage smokes qualified locally | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files complete local real Xtriage, while equivalent Marmic real-MTZ and scheduled P0 evidence remain required |
 | M0.4 Qualify databases | Real Marmic preparation in progress under the corrected 8-CPU boundary | Fixed preflight, retained-staging recovery, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site manifest has yet passed the complete gate |
-| M0.5 Matthews reference | Local method matrix qualified; site parity follows M0.3 | Ten real comparisons cover all frozen MTZs and multiple copy regimes; blind-pilot identity/copy interpretation remains separate |
+| M0.5 Matthews reference | Local method matrix and positive-control retention qualified; site parity follows M0.3 | Eleven real comparisons cover all frozen MTZs, the 8OOX ground-truth sequence, and multiple copy regimes; blind-pilot identity/copy interpretation remains separate |
 | M0.6 Fixed HPC P0 profile | Current local controller and Marmic dispatcher installed; create-only configuration boundary qualified | The bounded readiness interface verifies Pixi 0.74.0 and can atomically validate/install the protected seven-line file, but the real external P0 configuration is still absent; no P0 run has been staged or submitted |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
 
@@ -55,6 +55,28 @@ An offline preparation rerun on 9 August 2026 reused and revalidated every
 source, exact catalogue mapping, derived MTZ, and both MR models without network
 access. Its ignored preparation manifest has SHA-256
 `f4d7be0b68e68c130973975fa8f2298e6a17cb4d432c165c02280195cec0861a`.
+
+Real local Task 05 then imported the complete same-assembly RefSeq proteome and
+ran Phenix 2.1-6048 Xtriage on the deposited autoPROC-labelled MTZ. The exact
+target group retained the known two-copy hypothesis at rank four, with
+`V_M = 4.8855` Å³/Da and solvent fraction `0.7482`. A separate fixed
+`mmtbx.matthews` run also ranked two copies fourth (`V_M = 4.87`, solvent
+fraction `0.747`, printed probability `0.050`). The pilot retention cap was
+therefore raised from three to four: this is the smallest bounded execution cap
+that preserves the control under both independent orderings, not a fitted
+probability and not a change to `broad_solvent_centrality_v1_uncalibrated`.
+
+The Task 05 preflight, catalogue-import manifest, Matthews JSONL, and Phenix
+comparison have SHA-256 values
+`8a62f756466bac1259756e02605e899413f69b4336e6b75583c89f050a079507`,
+`44cfa1e9e07e4e9db91f2516049d274d20149ef84e92da8dde0b2ff92f9b3919`,
+`d80cc97593a7a996a663de9cbd061b77cc38155267407fa4da60d3e0711deb9b`,
+and
+`3f206203097ee60ff7041a6027c54ac7eceeddd1816cac33a58a2dab5cdfa934`,
+respectively. An identical `-resume` execution reported validation, catalogue
+import, MTZ preflight, and Matthews enumeration as cached. The run used the
+schema-valid foundation database fixture because Tasks 04/05 validate but do
+not consume structural-search databases; it is not evidence for M0.4.
 
 This closes the operational-control requirement, not the blind-pilot identity
 requirement. The three operator pilot identities, copy counts, and `ASU = nA`

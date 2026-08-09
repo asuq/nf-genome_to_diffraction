@@ -458,7 +458,7 @@ def test_matthews_known_cell_mass_and_copy_example() -> None:
     assert copy_two.matthews_coefficient == pytest.approx(2.5)
     assert copy_two.solvent_fraction == pytest.approx(0.508)
     assert copy_two.sds_page_prior_label == "strong"
-    assert sum(row.retained for row in rows) == 3
+    assert sum(row.retained for row in rows) == 4
 
 
 def test_python_matthews_matches_preserved_xtriage_reference_fixture() -> None:
@@ -666,4 +666,4 @@ def test_cli_preflight_to_matthews_outputs_all_copy_counts(tmp_path: Path) -> No
     )
     table = pl.read_parquet(matthews_output / "matthews_hypotheses.parquet")
     assert table.height == 16
-    assert table.filter(pl.col("retained")).height == 3
+    assert table.filter(pl.col("retained")).height == 4

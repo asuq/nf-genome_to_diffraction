@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import yaml
+
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
@@ -30,6 +32,14 @@ def test_remote_sequence_submission_defaults_off() -> None:
         encoding="utf-8"
     )
     assert '"allow_remote_sequence_submission": false' in crystal
+
+
+def test_pilot_retention_cap_preserves_the_qualified_8oox_copy_rank() -> None:
+    config = yaml.safe_load(
+        (REPOSITORY / "examples" / "config.yaml").read_text(encoding="utf-8")
+    )
+
+    assert config["matthews"]["max_hypotheses_per_candidate"] == 4
 
 
 def test_nf_helper_submodule_exposes_marmic_profile() -> None:

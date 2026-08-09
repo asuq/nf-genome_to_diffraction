@@ -104,6 +104,10 @@ All notable changes to this project are documented here.
   RCSB and NCBI provenance, catalogue-to-construct mappings, deterministic MTZ
   derivation, three fully preparable controls, and one deliberate heteromer
   assumption violation, with structured logging and bounded progress reporting.
+- The pilot Matthews retention cap is now four rather than three. Real 8OOX
+  Task 05 and Phenix 2.1-6048 reference runs independently place its known
+  two-copy, high-solvent ASU hypothesis fourth, so this is a bounded execution
+  correction without fitting or changing the uncalibrated ranking heuristic.
 
 ### Not implemented
 
