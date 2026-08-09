@@ -370,8 +370,11 @@ symlink remains invalid. The job then:
    cache, checking inventory metadata and comparing the exact resource records
    with that trust anchor; bounded MMseqs2/ProstT5/Foldseek smokes rerun locally,
    require exactly one significant query-equivalent `1ubq_A` positive-control
-   hit, and compare the fixed query, thresholds, best-hit scores, and fixed
-   mapping. The full result and first ten hits remain audit evidence, while hit
+   hit for MMseqs sequence search, and compare the fixed query, thresholds,
+   best-hit scores, and fixed mapping. Foldseek validates its strongest
+   query-equivalent biological-assembly hit and the separate fixed `1UBQ`
+   coordinate-cache control; external-tool version probes also have no default
+   deadline. The full result and first ten hits remain audit evidence, while hit
    ordering, tied target identity, bounded result count, and full-result checksum
    are deliberately not compared because equally scoring ubiquitin targets can
    vary within the capped result set. A structured

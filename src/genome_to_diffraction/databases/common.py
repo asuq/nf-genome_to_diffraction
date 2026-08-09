@@ -28,7 +28,6 @@ from genome_to_diffraction.status import InfrastructureError, ToolExecutionError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.databases")
 _SIDECARS = frozenset({".gtd-inventory.json", ".gtd-resource.json"})
-DEFAULT_TOOL_VERSION_TIMEOUT_SECONDS = 180.0
 
 
 class DatabaseError(InfrastructureError):
@@ -633,7 +632,7 @@ def tool_version(
     executable: str,
     *,
     arguments: Sequence[str] = ("--version",),
-    timeout_seconds: float = DEFAULT_TOOL_VERSION_TIMEOUT_SECONDS,
+    timeout_seconds: float | None = None,
 ) -> str:
     """Return the first version line using the tool's documented invocation."""
 
@@ -641,7 +640,7 @@ def tool_version(
         raise ValueError("version-probe executable must not be empty")
     if not arguments or any(not argument for argument in arguments):
         raise ValueError("version-probe arguments must not be empty")
-    if timeout_seconds <= 0:
+    if timeout_seconds is not None and timeout_seconds <= 0:
         raise ValueError("version-probe timeout must be positive")
     command = [executable, *arguments]
     started = monotonic()
@@ -658,6 +657,10 @@ def tool_version(
             timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired as error:
+        if timeout_seconds is None:
+            raise AssertionError(
+                "unbounded version probe reported a timeout"
+            ) from error
         raise DatabaseError(
             f"version probe timed out after {timeout_seconds:g} seconds: "
             f"{' '.join(command)}"

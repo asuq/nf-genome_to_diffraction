@@ -139,11 +139,16 @@ All notable changes to this project are documented here.
   24-hour Slurm/controller margin, retains clean timeout evidence for callers
   that choose a bound, and uses normalised application-log evidence to
   distinguish feedback-loop failure signatures with different root causes.
+- External database-tool version probes are likewise unbounded by default;
+  callers may still request an explicit deadline outside the NFS-sensitive P0
+  path.
 - P0 verifies pinned MMseqs2 and Foldseek during staging and prepends the locked
   environment to `PATH`, so offline database revalidation resolves those exact
   tools while retaining the batch system utilities.
 - PDB search revalidation now requires one significant, query-equivalent
-  `1ubq_A` positive-control hit and preserves complete bounded result evidence.
+  `1ubq_A` positive-control hit for MMseqs sequence search and preserves
+  complete bounded result evidence. Foldseek instead validates its strongest
+  biological-assembly hit plus the separate fixed `1UBQ` coordinate control.
   It compares the fixed query, thresholds, best-hit scores, and fixed mapping,
   but no longer treats ordering, tied target identity, bounded hit count, or the
   complete result checksum as reproducible scientific invariants.

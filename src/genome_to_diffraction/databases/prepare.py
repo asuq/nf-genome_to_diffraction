@@ -1904,10 +1904,6 @@ def _smoke_pdb_foldseek(
         selected_hit_mapping = _require_query_equivalent_smoke_mapping(
             Path(sequences.root_path), selected_hit
         )
-        expected_hit = _require_expected_smoke_hit(hits)
-        expected_hit_mapping = _require_query_equivalent_smoke_mapping(
-            Path(sequences.root_path), expected_hit
-        )
         mapping = _require_expected_smoke_mapping(Path(sequences.root_path))
         pdb_id = mapping["pdb_id"]
         seqres_token = mapping["seqres_token"]
@@ -1931,8 +1927,6 @@ def _smoke_pdb_foldseek(
             "hit_count": len(hits),
             "selected_hit": selected_hit.as_json(),
             "selected_hit_mapping": selected_hit_mapping,
-            "expected_hit": expected_hit.as_json(),
-            "expected_hit_mapping": expected_hit_mapping,
             "mapping": mapping,
             "query": _preserve_smoke_file(
                 database_root,

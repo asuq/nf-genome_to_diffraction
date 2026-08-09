@@ -164,17 +164,17 @@ def test_tool_version_uses_a_documented_version_subcommand(tmp_path: Path) -> No
     assert tool_version(str(executable), arguments=("version",)) == "10.941cd33"
 
 
-def test_tool_version_uses_nfs_tolerant_default_and_logs_elapsed_time(
+def test_tool_version_uses_unbounded_default_and_logs_elapsed_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed_timeouts: list[float] = []
+    observed_timeouts: list[float | None] = []
     log_records: list[tuple[str, dict[str, object]]] = []
 
     def complete(
         command: list[str], **kwargs: object
     ) -> subprocess.CompletedProcess[str]:
         timeout = kwargs.get("timeout")
-        assert isinstance(timeout, float)
+        assert timeout is None
         observed_timeouts.append(timeout)
         return subprocess.CompletedProcess(command, 0, "10.941cd33\n", "")
 
@@ -188,12 +188,12 @@ def test_tool_version_uses_nfs_tolerant_default_and_logs_elapsed_time(
     )
     assert tool_version("foldseek", arguments=("version",)) == "10.941cd33"
 
-    assert observed_timeouts == [180.0]
+    assert observed_timeouts == [None]
     assert [message for message, _ in log_records] == [
         "version probe started",
         "version probe completed",
     ]
-    assert log_records[0][1]["timeout_seconds"] == 180.0
+    assert log_records[0][1]["timeout_seconds"] is None
     assert log_records[1][1]["version"] == "10.941cd33"
     assert isinstance(log_records[1][1]["elapsed_seconds"], float)
 
