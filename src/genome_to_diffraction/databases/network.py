@@ -43,6 +43,7 @@ class DownloadMetadata:
     last_modified: str | None
     content_type: str | None
     size_bytes: int
+    sha256: str
 
 
 @dataclass(frozen=True)
@@ -590,6 +591,7 @@ def download_public_resource(
                         last_modified=state.last_modified,
                         content_type=state.content_type,
                         size_bytes=completed,
+                        sha256=state.prefix_sha256,
                     )
                 os.replace(partial, destination)
                 state_path.unlink(missing_ok=True)

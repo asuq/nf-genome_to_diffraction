@@ -25,6 +25,7 @@ from genome_to_diffraction.benchmarks.public_control import (
     TargetConstructSpec,
     _atomic_gemmi_mtz,
     _ensure_resource,
+    _gemmi_version,
     load_public_control_spec,
 )
 from genome_to_diffraction.checksums import atomic_write_json
@@ -253,6 +254,7 @@ def prepare_public_control_panel(
             f"public-panel output root is unsafe: {request.output_directory}"
         )
     output_root = request.output_directory.resolve(strict=True)
+    gemmi_version = _gemmi_version()
     entry_records: list[dict[str, object]] = []
     _LOGGER.info(
         "preparing public control panel",
@@ -302,10 +304,10 @@ def prepare_public_control_panel(
             )
         derived_record: dict[str, object] | None = None
         if entry.derived_mtz is not None:
-            if gemmi.__version__ != entry.derived_mtz.gemmi_version:
+            if gemmi_version != entry.derived_mtz.gemmi_version:
                 raise PublicControlError(
                     "Gemmi version differs from the frozen panel conversion: "
-                    f"{gemmi.__version__} != {entry.derived_mtz.gemmi_version}"
+                    f"{gemmi_version} != {entry.derived_mtz.gemmi_version}"
                 )
             mtz_path = entry_root / "derived" / entry.derived_mtz.filename
             digest = _atomic_gemmi_mtz(
@@ -360,7 +362,7 @@ def prepare_public_control_panel(
             "prepared_at": utc_now().isoformat(),
             "software": {
                 "nf_genome_to_diffraction": __version__,
-                "gemmi": gemmi.__version__,
+                "gemmi": gemmi_version,
             },
             "entry_count": len(entry_records),
             "entries": entry_records,

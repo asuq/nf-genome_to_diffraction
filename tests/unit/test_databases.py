@@ -5,6 +5,7 @@ import hashlib
 import importlib
 import json
 import os
+import shlex
 import subprocess
 import threading
 import time
@@ -17,6 +18,7 @@ from typing import cast
 import pytest
 
 import genome_to_diffraction.databases.common as common_module
+import genome_to_diffraction.databases.sources as sources_module
 from genome_to_diffraction.databases.cache import (
     CachedCoordinate,
     exclusive_lock,
@@ -31,9 +33,17 @@ from genome_to_diffraction.databases.common import (
     tool_version,
     verify_inventory,
 )
+from genome_to_diffraction.databases.network import DownloadMetadata
 from genome_to_diffraction.databases.prepare import (
     DatabasePreparationRequest,
     prepare,
+)
+from genome_to_diffraction.databases.sources import (
+    PDB_COORDINATE_SMOKE_URL,
+    PDB_SEQUENCE_URL,
+    SOURCE_SPECS,
+    SourceBundleRequest,
+    stage_source_bundle,
 )
 from genome_to_diffraction.ids import canonical_digest
 from genome_to_diffraction.schemas.io import load_contract
@@ -294,6 +304,47 @@ def _mocked_full_request(
         ),
         storage_limit_bytes=100_000_000,
     )
+
+
+def _stage_mock_source_bundle(
+    request: DatabasePreparationRequest,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    request.database_root.mkdir(parents=True, exist_ok=True)
+
+    def download(url: str, destination: Path, **_kwargs: object) -> DownloadMetadata:
+        if url == PDB_SEQUENCE_URL:
+            _write_pdb_sequence_source(destination)
+        elif url == PDB_COORDINATE_SMOKE_URL:
+            _write_pdb_coordinate(destination)
+        else:
+            destination.write_bytes(f"fixed source for {url}\n".encode())
+        payload = destination.read_bytes()
+        return DownloadMetadata(
+            requested_url=url,
+            url=url,
+            etag='"fixed"',
+            last_modified="Sun, 09 Aug 2026 00:00:00 GMT",
+            content_type="application/octet-stream",
+            size_bytes=len(payload),
+            sha256=hashlib.sha256(payload).hexdigest(),
+        )
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.databases.sources.download_public_resource", download
+    )
+    manifest = tmp_path / "source-bundle.json"
+    stage_source_bundle(
+        SourceBundleRequest(
+            database_root=request.database_root,
+            manifest_path=manifest,
+            storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=0,
+            progress=False,
+        )
+    )
+    return manifest
 
 
 def test_coordinate_cache_initialisation_is_concurrent_safe(tmp_path: Path) -> None:
@@ -678,6 +729,84 @@ def test_mocked_foldseek_resources_prepare_smoke_and_reuse(
                 full_verify=True,
             )
         )
+
+
+def test_mocked_database_prepare_consumes_only_verified_offline_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _mocked_full_request(tmp_path, monkeypatch)
+    source_manifest = _stage_mock_source_bundle(request, tmp_path, monkeypatch)
+    aria2c = tmp_path / "mock bin" / "aria2c"
+    aria2c.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="ascii")
+    aria2c.chmod(0o755)
+
+    def reject_network(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("offline database preparation attempted a network download")
+
+    monkeypatch.setattr(prepare_module, "download_public_resource", reject_network)
+    offline_request = replace(request, source_bundle_path=source_manifest)
+
+    manifest = prepare(offline_request)
+
+    resources = {resource.name: resource for resource in manifest.resources}
+    for name in ("pdb_foldseek", "pdb_sequences", "prostt5"):
+        bundle_id = resources[name].parameters["source_bundle_id"]
+        assert isinstance(bundle_id, str)
+        assert bundle_id.startswith("dbsrc_")
+
+
+def test_offline_foldseek_wrapper_maps_fixed_urls_and_rejects_other_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _mocked_full_request(tmp_path, monkeypatch)
+    source_manifest = _stage_mock_source_bundle(request, tmp_path, monkeypatch)
+    bundle = sources_module.load_source_bundle(
+        request.database_root,
+        source_manifest,
+        full_verify=True,
+        progress=False,
+    )
+    bin_dir = tmp_path / "aria bin"
+    bin_dir.mkdir()
+    arguments = tmp_path / "aria-arguments.txt"
+    aria2c = bin_dir / "aria2c"
+    aria2c.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        f"printf '%s\\n' \"$@\" > {shlex.quote(str(arguments))}\n",
+        encoding="ascii",
+    )
+    aria2c.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    staging = tmp_path / "offline staging"
+    scratch = staging / "tmp"
+    scratch.mkdir(parents=True)
+
+    with prepare_module._offline_foldseek_environment(
+        staging, request.database_root, bundle, scratch
+    ) as environment:
+        mapped = subprocess.run(
+            ["aria2c", SOURCE_SPECS[0].requested_url],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**os.environ, **environment},
+        )
+        rejected = subprocess.run(
+            ["aria2c", "https://unapproved.example.test/payload"],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**os.environ, **environment},
+        )
+
+    assert mapped.returncode == 0
+    assert arguments.read_text(encoding="utf-8").splitlines() == [
+        "--no-conf=true",
+        bundle.path(request.database_root, SOURCE_SPECS[0].name).as_uri(),
+    ]
+    assert rejected.returncode == 64
+    assert "unapproved network URL" in rejected.stderr
 
 
 def test_pdb_foldseek_rejects_malformed_provider_snapshot(

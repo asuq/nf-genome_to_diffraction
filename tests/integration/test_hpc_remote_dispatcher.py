@@ -164,7 +164,37 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "#!/usr/bin/env bash\n"
         'case "${1-}" in\n'
         "  --version) echo 'pixi 0.74.0' ;;\n"
-        '  install) [[ "${FAKE_PIXI_INSTALL_FAIL:-0}" != 1 ]] || exit 4 ;;\n'
+        "  install)\n"
+        '    [[ "${FAKE_PIXI_INSTALL_FAIL:-0}" != 1 ]] || exit 4\n'
+        "    previous=\n"
+        "    manifest=\n"
+        '    for argument in "$@"; do\n'
+        '      [[ "$previous" != --manifest-path ]] || manifest="$argument"\n'
+        '      previous="$argument"\n'
+        "    done\n"
+        '    if [[ -n "$manifest" ]]; then\n'
+        '      env_bin="$(dirname "$manifest")/.pixi/envs/hpc/bin"\n'
+        '      mkdir -p "$env_bin"\n'
+        "      cat > \"$env_bin/genome-to-diffraction\" <<'FAKE_GTD'\n"
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        '[[ "${FAKE_DATABASE_SOURCE_FAIL:-0}" != 1 ]] || exit 12\n'
+        "previous=\n"
+        "output=\n"
+        'for argument in "$@"; do\n'
+        '  [[ "$previous" != --manifest ]] || output="$argument"\n'
+        '  previous="$argument"\n'
+        "done\n"
+        '[[ -n "$output" ]] || exit 9\n'
+        'mkdir -p "$(dirname "$output")"\n'
+        'printf \'{"schema_version":"1.0","status":"ready",'
+        '"bundle_id":"dbsrc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+        'aaaaaaaaaaaaaaaa","created_at":"2026-08-09T00:00:00Z",'
+        '"resources":[]}\\n\' > "$output"\n'
+        "FAKE_GTD\n"
+        '      chmod 0755 "$env_bin/genome-to-diffraction"\n'
+        "    fi\n"
+        "    ;;\n"
         "  run)\n"
         '    [[ "${FAKE_PIXI_RUN_FAIL:-0}" != 1 ]] || exit 5\n'
         '    if [[ "${FAKE_PIXI_READONLY_TMP:-0}" == 1 ]]; then\n'
@@ -491,7 +521,7 @@ def _write_database_paths(root: Path, *, storage_limit: str = "2000000000000") -
 
 def _install_fake_database_runtime(run: Path, fake_bin: Path) -> None:
     bin_directory = run / "source" / ".pixi" / "envs" / "hpc" / "bin"
-    bin_directory.mkdir(parents=True)
+    bin_directory.mkdir(parents=True, exist_ok=True)
     shutil.copy2(fake_bin / "stat", bin_directory / "stat")
     shutil.copy2(fake_bin / "flock", bin_directory / "flock")
     sha256sum = shutil.which("sha256sum")
@@ -608,6 +638,13 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     )
     assert (run / "state" / "hpc-environment-status").read_text().strip() == "ready"
     assert (run / "logs" / "pixi-install.log").is_file()
+    source_bundle = run / "artifacts" / "database" / "source_bundle.json"
+    source_bundle_sha256 = hashlib.sha256(source_bundle.read_bytes()).hexdigest()
+    assert manifest["database_source_bundle_sha256"] == source_bundle_sha256
+    assert (
+        run / "state" / "database-source-bundle-sha256"
+    ).read_text().strip() == source_bundle_sha256
+    assert (run / "logs" / "database-source-stage.log").is_file()
 
     routine_submit = _run(
         [str(dispatcher), "submit", DATABASE_RUN_ID, OWNER_ID],
@@ -711,6 +748,7 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     commands = command_log.read_text(encoding="utf-8")
     assert "databases preflight" in commands
     assert "databases prepare" in commands
+    assert "--source-bundle" in commands
     assert "--full-verify" in commands
     assert "--threads 8" in commands
     command_scratch_parent = (
@@ -733,6 +771,8 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     with tarfile.open(archive_path, "r:gz") as archive:
         names = archive.getnames()
     assert "logs/pixi-install.log" in names
+    assert "logs/database-source-stage.log" in names
+    assert "artifacts/database/source_bundle.json" in names
     assert "artifacts/database/preflight.json" in names
     assert "artifacts/database/database_manifest.full-verified.json" in names
 
@@ -767,6 +807,38 @@ def test_database_stage_fails_when_login_environment_install_fails(
     assert not (run / "state" / "job-id").exists()
     assert not (run / "state" / "hpc-environment-status").exists()
     assert (run / "logs" / "pixi-install.log").is_file()
+
+
+def test_database_stage_classifies_login_source_transfer_failure(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_database_paths(remote_root)
+    failing_environment = dict(environment)
+    failing_environment["FAKE_DATABASE_SOURCE_FAIL"] = "1"
+
+    failed = _run(
+        [
+            str(dispatcher),
+            "database-stage",
+            DATABASE_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+        ],
+        cwd=tmp_path,
+        environment=failing_environment,
+        success=False,
+    )
+
+    fields = _decode_protocol(failed.stdout)
+    assert fields["failure_class"] == "transfer_failure"
+    run = remote_root / "runs" / DATABASE_RUN_ID
+    assert (run / "state" / "phase").read_text().strip() == "stage_failed"
+    assert (run / "state" / "failure-class").read_text().strip() == ("transfer_failure")
+    assert (run / "logs" / "database-source-stage.log").is_file()
+    assert not (run / "state" / "job-id").exists()
 
 
 @pytest.mark.parametrize(

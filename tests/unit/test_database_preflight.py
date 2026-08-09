@@ -4,6 +4,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -96,6 +97,72 @@ def test_preflight_records_distinct_scratch_capacity_tools_and_routes(
     assert report["large_payload_started"] is False
     persisted = json.loads(request.report_path.read_text(encoding="utf-8"))
     assert persisted == report
+
+
+def test_preflight_verifies_durable_bundle_without_compute_node_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _request(tmp_path)
+    source_bundle = tmp_path / "source-bundle.json"
+    source_bundle.write_text("{}\n", encoding="ascii")
+    request = replace(request, source_bundle_path=source_bundle)
+    _mock_successful_system(monkeypatch)
+    aria2c = tmp_path / "aria2c"
+    aria2c.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="ascii")
+    aria2c.chmod(0o755)
+    monkeypatch.setattr(
+        "genome_to_diffraction.databases.preflight.shutil.which",
+        lambda _: str(aria2c),
+    )
+
+    def version(executable: str, **_kwargs: object) -> str:
+        if executable == "foldseek":
+            return "foldseek 10.941cd33"
+        if executable == "mmseqs":
+            return "mmseqs 18.8cc5c"
+        return "aria2 version 1.37.0"
+
+    resources = [
+        SimpleNamespace(
+            name="fixed",
+            requested_url=FOLDSEEK_PDB_VERSION_URL,
+            effective_url=FOLDSEEK_PDB_VERSION_URL,
+            size_bytes=12,
+            etag='"fixed"',
+            last_modified=None,
+            sha256="a" * 64,
+        )
+    ]
+    monkeypatch.setattr(
+        "genome_to_diffraction.databases.preflight.tool_version", version
+    )
+    monkeypatch.setattr(
+        "genome_to_diffraction.databases.preflight.load_source_bundle",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            bundle_id=f"dbsrc_{'b' * 64}", resources=resources
+        ),
+    )
+    monkeypatch.setattr(
+        "genome_to_diffraction.databases.preflight._probe_public_routes",
+        lambda *_args, **_kwargs: pytest.fail("offline preflight contacted a route"),
+    )
+
+    report = preflight_database_administration(request)
+
+    assert report["status"] == "passed"
+    assert report["source_bundle_id"] == f"dbsrc_{'b' * 64}"
+    assert report["network_probes"] == [
+        {
+            "name": "fixed",
+            "url": FOLDSEEK_PDB_VERSION_URL,
+            "effective_url": FOLDSEEK_PDB_VERSION_URL,
+            "representation_size_bytes": 12,
+            "etag": '"fixed"',
+            "last_modified": None,
+            "sha256": "a" * 64,
+            "status": "durable_source_verified",
+        }
+    ]
 
 
 def test_preflight_fails_before_network_when_scratch_shares_filesystem(

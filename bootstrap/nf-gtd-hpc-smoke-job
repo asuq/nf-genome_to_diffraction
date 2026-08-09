@@ -524,6 +524,7 @@ EOF
 
 run_database() {
     local gtd real_aria2 wrapper_bin database_manifest_sha256
+    local source_bundle source_bundle_sha256 actual_source_bundle_sha256
     local fallback_base fallback_parent
 
     load_database_config
@@ -599,6 +600,21 @@ run_database() {
         printf 'staged HPC environment readiness record is absent\n' >&2
         return 2
     }
+    source_bundle="$RUN/artifacts/database/source_bundle.json"
+    [[ -f "$source_bundle" && ! -L "$source_bundle" ]] || {
+        printf 'staged database source bundle is absent or unsafe\n' >&2
+        return 2
+    }
+    source_bundle_sha256="$(<"$RUN/state/database-source-bundle-sha256")"
+    [[ "$source_bundle_sha256" =~ $CHECKSUM_RE ]] || {
+        printf 'recorded database source bundle checksum is invalid\n' >&2
+        return 2
+    }
+    actual_source_bundle_sha256="$(sha256sum "$source_bundle" | awk '{print $1}')"
+    [[ "$actual_source_bundle_sha256" == "$source_bundle_sha256" ]] || {
+        printf 'database source bundle changed after login-node staging\n' >&2
+        return 2
+    }
     export TMPDIR="$SCRATCH/tmp"
     printf 'phase=pixi_verify_offline profile=database\n'
     cd "$SOURCE"
@@ -632,7 +648,8 @@ EOF
         --storage-limit-bytes "$STORAGE_LIMIT_BYTES" \
         --minimum-free-bytes "$MINIMUM_FREE_BYTES" \
         --required-database-capacity-bytes "$REQUIRED_DATABASE_CAPACITY_BYTES" \
-        --minimum-scratch-free-bytes "$MINIMUM_SCRATCH_FREE_BYTES"
+        --minimum-scratch-free-bytes "$MINIMUM_SCRATCH_FREE_BYTES" \
+        --source-bundle "$source_bundle"
 
     PHASE=database
     printf 'phase=database_prepare profile=database\n'
@@ -640,6 +657,7 @@ EOF
         --database-root "$DATABASE_ROOT" \
         --scratch-root "$SCRATCH" \
         --minimum-scratch-free-bytes "$MINIMUM_SCRATCH_FREE_BYTES" \
+        --source-bundle "$source_bundle" \
         --manifest "$DATABASE_MANIFEST" \
         --prepare-pdb-foldseek \
         --prepare-pdb-sequences \
@@ -665,6 +683,7 @@ EOF
         --database-root "$DATABASE_ROOT" \
         --scratch-root "$SCRATCH" \
         --minimum-scratch-free-bytes "$MINIMUM_SCRATCH_FREE_BYTES" \
+        --source-bundle "$source_bundle" \
         --manifest "$RUN/artifacts/database/database_manifest.full-verified.json" \
         --expected-manifest "$DATABASE_MANIFEST" \
         --expected-manifest-sha256 "$database_manifest_sha256" \

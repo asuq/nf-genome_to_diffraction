@@ -224,6 +224,13 @@ database_config_readiness() {
     local -a values=()
     DATABASE_CONFIG_STATUS=unknown
     DATABASE_CONFIG_SHA256=""
+    DATABASE_ALLOWED_ROOT=""
+    DATABASE_ROOT=""
+    DATABASE_MANIFEST=""
+    STORAGE_LIMIT_BYTES=""
+    MINIMUM_FREE_BYTES=""
+    REQUIRED_DATABASE_CAPACITY_BYTES=""
+    MINIMUM_SCRATCH_FREE_BYTES=""
     if [[ ! -f "$DATABASE_CONFIG" || -L "$DATABASE_CONFIG" || ! -O "$DATABASE_CONFIG" ]]; then
         DATABASE_CONFIG_STATUS=absent_or_unsafe
         return 1
@@ -285,6 +292,13 @@ database_config_readiness() {
         DATABASE_CONFIG_STATUS=capacity_out_of_bounds
         return 1
     fi
+    DATABASE_ALLOWED_ROOT="$allowed"
+    DATABASE_ROOT="${values[1]}"
+    DATABASE_MANIFEST="${values[2]}"
+    STORAGE_LIMIT_BYTES="${values[3]}"
+    MINIMUM_FREE_BYTES="${values[4]}"
+    REQUIRED_DATABASE_CAPACITY_BYTES="${values[5]}"
+    MINIMUM_SCRATCH_FREE_BYTES="${values[6]}"
     DATABASE_CONFIG_STATUS=ready
     return 0
 }
@@ -445,10 +459,11 @@ stage_run_common() {
     local owner_id="$4"
     local iteration="$5"
     local profile="$6"
-    local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp
+    local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp gtd
     local p0_config_sha256="" p0_config_json="null"
     local database_manifest_sha256="" database_manifest_json="null"
     local database_config_sha256="" database_config_json="null"
+    local database_source_bundle_sha256="" database_source_bundle_json="null"
 
     validate_run_id "$run_id"
     [[ "$commit" =~ $COMMIT_RE ]] || fail wrapper_failure "invalid commit SHA"
@@ -585,6 +600,35 @@ stage_run_common() {
         fi
         atomic_text "$run/state/hpc-environment-status" "ready"
         append_event "$run" "stage_hpc_environment_ready"
+        gtd="$run/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+        [[ -x "$gtd" ]] || {
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "environment_failure"
+            append_event "$run" "stage_database_cli_absent"
+            fail environment_failure "locked database CLI is unavailable"
+        }
+        mkdir -p "$run/artifacts/database"
+        if ! "$gtd" --log-format json --no-progress databases stage-sources \
+            --database-root "$DATABASE_ROOT" \
+            --manifest "$run/artifacts/database/source_bundle.json" \
+            --storage-limit-bytes "$STORAGE_LIMIT_BYTES" \
+            --minimum-free-bytes "$MINIMUM_FREE_BYTES" \
+            >"$run/logs/database-source-stage.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_database_sources_failed"
+            fail transfer_failure "fixed database source staging failed on the login node"
+        fi
+        database_source_bundle_sha256="$(
+            sha256sum "$run/artifacts/database/source_bundle.json" | awk '{print $1}'
+        )"
+        [[ "$database_source_bundle_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "database source bundle checksum failed"
+        atomic_text \
+            "$run/state/database-source-bundle-sha256" \
+            "$database_source_bundle_sha256"
+        database_source_bundle_json="\"$database_source_bundle_sha256\""
+        append_event "$run" "stage_database_sources_ready"
     fi
 
     manifest_tmp="$run/manifest.json.tmp.$$"
@@ -603,6 +647,7 @@ stage_run_common() {
   "p0_config_sha256": $p0_config_json,
   "database_manifest_sha256": $database_manifest_json,
   "database_config_sha256": $database_config_json,
+  "database_source_bundle_sha256": $database_source_bundle_json,
   "staged_at": "$(now_utc)",
   "source_snapshot_status": "immutable"
 }
@@ -891,6 +936,7 @@ collect_run() {
         logs/git-fetch.log \
         logs/git-clone.log \
         logs/pixi-install.log \
+        logs/database-source-stage.log \
         logs/sbatch.err \
         logs/smoke.log \
         logs/p0.log \
@@ -911,6 +957,7 @@ collect_run() {
         artifacts/qualification/resume-pipeline-info/trace.tsv \
         artifacts/qualification/resume-pipeline-info/dag.html \
         artifacts/database/preflight.json \
+        artifacts/database/source_bundle.json \
         artifacts/database/database_manifest.json \
         artifacts/database/database_manifest.sha256 \
         artifacts/database/database_manifest.full-verified.json \

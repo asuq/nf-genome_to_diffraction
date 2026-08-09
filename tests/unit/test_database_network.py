@@ -1,5 +1,6 @@
 """HTTP-level tests for safe resumable public database downloads."""
 
+import hashlib
 import json
 import socket
 import threading
@@ -303,6 +304,7 @@ def test_effective_redirect_url_and_size_are_recorded(tmp_path: Path) -> None:
     assert metadata.requested_url == f"{base_url}/redirect"
     assert metadata.url == f"{base_url}/data"
     assert metadata.size_bytes == len(state.final_payload)
+    assert metadata.sha256 == hashlib.sha256(state.final_payload).hexdigest()
 
 
 def test_nonidentity_content_encoding_is_rejected(tmp_path: Path) -> None:

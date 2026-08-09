@@ -329,6 +329,12 @@ The Linux-only `hpc` environment pins Foldseek 10.941cd33 and MMseqs2 18.8cc5c.
 The preparation workflow writes directly to a shared absolute database root, so
 terabyte-scale resources are never staged into Nextflow work directories. Its
 default hard project cap is 1.8 TB and it requires 200 GB of filesystem headroom.
+That cap is a safety ceiling, not an estimate of this prototype's fixed inputs.
+Observed compressed inputs total about 4.62 GB (approximately 2.33 GB PDB100,
+2.22 GB ProstT5, and 66 MB PDB SEQRES, plus small metadata/control files); the
+first real build must still measure extracted resources, indices, failed
+staging, and temporary-copy peaks. The reviewed Marmic measurement profile uses
+an 800 GB cap inside the available 1 TB allocation.
 The database CLI thread count is derived from the allocated Nextflow `task.cpus`,
 so MMseqs2 indexing and the bounded search operations do not use the old
 independent four-thread default. The internal concurrency of `foldseek databases`
@@ -352,11 +358,14 @@ pixi run -e hpc nextflow run prepare_databases.nf -profile marmic \
   --initialise_coordinate_cache true
 ```
 
-This explicit operation contacts Foldseek's documented PDB/ProstT5 sources and
-the public RCSB PDB SEQRES URL. The bounded qualification smoke also fetches the
-public 1UBQ mmCIF coordinate after the expected `1ubq_A` hit passes fixed score,
-coverage, SEQRES-sequence, and identifier checks. It sends no catalogue sequences
-or credentials.
+This standalone operation can contact Foldseek's documented PDB/ProstT5 sources
+and the public RCSB PDB SEQRES URL. On Marmic, the fixed `database-stage`
+operation instead downloads all five admitted inputs sequentially on the login
+node directly into immutable durable storage. The Slurm job consumes that
+checksummed bundle without network access. The bounded qualification smoke uses
+the bundled public 1UBQ mmCIF after the expected `1ubq_A` hit passes fixed score,
+coverage, SEQRES-sequence, and identifier checks. No catalogue sequence,
+credential, crystal input, or licensed Phenix file is transmitted.
 The optional `--verify_esm_atlas_connectivity true` probe fetches one documented
 public MGYP sequence by accession and never submits a user sequence. ESM Atlas
 sequence submission remains disabled by default, and no local ESMAtlas30 is
@@ -390,7 +399,10 @@ Python-managed public downloads resume only from a checksummed partial prefix bo
 to the requested/effective URL and a strong ETag or Last-Modified validator.
 `Range`, `If-Range`, `Content-Range`, final size, and HTTPS preservation are
 validated before atomic promotion; a server-declined or unvalidated resume starts
-cleanly. Capacity and free-space headroom are checked throughout. External tools
+cleanly. Each completed source is journalled, so a later fixed staging attempt
+reuses verified completed files and resumes the interrupted file without
+redownloading earlier inputs. Capacity and free-space headroom are checked
+throughout. External tools
 are monitored through their declared durable and scratch write roots, avoiding
 a full scan of the large shared database tree every 20 seconds, and the complete
 process group is stopped if either filesystem loses headroom, the durable cap is
@@ -399,27 +411,30 @@ an existing canonical owned directory on a different filesystem. When a site
 does not export `SLURM_TMPDIR`, the fixed database job creates one unique
 mode-0700 parent below compute-node `/scratch/$USER` and removes it at
 finalisation. Both routes reject `/dev/shm`, shared-device scratch, and
-insufficient headroom before a payload starts. Foldseek archives, its downloader
-temporary area, its inherited `TMPDIR`, and the PDB SEQRES download are written
-directly below the durable database staging root, not to compute-node scratch.
+insufficient headroom before a payload starts. Source archives, partial-transfer
+state, and the PDB SEQRES download are written directly below the durable
+database source root on the login node, not to compute-node scratch. Foldseek
+extracts from those verified local files into durable resource staging.
 Only disposable execution state and MMseqs2 index workspace use
 `/scratch/$USER`; immutable database content and Foldseek transfer state remain
 under the durable database root.
 
 The approval-gated database staging operation materialises the frozen per-run
-`hpc` Pixi environment on the login node. Compute nodes then verify that same
-environment with Pixi offline before preflight; they do not require outbound
-Conda or PyPI access. The environment remains bound to the staged commit and
-`pixi.lock` checksum and is not shared between run IDs.
+`hpc` Pixi environment and the fixed source bundle on the login node. It writes
+the sources directly to the configured durable database root and records the
+bundle manifest/checksum in the immutable run. Its SSH transport is bounded to
+six hours. Compute nodes then verify the same environment with Pixi offline and
+recompute all source checksums before preflight; they need no outbound Conda,
+PyPI, Foldseek, or RCSB access. The environment and source evidence remain bound
+to the staged commit and `pixi.lock` checksum.
 
-The downloads performed internally by `foldseek databases` do not currently
-expose equivalent checkpoint state. A failed Foldseek staging directory is
-retained for diagnosis, and any retained incomplete staging blocks a new build
-until an operator inspects and handles it through an approved administrative
-action. The pipeline never deletes it or starts another database-sized download
-automatically. Do not describe the whole database build as resumable or assume
-that a 2 TB allocation is sufficient until the first retained site measurements
-confirm active, failed, and immutable-copy sizes.
+During compute preparation, an allow-listing `aria2c` adapter maps only the three
+exact Foldseek HTTPS source URLs to the verified local bundle and rejects every
+other HTTP(S) URL. Failed extraction or index staging is retained for diagnosis,
+and a retained incomplete resource blocks a new build until an operator handles
+it through a separately approved administrative action. The pipeline never
+deletes retained resource staging automatically. Source transfer is resumable;
+extraction and index construction are restartable only after that review.
 
 Before a large administration job, run the compute-node preflight with explicit
 absolute paths and operator-reviewed capacity requirements:
@@ -432,25 +447,22 @@ genome-to-diffraction --log-format json --no-progress databases preflight \
   --storage-limit-bytes 1800000000000 \
   --minimum-free-bytes 200000000000 \
   --required-database-capacity-bytes REVIEWED_REQUIRED_BYTES \
-  --minimum-scratch-free-bytes REVIEWED_SCRATCH_BYTES
+  --minimum-scratch-free-bytes REVIEWED_SCRATCH_BYTES \
+  --source-bundle /absolute/shared/run/source_bundle.json
 ```
 
 The preflight requires scratch on a different filesystem from the durable
 database root, verifies the pinned Foldseek/MMseqs2 tools, measures both capacity
-boundaries, requires pinned aria2 1.37.0 for the later Foldseek transfer, and
-probes only the exact PDB, ProstT5, SEQRES, and 1UBQ routes with an in-memory
-HTTPS `Range: bytes=0-0` request. Each route must return status 206, an exact
-one-byte body, and a valid total representation size. A status-200 response is
-accepted only by reading one byte and immediately closing the streaming
-response; its total size remains unknown when the server does not declare one.
-An invalid length, other status, or non-HTTPS redirect fails before a payload
-starts. The report records the
-effective URL, validators, representation size, and
-`large_payload_started: false`. These endpoints come from the pinned
+boundaries, requires pinned aria2 1.37.0 for local Foldseek extraction, and
+fully verifies the supplied source bundle. It records each fixed URL, effective
+URL, validator, size, and SHA-256 as `durable_source_verified`; it does not probe
+the network from a compute node. Without `--source-bundle`, standalone preflight
+retains the bounded one-byte route-probe mode for sites that explicitly permit
+compute-node egress. These endpoints come from the pinned
 [Foldseek 10-941cd33 database script](https://github.com/steineggerlab/foldseek/blob/941cd33/data/structdatabases.sh)
 and this repository's fixed RCSB inputs. The probes transmit no catalogue,
 crystal, sequence, credentials, or licensed data. A generic internet probe is
-not accepted as evidence that the compute node can reach the required routes.
+never accepted as evidence for the fixed inputs.
 
 ```bash
 pixi run -e hpc nextflow run prepare_databases.nf -profile marmic \

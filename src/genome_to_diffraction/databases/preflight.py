@@ -15,6 +15,7 @@ from pydantic import JsonValue
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.databases import sources as source_module
 from genome_to_diffraction.databases.common import (
     DatabaseError,
     tool_version,
@@ -24,13 +25,14 @@ from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.databases")
 
-FOLDSEEK_PDB_ARCHIVE_URL = "https://foldseek.steineggerlab.workers.dev/pdb100.tar.gz"
-FOLDSEEK_PDB_VERSION_URL = "https://foldseek.steineggerlab.workers.dev/pdb100.version"
-FOLDSEEK_PROSTT5_ARCHIVE_URL = (
-    "https://foldseek.steineggerlab.workers.dev/prostt5-f16-gguf.tar.gz"
-)
-PDB_SEQUENCE_URL = "https://files.rcsb.org/pub/pdb/derived_data/pdb_seqres.txt.gz"
-PDB_COORDINATE_SMOKE_URL = "https://files.rcsb.org/download/1ubq.cif.gz"
+# Retain the established module-level constants for callers and tests while the
+# source-bundle module owns their single definitions.
+FOLDSEEK_PDB_ARCHIVE_URL = source_module.FOLDSEEK_PDB_ARCHIVE_URL
+FOLDSEEK_PDB_VERSION_URL = source_module.FOLDSEEK_PDB_VERSION_URL
+FOLDSEEK_PROSTT5_ARCHIVE_URL = source_module.FOLDSEEK_PROSTT5_ARCHIVE_URL
+PDB_COORDINATE_SMOKE_URL = source_module.PDB_COORDINATE_SMOKE_URL
+PDB_SEQUENCE_URL = source_module.PDB_SEQUENCE_URL
+load_source_bundle = source_module.load_source_bundle
 
 _FIXED_PROBES = (
     ("foldseek_pdb_archive", FOLDSEEK_PDB_ARCHIVE_URL),
@@ -54,6 +56,7 @@ class DatabasePreflightRequest:
     minimum_free_bytes: int
     required_database_capacity_bytes: int
     minimum_scratch_free_bytes: int
+    source_bundle_path: Path | None = None
     probe_timeout_seconds: int = 60
     progress: bool = True
 
@@ -310,11 +313,42 @@ def preflight_database_administration(
             raise DatabaseError("Foldseek 10.941cd33 is required")
         if "18.8cc5c" not in mmseqs_version:
             raise DatabaseError("MMseqs2 18.8cc5c is required")
-        aria2_version, probes = _probe_public_routes(
-            scratch_root,
-            timeout_seconds=request.probe_timeout_seconds,
-            progress=request.progress,
-        )
+        source_bundle_id: str | None = None
+        if request.source_bundle_path is None:
+            aria2_version, probes = _probe_public_routes(
+                scratch_root,
+                timeout_seconds=request.probe_timeout_seconds,
+                progress=request.progress,
+            )
+        else:
+            aria2c = shutil.which("aria2c")
+            if aria2c is None or not Path(aria2c).is_absolute():
+                raise DatabaseError(
+                    "pinned aria2c is required for offline Foldseek extraction"
+                )
+            aria2_version = tool_version(aria2c)
+            if "1.37.0" not in aria2_version:
+                raise DatabaseError("aria2 1.37.0 is required")
+            source_bundle = load_source_bundle(
+                database_root,
+                request.source_bundle_path,
+                full_verify=True,
+                progress=request.progress,
+            )
+            source_bundle_id = source_bundle.bundle_id
+            probes = [
+                {
+                    "name": resource.name,
+                    "url": resource.requested_url,
+                    "effective_url": resource.effective_url,
+                    "representation_size_bytes": resource.size_bytes,
+                    "etag": resource.etag,
+                    "last_modified": resource.last_modified,
+                    "sha256": resource.sha256,
+                    "status": "durable_source_verified",
+                }
+                for resource in source_bundle.resources
+            ]
 
         report.update(
             {
@@ -337,6 +371,7 @@ def preflight_database_administration(
                 "foldseek_version": foldseek_version,
                 "mmseqs_version": mmseqs_version,
                 "aria2_version": aria2_version,
+                "source_bundle_id": source_bundle_id,
                 "network_probes": cast(JsonValue, probes),
                 "large_payload_started": False,
             }

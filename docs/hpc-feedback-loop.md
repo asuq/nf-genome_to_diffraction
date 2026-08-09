@@ -12,7 +12,7 @@ never edits or pushes source.
 | --- | --- | --- |
 | `smoke` | Locked `pixi run check` | Software/environment foundation only |
 | `p0` | Real Phenix verification, bounded anchored database revalidation, all-three-crystal Task 05 run, and cached resume | M0 execution evidence only; downstream identity search remains deferred |
-| `database` | Fixed route/capacity preflight, all-resource preparation, and anchored full verification | Shared database administration only; no pipeline or protein-identification claim |
+| `database` | Login-node source staging, offline capacity preflight, all-resource preparation, and anchored full verification | Shared database administration only; no pipeline or protein-identification claim |
 
 The reviewed local application is the routine approval boundary. Persistent
 rules may cover only `deploy-tools`, `readiness`, `stage`, `submit`, `status`,
@@ -75,19 +75,25 @@ shared durable storage because child Slurm nodes cannot see the driver's
 Nextflow process through compute-node `/scratch`. Disposable driver scratch is
 removed by the job, while the durable run is retained until explicitly cleaned.
 
-Database administration is stricter: an exported `SLURM_TMPDIR` must be a
+Database administration has two deliberately separate phases. The login-node
+`database-stage` operation installs the frozen environment and sequentially
+downloads only the five fixed public inputs directly into immutable durable
+storage. This work is network/I/O-bound, uses no Slurm allocation, and retains
+validator-bound partial state plus structured progress logs. The compute phase
+is stricter: an exported `SLURM_TMPDIR` must be a
 canonical, owned, non-symlink directory on a filesystem distinct from the
 durable database root. Marmic did not export that variable in the first real
 job, so the fixed fallback creates a unique mode-0700 parent below the
 established compute-node `/scratch/$USER` root. The job removes that parent at
 finalisation and still rejects `/dev/shm`, an overlapping/shared device, or
 insufficient scratch capacity before a large payload starts. All database
-execution state lives below one job-owned child. Foldseek download targets, its
-downloader tmp argument, and its inherited `TMPDIR` all remain below the durable
-database staging root; compute scratch is not a database-transfer destination.
-MMseqs2 may use the job-owned scratch child for disposable index workspace.
-Failed durable resource staging is intentionally retained and blocks an
-automatic second database-sized attempt.
+execution state lives below one job-owned child. The compute job verifies the
+source bundle byte-for-byte and maps Foldseek's three fixed URLs to local
+`file://` objects with an allow-listing adapter; any other HTTP(S) request fails.
+Foldseek output and extraction temporary files remain below durable resource
+staging. MMseqs2 may use the job-owned scratch child for disposable index
+workspace. Failed durable resource staging is intentionally retained and blocks
+an automatic second extraction/index attempt.
 
 This root matches the Marmic site profile in the pinned `nf-helper` submodule:
 Slurm processes use `/scratch/$USER`, copy declared outputs back to shared work,
@@ -252,10 +258,11 @@ during the 45-minute allocation.
 ## Database administration boundary
 
 Full preparation and `verify-only --full-verify` use separate, long-running
-database-administration start commands. They may contact fixed public
-Foldseek/RCSB routes and mutate a large shared root, so routine `stage` and
-`submit` explicitly reject the `database` profile. Do not add the two start
-commands to persistent Codex rules.
+database-administration start commands. `database-stage` contacts only the
+fixed public Foldseek/RCSB routes from the login node and writes directly to a
+large shared root; the Slurm job is network-free. Routine `stage` and `submit`
+explicitly reject the `database` profile. Keep these mutating start operations
+separate from the seven routine smoke-test operations.
 
 Create `_config/database.paths` below the configured remote run root from the
 tracked [example](../conf/hpc-database.paths.example). It is user-owned, mode
@@ -272,10 +279,14 @@ tracked [example](../conf/hpc-database.paths.example). It is user-owned, mode
 Byte counts must be canonical decimal integers without leading zeroes. The
 tracked example deliberately uses a 1.8 TB project cap and 200 GB reserves on a
 2 TB allocation; these remain conservative first-run assumptions, not evidence
-of the real active/failed/immutable-copy size. The
-manifest path must not exist when readiness and staging run. Use a new dated
-path for a later intentional rebuild; the fixed driver never overwrites an
-existing trust anchor. Actual site paths remain only in this external file.
+of the real active/failed/immutable-copy size. The five observed compressed
+inputs total about 4.62 GB; extracted resources, indices, failed staging, and
+temporary-copy peaks still require measurement. The reviewed Marmic first-run
+configuration therefore uses an 800 GB cap, 200 GB durable reserve, 600 GB
+pre-download gate, and 200 GB scratch reserve. The manifest path must not exist
+when readiness and staging run. Use a new dated path for a later intentional
+rebuild; the fixed driver never overwrites an existing trust anchor. Actual site
+paths remain only in this external file.
 
 First perform the path-free readiness check. It reports sanitised Pixi and
 configuration statuses and the configuration SHA-256, but no site paths and no
@@ -298,19 +309,21 @@ nf-gtd-hpc-test collect --run-id RUN_ID
 
 `database-stage` fingerprints the external configuration. Execution refuses a
 post-stage edit and materialises the frozen per-run `hpc` Pixi environment on
-the login node, with a bounded 30-minute transport timeout and a retained
-install log. `database-submit` has fixed Slurm resources and accepts no URL,
-path, resource, or shell argument. On the compute node the job requires distinct
-scratch, verifies the staged environment with Pixi `--offline`, and runs the
-fixed preflight. That preflight checks available capacity, scratch headroom,
-Foldseek/MMseqs2/aria2 versions, and only the pinned PDB, ProstT5, SEQRES, and
-1UBQ routes. Route checks are one-byte HTTPS range requests because the
-Foldseek worker serves GET redirects but returns 404 to HEAD-style aria2 dry
-runs. The preflight rejects an unsupported status, malformed range metadata,
-invalid length, oversized ranged body, or non-HTTPS redirect and records
-`large_payload_started: false`. The bounded exception is an HTTP-200 streaming
-response: the client reads exactly one byte, closes immediately, and records an
-unknown representation size when the server supplies no length.
+the login node. It then downloads the five admitted inputs sequentially and
+directly to a content-addressed source bundle below the durable database root,
+with a bounded six-hour transport timeout and retained environment/source logs.
+Every source records requested and effective URLs, validators, size, and full
+SHA-256. Per-source journals reuse completed inputs and preserve a validated
+partial download for an interrupted transfer.
+
+`database-submit` has fixed Slurm resources and accepts no URL, path, resource,
+or shell argument. On the compute node the job requires distinct scratch,
+verifies the staged environment with Pixi `--offline`, recomputes all bundle
+checksums, and runs the fixed preflight. That preflight checks available
+capacity, scratch headroom, and Foldseek/MMseqs2/aria2 versions without making
+any network request. An allow-listing `aria2c` adapter maps only Foldseek's exact
+three admitted HTTPS URLs to the verified local files and rejects all other
+HTTP(S) input. The bundled SEQRES and 1UBQ files are consumed directly.
 
 Only after preflight passes does the job prepare PDB Foldseek, PDB sequence,
 ProstT5, and coordinate-cache resources under the durable root. `aria2c` is
@@ -318,7 +331,9 @@ wrapped with `--no-conf=true`, so a user configuration cannot silently change
 the reviewed transfer behaviour. Success requires a frozen manifest checksum
 and a second anchored `--verify-only --full-verify` pass. Fixed small manifests,
 preflight evidence, and logs are collectable; database payloads stay on Marmic.
-There is no automatic retry or cleanup of retained failed durable staging.
+Source transfers are resumable. Failed extraction or index staging is retained
+and blocks another build until explicit operator review; it is never deleted or
+blindly retried by the fixed driver.
 
 ## Results and failure interpretation
 

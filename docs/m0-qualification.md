@@ -322,9 +322,10 @@ still requires one immutable Marmic preparation, the frozen manifest/checksum,
 real command logs, full inventory verification, and measured I/O/runtime. The
 fixed 45-minute P0 allocation is not yet justified for a bytewise audit on the
 observed slow NFS; database qualification and Task 05 should not be conflated
-until that timing is measured. Compute-node outbound network access is also
-unconfirmed, so the first real preparation must use a reviewed site route or an
-offline/adopted snapshot rather than assuming internet access.
+until that timing is measured. Marmic compute nodes have now been shown not to
+reach the first pinned Foldseek HTTPS route, so real preparation must use the
+login-node source bundle described below rather than assuming compute-node
+internet access.
 
 On 9 August 2026, the deployed fixed `database-readiness` operation reached
 Marmic and verified PATH-installed Pixi 0.74.0. It reported the protected
@@ -402,8 +403,29 @@ The corrected Python probe subsequently completed against all five fixed routes
 from the local development environment. It recorded the two Foldseek archives,
 PDB version file, and SEQRES file as ranged responses with their effective URLs,
 sizes, validators, and one-byte sample SHA-256 values; 1UBQ was the bounded
-unknown-size HTTP-200 case. This is adapter qualification only. It does not
-establish Marmic compute-node egress, proxy behaviour, or Slurm scratch.
+unknown-size HTTP-200 case. This qualified the adapter but did not establish
+Marmic compute-node egress.
+
+Revision `4f7017b9f6b38bd3055cb4bc82524760549b9324` and Slurm job `625516`
+then passed scratch selection, offline Pixi verification, the Foldseek/MMseqs2/
+aria2 version probes, and both capacity gates. The durable filesystem reported
+`1,043,691,012,096` free bytes before project content. The first pinned PDB100
+HTTPS request failed with `Errno 99` (`Cannot assign requested address`). No
+database payload or durable resource staging was created, and scratch cleanup
+succeeded. This is direct evidence that the database compute job must not depend
+on outbound HTTPS.
+
+The fixed driver now materialises five immutable inputs on the login node:
+PDB100, its version record, ProstT5 weights, RCSB PDB SEQRES, and the 1UBQ
+coordinate positive control. Downloads go sequentially and directly to the
+durable database root, are resumable with strong validators, and are recorded by
+full SHA-256 in a content-addressed bundle. The Slurm preflight fully verifies
+that bundle without network access. Foldseek receives only local bundle files
+through an exact-URL allow-listing adapter; disposable execution and MMseqs2
+index state use `/scratch/$USER`, while extraction and immutable resources stay
+on durable storage. Interrupted source transfer resumes automatically. A failed
+extraction/index staging directory is retained and requires operator review
+before another build.
 
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)

@@ -14,6 +14,7 @@ import logging
 import math
 import os
 import re
+import shlex
 import shutil
 import tempfile
 import uuid
@@ -50,7 +51,17 @@ from genome_to_diffraction.databases.common import (
     tree_size,
     verify_inventory,
 )
-from genome_to_diffraction.databases.network import download_public_resource
+from genome_to_diffraction.databases.network import (
+    DownloadMetadata,
+    download_public_resource,
+)
+from genome_to_diffraction.databases.sources import (
+    FOLDSEEK_PDB_ARCHIVE_URL,
+    FOLDSEEK_PDB_VERSION_URL,
+    FOLDSEEK_PROSTT5_ARCHIVE_URL,
+    DatabaseSourceBundle,
+    load_source_bundle,
+)
 from genome_to_diffraction.ids import canonical_digest, content_id
 from genome_to_diffraction.schemas.manifests import (
     DatabaseManifest,
@@ -153,6 +164,7 @@ class DatabasePreparationRequest:
     lock_timeout_seconds: float = 30.0
     scratch_root: Path | None = None
     minimum_scratch_free_bytes: int = 0
+    source_bundle_path: Path | None = None
     progress: bool = True
     pdb_sequence_url: str = PDB_SEQUENCE_URL
     pdb_coordinate_url_template: str = PDB_COORDINATE_URL_TEMPLATE
@@ -711,6 +723,84 @@ def _command_scratch(
         yield scratch, (scratch,), request.minimum_scratch_free_bytes
 
 
+@contextmanager
+def _offline_foldseek_environment(
+    staging: Path,
+    database_root: Path,
+    bundle: DatabaseSourceBundle,
+    tool_scratch: Path,
+) -> Iterator[dict[str, str]]:
+    """Map Foldseek's fixed HTTPS requests to a verified durable bundle."""
+
+    aria2c = shutil.which("aria2c")
+    if aria2c is None or not Path(aria2c).is_absolute():
+        raise DatabaseError("pinned aria2c is required for offline Foldseek extraction")
+    wrapper_root = staging / ".offline-tools"
+    wrapper_root.mkdir()
+    wrapper = wrapper_root / "aria2c"
+    mappings = (
+        (
+            FOLDSEEK_PDB_ARCHIVE_URL,
+            bundle.path(database_root, "foldseek_pdb_archive").as_uri(),
+        ),
+        (
+            FOLDSEEK_PDB_VERSION_URL,
+            bundle.path(database_root, "foldseek_pdb_version").as_uri(),
+        ),
+        (
+            FOLDSEEK_PROSTT5_ARCHIVE_URL,
+            bundle.path(database_root, "foldseek_prostt5_archive").as_uri(),
+        ),
+    )
+    cases = "\n".join(
+        f"    {shlex.quote(url)}) args+=({shlex.quote(local_uri)}) ;;"
+        for url, local_uri in mappings
+    )
+    wrapper.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "args=()\n"
+        'for argument in "$@"; do\n'
+        '  case "$argument" in\n'
+        f"{cases}\n"
+        "    http://*|https://*)\n"
+        "      printf 'unapproved network URL in offline Foldseek extraction: %s\\n' "
+        '"$argument" >&2\n'
+        "      exit 64\n"
+        "      ;;\n"
+        '    *) args+=("$argument") ;;\n'
+        "  esac\n"
+        "done\n"
+        f'exec {shlex.quote(aria2c)} --no-conf=true "${{args[@]}}"\n',
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o555)
+    try:
+        yield {
+            "PATH": f"{wrapper_root}{os.pathsep}{os.environ.get('PATH', '')}",
+            "TMPDIR": str(tool_scratch),
+        }
+    finally:
+        shutil.rmtree(wrapper_root, ignore_errors=True)
+
+
+def _copy_bundle_source(
+    bundle: DatabaseSourceBundle,
+    database_root: Path,
+    name: str,
+    destination: Path,
+) -> DownloadMetadata:
+    """Copy one already verified immutable source into resource staging."""
+
+    record = bundle.record(name)
+    source = bundle.path(database_root, name)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, destination)
+    if destination.stat().st_size != record.size_bytes:
+        raise DatabaseError(f"copied database source size changed: {name}")
+    return record.download_metadata()
+
+
 def _log_path(database_root: Path, name: str, action: str) -> Path:
     return database_root / "logs" / f"{name}.{action}.{uuid.uuid4().hex}.log"
 
@@ -752,6 +842,7 @@ def _prepare_foldseek_resource(
     request: DatabasePreparationRequest,
     database_root: Path,
     name: str,
+    source_bundle: DatabaseSourceBundle | None,
 ) -> DatabaseResource:
     if not request.force_rebuild:
         current = _current_root(database_root, name)
@@ -775,22 +866,38 @@ def _prepare_foldseek_resource(
         # compute-node scratch limit cannot truncate a database transfer.
         tool_scratch = staging / "tmp"
         tool_scratch.mkdir()
-        run_command(
-            [
-                "foldseek",
-                "databases",
-                database_name,
-                str(staging / prefix_name),
-                str(tool_scratch),
-            ],
-            log_path=download_log,
-            storage_root=database_root,
-            write_roots=(staging,),
-            storage_limit_bytes=request.storage_limit_bytes,
-            minimum_free_bytes=request.minimum_free_bytes,
-            progress=request.progress,
-            environment_overrides={"TMPDIR": str(tool_scratch)},
-        )
+        command = [
+            "foldseek",
+            "databases",
+            database_name,
+            str(staging / prefix_name),
+            str(tool_scratch),
+        ]
+        if source_bundle is None:
+            run_command(
+                command,
+                log_path=download_log,
+                storage_root=database_root,
+                write_roots=(staging,),
+                storage_limit_bytes=request.storage_limit_bytes,
+                minimum_free_bytes=request.minimum_free_bytes,
+                progress=request.progress,
+                environment_overrides={"TMPDIR": str(tool_scratch)},
+            )
+        else:
+            with _offline_foldseek_environment(
+                staging, database_root, source_bundle, tool_scratch
+            ) as environment:
+                run_command(
+                    command,
+                    log_path=download_log,
+                    storage_root=database_root,
+                    write_roots=(staging,),
+                    storage_limit_bytes=request.storage_limit_bytes,
+                    minimum_free_bytes=request.minimum_free_bytes,
+                    progress=request.progress,
+                    environment_overrides=environment,
+                )
         shutil.rmtree(tool_scratch)
         retrieved_at = utc_now()
         pdb_snapshot = (
@@ -812,13 +919,20 @@ def _prepare_foldseek_resource(
         }
         if pdb_snapshot is not None:
             parameters["provider_snapshot"] = pdb_snapshot.as_json()
+        if source_bundle is not None:
+            parameters["source_bundle_id"] = source_bundle.bundle_id
         warning = (
             "Provider records only an archive MD5; the retained version file and "
             "full deployed-file inventory are the immutable trust evidence."
             if pdb_snapshot is not None
             else (
-                "Downloader does not expose an exact source snapshot; retrieval date "
-                "and full file inventory define this resource."
+                "Checksummed source bundle and full deployed-file inventory define "
+                "this resource."
+                if source_bundle is not None
+                else (
+                    "Downloader does not expose an exact source snapshot; retrieval "
+                    "date and full file inventory define this resource."
+                )
             )
         )
         return _finish_immutable_resource(
@@ -1141,6 +1255,7 @@ def _prepare_pdb_sequences(
     request: DatabasePreparationRequest,
     database_root: Path,
     administration_scratch: Path,
+    source_bundle: DatabaseSourceBundle | None,
 ) -> DatabaseResource:
     name = "pdb_sequences"
     if not request.force_rebuild and _current_root(database_root, name) is not None:
@@ -1156,14 +1271,23 @@ def _prepare_pdb_sequences(
     staging = _staging(database_root, name)
     retrieved_at = utc_now()
     try:
-        metadata = download_public_resource(
-            request.pdb_sequence_url,
-            staging / "pdb_seqres.txt.gz",
-            storage_root=database_root,
-            storage_limit_bytes=request.storage_limit_bytes,
-            minimum_free_bytes=request.minimum_free_bytes,
-            progress=request.progress,
-        )
+        sequence_path = staging / "pdb_seqres.txt.gz"
+        if source_bundle is None:
+            metadata = download_public_resource(
+                request.pdb_sequence_url,
+                sequence_path,
+                storage_root=database_root,
+                storage_limit_bytes=request.storage_limit_bytes,
+                minimum_free_bytes=request.minimum_free_bytes,
+                progress=request.progress,
+            )
+        else:
+            metadata = _copy_bundle_source(
+                source_bundle,
+                database_root,
+                "pdb_sequences",
+                sequence_path,
+            )
         sequence_count, skipped_non_protein = _normalise_pdb_sequences(
             staging / "pdb_seqres.txt.gz",
             staging / "pdb_seqres.faa",
@@ -1231,6 +1355,8 @@ def _prepare_pdb_sequences(
             },
             "qualification": qualification,
         }
+        if source_bundle is not None:
+            parameters["source_bundle_id"] = source_bundle.bundle_id
         return _finish_immutable_resource(
             staging,
             database_root=database_root,
@@ -1388,7 +1514,8 @@ def _validate_pdb_coordinate(
             f"polymer entity: {pdb_id}_{seqres_token}"
         )
     entity_id, polymer_type, raw_sequence = candidates[0]
-    label_asym_ids = sorted(set(labels_by_entity.get(entity_id, [])))
+    label_asym_ids: list[JsonValue] = []
+    label_asym_ids.extend(sorted(set(labels_by_entity.get(entity_id, []))))
     if not label_asym_ids:
         raise DatabaseError(
             f"PDB protein polymer entity has no struct_asym mapping: {entity_id}"
@@ -1430,6 +1557,7 @@ def _smoke_pdb_foldseek(
     prostt5: DatabaseResource,
     sequences: DatabaseResource,
     coordinate_cache: DatabaseResource,
+    source_bundle: DatabaseSourceBundle | None,
     *,
     persist: bool,
 ) -> tuple[DatabaseResource, DatabaseResource, dict[str, JsonValue]]:
@@ -1571,14 +1699,22 @@ def _smoke_pdb_foldseek(
         except (KeyError, ValueError) as error:
             raise DatabaseError("invalid PDB coordinate URL template") from error
         coordinate_path = smoke / f"{pdb_id.lower()}.cif.gz"
-        coordinate_metadata = download_public_resource(
-            coordinate_url,
-            coordinate_path,
-            storage_root=database_root,
-            storage_limit_bytes=request.storage_limit_bytes,
-            minimum_free_bytes=request.minimum_free_bytes,
-            progress=request.progress,
-        )
+        if source_bundle is None:
+            coordinate_metadata = download_public_resource(
+                coordinate_url,
+                coordinate_path,
+                storage_root=database_root,
+                storage_limit_bytes=request.storage_limit_bytes,
+                minimum_free_bytes=request.minimum_free_bytes,
+                progress=request.progress,
+            )
+        else:
+            coordinate_metadata = _copy_bundle_source(
+                source_bundle,
+                database_root,
+                "pdb_coordinate_1ubq",
+                coordinate_path,
+            )
         coordinate_mapping = _validate_pdb_coordinate(
             coordinate_path,
             pdb_id=pdb_id,
@@ -1886,16 +2022,28 @@ def _prepare_locked(
             "selected": [name for name, enabled in selected.items() if enabled],
         },
     )
+    source_bundle = (
+        load_source_bundle(
+            root,
+            request.source_bundle_path,
+            full_verify=True,
+            progress=request.progress,
+        )
+        if request.source_bundle_path is not None
+        else None
+    )
     resources: dict[str, DatabaseResource] = {}
     if request.prepare_prostt5:
-        resources["prostt5"] = _prepare_foldseek_resource(request, root, "prostt5")
+        resources["prostt5"] = _prepare_foldseek_resource(
+            request, root, "prostt5", source_bundle
+        )
     if request.prepare_pdb_foldseek:
         resources["pdb_foldseek"] = _prepare_foldseek_resource(
-            request, root, "pdb_foldseek"
+            request, root, "pdb_foldseek", source_bundle
         )
     if request.prepare_pdb_sequences:
         resources["pdb_sequences"] = _prepare_pdb_sequences(
-            request, root, administration_scratch
+            request, root, administration_scratch, source_bundle
         )
     if request.initialise_coordinate_cache:
         if request.verify_only:
@@ -1955,6 +2103,7 @@ def _prepare_locked(
                 prostt5,
                 sequences,
                 coordinate_cache,
+                source_bundle,
                 persist=False,
             )
             verification_checks["pdb_foldseek"] = foldseek_verification
@@ -1985,6 +2134,7 @@ def _prepare_locked(
                 prostt5,
                 sequences,
                 coordinate_cache,
+                source_bundle,
                 persist=True,
             )
     required_unverified = [

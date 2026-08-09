@@ -95,7 +95,12 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert "phase=pixi_verify_offline profile=database" in database_body
     assert "--offline" in database_body
     assert "database payload scratch must not use /dev/shm" in database_body
-    assert "stage_hpc_environment_ready" in dispatcher.read_text(encoding="utf-8")
+    dispatcher_text = dispatcher.read_text(encoding="utf-8")
+    assert "stage_hpc_environment_ready" in dispatcher_text
+    assert "databases stage-sources" in dispatcher_text
+    assert "database-source-stage.log" in dispatcher_text
+    assert "database-source-bundle-sha256" in dispatcher_text
+    assert "--source-bundle" in database_body
     assert (REPOSITORY / "conf" / "hpc-database.paths.example").is_file()
     database_module = (
         REPOSITORY / "modules" / "local" / "prepare_database_resources.nf"

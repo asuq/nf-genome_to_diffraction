@@ -30,6 +30,10 @@ from genome_to_diffraction.databases.prepare import (
     DatabasePreparationRequest,
     prepare,
 )
+from genome_to_diffraction.databases.sources import (
+    SourceBundleRequest,
+    stage_source_bundle,
+)
 from genome_to_diffraction.diffraction import (
     FreeRGenerationRequest,
     PreflightRequest,
@@ -251,6 +255,18 @@ def _build_parser() -> argparse.ArgumentParser:
     database_actions = database_parser.add_subparsers(
         dest="database_action", required=True
     )
+    source_parser = database_actions.add_parser(
+        "stage-sources",
+        help="download the fixed source bundle directly to durable storage",
+    )
+    source_parser.add_argument("--database-root", type=Path, required=True)
+    source_parser.add_argument("--manifest", type=Path, required=True)
+    source_parser.add_argument(
+        "--storage-limit-bytes", type=int, default=DEFAULT_STORAGE_LIMIT_BYTES
+    )
+    source_parser.add_argument(
+        "--minimum-free-bytes", type=int, default=DEFAULT_MINIMUM_FREE_BYTES
+    )
     prepare_parser = database_actions.add_parser(
         "prepare", help="run explicit idempotent database preparation"
     )
@@ -278,6 +294,11 @@ def _build_parser() -> argparse.ArgumentParser:
     prepare_parser.add_argument("--scratch-root", type=Path)
     prepare_parser.add_argument("--minimum-scratch-free-bytes", type=int, default=0)
     prepare_parser.add_argument(
+        "--source-bundle",
+        type=Path,
+        help="verified durable source bundle for offline database preparation",
+    )
+    prepare_parser.add_argument(
         "--storage-limit-bytes", type=int, default=DEFAULT_STORAGE_LIMIT_BYTES
     )
     prepare_parser.add_argument(
@@ -302,6 +323,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     preflight_parser.add_argument(
         "--minimum-scratch-free-bytes", type=int, required=True
+    )
+    preflight_parser.add_argument(
+        "--source-bundle",
+        type=Path,
+        help="verified durable source bundle for a network-isolated compute node",
     )
     preflight_parser.add_argument("--probe-timeout-seconds", type=int, default=60)
 
@@ -524,6 +550,20 @@ def _run_phenix(args: argparse.Namespace, logger: logging.Logger) -> int:
 
 
 def _run_databases(args: argparse.Namespace) -> int:
+    if args.database_action == "stage-sources":
+        bundle = stage_source_bundle(
+            SourceBundleRequest(
+                database_root=args.database_root,
+                manifest_path=args.manifest,
+                storage_limit_bytes=args.storage_limit_bytes,
+                minimum_free_bytes=args.minimum_free_bytes,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Staged {len(bundle.resources)} durable database sources: {args.manifest}"
+        )
+        return 0
     if args.database_action == "preflight":
         result = preflight_database_administration(
             DatabasePreflightRequest(
@@ -536,6 +576,7 @@ def _run_databases(args: argparse.Namespace) -> int:
                     args.required_database_capacity_bytes
                 ),
                 minimum_scratch_free_bytes=args.minimum_scratch_free_bytes,
+                source_bundle_path=args.source_bundle,
                 probe_timeout_seconds=args.probe_timeout_seconds,
                 progress=not args.no_progress,
             )
@@ -564,6 +605,7 @@ def _run_databases(args: argparse.Namespace) -> int:
             lock_timeout_seconds=args.lock_timeout_seconds,
             scratch_root=args.scratch_root,
             minimum_scratch_free_bytes=args.minimum_scratch_free_bytes,
+            source_bundle_path=args.source_bundle,
             progress=not args.no_progress,
             pdb_sequence_url=args.pdb_sequence_url,
             pdb_coordinate_url_template=args.pdb_coordinate_url_template,

@@ -62,6 +62,14 @@ class PublicControlError(InputContractError):
     """Public-control source data or ground truth failed validation."""
 
 
+def _gemmi_version() -> str:
+    """Return Gemmi's runtime version without relying on incomplete type stubs."""
+    value = getattr(gemmi, "__version__", None)
+    if not isinstance(value, str) or not value:
+        raise PublicControlError("Gemmi did not expose a non-empty runtime version")
+    return value
+
+
 class PublicResourceSpec(ContractModel):
     """One immutable public source file required by the control."""
 
@@ -595,10 +603,11 @@ def prepare_public_control(
     if request.storage_limit_bytes < 1 or request.minimum_free_bytes < 0:
         raise ValueError("public-control storage bounds must be non-negative")
     spec = load_public_control_spec(request.specification)
-    if gemmi.__version__ != spec.derived_mtz.gemmi_version:
+    gemmi_version = _gemmi_version()
+    if gemmi_version != spec.derived_mtz.gemmi_version:
         raise PublicControlError(
             "Gemmi version differs from the frozen MTZ conversion: "
-            f"{gemmi.__version__} != {spec.derived_mtz.gemmi_version}"
+            f"{gemmi_version} != {spec.derived_mtz.gemmi_version}"
         )
     output_root = _safe_output_root(request.output_directory)
     proteome = _verify_regular_file(request.proteome_faa, label="proteome FASTA")
@@ -769,7 +778,7 @@ def prepare_public_control(
             "prepared_at": utc_now().isoformat(),
             "software": {
                 "nf_genome_to_diffraction": __version__,
-                "gemmi": gemmi.__version__,
+                "gemmi": gemmi_version,
             },
             "benchmark_class": spec.benchmark_class,
             "catalogue_ground_truth": {

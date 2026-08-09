@@ -50,9 +50,10 @@ All notable changes to this project are documented here.
   exclusive lock per database root to prevent cooperating runs from racing.
 - Retained incomplete resource staging now blocks automatic rebuilds, preventing
   repeated Foldseek failures from silently consuming another full allocation.
-- A fixed compute-node database preflight now verifies distinct scratch,
-  operator-declared capacity, pinned tools, and exact public routes before any
-  large payload starts, with structured logs, progress, and JSON evidence.
+- Fixed database inputs are now downloaded sequentially and resumably on the
+  Marmic login node into a content-addressed, full-checksum source bundle. The
+  compute preflight verifies that bundle, distinct scratch, declared capacity,
+  and pinned tools entirely offline before any extracted payload starts.
 - Large Foldseek and MMseqs2 temporary data can now use explicit distinct
   compute-node scratch with continuous headroom monitoring, process-group
   termination, and exact-child cleanup; no scratch fallback is inferred.
@@ -61,8 +62,8 @@ All notable changes to this project are documented here.
   long database administration stays outside routine HPC start approvals.
 - A separately approval-gated Marmic database profile now fingerprints a fixed
   external capacity/path contract, uses 8 CPUs/64 GB/48 hours, requires explicit
-  non-`/dev/shm` scratch, runs fixed-route preflight before payloads, and accepts
-  no arbitrary paths or shell fragments on its start commands.
+  non-`/dev/shm` scratch, uses an exact-URL local Foldseek source adapter, and
+  accepts no arbitrary paths or shell fragments on its start commands.
 - A tracked local-settings inventory documents recoverable removal and
   restoration of the installed HPC controller, its configuration/capabilities,
   Codex approval boundary, and the verified local Phenix selection/evidence.
