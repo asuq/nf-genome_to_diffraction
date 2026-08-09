@@ -4,7 +4,6 @@ import gzip
 import hashlib
 import importlib
 import json
-import logging
 import os
 import shlex
 import subprocess
@@ -165,9 +164,9 @@ def test_tool_version_uses_a_documented_version_subcommand(tmp_path: Path) -> No
 
 def test_tool_version_uses_nfs_tolerant_default_and_logs_elapsed_time(
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     observed_timeouts: list[float] = []
+    log_records: list[tuple[str, dict[str, object]]] = []
 
     def complete(
         command: list[str], **kwargs: object
@@ -180,12 +179,21 @@ def test_tool_version_uses_nfs_tolerant_default_and_logs_elapsed_time(
     monkeypatch.setattr(
         "genome_to_diffraction.databases.common.subprocess.run", complete
     )
-    with caplog.at_level(logging.INFO, logger="genome_to_diffraction.databases"):
-        assert tool_version("foldseek", arguments=("version",)) == "10.941cd33"
+    monkeypatch.setattr(
+        common_module._LOGGER,
+        "info",
+        lambda message, *, extra: log_records.append((message, extra)),
+    )
+    assert tool_version("foldseek", arguments=("version",)) == "10.941cd33"
 
     assert observed_timeouts == [180.0]
-    assert "version probe started" in caplog.messages
-    assert "version probe completed" in caplog.messages
+    assert [message for message, _ in log_records] == [
+        "version probe started",
+        "version probe completed",
+    ]
+    assert log_records[0][1]["timeout_seconds"] == 180.0
+    assert log_records[1][1]["version"] == "10.941cd33"
+    assert isinstance(log_records[1][1]["elapsed_seconds"], float)
 
 
 def test_tool_version_converts_timeout_to_database_error(
