@@ -304,8 +304,8 @@ def preflight_database_administration(
                 f"required={request.minimum_scratch_free_bytes}"
             )
 
-        foldseek_version = tool_version("foldseek")
-        mmseqs_version = tool_version("mmseqs")
+        foldseek_version = tool_version("foldseek", arguments=("version",))
+        mmseqs_version = tool_version("mmseqs", arguments=("version",))
         if "10.941cd33" not in foldseek_version:
             raise DatabaseError("Foldseek 10.941cd33 is required")
         if "18.8cc5c" not in mmseqs_version:

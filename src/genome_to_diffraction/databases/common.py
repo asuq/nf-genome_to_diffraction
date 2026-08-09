@@ -13,7 +13,7 @@ import shutil
 import signal
 import subprocess
 import threading
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
@@ -455,16 +455,38 @@ def verify_inventory(
     return len(raw_records), total_bytes
 
 
-def tool_version(executable: str) -> str:
-    """Return the first non-empty version line for an external database tool."""
+def tool_version(
+    executable: str,
+    *,
+    arguments: Sequence[str] = ("--version",),
+    timeout_seconds: float = 30,
+) -> str:
+    """Return the first version line using the tool's documented invocation."""
 
-    completed = subprocess.run(
-        [executable, "--version"],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    if not executable:
+        raise ValueError("version-probe executable must not be empty")
+    if not arguments or any(not argument for argument in arguments):
+        raise ValueError("version-probe arguments must not be empty")
+    if timeout_seconds <= 0:
+        raise ValueError("version-probe timeout must be positive")
+    command = [executable, *arguments]
+    try:
+        completed = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise DatabaseError(
+            f"version probe timed out after {timeout_seconds:g} seconds: "
+            f"{' '.join(command)}"
+        ) from error
+    except OSError as error:
+        raise DatabaseError(
+            f"cannot execute version probe for {executable}: {error}"
+        ) from error
     if completed.returncode != 0:
         raise DatabaseError(
             f"cannot determine {executable} version (exit {completed.returncode})"
@@ -472,7 +494,9 @@ def tool_version(executable: str) -> str:
     output = f"{completed.stdout}\n{completed.stderr}"
     line = next((item.strip() for item in output.splitlines() if item.strip()), "")
     if not line:
-        raise DatabaseError(f"{executable} --version returned no version text")
+        raise DatabaseError(
+            f"version probe returned no version text: {' '.join(command)}"
+        )
     return line
 
 
@@ -488,6 +512,7 @@ def run_command(
     scratch_roots: Sequence[Path] = (),
     minimum_scratch_free_bytes: int = 0,
     watchdog_interval_seconds: float = 20.0,
+    environment_overrides: Mapping[str, str] | None = None,
 ) -> None:
     """Run an argument array with scoped storage and process-group safeguards."""
 
@@ -499,6 +524,15 @@ def run_command(
         raise ValueError("scratch minimum free bytes must be positive")
     if not scratch_roots and minimum_scratch_free_bytes != 0:
         raise ValueError("scratch headroom requires an explicit scratch root")
+    if environment_overrides is not None and any(
+        not key or "=" in key or "\0" in key or "\0" in value
+        for key, value in environment_overrides.items()
+    ):
+        raise ValueError("database command environment override is invalid")
+    child_environment = None
+    if environment_overrides:
+        child_environment = os.environ.copy()
+        child_environment.update(environment_overrides)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     scoped_roots = _validated_write_roots(storage_root, write_roots)
     scoped_scratch = _validated_scratch_roots(storage_root, scratch_roots)
@@ -516,6 +550,7 @@ def run_command(
             "log": str(log_path),
             "write_roots": [str(root) for root in scoped_roots],
             "scratch_roots": [str(root) for root in scoped_scratch],
+            "environment_override_keys": sorted(environment_overrides or ()),
             "inactive_bytes": inactive_bytes,
         },
     )
@@ -589,6 +624,7 @@ def run_command(
             stderr=subprocess.STDOUT,
             text=True,
             start_new_session=True,
+            env=child_environment,
         )
         watchdog = threading.Thread(target=watch_storage, daemon=True)
         watchdog.start()

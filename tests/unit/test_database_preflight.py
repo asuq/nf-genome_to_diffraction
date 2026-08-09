@@ -61,7 +61,7 @@ def _mock_successful_system(
     )
     monkeypatch.setattr(
         "genome_to_diffraction.databases.preflight.tool_version",
-        lambda executable: (
+        lambda executable, **_kwargs: (
             "foldseek 10.941cd33" if executable == "foldseek" else "mmseqs 18.8cc5c"
         ),
     )

@@ -82,7 +82,10 @@ job, so the fixed fallback creates a unique mode-0700 parent below the
 established compute-node `/scratch/$USER` root. The job removes that parent at
 finalisation and still rejects `/dev/shm`, an overlapping/shared device, or
 insufficient scratch capacity before a large payload starts. All database
-command scratch lives below one job-owned child.
+execution state lives below one job-owned child. Foldseek download targets, its
+downloader tmp argument, and its inherited `TMPDIR` all remain below the durable
+database staging root; compute scratch is not a database-transfer destination.
+MMseqs2 may use the job-owned scratch child for disposable index workspace.
 Failed durable resource staging is intentionally retained and blocks an
 automatic second database-sized attempt.
 

@@ -399,8 +399,11 @@ an existing canonical owned directory on a different filesystem. When a site
 does not export `SLURM_TMPDIR`, the fixed database job creates one unique
 mode-0700 parent below compute-node `/scratch/$USER` and removes it at
 finalisation. Both routes reject `/dev/shm`, shared-device scratch, and
-insufficient headroom before a payload starts. Foldseek archives and MMseqs2
-index workspace are disposable there, while immutable database content remains
+insufficient headroom before a payload starts. Foldseek archives, its downloader
+temporary area, its inherited `TMPDIR`, and the PDB SEQRES download are written
+directly below the durable database staging root, not to compute-node scratch.
+Only disposable execution state and MMseqs2 index workspace use
+`/scratch/$USER`; immutable database content and Foldseek transfer state remain
 under the durable database root.
 
 The approval-gated database staging operation materialises the frozen per-run

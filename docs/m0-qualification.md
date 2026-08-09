@@ -282,13 +282,14 @@ versions, fixed routes, redirect targets, representation sizes, validators, and
 `large_payload_started: false`. It sends no biological input or credentials.
 Generic login-node connectivity is not qualifying evidence.
 
-When explicit compute-node scratch is supplied to preparation, the large
-Foldseek download/extraction temporary files and MMseqs2 index workspace use a
-unique disposable child there. Immutable outputs remain under the shared
-database root. The command watchdog measures both roots, logs their usage and
-free space, terminates the complete process group on either headroom violation,
-and removes only its exact scratch child. There is no implicit `/dev/shm`
-fallback.
+Foldseek download targets, the downloader's tmp argument, and its inherited
+`TMPDIR` all remain under a resource staging directory on the durable database
+filesystem. They are not written to compute-node scratch. When explicit
+compute-node scratch is supplied, only disposable execution state and MMseqs2
+index workspace use a unique child there. The command watchdog measures both
+roots, logs their usage and free space, terminates the complete process group on
+either headroom violation, and removes only its exact scratch child. There is no
+implicit `/dev/shm` fallback.
 
 The public-resource transport boundary is also fail-safe. A partial download is
 resumable only when its atomically recorded URL, effective redirect URL,
@@ -385,6 +386,17 @@ per-run frozen `hpc` environment on the network-capable login node; the compute
 job performs an offline Pixi verification before using its executables. This
 preserves the exact commit/lock binding without assuming compute-node internet
 access.
+
+Revision `5b2c9f9ef75bfa5831c0abab153a17d34d3db04e` and Slurm job `625515`
+confirmed that hand-off: `/scratch/$USER` selection and offline Pixi
+verification passed, and the capped durable root reported
+`1,043,877,462,016` filesystem-free bytes with no project content yet. Preflight
+then failed before route probes or payload creation because the generic
+`foldseek --version` probe did not terminate within 30 seconds. Foldseek and
+MMseqs2 document `foldseek version` and `mmseqs version`; the implementation now
+uses those explicit subcommands while retaining `aria2c --version`. Timeout and
+execution errors are converted to actionable database errors. Scratch cleanup
+succeeded, and no durable resource staging was created.
 
 The corrected Python probe subsequently completed against all five fixed routes
 from the local development environment. It recorded the two Foldseek archives,

@@ -752,7 +752,6 @@ def _prepare_foldseek_resource(
     request: DatabasePreparationRequest,
     database_root: Path,
     name: str,
-    administration_scratch: Path,
 ) -> DatabaseResource:
     if not request.force_rebuild:
         current = _current_root(database_root, name)
@@ -765,36 +764,34 @@ def _prepare_foldseek_resource(
             )
     if request.verify_only:
         raise DatabaseError(f"verify-only mode cannot build missing resource: {name}")
-    foldseek_version = tool_version("foldseek")
+    foldseek_version = tool_version("foldseek", arguments=("version",))
     staging = _staging(database_root, name)
     database_name = "PDB" if name == "pdb_foldseek" else "ProstT5"
     prefix_name = "pdb" if name == "pdb_foldseek" else "weights"
     download_log = _log_path(database_root, name, "download")
     try:
-        with _command_scratch(request, staging, administration_scratch, name) as (
-            tool_scratch,
-            scratch_roots,
-            minimum_scratch_free_bytes,
-        ):
-            run_command(
-                [
-                    "foldseek",
-                    "databases",
-                    database_name,
-                    str(staging / prefix_name),
-                    str(tool_scratch),
-                ],
-                log_path=download_log,
-                storage_root=database_root,
-                write_roots=(staging,),
-                storage_limit_bytes=request.storage_limit_bytes,
-                minimum_free_bytes=request.minimum_free_bytes,
-                progress=request.progress,
-                scratch_roots=scratch_roots,
-                minimum_scratch_free_bytes=minimum_scratch_free_bytes,
-            )
-        if request.scratch_root is None:
-            shutil.rmtree(staging / "tmp", ignore_errors=True)
+        # Foldseek's downloader may use its tmp argument for archive payloads.
+        # Keep both that tmp area and the final output on durable storage so a
+        # compute-node scratch limit cannot truncate a database transfer.
+        tool_scratch = staging / "tmp"
+        tool_scratch.mkdir()
+        run_command(
+            [
+                "foldseek",
+                "databases",
+                database_name,
+                str(staging / prefix_name),
+                str(tool_scratch),
+            ],
+            log_path=download_log,
+            storage_root=database_root,
+            write_roots=(staging,),
+            storage_limit_bytes=request.storage_limit_bytes,
+            minimum_free_bytes=request.minimum_free_bytes,
+            progress=request.progress,
+            environment_overrides={"TMPDIR": str(tool_scratch)},
+        )
+        shutil.rmtree(tool_scratch)
         retrieved_at = utc_now()
         pdb_snapshot = (
             _parse_foldseek_pdb_snapshot(staging / "pdb.version")
@@ -1155,7 +1152,7 @@ def _prepare_pdb_sequences(
         )
     if request.verify_only:
         raise DatabaseError(f"verify-only mode cannot build missing resource: {name}")
-    mmseqs_version = tool_version("mmseqs")
+    mmseqs_version = tool_version("mmseqs", arguments=("version",))
     staging = _staging(database_root, name)
     retrieved_at = utc_now()
     try:
@@ -1259,7 +1256,7 @@ def _smoke_prostt5(
     persist: bool,
 ) -> tuple[DatabaseResource, dict[str, JsonValue]]:
     root = Path(resource.root_path)
-    current_version = tool_version("foldseek")
+    current_version = tool_version("foldseek", arguments=("version",))
     if current_version != resource.prepared_with.version:
         raise DatabaseError("current Foldseek version differs from ProstT5 provenance")
     with tempfile.TemporaryDirectory(
@@ -1436,7 +1433,7 @@ def _smoke_pdb_foldseek(
     *,
     persist: bool,
 ) -> tuple[DatabaseResource, DatabaseResource, dict[str, JsonValue]]:
-    current_version = tool_version("foldseek")
+    current_version = tool_version("foldseek", arguments=("version",))
     if (
         current_version != pdb.prepared_with.version
         or current_version != prostt5.prepared_with.version
@@ -1891,12 +1888,10 @@ def _prepare_locked(
     )
     resources: dict[str, DatabaseResource] = {}
     if request.prepare_prostt5:
-        resources["prostt5"] = _prepare_foldseek_resource(
-            request, root, "prostt5", administration_scratch
-        )
+        resources["prostt5"] = _prepare_foldseek_resource(request, root, "prostt5")
     if request.prepare_pdb_foldseek:
         resources["pdb_foldseek"] = _prepare_foldseek_resource(
-            request, root, "pdb_foldseek", administration_scratch
+            request, root, "pdb_foldseek"
         )
     if request.prepare_pdb_sequences:
         resources["pdb_sequences"] = _prepare_pdb_sequences(
@@ -1922,7 +1917,7 @@ def _prepare_locked(
     verification_checks: dict[str, JsonValue] = {}
     if request.verify_only:
         if sequences is not None:
-            current_mmseqs = tool_version("mmseqs")
+            current_mmseqs = tool_version("mmseqs", arguments=("version",))
             if current_mmseqs != sequences.prepared_with.version:
                 raise DatabaseError(
                     "current MMseqs2 version differs from PDB-sequence provenance"

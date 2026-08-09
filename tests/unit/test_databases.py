@@ -5,6 +5,7 @@ import hashlib
 import importlib
 import json
 import os
+import subprocess
 import threading
 import time
 from collections.abc import Callable
@@ -27,6 +28,7 @@ from genome_to_diffraction.databases.common import (
     DatabaseCommandError,
     DatabaseError,
     inventory_resource,
+    tool_version,
     verify_inventory,
 )
 from genome_to_diffraction.databases.prepare import (
@@ -134,10 +136,44 @@ def test_database_root_lock_timeout_fails_without_starting_work(tmp_path: Path) 
     assert not request.manifest_path.exists()
 
 
+def test_tool_version_uses_a_documented_version_subcommand(tmp_path: Path) -> None:
+    bin_directory = tmp_path / "tool bin"
+    bin_directory.mkdir()
+    executable = bin_directory / "foldseek"
+    executable.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        '[[ "${1-}" == version ]] || exit 64\n'
+        "printf '10.941cd33\\n'\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o755)
+
+    assert tool_version(str(executable), arguments=("version",)) == "10.941cd33"
+
+
+def test_tool_version_converts_timeout_to_database_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def time_out(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd=["foldseek", "version"], timeout=0.5)
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.databases.common.subprocess.run", time_out
+    )
+
+    with pytest.raises(DatabaseError, match="version probe timed out"):
+        tool_version(
+            "foldseek",
+            arguments=("version",),
+            timeout_seconds=0.5,
+        )
+
+
 def _write_mock_tool(path: Path, name: str) -> None:
     script = f"""#!/usr/bin/env bash
 set -euo pipefail
-if [[ "${{1-}}" == "--version" ]]; then
+if [[ "${{1-}}" == "--version" || "${{1-}}" == "version" ]]; then
   printf '{name} mock-1.0\n'
   exit 0
 fi
@@ -149,6 +185,9 @@ case "${{1-}}" in
     fi
     if [[ -n "${{FAKE_DATABASE_TMP_RECORD:-}}" ]]; then
       printf '%s\n' "$4" >> "$FAKE_DATABASE_TMP_RECORD"
+    fi
+    if [[ -n "${{FAKE_DATABASE_TMPDIR_RECORD:-}}" ]]; then
+      printf '%s\n' "${{TMPDIR:-}}" >> "$FAKE_DATABASE_TMPDIR_RECORD"
     fi
     mkdir -p "$(dirname "$3")"
     printf '%s\n' "$2 database" > "$3"
@@ -656,14 +695,16 @@ def test_pdb_foldseek_rejects_malformed_provider_snapshot(
     assert len(retained) == 1
 
 
-def test_large_foldseek_temporary_payload_uses_and_cleans_explicit_scratch(
+def test_foldseek_download_and_temporary_payload_stay_on_durable_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     request = _mocked_full_request(tmp_path, monkeypatch)
     scratch = tmp_path / "compute scratch"
     scratch.mkdir()
     scratch_record = tmp_path / "scratch-record.txt"
+    tmpdir_record = tmp_path / "tmpdir-record.txt"
     monkeypatch.setenv("FAKE_DATABASE_TMP_RECORD", str(scratch_record))
+    monkeypatch.setenv("FAKE_DATABASE_TMPDIR_RECORD", str(tmpdir_record))
     monkeypatch.setattr(
         prepare_module,
         "_device_id",
@@ -685,7 +726,10 @@ def test_large_foldseek_temporary_payload_uses_and_cleans_explicit_scratch(
     assert len(manifest.resources) == 4
     recorded = scratch_record.read_text(encoding="utf-8").splitlines()
     assert len(recorded) == 2
-    assert all(Path(path).is_relative_to(scratch) for path in recorded)
+    assert all(Path(path).is_relative_to(request.database_root) for path in recorded)
+    assert all(not Path(path).is_relative_to(scratch) for path in recorded)
+    inherited_tmpdirs = tmpdir_record.read_text(encoding="utf-8").splitlines()
+    assert inherited_tmpdirs == recorded
     assert list(scratch.iterdir()) == []
 
 
