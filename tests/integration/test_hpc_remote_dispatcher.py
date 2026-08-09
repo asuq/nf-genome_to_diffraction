@@ -1126,6 +1126,27 @@ def test_database_failed_staging_archive_reports_absent_directory(
         "failed-staging directory is absent or cannot be resolved"
     )
 
+    failed.mkdir()
+    (failed / "target.txt").write_text("evidence\n", encoding="ascii")
+    (failed / "link.txt").symlink_to("target.txt")
+    symlink_rejected = _run(
+        [
+            str(dispatcher),
+            "database-archive-failed",
+            DATABASE_RUN_ID,
+            OWNER_ID,
+            DATABASE_RUN_ID,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    symlink_fields = _decode_protocol(symlink_rejected.stdout)
+    assert symlink_fields["failure_class"] == "filesystem_failure"
+    assert symlink_fields["message"] == (
+        "failed-staging directory contains a symbolic link"
+    )
+
 
 @pytest.mark.parametrize(
     "storage_limit",

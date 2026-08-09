@@ -918,9 +918,12 @@ require_database_failed_staging() {
     [[ "$resolved" == "$candidate" && -d "$candidate" && ! -L "$candidate" && \
         -O "$candidate" ]] || \
         fail filesystem_failure "failed-staging directory is non-canonical, unsafe, or foreign-owned"
+    unsafe="$(find "$candidate" -xdev -type l -print -quit)"
+    [[ -z "$unsafe" ]] || \
+        fail filesystem_failure "failed-staging directory contains a symbolic link"
     unsafe="$(find "$candidate" -xdev \( ! -type d -a ! -type f \) -print -quit)"
     [[ -z "$unsafe" ]] || \
-        fail filesystem_failure "failed-staging directory contains a special file"
+        fail filesystem_failure "failed-staging directory contains a non-file entry"
     unsafe="$(find "$candidate" -xdev ! -user "$(id -u)" -print -quit)"
     [[ -z "$unsafe" ]] || \
         fail filesystem_failure "failed-staging directory contains foreign-owned content"
