@@ -40,6 +40,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     readiness.add_argument("profile", choices=("p0",))
 
+    p0_configure = actions.add_parser(
+        "p0-configure",
+        help="install one absent validated P0 site-path configuration",
+    )
+    p0_configure.add_argument("--paths-file", type=Path, required=True)
+    p0_configure.add_argument("--confirm-sha256", required=True)
+
     actions.add_parser(
         "database-readiness",
         help="inspect the separate fixed database-administration prerequisites",
@@ -56,7 +63,9 @@ def _build_parser() -> argparse.ArgumentParser:
     database_submit.add_argument("--run-id", required=True)
     database_archive = actions.add_parser(
         "database-archive-failed",
-        help="archive one reviewed failed database staging without deleting it",
+        help=(
+            "archive reviewed retained staging from a failed or cancelled database run"
+        ),
     )
     database_archive.add_argument("--run-id", required=True)
     database_archive.add_argument("--confirm", required=True)
@@ -96,6 +105,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.deploy_tools(args.revision)
     if args.operation == "readiness":
         return controller.readiness(args.profile)
+    if args.operation == "p0-configure":
+        return controller.p0_configure(args.paths_file, args.confirm_sha256)
     if args.operation == "database-readiness":
         return controller.database_readiness()
     if args.operation == "database-stage":

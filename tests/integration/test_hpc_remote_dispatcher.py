@@ -1006,7 +1006,7 @@ def test_database_failed_staging_is_archived_without_deletion_or_path_input(
     assert record["source"] == str(failed)
     assert record["destination"] == str(destination)
     assert record["symlink_count"] == 1
-    assert "database_failed_staging_archived" in (run / "events.jsonl").read_text()
+    assert "database_retained_staging_archived" in (run / "events.jsonl").read_text()
     archive_path = tmp_path / "archived-failure-evidence.tar.gz"
     archive_path.write_bytes(
         _run(
@@ -1079,6 +1079,121 @@ def test_database_failed_staging_archive_rejects_config_drift(tmp_path: Path) ->
     assert fields["failure_class"] == "wrapper_failure"
     assert "configuration changed" in fields["message"]
     assert failed.is_dir()
+
+
+def test_cancelled_database_staging_requires_terminal_scheduler_state(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    config = _write_database_paths(remote_root)
+    run = remote_root / "runs" / DATABASE_RUN_ID
+    (run / "state").mkdir(parents=True)
+    (run / "logs").mkdir()
+    (run / "state" / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (run / "state" / "profile").write_text("database\n", encoding="ascii")
+    (run / "state" / "phase").write_text("cancel_requested\n", encoding="ascii")
+    (run / "state" / "job-id").write_text("123\n", encoding="ascii")
+    (run / "state" / "database-config-sha256").write_text(
+        f"{hashlib.sha256(config.read_bytes()).hexdigest()}\n", encoding="ascii"
+    )
+    staging = (
+        remote_root
+        / "database-admin"
+        / "databases"
+        / "resources"
+        / "prostt5"
+        / f".staging-{'d' * 32}"
+    )
+    staging.mkdir(parents=True)
+    (staging / "partial.tar.gz").write_bytes(b"preserved partial\n")
+    (run / "logs" / "database.log").write_text(
+        json.dumps(
+            {
+                "message": "starting database command",
+                "write_roots": [str(staging)],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="ascii",
+    )
+
+    running_environment = dict(environment)
+    running_environment["FAKE_SQUEUE_STATE"] = "RUNNING"
+    active = _run(
+        [
+            str(dispatcher),
+            "database-archive-failed",
+            DATABASE_RUN_ID,
+            OWNER_ID,
+            DATABASE_RUN_ID,
+        ],
+        cwd=tmp_path,
+        environment=running_environment,
+        success=False,
+    )
+    assert _decode_protocol(active.stdout)["failure_class"] == "scheduler_rejection"
+    assert staging.is_dir()
+
+    cancelled_environment = dict(environment)
+    cancelled_environment["FAKE_SACCT_STATE"] = "CANCELLED"
+    (run / "logs" / "database.log").write_text(
+        json.dumps(
+            {
+                "message": "starting database command",
+                "write_roots": [str(staging), str(staging / "second")],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    multiple_roots = _run(
+        [
+            str(dispatcher),
+            "database-archive-failed",
+            DATABASE_RUN_ID,
+            OWNER_ID,
+            DATABASE_RUN_ID,
+        ],
+        cwd=tmp_path,
+        environment=cancelled_environment,
+        success=False,
+    )
+    assert _decode_protocol(multiple_roots.stdout)["message"] == (
+        "cancelled command has multiple write roots"
+    )
+    (run / "logs" / "database.log").write_text(
+        json.dumps(
+            {
+                "message": "starting database command",
+                "write_roots": [str(staging)],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    archived = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "database-archive-failed",
+                DATABASE_RUN_ID,
+                OWNER_ID,
+                DATABASE_RUN_ID,
+            ],
+            cwd=tmp_path,
+            environment=cancelled_environment,
+        ).stdout
+    )
+    destination = Path(archived["destination"])
+    assert archived["archived"] == "true"
+    assert archived["file_count"] == "1"
+    assert not staging.exists()
+    assert destination.is_dir()
+    assert (destination / "partial.tar.gz").read_bytes() == b"preserved partial\n"
 
 
 def test_database_failed_staging_archive_reports_absent_directory(
@@ -1225,6 +1340,64 @@ def test_p0_readiness_is_sanitised_and_creates_no_run(tmp_path: Path) -> None:
     assert unsafe_fields["ready"] == "false"
     assert unsafe_fields["p0_config_status"] == "unsafe_path"
     assert not (tmp_path / "bad").exists()
+
+
+def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    p0_config = _write_p0_paths(remote_root)
+    lines = p0_config.read_text(encoding="ascii").splitlines()
+    lines[0] = str(remote_root)
+    payload = ("\n".join(lines) + "\n").encode("ascii")
+    checksum = hashlib.sha256(payload).hexdigest()
+    p0_config.unlink()
+    environment["HOME"] = str(remote_root)
+
+    configured = _run(
+        [
+            str(dispatcher),
+            "p0-configure",
+            checksum,
+            base64.b64encode(payload).decode("ascii"),
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    fields = _decode_protocol(configured.stdout)
+    assert fields == {
+        "operation": "p0-configure",
+        "configured": "true",
+        "p0_config_sha256": checksum,
+        "p0_config_status": "ready",
+    }
+    assert p0_config.read_bytes() == payload
+    assert p0_config.stat().st_mode & 0o777 == 0o600
+    ready = _decode_protocol(
+        _run(
+            [str(dispatcher), "readiness", "p0"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert ready["ready"] == "true"
+
+    repeated = _run(
+        [
+            str(dispatcher),
+            "p0-configure",
+            checksum,
+            base64.b64encode(payload).decode("ascii"),
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(repeated.stdout)["message"] == (
+        "P0 configuration already exists"
+    )
 
 
 def test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes(

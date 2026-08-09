@@ -126,23 +126,24 @@ path_within_root() {
 p0_config_readiness() {
     local allowed candidate resolved index
     local -a values=()
+    local config_path="${1:-$P0_CONFIG}"
     P0_CONFIG_STATUS=unknown
     P0_CONFIG_SHA256=""
     P0_DATABASE_MANIFEST=""
-    if [[ ! -f "$P0_CONFIG" || -L "$P0_CONFIG" || ! -O "$P0_CONFIG" ]]; then
+    if [[ ! -f "$config_path" || -L "$config_path" || ! -O "$config_path" ]]; then
         P0_CONFIG_STATUS=absent_or_unsafe
         return 1
     fi
-    if [[ "$(stat -c '%a' "$P0_CONFIG")" != 600 ]]; then
+    if [[ "$(stat -c '%a' "$config_path")" != 600 ]]; then
         P0_CONFIG_STATUS=mode_mismatch
         return 1
     fi
-    P0_CONFIG_SHA256="$(sha256sum "$P0_CONFIG" | awk '{print $1}')"
+    P0_CONFIG_SHA256="$(sha256sum "$config_path" | awk '{print $1}')"
     if [[ ! "$P0_CONFIG_SHA256" =~ $CHECKSUM_RE ]]; then
         P0_CONFIG_STATUS=checksum_failure
         return 1
     fi
-    mapfile -t values < "$P0_CONFIG"
+    mapfile -t values < "$config_path"
     if [[ "${#values[@]}" -ne 7 ]]; then
         P0_CONFIG_STATUS=line_count_mismatch
         return 1
@@ -155,8 +156,7 @@ p0_config_readiness() {
     done
     if ! allowed="$(realpath -e "${values[0]}" 2>/dev/null)" || \
         [[ "$allowed" != "${values[0]}" || ! -d "$allowed" || -L "${values[0]}" || \
-           ! -O "${values[0]}" || "$allowed" == / || \
-           "$allowed" == "${HOME:-}" ]]; then
+           ! -O "${values[0]}" || "$allowed" == / ]]; then
         P0_CONFIG_STATUS=allowed_root_invalid
         return 1
     fi
@@ -217,6 +217,57 @@ readiness_p0() {
     emit p0_config_status "$P0_CONFIG_STATUS"
     emit p0_config_sha256 "$P0_CONFIG_SHA256"
     emit scope staging_prerequisites_only
+}
+
+p0_configure() {
+    [[ "$#" -eq 2 ]] || \
+        fail wrapper_failure "p0-configure expects a checksum and encoded paths"
+    local expected_checksum="$1"
+    local encoded="$2"
+    local config_directory resolved temporary actual_checksum status size
+    [[ "$expected_checksum" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "P0 configuration checksum is invalid"
+    [[ -n "$encoded" && "${#encoded}" -le 5464 && \
+        "$encoded" =~ ^[A-Za-z0-9+/=]+$ ]] || \
+        fail wrapper_failure "encoded P0 configuration is invalid"
+    [[ ! -e "$P0_CONFIG" && ! -L "$P0_CONFIG" ]] || \
+        fail wrapper_failure "P0 configuration already exists"
+    config_directory="$(dirname "$P0_CONFIG")"
+    resolved="$(realpath -e "$config_directory" 2>/dev/null)" || \
+        fail filesystem_failure "P0 configuration directory cannot be resolved"
+    [[ "$resolved" == "$config_directory" && -d "$config_directory" && \
+        ! -L "$config_directory" && -O "$config_directory" ]] || \
+        fail filesystem_failure "P0 configuration directory is unsafe"
+    temporary="${P0_CONFIG}.tmp.$$"
+    if ! printf '%s' "$encoded" | base64 -d > "$temporary"; then
+        rm -f -- "$temporary"
+        fail transfer_failure "P0 configuration payload cannot be decoded"
+    fi
+    chmod 0600 "$temporary"
+    size="$(file_size "$temporary")"
+    if [[ ! "$size" =~ $BYTE_COUNT_RE ]] || (( size < 1 || size > 4096 )); then
+        rm -f -- "$temporary"
+        fail wrapper_failure "P0 configuration payload size is invalid"
+    fi
+    actual_checksum="$(sha256sum "$temporary" | awk '{print $1}')"
+    if [[ "$actual_checksum" != "$expected_checksum" ]]; then
+        rm -f -- "$temporary"
+        fail transfer_failure "P0 configuration checksum does not match"
+    fi
+    if ! p0_config_readiness "$temporary"; then
+        status="$P0_CONFIG_STATUS"
+        rm -f -- "$temporary"
+        fail environment_failure "P0 configuration is not ready: $status"
+    fi
+    if ! ln "$temporary" "$P0_CONFIG"; then
+        rm -f -- "$temporary"
+        fail filesystem_failure "P0 configuration could not be created atomically"
+    fi
+    rm -f -- "$temporary"
+    emit operation p0-configure
+    emit configured true
+    emit p0_config_sha256 "$expected_checksum"
+    emit p0_config_status ready
 }
 
 database_config_readiness() {
@@ -889,26 +940,45 @@ database_diagnostic_log() {
     printf '%s' "$candidate"
 }
 
-require_database_failed_staging() {
-    [[ "$#" -eq 1 ]] || \
-        fail wrapper_failure "failed-staging resolver expects one application log"
+require_database_retained_staging() {
+    [[ "$#" -eq 2 ]] || \
+        fail wrapper_failure "retained-staging resolver expects a log and mode"
     local application_log="$1"
-    local line candidate="" basename resource resource_root resolved unsafe link link_resolved
+    local allow_active="$2"
+    local line candidate="" remainder basename resource resource_root resolved unsafe link link_resolved
     local link_count=0
-    DATABASE_FAILED_STAGING=""
-    DATABASE_FAILED_STAGING_SYMLINK_COUNT=0
+    [[ "$allow_active" == true || "$allow_active" == false ]] || \
+        fail wrapper_failure "retained-staging resolver mode is invalid"
+    DATABASE_RETAINED_STAGING=""
+    DATABASE_RETAINED_STAGING_SYMLINK_COUNT=0
     while IFS= read -r line; do
         [[ "$line" == *'"staging_path": "'* ]] || continue
         candidate="${line#*\"staging_path\": \"}"
         candidate="${candidate%%\"*}"
     done < "$application_log"
+    if [[ -z "$candidate" && "$allow_active" == true ]]; then
+        while IFS= read -r line; do
+            [[ "$line" == *'"message": "starting database command"'* ]] || continue
+            [[ "$line" == *'"write_roots": ["'* ]] || continue
+            remainder="${line#*\"write_roots\": [\"}"
+            candidate="${remainder%%\"*}"
+            remainder="${remainder#*\"}"
+            [[ "$remainder" == ']'* ]] || \
+                fail filesystem_failure "cancelled command has multiple write roots"
+        done < "$application_log"
+    fi
     [[ -n "$candidate" ]] || \
-        fail filesystem_failure "failed-staging path is absent from the application log"
+        fail filesystem_failure "retained-staging path is absent from the application log"
     [[ "$candidate" =~ $SAFE_PATH_RE ]] || \
-        fail filesystem_failure "failed-staging path contains unsafe characters"
+        fail filesystem_failure "retained-staging path contains unsafe characters"
     basename="${candidate##*/}"
-    [[ "$basename" =~ ^\.staging-[0-9a-f]{32}\.failed$ ]] || \
-        fail filesystem_failure "failed-staging basename is not recognised"
+    if [[ "$allow_active" == true ]]; then
+        [[ "$basename" =~ ^\.staging-[0-9a-f]{32}(\.failed)?$ ]] || \
+            fail filesystem_failure "retained-staging basename is not recognised"
+    else
+        [[ "$basename" =~ ^\.staging-[0-9a-f]{32}\.failed$ ]] || \
+            fail filesystem_failure "failed-staging basename is not recognised"
+    fi
     resource_root="$(dirname "$candidate")"
     resource="${resource_root##*/}"
     [[ "$resource" =~ ^(coordinate_cache|pdb_foldseek|pdb_sequences|prostt5)$ ]] || \
@@ -933,8 +1003,8 @@ require_database_failed_staging() {
     unsafe="$(find "$candidate" -xdev ! -user "$(id -u)" -print -quit)"
     [[ -z "$unsafe" ]] || \
         fail filesystem_failure "failed-staging directory contains foreign-owned content"
-    DATABASE_FAILED_STAGING="$candidate"
-    DATABASE_FAILED_STAGING_SYMLINK_COUNT="$link_count"
+    DATABASE_RETAINED_STAGING="$candidate"
+    DATABASE_RETAINED_STAGING_SYMLINK_COUNT="$link_count"
 }
 
 logs_run() {
@@ -1015,9 +1085,9 @@ database_archive_failed_run() {
     local run_id="$1"
     local owner_id="$2"
     local confirmation="$3"
-    local run profile phase failure_class expected_config source destination
+    local run profile phase failure_class="" expected_config source destination
     local basename file_count=0 total_bytes=0 timestamp record temporary candidate size
-    local symlink_count=0
+    local symlink_count=0 allow_active=false job_id queue_state sacct_line scheduler_state
     require_owned_run "$run_id" "$owner_id"
     [[ "$confirmation" == "$run_id" ]] || \
         fail wrapper_failure "database archive confirmation does not match"
@@ -1026,12 +1096,36 @@ database_archive_failed_run() {
     profile="$(<"$run/state/profile")"
     [[ "$profile" == database ]] || \
         fail wrapper_failure "database archive requires a database run"
-    [[ -f "$run/state/phase" && -f "$run/state/failure-class" ]] || \
-        fail wrapper_failure "terminal database state is incomplete"
+    [[ -f "$run/state/phase" ]] || \
+        fail wrapper_failure "terminal database phase is absent"
     phase="$(<"$run/state/phase")"
-    failure_class="$(<"$run/state/failure-class")"
-    [[ "$phase" == completed && "$failure_class" == software_failure ]] || \
-        fail wrapper_failure "database archive requires a completed software failure"
+    if [[ "$phase" == completed ]]; then
+        [[ -f "$run/state/failure-class" ]] || \
+            fail wrapper_failure "terminal database failure class is absent"
+        failure_class="$(<"$run/state/failure-class")"
+        [[ "$failure_class" == software_failure ]] || \
+            fail wrapper_failure "database archive requires a software failure"
+    elif [[ "$phase" == cancel_requested ]]; then
+        [[ -f "$run/state/job-id" ]] || \
+            fail wrapper_failure "cancelled database job ID is absent"
+        job_id="$(<"$run/state/job-id")"
+        [[ "$job_id" =~ $INTEGER_RE ]] || \
+            fail wrapper_failure "cancelled database job ID is invalid"
+        queue_state="$(scheduler_queue_state "$job_id")"
+        [[ -z "$queue_state" ]] || \
+            fail scheduler_rejection "cancelled database job is still active"
+        sacct_line="$({
+            sacct -n -P -j "$job_id" --format=State,ExitCode 2>/dev/null || true
+        } | awk -F'|' 'NF >= 2 {print; exit}')"
+        scheduler_state="${sacct_line%%|*}"
+        scheduler_state="${scheduler_state%% *}"
+        scheduler_state="${scheduler_state%%+*}"
+        [[ "$scheduler_state" == CANCELLED ]] || \
+            fail scheduler_rejection "database cancellation is not terminal"
+        allow_active=true
+    else
+        fail wrapper_failure "database archive requires a terminal reviewed run"
+    fi
     [[ -f "$run/logs/database.log" && ! -L "$run/logs/database.log" && \
         -O "$run/logs/database.log" ]] || \
         fail filesystem_failure "database application log is missing or unsafe"
@@ -1043,9 +1137,9 @@ database_archive_failed_run() {
     [[ "$expected_config" =~ $CHECKSUM_RE && \
         "$expected_config" == "$DATABASE_CONFIG_SHA256" ]] || \
         fail wrapper_failure "database configuration changed after the failed run"
-    require_database_failed_staging "$run/logs/database.log"
-    source="$DATABASE_FAILED_STAGING"
-    symlink_count="$DATABASE_FAILED_STAGING_SYMLINK_COUNT"
+    require_database_retained_staging "$run/logs/database.log" "$allow_active"
+    source="$DATABASE_RETAINED_STAGING"
+    symlink_count="$DATABASE_RETAINED_STAGING_SYMLINK_COUNT"
     basename="${source##*/}"
     destination="$(dirname "$source")/${basename%.failed}.reviewed-${run_id}"
     [[ ! -e "$destination" && ! -L "$destination" ]] || \
@@ -1077,7 +1171,7 @@ database_archive_failed_run() {
 }
 EOF
     mv -f -- "$temporary" "$record"
-    append_event "$run" "database_failed_staging_archived"
+    append_event "$run" "database_retained_staging_archived"
     emit operation database-archive-failed
     emit run_id "$run_id"
     emit archived true
@@ -1199,6 +1293,7 @@ main() {
     case "$operation" in
         deploy-tools) deploy_tools "$@" ;;
         readiness) readiness_p0 "$@" ;;
+        p0-configure) p0_configure "$@" ;;
         database-readiness) database_readiness "$@" ;;
         stage) stage_run "$@" ;;
         database-stage) database_stage_run "$@" ;;

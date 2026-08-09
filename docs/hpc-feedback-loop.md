@@ -97,7 +97,9 @@ finalisation and still rejects `/dev/shm`, an overlapping/shared device, or
 insufficient scratch capacity before a large payload starts. All database
 execution state lives below one job-owned child. The compute job verifies the
 source bundle byte-for-byte and maps Foldseek's three fixed URLs to local
-`file://` objects with an allow-listing adapter; any other HTTP(S) request fails.
+objects by shadowing its aria2/curl/wget fallback chain with staging-confined,
+allow-listed local-copy shims; any other HTTP(S) request fails without invoking
+a network client.
 Foldseek output and extraction temporary files remain below durable resource
 staging. MMseqs2 may use the job-owned scratch child for disposable index
 workspace. Failed durable resource staging is intentionally retained and blocks
@@ -195,9 +197,10 @@ nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test collect --run-id RUN_ID
 ```
 
-If a collected database run retains failed extraction or indexing staging,
-review its main and cited command logs first. The separately approval-gated
-recovery operation accepts no path and requires the exact owned run ID twice:
+If a collected database run retains extraction or indexing staging after a
+software failure or explicit cancellation, review its main and cited command
+logs first. The separately approval-gated recovery operation accepts no path and
+requires the exact owned run ID twice:
 
 ```bash
 nf-gtd-hpc-test database-archive-failed \
@@ -205,17 +208,22 @@ nf-gtd-hpc-test database-archive-failed \
   --confirm RUN_ID
 ```
 
-The dispatcher requires a completed `software_failure`, the unchanged external
-configuration fingerprint, the fixed database profile, and an owner-controlled
-regular directory cited by the run log directly below one recognised resource
-root. Existing symbolic links are preserved only when their resolved targets
-remain inside that same staging tree. It rejects broken or escaping links,
-other non-file entries, foreign ownership, and escaped paths. Success atomically
-renames the directory to a run-qualified `.reviewed-*` archive and records its
-original path, destination, regular-file count, symbolic-link count, and regular
-file bytes. It deletes no evidence but releases the resource's `.failed` build
-guard. Never run this before collection and diagnosis, and do not include it in
-automatic feedback or a persistent approval rule.
+The dispatcher requires either a completed `software_failure` or a
+`cancel_requested` run whose recorded Slurm job is absent from the live queue
+and independently reported `CANCELLED` by accounting. It also requires the
+unchanged external configuration fingerprint, fixed database profile, and an
+owner-controlled regular directory cited by the structured run log directly
+below one recognised resource root. Failed runs supply the emitted
+`staging_path`; cancelled runs use the last fixed command's sole `write_roots`
+entry. Existing symbolic links are preserved only when their resolved targets
+remain inside that same staging tree. It rejects active jobs, broken or escaping
+links, other non-file entries, foreign ownership, and escaped paths. Success
+atomically renames the directory to a run-qualified `.reviewed-*` archive and
+records its original path, destination, regular-file count, symbolic-link
+count, and regular-file bytes. It deletes no evidence but releases the
+resource's `.failed` or orphaned active build guard. Never run this before
+collection and diagnosis, and do not include it in automatic feedback or a
+persistent approval rule.
 
 `readiness p0` is a fixed, read-only prerequisite inspection. It accepts no
 path, revision, run ID, or shell fragment; creates no run; and submits no job.
@@ -253,16 +261,38 @@ after two identical failure signatures is refused pending manual diagnosis.
 
 ## P0 real-site profile
 
-Create `_config/p0.paths` below the configured remote run root from the tracked
+Prepare a local untracked copy of the
 [example](../conf/hpc-p0.paths.example). The file has exactly seven non-empty
-lines and no comments: allowed site root, catalogue manifest, crystal manifest,
-pipeline configuration, database root, frozen database manifest, and Phenix
-manifest. It is user-owned, mode `0600`, untracked, and contains the real site
-paths.
+LF-terminated lines and no comments: allowed site root, catalogue manifest,
+crystal manifest, pipeline configuration, database root, frozen database
+manifest, and Phenix manifest. It contains the real site paths and must never be
+committed.
 
-P0 accepts none of those paths on the local command line. `stage p0` records the
-file's SHA-256; the job refuses execution if it changes. Every configured child
-must be a canonical non-symlink path below the first-line root. The job then:
+Compute its SHA-256 separately, review the seven paths, and install it through
+the create-only configuration boundary:
+
+```bash
+sha256sum .untracked/hpc-p0.paths
+nf-gtd-hpc-test p0-configure \
+  --paths-file .untracked/hpc-p0.paths \
+  --confirm-sha256 SHA256
+nf-gtd-hpc-test readiness p0
+```
+
+The local controller rejects symlinks, non-ASCII or non-canonical text, unsafe
+path characters, and a confirmation that differs from the exact payload
+checksum. The dispatcher decodes at most 4 KiB into an owner-controlled
+temporary file, independently verifies its checksum, mode, line count, path
+containment, and live inputs, then atomically creates `_config/p0.paths` with
+mode `0600`. It refuses to overwrite an existing configuration and returns no
+configured paths. This operation is a one-time external setting change and is
+not suitable for persistent command approval.
+
+`stage p0` records the file's SHA-256; the job refuses execution if it changes.
+Every configured child must be a canonical non-symlink path below the
+first-line root. Because these inputs are read-only and no cleanup target is
+derived from this root, the root may be the operator-owned home directory; `/`,
+a foreign-owned directory, or a symlink remains invalid. The job then:
 
 1. installs the frozen Linux `hpc` Pixi environment;
 2. re-verifies every required Phenix command and preserves the verification log;

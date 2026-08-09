@@ -222,6 +222,9 @@ if [[ "${{1-}}" == "--version" || "${{1-}}" == "version" ]]; then
 fi
 case "${{1-}}" in
   databases)
+    if [[ -n "${{FAKE_DATABASE_COMMAND_RECORD:-}}" ]]; then
+      printf '%s\n' "$*" >> "$FAKE_DATABASE_COMMAND_RECORD"
+    fi
     if [[ "${{FAKE_DATABASE_FAILURE:-0}}" == 1 ]]; then
       printf 'injected database failure\n' >&2
       exit 70
@@ -659,7 +662,9 @@ def test_crash_or_legacy_staging_blocks_new_allocation(
 def test_mocked_foldseek_resources_prepare_smoke_and_reuse(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    request = _mocked_full_request(tmp_path, monkeypatch)
+    command_record = tmp_path / "foldseek-databases-commands.txt"
+    monkeypatch.setenv("FAKE_DATABASE_COMMAND_RECORD", str(command_record))
+    request = replace(_mocked_full_request(tmp_path, monkeypatch), threads=3)
 
     first = prepare(request)
     reused = prepare(replace(request, manifest_path=tmp_path / "reused.json"))
@@ -674,6 +679,9 @@ def test_mocked_foldseek_resources_prepare_smoke_and_reuse(
     assert [resource.database_id for resource in first.resources] == [
         resource.database_id for resource in reused.resources
     ]
+    database_commands = command_record.read_text(encoding="utf-8").splitlines()
+    assert len(database_commands) == 2
+    assert all(command.endswith("--threads 3") for command in database_commands)
     resources = {resource.name: resource for resource in first.resources}
     pdb_resource = resources["pdb_foldseek"]
     assert pdb_resource.release_or_snapshot == "pdb-2025-01-01"

@@ -10,7 +10,7 @@ this gate passes.
 | Work package | Current state | Evidence required to close it |
 | --- | --- | --- |
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
-| M0.2 Positive control | Blocked on scientific metadata | True catalogue sequence, known ASU copy count, trustworthy final model/structure factors where available, and suitable MR model |
+| M0.2 Positive control | Qualified with the public same-organism 8OOX control | Offline revalidation binds the exact RefSeq sequence, known two-copy ASU, deposited model/structure factors, and exact plus homolog MR models; this does not identify any blind pilot crystal |
 | M0.3 Qualify Phenix | Local and Marmic runtimes qualified; three real Xtriage smokes qualified locally | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files complete local real Xtriage, while equivalent Marmic real-MTZ and scheduled P0 evidence remain required |
 | M0.4 Qualify databases | Approval-gated administration driver implemented; real preparation required on Marmic | Fixed preflight, retained-failure guard, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site resources have yet passed them |
 | M0.5 Matthews reference | Local method matrix qualified; site parity follows M0.3 | Ten real comparisons cover all frozen MTZs and multiple copy regimes; positive-control identity/copy interpretation remains a separate M0.2 blocker |
@@ -34,6 +34,34 @@ status. The implemented workflow still ends at Task 05.
 The corresponding genome FASTA, GFF3, GenBank flat file, NCBI data report, and
 NCBI dataset catalogue are also frozen in the ignored local qualification
 dossier. Raw inputs and their machine-specific paths are not tracked.
+
+## Public same-organism positive control
+
+The operational M0.2 positive control is PDB 8OOX, a type I glutamine
+synthetase from *M. shengliensis* DSM 18856. It uses the same frozen
+`GCF_000711905.1` RefSeq proteome as the pilot catalogue and binds target
+`WP_042685700.1` to the full-length 442-residue coordinate sequence with exact
+sequence SHA-256
+`102e653b2ce68310033502e10e60f54e7cb143dc71acd0e964d0cad47f961964`.
+The crystallographic ground truth is a single protein species with two copies
+in the asymmetric unit; the biological dodecamer is recorded separately and is
+not substituted for the ASU copy count.
+
+The checksum-frozen public sources include deposited target coordinates and
+structure factors, an exact-family MR model, and a homolog MR model. The
+derived autoPROC-labelled MTZ has SHA-256
+`f72540f651191b00986b0dbca881156c863dc794a0ac3520ced14d092500804d`.
+An offline preparation rerun on 9 August 2026 reused and revalidated every
+source, exact catalogue mapping, derived MTZ, and both MR models without network
+access. Its ignored preparation manifest has SHA-256
+`f4d7be0b68e68c130973975fa8f2298e6a17cb4d432c165c02280195cec0861a`.
+
+This closes the operational-control requirement, not the blind-pilot identity
+requirement. The three operator pilot identities, copy counts, and `ASU = nA`
+statuses remain `unknown` until independent evidence is supplied. The control's
+deposited target coordinates are used only for evaluation; its exact MR model is
+an intentional non-blind execution control and its homolog model supports the
+later leakage-controlled challenge.
 
 ## Three-MTZ preparatory inspection
 

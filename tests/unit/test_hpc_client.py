@@ -1,6 +1,7 @@
 """Tests for local ownership, transitions, collection, and feedback limits."""
 
 import base64
+import hashlib
 import io
 import json
 import subprocess
@@ -20,6 +21,7 @@ from genome_to_diffraction.hpc.client import (
     SshTransport,
 )
 from genome_to_diffraction.hpc.models import (
+    ConfigurationError,
     FailureClass,
     HpcConfig,
     RemoteOperationError,
@@ -257,6 +259,33 @@ def test_p0_readiness_accepts_no_path_or_run_authority(tmp_path: Path) -> None:
         controller.readiness("p0;touch-bad")
 
 
+def test_p0_configuration_is_checksum_confirmed_and_strictly_validated(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    paths_file = tmp_path / "p0.paths"
+    payload = "\n".join(f"/approved/site/path-{index}" for index in range(7)) + "\n"
+    paths_file.write_text(payload, encoding="ascii")
+    checksum = hashlib.sha256(payload.encode("ascii")).hexdigest()
+
+    with pytest.raises(ValidationError, match="exactly equal"):
+        controller.p0_configure(paths_file, "0" * 64)
+    result = controller.p0_configure(paths_file, checksum)
+
+    assert result["operation"] == "p0-configure"
+    operation, arguments = transport.calls[-1]
+    assert operation == "p0-configure"
+    assert arguments[0] == checksum
+    assert base64.b64decode(arguments[1]).decode("ascii") == payload
+
+    paths_file.write_text(
+        payload.replace("path-3", "path-3;touch-bad"), encoding="ascii"
+    )
+    with pytest.raises(ConfigurationError, match="conservative absolute"):
+        controller.p0_configure(paths_file, checksum)
+
+
 def test_database_start_has_a_separate_local_authority_boundary(
     tmp_path: Path,
 ) -> None:
@@ -303,7 +332,7 @@ def test_database_failed_staging_archive_requires_collected_owned_evidence(
     controller = _controller(tmp_path, transport)
     run_id = str(controller.database_stage("HEAD")["run_id"])
 
-    with pytest.raises(ValidationError, match="collect the failed database run"):
+    with pytest.raises(ValidationError, match="collect the terminal database run"):
         controller.database_archive_failed(run_id, run_id)
     controller.collect(run_id)
     with pytest.raises(ValidationError, match="exactly equal"):
@@ -315,6 +344,19 @@ def test_database_failed_staging_archive_requires_collected_owned_evidence(
     assert transport.calls[-1][0] == "database-archive-failed"
     assert transport.calls[-1][1][0] == run_id
     assert transport.calls[-1][1][2] == run_id
+
+    cancelled_transport = FakeTransport(archive=_archive({"manifest.json": b"{}\n"}))
+    cancelled_root = tmp_path / "cancelled"
+    cancelled_root.mkdir()
+    cancelled_controller = _controller(cancelled_root, cancelled_transport)
+    cancelled_run = str(cancelled_controller.database_stage("HEAD")["run_id"])
+    cancelled_controller.collect(cancelled_run)
+    assert (
+        cancelled_controller.database_archive_failed(cancelled_run, cancelled_run)[
+            "operation"
+        ]
+        == "database-archive-failed"
+    )
 
 
 def test_stage_refuses_dirty_or_injected_revisions(tmp_path: Path) -> None:

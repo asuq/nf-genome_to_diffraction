@@ -38,14 +38,18 @@ All notable changes to this project are documented here.
   fingerprinting, real Phenix and database verification, all-three-crystal Task
   05 execution, mandatory cached resume, bounded artefact collection, and a
   tracked M0 qualification dashboard.
+- A create-only, checksum-confirmed P0 configuration boundary that validates the
+  seven external site paths without exposing them, permits a read-only
+  operator-owned home root, and refuses overwrite or persistent approval.
 - Expected-1UBQ database qualification with explicit search thresholds,
   SEQRES-to-mmCIF protein-entity sequence binding, immutable coordinate-cache
   provenance, retained query/result/log evidence, and reproducible rerun records.
 - Validator-bound resumable public downloads with verified prefix state,
   redirect provenance, continuous capacity/headroom checks, scoped NFS storage
   monitoring, and whole-process-group termination on watchdog failures.
-- Database-preparation threads now follow the allocated Nextflow CPUs, with an
-  explicitly provisional Marmic preparation allocation for first-site timing.
+- Database-preparation threads now follow the allocated Nextflow CPUs, including
+  the Foldseek `databases` download/extraction commands, with an explicitly
+  provisional Marmic preparation allocation for first-site timing.
 - Shared database administration now uses one logged, timeout-bounded advisory
   exclusive lock per database root to prevent cooperating runs from racing.
 - Retained incomplete resource staging now blocks automatic rebuilds, preventing
@@ -62,11 +66,12 @@ All notable changes to this project are documented here.
 - Offline Foldseek extraction now shadows its aria2/curl/wget fallback chain
   with fixed-URL, staging-confined local-copy shims, preventing a fallback from
   attempting compute-node network access.
-- A collected, terminal database software failure can now release its retained
-  build guard through an exact-confirmation operation that archives rather than
-  deletes the log-derived staging tree and rejects configuration drift or unsafe
-  entries; fail-closed path checks report the rejected safety condition without
-  exposing caller-controlled paths, and only staging-confined symbolic links are
+- A collected, terminal database software failure or scheduler-confirmed
+  cancellation can now release its retained build guard through an
+  exact-confirmation operation that archives rather than deletes the log-derived
+  staging tree and rejects active jobs, configuration drift, or unsafe entries;
+  fail-closed path checks report the rejected safety condition without exposing
+  caller-controlled paths, and only staging-confined symbolic links are
   preserved.
 - Large Foldseek and MMseqs2 temporary data can now use explicit distinct
   compute-node scratch with continuous headroom monitoring, process-group

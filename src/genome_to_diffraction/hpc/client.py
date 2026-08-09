@@ -35,6 +35,7 @@ from genome_to_diffraction.hpc.models import (
     validate_commit,
     validate_log_lines,
     validate_profile,
+    validate_remote_path,
     validate_run_id,
 )
 
@@ -63,6 +64,7 @@ SSH_CONNECT_TIMEOUT_SECONDS = 15
 SSH_OPERATION_TIMEOUT_SECONDS = 60
 DATABASE_STAGE_TIMEOUT_SECONDS = 6 * 60 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
+MAX_P0_PATHS_BYTES = 4096
 _SSH_FIXED_OPTIONS = (
     "-o",
     "BatchMode=yes",
@@ -382,6 +384,44 @@ class HpcController:
             "profile": profile,
         }
 
+    def p0_configure(self, paths_file: Path, confirmation: str) -> dict[str, object]:
+        """Install one absent, validated seven-line P0 site configuration."""
+
+        if paths_file.is_symlink() or not paths_file.is_file():
+            raise ValidationError("P0 paths input must be a regular non-symlink file")
+        payload = paths_file.read_bytes()
+        if not payload or len(payload) > MAX_P0_PATHS_BYTES:
+            raise ValidationError(
+                f"P0 paths input must contain 1..{MAX_P0_PATHS_BYTES} bytes"
+            )
+        try:
+            text = payload.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise ValidationError("P0 paths input must be ASCII") from error
+        lines = text.splitlines()
+        canonical = "\n".join(lines) + "\n"
+        if text != canonical or len(lines) != 7 or any(not line for line in lines):
+            raise ValidationError(
+                "P0 paths input must be exactly seven non-empty LF-terminated lines"
+            )
+        for index, value in enumerate(lines, start=1):
+            validate_remote_path(value, f"P0 paths line {index}")
+        checksum = hashlib.sha256(payload).hexdigest()
+        if confirmation != checksum:
+            raise ValidationError(
+                "P0 configuration confirmation must exactly equal its SHA-256"
+            )
+        encoded = base64.b64encode(payload).decode("ascii")
+        self.logger.warning(
+            "installing validated fixed P0 site configuration",
+            extra={"p0_config_sha256": checksum},
+        )
+        return {
+            **self.transport.run("p0-configure", [checksum, encoded]),
+            "operation": "p0-configure",
+            "p0_config_sha256": checksum,
+        }
+
     def database_readiness(self) -> dict[str, object]:
         """Inspect fixed database-administration prerequisites without a run."""
 
@@ -446,21 +486,26 @@ class HpcController:
     def database_archive_failed(
         self, run_id: str, confirmation: str
     ) -> dict[str, object]:
-        """Archive the failed staging cited by one collected database run."""
+        """Archive retained staging cited by one collected terminal database run."""
 
         record = self._owned_run(run_id)
         if record.profile != "database":
             raise ValidationError("database-archive-failed requires a database run")
-        if record.failure_signature is None:
+        collected_manifest = (
+            self.config.local_state_root / run_id / "collected" / "manifest.json"
+        )
+        if record.failure_signature is None and (
+            collected_manifest.is_symlink() or not collected_manifest.is_file()
+        ):
             raise ValidationError(
-                "collect the failed database run before archiving its staging"
+                "collect the terminal database run before archiving its staging"
             )
         if confirmation != run_id:
             raise ValidationError(
                 "database archive confirmation must exactly equal the run ID"
             )
         self.logger.warning(
-            "archiving reviewed failed database staging",
+            "archiving reviewed retained database staging",
             extra={"run_id": run_id, "failure_signature": record.failure_signature},
         )
         return {

@@ -966,6 +966,8 @@ def _prepare_foldseek_resource(
             database_name,
             str(staging / prefix_name),
             str(tool_scratch),
+            "--threads",
+            str(request.threads),
         ]
         if source_bundle is None:
             run_command(
@@ -1006,6 +1008,8 @@ def _prepare_foldseek_resource(
                 database_name,
                 prefix_name,
                 "tmp",
+                "--threads",
+                str(request.threads),
             ],
             "gpu": False,
             "data_license": ("CC0-1.0" if name == "pdb_foldseek" else "MIT"),

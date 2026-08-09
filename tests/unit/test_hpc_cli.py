@@ -39,11 +39,21 @@ def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
     archived = parser.parse_args(
         ["database-archive-failed", "--run-id", "RUN_ID", "--confirm", "RUN_ID"]
     )
+    configured = parser.parse_args(
+        [
+            "p0-configure",
+            "--paths-file",
+            "p0.paths",
+            "--confirm-sha256",
+            "0" * 64,
+        ]
+    )
 
     assert staged.operation == "database-stage"
     assert submitted.operation == "database-submit"
     assert readiness.operation == "database-readiness"
     assert archived.operation == "database-archive-failed"
+    assert configured.operation == "p0-configure"
     with pytest.raises(SystemExit):
         parser.parse_args(["stage", "database", "--revision", "HEAD"])
     with pytest.raises(SystemExit):

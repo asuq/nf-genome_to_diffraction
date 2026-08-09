@@ -98,7 +98,8 @@ matches the recorded value. Add back only the routine Codex approval pattern
 documented in the [HPC feedback-loop runbook](hpc-feedback-loop.md#cleanup-and-codex-approval);
 keep database start, raw SSH, scheduler commands, and cleanup approval-gated.
 The recoverable `database-archive-failed` operation is also excluded from
-persistent approval because it mutates retained remote evidence.
+persistent approval because it mutates retained remote evidence from a reviewed
+failed or cancelled run.
 
 ## Remote settings are separate
 
@@ -107,3 +108,15 @@ database roots, and licensed Linux Phenix prefix are remote state. Moving local
 files does not remove them. Use owned wrapper status/collection first, then an
 explicitly reviewed remote retirement procedure; never infer authority to erase
 remote shared resources from this local rollback.
+
+The create-only `p0-configure` operation adds `_config/p0.paths` below the
+configured Marmic run root. Record the locally reviewed file and its SHA-256 in
+the ignored qualification dossier. To disable P0 without losing the setting,
+first confirm that no P0 job is staged or active, then move that single file to
+a dated sibling such as `p0.paths.disabled-YYYYMMDD`; do not delete the whole
+remote `_config` directory. This manual remote change intentionally remains
+outside the routine wrapper approvals. To restore it, move the same file back to
+`p0.paths`, set mode `0600`, verify its recorded SHA-256, and require
+`nf-gtd-hpc-test readiness p0` to report `ready=true` before staging. A changed
+seven-line payload is a new reviewed setting: preserve the prior file, install
+the replacement deliberately, and record both checksums.
