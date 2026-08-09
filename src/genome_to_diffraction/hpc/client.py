@@ -1,6 +1,7 @@
 """Local controller for the fixed Marmic remote test dispatcher."""
 
 import base64
+import binascii
 import hashlib
 import io
 import json
@@ -20,7 +21,7 @@ from typing import Protocol
 
 from tqdm import tqdm
 
-from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.checksums import atomic_write_text, sha256_file
 from genome_to_diffraction.hpc.models import (
     COMMIT_PATTERN,
     MAX_ARTIFACT_FILE_BYTES,
@@ -37,6 +38,10 @@ from genome_to_diffraction.hpc.models import (
     validate_profile,
     validate_remote_path,
     validate_run_id,
+)
+from genome_to_diffraction.hpc.p0_inputs import (
+    P0_PATHS_FILENAME,
+    build_p0_input_bundle,
 )
 
 _TERMINAL_STATES = frozenset(
@@ -63,6 +68,7 @@ _REMOTE_TOOL_PATHS = (
 SSH_CONNECT_TIMEOUT_SECONDS = 15
 SSH_OPERATION_TIMEOUT_SECONDS = 60
 DATABASE_STAGE_TIMEOUT_SECONDS = 6 * 60 * 60
+P0_INPUT_STAGE_TIMEOUT_SECONDS = 15 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
 MAX_P0_PATHS_BYTES = 4096
 _SSH_FIXED_OPTIONS = (
@@ -79,6 +85,38 @@ _SSH_FIXED_OPTIONS = (
 )
 
 
+def _validated_p0_paths_payload(path: Path) -> bytes:
+    """Load one canonical seven-line private P0 path configuration."""
+
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or path.stat().st_uid != os.getuid()
+        or path.stat().st_mode & 0o777 != 0o600
+    ):
+        raise ValidationError(
+            "P0 paths input must be an owned mode-0600 regular non-symlink file"
+        )
+    payload = path.read_bytes()
+    if not payload or len(payload) > MAX_P0_PATHS_BYTES:
+        raise ValidationError(
+            f"P0 paths input must contain 1..{MAX_P0_PATHS_BYTES} bytes"
+        )
+    try:
+        text = payload.decode("ascii")
+    except UnicodeDecodeError as error:
+        raise ValidationError("P0 paths input must be ASCII") from error
+    lines = text.splitlines()
+    canonical = "\n".join(lines) + "\n"
+    if text != canonical or len(lines) != 7 or any(not line for line in lines):
+        raise ValidationError(
+            "P0 paths input must be exactly seven non-empty LF-terminated lines"
+        )
+    for index, value in enumerate(lines, start=1):
+        validate_remote_path(value, f"P0 paths line {index}")
+    return payload
+
+
 class TextTransport(Protocol):
     """Transport contract used by the controller and deterministic fakes."""
 
@@ -87,6 +125,17 @@ class TextTransport(Protocol):
 
     def collect(self, run_id: str, owner_id: str) -> bytes:
         """Return the fixed whitelisted artefact archive for an owned run."""
+
+    def p0_inputs_stage(
+        self,
+        source_id: str,
+        archive_sha256: str,
+        archive_size_bytes: int,
+        database_manifest_sha256: str,
+        phenix_manifest_sha256: str,
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one fixed P0 input archive to the reviewed dispatcher."""
 
 
 class GitRepository(Protocol):
@@ -254,6 +303,57 @@ class SshTransport:
             )
         return result.stdout
 
+    def p0_inputs_stage(
+        self,
+        source_id: str,
+        archive_sha256: str,
+        archive_size_bytes: int,
+        database_manifest_sha256: str,
+        phenix_manifest_sha256: str,
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream the fixed archive on stdin without raw transfer authority."""
+
+        arguments = [
+            source_id,
+            archive_sha256,
+            str(archive_size_bytes),
+            database_manifest_sha256,
+            phenix_manifest_sha256,
+        ]
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("p0-inputs-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote P0 input staging exceeded the fixed "
+                f"{P0_INPUT_STAGE_TIMEOUT_SECONDS}-second transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote P0 input staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote P0 input staging returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
 
 class HpcController:
     """Apply local ownership, iteration, timeout, and collection safeguards."""
@@ -387,25 +487,7 @@ class HpcController:
     def p0_configure(self, paths_file: Path, confirmation: str) -> dict[str, object]:
         """Install one absent, validated seven-line P0 site configuration."""
 
-        if paths_file.is_symlink() or not paths_file.is_file():
-            raise ValidationError("P0 paths input must be a regular non-symlink file")
-        payload = paths_file.read_bytes()
-        if not payload or len(payload) > MAX_P0_PATHS_BYTES:
-            raise ValidationError(
-                f"P0 paths input must contain 1..{MAX_P0_PATHS_BYTES} bytes"
-            )
-        try:
-            text = payload.decode("ascii")
-        except UnicodeDecodeError as error:
-            raise ValidationError("P0 paths input must be ASCII") from error
-        lines = text.splitlines()
-        canonical = "\n".join(lines) + "\n"
-        if text != canonical or len(lines) != 7 or any(not line for line in lines):
-            raise ValidationError(
-                "P0 paths input must be exactly seven non-empty LF-terminated lines"
-            )
-        for index, value in enumerate(lines, start=1):
-            validate_remote_path(value, f"P0 paths line {index}")
+        payload = _validated_p0_paths_payload(paths_file)
         checksum = hashlib.sha256(payload).hexdigest()
         if confirmation != checksum:
             raise ValidationError(
@@ -420,6 +502,105 @@ class HpcController:
             **self.transport.run("p0-configure", [checksum, encoded]),
             "operation": "p0-configure",
             "p0_config_sha256": checksum,
+        }
+
+    def p0_inputs_stage(self, spec_confirmation: str) -> dict[str, object]:
+        """Stage the fixed frozen pilot bundle and write its private path candidate."""
+
+        self.git.ensure_clean()
+        remote_root = PurePosixPath(self.config.remote_dispatcher).parent.parent
+        qualification_root = self.config.repository / ".untracked" / "m0-qualification"
+        paths_output = qualification_root / P0_PATHS_FILENAME
+        with tempfile.TemporaryDirectory(prefix="nf-gtd-p0-inputs-") as temporary:
+            archive_path = Path(temporary) / "p0-inputs.tar.gz"
+            bundle = build_p0_input_bundle(
+                repository=self.config.repository,
+                remote_root=remote_root,
+                spec_confirmation=spec_confirmation,
+                archive_path=archive_path,
+                progress=self.progress,
+                logger=self.logger,
+            )
+            self.logger.warning(
+                "staging checksum-verified fixed P0 inputs",
+                extra={
+                    "source_id": f"p0i_{bundle.source_id}",
+                    "archive_sha256": bundle.archive_sha256,
+                    "archive_size_bytes": bundle.archive_size_bytes,
+                    "scientific_input_count": bundle.scientific_input_count,
+                },
+            )
+            remote = self.transport.p0_inputs_stage(
+                bundle.source_id,
+                bundle.archive_sha256,
+                bundle.archive_size_bytes,
+                bundle.database_manifest_sha256,
+                bundle.phenix_manifest_sha256,
+                bundle.archive_path,
+            )
+
+        expected_id = f"p0i_{bundle.source_id}"
+        if (
+            remote.get("p0_input_id") != expected_id
+            or remote.get("archive_sha256") != bundle.archive_sha256
+        ):
+            raise RemoteOperationError(
+                "remote P0 input identity differs from the reviewed local archive",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        encoded_paths = remote.pop("p0_paths_base64", None)
+        if encoded_paths is None:
+            raise RemoteOperationError(
+                "remote P0 input staging returned no configuration candidate",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        try:
+            paths_payload = base64.b64decode(encoded_paths, validate=True)
+        except (ValueError, binascii.Error) as error:
+            raise RemoteOperationError(
+                "remote P0 configuration candidate is not valid base64",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        candidate_checksum = hashlib.sha256(paths_payload).hexdigest()
+        if remote.get("p0_config_sha256") != candidate_checksum:
+            raise RemoteOperationError(
+                "remote P0 configuration candidate checksum differs",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        with tempfile.NamedTemporaryFile(
+            prefix="nf-gtd-p0-paths-", dir="/tmp", delete=False
+        ) as handle:
+            temporary_paths = Path(handle.name)
+            handle.write(paths_payload)
+        try:
+            _validated_p0_paths_payload(temporary_paths)
+        finally:
+            temporary_paths.unlink(missing_ok=True)
+        if paths_output.exists() or paths_output.is_symlink():
+            if (
+                paths_output.is_symlink()
+                or not paths_output.is_file()
+                or paths_output.stat().st_uid != os.getuid()
+                or paths_output.stat().st_mode & 0o777 != 0o600
+                or paths_output.read_bytes() != paths_payload
+            ):
+                raise ValidationError(
+                    "private P0 paths candidate already exists with unsafe identity"
+                )
+        else:
+            atomic_write_text(
+                paths_output, paths_payload.decode("ascii"), encoding="ascii"
+            )
+            paths_output.chmod(0o600)
+        return {
+            **remote,
+            "operation": "p0-inputs-stage",
+            "p0_input_id": expected_id,
+            "archive_sha256": bundle.archive_sha256,
+            "archive_size_bytes": bundle.archive_size_bytes,
+            "scientific_input_count": bundle.scientific_input_count,
+            "p0_config_sha256": candidate_checksum,
+            "local_paths_file": str(paths_output),
         }
 
     def database_readiness(self) -> dict[str, object]:

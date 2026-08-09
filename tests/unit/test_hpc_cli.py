@@ -48,12 +48,16 @@ def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
             "0" * 64,
         ]
     )
+    input_stage = parser.parse_args(
+        ["p0-inputs-stage", "--confirm-spec-sha256", "0" * 64]
+    )
 
     assert staged.operation == "database-stage"
     assert submitted.operation == "database-submit"
     assert readiness.operation == "database-readiness"
     assert archived.operation == "database-archive-failed"
     assert configured.operation == "p0-configure"
+    assert input_stage.operation == "p0-inputs-stage"
     with pytest.raises(SystemExit):
         parser.parse_args(["stage", "database", "--revision", "HEAD"])
     with pytest.raises(SystemExit):

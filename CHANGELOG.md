@@ -44,6 +44,9 @@ All notable changes to this project are documented here.
 - A create-only, checksum-confirmed P0 configuration boundary that validates the
   seven external site paths without exposing them, permits a read-only
   operator-owned home root, and refuses overwrite or persistent approval.
+- Checksum-gated, path-closed staging of the seven frozen three-crystal P0
+  inputs with deterministic archives, immutable remote publication, structured
+  progress, and a separately reviewed private configuration candidate.
 - Expected-1UBQ database qualification with explicit search thresholds,
   SEQRES-to-mmCIF protein-entity sequence binding, immutable coordinate-cache
   provenance, retained query/result/log evidence, and reproducible rerun records.

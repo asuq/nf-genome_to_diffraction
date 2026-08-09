@@ -14,6 +14,7 @@ BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 MAX_FILE_BYTES=$((20 * 1024 * 1024))
 MAX_TOTAL_BYTES=$((100 * 1024 * 1024))
+MAX_P0_INPUT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 
 TOOL_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 ROOT="$(cd "$TOOL_DIR/.." && pwd -P)"
@@ -22,6 +23,7 @@ MIRROR="$ROOT/_cache/git/nf-genome_to_diffraction.git"
 LOCKS="$ROOT/_locks"
 PIXI_PATH_FILE="$TOOL_DIR/pixi.path"
 P0_CONFIG="$ROOT/_config/p0.paths"
+P0_INPUTS="$ROOT/_p0_inputs"
 DATABASE_CONFIG="$ROOT/_config/database.paths"
 DISPATCHER="$TOOL_DIR/nf-gtd-hpc-remote"
 SMOKE_JOB="$TOOL_DIR/nf-gtd-hpc-smoke-job"
@@ -270,7 +272,219 @@ p0_configure() {
     emit p0_config_status ready
 }
 
+p0_input_tree_verify() {
+    [[ "$#" -eq 5 ]] || fail wrapper_failure "internal P0 tree verifier misuse"
+    local tree="$1" source_id="$2" archive_sha256="$3"
+    local expected_database_sha256="$4" expected_phenix_sha256="$5"
+    local extra file_count directory_count header digest size relative file count
+    local tree_file archive_inventory_sha256
+    local -A seen=()
+    [[ -d "$tree" && ! -L "$tree" && -O "$tree" ]] || \
+        fail filesystem_failure "P0 input tree is unsafe"
+    extra="$(find "$tree" -xdev ! -type d ! -type f -print -quit)"
+    [[ -z "$extra" ]] || fail transfer_failure "P0 input tree has unsafe entries"
+    file_count="$(find "$tree" -xdev -type f -print | wc -l)"
+    directory_count="$(find "$tree" -xdev -type d -print | wc -l)"
+    [[ "$file_count" -eq 17 && "$directory_count" -eq 3 && \
+       -d "$tree/inputs" && -d "$tree/manifests" ]] || \
+        fail transfer_failure "P0 input tree layout differs from the fixed layout"
+    while IFS= read -r -d '' tree_file; do
+        [[ "$(stat -c '%h' "$tree_file")" -eq 1 ]] || \
+            fail transfer_failure "P0 input tree contains linked files"
+    done < <(find "$tree" -xdev -type f -print0)
+    [[ -f "$tree/_archive.tar.gz" && ! -L "$tree/_archive.tar.gz" && \
+       "$(stat -c '%h' "$tree/_archive.tar.gz")" -eq 1 && \
+       "$(sha256sum "$tree/_archive.tar.gz" | awk '{print $1}')" == \
+         "$archive_sha256" && \
+       -f "$tree/_archive.sha256" && \
+       "$(<"$tree/_archive.sha256")" == "$archive_sha256" && \
+       -f "$tree/_source-id" && \
+       "$(<"$tree/_source-id")" == "p0i_$source_id" && \
+       -f "$tree/_database-manifest.sha256" && \
+       "$(<"$tree/_database-manifest.sha256")" == \
+         "$expected_database_sha256" && \
+       -f "$tree/_phenix-manifest.sha256" && \
+       "$(<"$tree/_phenix-manifest.sha256")" == \
+         "$expected_phenix_sha256" ]] || \
+        fail transfer_failure "P0 input tree identity differs"
+    archive_inventory_sha256="$(
+        tar -xOzf "$tree/_archive.tar.gz" inventory.tsv | sha256sum | awk '{print $1}'
+    )" || fail transfer_failure "P0 archive inventory cannot be read"
+    [[ "$(sha256sum "$tree/inventory.tsv" | awk '{print $1}')" == \
+       "$archive_inventory_sha256" ]] || \
+        fail transfer_failure "P0 input inventory differs from its archived copy"
+    IFS= read -r header < "$tree/inventory.tsv"
+    [[ "$header" == $'sha256\tsize_bytes\tpath' ]] || \
+        fail transfer_failure "P0 input inventory header is invalid"
+    count=0
+    while IFS=$'\t' read -r digest size relative extra; do
+        [[ -n "$digest" && -n "$size" && -n "$relative" && -z "$extra" ]] || \
+            fail transfer_failure "P0 input inventory row is malformed"
+        [[ "$digest" =~ $CHECKSUM_RE && "$size" =~ $BYTE_COUNT_RE ]] || \
+            fail transfer_failure "P0 input inventory identity is invalid"
+        case "$relative" in
+            bundle.json|manifests/catalogues.json|manifests/crystals.json|\
+            manifests/config.yaml|inputs/proteome.faa|inputs/genome.fna|\
+            inputs/annotation.gff|inputs/annotation.gbff|\
+            inputs/AD4QS1P4G2_18.mtz|inputs/CD4QS2P2G1_15.mtz|\
+            inputs/CD6QS2P2G1_5.mtz) ;;
+            *) fail transfer_failure "P0 input inventory path is not approved" ;;
+        esac
+        [[ -z "${seen[$relative]+x}" ]] || \
+            fail transfer_failure "P0 input inventory contains a duplicate path"
+        seen[$relative]=1
+        file="$tree/$relative"
+        [[ -f "$file" && ! -L "$file" && "$(stat -c '%h' "$file")" -eq 1 ]] || \
+            fail transfer_failure "P0 input inventory target is unsafe"
+        [[ "$(file_size "$file")" == "$size" ]] || \
+            fail transfer_failure "P0 input inventory size differs"
+        [[ "$(sha256sum "$file" | awk '{print $1}')" == "$digest" ]] || \
+            fail transfer_failure "P0 input inventory checksum differs"
+        count=$((count + 1))
+    done < <(tail -n +2 "$tree/inventory.tsv")
+    [[ "$count" -eq 11 ]] || fail transfer_failure "P0 input inventory count differs"
+    grep -Eq "^  \"source_id\": \"p0i_$source_id\",?$" \
+        "$tree/bundle.json" || fail transfer_failure "P0 bundle source identity differs"
+    grep -Eq \
+        "^  \"database_manifest_sha256\": \"$expected_database_sha256\",?$" \
+        "$tree/bundle.json" || \
+        fail transfer_failure "P0 bundle database anchor differs"
+    grep -Eq \
+        "^  \"phenix_manifest_sha256\": \"$expected_phenix_sha256\",?$" \
+        "$tree/bundle.json" || fail transfer_failure "P0 bundle Phenix anchor differs"
+}
+
+p0_inputs_stage() {
+    [[ "$#" -eq 5 ]] || \
+        fail wrapper_failure "p0-inputs-stage expects five fixed identity fields"
+    local source_id="$1" archive_sha256="$2" archive_size="$3"
+    local expected_database_sha256="$4" expected_phenix_sha256="$5"
+    local owner_home phenix_directory phenix_manifest="" phenix_matches=0
+    local candidate actual_sha256 archive staging destination paths_candidate
+    local p0_config_sha256 p0_paths_base64
+    [[ "$source_id" =~ $CHECKSUM_RE ]] || fail wrapper_failure "invalid P0 input ID"
+    [[ "$archive_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid P0 input archive checksum"
+    [[ "$archive_size" =~ $BYTE_COUNT_RE ]] || \
+        fail wrapper_failure "invalid P0 input archive size"
+    (( archive_size >= 1 && archive_size <= MAX_P0_INPUT_ARCHIVE_BYTES )) || \
+        fail wrapper_failure "P0 input archive size exceeds the fixed boundary"
+    [[ "$expected_database_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid expected database-manifest checksum"
+    [[ "$expected_phenix_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid expected Phenix-manifest checksum"
+
+    owner_home="$(realpath -e "$HOME" 2>/dev/null)" || \
+        fail filesystem_failure "owner home cannot be resolved"
+    [[ "$owner_home" != / && -d "$owner_home" && ! -L "$owner_home" && \
+       -O "$owner_home" ]] || fail filesystem_failure "owner home is unsafe"
+    path_within_root "$owner_home" "$ROOT" || \
+        fail filesystem_failure "dispatcher root is outside the owner home"
+    database_config_readiness runtime || \
+        fail environment_failure "database configuration is not ready"
+    path_within_root "$owner_home" "$DATABASE_ROOT" || \
+        fail environment_failure "qualified database root is outside the owner home"
+    path_within_root "$owner_home" "$DATABASE_MANIFEST" || \
+        fail environment_failure "qualified database manifest is outside the owner home"
+    actual_sha256="$(sha256sum "$DATABASE_MANIFEST" | awk '{print $1}')"
+    [[ "$actual_sha256" == "$expected_database_sha256" ]] || \
+        fail environment_failure "qualified database-manifest checksum differs"
+
+    phenix_directory="$owner_home/Softwares/manifests"
+    [[ -d "$phenix_directory" && ! -L "$phenix_directory" ]] || \
+        fail environment_failure "Phenix manifest directory is absent or unsafe"
+    shopt -s nullglob
+    for candidate in "$phenix_directory"/*; do
+        [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || continue
+        actual_sha256="$(sha256sum "$candidate" | awk '{print $1}')"
+        if [[ "$actual_sha256" == "$expected_phenix_sha256" ]]; then
+            phenix_manifest="$candidate"
+            phenix_matches=$((phenix_matches + 1))
+        fi
+    done
+    shopt -u nullglob
+    [[ "$phenix_matches" -eq 1 ]] || \
+        fail environment_failure "expected exactly one qualified Phenix manifest"
+
+    mkdir -p -- "$P0_INPUTS" "$LOCKS"
+    [[ -d "$P0_INPUTS" && ! -L "$P0_INPUTS" && -O "$P0_INPUTS" ]] || \
+        fail filesystem_failure "fixed P0 input root is unsafe"
+    chmod 0700 "$P0_INPUTS"
+    archive="$P0_INPUTS/.p0i-$source_id.tar.gz.tmp.$$"
+    staging="$P0_INPUTS/.staging-$source_id-$$"
+    destination="$P0_INPUTS/p0i_$source_id"
+    paths_candidate="$ROOT/_config/.p0-paths-$source_id.tmp.$$"
+    trap 'rm -f -- "$archive" "$paths_candidate"; rm -rf -- "$staging"' EXIT
+
+    head -c "$archive_size" > "$archive" || \
+        fail transfer_failure "P0 input archive transfer failed"
+    [[ "$(file_size "$archive")" == "$archive_size" ]] || \
+        fail transfer_failure "P0 input archive transfer was truncated"
+    actual_sha256="$(sha256sum "$archive" | awk '{print $1}')"
+    [[ "$actual_sha256" == "$archive_sha256" ]] || \
+        fail transfer_failure "P0 input archive checksum differs"
+
+    exec 9>"$LOCKS/p0-inputs-stage.lock"
+    flock -x 9
+    if [[ -e "$destination" || -L "$destination" ]]; then
+        [[ -d "$destination" && ! -L "$destination" && -O "$destination" ]] || \
+            fail filesystem_failure "existing P0 input destination is unsafe"
+        p0_input_tree_verify \
+            "$destination" \
+            "$source_id" \
+            "$archive_sha256" \
+            "$expected_database_sha256" \
+            "$expected_phenix_sha256"
+    else
+        mkdir -- "$staging"
+        tar --no-same-owner --no-same-permissions -xzf "$archive" -C "$staging" || \
+            fail transfer_failure "P0 input archive extraction failed"
+        mv -- "$archive" "$staging/_archive.tar.gz"
+        printf '%s\n' "$archive_sha256" > "$staging/_archive.sha256"
+        printf 'p0i_%s\n' "$source_id" > "$staging/_source-id"
+        printf '%s\n' "$expected_database_sha256" \
+            > "$staging/_database-manifest.sha256"
+        printf '%s\n' "$expected_phenix_sha256" \
+            > "$staging/_phenix-manifest.sha256"
+        p0_input_tree_verify \
+            "$staging" \
+            "$source_id" \
+            "$archive_sha256" \
+            "$expected_database_sha256" \
+            "$expected_phenix_sha256"
+        find "$staging" -xdev -type f -exec chmod 0444 {} +
+        find "$staging" -xdev -type d -exec chmod 0555 {} +
+        mv -- "$staging" "$destination"
+    fi
+
+    printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
+        "$owner_home" \
+        "$destination/manifests/catalogues.json" \
+        "$destination/manifests/crystals.json" \
+        "$destination/manifests/config.yaml" \
+        "$DATABASE_ROOT" \
+        "$DATABASE_MANIFEST" \
+        "$phenix_manifest" > "$paths_candidate"
+    chmod 0600 "$paths_candidate"
+    p0_config_readiness "$paths_candidate" || \
+        fail environment_failure "staged P0 configuration candidate is not ready"
+    p0_config_sha256="$(sha256sum "$paths_candidate" | awk '{print $1}')"
+    p0_paths_base64="$(base64 < "$paths_candidate" | tr -d '\n')"
+    rm -f -- "$archive" "$paths_candidate"
+    trap - EXIT
+    emit operation p0-inputs-stage
+    emit p0_input_id "p0i_$source_id"
+    emit archive_sha256 "$archive_sha256"
+    emit archive_size_bytes "$archive_size"
+    emit p0_config_sha256 "$p0_config_sha256"
+    emit p0_paths_base64 "$p0_paths_base64"
+    emit scientific_input_count 7
+    emit regular_file_count 17
+    emit status ready
+}
+
 database_config_readiness() {
+    local manifest_mode="${1:-output}"
     local allowed candidate resolved manifest_parent
     local -a values=()
     DATABASE_CONFIG_STATUS=unknown
@@ -325,9 +539,22 @@ database_config_readiness() {
         DATABASE_CONFIG_STATUS=database_root_invalid
         return 1
     fi
-    if [[ -e "${values[2]}" || -L "${values[2]}" ]] || \
-        ! path_within_root "$allowed" "${values[2]}"; then
-        DATABASE_CONFIG_STATUS=manifest_output_invalid
+    if [[ "$manifest_mode" == output ]]; then
+        if [[ -e "${values[2]}" || -L "${values[2]}" ]] || \
+            ! path_within_root "$allowed" "${values[2]}"; then
+            DATABASE_CONFIG_STATUS=manifest_output_invalid
+            return 1
+        fi
+    elif [[ "$manifest_mode" == runtime ]]; then
+        if ! resolved="$(realpath -e "${values[2]}" 2>/dev/null)" || \
+            [[ "$resolved" != "${values[2]}" || ! -f "$resolved" || \
+               -L "${values[2]}" || ! -O "${values[2]}" ]] || \
+            ! path_within_root "$allowed" "$resolved"; then
+            DATABASE_CONFIG_STATUS=manifest_input_invalid
+            return 1
+        fi
+    else
+        DATABASE_CONFIG_STATUS=manifest_mode_invalid
         return 1
     fi
     manifest_parent="$(dirname "${values[2]}")"
@@ -1294,6 +1521,7 @@ main() {
         deploy-tools) deploy_tools "$@" ;;
         readiness) readiness_p0 "$@" ;;
         p0-configure) p0_configure "$@" ;;
+        p0-inputs-stage) p0_inputs_stage "$@" ;;
         database-readiness) database_readiness "$@" ;;
         stage) stage_run "$@" ;;
         database-stage) database_stage_run "$@" ;;

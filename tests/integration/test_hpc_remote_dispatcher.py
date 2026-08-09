@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import io
 import json
 import os
 import shlex
@@ -42,12 +43,14 @@ def _run(
     *,
     cwd: Path,
     environment: dict[str, str] | None = None,
+    input_data: bytes | None = None,
     success: bool = True,
 ) -> subprocess.CompletedProcess[bytes]:
     result = subprocess.run(
         command,
         cwd=cwd,
         env=environment,
+        input=input_data,
         check=False,
         capture_output=True,
     )
@@ -153,6 +156,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         'print(os.stat(sys.argv[1]).st_dev)\' "${3-}" ;;\n'
         f"    %s) exec {python} -c 'import os,sys; "
         'print(os.stat(sys.argv[1]).st_size)\' "${3-}" ;;\n'
+        f"    %h) exec {python} -c 'import os,sys; "
+        'print(os.stat(sys.argv[1]).st_nlink)\' "${3-}" ;;\n'
         "  esac\n"
         "fi\n"
         "exit 2\n"
@@ -243,6 +248,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
     environment = dict(os.environ)
     environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
     environment["GIT_ALLOW_PROTOCOL"] = "file"
+    environment["HOME"] = str(tmp_path)
     return dispatcher, smoke_job, environment, commit
 
 
@@ -517,6 +523,46 @@ def _write_database_paths(root: Path, *, storage_limit: str = "2000000000000") -
     config.write_text("\n".join(values) + "\n", encoding="utf-8")
     config.chmod(0o600)
     return config
+
+
+def _p0_input_archive(
+    source_id: str,
+    database_manifest_sha256: str,
+    phenix_manifest_sha256: str,
+) -> bytes:
+    bundle = {
+        "database_manifest_sha256": database_manifest_sha256,
+        "phenix_manifest_sha256": phenix_manifest_sha256,
+        "schema_version": "1.0",
+        "source_id": f"p0i_{source_id}",
+    }
+    files: dict[str, bytes] = {
+        "bundle.json": (json.dumps(bundle, indent=2, sort_keys=True) + "\n").encode(),
+        "manifests/catalogues.json": b"{}\n",
+        "manifests/crystals.json": b"{}\n",
+        "manifests/config.yaml": b"schema_version: '1.0'\n",
+        "inputs/proteome.faa": b">protein\nMA\n",
+        "inputs/genome.fna": b">genome\nATGGCT\n",
+        "inputs/annotation.gff": b"##gff-version 3\n",
+        "inputs/annotation.gbff": b"LOCUS       TEST\n",
+        "inputs/AD4QS1P4G2_18.mtz": b"MTZ AD4\n",
+        "inputs/CD4QS2P2G1_15.mtz": b"MTZ CD4\n",
+        "inputs/CD6QS2P2G1_5.mtz": b"MTZ CD6\n",
+    }
+    rows = ["sha256\tsize_bytes\tpath"]
+    for name in sorted(files):
+        payload = files[name]
+        rows.append(f"{hashlib.sha256(payload).hexdigest()}\t{len(payload)}\t{name}")
+    files["inventory.tsv"] = ("\n".join(rows) + "\n").encode()
+    output = io.BytesIO()
+    with tarfile.open(fileobj=output, mode="w:gz") as archive:
+        for name in sorted(files):
+            payload = files[name]
+            info = tarfile.TarInfo(name=name)
+            info.size = len(payload)
+            info.mode = 0o444
+            archive.addfile(info, io.BytesIO(payload))
+    return output.getvalue()
 
 
 def _install_fake_database_runtime(run: Path, fake_bin: Path) -> None:
@@ -1327,6 +1373,139 @@ def test_p0_readiness_is_sanitised_and_creates_no_run(tmp_path: Path) -> None:
     assert unsafe_fields["ready"] == "false"
     assert unsafe_fields["p0_config_status"] == "unsafe_path"
     assert not (tmp_path / "bad").exists()
+
+
+def test_p0_input_bundle_is_checksum_gated_immutable_and_configurable(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    database_config = _write_database_paths(remote_root)
+    database_manifest = Path(
+        database_config.read_text(encoding="ascii").splitlines()[2]
+    )
+    database_manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    database_sha256 = hashlib.sha256(database_manifest.read_bytes()).hexdigest()
+    phenix_directory = tmp_path / "Softwares" / "manifests"
+    phenix_directory.mkdir(parents=True)
+    phenix_manifest = phenix_directory / "phenix.json"
+    phenix_manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    source_id = "4" * 64
+    archive = _p0_input_archive(source_id, database_sha256, phenix_sha256)
+    archive_sha256 = hashlib.sha256(archive).hexdigest()
+
+    staged = _run(
+        [
+            str(dispatcher),
+            "p0-inputs-stage",
+            source_id,
+            archive_sha256,
+            str(len(archive)),
+            database_sha256,
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=archive,
+    )
+    fields = _decode_protocol(staged.stdout)
+    assert fields["p0_input_id"] == f"p0i_{source_id}"
+    assert fields["archive_sha256"] == archive_sha256
+    assert fields["scientific_input_count"] == "7"
+    assert fields["regular_file_count"] == "17"
+    destination = remote_root / "_p0_inputs" / f"p0i_{source_id}"
+    assert (destination / "inputs/CD6QS2P2G1_5.mtz").read_bytes() == b"MTZ CD6\n"
+    assert hashlib.sha256(
+        (destination / "_archive.tar.gz").read_bytes()
+    ).hexdigest() == (archive_sha256)
+    assert destination.stat().st_mode & 0o777 == 0o555
+    assert (destination / "bundle.json").stat().st_mode & 0o777 == 0o444
+
+    candidate = base64.b64decode(fields["p0_paths_base64"])
+    assert hashlib.sha256(candidate).hexdigest() == fields["p0_config_sha256"]
+    candidate_lines = candidate.decode("ascii").splitlines()
+    assert candidate_lines[0] == str(tmp_path)
+    assert candidate_lines[4] == str(database_manifest.parent.parent / "databases")
+    assert candidate_lines[5] == str(database_manifest)
+    assert candidate_lines[6] == str(phenix_manifest)
+
+    configured = _run(
+        [
+            str(dispatcher),
+            "p0-configure",
+            fields["p0_config_sha256"],
+            base64.b64encode(candidate).decode("ascii"),
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(configured.stdout)["p0_config_status"] == "ready"
+    readiness = _decode_protocol(
+        _run(
+            [str(dispatcher), "readiness", "p0"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert readiness["ready"] == "true"
+
+    repeated = _run(
+        [
+            str(dispatcher),
+            "p0-inputs-stage",
+            source_id,
+            archive_sha256,
+            str(len(archive)),
+            database_sha256,
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=archive,
+    )
+    assert _decode_protocol(repeated.stdout)["p0_input_id"] == f"p0i_{source_id}"
+
+    checksum_rejected = _run(
+        [
+            str(dispatcher),
+            "p0-inputs-stage",
+            "5" * 64,
+            "0" * 64,
+            str(len(archive)),
+            database_sha256,
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=archive,
+        success=False,
+    )
+    rejected_fields = _decode_protocol(checksum_rejected.stdout)
+    assert rejected_fields["failure_class"] == "transfer_failure"
+    assert not (remote_root / "_p0_inputs" / f"p0i_{'5' * 64}").exists()
+
+    tampered_input = destination / "inputs/CD6QS2P2G1_5.mtz"
+    tampered_input.chmod(0o644)
+    tampered_input.write_bytes(b"changed\n")
+    tamper_rejected = _run(
+        [
+            str(dispatcher),
+            "p0-inputs-stage",
+            source_id,
+            archive_sha256,
+            str(len(archive)),
+            database_sha256,
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=archive,
+        success=False,
+    )
+    tamper_fields = _decode_protocol(tamper_rejected.stdout)
+    assert tamper_fields["failure_class"] == "transfer_failure"
+    assert "checksum differs" in tamper_fields["message"]
 
 
 def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(

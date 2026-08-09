@@ -91,6 +91,13 @@ Marmic, automatic cleanup, or downstream protein identification. Machine-readabl
 results are written to standard output; diagnostic `logging` and optional
 `tqdm` wait/collection progress use standard error.
 
+The one-time `p0-inputs-stage` boundary packages only the seven frozen pilot
+files named by the private typed manifests, checks them against the frozen
+inventory, rewrites workstation paths, and streams a deterministic archive to a
+fixed content-addressed remote root. It accepts no destination or shell fragment
+and produces a private seven-line candidate for separate checksum-confirmed
+`p0-configure` review. Neither operation belongs in persistent routine approval.
+
 The controller must be built and installed as a reviewed immutable application
 outside the writable checkout before adding narrow Codex approval rules. See the
 [local-Marmic feedback-loop runbook](docs/hpc-feedback-loop.md) for installation,

@@ -263,32 +263,75 @@ after two identical failure signatures is refused pending manual diagnosis.
 
 ## P0 real-site profile
 
-Prepare a local untracked copy of the
-[example](../conf/hpc-p0.paths.example). The file has exactly seven non-empty
-LF-terminated lines and no comments: allowed site root, catalogue manifest,
-crystal manifest, pipeline configuration, database root, frozen database
-manifest, and Phenix manifest. It contains the real site paths and must never be
-committed.
+First prepare the fixed pilot inputs through the reviewed transfer boundary.
+Copy [the two-checksum example](../conf/hpc-p0-inputs.example.json) to
+`.untracked/m0-qualification/p0-inputs.json`, replace the zero placeholders with
+the exact qualified database-manifest and Phenix-manifest SHA-256 values, and
+review the file. The catalogue, crystal, pipeline configuration, and frozen
+input inventory remain at their fixed `.untracked/m0-qualification/` locations;
+scientific data must remain below the project `data/` directory.
 
-Compute its SHA-256 separately, review the seven paths, and install it through
-the create-only configuration boundary:
+Compute the specification checksum, then stage it. The second command builds a
+deterministic archive in `/tmp`, validates all seven scientific-file sizes and
+SHA-256 values against the frozen inventory, rewrites workstation paths, and
+streams the archive through the fixed dispatcher. It accepts no remote path.
 
 ```bash
-sha256sum .untracked/hpc-p0.paths
+shasum -a 256 .untracked/m0-qualification/p0-inputs.json
+nf-gtd-hpc-test p0-inputs-stage \
+  --confirm-spec-sha256 SPEC_SHA256
+```
+
+The remote operation writes only below its fixed content-addressed
+`_p0_inputs/` root. It verifies the archive checksum, exact 12-file payload
+layout, regular-file ownership, hard-link count, per-file inventory, qualified
+database anchor, and exactly one Phenix manifest with the approved checksum.
+The received archive and four identity sidecars are retained with that payload,
+giving 17 regular files in the published tree. Files become mode `0444` and
+directories mode `0555`. Repeating the same operation rehashes the retained
+archive, the archived inventory, and every extracted payload before reusing the
+tree; a fixed dispatcher lock serialises concurrent publication attempts, and a
+changed object cannot replace or silently reuse an existing identity.
+Machine JSON on stdout reports only identities and the local candidate location.
+Progress and diagnostics use `tqdm` and structured logging on stderr.
+
+Success creates the private local candidate
+`.untracked/m0-qualification/hpc-p0.paths`. Review its exactly seven non-empty
+LF-terminated lines: owner-controlled site root, rewritten catalogue manifest,
+rewritten crystal manifest, pipeline configuration, database root, frozen
+database manifest, and Phenix manifest. This file contains real site paths and
+must never be committed. The operation refuses to overwrite a different local
+candidate.
+
+Compute the candidate checksum separately, review the seven paths, and install
+it through the create-only configuration boundary:
+
+```bash
+shasum -a 256 .untracked/m0-qualification/hpc-p0.paths
 nf-gtd-hpc-test p0-configure \
-  --paths-file .untracked/hpc-p0.paths \
+  --paths-file .untracked/m0-qualification/hpc-p0.paths \
   --confirm-sha256 SHA256
 nf-gtd-hpc-test readiness p0
 ```
 
-The local controller rejects symlinks, non-ASCII or non-canonical text, unsafe
-path characters, and a confirmation that differs from the exact payload
-checksum. The dispatcher decodes at most 4 KiB into an owner-controlled
+The local controller requires an owned mode-`0600` regular file and rejects
+symlinks, non-ASCII or non-canonical text, unsafe path characters, and a
+confirmation that differs from the exact payload checksum. The dispatcher
+decodes at most 4 KiB into an owner-controlled
 temporary file, independently verifies its checksum, mode, line count, path
 containment, and live inputs, then atomically creates `_config/p0.paths` with
 mode `0600`. It refuses to overwrite an existing configuration and returns no
 configured paths. This operation is a one-time external setting change and is
 not suitable for persistent command approval.
+
+`p0-inputs-stage` is likewise a separately approved data-transfer operation,
+not a routine persistent approval. It cannot read arbitrary local files: the
+controller fixes the private manifest/inventory paths, requires the seven
+referenced files to resolve below the project `data/` directory, and rejects
+symlinks or inventory drift. It never uploads SSH material, Git configuration,
+credentials, other project files, or biological sequences not named by the
+frozen manifests. No remote service receives the biological inputs; bytes travel
+only over the configured private SSH endpoint.
 
 `stage p0` records the file's SHA-256; the job refuses execution if it changes.
 Every configured child must be a canonical non-symlink path below the
@@ -451,7 +494,8 @@ include `clean` in a persistent Codex allow rule.
 After installing and checksumming the immutable local application, add allow
 rules only for its absolute path followed by `deploy-tools`, `readiness`, `stage`,
 `submit`, `status`, `wait`, `logs`, `collect`, or `cancel`. Keep raw SSH, transfer tools,
-Slurm commands, and the wrapper's `clean` operation approval-gated.
+Slurm commands, `p0-inputs-stage`, `p0-configure`, and the wrapper's `clean`
+operation approval-gated.
 
 Resolve the installed path literally; shell variables and `~` are not valid rule
 substitutes. The intended Codex rule shape is:

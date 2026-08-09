@@ -47,6 +47,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p0_configure.add_argument("--paths-file", type=Path, required=True)
     p0_configure.add_argument("--confirm-sha256", required=True)
 
+    p0_inputs_stage = actions.add_parser(
+        "p0-inputs-stage",
+        help="stage the fixed checksum-frozen three-crystal P0 input bundle",
+    )
+    p0_inputs_stage.add_argument("--confirm-spec-sha256", required=True)
+
     actions.add_parser(
         "database-readiness",
         help="inspect the separate fixed database-administration prerequisites",
@@ -107,6 +113,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.readiness(args.profile)
     if args.operation == "p0-configure":
         return controller.p0_configure(args.paths_file, args.confirm_sha256)
+    if args.operation == "p0-inputs-stage":
+        return controller.p0_inputs_stage(args.confirm_spec_sha256)
     if args.operation == "database-readiness":
         return controller.database_readiness()
     if args.operation == "database-stage":

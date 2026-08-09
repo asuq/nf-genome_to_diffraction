@@ -29,6 +29,7 @@ from genome_to_diffraction.hpc.models import (
 )
 
 COMMIT = "1" * 40
+REPOSITORY = Path(__file__).resolve().parents[2]
 
 
 @dataclass
@@ -56,6 +57,7 @@ class FakeTransport:
     archive: bytes = b""
     status_responses: list[dict[str, str]] = field(default_factory=list)
     calls: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
+    p0_archive: bytes = b""
 
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         self.calls.append((operation, tuple(arguments)))
@@ -74,6 +76,46 @@ class FakeTransport:
     def collect(self, run_id: str, owner_id: str) -> bytes:
         self.calls.append(("collect", (run_id, owner_id)))
         return self.archive
+
+    def p0_inputs_stage(
+        self,
+        source_id: str,
+        archive_sha256: str,
+        archive_size_bytes: int,
+        database_manifest_sha256: str,
+        phenix_manifest_sha256: str,
+        archive_path: Path,
+    ) -> dict[str, str]:
+        self.calls.append(
+            (
+                "p0-inputs-stage",
+                (
+                    source_id,
+                    archive_sha256,
+                    str(archive_size_bytes),
+                    database_manifest_sha256,
+                    phenix_manifest_sha256,
+                ),
+            )
+        )
+        self.p0_archive = archive_path.read_bytes()
+        destination = f"/approved/root/_p0_inputs/p0i_{source_id}"
+        paths = (
+            "/approved\n"
+            f"{destination}/manifests/catalogues.json\n"
+            f"{destination}/manifests/crystals.json\n"
+            f"{destination}/manifests/config.yaml\n"
+            "/approved/databases\n"
+            "/approved/database-manifest.json\n"
+            "/approved/phenix-manifest.json\n"
+        ).encode("ascii")
+        return {
+            "p0_input_id": f"p0i_{source_id}",
+            "archive_sha256": archive_sha256,
+            "archive_size_bytes": str(archive_size_bytes),
+            "p0_config_sha256": hashlib.sha256(paths).hexdigest(),
+            "p0_paths_base64": base64.b64encode(paths).decode("ascii"),
+        }
 
 
 def _config(repository: Path) -> HpcConfig:
@@ -113,6 +155,95 @@ def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
         git=FakeGit(repository=tmp_path),
         progress=False,
     )
+
+
+def _write_fixed_p0_inputs(repository: Path) -> str:
+    qualification = repository / ".untracked" / "m0-qualification"
+    manifests = qualification / "manifests"
+    manifests.mkdir(parents=True)
+    data = repository.parent / "data"
+    genome = data / "genome"
+    crystals = data / "crystals"
+    genome.mkdir(parents=True)
+    crystals.mkdir()
+    source_files = {
+        ("proteome_faa", "GCF_000711905.1"): genome / "protein.faa",
+        ("genome_fasta", "GCF_000711905.1"): genome / "genome.fna",
+        ("annotation_gff", "GCF_000711905.1"): genome / "genomic.gff",
+        ("annotation_gbff", "GCF_000711905.1"): genome / "genomic.gbff",
+        ("mtz", "AD4QS1P4G2_18"): crystals / "AD4QS1P4G2_18.mtz",
+        ("mtz", "CD4QS2P2G1_15"): crystals / "CD4QS2P2G1_15.mtz",
+        ("mtz", "CD6QS2P2G1_5"): crystals / "CD6QS2P2G1_5.mtz",
+    }
+    for (role, logical_id), path in source_files.items():
+        path.write_bytes(f"{role}:{logical_id}\n".encode("ascii"))
+
+    catalogue = {
+        "schema_version": "1.0",
+        "catalogues": [
+            {
+                "catalogue_id": "methermicoccus_refseq",
+                "proteome_faa": str(source_files[("proteome_faa", "GCF_000711905.1")]),
+                "annotation_provider": "NCBI RefSeq PGAP",
+                "annotation_version": "test",
+                "assembly_accession": "GCF_000711905.1",
+                "genome_fasta": str(source_files[("genome_fasta", "GCF_000711905.1")]),
+                "annotation_gff": str(
+                    source_files[("annotation_gff", "GCF_000711905.1")]
+                ),
+                "annotation_gbff": str(
+                    source_files[("annotation_gbff", "GCF_000711905.1")]
+                ),
+                "protein_locus_map": None,
+                "translation_table": 11,
+                "is_contaminant_catalogue": False,
+            }
+        ],
+    }
+    (manifests / "catalogues.json").write_text(
+        json.dumps(catalogue) + "\n", encoding="utf-8"
+    )
+    crystal_manifest = {
+        "schema_version": "1.0",
+        "crystals": [
+            {
+                "crystal_id": crystal_id,
+                "mtz": str(source_files[("mtz", crystal_id)]),
+                "catalogue_id": "methermicoccus_refseq",
+                "allow_remote_sequence_submission": False,
+            }
+            for crystal_id in (
+                "AD4QS1P4G2_18",
+                "CD4QS2P2G1_15",
+                "CD6QS2P2G1_5",
+            )
+        ],
+    }
+    (manifests / "crystals.json").write_text(
+        json.dumps(crystal_manifest) + "\n", encoding="utf-8"
+    )
+    (manifests / "config.yaml").write_bytes(
+        (REPOSITORY / "examples" / "config.yaml").read_bytes()
+    )
+
+    rows = ["role\tlogical_id\tsize_bytes\tsha256\tpath"]
+    for (role, logical_id), path in source_files.items():
+        payload = path.read_bytes()
+        rows.append(
+            f"{role}\t{logical_id}\t{len(payload)}\t"
+            f"{hashlib.sha256(payload).hexdigest()}\t{path}"
+        )
+    (qualification / "input-inventory.tsv").write_text(
+        "\n".join(rows) + "\n", encoding="utf-8"
+    )
+    spec = {
+        "schema_version": "1.0",
+        "database_manifest_sha256": "2" * 64,
+        "phenix_manifest_sha256": "3" * 64,
+    }
+    spec_path = qualification / "p0-inputs.json"
+    spec_path.write_text(json.dumps(spec, sort_keys=True) + "\n", encoding="utf-8")
+    return hashlib.sha256(spec_path.read_bytes()).hexdigest()
 
 
 def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
@@ -267,6 +398,7 @@ def test_p0_configuration_is_checksum_confirmed_and_strictly_validated(
     paths_file = tmp_path / "p0.paths"
     payload = "\n".join(f"/approved/site/path-{index}" for index in range(7)) + "\n"
     paths_file.write_text(payload, encoding="ascii")
+    paths_file.chmod(0o600)
     checksum = hashlib.sha256(payload.encode("ascii")).hexdigest()
 
     with pytest.raises(ValidationError, match="exactly equal"):
@@ -284,6 +416,86 @@ def test_p0_configuration_is_checksum_confirmed_and_strictly_validated(
     )
     with pytest.raises(ConfigurationError, match="conservative absolute"):
         controller.p0_configure(paths_file, checksum)
+
+
+def test_p0_input_staging_is_frozen_rewritten_and_checksum_gated(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "nf-genome_to_diffraction"
+    repository.mkdir()
+    confirmation = _write_fixed_p0_inputs(repository)
+    transport = FakeTransport()
+    controller = _controller(repository, transport)
+
+    with pytest.raises(ValidationError, match="exactly equal"):
+        controller.p0_inputs_stage("0" * 64)
+    result = controller.p0_inputs_stage(confirmation)
+
+    assert result["operation"] == "p0-inputs-stage"
+    assert result["scientific_input_count"] == 7
+    assert result["p0_input_id"] == f"p0i_{transport.calls[-1][1][0]}"
+    assert (
+        hashlib.sha256(transport.p0_archive).hexdigest() == (result["archive_sha256"])
+    )
+    paths_file = Path(str(result["local_paths_file"]))
+    assert paths_file.stat().st_mode & 0o777 == 0o600
+    assert (
+        hashlib.sha256(paths_file.read_bytes()).hexdigest()
+        == (result["p0_config_sha256"])
+    )
+    with tarfile.open(fileobj=io.BytesIO(transport.p0_archive), mode="r:gz") as archive:
+        names = sorted(archive.getnames())
+        assert len(names) == 12
+        assert names == [
+            "bundle.json",
+            "inputs/AD4QS1P4G2_18.mtz",
+            "inputs/CD4QS2P2G1_15.mtz",
+            "inputs/CD6QS2P2G1_5.mtz",
+            "inputs/annotation.gbff",
+            "inputs/annotation.gff",
+            "inputs/genome.fna",
+            "inputs/proteome.faa",
+            "inventory.tsv",
+            "manifests/catalogues.json",
+            "manifests/config.yaml",
+            "manifests/crystals.json",
+        ]
+        rewritten = archive.extractfile("manifests/catalogues.json")
+        assert rewritten is not None
+        rewritten_text = rewritten.read().decode("ascii")
+    assert str(repository.parent / "data") not in rewritten_text
+    assert "/approved/root/_p0_inputs/p0i_" in rewritten_text
+
+    repeated = controller.p0_inputs_stage(confirmation)
+    assert repeated["p0_input_id"] == result["p0_input_id"]
+    assert repeated["archive_sha256"] == result["archive_sha256"]
+
+    paths_file.chmod(0o644)
+    with pytest.raises(ValidationError, match="unsafe identity"):
+        controller.p0_inputs_stage(confirmation)
+    paths_file.chmod(0o600)
+
+    protein = repository.parent / "data" / "genome" / "protein.faa"
+    protein.write_text("changed\n", encoding="ascii")
+    with pytest.raises(ValidationError, match="size differs"):
+        controller.p0_inputs_stage(confirmation)
+
+
+def test_p0_input_staging_rejects_files_not_owned_by_the_invoking_user(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = tmp_path / "nf-genome_to_diffraction"
+    repository.mkdir()
+    confirmation = _write_fixed_p0_inputs(repository)
+    controller = _controller(repository, FakeTransport())
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.p0_inputs.os.getuid",
+        lambda: repository.stat().st_uid + 1,
+    )
+
+    with pytest.raises(ValidationError, match="owned regular file"):
+        controller.p0_inputs_stage(confirmation)
 
 
 def test_database_start_has_a_separate_local_authority_boundary(
