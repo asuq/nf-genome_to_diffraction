@@ -82,7 +82,12 @@ storage. This work is network/I/O-bound, uses no Slurm allocation, and retains
 validator-bound partial state plus structured progress logs. While it runs,
 `status` reports non-terminal `STAGING` rather than inventing a scheduler state,
 and `logs` tails `database-source-stage.log`; after submission the same commands
-switch to the recorded Slurm state and compute log. The compute phase is
+switch to the recorded Slurm state and compute log. If a database command fails,
+`logs` also includes a bounded tail from the exact command log cited by that
+compute log. This diagnostic path is derived remotely rather than accepted from
+the caller, and must be an owned regular file directly below the configured
+database log directory with a fixed generated filename. The combined response
+never exceeds the requested `--tail` line count. The compute phase is
 stricter: an exported `SLURM_TMPDIR` must be a
 canonical, owned, non-symlink directory on a filesystem distinct from the
 durable database root. Marmic did not export that variable in the first real

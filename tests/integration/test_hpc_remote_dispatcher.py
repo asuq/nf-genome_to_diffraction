@@ -878,6 +878,79 @@ def test_database_login_stage_has_nonterminal_status_and_visible_logs(
     )
 
 
+def test_database_failure_log_is_included_without_accepting_a_path_argument(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_database_paths(remote_root)
+    run = remote_root / "runs" / DATABASE_RUN_ID
+    (run / "state").mkdir(parents=True)
+    (run / "logs").mkdir()
+    (run / "state" / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (run / "state" / "profile").write_text("database\n", encoding="ascii")
+    (run / "state" / "phase").write_text("completed\n", encoding="ascii")
+    database_root = remote_root / "database-admin" / "databases"
+    database_logs = database_root / "logs"
+    database_logs.mkdir()
+    diagnostic = database_logs / f"prostt5.download.{'a' * 32}.log"
+    diagnostic.write_text("provider output\nexact failure\n", encoding="ascii")
+    application = run / "logs" / "database.log"
+    application.write_text(
+        "preflight passed\n"
+        f'{{"error": "database command failed; see {diagnostic}", '
+        '"level": "error"}}\n',
+        encoding="ascii",
+    )
+
+    result = _decode_protocol(
+        _run(
+            [str(dispatcher), "logs", DATABASE_RUN_ID, OWNER_ID, "8"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    content = base64.b64decode(result["content_base64"]).decode()
+    assert result["log_path"] == str(application)
+    assert result["diagnostic_log_path"] == str(diagnostic)
+    assert "preflight passed" in content
+    assert "--- failed database command log ---" in content
+    assert "exact failure" in content
+    assert len(content.splitlines()) <= 8
+
+
+def test_database_failure_log_rejects_an_escaped_path(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_database_paths(remote_root)
+    run = remote_root / "runs" / DATABASE_RUN_ID
+    (run / "state").mkdir(parents=True)
+    (run / "logs").mkdir()
+    (run / "state" / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (run / "state" / "profile").write_text("database\n", encoding="ascii")
+    (run / "state" / "phase").write_text("completed\n", encoding="ascii")
+    escaped = tmp_path / f"prostt5.download.{'b' * 32}.log"
+    escaped.write_text("must not be returned\n", encoding="ascii")
+    application = run / "logs" / "database.log"
+    application.write_text(
+        f'{{"error": "database command failed; see {escaped}", "level": "error"}}}}\n',
+        encoding="ascii",
+    )
+
+    result = _decode_protocol(
+        _run(
+            [str(dispatcher), "logs", DATABASE_RUN_ID, OWNER_ID, "8"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    content = base64.b64decode(result["content_base64"]).decode()
+    assert result["diagnostic_log_path"] == ""
+    assert "must not be returned" not in content
+
+
 @pytest.mark.parametrize(
     "storage_limit",
     ("02000000000000", "999999999999999999999999999999"),

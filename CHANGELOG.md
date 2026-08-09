@@ -56,6 +56,9 @@ All notable changes to this project are documented here.
   and pinned tools entirely offline before any extracted payload starts.
 - Database tool-version probes now log start/completion and elapsed time and use
   a fixed 180-second bound to tolerate measured NFS-cold executable startup.
+- Failed database command logs are now available through the existing bounded
+  `logs` operation after owner, configured-root, file-type, and filename checks;
+  callers still cannot supply remote paths.
 - Large Foldseek and MMseqs2 temporary data can now use explicit distinct
   compute-node scratch with continuous headroom monitoring, process-group
   termination, and exact-child cleanup; no scratch fallback is inferred.

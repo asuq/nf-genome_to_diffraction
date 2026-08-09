@@ -865,12 +865,37 @@ status_run() {
     emit terminal "$terminal"
 }
 
+database_diagnostic_log() {
+    [[ "$#" -eq 1 ]] || return 1
+    local application_log="$1"
+    local line candidate="" basename resolved logs_root
+    database_config_readiness || return 1
+    logs_root="$DATABASE_ROOT/logs"
+    [[ -d "$logs_root" && ! -L "$logs_root" && -O "$logs_root" ]] || return 1
+    while IFS= read -r line; do
+        [[ "$line" == *"; see "* ]] || continue
+        candidate="${line##*; see }"
+        candidate="${candidate%% *}"
+        candidate="${candidate%\",}"
+    done < "$application_log"
+    [[ -n "$candidate" && "$candidate" =~ $SAFE_PATH_RE ]] || return 1
+    [[ "$(dirname "$candidate")" == "$logs_root" ]] || return 1
+    basename="${candidate##*/}"
+    [[ "$basename" =~ ^(pdb_foldseek|pdb_sequences|prostt5)\.(download|createdb|createindex|smoke)\.[0-9a-f]{32}\.log$ ]] || \
+        return 1
+    resolved="$(realpath -e "$candidate" 2>/dev/null)" || return 1
+    [[ "$resolved" == "$candidate" && -f "$candidate" && ! -L "$candidate" && \
+        -O "$candidate" ]] || return 1
+    printf '%s' "$candidate"
+}
+
 logs_run() {
     [[ "$#" -eq 3 ]] || fail wrapper_failure "logs expects run ID, owner ID, and line count"
     local run_id="$1"
     local owner_id="$2"
     local lines="$3"
-    local run job_id="" log_path="" content="" profile="" phase=""
+    local run job_id="" log_path="" diagnostic_log="" content="" profile="" phase=""
+    local main_lines diagnostic_lines
     require_owned_run "$run_id" "$owner_id"
     [[ "$lines" =~ $INTEGER_RE ]] || fail wrapper_failure "log line count is invalid"
     (( lines >= 1 && lines <= 2000 )) || fail wrapper_failure "log line count is outside 1..2000"
@@ -892,12 +917,28 @@ logs_run() {
         [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
         log_path="$run/logs/slurm-${job_id}.out"
     fi
-    if [[ -n "$log_path" && -f "$log_path" ]]; then
+    if [[ "$profile" == database && "$log_path" == "$run/logs/database.log" ]]; then
+        diagnostic_log="$(database_diagnostic_log "$log_path" || true)"
+    fi
+    if [[ -n "$diagnostic_log" ]]; then
+        if (( lines == 1 )); then
+            content="$(tail -n 1 -- "$diagnostic_log" | base64 | tr -d '\n')"
+        else
+            main_lines=$((lines / 2))
+            diagnostic_lines=$((lines - main_lines - 1))
+            content="$({
+                tail -n "$main_lines" -- "$log_path"
+                printf '%s\n' "--- failed database command log ---"
+                tail -n "$diagnostic_lines" -- "$diagnostic_log"
+            } | base64 | tr -d '\n')"
+        fi
+    elif [[ -n "$log_path" && -f "$log_path" ]]; then
         content="$(tail -n "$lines" -- "$log_path" | base64 | tr -d '\n')"
     fi
     emit operation logs
     emit run_id "$run_id"
     emit log_path "$log_path"
+    emit diagnostic_log_path "$diagnostic_log"
     emit content_base64 "$content"
 }
 
