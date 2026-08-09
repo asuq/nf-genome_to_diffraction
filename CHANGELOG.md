@@ -65,7 +65,8 @@ All notable changes to this project are documented here.
 - A collected, terminal database software failure can now release its retained
   build guard through an exact-confirmation operation that archives rather than
   deletes the log-derived staging tree and rejects configuration drift or unsafe
-  entries.
+  entries; fail-closed path checks report the rejected safety condition without
+  exposing caller-controlled paths.
 - Large Foldseek and MMseqs2 temporary data can now use explicit distinct
   compute-node scratch with continuous headroom monitoring, process-group
   termination, and exact-child cleanup; no scratch fallback is inferred.

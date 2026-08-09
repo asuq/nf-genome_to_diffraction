@@ -889,32 +889,42 @@ database_diagnostic_log() {
     printf '%s' "$candidate"
 }
 
-database_failed_staging() {
-    [[ "$#" -eq 1 ]] || return 1
+require_database_failed_staging() {
+    [[ "$#" -eq 1 ]] || \
+        fail wrapper_failure "failed-staging resolver expects one application log"
     local application_log="$1"
     local line candidate="" basename resource resource_root resolved unsafe
-    database_config_readiness || return 1
+    DATABASE_FAILED_STAGING=""
     while IFS= read -r line; do
         [[ "$line" == *'"staging_path": "'* ]] || continue
         candidate="${line#*\"staging_path\": \"}"
         candidate="${candidate%%\"*}"
     done < "$application_log"
-    [[ -n "$candidate" && "$candidate" =~ $SAFE_PATH_RE ]] || return 1
+    [[ -n "$candidate" ]] || \
+        fail filesystem_failure "failed-staging path is absent from the application log"
+    [[ "$candidate" =~ $SAFE_PATH_RE ]] || \
+        fail filesystem_failure "failed-staging path contains unsafe characters"
     basename="${candidate##*/}"
-    [[ "$basename" =~ ^\.staging-[0-9a-f]{32}\.failed$ ]] || return 1
+    [[ "$basename" =~ ^\.staging-[0-9a-f]{32}\.failed$ ]] || \
+        fail filesystem_failure "failed-staging basename is not recognised"
     resource_root="$(dirname "$candidate")"
     resource="${resource_root##*/}"
     [[ "$resource" =~ ^(coordinate_cache|pdb_foldseek|pdb_sequences|prostt5)$ ]] || \
-        return 1
-    [[ "$(dirname "$resource_root")" == "$DATABASE_ROOT/resources" ]] || return 1
-    resolved="$(realpath -e "$candidate" 2>/dev/null)" || return 1
+        fail filesystem_failure "failed-staging resource is not recognised"
+    [[ "$(dirname "$resource_root")" == "$DATABASE_ROOT/resources" ]] || \
+        fail filesystem_failure "failed-staging path is outside the configured resources"
+    resolved="$(realpath -e "$candidate" 2>/dev/null)" || \
+        fail filesystem_failure "failed-staging directory is absent or cannot be resolved"
     [[ "$resolved" == "$candidate" && -d "$candidate" && ! -L "$candidate" && \
-        -O "$candidate" ]] || return 1
+        -O "$candidate" ]] || \
+        fail filesystem_failure "failed-staging directory is non-canonical, unsafe, or foreign-owned"
     unsafe="$(find "$candidate" -xdev \( ! -type d -a ! -type f \) -print -quit)"
-    [[ -z "$unsafe" ]] || return 1
+    [[ -z "$unsafe" ]] || \
+        fail filesystem_failure "failed-staging directory contains a special file"
     unsafe="$(find "$candidate" -xdev ! -user "$(id -u)" -print -quit)"
-    [[ -z "$unsafe" ]] || return 1
-    printf '%s' "$candidate"
+    [[ -z "$unsafe" ]] || \
+        fail filesystem_failure "failed-staging directory contains foreign-owned content"
+    DATABASE_FAILED_STAGING="$candidate"
 }
 
 logs_run() {
@@ -1022,9 +1032,8 @@ database_archive_failed_run() {
     [[ "$expected_config" =~ $CHECKSUM_RE && \
         "$expected_config" == "$DATABASE_CONFIG_SHA256" ]] || \
         fail wrapper_failure "database configuration changed after the failed run"
-    source="$(database_failed_staging "$run/logs/database.log" || true)"
-    [[ -n "$source" ]] || \
-        fail filesystem_failure "reviewed failed staging could not be resolved safely"
+    require_database_failed_staging "$run/logs/database.log"
+    source="$DATABASE_FAILED_STAGING"
     basename="${source##*/}"
     destination="$(dirname "$source")/${basename%.failed}.reviewed-${run_id}"
     [[ ! -e "$destination" && ! -L "$destination" ]] || \
