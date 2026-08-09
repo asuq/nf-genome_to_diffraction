@@ -71,6 +71,7 @@ genome-to-diffraction contract validate catalogue-manifest examples/catalogues.t
 genome-to-diffraction contract canonicalise pipeline-config examples/config.yaml
 genome-to-diffraction contract schema sequence-group
 genome-to-diffraction structure-search pdb-sequence --help
+genome-to-diffraction structure-search qualify-p1 --help
 ```
 
 `schema-check` validates every tracked JSON Schema against Draft 2020-12,
@@ -90,11 +91,14 @@ The repository includes a repository-specific local controller and fixed remote
 dispatcher. The `smoke` profile runs `pixi run check`; the separately bounded
 `p0` profile verifies real Phenix, performs anchored database metadata and
 functional-smoke revalidation, and runs the three-crystal Task 05 preflight
-twice to prove cache reuse. It deliberately does not perform a terabyte-scale
-full-checksum audit. A third, separately approval-gated `database` profile runs
-fixed route/capacity preflight, `/dev/shm` resource construction, verified
-shared-storage publication, and anchored full verification with 100 CPUs,
-2,000 GB, and a 48-hour limit. All profiles use one
+twice to prove cache reuse. The fixed `p1` profile imports the same frozen
+catalogue, runs catalogue-wide direct PDB sequence discovery, repeats it with
+`-resume`, and applies the tracked 8OOX positive-control and model-key gate. P0
+deliberately does not perform a terabyte-scale full-checksum audit. The
+separately approval-gated `database` profile runs fixed route/capacity
+preflight, `/dev/shm` resource construction, verified shared-storage
+publication, and anchored full verification with 100 CPUs, 2,000 GB, and a
+48-hour limit. All profiles use one
 immutable pushed commit. Neither provides arbitrary SSH/paths, source edits on
 Marmic, automatic cleanup, or downstream protein identification. Machine-readable
 results are written to standard output; diagnostic `logging` and optional

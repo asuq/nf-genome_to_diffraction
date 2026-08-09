@@ -157,6 +157,10 @@ All notable changes to this project are documented here.
   resource, preserve exact PDB/chain mappings and raw evidence, distinguish
   hit, no-hit, and ineligible outcomes, and expose a resumable typed Nextflow
   entry point.
+- A fixed path-closed Marmic P1 operation now reuses the frozen P0 catalogue and
+  qualified database manifest, runs catalogue-wide direct PDB discovery through
+  the checked `nf-helper` Marmic profile, requires a fully cached resume, and
+  emits checksum-validated 8OOX/model-key/resource qualification evidence.
 
 ### Not implemented
 
@@ -164,7 +168,8 @@ All notable changes to this project are documented here.
   search, provider hit union, model preparation, molecular replacement,
   refinement, map-based sequence assessment, final ranking, and final
   scientific reporting.
-- Real-site P1 structural-discovery qualification and all downstream MR gates.
+- Real-site execution of the P1 structural-discovery qualification and all
+  downstream MR gates.
 
 ## 1.0 - 31 July 2026
 

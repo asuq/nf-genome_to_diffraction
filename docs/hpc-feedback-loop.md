@@ -2,7 +2,7 @@
 
 ## Purpose and boundary
 
-The interface has two routine closed profiles plus one separately gated
+The interface has three routine closed profiles plus one separately gated
 database-administration profile. Local Git remains the sole source of truth.
 Marmic fetches an exact pushed commit, creates an isolated read-only checkout,
 runs only the selected reviewed job body, and returns bounded diagnostics. It
@@ -12,6 +12,7 @@ never edits or pushes source.
 | --- | --- | --- |
 | `smoke` | Locked `pixi run check` | Software/environment foundation only |
 | `p0` | Real Phenix verification, bounded anchored database revalidation, all-three-crystal Task 05 run, and cached resume | M0 execution evidence only; downstream identity search remains deferred |
+| `p1` | Frozen catalogue import, catalogue-wide direct PDB sequence search, cached resume, and tracked 8OOX qualification | M1 direct-search evidence only; no crystal identity or MR claim |
 | `database` | Login-node source staging, offline capacity preflight, all-resource preparation, and anchored full verification | Shared database administration only; no pipeline or protein-identification claim |
 
 The reviewed local application is the routine approval boundary. Persistent
@@ -22,15 +23,18 @@ file-transfer tools, scheduler commands, and `clean` must not receive persistent
 automatic approval.
 
 The routine drivers use partition `slurm`, 2 CPUs, and 8 GB memory. Foundation
-smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin because
-Marmic NFS-cold Phenix startup is not predictably bounded. The database driver
+smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin and P1 has a
+48-hour margin because Marmic NFS-cold executable and database access are not
+predictably bounded. P1's Nextflow `process_search` child requests 16 CPUs,
+64 GB, and a 24-hour process margin through the checked Marmic site
+configuration; the small outer allocation only coordinates that child. The database driver
 uses the same partition with 100 CPUs, 2,000 GB, and a 48-hour walltime. The
 large memory request supplies `/dev/shm` build space;
 the node's full 4 TB is not requested because it would not accelerate serial
 network, checksum, or copy-back I/O. Only one managed job may be active across
 all profiles. Queue
 waiting stops after 30 minutes. Local execution waiting uses the same 45-minute,
-24-hour, and 48-hour margins for smoke, P0, and database jobs; none of these
+24-hour, 48-hour, and 48-hour margins for smoke, P0, P1, and database jobs; none of these
 limits silently cancels a job. The caller must inspect status and cancel the
 recorded job when appropriate.
 
@@ -71,14 +75,14 @@ RUN_ROOT/
 
 Each staged source tree is detached at one full commit SHA, includes the pinned
 `nf-helper` submodule, and is made read-only. A per-run locked Pixi environment
-is attached outside that source tree. For P0 and database profiles, staging
+is attached outside that source tree. For P0, P1, and database profiles, staging
 materialises that environment on the network-enabled login node; compute jobs
 only verify and use it and therefore do not contact package channels.
 
-The foundation smoke copies source to `SLURM_TMPDIR` or `/dev/shm`. P0 keeps the
+The foundation smoke copies source to `SLURM_TMPDIR` or `/dev/shm`. P0 and P1 keep the
 source, Pixi environment, Nextflow cache/work directory, logs, and results on
 shared durable storage because child Slurm nodes cannot see the driver's
-`/dev/shm`. Only P0 driver temporaries use `/dev/shm`; `nf-helper` stages each
+`/dev/shm`. Only driver temporaries use memory-backed local storage; `nf-helper` stages each
 Nextflow process through compute-node `/scratch`. Disposable driver scratch is
 removed by the job, while the durable run is retained until explicitly cleaned.
 
@@ -205,6 +209,18 @@ nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test collect --run-id RUN_ID
 ```
 
+P1 reuses that same reviewed, read-only site configuration and database
+manifest. It accepts no new path or scientific parameter:
+
+```bash
+nf-gtd-hpc-test readiness p1
+nf-gtd-hpc-test stage p1 --revision HEAD
+nf-gtd-hpc-test submit p1 --run-id RUN_ID
+nf-gtd-hpc-test wait --run-id RUN_ID
+nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test collect --run-id RUN_ID
+```
+
 If a collected database run retains extraction or indexing staging after a
 software failure or explicit cancellation, review its main and cited command
 logs first. The separately approval-gated recovery operation accepts no path and
@@ -233,9 +249,10 @@ resource's `.failed` or orphaned active build guard. Never run this before
 collection and diagnosis, and do not include it in automatic feedback or a
 persistent approval rule.
 
-`readiness p0` is a fixed, read-only prerequisite inspection. It accepts no
-path, revision, run ID, or shell fragment; creates no run; and submits no job.
-Its JSON reports the exact Pixi-version status and a sanitised P0 configuration
+`readiness p0` and `readiness p1` are fixed, read-only prerequisite inspections.
+They accept no path, revision, run ID, or shell fragment, create no run, and
+submit no job.
+Their JSON reports the exact Pixi-version status and a sanitised P0 configuration
 status plus checksum, but never returns configured site paths. `ready: true`
 means only that staging prerequisites exist. The staged job independently
 revalidates the configuration and still must verify real Phenix and databases.
@@ -392,6 +409,26 @@ identity or clean crystallographic acceptance merely because the job exited 0.
 It also does not claim that every byte of a terabyte-scale database was rehashed
 during the P0 allocation.
 
+## P1 direct-PDB discovery profile
+
+The fixed P1 job reuses the frozen catalogue and qualified database manifest
+already protected by the P0 configuration. It verifies their staging-time
+checksums, imports the catalogue once, and runs `discover_structures.nf -profile
+marmic` against the local PDB sequence resource. The checked `nf-helper` Marmic
+configuration gives the MMseqs2 process compute-node `/scratch` and copies its
+declared output to durable storage. The job repeats the identical workflow with
+`-resume` and fails unless the only search process is cached.
+
+The final qualifier rechecks every declared result checksum, requires exactly
+one result per catalogue sequence group, verifies that all retained hits carry
+retrievable PDB model keys, and requires the exact 8OOX/8OOW positive-control
+family for the tracked `GCF_000711905.1` sequence. It retains Nextflow CPU,
+memory, process-I/O, result-size, and cache evidence. `collect` returns only the
+qualification JSON, first/resume report files, catalogue manifest, search
+manifest, and bounded MMseqs2 log; the full result tree remains on Marmic.
+Passing this profile qualifies the direct-PDB route only. It does not perform
+molecular replacement or identify any blind pilot crystal.
+
 ## Database administration boundary
 
 Full preparation and `verify-only --full-verify` use separate, long-running
@@ -499,7 +536,7 @@ Failure classes are:
 - `success`: the selected fixed profile completed its explicit gate checks;
 - `software_failure`: the job detected unexpected source mutation or application
   behaviour outside a test assertion;
-- `test_failure`: the foundation checks or fixed P0 workflow/cache gate failed;
+- `test_failure`: the foundation checks or a fixed P0/P1 workflow gate failed;
 - `scheduler_rejection` or `queue_timeout`: scheduling did not start normally;
 - `node_failure`: Slurm reported a failed node;
 - `environment_failure`: Pixi, resources, walltime, or runtime preparation failed;
@@ -562,7 +599,8 @@ local settings does not authorise deletion of shared Marmic state.
 
 ## Deferred scope
 
-P0 consumes already prepared real Phenix and database resources; it does not
+P0 and P1 consume already prepared real Phenix and database resources; they do not
 install licensed software, download databases, accept arbitrary Nextflow
-parameters, or expose raw SSH. Structural discovery, MR, refinement, map-based
-sequence work, full pilots, and benchmarks require their later roadmap gates.
+parameters, or expose raw SSH. Additional structural providers, MR, refinement,
+map-based sequence work, full pilots, and benchmarks require their later roadmap
+gates.

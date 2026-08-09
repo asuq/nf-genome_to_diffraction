@@ -56,7 +56,8 @@ schema-valid fixtures. A normal run requires the real qualified database.
   execution status, scientific status, cache key, raw evidence checksums, and
   zero or more embedded normalised hits.
 - `structural_hits.jsonl`: the flattened retained-hit stream for downstream
-  joins.
+  joins. Every retained PDB hit includes a retrievable namespaced `model_key`
+  of the form `pdb:<PDBID>:<identifier-namespace>:<chain-or-entity-token>`.
 - `search_manifest.json`: provider, adapter, database, tool, parameter, count,
   status, and output-integrity summary.
 - `raw/queries.faa`: the exact eligible query batch.
@@ -93,7 +94,16 @@ workflow run must report cached work with `-resume`.
 The current interface performs no remote calls and accepts no crystal metadata
 or SDS-PAGE values, so those cannot affect direct PDB search identity. Exact
 AFDB retrieval, optional remote ESM Atlas access, ProstT5/Foldseek structural
-search, hit union, and the real Marmic P1 acceptance run remain later M1 work.
+search, and hit union remain later M1 work.
+
+The fixed `structure-search qualify-p1` command verifies the complete direct-PDB
+output inventory and checksums, exactly one result per supplied sequence group,
+embedded/flattened hit consistency, retrievable model keys, the tracked 8OOX
+positive-control family, a completed first Nextflow trace, and a fully cached
+resume trace. Its JSON evidence retains the control hits, process/resource trace
+fields, result-tree size, and cache counts. Nextflow `rchar`/`wchar` values are
+reported as process-I/O counters and are not overinterpreted as physical
+database-device bytes.
 
 ## Test coverage and present qualification
 
@@ -102,7 +112,9 @@ normalised sequence identity, exact PDB/chain mapping, parameter propagation,
 and fail-loud handling of unmapped targets. The Nextflow acceptance suite checks
 parser-v2 linting, publication, standard reports, and cached stub resume.
 
-This is implemented functionality, not yet a passed P1 scientific gate. P1
-requires a real full-catalogue Marmic run, retention of the 8OOX structural
-family, complete model keys, cache reuse, and measured CPU, memory, database I/O,
-result size, and cache-hit rate.
+The direct provider and fixed qualification boundary are implemented
+functionality, not yet a passed P1 scientific gate. P1 still requires the real
+full-catalogue Marmic run, then the remaining approved M1 providers and evidence
+union. The first real run must retain the 8OOX structural family, complete model
+keys, cache reuse, and measured CPU, memory, process I/O, result size, and
+cache-hit rate.

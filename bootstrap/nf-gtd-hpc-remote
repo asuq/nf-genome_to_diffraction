@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -188,7 +188,8 @@ readiness_p0() {
     local profile="$1"
     local pixi_bin="" pixi_version="" pixi_status=unavailable ready=false
     validate_profile "$profile"
-    [[ "$profile" == p0 ]] || fail wrapper_failure "readiness is available only for p0"
+    [[ "$profile" == p0 || "$profile" == p1 ]] || \
+        fail wrapper_failure "readiness is available only for p0 and p1"
 
     if [[ -f "$PIXI_PATH_FILE" ]]; then
         IFS= read -r pixi_bin < "$PIXI_PATH_FILE"
@@ -212,7 +213,7 @@ readiness_p0() {
     fi
 
     emit operation readiness
-    emit profile p0
+    emit profile "$profile"
     emit ready "$ready"
     emit pixi_status "$pixi_status"
     emit pixi_version "$pixi_version"
@@ -845,7 +846,7 @@ stage_run_common() {
     ln -s "$run/environment/.pixi" "$run/source/.pixi" || \
         fail filesystem_failure "cannot attach the per-run Pixi environment"
 
-    if [[ "$profile" == p0 ]]; then
+    if [[ "$profile" == p0 || "$profile" == p1 ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
             atomic_text "$run/state/phase" "stage_failed"
@@ -878,7 +879,7 @@ stage_run_common() {
         database_config_json="\"$database_config_sha256\""
     fi
 
-    if [[ "$profile" == p0 || "$profile" == database ]]; then
+    if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == database ]]; then
         if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
             --manifest-path "$run/source/pixi.toml" \
             --environment hpc \
@@ -896,7 +897,7 @@ stage_run_common() {
             append_event "$run" "stage_${profile}_cli_absent"
             fail environment_failure "locked HPC CLI is unavailable"
         }
-        if [[ "$profile" == p0 ]]; then
+        if [[ "$profile" == p0 || "$profile" == p1 ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
             java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
             mmseqs="$run/source/.pixi/envs/hpc/bin/mmseqs"
@@ -989,6 +990,7 @@ submit_run() {
     local run_id="$1"
     local owner_id="$2"
     local run active_run active_job active_state submission job_id profile walltime
+    local cpus memory
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     [[ "$(<"$run/state/phase")" == staged ]] || \
@@ -1002,7 +1004,12 @@ submit_run() {
     [[ "$run_id" == "gtd-${profile}-"* ]] || \
         fail wrapper_failure "recorded profile does not match the run ID"
     walltime=00:45:00
+    cpus=2
+    memory=8G
     [[ "$profile" != p0 ]] || walltime=24:00:00
+    if [[ "$profile" == p1 ]]; then
+        walltime=48:00:00
+    fi
 
     exec 9>"$LOCKS/submit.lock"
     flock -x 9
@@ -1027,8 +1034,8 @@ submit_run() {
 
     if ! submission="$(sbatch --parsable \
         --partition=slurm \
-        --cpus-per-task=2 \
-        --mem=8G \
+        --cpus-per-task="$cpus" \
+        --mem="$memory" \
         --time="$walltime" \
         --job-name="nfgtd-${profile}-${run_id:7:20}" \
         --output="$run/logs/slurm-%j.out" \
@@ -1468,14 +1475,27 @@ collect_run() {
         logs/sbatch.err \
         logs/smoke.log \
         logs/p0.log \
+        logs/p1.log \
         logs/database.log \
         logs/nextflow-first.log \
         logs/nextflow-resume.log \
+        logs/nextflow-p1-first.log \
+        logs/nextflow-p1-resume.log \
         artifacts/qualification/input-checksums.sha256 \
         artifacts/qualification/phenix-verification.log \
         artifacts/qualification/database_manifest.p0-revalidated.json \
         artifacts/qualification/database_manifest.p0-revalidated.verification.json \
         artifacts/qualification/resume-check.json \
+        artifacts/qualification/p1-qualification.json \
+        artifacts/qualification/p1-input-checksums.sha256 \
+        artifacts/qualification/p1-first-pipeline-info/report.html \
+        artifacts/qualification/p1-first-pipeline-info/timeline.html \
+        artifacts/qualification/p1-first-pipeline-info/trace.tsv \
+        artifacts/qualification/p1-first-pipeline-info/dag.html \
+        artifacts/qualification/p1-resume-pipeline-info/report.html \
+        artifacts/qualification/p1-resume-pipeline-info/timeline.html \
+        artifacts/qualification/p1-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/p1-resume-pipeline-info/dag.html \
         artifacts/qualification/first-pipeline-info/report.html \
         artifacts/qualification/first-pipeline-info/timeline.html \
         artifacts/qualification/first-pipeline-info/trace.tsv \
@@ -1495,7 +1515,10 @@ collect_run() {
         artifacts/p0/preflight/mtz_preflight.jsonl \
         artifacts/p0/preflight/mtz_preflight.tsv \
         artifacts/p0/preflight/preflight_report.md \
-        artifacts/p0/matthews/matthews_report.md; do
+        artifacts/p0/matthews/matthews_report.md \
+        artifacts/p1/catalogue/catalogue_import_manifest.json \
+        artifacts/p1/discovery/pdb_sequence_search/search_manifest.json \
+        artifacts/p1/discovery/pdb_sequence_search/raw/mmseqs.log; do
         if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then
             size="$(file_size "$run/$candidate")"
             (( size <= MAX_FILE_BYTES )) || fail transfer_failure "artefact exceeds per-file limit"

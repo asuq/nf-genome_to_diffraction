@@ -19,6 +19,7 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 RUN_ID = "gtd-smoke-20260802T120000Z-0123456789ab-01234567"
 SECOND_RUN_ID = "gtd-smoke-20260802T120001Z-0123456789ab-01234568"
 P0_RUN_ID = "gtd-p0-20260802T120000Z-0123456789ab-01234567"
+P1_RUN_ID = "gtd-p1-20260802T120000Z-0123456789ab-01234567"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
 
@@ -103,7 +104,18 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     for name in ("nf-gtd-hpc-remote", "nf-gtd-hpc-smoke-job"):
         shutil.copy2(REPOSITORY / "bootstrap" / name, bootstrap / name)
         (bootstrap / name).chmod(0o755)
-    _git(source, "add", "pixi.lock", "bootstrap")
+    shutil.copy2(
+        REPOSITORY / "discover_structures.nf", source / "discover_structures.nf"
+    )
+    controls = source / "benchmarks" / "public-controls"
+    controls.mkdir(parents=True)
+    shutil.copy2(
+        REPOSITORY / "benchmarks/public-controls/pdb_8oox.yaml",
+        controls / "pdb_8oox.yaml",
+    )
+    _git(
+        source, "add", "pixi.lock", "bootstrap", "discover_structures.nf", "benchmarks"
+    )
     _git(
         source,
         "-c",
@@ -1828,6 +1840,169 @@ def test_p0_job_enforces_the_cached_resume_gate(
             "inventory_metadata_and_functional_smoke"
         )
         assert bounded_verification["full_checksums"] is False
+
+
+def _install_fake_p1_runtime(run: Path) -> None:
+    bin_directory = run / "source" / ".pixi" / "envs" / "hpc" / "bin"
+    bin_directory.mkdir(parents=True, exist_ok=True)
+    _write_executable(
+        bin_directory / "genome-to-diffraction",
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "mode=\n"
+        "outdir=\n"
+        "output=\n"
+        "first_trace=\n"
+        "resume_trace=\n"
+        "previous=\n"
+        'case " $* " in\n'
+        '  *" catalogue import "*) mode=catalogue ;;\n'
+        '  *" structure-search qualify-p1 "*) mode=qualify ;;\n'
+        "esac\n"
+        'for argument in "$@"; do\n'
+        '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
+        '  [[ "$previous" != --output ]] || output="$argument"\n'
+        '  [[ "$previous" != --first-trace ]] || first_trace="$argument"\n'
+        '  [[ "$previous" != --resume-trace ]] || resume_trace="$argument"\n'
+        '  previous="$argument"\n'
+        "done\n"
+        'if [[ "$mode" == catalogue ]]; then\n'
+        '  [[ -n "$outdir" ]]\n'
+        '  mkdir -p "$outdir"\n'
+        "  printf '{}\\n' > \"$outdir/sequence_groups.jsonl\"\n"
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/catalogue_import_manifest.json"\n'
+        'elif [[ "$mode" == qualify ]]; then\n'
+        '  [[ -n "$output" && -f "$first_trace" && -f "$resume_trace" ]]\n'
+        "  grep -q $'\\tCOMPLETED\\t' \"$first_trace\"\n"
+        "  grep -q $'\\tCACHED\\t' \"$resume_trace\"\n"
+        '  mkdir -p "$(dirname "$output")"\n'
+        '  printf \'{"schema_version":"1.0","profile":"p1",'
+        '"status":"passed","all_resume_processes_cached":true}\\n\' '
+        '> "$output"\n'
+        "else\n"
+        "  exit 9\n"
+        "fi\n",
+    )
+    _write_executable(
+        bin_directory / "nextflow",
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "outdir=\n"
+        "previous=\n"
+        "status=COMPLETED\n"
+        'for argument in "$@"; do\n'
+        '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
+        '  [[ "$argument" != -resume ]] || status=CACHED\n'
+        '  previous="$argument"\n'
+        "done\n"
+        '[[ -n "$outdir" ]]\n'
+        'mkdir -p "$outdir/pipeline_info" "$outdir/pdb_sequence_search/raw"\n'
+        "printf 'task_id\\tnative_id\\tname\\tstatus\\texit\\tduration\\t"
+        "realtime\\t%%cpu\\tpeak_rss\\tpeak_vmem\\trchar\\twchar\\n' "
+        '> "$outdir/pipeline_info/trace.tsv"\n'
+        "printf '1\\t123\\tSEARCH_PDB_SEQUENCES\\t%s\\t0\\t2s\\t1s\\t100%%\\t"
+        '10 MB\\t20 MB\\t30 MB\\t4 MB\\n\' "$status" '
+        '>> "$outdir/pipeline_info/trace.tsv"\n'
+        "for name in report.html timeline.html dag.html; do "
+        "printf '<html></html>\\n' > \"$outdir/pipeline_info/$name\"; done\n"
+        'printf \'{"schema_version":"1.0",'
+        '"provider":"pdb_sequence_mmseqs"}\\n\' '
+        '> "$outdir/pdb_sequence_search/search_manifest.json"\n'
+        "printf 'fake mmseqs log\\n' > "
+        '"$outdir/pdb_sequence_search/raw/mmseqs.log"\n',
+    )
+
+
+def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
+
+    readiness = _decode_protocol(
+        _run(
+            [str(dispatcher), "readiness", "p1"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert readiness["profile"] == "p1"
+    assert readiness["ready"] == "true"
+
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                P1_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "p1",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert staged["profile"] == "p1"
+    run = remote_root / "runs" / P1_RUN_ID
+    _install_fake_p1_runtime(run)
+
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", P1_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert submitted["job_id"] == "123"
+    submitted_arguments = (
+        (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    )
+    assert "--cpus-per-task=2" in submitted_arguments
+    assert "--mem=8G" in submitted_arguments
+    assert "--time=48:00:00" in submitted_arguments
+
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "123"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+    _run(
+        [str(smoke_job), P1_RUN_ID, str(remote_root), "p1"],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
+
+    result = json.loads((run / "state/job-result.json").read_text(encoding="utf-8"))
+    assert result["failure_class"] == "success"
+    qualification = json.loads(
+        (run / "artifacts/qualification/p1-qualification.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert qualification["status"] == "passed"
+    assert qualification["all_resume_processes_cached"] is True
+    p1_log = (run / "logs/p1.log").read_text(encoding="utf-8")
+    assert "phase=p1_first_run profile=p1" in p1_log
+    assert "phase=p1_resume_run profile=p1" in p1_log
+    assert "p1_status=direct_pdb_sequence_search_qualified" in p1_log
+
+    archive_path = tmp_path / "p1-collected.tar.gz"
+    archive_path.write_bytes(
+        _run(
+            [str(dispatcher), "collect", P1_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    with tarfile.open(archive_path, "r:gz") as archive:
+        names = set(archive.getnames())
+    assert "artifacts/qualification/p1-qualification.json" in names
+    assert "artifacts/qualification/p1-resume-pipeline-info/trace.tsv" in names
+    assert "artifacts/p1/discovery/pdb_sequence_search/search_manifest.json" in names
+    assert "artifacts/p1/discovery/pdb_sequence_search/raw/mmseqs.log" in names
 
 
 def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(

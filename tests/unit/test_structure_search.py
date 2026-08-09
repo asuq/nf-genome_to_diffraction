@@ -3,7 +3,9 @@
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,9 +16,14 @@ from genome_to_diffraction.schemas.results import (
 )
 from genome_to_diffraction.status import ExecutionStatus, ResultParseError
 from genome_to_diffraction.structure_search import (
+    P1QualificationRequest,
     PdbSequenceSearchRequest,
+    qualify_p1_search,
     search_pdb_sequences,
 )
+from genome_to_diffraction.structure_search import qualification as qualification_module
+
+REPOSITORY = Path(__file__).resolve().parents[2]
 
 
 def _sequence_group(
@@ -177,6 +184,98 @@ def test_pdb_sequence_search_rejects_unmapped_hit(
                 sequence_groups_jsonl=sequence_path,
                 database_manifest=manifest_path,
                 output_directory=tmp_path / "output",
+                progress=False,
+            )
+        )
+
+
+def _write_trace(path: Path, status: str) -> None:
+    path.write_text(
+        "task_id\tnative_id\tname\tstatus\texit\tduration\trealtime\t%cpu\t"
+        "peak_rss\tpeak_vmem\trchar\twchar\n"
+        f"1\t42\tSEARCH_PDB_SEQUENCES\t{status}\t0\t2s\t1s\t100%\t"
+        "10 MB\t20 MB\t30 MB\t4 MB\n",
+        encoding="utf-8",
+    )
+
+
+def test_p1_qualification_requires_control_family_and_cached_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    search_directory = tmp_path / "search output"
+    shutil.copytree(
+        REPOSITORY / "tests/fixtures/stubs/structure_search", search_directory
+    )
+    first_trace = tmp_path / "first trace.tsv"
+    resume_trace = tmp_path / "resume trace.tsv"
+    _write_trace(first_trace, "COMPLETED")
+    _write_trace(resume_trace, "CACHED")
+    target_digest = "f50b9a1db8767fb7cdc8b89cf1a78c9fac1e0e2d5bb5367aeec14709396d5c5e"
+    monkeypatch.setattr(
+        qualification_module,
+        "load_public_control_spec",
+        lambda _: SimpleNamespace(
+            control_id="TEST_CONTROL",
+            target_sequence_sha256=target_digest,
+            target_pdb_id="1UBQ",
+            resources=(),
+        ),
+    )
+
+    report = qualify_p1_search(
+        P1QualificationRequest(
+            sequence_groups_jsonl=REPOSITORY
+            / "tests/fixtures/stubs/sequence_groups.jsonl",
+            search_directory=search_directory,
+            control_specification=tmp_path / "unused.yaml",
+            first_trace_tsv=first_trace,
+            resume_trace_tsv=resume_trace,
+            output_json=tmp_path / "p1 qualification.json",
+            progress=False,
+        )
+    )
+
+    result = json.loads(report.read_text(encoding="utf-8"))
+    assert result["status"] == "passed"
+    assert result["all_resume_processes_cached"] is True
+    assert result["retained_control_hits"][0]["model_key"] == (
+        "pdb:1UBQ:legacy_seqres_suffix:A"
+    )
+
+
+def test_p1_qualification_rejects_uncached_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    search_directory = tmp_path / "search"
+    shutil.copytree(
+        REPOSITORY / "tests/fixtures/stubs/structure_search", search_directory
+    )
+    first_trace = tmp_path / "first.tsv"
+    resume_trace = tmp_path / "resume.tsv"
+    _write_trace(first_trace, "COMPLETED")
+    _write_trace(resume_trace, "COMPLETED")
+    target_digest = "f50b9a1db8767fb7cdc8b89cf1a78c9fac1e0e2d5bb5367aeec14709396d5c5e"
+    monkeypatch.setattr(
+        qualification_module,
+        "load_public_control_spec",
+        lambda _: SimpleNamespace(
+            control_id="TEST_CONTROL",
+            target_sequence_sha256=target_digest,
+            target_pdb_id="1UBQ",
+            resources=(),
+        ),
+    )
+
+    with pytest.raises(ResultParseError, match="only CACHED"):
+        qualify_p1_search(
+            P1QualificationRequest(
+                sequence_groups_jsonl=REPOSITORY
+                / "tests/fixtures/stubs/sequence_groups.jsonl",
+                search_directory=search_directory,
+                control_specification=tmp_path / "unused.yaml",
+                first_trace_tsv=first_trace,
+                resume_trace_tsv=resume_trace,
+                output_json=tmp_path / "qualification.json",
                 progress=False,
             )
         )

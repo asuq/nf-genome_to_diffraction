@@ -62,3 +62,15 @@ def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
         parser.parse_args(["stage", "database", "--revision", "HEAD"])
     with pytest.raises(SystemExit):
         parser.parse_args(["submit", "database", "--run-id", "RUN_ID"])
+
+
+def test_p1_uses_only_the_fixed_routine_interface() -> None:
+    parser = _build_parser()
+
+    readiness = parser.parse_args(["readiness", "p1"])
+    staged = parser.parse_args(["stage", "p1", "--revision", "HEAD"])
+    submitted = parser.parse_args(["submit", "p1", "--run-id", "RUN_ID"])
+
+    assert readiness.profile == "p1"
+    assert staged.profile == "p1"
+    assert submitted.profile == "p1"

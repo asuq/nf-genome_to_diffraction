@@ -552,6 +552,11 @@ reusable structural discovery**, with the shortest path to real feedback:
 5. union provider evidence without collapsing unlike scores; and
 6. pass the P1 real-data, cache-reuse, mapping, and resource-measurement gate.
 
+The shared contract and direct PDB adapter in item 1 are implemented. The fixed,
+path-closed P1 operation and its positive-control/cache/resource qualifier are
+implemented locally and await the repository gate plus the first real Marmic
+execution. That real run takes priority over further synthetic polish.
+
 After the focused adapter gate passes, prioritise the real catalogue run over
 additional synthetic test polish. M1 output remains structural/model evidence,
 not a final protein identification.

@@ -31,8 +31,8 @@ remain authoritative for scientific policy and interface contracts.
   layout, pinned Pixi setup, manifest checks, Slurm launch, resume, output
   verification, logging, and scratch guidance.
 - [Local-Marmic feedback loop](hpc-feedback-loop.md): immutable-revision
-  foundation smoke and fixed P0 testing, installation, command interface, result
-  records, failure classes, approval boundaries, and concurrency limits.
+  foundation smoke plus fixed P0/P1 testing, installation, command interface,
+  result records, failure classes, approval boundaries, and concurrency limits.
 - [Local settings and rollback](local-settings-and-rollback.md): exact
   user-controlled files, recoverable disable/removal steps, restoration checks,
   and the boundary between local and Marmic state.

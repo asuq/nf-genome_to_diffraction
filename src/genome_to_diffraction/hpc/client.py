@@ -29,6 +29,7 @@ from genome_to_diffraction.hpc.models import (
     MAX_ARTIFACT_TOTAL_BYTES,
     MAX_FEEDBACK_RUNS,
     P0_EXECUTION_TIMEOUT_SECONDS,
+    P1_EXECUTION_TIMEOUT_SECONDS,
     FailureClass,
     HpcConfig,
     LocalRunRecord,
@@ -76,10 +77,11 @@ SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
 MAX_P0_PATHS_BYTES = 4096
 FAILURE_SIGNATURE_LOG_BYTES = 64 * 1024
 _FAILURE_APPLICATION_LOGS = frozenset(
-    {"logs/smoke.log", "logs/p0.log", "logs/database.log"}
+    {"logs/smoke.log", "logs/p0.log", "logs/p1.log", "logs/database.log"}
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}"
+    r"gtd-(?:smoke|p0|p1|database)-[0-9]{8}T[0-9]{6}Z-"
+    r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
 _SIGNATURE_TIMESTAMP_RE = re.compile(
     r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z"
@@ -256,7 +258,11 @@ class SshTransport:
         operation_timeout = SSH_OPERATION_TIMEOUT_SECONDS
         if operation == "database-stage":
             operation_timeout = DATABASE_STAGE_TIMEOUT_SECONDS
-        elif operation == "stage" and len(arguments) == 6 and arguments[5] == "p0":
+        elif (
+            operation == "stage"
+            and len(arguments) == 6
+            and arguments[5] in {"p0", "p1"}
+        ):
             operation_timeout = P0_STAGE_TIMEOUT_SECONDS
         try:
             result = subprocess.run(
@@ -487,8 +493,10 @@ class HpcController:
         """Inspect one fixed profile's remote prerequisites without creating a run."""
 
         validate_profile(profile)
-        if profile != "p0":
-            raise ValidationError("readiness inspection is available only for p0")
+        if profile not in {"p0", "p1"}:
+            raise ValidationError(
+                "readiness inspection is available only for p0 and p1"
+            )
         self.logger.info(
             "inspecting fixed HPC profile readiness",
             extra={"profile": profile},
@@ -752,7 +760,11 @@ class HpcController:
             else (
                 P0_EXECUTION_TIMEOUT_SECONDS
                 if record.profile == "p0"
-                else self.config.execution_timeout_seconds
+                else (
+                    P1_EXECUTION_TIMEOUT_SECONDS
+                    if record.profile == "p1"
+                    else self.config.execution_timeout_seconds
+                )
             )
         )
         queued_elapsed = 0

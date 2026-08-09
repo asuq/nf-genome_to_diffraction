@@ -566,6 +566,7 @@ def search_pdb_sequences(
                 provider=_PROVIDER,
                 provider_rank=rank,
                 target_id=raw_hit.target,
+                model_key=(f"pdb:{mapping.pdb_id}:{mapping.namespace}:{mapping.token}"),
                 target_chain_or_entity=mapping.token,
                 pdb_id=mapping.pdb_id,
                 identifier_namespace=mapping.namespace,

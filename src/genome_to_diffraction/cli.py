@@ -68,7 +68,9 @@ from genome_to_diffraction.schemas.io import (
 )
 from genome_to_diffraction.status import GenomeToDiffractionError
 from genome_to_diffraction.structure_search import (
+    P1QualificationRequest,
     PdbSequenceSearchRequest,
+    qualify_p1_search,
     search_pdb_sequences,
 )
 
@@ -486,6 +488,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--minimum-query-coverage", type=float, default=0.5
     )
     pdb_sequence_parser.add_argument("--maximum-query-length", type=int, default=10_000)
+    qualify_p1_parser = search_actions.add_parser(
+        "qualify-p1",
+        help="validate direct-PDB results, positive control, resources, and resume",
+    )
+    qualify_p1_parser.add_argument("--sequence-groups", type=Path, required=True)
+    qualify_p1_parser.add_argument("--search-directory", type=Path, required=True)
+    qualify_p1_parser.add_argument("--control-specification", type=Path, required=True)
+    qualify_p1_parser.add_argument("--first-trace", type=Path, required=True)
+    qualify_p1_parser.add_argument("--resume-trace", type=Path, required=True)
+    qualify_p1_parser.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -787,6 +799,20 @@ def _run_matthews(args: argparse.Namespace) -> int:
 
 
 def _run_structure_search(args: argparse.Namespace) -> int:
+    if args.structure_search_action == "qualify-p1":
+        report = qualify_p1_search(
+            P1QualificationRequest(
+                sequence_groups_jsonl=args.sequence_groups,
+                search_directory=args.search_directory,
+                control_specification=args.control_specification,
+                first_trace_tsv=args.first_trace,
+                resume_trace_tsv=args.resume_trace,
+                output_json=args.output,
+                progress=not args.no_progress,
+            )
+        )
+        print(f"P1 direct-PDB search qualified: {report}")
+        return 0
     if args.structure_search_action != "pdb-sequence":
         raise AssertionError(
             f"unhandled structure-search action: {args.structure_search_action}"

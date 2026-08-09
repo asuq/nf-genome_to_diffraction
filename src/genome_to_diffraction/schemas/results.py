@@ -117,6 +117,7 @@ class StructuralSearchHit(ContractModel):
     provider: NonEmptyString
     provider_rank: PositiveInt
     target_id: NonEmptyString
+    model_key: NonEmptyString
     target_chain_or_entity: str | None = None
     pdb_id: str | None = Field(default=None, pattern=r"^[0-9A-Za-z]{4}$")
     identifier_namespace: str | None = None

@@ -374,32 +374,38 @@ def test_all_owned_operations_use_the_recorded_capability(tmp_path: Path) -> Non
     assert len(owner_values) == 1
 
 
-def test_p0_profile_has_a_closed_run_id_and_remote_argument(tmp_path: Path) -> None:
+@pytest.mark.parametrize("profile", ["p0", "p1"])
+def test_scientific_profile_has_a_closed_run_id_and_remote_argument(
+    tmp_path: Path, profile: str
+) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
 
-    staged = controller.stage("p0", "HEAD")
+    staged = controller.stage(profile, "HEAD")
 
     run_id = str(staged["run_id"])
-    assert run_id.startswith("gtd-p0-")
+    assert run_id.startswith(f"gtd-{profile}-")
     operation, arguments = transport.calls[-1]
     assert operation == "stage"
-    assert arguments[-1] == "p0"
-    assert controller.submit("p0", run_id)["operation"] == "submit"
+    assert arguments[-1] == profile
+    assert controller.submit(profile, run_id)["operation"] == "submit"
     with pytest.raises(ValidationError, match="does not match"):
         controller.submit("smoke", run_id)
 
 
-def test_p0_readiness_accepts_no_path_or_run_authority(tmp_path: Path) -> None:
+@pytest.mark.parametrize("profile", ["p0", "p1"])
+def test_scientific_readiness_accepts_no_path_or_run_authority(
+    tmp_path: Path, profile: str
+) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
 
-    result = controller.readiness("p0")
+    result = controller.readiness(profile)
 
     assert result["operation"] == "readiness"
-    assert result["profile"] == "p0"
-    assert transport.calls == [("readiness", ("p0",))]
-    with pytest.raises(ValidationError, match="only for p0"):
+    assert result["profile"] == profile
+    assert transport.calls == [("readiness", (profile,))]
+    with pytest.raises(ValidationError, match="only for p0 and p1"):
         controller.readiness("smoke")
     with pytest.raises(ValidationError):
         controller.readiness("p0;touch-bad")

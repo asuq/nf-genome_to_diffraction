@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Fixed Slurm job body for the reviewed smoke, P0, and separately gated
+# Fixed Slurm job body for the reviewed smoke, P0, P1, and separately gated
 # database-administration profiles.
 
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -135,6 +135,9 @@ finalise() {
     if [[ "$PROFILE" == p0 ]]; then
         reports_json='["artifacts/qualification/resume-check.json"]'
         retained_json='["artifacts/p0","artifacts/qualification"]'
+    elif [[ "$PROFILE" == p1 ]]; then
+        reports_json='["artifacts/qualification/p1-qualification.json"]'
+        retained_json='["artifacts/p1","artifacts/qualification"]'
     elif [[ "$PROFILE" == database ]]; then
         reports_json='["artifacts/database/preflight.json"]'
         retained_json='["artifacts/database"]'
@@ -529,6 +532,120 @@ EOF
     printf 'p0_status=preflight_complete_downstream_deferred\n'
 }
 
+run_p1_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/nextflow-p1-${label}.log" \
+        run "$RUN/source/discover_structures.nf" \
+        "$@" \
+        -profile marmic \
+        --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
+        --database_manifest "$EXPECTED_DATABASE_MANIFEST" \
+        --outdir "$P1_DISCOVERY_OUT" \
+        --cache_root "$RUN/cache/p1-nextflow"
+}
+
+run_p1() {
+    local first_trace resume_trace
+    local qualification="$RUN/artifacts/qualification"
+    local control_spec="$RUN/source/benchmarks/public-controls/pdb_8oox.yaml"
+    P1_OUT="$RUN/artifacts/p1"
+    P1_CATALOGUE_OUT="$P1_OUT/catalogue"
+    P1_DISCOVERY_OUT="$P1_OUT/discovery"
+    mkdir -p \
+        "$qualification" \
+        "$P1_CATALOGUE_OUT" \
+        "$P1_DISCOVERY_OUT" \
+        "$RUN/cache/p1-nextflow" \
+        "$RUN/execution"
+
+    load_p0_config
+    cp -- "$P0_CONFIG_PATH" "$qualification/p1.paths.snapshot"
+    sha256sum \
+        "$P0_CONFIG_PATH" \
+        "$CATALOGUES" \
+        "$PIPELINE_CONFIG" \
+        "$EXPECTED_DATABASE_MANIFEST" \
+        "$control_spec" \
+        > "$qualification/p1-input-checksums.sha256"
+
+    cd "$RUN/source"
+    printf 'phase=pixi_environment_verify profile=p1\n'
+    [[ -f "$RUN/state/hpc-environment-status" && \
+        "$(<"$RUN/state/hpc-environment-status")" == ready ]] || {
+        printf 'locked P1 environment was not prepared during staging\n' >&2
+        return 2
+    }
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || {
+        printf 'locked P1 executables are unavailable\n' >&2
+        return 2
+    }
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    EXPECTED_DATABASE_SHA256="$(<"$RUN/state/database-manifest-sha256")"
+    [[ "$EXPECTED_DATABASE_SHA256" =~ $CHECKSUM_RE ]] || {
+        printf 'recorded P1 database manifest checksum is invalid\n' >&2
+        return 2
+    }
+    [[ "$(sha256sum "$EXPECTED_DATABASE_MANIFEST" | awk '{print $1}')" == \
+        "$EXPECTED_DATABASE_SHA256" ]] || {
+        printf 'P1 database manifest changed after staging\n' >&2
+        return 2
+    }
+
+    PHASE=test
+    printf 'phase=p1_catalogue_import profile=p1\n'
+    "$GTD" --log-format json --no-progress catalogue import \
+        --catalogues "$CATALOGUES" \
+        --config "$PIPELINE_CONFIG" \
+        --outdir "$P1_CATALOGUE_OUT"
+
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    cd "$RUN/execution"
+    printf 'phase=p1_first_run profile=p1\n'
+    run_p1_nextflow first
+    cp -a \
+        "$P1_DISCOVERY_OUT/pipeline_info" \
+        "$qualification/p1-first-pipeline-info"
+
+    printf 'phase=p1_resume_run profile=p1\n'
+    run_p1_nextflow resume -resume
+    cp -a \
+        "$P1_DISCOVERY_OUT/pipeline_info" \
+        "$qualification/p1-resume-pipeline-info"
+
+    first_trace="$qualification/p1-first-pipeline-info/trace.tsv"
+    resume_trace="$qualification/p1-resume-pipeline-info/trace.tsv"
+    [[ -f "$first_trace" && -f "$resume_trace" ]] || {
+        printf 'P1 first/resume traces were not produced\n' >&2
+        return 4
+    }
+    printf 'phase=p1_qualification profile=p1\n'
+    "$GTD" --log-format json --no-progress structure-search qualify-p1 \
+        --sequence-groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
+        --search-directory "$P1_DISCOVERY_OUT/pdb_sequence_search" \
+        --control-specification "$control_spec" \
+        --first-trace "$first_trace" \
+        --resume-trace "$resume_trace" \
+        --output "$qualification/p1-qualification.json"
+
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == \
+        "$(<"$RUN/state/commit")" ]] || {
+        printf 'P1 source commit changed during execution\n' >&2
+        return 3
+    }
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || {
+        printf 'P1 execution modified tracked source files\n' >&2
+        return 3
+    }
+    printf 'p1_status=direct_pdb_sequence_search_qualified\n'
+}
+
 run_database() {
     local gtd real_aria2 wrapper_bin database_manifest_sha256
     local source_bundle source_bundle_sha256 actual_source_bundle_sha256
@@ -724,6 +841,7 @@ export NXF_DISABLE_CHECK_LATEST=true
 case "$PROFILE" in
     smoke) run_smoke ;;
     p0) run_p0 ;;
+    p1) run_p1 ;;
     database) run_database ;;
 esac
 
