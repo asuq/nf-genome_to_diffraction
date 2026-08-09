@@ -337,9 +337,12 @@ only over the configured private SSH endpoint.
 
 `stage p0` records the file's SHA-256; the job refuses execution if it changes.
 Every configured child must be a canonical non-symlink path below the
-first-line root. Because these inputs are read-only and no cleanup target is
-derived from this root, the root may be the operator-owned home directory; `/`,
-a foreign-owned directory, or a symlink remains invalid. The job then:
+first-line root. The input-staging operation obtains that root from the already
+reviewed database configuration rather than from `$HOME`, which supports sites
+where login-shell and durable-storage homes have different lexical paths.
+Because these inputs are read-only and no cleanup target is derived from this
+root, it may be the operator-owned durable site directory; `/`, a foreign-owned
+directory, or a symlink remains invalid. The job then:
 
 1. installs the frozen Linux `hpc` Pixi environment;
 2. re-verifies every required Phenix command and preserves the verification log;

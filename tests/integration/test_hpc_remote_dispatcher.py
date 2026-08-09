@@ -503,12 +503,17 @@ def _write_p0_paths(root: Path, *, unsafe: bool = False) -> Path:
     return p0_config
 
 
-def _write_database_paths(root: Path, *, storage_limit: str = "2000000000000") -> Path:
-    allowed = root / "database-admin"
+def _write_database_paths(
+    root: Path,
+    *,
+    storage_limit: str = "2000000000000",
+    allowed_root: Path | None = None,
+) -> Path:
+    allowed = allowed_root if allowed_root is not None else root / "database-admin"
     database_root = allowed / "databases"
     manifests = allowed / "manifests"
-    database_root.mkdir(parents=True)
-    manifests.mkdir()
+    database_root.mkdir(parents=True, exist_ok=True)
+    manifests.mkdir(exist_ok=True)
     values = [
         str(allowed),
         str(database_root),
@@ -1380,7 +1385,10 @@ def test_p0_input_bundle_is_checksum_gated_immutable_and_configurable(
 ) -> None:
     dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
-    database_config = _write_database_paths(remote_root)
+    login_home = tmp_path / "login-home"
+    login_home.mkdir()
+    environment["HOME"] = str(login_home)
+    database_config = _write_database_paths(remote_root, allowed_root=tmp_path)
     database_manifest = Path(
         database_config.read_text(encoding="ascii").splitlines()[2]
     )

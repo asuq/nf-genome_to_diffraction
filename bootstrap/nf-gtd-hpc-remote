@@ -359,7 +359,7 @@ p0_inputs_stage() {
         fail wrapper_failure "p0-inputs-stage expects five fixed identity fields"
     local source_id="$1" archive_sha256="$2" archive_size="$3"
     local expected_database_sha256="$4" expected_phenix_sha256="$5"
-    local owner_home phenix_directory phenix_manifest="" phenix_matches=0
+    local site_root phenix_directory phenix_manifest="" phenix_matches=0
     local candidate actual_sha256 archive staging destination paths_candidate
     local p0_config_sha256 p0_paths_base64
     [[ "$source_id" =~ $CHECKSUM_RE ]] || fail wrapper_failure "invalid P0 input ID"
@@ -374,23 +374,22 @@ p0_inputs_stage() {
     [[ "$expected_phenix_sha256" =~ $CHECKSUM_RE ]] || \
         fail wrapper_failure "invalid expected Phenix-manifest checksum"
 
-    owner_home="$(realpath -e "$HOME" 2>/dev/null)" || \
-        fail filesystem_failure "owner home cannot be resolved"
-    [[ "$owner_home" != / && -d "$owner_home" && ! -L "$owner_home" && \
-       -O "$owner_home" ]] || fail filesystem_failure "owner home is unsafe"
-    path_within_root "$owner_home" "$ROOT" || \
-        fail filesystem_failure "dispatcher root is outside the owner home"
     database_config_readiness runtime || \
         fail environment_failure "database configuration is not ready"
-    path_within_root "$owner_home" "$DATABASE_ROOT" || \
-        fail environment_failure "qualified database root is outside the owner home"
-    path_within_root "$owner_home" "$DATABASE_MANIFEST" || \
-        fail environment_failure "qualified database manifest is outside the owner home"
+    site_root="$DATABASE_ALLOWED_ROOT"
+    [[ "$site_root" != / && -d "$site_root" && ! -L "$site_root" && \
+       -O "$site_root" ]] || fail filesystem_failure "qualified site root is unsafe"
+    path_within_root "$site_root" "$ROOT" || \
+        fail filesystem_failure "dispatcher root is outside the qualified site root"
+    path_within_root "$site_root" "$DATABASE_ROOT" || \
+        fail environment_failure "qualified database root is outside the site root"
+    path_within_root "$site_root" "$DATABASE_MANIFEST" || \
+        fail environment_failure "qualified database manifest is outside the site root"
     actual_sha256="$(sha256sum "$DATABASE_MANIFEST" | awk '{print $1}')"
     [[ "$actual_sha256" == "$expected_database_sha256" ]] || \
         fail environment_failure "qualified database-manifest checksum differs"
 
-    phenix_directory="$owner_home/Softwares/manifests"
+    phenix_directory="$site_root/Softwares/manifests"
     [[ -d "$phenix_directory" && ! -L "$phenix_directory" ]] || \
         fail environment_failure "Phenix manifest directory is absent or unsafe"
     shopt -s nullglob
@@ -458,7 +457,7 @@ p0_inputs_stage() {
     fi
 
     printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
-        "$owner_home" \
+        "$site_root" \
         "$destination/manifests/catalogues.json" \
         "$destination/manifests/crystals.json" \
         "$destination/manifests/config.yaml" \
