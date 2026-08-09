@@ -4,7 +4,6 @@ import gzip
 import hashlib
 import importlib
 import json
-import logging
 import os
 import shutil
 import subprocess
@@ -310,7 +309,7 @@ def test_pdb_seqres_chain_tokens_are_case_sensitive(tmp_path: Path) -> None:
     assert "10eg_A\t10EG\tlegacy_seqres_suffix\tA\t" in mapping_text
     assert "10eg_a\t10EG\tlegacy_seqres_suffix\ta\t" in mapping_text
 
-    selected = prepare_module._select_expected_smoke_hit(
+    selected = prepare_module._select_functional_smoke_hit(
         (
             SmokeHit("ubiquitin_smoke", "1ubq_a", 1e-20, 100.0, 1.0, 1.0),
             SmokeHit("ubiquitin_smoke", "1ubq_A", 1e-20, 100.0, 1.0, 1.0),
@@ -319,32 +318,66 @@ def test_pdb_seqres_chain_tokens_are_case_sensitive(tmp_path: Path) -> None:
     assert selected.target == "1ubq_A"
 
 
-def test_pdb_smoke_mismatch_logs_bounded_result_evidence(
+def test_pdb_smoke_logs_bounded_result_evidence_without_requiring_fixed_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    records: list[logging.LogRecord] = []
-
-    class RecordHandler(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            records.append(record)
+    log_records: list[tuple[str, dict[str, object]]] = []
 
     hits = tuple(
         SmokeHit("ubiquitin_smoke", f"2a{index:02d}_A", 1e-20, 100.0, 1.0, 1.0)
         for index in range(11)
     )
 
-    monkeypatch.setattr(prepare_module._LOGGER, "handlers", [RecordHandler()])
-    monkeypatch.setattr(prepare_module._LOGGER, "level", logging.INFO)
-    with pytest.raises(DatabaseError, match="returned 0 expected 1UBQ_A hits"):
-        prepare_module._select_expected_smoke_hit(hits)
-
-    record = next(
-        item for item in records if item.getMessage() == "database smoke results parsed"
+    monkeypatch.setattr(
+        prepare_module._LOGGER,
+        "info",
+        lambda message, *, extra: log_records.append((message, extra)),
     )
-    assert record.__dict__["hit_count"] == 11
-    assert record.__dict__["expected_match_count"] == 0
-    assert len(cast(list[object], record.__dict__["top_hits"])) == 10
-    assert record.__dict__["top_hits_truncated"] is True
+    selected = prepare_module._select_functional_smoke_hit(hits)
+
+    evidence = next(
+        extra
+        for message, extra in log_records
+        if message == "database smoke results parsed"
+    )
+    assert evidence["hit_count"] == 11
+    assert evidence["expected_match_count"] == 0
+    assert len(cast(list[object], evidence["top_hits"])) == 10
+    assert evidence["top_hits_truncated"] is True
+    assert selected.target == "2a00_A"
+
+
+def test_pdb_smoke_rejects_weak_best_hit() -> None:
+    with pytest.raises(DatabaseError, match="best database smoke hit failed"):
+        prepare_module._select_functional_smoke_hit(
+            (SmokeHit("ubiquitin_smoke", "2xyz_Z", 1e-2, 20.0, 0.8, 0.8),)
+        )
+
+
+def test_pdb_smoke_requires_selected_hit_to_match_query_sequence(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "pdb-seqres.txt.gz"
+    with gzip.open(source, "wt", encoding="utf-8") as handle:
+        handle.write(">1ubq_A mol:protein length:76 Ubiquitin\n")
+        handle.write(f"{prepare_module._SMOKE_SEQUENCE}\n")
+        handle.write(">2xyz_Z mol:protein length:76 unrelated\n")
+        handle.write(f"{'A' * 76}\n")
+    sequence_root = tmp_path / "pdb-sequences"
+    sequence_root.mkdir()
+    prepare_module._normalise_pdb_sequences(
+        source,
+        sequence_root / "pdb_seqres.faa",
+        sequence_root / "target_mapping.tsv",
+        progress=False,
+    )
+    hit = SmokeHit("ubiquitin_smoke", "2xyz_Z", 1e-20, 100.0, 1.0, 1.0)
+
+    with pytest.raises(DatabaseError, match="not sequence-equivalent"):
+        prepare_module._require_query_equivalent_smoke_mapping(sequence_root, hit)
+
+    fixed_mapping = prepare_module._require_expected_smoke_mapping(sequence_root)
+    assert fixed_mapping["target_id"] == "1ubq_A"
 
 
 def test_pdb_seqres_rejects_exact_duplicate_chain_token(tmp_path: Path) -> None:
@@ -812,10 +845,16 @@ def test_mocked_foldseek_resources_prepare_smoke_and_reuse(
     pdb_qualification = resources["pdb_foldseek"].parameters["qualification"]
     assert isinstance(pdb_qualification, dict)
     mapping_evidence = pdb_qualification["mapping"]
+    selected_mapping_evidence = pdb_qualification["selected_hit_mapping"]
     coordinate_evidence = pdb_qualification["coordinate_mapping"]
     assert isinstance(mapping_evidence, dict)
+    assert isinstance(selected_mapping_evidence, dict)
     assert isinstance(coordinate_evidence, dict)
     assert mapping_evidence["target_id"] == "1ubq_A"
+    assert (
+        selected_mapping_evidence["sequence_sha256"]
+        == hashlib.sha256(prepare_module._SMOKE_SEQUENCE.encode("ascii")).hexdigest()
+    )
     assert coordinate_evidence["entry_id"] == "1UBQ"
     assert coordinate_evidence["label_asym_ids"] == ["X"]
     assert coordinate_evidence["resolved_identifier_namespace"] == (
@@ -1210,7 +1249,7 @@ def test_mocked_pdb_sequence_resource_preserves_target_mapping(
     assert resource.parameters["skipped_non_protein_count"] == 1
 
 
-def test_pdb_sequence_smoke_requires_expected_1ubq_target(
+def test_pdb_sequence_smoke_requires_selected_target_mapping(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bin_dir = tmp_path / "mock bin"
@@ -1220,7 +1259,7 @@ def test_pdb_sequence_smoke_requires_expected_1ubq_target(
     monkeypatch.setenv("FAKE_SEARCH_TARGET", "2xyz_Z")
     source = tmp_path / "pdb_seqres.txt.gz"
     _write_pdb_sequence_source(source)
-    with pytest.raises(DatabaseError, match="expected 1UBQ_A hit"):
+    with pytest.raises(DatabaseError, match="does not map to PDB SEQRES"):
         prepare(
             _request(
                 tmp_path,

@@ -583,10 +583,24 @@ did not observe exactly one expected `1ubq_A` result and therefore retained the
 empty durable staging guard rather than publishing the sequence resource. The
 temporary search-result file was correctly removed with scratch, so that run
 does not establish whether the mismatch was zero or multiple expected rows.
-The next diagnostic revision logs the total hit count, expected-target count,
-and at most the first ten scored targets; it keeps the strict cardinality gate
-unchanged until real evidence identifies the mismatch. This is a controlled
-software failure, not a failed scientific search or qualified database.
+Diagnostic revision `229c8134fc16527ae466b4ef0ededc9963c3876f` therefore
+logged the total hit count, expected-target count, and at most the first ten
+scored targets without weakening the gate. Slurm job `625545` showed 684
+significant full-coverage ubiquitin hits, including multiple tied 152-bit exact
+sequence matches, while `1ubq_A` was absent from the bounded 1,000-candidate
+prefilter result. Requiring one deposition identifier in that truncated result
+is invalid for a highly duplicated sequence and confounds database function
+with provider tie ordering. The functional smoke now selects the strongest hit
+deterministically, resolves it through the SEQRES crosswalk, and for MMseqs2
+requires its length and SHA-256 to equal the fixed query. Foldseek retains its
+independent score and coverage thresholds without treating structural rank as a
+sequence-identity measurement. Independently, `1ubq_A` remains mandatory with
+the same sequence hash and its entity/chain/coordinate binding. This separation
+accepts no merely significant MMseqs2 paralogue and preserves the fixed positive
+control without assuming that MMseqs2 must return a particular redundant
+deposition. M0.4 remains open until the corrected logic passes the real search,
+Foldseek/ProstT5 search, coordinate-cache qualification, and anchored full
+verification.
 
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)

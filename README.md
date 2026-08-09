@@ -369,8 +369,9 @@ and the public RCSB PDB SEQRES URL. On Marmic, the fixed `database-stage`
 operation instead downloads all five admitted inputs sequentially on the login
 node directly into immutable durable storage. The Slurm job consumes that
 checksummed bundle without network access. The bounded qualification smoke uses
-the bundled public 1UBQ mmCIF after the expected `1ubq_A` hit passes fixed score,
-coverage, SEQRES-sequence, and identifier checks. No catalogue sequence,
+the bundled public 1UBQ mmCIF after the strongest search hit passes fixed score,
+coverage, and SEQRES-mapping checks, the MMseqs2 hit is query-equivalent, and the
+independent `1ubq_A` sequence/identifier control passes. No catalogue sequence,
 credential, crystal input, or licensed Phenix file is transmitted.
 The optional `--verify_esm_atlas_connectivity true` probe fetches one documented
 public MGYP sequence by accession and never submits a user sequence. ESM Atlas
@@ -381,18 +382,21 @@ and the optional ESM Atlas response as CC-BY-4.0.
 Every immutable resource records the locked tool version, parameters, retrieval
 metadata, full file inventory, byte count, SHA-256 identity, and smoke-test
 status. Existing valid resources are reused; incomplete resources fail loudly;
-forced builds are side-by-side. Preparation requires the expected 1UBQ hit from
-parsed non-empty MMseqs2 and Foldseek results, maps it through the validated
-protein-only SEQRES crosswalk, and binds the legacy suffix to the mmCIF protein
-entity through its author-chain identifier. The canonical polymer and SEQRES
-sequence hashes must agree before publication into the coordinate cache by
-SHA-256 under a per-source POSIX lock. Immutable metadata sidecars and the digest
-index are verified together. The manifest retains query, result, and log
-checksums. Revalidation reruns the local known queries, compares deterministic
-scores and output hashes, and writes `database_manifest.verification.json`, but
-never downloads or repairs resources. It requires the frozen manifest and its
-operator-recorded SHA-256, so mutable `current` links and sidecars are not the
-trust anchor:
+forced builds are side-by-side. Preparation parses non-empty MMseqs2 and
+Foldseek results and requires each deterministically strongest hit to resolve
+through the protein-only SEQRES crosswalk. The MMseqs2 sequence hit must have the
+exact fixed query hash; Foldseek additionally enforces its score and coverage
+thresholds without confusing structural rank with sequence identity. Preparation
+separately maps `1ubq_A` through the same crosswalk. That fixed control binds the
+legacy suffix to the mmCIF protein entity through its author-chain identifier.
+The canonical polymer and SEQRES sequence hashes must agree before publication
+into the coordinate cache by SHA-256 under a per-source POSIX lock.
+Immutable metadata sidecars and the digest index are verified together. The
+manifest retains query, result, and log checksums. Revalidation reruns the local
+known queries, compares deterministic scores and output hashes, and writes
+`database_manifest.verification.json`, but never downloads or repairs resources.
+It requires the frozen manifest and its operator-recorded SHA-256, so mutable
+`current` links and sidecars are not the trust anchor:
 
 SEQRES compound targets canonicalise the case-insensitive PDB entry component
 but preserve chain-token case. Thus valid chains such as `10eg_A` and `10eg_a`

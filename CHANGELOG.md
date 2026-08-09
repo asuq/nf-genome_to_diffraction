@@ -47,6 +47,11 @@ All notable changes to this project are documented here.
 - Bounded structured MMseqs2 smoke-result diagnostics that retain the hit count,
   expected-target cardinality, and first ten scored targets when qualification
   fails, without copying an unrestricted search result into controller logs.
+- Ubiquitin search qualification now resolves the deterministically strongest
+  hits through the SEQRES crosswalk, requires the MMseqs2 hit to have the exact
+  query hash, and independently retains the fixed `1ubq_A`
+  sequence-to-coordinate control instead of relying on redundant database tie
+  ordering.
 - Validator-bound resumable public downloads with verified prefix state,
   redirect provenance, continuous capacity/headroom checks, scoped NFS storage
   monitoring, and whole-process-group termination on watchdog failures.
