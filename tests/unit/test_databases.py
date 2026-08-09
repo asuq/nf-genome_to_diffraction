@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import importlib
 import json
+import logging
 import os
 import shlex
 import subprocess
@@ -160,6 +161,31 @@ def test_tool_version_uses_a_documented_version_subcommand(tmp_path: Path) -> No
     executable.chmod(0o755)
 
     assert tool_version(str(executable), arguments=("version",)) == "10.941cd33"
+
+
+def test_tool_version_uses_nfs_tolerant_default_and_logs_elapsed_time(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    observed_timeouts: list[float] = []
+
+    def complete(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        timeout = kwargs.get("timeout")
+        assert isinstance(timeout, float)
+        observed_timeouts.append(timeout)
+        return subprocess.CompletedProcess(command, 0, "10.941cd33\n", "")
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.databases.common.subprocess.run", complete
+    )
+    with caplog.at_level(logging.INFO, logger="genome_to_diffraction.databases"):
+        assert tool_version("foldseek", arguments=("version",)) == "10.941cd33"
+
+    assert observed_timeouts == [180.0]
+    assert "version probe started" in caplog.messages
+    assert "version probe completed" in caplog.messages
 
 
 def test_tool_version_converts_timeout_to_database_error(

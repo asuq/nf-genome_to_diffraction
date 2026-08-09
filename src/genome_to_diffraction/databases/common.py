@@ -17,6 +17,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from hashlib import sha256
 from pathlib import Path, PurePosixPath
+from time import monotonic
 from typing import Literal
 
 from tqdm import tqdm
@@ -27,6 +28,7 @@ from genome_to_diffraction.status import InfrastructureError, ToolExecutionError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.databases")
 _SIDECARS = frozenset({".gtd-inventory.json", ".gtd-resource.json"})
+DEFAULT_TOOL_VERSION_TIMEOUT_SECONDS = 180.0
 
 
 class DatabaseError(InfrastructureError):
@@ -459,7 +461,7 @@ def tool_version(
     executable: str,
     *,
     arguments: Sequence[str] = ("--version",),
-    timeout_seconds: float = 30,
+    timeout_seconds: float = DEFAULT_TOOL_VERSION_TIMEOUT_SECONDS,
 ) -> str:
     """Return the first version line using the tool's documented invocation."""
 
@@ -470,6 +472,11 @@ def tool_version(
     if timeout_seconds <= 0:
         raise ValueError("version-probe timeout must be positive")
     command = [executable, *arguments]
+    started = monotonic()
+    _LOGGER.info(
+        "version probe started",
+        extra={"command": command, "timeout_seconds": timeout_seconds},
+    )
     try:
         completed = subprocess.run(
             command,
@@ -497,6 +504,14 @@ def tool_version(
         raise DatabaseError(
             f"version probe returned no version text: {' '.join(command)}"
         )
+    _LOGGER.info(
+        "version probe completed",
+        extra={
+            "command": command,
+            "elapsed_seconds": monotonic() - started,
+            "version": line,
+        },
+    )
     return line
 
 

@@ -54,6 +54,8 @@ All notable changes to this project are documented here.
   Marmic login node into a content-addressed, full-checksum source bundle. The
   compute preflight verifies that bundle, distinct scratch, declared capacity,
   and pinned tools entirely offline before any extracted payload starts.
+- Database tool-version probes now log start/completion and elapsed time and use
+  a fixed 180-second bound to tolerate measured NFS-cold executable startup.
 - Large Foldseek and MMseqs2 temporary data can now use explicit distinct
   compute-node scratch with continuous headroom monitoring, process-group
   termination, and exact-child cleanup; no scratch fallback is inferred.

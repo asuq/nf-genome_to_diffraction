@@ -324,9 +324,12 @@ or shell argument. On the compute node the job requires distinct scratch,
 verifies the staged environment with Pixi `--offline`, recomputes all bundle
 checksums, and runs the fixed preflight. That preflight checks available
 capacity, scratch headroom, and Foldseek/MMseqs2/aria2 versions without making
-any network request. An allow-listing `aria2c` adapter maps only Foldseek's exact
-three admitted HTTPS URLs to the verified local files and rejects all other
-HTTP(S) input. The bundled SEQRES and 1UBQ files are consumed directly.
+any network request. Version probes have a fixed three-minute limit because
+Marmic NFS-cold executable startup has exceeded 30 seconds; structured start,
+completion, and elapsed-time records distinguish slow startup from a hung tool.
+An allow-listing `aria2c` adapter maps only Foldseek's exact three admitted HTTPS
+URLs to the verified local files and rejects all other HTTP(S) input. The
+bundled SEQRES and 1UBQ files are consumed directly.
 
 Only after preflight passes does the job prepare PDB Foldseek, PDB sequence,
 ProstT5, and coordinate-cache resources under the durable root. `aria2c` is

@@ -427,6 +427,23 @@ on durable storage. Interrupted source transfer resumes automatically. A failed
 extraction/index staging directory is retained and requires operator review
 before another build.
 
+The first complete login-node stage for revision
+`61bbb2cf69ba678588e8167eb23df094699aade6` ran from 11:12:23 to 11:42:25 UTC.
+It wrote and fully checksummed `4,617,920,618` bytes under the 800 GB project
+cap. PDB100 was the slow route: its first and second GiB milestones took about
+704 and 817 seconds; ProstT5 reached its first GiB in about 67 seconds. Slurm
+job `625517` then verified the offline Pixi environment and measured
+`795,382,079,382` bytes available under the cap with `1,038,909,472,768`
+filesystem-free bytes. It failed before source checksum verification or
+extraction because NFS-cold `foldseek version` startup exceeded the generic
+30-second tool probe limit. The job recorded `environment_failure`, created no
+database resource staging, and removed its job-owned scratch successfully.
+Because the same corrected command passed in job `625516`, this is treated as
+an intermittent NFS-startup limit rather than a command mismatch. Database tool
+version probes now have a fixed 180-second bound and log start/completion plus
+elapsed time; the immutable source bundle is reused rather than downloaded
+again.
+
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)
 and [Foldseek's official documentation](https://github.com/steineggerlab/foldseek).
