@@ -29,6 +29,9 @@ nf-gtd-hpc-test = "genome_to_diffraction.hpc.cli:entrypoint"
 [tool.hatch.build.targets.wheel]
 packages = ["src/genome_to_diffraction"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"schemas" = "genome_to_diffraction/_schemas"
+
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
 testpaths = ["tests"]

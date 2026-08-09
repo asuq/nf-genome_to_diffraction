@@ -6,6 +6,7 @@ import logging
 import re
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
+from importlib import resources
 from pathlib import Path
 from typing import Literal, cast
 
@@ -281,10 +282,25 @@ def _authoritative_schema(spec: ContractSpec) -> Mapping[str, object] | bool:
             Mapping[str, object], spec.model.model_json_schema(mode="validation")
         )
     path = _repository_root() / "schemas" / spec.schema_filename
-    with path.open(encoding="utf-8") as handle:
-        schema = json.load(handle)
+    try:
+        if path.is_file():
+            with path.open(encoding="utf-8") as handle:
+                schema = json.load(handle)
+            label = str(path)
+        else:
+            resource = resources.files("genome_to_diffraction").joinpath(
+                "_schemas", spec.schema_filename
+            )
+            with resource.open("r", encoding="utf-8") as handle:
+                schema = json.load(handle)
+            label = str(resource)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ContractLoadError(
+            f"authoritative JSON Schema {spec.schema_filename} cannot be loaded: "
+            f"{error}"
+        ) from error
     if not isinstance(schema, dict | bool):
-        raise ContractLoadError(f"{path}: JSON Schema must be an object or boolean")
+        raise ContractLoadError(f"{label}: JSON Schema must be an object or boolean")
     return cast(Mapping[str, object] | bool, schema)
 
 

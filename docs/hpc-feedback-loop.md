@@ -124,7 +124,9 @@ pixi run build-hpc-test
 ```
 
 The build command writes the ignored `dist/nf-gtd-hpc-test` zipapp and prints its
-Python interpreter and SHA-256. ZIP members use canonical order, timestamps,
+Python interpreter and SHA-256. It embeds the authoritative JSON Schemas needed
+to validate private typed manifests, so the installed controller does not rely
+on files beside the executable. ZIP members use canonical order, timestamps,
 permissions, and compression, so repeated builds from the same source and
 locked interpreter path are byte-identical. Review the tracked controller and
 remote scripts, then install immutable copies outside the writable checkout:

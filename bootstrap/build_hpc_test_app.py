@@ -41,7 +41,7 @@ def _write_entry(archive: zipfile.ZipFile, name: str, payload: bytes) -> None:
 
 
 def _source_entries() -> list[tuple[str, bytes]]:
-    """Return sorted source members and reject symlinked build inputs."""
+    """Return sorted source/schema members and reject symlinked build inputs."""
 
     source = REPOSITORY / "src"
     entries = [("__main__.py", _MAIN)]
@@ -55,6 +55,13 @@ def _source_entries() -> list[tuple[str, bytes]]:
         if not path.is_file():
             raise ValueError(f"zipapp source must be a regular file: {path}")
         entries.append((path.relative_to(source).as_posix(), path.read_bytes()))
+    schemas = REPOSITORY / "schemas"
+    for path in sorted(schemas.glob("*.schema.json")):
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f"zipapp schema must be a regular file: {path}")
+        entries.append(
+            (f"genome_to_diffraction/_schemas/{path.name}", path.read_bytes())
+        )
     return sorted(entries, key=lambda entry: entry[0])
 
 

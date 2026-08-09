@@ -51,6 +51,7 @@ def test_hpc_controller_build_is_byte_reproducible(tmp_path: Path) -> None:
             stat.S_IMODE(member.external_attr >> 16) == 0o644 for member in members
         )
         assert not any("__pycache__" in name or name.endswith(".pyc") for name in names)
+        assert "genome_to_diffraction/_schemas/catalogue_manifest.schema.json" in names
 
     help_result = subprocess.run(
         [str(first), "--help"],
@@ -60,3 +61,26 @@ def test_hpc_controller_build_is_byte_reproducible(tmp_path: Path) -> None:
     )
     assert help_result.returncode == 0, help_result.stderr
     assert "readiness" in help_result.stdout
+
+    schema_probe = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            (
+                "import sys; "
+                "sys.path.insert(0, sys.argv[1]); "
+                "from pathlib import Path; "
+                "from genome_to_diffraction.schemas.io import load_contract; "
+                "model = load_contract(Path(sys.argv[2]), "
+                "'catalogue-manifest', progress=False); "
+                "assert model.schema_version == '1.0'"
+            ),
+            str(first),
+            str(REPOSITORY / "examples" / "catalogue_manifest.json"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert schema_probe.returncode == 0, schema_probe.stderr
