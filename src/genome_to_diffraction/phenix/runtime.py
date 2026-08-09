@@ -198,7 +198,7 @@ def _child_shell(
 
 
 def _read_environment(
-    environment_file: Path, timeout_seconds: float
+    environment_file: Path, timeout_seconds: float | None
 ) -> tuple[str, ...]:
     script = (
         'source "$1" 1>&2 || exit $?\n'
@@ -223,7 +223,7 @@ def _read_environment(
         )
     except subprocess.TimeoutExpired as error:
         raise PhenixRuntimeVerificationError(
-            f"phenix_env.sh sourcing timed out after {timeout_seconds:g} seconds"
+            f"phenix_env.sh sourcing timed out {_timeout_description(timeout_seconds)}"
         ) from error
     if completed.returncode != 0:
         diagnostic = completed.stderr.decode("utf-8", errors="replace").strip()
@@ -245,13 +245,19 @@ def _version_matches(detected: str, release: str, exact_build: str | None) -> bo
     return detected == release or detected.startswith((f"{release}-", f"{release}."))
 
 
+def _timeout_description(timeout_seconds: float | None) -> str:
+    if timeout_seconds is None:
+        return "without a configured deadline"
+    return f"after {timeout_seconds:g} seconds"
+
+
 def inspect_runtime(
     installation_prefix: Path,
     *,
     expected_release: str,
     expected_build: str | None = None,
     progress: bool = True,
-    timeout_seconds: float = 120.0,
+    timeout_seconds: float | None = 120.0,
     verification_log: Path | None = None,
 ) -> RuntimeInspection:
     """Resolve and smoke-test required Phenix commands using ``--help``.
@@ -335,7 +341,8 @@ def inspect_runtime(
             log_sections.append(
                 f"## {command}\nprobe_args={json.dumps(probe_arguments)}\n"
                 "exit=timeout\nresult=failed\n"
-                f"reason=resolution timed out after {timeout_seconds:g} seconds\n"
+                "reason=resolution timed out "
+                f"{_timeout_description(timeout_seconds)}\n"
             )
             if verification_log is not None:
                 atomic_write_text(verification_log, "\n".join(log_sections))
@@ -344,8 +351,8 @@ def inspect_runtime(
                 extra={"command": command, "timeout_seconds": timeout_seconds},
             )
             raise PhenixRuntimeVerificationError(
-                f"Phenix command resolution timed out after {timeout_seconds:g} "
-                f"seconds: {command}",
+                "Phenix command resolution timed out "
+                f"{_timeout_description(timeout_seconds)}: {command}",
                 commands=records,
                 detected_version=detected_version,
             ) from error
@@ -392,7 +399,7 @@ def inspect_runtime(
                 f"## {command}\npath={resolved_path}\n"
                 f"probe_args={json.dumps(probe_arguments)}\n"
                 "exit=timeout\nresult=failed\n"
-                f"reason=probe timed out after {timeout_seconds:g} seconds\n"
+                f"reason=probe timed out {_timeout_description(timeout_seconds)}\n"
             )
             if verification_log is not None:
                 atomic_write_text(verification_log, "\n".join(log_sections))
@@ -401,8 +408,8 @@ def inspect_runtime(
                 extra={"command": command, "timeout_seconds": timeout_seconds},
             )
             raise PhenixRuntimeVerificationError(
-                f"Phenix command probe timed out after {timeout_seconds:g} seconds: "
-                f"{command}",
+                "Phenix command probe timed out "
+                f"{_timeout_description(timeout_seconds)}: {command}",
                 commands=records,
                 detected_version=detected_version,
             ) from error
@@ -502,7 +509,7 @@ def verify_manifest(
     manifest_path: Path,
     *,
     progress: bool = True,
-    timeout_seconds: float = 120.0,
+    timeout_seconds: float | None = 120.0,
     verification_log: Path | None = None,
 ) -> RuntimeInspection:
     """Revalidate a recorded runtime without modifying its installation."""

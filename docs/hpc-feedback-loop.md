@@ -21,16 +21,18 @@ rules may cover only `deploy-tools`, `readiness`, `stage`, `submit`, `status`,
 file-transfer tools, scheduler commands, and `clean` must not receive persistent
 automatic approval.
 
-The routine drivers use partition `slurm`, 2 CPUs, 8 GB memory, and a 45-minute
-walltime. The database driver uses the same partition with 100 CPUs, 2,000 GB,
-and a 48-hour walltime. The large memory request supplies `/dev/shm` build space;
+The routine drivers use partition `slurm`, 2 CPUs, and 8 GB memory. Foundation
+smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin because
+Marmic NFS-cold Phenix startup is not predictably bounded. The database driver
+uses the same partition with 100 CPUs, 2,000 GB, and a 48-hour walltime. The
+large memory request supplies `/dev/shm` build space;
 the node's full 4 TB is not requested because it would not accelerate serial
 network, checksum, or copy-back I/O. Only one managed job may be active across
 all profiles. Queue
-waiting stops after 30 minutes. Local execution waiting is capped at 45 minutes
-for routine jobs and 48 hours for database administration; neither timeout
-silently cancels a job. The caller must inspect status and cancel the recorded
-job when appropriate.
+waiting stops after 30 minutes. Local execution waiting uses the same 45-minute,
+24-hour, and 48-hour margins for smoke, P0, and database jobs; none of these
+limits silently cancels a job. The caller must inspect status and cancel the
+recorded job when appropriate.
 
 Every SSH invocation is also independently bounded: connection setup allows one
 attempt with a 15-second connect timeout, routine dispatcher operations have a
@@ -360,9 +362,9 @@ symlink remains invalid. The job then:
 
 1. verifies and reuses the pre-staged frozen Linux `hpc` Pixi environment
    without resolving or downloading packages;
-2. re-verifies every required Phenix command with a fixed 300-second
-   NFS-cold per-command bound and preserves timeout diagnostics in the
-   verification log;
+2. re-verifies every required Phenix command without a per-command timeout and
+   preserves its diagnostics in the verification log; the 24-hour job margin,
+   structured logs, and owner-bound cancellation provide the outer controls;
 3. fingerprints the frozen database manifest during staging, then runs database
    `verify-only` for PDB Foldseek, ProstT5, PDB sequences, and the coordinate
    cache, checking inventory metadata and comparing the exact resource records
@@ -380,7 +382,7 @@ manifests, traces, and logs. A successful P0 means
 `task05_preflight_complete_downstream_deferred`; it never claims a protein
 identity or clean crystallographic acceptance merely because the job exited 0.
 It also does not claim that every byte of a terabyte-scale database was rehashed
-during the 45-minute allocation.
+during the P0 allocation.
 
 ## Database administration boundary
 

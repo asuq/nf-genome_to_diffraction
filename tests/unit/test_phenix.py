@@ -191,6 +191,9 @@ def test_mocked_installer_writes_verified_schema_valid_manifest(
     loaded = validate_manifest_environment(request.manifest_path)
     assert loaded.installer_sha256 == digest
     assert verify_manifest(request.manifest_path, progress=False).commands
+    assert verify_manifest(
+        request.manifest_path, progress=False, timeout_seconds=None
+    ).commands
     assert json.loads(request.manifest_path.read_text(encoding="utf-8"))["status"] == (
         "verified"
     )

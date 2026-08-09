@@ -28,6 +28,7 @@ from genome_to_diffraction.hpc.models import (
     MAX_ARTIFACT_FILE_BYTES,
     MAX_ARTIFACT_TOTAL_BYTES,
     MAX_FEEDBACK_RUNS,
+    P0_EXECUTION_TIMEOUT_SECONDS,
     FailureClass,
     HpcConfig,
     LocalRunRecord,
@@ -748,7 +749,11 @@ class HpcController:
         execution_timeout = (
             self.config.database_execution_timeout_seconds
             if record.profile == "database"
-            else self.config.execution_timeout_seconds
+            else (
+                P0_EXECUTION_TIMEOUT_SECONDS
+                if record.profile == "p0"
+                else self.config.execution_timeout_seconds
+            )
         )
         queued_elapsed = 0
         running_elapsed = 0

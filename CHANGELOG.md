@@ -135,10 +135,13 @@ All notable changes to this project are documented here.
   network-enabled login node under a fixed transport timeout; the Slurm job
   reuses that exact environment without attempting package resolution on an
   offline compute node.
-- P0 Phenix verification now permits a bounded 300-second NFS-cold command
-  start, retains clean timeout evidence instead of a Python traceback, and uses
-  normalised application-log evidence to distinguish feedback-loop failure
-  signatures with different root causes.
+- P0 Phenix verification now runs without a per-command deadline under a fixed
+  24-hour Slurm/controller margin, retains clean timeout evidence for callers
+  that choose a bound, and uses normalised application-log evidence to
+  distinguish feedback-loop failure signatures with different root causes.
+- P0 verifies pinned MMseqs2 and Foldseek during staging and prepends the locked
+  environment to `PATH`, so offline database revalidation resolves those exact
+  tools while retaining the batch system utilities.
 
 ### Not implemented
 

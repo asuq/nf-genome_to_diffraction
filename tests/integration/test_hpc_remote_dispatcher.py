@@ -199,10 +199,13 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"resources":[]}\\n\' > "$output"\n'
         "FAKE_GTD\n"
         '      chmod 0755 "$env_bin/genome-to-diffraction"\n'
-        "      printf '#!/usr/bin/env bash\\nexit 0\\n' > \"$env_bin/nextflow\"\n"
+        "      for tool in nextflow mmseqs foldseek; do\n"
+        "        printf '#!/usr/bin/env bash\\nexit 0\\n' > \"$env_bin/$tool\"\n"
+        "      done\n"
         "      printf '#!/usr/bin/env bash\\nexit 0\\n' > "
         '"$env_root/lib/jvm/bin/java"\n'
-        '      chmod 0755 "$env_bin/nextflow" "$env_root/lib/jvm/bin/java"\n'
+        '      chmod 0755 "$env_bin/nextflow" "$env_bin/mmseqs" '
+        '"$env_bin/foldseek" "$env_root/lib/jvm/bin/java"\n'
         "    fi\n"
         "    ;;\n"
         "  run)\n"
@@ -1680,6 +1683,9 @@ def _install_fake_p0_runtime(run: Path, *, all_cached: bool = True) -> None:
         bin_directory / "genome-to-diffraction",
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
+        'if [[ -n "${FAKE_P0_GTD_COMMAND_LOG:-}" ]]; then\n'
+        '  printf \'%s\\n\' "$*" >> "$FAKE_P0_GTD_COMMAND_LOG"\n'
+        "fi\n"
         "mode=\n"
         "previous=\n"
         "full_verify=false\n"
@@ -1756,10 +1762,22 @@ def test_p0_job_enforces_the_cached_resume_gate(
     )
     run = remote_root / "runs" / P0_RUN_ID
     _install_fake_p0_runtime(run, all_cached=all_cached)
+    submitted = _run(
+        [str(dispatcher), "submit", P0_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(submitted.stdout)["job_id"] == "123"
+    submitted_arguments = (
+        (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    )
+    assert "--time=24:00:00" in submitted_arguments
+    command_log = tmp_path / "p0-gtd-commands.log"
     job_environment = dict(environment)
-    job_environment["SLURM_JOB_ID"] = "654"
+    job_environment["SLURM_JOB_ID"] = "123"
     job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
     job_environment["FAKE_PIXI_INSTALL_FAIL"] = "1"
+    job_environment["FAKE_P0_GTD_COMMAND_LOG"] = str(command_log)
 
     _run(
         [str(smoke_job), P0_RUN_ID, str(remote_root), "p0"],
@@ -1773,6 +1791,10 @@ def test_p0_job_enforces_the_cached_resume_gate(
     p0_log = (run / "logs" / "p0.log").read_text(encoding="utf-8")
     assert "phase=pixi_environment_verify profile=p0" in p0_log
     assert "phase=pixi_install profile=p0" not in p0_log
+    commands = command_log.read_text(encoding="utf-8")
+    assert "phenix verify" in commands
+    assert "--no-command-timeout" in commands
+    assert "--command-timeout-seconds" not in commands
     if all_cached:
         resume = json.loads(
             (run / "artifacts" / "qualification" / "resume-check.json").read_text(

@@ -747,7 +747,7 @@ stage_run_common() {
     local iteration="$5"
     local profile="$6"
     local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp
-    local gtd nextflow java
+    local gtd nextflow java mmseqs foldseek
     local p0_config_sha256="" p0_config_json="null"
     local database_manifest_sha256="" database_manifest_json="null"
     local database_config_sha256="" database_config_json="null"
@@ -899,11 +899,14 @@ stage_run_common() {
         if [[ "$profile" == p0 ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
             java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
-            [[ -x "$nextflow" && -x "$java" ]] || {
+            mmseqs="$run/source/.pixi/envs/hpc/bin/mmseqs"
+            foldseek="$run/source/.pixi/envs/hpc/bin/foldseek"
+            [[ -x "$nextflow" && -x "$java" && \
+                -x "$mmseqs" && -x "$foldseek" ]] || {
                 atomic_text "$run/state/phase" "stage_failed"
                 atomic_text "$run/state/failure-class" "environment_failure"
                 append_event "$run" "stage_p0_runtime_absent"
-                fail environment_failure "locked P0 Nextflow/Java runtime is unavailable"
+                fail environment_failure "locked P0 scientific runtime is unavailable"
             }
         fi
         atomic_text "$run/state/hpc-environment-status" "ready"
@@ -985,7 +988,7 @@ submit_run() {
     [[ "$#" -eq 2 ]] || fail wrapper_failure "submit expects run ID and owner ID"
     local run_id="$1"
     local owner_id="$2"
-    local run active_run active_job active_state submission job_id profile
+    local run active_run active_job active_state submission job_id profile walltime
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     [[ "$(<"$run/state/phase")" == staged ]] || \
@@ -998,6 +1001,8 @@ submit_run() {
         fail wrapper_failure "database profile requires database-submit"
     [[ "$run_id" == "gtd-${profile}-"* ]] || \
         fail wrapper_failure "recorded profile does not match the run ID"
+    walltime=00:45:00
+    [[ "$profile" != p0 ]] || walltime=24:00:00
 
     exec 9>"$LOCKS/submit.lock"
     flock -x 9
@@ -1024,7 +1029,7 @@ submit_run() {
         --partition=slurm \
         --cpus-per-task=2 \
         --mem=8G \
-        --time=00:45:00 \
+        --time="$walltime" \
         --job-name="nfgtd-${profile}-${run_id:7:20}" \
         --output="$run/logs/slurm-%j.out" \
         "$SMOKE_JOB" "$run_id" "$ROOT" "$profile" \

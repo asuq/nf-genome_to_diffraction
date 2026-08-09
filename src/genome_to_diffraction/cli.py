@@ -218,7 +218,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     verify_parser.add_argument("--manifest", type=Path, required=True)
     verify_parser.add_argument("--verification-log", type=Path)
-    verify_parser.add_argument("--command-timeout-seconds", type=float, default=120.0)
+    verify_timeout = verify_parser.add_mutually_exclusive_group()
+    verify_timeout.add_argument("--command-timeout-seconds", type=float)
+    verify_timeout.add_argument(
+        "--no-command-timeout",
+        dest="command_timeout_seconds",
+        action="store_const",
+        const=None,
+        help="allow runtime probes to complete without a per-command deadline",
+    )
+    verify_parser.set_defaults(command_timeout_seconds=120.0)
 
     recover_parser = phenix_actions.add_parser(
         "recover-failed",
