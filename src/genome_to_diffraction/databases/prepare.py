@@ -730,36 +730,54 @@ def _offline_foldseek_environment(
     bundle: DatabaseSourceBundle,
     tool_scratch: Path,
 ) -> Iterator[dict[str, str]]:
-    """Map Foldseek's fixed HTTPS requests to a verified durable bundle."""
+    """Serve Foldseek's fixed HTTPS requests from a verified durable bundle."""
 
     aria2c = shutil.which("aria2c")
     if aria2c is None or not Path(aria2c).is_absolute():
         raise DatabaseError("pinned aria2c is required for offline Foldseek extraction")
+    copy_command = shutil.which("cp")
+    realpath_command = shutil.which("realpath")
+    if copy_command is None or not Path(copy_command).is_absolute():
+        raise DatabaseError(
+            "an absolute cp executable is required for offline extraction"
+        )
+    if realpath_command is None or not Path(realpath_command).is_absolute():
+        raise DatabaseError(
+            "an absolute realpath executable is required for offline extraction"
+        )
     wrapper_root = staging / ".offline-tools"
     wrapper_root.mkdir()
-    wrapper = wrapper_root / "aria2c"
     mappings = (
         (
             FOLDSEEK_PDB_ARCHIVE_URL,
-            bundle.path(database_root, "foldseek_pdb_archive").as_uri(),
+            bundle.path(database_root, "foldseek_pdb_archive"),
         ),
         (
             FOLDSEEK_PDB_VERSION_URL,
-            bundle.path(database_root, "foldseek_pdb_version").as_uri(),
+            bundle.path(database_root, "foldseek_pdb_version"),
         ),
         (
             FOLDSEEK_PROSTT5_ARCHIVE_URL,
-            bundle.path(database_root, "foldseek_prostt5_archive").as_uri(),
+            bundle.path(database_root, "foldseek_prostt5_archive"),
         ),
     )
     cases = "\n".join(
-        f"    {shlex.quote(url)}) args+=({shlex.quote(local_uri)}) ;;"
-        for url, local_uri in mappings
+        f"    {shlex.quote(url)}) source_path={shlex.quote(str(local_path))}; "
+        'source_url="$argument" ;;'
+        for url, local_path in mappings
     )
-    wrapper.write_text(
+    wrapper_text = (
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        "args=()\n"
+        'tool="${0##*/}"\n'
+        "source_path=\n"
+        "source_url=\n"
+        "source_count=0\n"
+        "destination=\n"
+        "download_dir=\n"
+        "output_name=\n"
+        "remote_name=false\n"
+        'arguments=("$@")\n'
         'for argument in "$@"; do\n'
         '  case "$argument" in\n'
         f"{cases}\n"
@@ -768,13 +786,89 @@ def _offline_foldseek_environment(
         '"$argument" >&2\n'
         "      exit 64\n"
         "      ;;\n"
-        '    *) args+=("$argument") ;;\n'
+        "    *) ;;\n"
+        "  esac\n"
+        '  [[ -z "$source_url" || "$argument" != "$source_url" ]] || '
+        "((source_count+=1))\n"
+        "done\n"
+        '[[ -n "$source_path" && -n "$source_url" && "$source_count" -eq 1 ]] || {\n'
+        "  printf 'offline Foldseek downloader requires one approved URL\\n' >&2\n"
+        "  exit 64\n"
+        "}\n"
+        "for ((index=0; index<${#arguments[@]}; index++)); do\n"
+        '  argument="${arguments[$index]}"\n'
+        '  case "$tool:$argument" in\n'
+        "    aria2c:-o|aria2c:--out)\n"
+        "      ((++index < ${#arguments[@]})) || exit 64\n"
+        '      output_name="${arguments[$index]}" ;;\n'
+        '    aria2c:--out=*) output_name="${argument#*=}" ;;\n'
+        "    aria2c:-d|aria2c:--dir)\n"
+        "      ((++index < ${#arguments[@]})) || exit 64\n"
+        '      download_dir="${arguments[$index]}" ;;\n'
+        '    aria2c:--dir=*) download_dir="${argument#*=}" ;;\n'
+        "    curl:-o|curl:--output)\n"
+        "      ((++index < ${#arguments[@]})) || exit 64\n"
+        '      destination="${arguments[$index]}" ;;\n'
+        '    curl:--output=*) destination="${argument#*=}" ;;\n'
+        "    curl:-O|curl:--remote-name) remote_name=true ;;\n"
+        "    wget:-O|wget:--output-document)\n"
+        "      ((++index < ${#arguments[@]})) || exit 64\n"
+        '      destination="${arguments[$index]}" ;;\n'
+        '    wget:--output-document=*) destination="${argument#*=}" ;;\n'
         "  esac\n"
         "done\n"
-        f'exec {shlex.quote(aria2c)} --no-conf=true "${{args[@]}}"\n',
-        encoding="utf-8",
+        'case "$tool" in\n'
+        "  aria2c)\n"
+        '    download_dir="${download_dir:-$PWD}"\n'
+        '    output_name="${output_name:-${source_url##*/}}"\n'
+        '    if [[ "$output_name" == /* ]]; then\n'
+        '      destination="$output_name"\n'
+        "    else\n"
+        '      destination="${download_dir%/}/$output_name"\n'
+        "    fi ;;\n"
+        "  curl)\n"
+        '    if [[ "$remote_name" == true ]]; then\n'
+        '      destination="$PWD/${source_url##*/}"\n'
+        "    fi\n"
+        '    [[ -n "$destination" ]] || {\n'
+        "      printf 'offline curl invocation requires an output file\\n' >&2\n"
+        "      exit 64\n"
+        "    } ;;\n"
+        '  wget) destination="${destination:-$PWD/${source_url##*/}}" ;;\n'
+        "  *) printf 'unsupported offline downloader: %s\\n' \"$tool\" >&2; "
+        "exit 64 ;;\n"
+        "esac\n"
+        '[[ "$destination" == /* ]] || destination="$PWD/$destination"\n'
+        'case "$destination" in\n'
+        f"  {shlex.quote(str(staging.resolve()))}/*) ;;\n"
+        "  *) printf 'offline download destination escaped staging\\n' >&2; "
+        "exit 64 ;;\n"
+        "esac\n"
+        '[[ ! -L "$destination" ]] || {\n'
+        "  printf 'offline download destination must not be a symlink\\n' >&2\n"
+        "  exit 64\n"
+        "}\n"
+        'destination_parent="${destination%/*}"\n'
+        f'resolved_parent="$({shlex.quote(realpath_command)} -e -- '
+        '"$destination_parent")" || exit 64\n'
+        'case "$resolved_parent" in\n'
+        f"  {shlex.quote(str(staging.resolve()))}|"
+        f"{shlex.quote(str(staging.resolve()))}/*) ;;\n"
+        "  *) printf 'offline download parent escaped staging\\n' >&2; exit 64 ;;\n"
+        "esac\n"
+        'destination="$resolved_parent/${destination##*/}"\n'
+        '[[ -f "$source_path" && ! -L "$source_path" ]] || {\n'
+        "  printf 'verified offline source is missing or unsafe\\n' >&2\n"
+        "  exit 66\n"
+        "}\n"
+        f'{shlex.quote(copy_command)} -- "$source_path" "$destination"\n'
+        "printf 'offline Foldseek source copied via %s: %s\\n' "
+        '"$tool" "${source_url##*/}" >&2\n'
     )
-    wrapper.chmod(0o555)
+    for name in ("aria2c", "curl", "wget"):
+        wrapper = wrapper_root / name
+        wrapper.write_text(wrapper_text, encoding="utf-8")
+        wrapper.chmod(0o555)
     try:
         yield {
             "PATH": f"{wrapper_root}{os.pathsep}{os.environ.get('PATH', '')}",

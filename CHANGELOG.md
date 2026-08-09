@@ -59,6 +59,9 @@ All notable changes to this project are documented here.
 - Failed database command logs are now available through the existing bounded
   `logs` operation after owner, configured-root, file-type, and filename checks;
   callers still cannot supply remote paths.
+- Offline Foldseek extraction now shadows its aria2/curl/wget fallback chain
+  with fixed-URL, staging-confined local-copy shims, preventing a fallback from
+  attempting compute-node network access.
 - Large Foldseek and MMseqs2 temporary data can now use explicit distinct
   compute-node scratch with continuous headroom monitoring, process-group
   termination, and exact-child cleanup; no scratch fallback is inferred.

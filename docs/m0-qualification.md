@@ -275,8 +275,10 @@ starts. It requires scratch on a filesystem distinct from the durable database
 root: either an explicit `SLURM_TMPDIR` or a unique job-owned mode-0700 directory
 below compute-node `/scratch/$USER` when Marmic does not export that variable.
 It also requires operator-reviewed capacities for both filesystems, pinned
-Foldseek/MMseqs2/aria2 tooling, and bounded one-byte HTTPS reachability of the
-exact Foldseek PDB/ProstT5 and RCSB SEQRES/1UBQ URLs. The
+Foldseek/MMseqs2/aria2 tooling. Without a staged source bundle it also requires
+bounded one-byte HTTPS reachability of the exact Foldseek PDB/ProstT5 and RCSB
+SEQRES/1UBQ URLs; with the fixed source bundle it instead verifies every local
+object by full SHA-256 and performs no compute-node network request. The
 resulting JSON records pass or failure, device and byte measurements, tool
 versions, fixed routes, redirect targets, representation sizes, validators, and
 `large_payload_started: false`. It sends no biological input or credentials.
@@ -443,6 +445,20 @@ an intermittent NFS-startup limit rather than a command mismatch. Database tool
 version probes now have a fixed 180-second bound and log start/completion plus
 elapsed time; the immutable source bundle is reused rather than downloaded
 again.
+
+Revision `b0e86cb8e9e32dcce218666f7e3831c480fa0eda` and Slurm job `625518`
+passed offline Pixi verification, all three version probes, both capacity gates,
+and full checksums for the `4,617,920,618`-byte source bundle. Foldseek then
+failed while preparing ProstT5. Its command log showed that the first adapter
+rewrote the fixed URL to `file://`; Foldseek's aria2 backend rejected that
+protocol and its fallback chain invoked real `curl` and `wget`, which could not
+reach the public host from the compute node. The incomplete ProstT5 staging was
+retained and scratch cleanup succeeded. The replacement adapter now provides
+strict local-copy shims for all three downloader names, accepts only the three
+fixed source URLs, validates each output below the active resource staging
+directory, and does not execute a network client. This adapter has passed local
+fixed-source, path-escape, and unknown-URL tests; a new Marmic build has not yet
+qualified it.
 
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)

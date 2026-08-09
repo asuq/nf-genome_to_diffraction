@@ -332,14 +332,19 @@ capacity, scratch headroom, and Foldseek/MMseqs2/aria2 versions without making
 any network request. Version probes have a fixed three-minute limit because
 Marmic NFS-cold executable startup has exceeded 30 seconds; structured start,
 completion, and elapsed-time records distinguish slow startup from a hung tool.
-An allow-listing `aria2c` adapter maps only Foldseek's exact three admitted HTTPS
-URLs to the verified local files and rejects all other HTTP(S) input. The
-bundled SEQRES and 1UBQ files are consumed directly.
+Allow-listing `aria2c`, `curl`, and `wget` shims serve only Foldseek's exact
+three admitted HTTPS URLs from the verified local files and reject all other
+HTTP(S) input. They do not invoke a network client: each accepts the pinned
+downloader's output-file conventions, validates that the destination remains
+inside the current resource staging directory, and copies the matching bundle
+object. This covers Foldseek 10.941cd33's downloader fallback chain without
+depending on compute-node egress. The bundled SEQRES and 1UBQ files are consumed
+directly.
 
 Only after preflight passes does the job prepare PDB Foldseek, PDB sequence,
-ProstT5, and coordinate-cache resources under the durable root. `aria2c` is
-wrapped with `--no-conf=true`, so a user configuration cannot silently change
-the reviewed transfer behaviour. Success requires a frozen manifest checksum
+ProstT5, and coordinate-cache resources under the durable root. No downloader
+user configuration is consulted during offline extraction. Success requires a
+frozen manifest checksum
 and a second anchored `--verify-only --full-verify` pass. Fixed small manifests,
 preflight evidence, and logs are collectable; database payloads stay on Marmic.
 Source transfers are resumable. Failed extraction or index staging is retained

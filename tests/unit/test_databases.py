@@ -5,7 +5,6 @@ import hashlib
 import importlib
 import json
 import os
-import shlex
 import subprocess
 import threading
 import time
@@ -789,7 +788,75 @@ def test_mocked_database_prepare_consumes_only_verified_offline_sources(
         assert bundle_id.startswith("dbsrc_")
 
 
-def test_offline_foldseek_wrapper_maps_fixed_urls_and_rejects_other_network(
+@pytest.mark.parametrize(
+    ("tool", "arguments", "relative_destination"),
+    (
+        ("aria2c", (), "pdb100.tar.gz"),
+        ("aria2c", ("--dir", "payloads", "--out", "pdb.tar.gz"), "payloads/pdb.tar.gz"),
+        (
+            "curl",
+            ("--location", "--output", "payloads/pdb.tar.gz"),
+            "payloads/pdb.tar.gz",
+        ),
+        ("wget", ("--output-document", "payloads/pdb.tar.gz"), "payloads/pdb.tar.gz"),
+    ),
+)
+def test_offline_foldseek_wrappers_copy_fixed_urls_and_reject_other_network(
+    tool: str,
+    arguments: tuple[str, ...],
+    relative_destination: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _mocked_full_request(tmp_path, monkeypatch)
+    source_manifest = _stage_mock_source_bundle(request, tmp_path, monkeypatch)
+    bundle = sources_module.load_source_bundle(
+        request.database_root,
+        source_manifest,
+        full_verify=True,
+        progress=False,
+    )
+    bin_dir = tmp_path / "aria bin"
+    bin_dir.mkdir()
+    aria2c = bin_dir / "aria2c"
+    aria2c.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="ascii")
+    aria2c.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    staging = tmp_path / "offline staging"
+    scratch = staging / "tmp"
+    scratch.mkdir(parents=True)
+    (scratch / "payloads").mkdir()
+
+    with prepare_module._offline_foldseek_environment(
+        staging, request.database_root, bundle, scratch
+    ) as environment:
+        mapped = subprocess.run(
+            [tool, *arguments, SOURCE_SPECS[0].requested_url],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=scratch,
+            env={**os.environ, **environment},
+        )
+        rejected = subprocess.run(
+            [tool, "https://unapproved.example.test/payload"],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=scratch,
+            env={**os.environ, **environment},
+        )
+
+    assert mapped.returncode == 0
+    assert (scratch / relative_destination).read_bytes() == bundle.path(
+        request.database_root, SOURCE_SPECS[0].name
+    ).read_bytes()
+    assert f"copied via {tool}" in mapped.stderr
+    assert rejected.returncode == 64
+    assert "unapproved network URL" in rejected.stderr
+
+
+def test_offline_foldseek_wrapper_rejects_destination_escape(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     request = _mocked_full_request(tmp_path, monkeypatch)
@@ -802,14 +869,8 @@ def test_offline_foldseek_wrapper_maps_fixed_urls_and_rejects_other_network(
     )
     bin_dir = tmp_path / "aria bin"
     bin_dir.mkdir()
-    arguments = tmp_path / "aria-arguments.txt"
     aria2c = bin_dir / "aria2c"
-    aria2c.write_text(
-        "#!/usr/bin/env bash\n"
-        "set -euo pipefail\n"
-        f"printf '%s\\n' \"$@\" > {shlex.quote(str(arguments))}\n",
-        encoding="ascii",
-    )
+    aria2c.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="ascii")
     aria2c.chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     staging = tmp_path / "offline staging"
@@ -819,28 +880,23 @@ def test_offline_foldseek_wrapper_maps_fixed_urls_and_rejects_other_network(
     with prepare_module._offline_foldseek_environment(
         staging, request.database_root, bundle, scratch
     ) as environment:
-        mapped = subprocess.run(
-            ["aria2c", SOURCE_SPECS[0].requested_url],
-            check=False,
-            capture_output=True,
-            text=True,
-            env={**os.environ, **environment},
-        )
         rejected = subprocess.run(
-            ["aria2c", "https://unapproved.example.test/payload"],
+            [
+                "wget",
+                "--output-document",
+                str(tmp_path / "escaped.tar.gz"),
+                SOURCE_SPECS[0].requested_url,
+            ],
             check=False,
             capture_output=True,
             text=True,
+            cwd=scratch,
             env={**os.environ, **environment},
         )
 
-    assert mapped.returncode == 0
-    assert arguments.read_text(encoding="utf-8").splitlines() == [
-        "--no-conf=true",
-        bundle.path(request.database_root, SOURCE_SPECS[0].name).as_uri(),
-    ]
     assert rejected.returncode == 64
-    assert "unapproved network URL" in rejected.stderr
+    assert "destination escaped staging" in rejected.stderr
+    assert not (tmp_path / "escaped.tar.gz").exists()
 
 
 def test_pdb_foldseek_rejects_malformed_provider_snapshot(
