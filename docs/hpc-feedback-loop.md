@@ -75,13 +75,23 @@ shared durable storage because child Slurm nodes cannot see the driver's
 Nextflow process through compute-node `/scratch`. Disposable driver scratch is
 removed by the job, while the durable run is retained until explicitly cleaned.
 
-Database administration is stricter: the compute node must expose an explicit,
-canonical, non-symlink `SLURM_TMPDIR` on a filesystem distinct from the durable
-database root. The job rejects a missing value, `/dev/shm`, an overlapping path,
-or a shared device before its fixed preflight can start a large payload. All
-database command scratch lives below one job-owned child, and the finaliser
-removes only that child. Failed durable resource staging is intentionally
-retained and blocks an automatic second database-sized attempt.
+Database administration is stricter: an exported `SLURM_TMPDIR` must be a
+canonical, owned, non-symlink directory on a filesystem distinct from the
+durable database root. Marmic did not export that variable in the first real
+job, so the fixed fallback creates a unique mode-0700 parent below the
+established compute-node `/scratch/$USER` root. The job removes that parent at
+finalisation and still rejects `/dev/shm`, an overlapping/shared device, or
+insufficient scratch capacity before a large payload starts. All database
+command scratch lives below one job-owned child.
+Failed durable resource staging is intentionally retained and blocks an
+automatic second database-sized attempt.
+
+This root matches the Marmic site profile in the pinned `nf-helper` submodule:
+Slurm processes use `/scratch/$USER`, copy declared outputs back to shared work,
+and export the submitting environment. The checked Marmic profiles in
+`nf-annotation`, `nf-busco_phylogenomics`, and `nf-sra_screen` use the same
+configuration. Database administration does not rely on Nextflow to create its
+driver scratch, so its fixed job creates and validates its own narrower child.
 
 ## Build and reviewed installation
 

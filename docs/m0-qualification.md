@@ -271,10 +271,12 @@ that resource. No automatic cleanup or second database-sized download is
 allowed; recovery or removal is a separate, reviewed administrative action.
 
 The large-build compute-node preflight must complete before a database payload
-starts. It requires an explicit scratch directory on a filesystem distinct from
-the durable database root, operator-reviewed required capacities for both
-filesystems, pinned Foldseek/MMseqs2/aria2 tooling, and bounded one-byte HTTPS
-reachability of the exact Foldseek PDB/ProstT5 and RCSB SEQRES/1UBQ URLs. The
+starts. It requires scratch on a filesystem distinct from the durable database
+root: either an explicit `SLURM_TMPDIR` or a unique job-owned mode-0700 directory
+below compute-node `/scratch/$USER` when Marmic does not export that variable.
+It also requires operator-reviewed capacities for both filesystems, pinned
+Foldseek/MMseqs2/aria2 tooling, and bounded one-byte HTTPS reachability of the
+exact Foldseek PDB/ProstT5 and RCSB SEQRES/1UBQ URLs. The
 resulting JSON records pass or failure, device and byte measurements, tool
 versions, fixed routes, redirect targets, representation sizes, validators, and
 `large_payload_started: false`. It sends no biological input or credentials.
@@ -296,7 +298,7 @@ otherwise the transfer restarts or fails without promotion. Storage monitoring
 uses only explicit active write roots between full start/end reconciliations,
 checks durable and scratch filesystem headroom continuously, and terminates the
 command process group rather than only its parent. This reduces metadata
-pressure on Marmic NFS without weakening the 1.8 TB project cap.
+pressure on Marmic NFS without weakening the configured project cap.
 
 Foldseek's retained PDB version file is now parsed fail-loudly rather than being
 treated as an opaque inventory member. The database resource records its PDB
@@ -333,10 +335,10 @@ existing project database-administration root. The site does not provide the
 standard `quota` command, so no user-specific 2 TB quota was independently
 observable. With the reviewed first-run values of 1.6 TB required build
 capacity and a 0.2 TB durable reserve, only `932,247,285,760` bytes would be
-available to the preflight. The configuration must therefore remain absent
-until capacity is increased or a smaller requirement is justified from measured
-resource expansion and indexing evidence. The gate must not be weakened merely
-to make readiness pass.
+available to the preflight. At that observation the configuration therefore
+remained absent pending either increased capacity or an operator-approved
+smaller measurement gate. The gate was not weakened merely to make readiness
+pass.
 
 The same day, capped one-byte ranged GET probes verified that the three fixed
 public payload routes were live without downloading database content. The
@@ -356,6 +358,23 @@ These compressed sizes do not bound extracted databases, MMseqs2 indices,
 simultaneous staging, retained failed staging, or scratch use, and therefore do
 not by themselves justify reducing the capacity gate. Compute-node reachability
 still requires the fixed preflight.
+
+After operator review, the first measurement build used an 800 GB project cap,
+a 200 GB durable reserve, a 600 GB pre-download capacity gate, and a 200 GB
+scratch reserve on the filesystem with approximately 1.13 TB free. Login-node
+readiness passed and immutable commit `d41cbcf658a8e29d184d44cc50c7a7171a62feb1`
+was staged. Slurm job `625468` reached a compute node but failed during the
+environment phase because Marmic did not export `SLURM_TMPDIR`. No compute-node
+preflight or database payload started, no durable database resource staging was
+created, and scratch cleanup succeeded.
+
+The pinned `nf-helper` Marmic profile and the checked copies used by
+`nf-annotation`, `nf-busco_phylogenomics`, and `nf-sra_screen` consistently set
+Nextflow scratch to `/scratch/$USER`. Their Marmic profile content has SHA-256
+`943b4ea330073c073f8518ff940ae0c8b21bc749f26f2360fadc3675ef6e6a90`.
+The fixed database job therefore uses a job-owned mode-0700 child below that
+site root when `SLURM_TMPDIR` is absent, while preserving the distinct-device,
+ownership, symlink, `/dev/shm`, and capacity checks.
 
 The corrected Python probe subsequently completed against all five fixed routes
 from the local development environment. It recorded the two Foldseek archives,

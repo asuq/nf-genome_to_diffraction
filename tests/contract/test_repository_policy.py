@@ -56,6 +56,12 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
     assert "marmic {" in site_profile
     assert "executor = 'slurm'" in site_profile
     assert "clusterOptions = '--export=ALL'" in site_profile
+    assert "scratch = \"/scratch/${System.getenv('USER')}\"" in site_profile
+
+    database_job = (REPOSITORY / "bootstrap" / "nf-gtd-hpc-smoke-job").read_text(
+        encoding="utf-8"
+    )
+    assert "DATABASE_SCRATCH_ROOT='/scratch'" in database_job
 
 
 def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> None:
@@ -84,6 +90,8 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert "--full-verify" not in p0_body
     assert "--full-verify" in database_body
     assert "SLURM_TMPDIR" in database_body
+    assert "DATABASE_SCRATCH_ROOT='/scratch'" in job
+    assert "scratch_parent_source=job_owned_scratch" in database_body
     assert "database payload scratch must not use /dev/shm" in database_body
     assert (REPOSITORY / "conf" / "hpc-database.paths.example").is_file()
     database_module = (

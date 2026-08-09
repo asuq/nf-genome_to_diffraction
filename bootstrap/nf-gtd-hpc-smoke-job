@@ -11,6 +11,7 @@ CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
+DATABASE_SCRATCH_ROOT='/scratch'
 
 # Slurm executes a spooled copy, so $0 no longer identifies _tooling. The fixed
 # dispatcher derives the trusted run root and passes it explicitly.
@@ -56,6 +57,7 @@ PIXI_BIN="$(<"$RUN/state/pixi-bin")"
 }
 
 SCRATCH_PARENT=""
+SCRATCH_PARENT_CLEANUP=""
 SCRATCH=""
 SOURCE=""
 if [[ "$PROFILE" != database ]]; then
@@ -116,6 +118,9 @@ finalise() {
         chmod -R u+w "$SCRATCH" 2>/dev/null || true
         rm -rf -- "$SCRATCH"
         [[ ! -e "$SCRATCH" ]] || cleanup_failed=true
+    fi
+    if [[ -n "$SCRATCH_PARENT_CLEANUP" && -e "$SCRATCH_PARENT_CLEANUP" ]]; then
+        rmdir -- "$SCRATCH_PARENT_CLEANUP" 2>/dev/null || cleanup_failed=true
     fi
     if [[ "$cleanup_failed" == true ]]; then
         printf 'scratch_cleanup_status=failed\n' >&2
@@ -519,18 +524,52 @@ EOF
 
 run_database() {
     local gtd real_aria2 wrapper_bin database_manifest_sha256
+    local fallback_base fallback_parent
 
     load_database_config
-    [[ -n "${SLURM_TMPDIR:-}" && "$SLURM_TMPDIR" =~ $SAFE_PATH_RE ]] || {
-        printf 'database job requires an explicit safe SLURM_TMPDIR\n' >&2
-        return 2
-    }
-    SCRATCH_PARENT="$(realpath -e "$SLURM_TMPDIR")"
-    [[ "$SCRATCH_PARENT" == "$SLURM_TMPDIR" && -d "$SCRATCH_PARENT" && \
-        ! -L "$SLURM_TMPDIR" && -O "$SLURM_TMPDIR" ]] || {
-        printf 'SLURM_TMPDIR must be a canonical non-symlink directory\n' >&2
-        return 2
-    }
+    if [[ -n "${SLURM_TMPDIR:-}" ]]; then
+        [[ "$SLURM_TMPDIR" =~ $SAFE_PATH_RE ]] || {
+            printf 'SLURM_TMPDIR is not a safe absolute path\n' >&2
+            return 2
+        }
+        SCRATCH_PARENT="$(realpath -e "$SLURM_TMPDIR")"
+        [[ "$SCRATCH_PARENT" == "$SLURM_TMPDIR" && -d "$SCRATCH_PARENT" && \
+            ! -L "$SLURM_TMPDIR" && -O "$SLURM_TMPDIR" ]] || {
+            printf 'SLURM_TMPDIR must be a canonical owned non-symlink directory\n' >&2
+            return 2
+        }
+        printf 'scratch_parent_source=slurm_tmpdir\n'
+    else
+        [[ "${USER:-}" =~ ^[A-Za-z0-9._-]+$ ]] || {
+            printf 'job user is unavailable or unsafe for /scratch\n' >&2
+            return 2
+        }
+        fallback_base="${DATABASE_SCRATCH_ROOT%/}/${USER}"
+        [[ "$fallback_base" =~ $SAFE_PATH_RE && -d "$fallback_base" && \
+            ! -L "$fallback_base" && -O "$fallback_base" && \
+            -w "$fallback_base" && -x "$fallback_base" ]] || {
+            printf 'fixed /scratch user root is unavailable or unsafe\n' >&2
+            return 2
+        }
+        fallback_parent="${fallback_base%/}/nf-gtd-database-parent-${UID}-${SLURM_JOB_ID}-${RUN_ID}"
+        [[ "$fallback_parent" =~ $SAFE_PATH_RE && \
+            ! -e "$fallback_parent" && ! -L "$fallback_parent" ]] || {
+            printf 'job-owned /scratch user directory is unsafe or already exists\n' >&2
+            return 2
+        }
+        mkdir -m 0700 -- "$fallback_parent" || {
+            printf 'cannot create job-owned /scratch user directory\n' >&2
+            return 2
+        }
+        SCRATCH_PARENT_CLEANUP="$fallback_parent"
+        SCRATCH_PARENT="$(realpath -e "$fallback_parent")"
+        [[ "$SCRATCH_PARENT" =~ $SAFE_PATH_RE && -d "$SCRATCH_PARENT" && \
+            ! -L "$SCRATCH_PARENT" && -O "$SCRATCH_PARENT" ]] || {
+            printf 'job-owned /scratch user directory failed validation\n' >&2
+            return 2
+        }
+        printf 'scratch_parent_source=job_owned_scratch\n'
+    fi
     [[ "$SCRATCH_PARENT" != /dev/shm && "$SCRATCH_PARENT" != /dev/shm/* ]] || {
         printf 'database payload scratch must not use /dev/shm\n' >&2
         return 2

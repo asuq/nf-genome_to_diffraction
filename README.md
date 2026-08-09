@@ -394,11 +394,14 @@ cleanly. Capacity and free-space headroom are checked throughout. External tools
 are monitored through their declared durable and scratch write roots, avoiding
 a full scan of the large shared database tree every 20 seconds, and the complete
 process group is stopped if either filesystem loses headroom, the durable cap is
-crossed, or the scoped watchdog fails. Explicit scratch must be an existing
-canonical directory on a different filesystem; no default `/dev/shm` or other
-implicit fallback is used. Foldseek archives and MMseqs2 index workspace are
-disposable there, while immutable database content remains under the durable
-database root.
+crossed, or the scoped watchdog fails. Explicit `SLURM_TMPDIR` scratch must be
+an existing canonical owned directory on a different filesystem. When a site
+does not export `SLURM_TMPDIR`, the fixed database job creates one unique
+mode-0700 parent below compute-node `/scratch/$USER` and removes it at
+finalisation. Both routes reject `/dev/shm`, shared-device scratch, and
+insufficient headroom before a payload starts. Foldseek archives and MMseqs2
+index workspace are disposable there, while immutable database content remains
+under the durable database root.
 
 The downloads performed internally by `foldseek databases` do not currently
 expose equivalent checkpoint state. A failed Foldseek staging directory is
