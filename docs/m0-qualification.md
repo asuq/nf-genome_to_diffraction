@@ -11,11 +11,11 @@ this gate passes.
 | --- | --- | --- |
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Qualified with the public same-organism 8OOX control | Offline revalidation and real local Task 05 bind the exact RefSeq sequence, known two-copy ASU, deposited model/structure factors, and exact plus homolog MR models; the copy-two hypothesis is retained without changing the ranking heuristic, and this does not identify any blind pilot crystal |
-| M0.3 Qualify Phenix | Local and Marmic runtimes qualified; three real Xtriage smokes qualified locally | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files complete local real Xtriage, while equivalent Marmic real-MTZ and scheduled P0 evidence remain required |
+| M0.3 Qualify Phenix | **Qualified** | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files completed real Xtriage locally and in scheduled Marmic P0 execution |
 | M0.4 Qualify databases | **Qualified** | Four immutable resources passed inventories, full checksums, metadata checks, MMseqs2/ProstT5/Foldseek functional smokes, PDB sequence/coordinate crosswalking, coordinate-cache reuse, and anchored `verify_only` revalidation in Slurm job `625547` |
-| M0.5 Matthews reference | Local method matrix and positive-control retention qualified; site parity follows M0.3 | Eleven real comparisons cover all frozen MTZs, the 8OOX ground-truth sequence, and multiple copy regimes; blind-pilot identity/copy interpretation remains separate |
-| M0.6 Fixed HPC P0 profile | Current local controller and Marmic dispatcher installed; create-only configuration boundary qualified | The bounded readiness interface verifies Pixi 0.74.0 and can atomically validate/install the protected seven-line file, but the real external P0 configuration is still absent; no P0 run has been staged or submitted |
-| M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
+| M0.5 Matthews reference | **Qualified for M0** | Eleven real comparisons cover all frozen MTZs, the 8OOX ground-truth sequence, and multiple copy regimes; the same implementation completed on Marmic, while blind-pilot identity/copy interpretation remains separate |
+| M0.6 Fixed HPC P0 profile | **Qualified** | The installed immutable controller and dispatcher staged, submitted, monitored, and collected the protected real profile without accepting arbitrary remote paths or shell fragments |
+| M0.7 Three-crystal P0 | **Qualified** | Slurm job `625569` completed the real first run; all four deterministic processes were cached on `-resume`; bounded provenance, reports, traces, and logs were collected |
 
 This dashboard describes qualification status, not protein-identification
 status. The implemented workflow still ends at Task 05.
@@ -364,7 +364,8 @@ inventory and its SHA-256.
 Every anchored verification sidecar now distinguishes
 `inventory_metadata_and_functional_smoke` from
 `full_checksums_and_functional_smoke` and records the Boolean checksum mode.
-The fixed 45-minute P0 job uses only the bounded level. Full-checksum database
+The fixed P0 job has a 24-hour outer scheduler margin and uses only the bounded
+verification level. Full-checksum database
 qualification now has distinct `database-stage`/`database-submit` commands, a
 fingerprinted external configuration, and a fixed 48-hour Slurm allocation. It
 remains a long administration gate and does not inherit the routine
@@ -373,7 +374,7 @@ remains a long administration gate and does not inherit the routine
 These are implementation tests, not site qualification. Real M0.4 evidence
 still requires one immutable Marmic preparation, the frozen manifest/checksum,
 real command logs, full inventory verification, and measured I/O/runtime. The
-fixed 45-minute P0 allocation is not yet justified for a bytewise audit on the
+P0 allocation is not intended for a bytewise audit on the
 observed slow NFS; database qualification and Task 05 should not be conflated
 until that timing is measured. Marmic compute nodes have now been shown not to
 reach the first pinned Foldseek HTTPS route, so real preparation must use the
@@ -742,6 +743,36 @@ the protected P0 and database-administration configurations were absent or
 unsafe. This supersedes the earlier transport observation. It does not satisfy
 P0 staging readiness, database qualification, compute-node scratch/network
 qualification, or scheduled real-MTZ execution.
+
+### Accepted real P0 execution
+
+The protected P0 profile passed on 9 August 2026 at immutable repository
+revision `918378ddab35e4cbcff3eda01322a5b76f150710`. Slurm job `625569`
+(`gtd-p0-20260809T210454Z-918378ddab35-ad3c98ea`) completed with exit status
+zero and failure class `success`. GitHub Actions run `31335394930` also passed
+for the exact revision.
+
+The job verified all seven required Phenix 2.1-6048 commands without
+per-command deadlines. It revalidated four immutable database resources:
+MMseqs2 PDB sequences, ProstT5, Foldseek PDB, and the coordinate cache. The
+MMseqs2 smoke returned one significant query-equivalent `1ubq_A` control; the
+Foldseek smoke returned a significant query-equivalent biological-assembly hit;
+and the cached `1UBQ` sequence-to-coordinate mapping was independently checked.
+
+All three real MTZ inputs completed Task 05:
+
+| Crystal | P0 outcome | Review result |
+| --- | --- | --- |
+| `AD4QS1P4G2_18` | `completed_warning` | Completeness below 90%; Patterson peak review |
+| `CD4QS2P2G1_15` | `completed_warning` | Completeness below 90%; direction-dependent resolution |
+| `CD6QS2P2G1_5` | `completed_success` | Clean automated preflight |
+
+The identical `-resume` run reported all four deterministic processes as
+`CACHED`: input-contract validation, catalogue import, MTZ preflight, and
+Matthews enumeration. The final scope status was
+`task05_preflight_complete_downstream_deferred`. This closes the P0 operational
+gate; it does not identify a crystallised protein or claim that downstream
+structural discovery, molecular replacement, or sequence confirmation has run.
 
 ## Operator-held evidence still required
 
