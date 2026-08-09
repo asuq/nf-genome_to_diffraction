@@ -73,16 +73,17 @@ All notable changes to this project are documented here.
   fail-closed path checks report the rejected safety condition without exposing
   caller-controlled paths, and only staging-confined symbolic links are
   preserved.
-- Large Foldseek and MMseqs2 temporary data can now use explicit distinct
-  compute-node scratch with continuous headroom monitoring, process-group
-  termination, and exact-child cleanup; no scratch fallback is inferred.
+- Large Foldseek and MMseqs2 resources now build entirely in explicit distinct
+  compute-node scratch. Scratch bytes count towards the project cap; publication
+  uses one progress-logged copy-back, full destination checksums, atomic
+  promotion, retained failed staging, and exact-child scratch cleanup.
 - P0 database checks are explicitly bounded metadata/functional revalidation;
   verification evidence records whether full checksums were computed, while
   long database administration stays outside routine HPC start approvals.
 - A separately approval-gated Marmic database profile now fingerprints a fixed
-  external capacity/path contract, uses 8 CPUs/64 GB/48 hours, requires explicit
-  non-`/dev/shm` scratch, uses an exact-URL local Foldseek source adapter, and
-  accepts no arbitrary paths or shell fragments on its start commands.
+  external capacity/path contract, uses 100 CPUs/2,000 GB/48 hours, creates one
+  owned `/dev/shm` build tree, uses an exact-URL local Foldseek source adapter,
+  and accepts no arbitrary paths or shell fragments on its start commands.
 - A tracked local-settings inventory documents recoverable removal and
   restoration of the installed HPC controller, its configuration/capabilities,
   Codex approval boundary, and the verified local Phenix selection/evidence.

@@ -12,7 +12,7 @@ this gate passes.
 | M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
 | M0.2 Positive control | Qualified with the public same-organism 8OOX control | Offline revalidation and real local Task 05 bind the exact RefSeq sequence, known two-copy ASU, deposited model/structure factors, and exact plus homolog MR models; the copy-two hypothesis is retained without changing the ranking heuristic, and this does not identify any blind pilot crystal |
 | M0.3 Qualify Phenix | Local and Marmic runtimes qualified; three real Xtriage smokes qualified locally | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files complete local real Xtriage, while equivalent Marmic real-MTZ and scheduled P0 evidence remain required |
-| M0.4 Qualify databases | Real Marmic preparation in progress under the corrected 8-CPU boundary | Fixed preflight, retained-staging recovery, distinct scratch, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site manifest has yet passed the complete gate |
+| M0.4 Qualify databases | Revised 100-CPU `/dev/shm` build boundary implemented; real replacement run pending | Fixed preflight, retained-staging recovery, checksum-verified copy-back, anchored full verification, known-query smokes, SEQRES/mmCIF mapping, and atomic coordinate-cache publication are tested; no real site manifest has yet passed the complete gate |
 | M0.5 Matthews reference | Local method matrix and positive-control retention qualified; site parity follows M0.3 | Eleven real comparisons cover all frozen MTZs, the 8OOX ground-truth sequence, and multiple copy regimes; blind-pilot identity/copy interpretation remains separate |
 | M0.6 Fixed HPC P0 profile | Current local controller and Marmic dispatcher installed; create-only configuration boundary qualified | The bounded readiness interface verifies Pixi 0.74.0 and can atomically validate/install the protected seven-line file, but the real external P0 configuration is still absent; no P0 run has been staged or submitted |
 | M0.7 Three-crystal P0 | Local Xtriage evidence available; Marmic P0 pending | Successful scheduled first run, all deterministic processes cached on `-resume`, collected logs/results, and interpreted warnings |
@@ -321,9 +321,9 @@ that resource. No automatic cleanup or second database-sized download is
 allowed; recovery or removal is a separate, reviewed administrative action.
 
 The large-build compute-node preflight must complete before a database payload
-starts. It requires scratch on a filesystem distinct from the durable database
-root: either an explicit `SLURM_TMPDIR` or a unique job-owned mode-0700 directory
-below compute-node `/scratch/$USER` when Marmic does not export that variable.
+starts. The fixed Marmic driver requires a unique job-owned mode-0700 directory
+below compute-node `/dev/shm`, on a filesystem distinct from the durable database
+root.
 It also requires operator-reviewed capacities for both filesystems, pinned
 Foldseek/MMseqs2/aria2 tooling. Without a staged source bundle it also requires
 bounded one-byte HTTPS reachability of the exact Foldseek PDB/ProstT5 and RCSB
@@ -334,14 +334,15 @@ versions, fixed routes, redirect targets, representation sizes, validators, and
 `large_payload_started: false`. It sends no biological input or credentials.
 Generic login-node connectivity is not qualifying evidence.
 
-Foldseek download targets, the downloader's tmp argument, and its inherited
-`TMPDIR` all remain under a resource staging directory on the durable database
-filesystem. They are not written to compute-node scratch. When explicit
-compute-node scratch is supplied, only disposable execution state and MMseqs2
-index workspace use a unique child there. The command watchdog measures both
-roots, logs their usage and free space, terminates the complete process group on
-either headroom violation, and removes only its exact scratch child. There is no
-implicit `/dev/shm` fallback.
+Foldseek download targets, the downloader's tmp argument, inherited `TMPDIR`,
+MMseqs2 databases, and index workspace remain inside a resource build directory
+below that job-owned `/dev/shm` tree. The command watchdog measures durable and
+scratch roots, counts both towards the same project cap, logs usage and free
+space, and terminates the complete process group on either headroom violation.
+After a scratch resource is inventoried, one progress-logged copy is written to
+empty durable staging and fully rehashed there before atomic publication. A
+failed copy retains durable staging for review; only the exact job-owned scratch
+tree is removed automatically.
 
 The public-resource transport boundary is also fail-safe. A partial download is
 resumable only when its atomically recorded URL, effective redirect URL,
@@ -426,9 +427,10 @@ The pinned `nf-helper` Marmic profile and the checked copies used by
 `nf-annotation`, `nf-busco_phylogenomics`, and `nf-sra_screen` consistently set
 Nextflow scratch to `/scratch/$USER`. Their Marmic profile content has SHA-256
 `943b4ea330073c073f8518ff940ae0c8b21bc749f26f2360fadc3675ef6e6a90`.
-The fixed database job therefore uses a job-owned mode-0700 child below that
-site root when `SLURM_TMPDIR` is absent, while preserving the distinct-device,
-ownership, symlink, `/dev/shm`, and capacity checks.
+The fixed database job at that revision therefore used a job-owned mode-0700
+child below that site root when `SLURM_TMPDIR` was absent, while preserving its
+then-current distinct-device, ownership, symlink, `/dev/shm`, and capacity
+checks.
 
 Retry job `625471` then selected the job-owned scratch path successfully and
 reached Pixi setup. It failed before preflight because the compute node could
@@ -473,11 +475,11 @@ coordinate positive control. Downloads go sequentially and directly to the
 durable database root, are resumable with strong validators, and are recorded by
 full SHA-256 in a content-addressed bundle. The Slurm preflight fully verifies
 that bundle without network access. Foldseek receives only local bundle files
-through an exact-URL allow-listing adapter; disposable execution and MMseqs2
-index state use `/scratch/$USER`, while extraction and immutable resources stay
-on durable storage. Interrupted source transfer resumes automatically. A failed
-extraction/index staging directory is retained and requires operator review
-before another build.
+through an exact-URL allow-listing adapter. The current driver builds extraction,
+database, and indexing output in job-owned `/dev/shm`, then performs one verified
+copy to durable staging. Interrupted source transfer resumes automatically. A
+failed durable copy/extraction staging directory is retained and requires
+operator review before another build.
 
 The first complete login-node stage for revision
 `61bbb2cf69ba678588e8167eb23df094699aade6` ran from 11:12:23 to 11:42:25 UTC.
@@ -535,6 +537,20 @@ evidence was deleted. Revision
 Foldseek database commands and records that value in resource provenance. Its
 replacement Marmic build is Slurm job `625528`; qualification remains open
 until preparation, full verification, and all fixed smoke queries pass.
+
+Job `625528` subsequently published a fully inventoried ProstT5 resource and
+entered the PDB Foldseek build with its historical eight-CPU/64-GB allocation.
+That run writes large resource output directly to NFS, so it is retained only as
+baseline provenance while the reviewed replacement is prepared. The revised
+boundary requests 100 CPUs and 2,000 GB to select the available large-memory
+node, creates all large resource output in job-owned `/dev/shm`, and performs one
+fully verified copy-back to durable storage. Two terabytes is intentionally less
+than the node's 4 TB because the configured 800 GB payload cap plus temporary
+overhead fits, while extra memory cannot accelerate serial checksumming or NFS
+copy-back. The replacement may reuse the already published ProstT5 resource and
+the immutable source bundle. The historical job must be cancelled through its
+recorded job ID, collected, and its partial durable staging archived before the
+replacement is submitted; no unreviewed deletion is permitted.
 
 The identifier and command assumptions follow the
 [RCSB file-download conventions](https://www.rcsb.org/docs/programmatic-access/file-download-services)

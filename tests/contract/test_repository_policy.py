@@ -53,8 +53,8 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
     assert "beforeScript" in wrapper
     assert ".pixi/envs/hpc/bin" in wrapper
     assert "withLabel: process_database_download" in wrapper
-    assert "cpus = 8" in wrapper
-    assert "memory = '64 GB'" in wrapper
+    assert "cpus = 100" in wrapper
+    assert "memory = '2000 GB'" in wrapper
     assert "time = '48 hours'" in wrapper
 
     nextflow_config = (REPOSITORY / "nextflow.config").read_text(encoding="utf-8")
@@ -71,7 +71,7 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
     database_job = (REPOSITORY / "bootstrap" / "nf-gtd-hpc-smoke-job").read_text(
         encoding="utf-8"
     )
-    assert "DATABASE_SCRATCH_ROOT='/scratch'" in database_job
+    assert "DATABASE_SCRATCH_ROOT='/dev/shm'" in database_job
 
 
 def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> None:
@@ -99,13 +99,17 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     p0_body, database_body = job.split("run_database()", maxsplit=1)
     assert "--full-verify" not in p0_body
     assert "--full-verify" in database_body
-    assert "SLURM_TMPDIR" in database_body
-    assert "DATABASE_SCRATCH_ROOT='/scratch'" in job
-    assert "scratch_parent_source=job_owned_scratch" in database_body
+    assert "SLURM_TMPDIR" not in database_body
+    assert "DATABASE_SCRATCH_ROOT='/dev/shm'" in job
+    assert "scratch_parent_source=job_owned_dev_shm" in database_body
     assert "phase=pixi_verify_offline profile=database" in database_body
     assert "--offline" in database_body
-    assert "database payload scratch must not use /dev/shm" in database_body
+    assert "database resource build uses compute scratch" in (
+        REPOSITORY / "src" / "genome_to_diffraction" / "databases" / "prepare.py"
+    ).read_text(encoding="utf-8")
     dispatcher_text = dispatcher.read_text(encoding="utf-8")
+    assert "--cpus-per-task=100" in dispatcher_text
+    assert "--mem=2000G" in dispatcher_text
     assert "stage_hpc_environment_ready" in dispatcher_text
     assert "databases stage-sources" in dispatcher_text
     assert "database-source-stage.log" in dispatcher_text

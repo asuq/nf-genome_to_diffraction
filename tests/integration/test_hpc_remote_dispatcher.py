@@ -566,10 +566,8 @@ def _install_fake_database_runtime(run: Path, fake_bin: Path) -> None:
     )
 
 
-@pytest.mark.parametrize("scratch_source", ["slurm_tmpdir", "job_owned_scratch"])
 def test_database_administration_uses_separate_fixed_start_boundary(
     tmp_path: Path,
-    scratch_source: str,
 ) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
@@ -666,8 +664,8 @@ def test_database_administration_uses_separate_fixed_start_boundary(
         (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
     )
     assert "--partition=slurm" in submitted_arguments
-    assert "--cpus-per-task=8" in submitted_arguments
-    assert "--mem=64G" in submitted_arguments
+    assert "--cpus-per-task=100" in submitted_arguments
+    assert "--mem=2000G" in submitted_arguments
     assert "--time=48:00:00" in submitted_arguments
     assert submitted_arguments[-4:] == [
         str(smoke_job),
@@ -710,35 +708,30 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     job_environment.update(
         {
             "SLURM_JOB_ID": "123",
-            "SLURM_CPUS_PER_TASK": "8",
+            "SLURM_CPUS_PER_TASK": "100",
             "FAKE_STAT_DISTINCT": "1",
             "FAKE_DATABASE_COMMAND_LOG": str(command_log),
         }
     )
-    if scratch_source == "slurm_tmpdir":
-        job_environment["SLURM_TMPDIR"] = str(scratch_parent)
-    else:
-        job_environment["USER"] = scratch_parent.name
     spooled_job = tmp_path / "database-slurm-script"
     shutil.copy2(smoke_job, spooled_job)
-    if scratch_source == "job_owned_scratch":
-        job_text = spooled_job.read_text(encoding="utf-8")
-        job_text = job_text.replace(
-            "DATABASE_SCRATCH_ROOT='/scratch'",
-            f"DATABASE_SCRATCH_ROOT='{scratch_parent.parent}'",
-        )
-        spooled_job.write_text(job_text, encoding="utf-8")
+    job_text = spooled_job.read_text(encoding="utf-8")
+    job_text = job_text.replace(
+        "DATABASE_SCRATCH_ROOT='/dev/shm'",
+        f"DATABASE_SCRATCH_ROOT='{scratch_parent}'",
+    )
+    spooled_job.write_text(job_text, encoding="utf-8")
     _run(
         [str(spooled_job), DATABASE_RUN_ID, str(remote_root), "database"],
         cwd=tmp_path,
         environment=job_environment,
     )
     database_log = (run / "logs" / "database.log").read_text(encoding="utf-8")
-    assert f"scratch_parent_source={scratch_source}" in database_log
-    fallback_parent = Path(
+    assert "scratch_parent_source=job_owned_dev_shm" in database_log
+    job_owned_parent = Path(
         scratch_parent / f"nf-gtd-database-parent-{os.getuid()}-123-{DATABASE_RUN_ID}"
     )
-    assert not fallback_parent.exists()
+    assert not job_owned_parent.exists()
 
     result = json.loads((run / "state" / "job-result.json").read_text())
     assert result["failure_class"] == "success"
@@ -750,14 +743,8 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     assert "databases prepare" in commands
     assert "--source-bundle" in commands
     assert "--full-verify" in commands
-    assert "--threads 8" in commands
-    command_scratch_parent = (
-        scratch_parent if scratch_source == "slurm_tmpdir" else fallback_parent
-    )
-    assert (
-        str(command_scratch_parent / f"nf-gtd-database-123-{DATABASE_RUN_ID}")
-        in commands
-    )
+    assert "--threads 100" in commands
+    assert str(job_owned_parent / f"nf-gtd-database-123-{DATABASE_RUN_ID}") in commands
     assert list(scratch_parent.iterdir()) == []
 
     archive_path = tmp_path / "database-collected.tar.gz"

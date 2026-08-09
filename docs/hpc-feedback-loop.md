@@ -22,8 +22,11 @@ file-transfer tools, scheduler commands, and `clean` must not receive persistent
 automatic approval.
 
 The routine drivers use partition `slurm`, 2 CPUs, 8 GB memory, and a 45-minute
-walltime. The database driver uses the same partition with 8 CPUs, 64 GB, and a
-48-hour walltime. Only one managed job may be active across all profiles. Queue
+walltime. The database driver uses the same partition with 100 CPUs, 2,000 GB,
+and a 48-hour walltime. The large memory request supplies `/dev/shm` build space;
+the node's full 4 TB is not requested because it would not accelerate serial
+network, checksum, or copy-back I/O. Only one managed job may be active across
+all profiles. Queue
 waiting stops after 30 minutes. Local execution waiting is capped at 45 minutes
 for routine jobs and 48 hours for database administration; neither timeout
 silently cancels a job. The caller must inspect status and cancel the recorded
@@ -87,30 +90,29 @@ switch to the recorded Slurm state and compute log. If a database command fails,
 compute log. This diagnostic path is derived remotely rather than accepted from
 the caller, and must be an owned regular file directly below the configured
 database log directory with a fixed generated filename. The combined response
-never exceeds the requested `--tail` line count. The compute phase is
-stricter: an exported `SLURM_TMPDIR` must be a
-canonical, owned, non-symlink directory on a filesystem distinct from the
-durable database root. Marmic did not export that variable in the first real
-job, so the fixed fallback creates a unique mode-0700 parent below the
-established compute-node `/scratch/$USER` root. The job removes that parent at
-finalisation and still rejects `/dev/shm`, an overlapping/shared device, or
-insufficient scratch capacity before a large payload starts. All database
-execution state lives below one job-owned child. The compute job verifies the
+never exceeds the requested `--tail` line count. The compute phase creates a
+unique mode-0700 parent directly below `/dev/shm`, requires that child to be
+owned and on a filesystem distinct from the durable database root, and removes
+it at finalisation. All database execution state lives below that job-owned
+parent. The compute job verifies the
 source bundle byte-for-byte and maps Foldseek's three fixed URLs to local
 objects by shadowing its aria2/curl/wget fallback chain with staging-confined,
 allow-listed local-copy shims; any other HTTP(S) request fails without invoking
 a network client.
-Foldseek output and extraction temporary files remain below durable resource
-staging. MMseqs2 may use the job-owned scratch child for disposable index
-workspace. Failed durable resource staging is intentionally retained and blocks
-an automatic second extraction/index attempt.
+Foldseek and MMseqs2 output, extraction files, and indexing workspace stay in
+the job-owned `/dev/shm` tree while a resource is built. Scratch and durable
+bytes jointly count towards the configured project cap. Each completed resource
+is inventoried in memory-backed scratch, copied once to empty durable staging
+with byte progress, fully rehashed on the destination, and atomically published.
+Failed copy-back staging is intentionally retained and blocks an automatic
+second extraction/index attempt.
 
 This root matches the Marmic site profile in the pinned `nf-helper` submodule:
 Slurm processes use `/scratch/$USER`, copy declared outputs back to shared work,
 and export the submitting environment. The checked Marmic profiles in
 `nf-annotation`, `nf-busco_phylogenomics`, and `nf-sra_screen` use the same
-configuration. Database administration does not rely on Nextflow to create its
-driver scratch, so its fixed job creates and validates its own narrower child.
+configuration. Database administration does not rely on Nextflow's `/scratch`
+setting: its fixed job creates and validates its own narrower `/dev/shm` child.
 
 ## Build and reviewed installation
 
@@ -338,12 +340,14 @@ tracked [example](../conf/hpc-database.paths.example). It is user-owned, mode
 
 Byte counts must be canonical decimal integers without leading zeroes. The
 tracked example deliberately uses a 1.8 TB project cap and 200 GB reserves on a
-2 TB allocation; these remain conservative first-run assumptions, not evidence
+2 TB storage allocation; these remain conservative assumptions, not evidence
 of the real active/failed/immutable-copy size. The five observed compressed
 inputs total about 4.62 GB; extracted resources, indices, failed staging, and
 temporary-copy peaks still require measurement. The reviewed Marmic first-run
 configuration therefore uses an 800 GB cap, 200 GB durable reserve, 600 GB
-pre-download gate, and 200 GB scratch reserve. The manifest path must not exist
+pre-download gate, and 200 GB scratch reserve. Separately, the Slurm job requests
+2,000 GB of RAM so this bounded payload and temporary overhead fit in `/dev/shm`.
+The manifest path must not exist
 when readiness and staging run. Use a new dated path for a later intentional
 rebuild; the fixed driver never overwrites an existing trust anchor. Actual site
 paths remain only in this external file.
@@ -376,8 +380,9 @@ Every source records requested and effective URLs, validators, size, and full
 SHA-256. Per-source journals reuse completed inputs and preserve a validated
 partial download for an interrupted transfer.
 
-`database-submit` has fixed Slurm resources and accepts no URL, path, resource,
-or shell argument. On the compute node the job requires distinct scratch,
+`database-submit` has fixed 100-CPU/2,000-GB/48-hour Slurm resources and accepts
+no URL, path, resource, or shell argument. On the compute node the job requires
+distinct `/dev/shm` scratch,
 verifies the staged environment with Pixi `--offline`, recomputes all bundle
 checksums, and runs the fixed preflight. That preflight checks available
 capacity, scratch headroom, and Foldseek/MMseqs2/aria2 versions without making
@@ -393,9 +398,11 @@ object. This covers Foldseek 10.941cd33's downloader fallback chain without
 depending on compute-node egress. The bundled SEQRES and 1UBQ files are consumed
 directly.
 
-Only after preflight passes does the job prepare PDB Foldseek, PDB sequence,
-ProstT5, and coordinate-cache resources under the durable root. No downloader
-user configuration is consulted during offline extraction. Success requires a
+Only after preflight passes does the job prepare PDB Foldseek, PDB sequence, and
+ProstT5 resources in job-owned `/dev/shm`; the small coordinate cache remains a
+direct durable administrative resource. No downloader user configuration is
+consulted during offline extraction. Each large resource is copied once to
+durable staging and must pass destination checksums before publication. Success requires a
 frozen manifest checksum and a second anchored `--verify-only --full-verify`
 pass. Fixed small manifests,
 preflight evidence, and logs are collectable; database payloads stay on Marmic.

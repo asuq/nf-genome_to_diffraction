@@ -5,6 +5,7 @@ import hashlib
 import importlib
 import json
 import os
+import shutil
 import subprocess
 import threading
 import time
@@ -28,6 +29,7 @@ from genome_to_diffraction.databases.cache import (
 from genome_to_diffraction.databases.common import (
     DatabaseCommandError,
     DatabaseError,
+    copy_inventoried_resource,
     inventory_resource,
     tool_version,
     verify_inventory,
@@ -501,6 +503,39 @@ def test_inventory_rejects_unlisted_and_escaping_paths(tmp_path: Path) -> None:
         )
 
 
+def test_copy_back_detects_durable_corruption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "scratch resource"
+    source.mkdir()
+    (source / "payload").write_bytes(b"trusted")
+    records, digest = inventory_resource(source, progress=False)
+    storage_root = tmp_path / "durable"
+    destination = storage_root / "resources" / ".staging"
+    destination.mkdir(parents=True)
+    real_copymode = shutil.copymode
+
+    def corrupt_after_copy(source_path: Path, destination_path: Path) -> None:
+        real_copymode(source_path, destination_path)
+        destination_path.write_bytes(b"corrupt")
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.databases.common.shutil.copymode",
+        corrupt_after_copy,
+    )
+    with pytest.raises(DatabaseError, match="checksum mismatch"):
+        copy_inventoried_resource(
+            source,
+            destination,
+            records,
+            digest,
+            storage_root=storage_root,
+            storage_limit_bytes=1_000_000,
+            minimum_free_bytes=0,
+            progress=False,
+        )
+
+
 def test_coordinate_cache_is_reused_and_combined_manifest_validates(
     tmp_path: Path,
 ) -> None:
@@ -922,7 +957,7 @@ def test_pdb_foldseek_rejects_malformed_provider_snapshot(
     assert len(retained) == 1
 
 
-def test_foldseek_download_and_temporary_payload_stay_on_durable_root(
+def test_database_resources_build_on_compute_scratch_then_publish_durably(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     request = _mocked_full_request(tmp_path, monkeypatch)
@@ -953,10 +988,52 @@ def test_foldseek_download_and_temporary_payload_stay_on_durable_root(
     assert len(manifest.resources) == 4
     recorded = scratch_record.read_text(encoding="utf-8").splitlines()
     assert len(recorded) == 2
-    assert all(Path(path).is_relative_to(request.database_root) for path in recorded)
-    assert all(not Path(path).is_relative_to(scratch) for path in recorded)
+    assert all(Path(path).is_relative_to(scratch) for path in recorded)
     inherited_tmpdirs = tmpdir_record.read_text(encoding="utf-8").splitlines()
     assert inherited_tmpdirs == recorded
+    for resource in manifest.resources:
+        assert Path(resource.root_path).is_relative_to(request.database_root)
+        if resource.name != "coordinate_cache":
+            assert resource.parameters["build_storage"] == "compute_scratch"
+    assert list(scratch.iterdir()) == []
+
+
+def test_failed_copy_back_retains_durable_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _mocked_full_request(tmp_path, monkeypatch)
+    scratch = tmp_path / "compute scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(
+        prepare_module,
+        "_device_id",
+        lambda path: 2 if path == scratch else 1,
+    )
+    monkeypatch.setattr(
+        common_module,
+        "_device_id",
+        lambda path: 2 if path.is_relative_to(scratch) else 1,
+    )
+
+    def fail_copy(
+        _source: Path, destination: Path, *_args: object, **_kwargs: object
+    ) -> None:
+        (destination / "partial").write_text("incomplete\n", encoding="ascii")
+        raise DatabaseError("simulated copy-back failure")
+
+    monkeypatch.setattr(prepare_module, "copy_inventoried_resource", fail_copy)
+    with pytest.raises(DatabaseError, match="simulated copy-back failure"):
+        prepare(
+            replace(
+                request,
+                scratch_root=scratch,
+                minimum_scratch_free_bytes=1,
+            )
+        )
+
+    retained = list((request.database_root / "resources" / "prostt5").glob("*.failed"))
+    assert len(retained) == 1
+    assert (retained[0] / "partial").read_text(encoding="ascii") == "incomplete\n"
     assert list(scratch.iterdir()) == []
 
 

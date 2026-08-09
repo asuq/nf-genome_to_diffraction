@@ -43,6 +43,8 @@ from genome_to_diffraction.databases.cache import (
 )
 from genome_to_diffraction.databases.common import (
     DatabaseError,
+    FileRecord,
+    copy_inventoried_resource,
     enforce_free_space,
     enforce_storage_limit,
     inventory_resource,
@@ -604,8 +606,13 @@ def _finish_immutable_resource(
     smoke_status: SmokeTestStatus,
     progress: bool,
     warnings: tuple[str, ...] = (),
+    inventory: tuple[list[FileRecord], str] | None = None,
 ) -> DatabaseResource:
-    records, inventory_digest = inventory_resource(staging, progress=progress)
+    records, inventory_digest = (
+        inventory
+        if inventory is not None
+        else inventory_resource(staging, progress=progress)
+    )
     database_id = _database_id(name, inventory_digest)
     final_root = staging.parent / database_id
     if final_root.exists():
@@ -703,24 +710,63 @@ def _retain_failed_staging(staging: Path) -> None:
 
 
 @contextmanager
-def _command_scratch(
+def _resource_build_staging(
     request: DatabasePreparationRequest,
-    staging: Path,
+    durable_staging: Path,
     administration_scratch: Path,
     label: str,
 ) -> Iterator[tuple[Path, tuple[Path, ...], int]]:
-    """Yield local retained tmp or disposable external compute-node scratch."""
+    """Yield durable staging locally or a disposable compute-memory build root."""
 
     if request.scratch_root is None:
-        local = staging / "tmp"
-        local.mkdir()
-        yield local, (), 0
+        _LOGGER.info(
+            "database resource build uses durable staging",
+            extra={"build_root": str(durable_staging), "resource": label},
+        )
+        yield durable_staging, (), 0
         return
     with tempfile.TemporaryDirectory(
-        prefix=f"{label}-", dir=administration_scratch
+        prefix=f"{label}-resource-", dir=administration_scratch
     ) as temporary:
-        scratch = Path(temporary)
-        yield scratch, (scratch,), request.minimum_scratch_free_bytes
+        build_staging = Path(temporary)
+        _LOGGER.info(
+            "database resource build uses compute scratch",
+            extra={
+                "build_root": str(build_staging),
+                "durable_staging": str(durable_staging),
+                "resource": label,
+            },
+        )
+        yield (
+            build_staging,
+            (build_staging,),
+            request.minimum_scratch_free_bytes,
+        )
+
+
+def _publish_resource_build(
+    request: DatabasePreparationRequest,
+    database_root: Path,
+    build_staging: Path,
+    durable_staging: Path,
+) -> tuple[list[FileRecord], str]:
+    """Inventory a resource and, when needed, verify one durable copy-back."""
+
+    inventory = inventory_resource(build_staging, progress=request.progress)
+    if build_staging == durable_staging:
+        return inventory
+    records, inventory_digest = inventory
+    copy_inventoried_resource(
+        build_staging,
+        durable_staging,
+        records,
+        inventory_digest,
+        storage_root=database_root,
+        storage_limit_bytes=request.storage_limit_bytes,
+        minimum_free_bytes=request.minimum_free_bytes,
+        progress=request.progress,
+    )
+    return inventory
 
 
 @contextmanager
@@ -935,6 +981,7 @@ def _parse_foldseek_pdb_snapshot(path: Path) -> FoldseekPdbSnapshot:
 def _prepare_foldseek_resource(
     request: DatabasePreparationRequest,
     database_root: Path,
+    administration_scratch: Path,
     name: str,
     source_bundle: DatabaseSourceBundle | None,
 ) -> DatabaseResource:
@@ -955,35 +1002,21 @@ def _prepare_foldseek_resource(
     prefix_name = "pdb" if name == "pdb_foldseek" else "weights"
     download_log = _log_path(database_root, name, "download")
     try:
-        # Foldseek's downloader may use its tmp argument for archive payloads.
-        # Keep both that tmp area and the final output on durable storage so a
-        # compute-node scratch limit cannot truncate a database transfer.
-        tool_scratch = staging / "tmp"
-        tool_scratch.mkdir()
-        command = [
-            "foldseek",
-            "databases",
-            database_name,
-            str(staging / prefix_name),
-            str(tool_scratch),
-            "--threads",
-            str(request.threads),
-        ]
-        if source_bundle is None:
-            run_command(
-                command,
-                log_path=download_log,
-                storage_root=database_root,
-                write_roots=(staging,),
-                storage_limit_bytes=request.storage_limit_bytes,
-                minimum_free_bytes=request.minimum_free_bytes,
-                progress=request.progress,
-                environment_overrides={"TMPDIR": str(tool_scratch)},
-            )
-        else:
-            with _offline_foldseek_environment(
-                staging, database_root, source_bundle, tool_scratch
-            ) as environment:
+        with _resource_build_staging(
+            request, staging, administration_scratch, name
+        ) as (build_staging, scratch_roots, minimum_scratch_free_bytes):
+            tool_scratch = build_staging / "tmp"
+            tool_scratch.mkdir()
+            command = [
+                "foldseek",
+                "databases",
+                database_name,
+                str(build_staging / prefix_name),
+                str(tool_scratch),
+                "--threads",
+                str(request.threads),
+            ]
+            if source_bundle is None:
                 run_command(
                     command,
                     log_path=download_log,
@@ -992,68 +1025,98 @@ def _prepare_foldseek_resource(
                     storage_limit_bytes=request.storage_limit_bytes,
                     minimum_free_bytes=request.minimum_free_bytes,
                     progress=request.progress,
-                    environment_overrides=environment,
+                    scratch_roots=scratch_roots,
+                    minimum_scratch_free_bytes=minimum_scratch_free_bytes,
+                    environment_overrides={"TMPDIR": str(tool_scratch)},
                 )
-        shutil.rmtree(tool_scratch)
-        retrieved_at = utc_now()
-        pdb_snapshot = (
-            _parse_foldseek_pdb_snapshot(staging / "pdb.version")
-            if name == "pdb_foldseek"
-            else None
-        )
-        parameters: dict[str, JsonValue] = {
-            "command": [
-                "foldseek",
-                "databases",
-                database_name,
-                prefix_name,
-                "tmp",
-                "--threads",
-                str(request.threads),
-            ],
-            "gpu": False,
-            "data_license": ("CC0-1.0" if name == "pdb_foldseek" else "MIT"),
-            "preparation_log": _log_evidence(download_log, progress=request.progress),
-        }
-        if pdb_snapshot is not None:
-            parameters["provider_snapshot"] = pdb_snapshot.as_json()
-        if source_bundle is not None:
-            parameters["source_bundle_id"] = source_bundle.bundle_id
-        warning = (
-            "Provider records only an archive MD5; the retained version file and "
-            "full deployed-file inventory are the immutable trust evidence."
-            if pdb_snapshot is not None
-            else (
-                "Checksummed source bundle and full deployed-file inventory define "
-                "this resource."
-                if source_bundle is not None
+            else:
+                with _offline_foldseek_environment(
+                    build_staging, database_root, source_bundle, tool_scratch
+                ) as environment:
+                    run_command(
+                        command,
+                        log_path=download_log,
+                        storage_root=database_root,
+                        write_roots=(staging,),
+                        storage_limit_bytes=request.storage_limit_bytes,
+                        minimum_free_bytes=request.minimum_free_bytes,
+                        progress=request.progress,
+                        scratch_roots=scratch_roots,
+                        minimum_scratch_free_bytes=minimum_scratch_free_bytes,
+                        environment_overrides=environment,
+                    )
+            shutil.rmtree(tool_scratch)
+            retrieved_at = utc_now()
+            pdb_snapshot = (
+                _parse_foldseek_pdb_snapshot(build_staging / "pdb.version")
+                if name == "pdb_foldseek"
+                else None
+            )
+            parameters: dict[str, JsonValue] = {
+                "command": [
+                    "foldseek",
+                    "databases",
+                    database_name,
+                    prefix_name,
+                    "tmp",
+                    "--threads",
+                    str(request.threads),
+                ],
+                "gpu": False,
+                "build_storage": (
+                    "compute_scratch"
+                    if request.scratch_root is not None
+                    else "durable_staging"
+                ),
+                "data_license": ("CC0-1.0" if name == "pdb_foldseek" else "MIT"),
+                "preparation_log": _log_evidence(
+                    download_log, progress=request.progress
+                ),
+            }
+            if pdb_snapshot is not None:
+                parameters["provider_snapshot"] = pdb_snapshot.as_json()
+            if source_bundle is not None:
+                parameters["source_bundle_id"] = source_bundle.bundle_id
+            warning = (
+                "Provider records only an archive MD5; the retained version file and "
+                "full deployed-file inventory are the immutable trust evidence."
+                if pdb_snapshot is not None
                 else (
-                    "Downloader does not expose an exact source snapshot; retrieval "
-                    "date and full file inventory define this resource."
+                    "Checksummed source bundle and full deployed-file inventory define "
+                    "this resource."
+                    if source_bundle is not None
+                    else (
+                        "Downloader does not expose an exact source snapshot; "
+                        "retrieval "
+                        "date and full file inventory define this resource."
+                    )
                 )
             )
-        )
-        return _finish_immutable_resource(
-            staging,
-            database_root=database_root,
-            name=name,
-            source=(
-                "RCSB PDB via foldseek databases PDB"
-                if name == "pdb_foldseek"
-                else "ProstT5 weights via foldseek databases ProstT5"
-            ),
-            release_or_snapshot=(
-                f"pdb-{pdb_snapshot.pdb_date}"
-                if pdb_snapshot is not None
-                else f"retrieved-{retrieved_at.date().isoformat()}"
-            ),
-            retrieved_at=retrieved_at,
-            prepared_with=PreparedWith(tool="foldseek", version=foldseek_version),
-            parameters=parameters,
-            smoke_status=SmokeTestStatus.NOT_RUN,
-            progress=request.progress,
-            warnings=(warning,),
-        )
+            inventory = _publish_resource_build(
+                request, database_root, build_staging, staging
+            )
+            return _finish_immutable_resource(
+                staging,
+                database_root=database_root,
+                name=name,
+                source=(
+                    "RCSB PDB via foldseek databases PDB"
+                    if name == "pdb_foldseek"
+                    else "ProstT5 weights via foldseek databases ProstT5"
+                ),
+                release_or_snapshot=(
+                    f"pdb-{pdb_snapshot.pdb_date}"
+                    if pdb_snapshot is not None
+                    else f"retrieved-{retrieved_at.date().isoformat()}"
+                ),
+                retrieved_at=retrieved_at,
+                prepared_with=PreparedWith(tool="foldseek", version=foldseek_version),
+                parameters=parameters,
+                smoke_status=SmokeTestStatus.NOT_RUN,
+                progress=request.progress,
+                warnings=(warning,),
+                inventory=inventory,
+            )
     except BaseException:
         _retain_failed_staging(staging)
         raise
@@ -1282,6 +1345,13 @@ def _run_pdb_sequence_smoke(
     database_root: Path,
     sequence_root: Path,
 ) -> dict[str, JsonValue]:
+    sequence_is_scratch = not sequence_root.resolve(strict=True).is_relative_to(
+        database_root.resolve(strict=True)
+    )
+    scratch_roots = (sequence_root,) if sequence_is_scratch else ()
+    minimum_scratch_free_bytes = (
+        request.minimum_scratch_free_bytes if sequence_is_scratch else 0
+    )
     with tempfile.TemporaryDirectory(
         prefix="pdb-sequence-smoke-", dir=database_root / "tmp"
     ) as temporary:
@@ -1317,6 +1387,8 @@ def _run_pdb_sequence_smoke(
             storage_limit_bytes=request.storage_limit_bytes,
             minimum_free_bytes=request.minimum_free_bytes,
             progress=request.progress,
+            scratch_roots=scratch_roots,
+            minimum_scratch_free_bytes=minimum_scratch_free_bytes,
         )
         hits = _parse_smoke_result(result)
         selected_hit = _select_expected_smoke_hit(hits)
@@ -1369,53 +1441,69 @@ def _prepare_pdb_sequences(
     staging = _staging(database_root, name)
     retrieved_at = utc_now()
     try:
-        sequence_path = staging / "pdb_seqres.txt.gz"
-        if source_bundle is None:
-            metadata = download_public_resource(
-                request.pdb_sequence_url,
+        with _resource_build_staging(
+            request, staging, administration_scratch, name
+        ) as (build_staging, scratch_roots, minimum_scratch_free_bytes):
+            sequence_path = build_staging / "pdb_seqres.txt.gz"
+            if source_bundle is None and build_staging == staging:
+                metadata = download_public_resource(
+                    request.pdb_sequence_url,
+                    sequence_path,
+                    storage_root=database_root,
+                    storage_limit_bytes=request.storage_limit_bytes,
+                    minimum_free_bytes=request.minimum_free_bytes,
+                    progress=request.progress,
+                )
+            elif source_bundle is None:
+                durable_download = staging / ".pdb_seqres.txt.gz.download"
+                metadata = download_public_resource(
+                    request.pdb_sequence_url,
+                    durable_download,
+                    storage_root=database_root,
+                    storage_limit_bytes=request.storage_limit_bytes,
+                    minimum_free_bytes=request.minimum_free_bytes,
+                    progress=request.progress,
+                )
+                shutil.copyfile(durable_download, sequence_path)
+                durable_download.unlink()
+            else:
+                metadata = _copy_bundle_source(
+                    source_bundle,
+                    database_root,
+                    "pdb_sequences",
+                    sequence_path,
+                )
+            sequence_count, skipped_non_protein = _normalise_pdb_sequences(
                 sequence_path,
+                build_staging / "pdb_seqres.faa",
+                build_staging / "target_mapping.tsv",
+                progress=request.progress,
+            )
+            createdb_log = _log_path(database_root, name, "createdb")
+            run_command(
+                [
+                    "mmseqs",
+                    "createdb",
+                    str(build_staging / "pdb_seqres.faa"),
+                    str(build_staging / "pdb_seqres"),
+                ],
+                log_path=createdb_log,
                 storage_root=database_root,
+                write_roots=(staging,),
                 storage_limit_bytes=request.storage_limit_bytes,
                 minimum_free_bytes=request.minimum_free_bytes,
                 progress=request.progress,
+                scratch_roots=scratch_roots,
+                minimum_scratch_free_bytes=minimum_scratch_free_bytes,
             )
-        else:
-            metadata = _copy_bundle_source(
-                source_bundle,
-                database_root,
-                "pdb_sequences",
-                sequence_path,
-            )
-        sequence_count, skipped_non_protein = _normalise_pdb_sequences(
-            staging / "pdb_seqres.txt.gz",
-            staging / "pdb_seqres.faa",
-            staging / "target_mapping.tsv",
-            progress=request.progress,
-        )
-        createdb_log = _log_path(database_root, name, "createdb")
-        run_command(
-            [
-                "mmseqs",
-                "createdb",
-                str(staging / "pdb_seqres.faa"),
-                str(staging / "pdb_seqres"),
-            ],
-            log_path=createdb_log,
-            storage_root=database_root,
-            write_roots=(staging,),
-            storage_limit_bytes=request.storage_limit_bytes,
-            minimum_free_bytes=request.minimum_free_bytes,
-            progress=request.progress,
-        )
-        createindex_log = _log_path(database_root, name, "createindex")
-        with _command_scratch(
-            request, staging, administration_scratch, "pdb-sequence-index"
-        ) as (tool_scratch, scratch_roots, minimum_scratch_free_bytes):
+            tool_scratch = build_staging / "tmp"
+            tool_scratch.mkdir()
+            createindex_log = _log_path(database_root, name, "createindex")
             run_command(
                 [
                     "mmseqs",
                     "createindex",
-                    str(staging / "pdb_seqres"),
+                    str(build_staging / "pdb_seqres"),
                     str(tool_scratch),
                     "--threads",
                     str(request.threads),
@@ -1429,44 +1517,54 @@ def _prepare_pdb_sequences(
                 scratch_roots=scratch_roots,
                 minimum_scratch_free_bytes=minimum_scratch_free_bytes,
             )
-        if request.scratch_root is None:
-            shutil.rmtree(staging / "tmp", ignore_errors=True)
-        qualification = _run_pdb_sequence_smoke(request, database_root, staging)
-        parameters: dict[str, JsonValue] = {
-            "requested_url": metadata.requested_url,
-            "url": metadata.url,
-            "etag": metadata.etag,
-            "last_modified": metadata.last_modified,
-            "content_type": metadata.content_type,
-            "sequence_count": sequence_count,
-            "skipped_non_protein_count": skipped_non_protein,
-            "createindex_threads": request.threads,
-            "mapping": (
-                "legacy SEQRES target suffix retained without conflating namespaces"
-            ),
-            "data_license": "CC0-1.0",
-            "preparation_logs": {
-                "createdb": _log_evidence(createdb_log, progress=request.progress),
-                "createindex": _log_evidence(
-                    createindex_log, progress=request.progress
+            shutil.rmtree(tool_scratch, ignore_errors=True)
+            qualification = _run_pdb_sequence_smoke(
+                request, database_root, build_staging
+            )
+            parameters: dict[str, JsonValue] = {
+                "requested_url": metadata.requested_url,
+                "url": metadata.url,
+                "etag": metadata.etag,
+                "last_modified": metadata.last_modified,
+                "content_type": metadata.content_type,
+                "sequence_count": sequence_count,
+                "skipped_non_protein_count": skipped_non_protein,
+                "createindex_threads": request.threads,
+                "build_storage": (
+                    "compute_scratch"
+                    if request.scratch_root is not None
+                    else "durable_staging"
                 ),
-            },
-            "qualification": qualification,
-        }
-        if source_bundle is not None:
-            parameters["source_bundle_id"] = source_bundle.bundle_id
-        return _finish_immutable_resource(
-            staging,
-            database_root=database_root,
-            name=name,
-            source="RCSB PDB SEQRES",
-            release_or_snapshot=metadata.last_modified,
-            retrieved_at=retrieved_at,
-            prepared_with=PreparedWith(tool="mmseqs", version=mmseqs_version),
-            parameters=parameters,
-            smoke_status=SmokeTestStatus.PASSED,
-            progress=request.progress,
-        )
+                "mapping": (
+                    "legacy SEQRES target suffix retained without conflating namespaces"
+                ),
+                "data_license": "CC0-1.0",
+                "preparation_logs": {
+                    "createdb": _log_evidence(createdb_log, progress=request.progress),
+                    "createindex": _log_evidence(
+                        createindex_log, progress=request.progress
+                    ),
+                },
+                "qualification": qualification,
+            }
+            if source_bundle is not None:
+                parameters["source_bundle_id"] = source_bundle.bundle_id
+            inventory = _publish_resource_build(
+                request, database_root, build_staging, staging
+            )
+            return _finish_immutable_resource(
+                staging,
+                database_root=database_root,
+                name=name,
+                source="RCSB PDB SEQRES",
+                release_or_snapshot=metadata.last_modified,
+                retrieved_at=retrieved_at,
+                prepared_with=PreparedWith(tool="mmseqs", version=mmseqs_version),
+                parameters=parameters,
+                smoke_status=SmokeTestStatus.PASSED,
+                progress=request.progress,
+                inventory=inventory,
+            )
     except BaseException:
         _retain_failed_staging(staging)
         raise
@@ -2133,11 +2231,11 @@ def _prepare_locked(
     resources: dict[str, DatabaseResource] = {}
     if request.prepare_prostt5:
         resources["prostt5"] = _prepare_foldseek_resource(
-            request, root, "prostt5", source_bundle
+            request, root, administration_scratch, "prostt5", source_bundle
         )
     if request.prepare_pdb_foldseek:
         resources["pdb_foldseek"] = _prepare_foldseek_resource(
-            request, root, "pdb_foldseek", source_bundle
+            request, root, administration_scratch, "pdb_foldseek", source_bundle
         )
     if request.prepare_pdb_sequences:
         resources["pdb_sequences"] = _prepare_pdb_sequences(

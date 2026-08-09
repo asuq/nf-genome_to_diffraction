@@ -360,6 +360,178 @@ def inventory_resource(
     return records, digest
 
 
+def copy_inventoried_resource(
+    source: Path,
+    destination: Path,
+    records: Sequence[FileRecord],
+    expected_digest: str,
+    *,
+    storage_root: Path,
+    storage_limit_bytes: int,
+    minimum_free_bytes: int,
+    progress: bool = True,
+) -> tuple[int, int]:
+    """Copy a scratch-built resource once and fully verify the durable copy."""
+
+    if source.is_symlink() or not source.is_dir():
+        raise DatabaseError(f"resource copy source is unsafe: {source}")
+    if destination.is_symlink() or not destination.is_dir():
+        raise DatabaseError(f"resource copy destination is unsafe: {destination}")
+    try:
+        destination.resolve(strict=True).relative_to(storage_root.resolve(strict=True))
+    except (OSError, ValueError) as error:
+        raise DatabaseError(
+            f"resource copy destination escapes durable storage: {destination}"
+        ) from error
+    try:
+        source.resolve(strict=True).relative_to(storage_root.resolve(strict=True))
+    except ValueError:
+        pass
+    else:
+        raise DatabaseError("resource copy source must use external build scratch")
+    if any(destination.iterdir()):
+        raise DatabaseError(f"resource copy destination is not empty: {destination}")
+    inventory_path = source / ".gtd-inventory.json"
+    try:
+        inventory_document = json.loads(inventory_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise DatabaseError(
+            f"cannot read scratch resource inventory {inventory_path}: {error}"
+        ) from error
+    if canonical_digest(inventory_document) != expected_digest:
+        raise DatabaseError(f"scratch resource inventory digest mismatch: {source}")
+    expected_inventory = {
+        "schema_version": "1.0",
+        "files": [asdict(record) for record in records],
+    }
+    if inventory_document != expected_inventory:
+        raise DatabaseError("scratch resource records do not match their inventory")
+    total_bytes = sum(record.size_bytes for record in records)
+    scratch_bytes = tree_size(source)
+    used_bytes = enforce_storage_limit(storage_root, storage_limit_bytes)
+    free_bytes = enforce_free_space(storage_root, minimum_free_bytes)
+    prospective_bytes = used_bytes + scratch_bytes + total_bytes
+    if prospective_bytes > storage_limit_bytes:
+        raise StorageLimitError(
+            "build scratch plus durable copy-back would use "
+            f"{prospective_bytes} bytes, exceeding the "
+            f"{storage_limit_bytes}-byte project cap"
+        )
+    if free_bytes - total_bytes < minimum_free_bytes:
+        raise StorageLimitError(
+            f"copying {total_bytes} bytes would leave less than "
+            f"{minimum_free_bytes} bytes free"
+        )
+    _LOGGER.info(
+        "database resource copy-back started",
+        extra={
+            "source": str(source),
+            "destination": str(destination),
+            "file_count": len(records),
+            "total_bytes": total_bytes,
+            "scratch_bytes": scratch_bytes,
+            "storage_used_bytes": used_bytes,
+            "storage_limit_bytes": storage_limit_bytes,
+            "prospective_storage_bytes": prospective_bytes,
+        },
+    )
+    copied_bytes = 0
+    next_log_bytes = 1 << 30
+    with tqdm(
+        total=total_bytes,
+        desc=f"Publish {destination.parent.name}",
+        unit="B",
+        unit_scale=True,
+        disable=not progress,
+    ) as progress_bar:
+        for record in records:
+            source_path = _safe_relative_path(source, record.path)
+            destination_path = _safe_relative_path(destination, record.path)
+            destination_path.parent.mkdir(parents=True, exist_ok=True)
+            if record.kind == "symlink":
+                if record.symlink_target is None or not source_path.is_symlink():
+                    raise DatabaseError(
+                        f"scratch resource symlink changed during copy: {source_path}"
+                    )
+                actual_target = source_path.readlink().as_posix()
+                _safe_symlink_target(source, source_path, actual_target)
+                if (
+                    actual_target != record.symlink_target
+                    or sha256(actual_target.encode("utf-8")).hexdigest()
+                    != record.sha256
+                ):
+                    raise DatabaseError(
+                        f"scratch resource symlink changed during copy: {source_path}"
+                    )
+                destination_path.symlink_to(actual_target)
+                continue
+            if source_path.is_symlink() or not source_path.is_file():
+                raise DatabaseError(
+                    f"scratch resource file changed during copy: {source_path}"
+                )
+            digest = sha256()
+            copied_file_bytes = 0
+            with (
+                source_path.open("rb") as input_handle,
+                destination_path.open("xb") as output_handle,
+            ):
+                while chunk := input_handle.read(1024 * 1024):
+                    output_handle.write(chunk)
+                    digest.update(chunk)
+                    chunk_bytes = len(chunk)
+                    copied_file_bytes += chunk_bytes
+                    copied_bytes += chunk_bytes
+                    progress_bar.update(chunk_bytes)
+                    if copied_bytes >= next_log_bytes:
+                        current_free = shutil.disk_usage(storage_root).free
+                        _LOGGER.info(
+                            "database resource copy-back progress",
+                            extra={
+                                "destination": str(destination),
+                                "copied_bytes": copied_bytes,
+                                "total_bytes": total_bytes,
+                                "free_bytes": current_free,
+                                "minimum_free_bytes": minimum_free_bytes,
+                            },
+                        )
+                        if current_free < minimum_free_bytes:
+                            raise StorageLimitError(
+                                "database filesystem lost required headroom during "
+                                "resource copy-back"
+                            )
+                        next_log_bytes += 1 << 30
+            if (
+                copied_file_bytes != record.size_bytes
+                or digest.hexdigest() != record.sha256
+            ):
+                raise DatabaseError(
+                    f"scratch resource file changed during copy: {source_path}"
+                )
+            shutil.copymode(source_path, destination_path)
+    atomic_write_json(destination / ".gtd-inventory.json", inventory_document)
+    file_count, verified_bytes = verify_inventory(
+        destination,
+        expected_digest,
+        full_checksums=True,
+        progress=progress,
+    )
+    if file_count != len(records) or verified_bytes != total_bytes:
+        raise DatabaseError(f"durable resource copy summary mismatch: {destination}")
+    enforce_storage_limit(storage_root, storage_limit_bytes)
+    enforce_free_space(storage_root, minimum_free_bytes)
+    _LOGGER.info(
+        "database resource copy-back complete",
+        extra={
+            "source": str(source),
+            "destination": str(destination),
+            "file_count": file_count,
+            "total_bytes": verified_bytes,
+            "manifest_sha256": expected_digest,
+        },
+    )
+    return file_count, verified_bytes
+
+
 def verify_inventory(
     root: Path,
     expected_digest: str,
@@ -555,6 +727,13 @@ def run_command(
     enforce_free_space(storage_root, minimum_free_bytes)
     for scratch_root in scoped_scratch:
         _enforce_scratch_free_space(scratch_root, minimum_scratch_free_bytes)
+    initial_scratch = sum(tree_size(root) for root in scoped_scratch)
+    if initial_used + initial_scratch > storage_limit_bytes:
+        raise StorageLimitError(
+            "database root and build scratch use "
+            f"{initial_used + initial_scratch} bytes, exceeding the "
+            f"{storage_limit_bytes}-byte cap"
+        )
     initial_scoped = sum(tree_size(root) for root in scoped_roots)
     initial_log_bytes = log_path.stat().st_size if log_path.is_file() else 0
     inactive_bytes = max(initial_used - initial_scoped - initial_log_bytes, 0)
@@ -567,6 +746,7 @@ def run_command(
             "scratch_roots": [str(root) for root in scoped_scratch],
             "environment_override_keys": sorted(environment_overrides or ()),
             "inactive_bytes": inactive_bytes,
+            "initial_scratch_bytes": initial_scratch,
         },
     )
     stop = threading.Event()
@@ -588,9 +768,9 @@ def run_command(
             try:
                 scoped_bytes = sum(tree_size(root) for root in scoped_roots)
                 log_bytes = log_path.stat().st_size if log_path.is_file() else 0
-                used = inactive_bytes + scoped_bytes + log_bytes
-                free_bytes = shutil.disk_usage(storage_root).free
                 scratch_bytes = sum(tree_size(root) for root in scoped_scratch)
+                used = inactive_bytes + scoped_bytes + scratch_bytes + log_bytes
+                free_bytes = shutil.disk_usage(storage_root).free
                 scratch_free_bytes = min(
                     (shutil.disk_usage(root).free for root in scoped_scratch),
                     default=0,
@@ -611,6 +791,7 @@ def run_command(
                     "scoped_bytes": scoped_bytes,
                     "log_bytes": log_bytes,
                     "scratch_bytes": scratch_bytes,
+                    "prospective_storage_bytes": used,
                     "scratch_free_bytes": scratch_free_bytes,
                     "minimum_scratch_free_bytes": minimum_scratch_free_bytes,
                 },

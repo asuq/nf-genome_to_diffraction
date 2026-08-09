@@ -83,8 +83,9 @@ dispatcher. The `smoke` profile runs `pixi run check`; the separately bounded
 functional-smoke revalidation, and runs the three-crystal Task 05 preflight
 twice to prove cache reuse. It deliberately does not perform a terabyte-scale
 full-checksum audit. A third, separately approval-gated `database` profile runs
-fixed route/capacity preflight, full shared-resource preparation, and anchored
-full verification with 8 CPUs, 64 GB, and a 48-hour limit. All profiles use one
+fixed route/capacity preflight, `/dev/shm` resource construction, verified
+shared-storage publication, and anchored full verification with 100 CPUs,
+2,000 GB, and a 48-hour limit. All profiles use one
 immutable pushed commit. Neither provides arbitrary SSH/paths, source edits on
 Marmic, automatic cleanup, or downstream protein identification. Machine-readable
 results are written to standard output; diagnostic `logging` and optional
@@ -330,8 +331,8 @@ pixi run nextflow run main.nf -profile local \
 ## Reference-database preparation
 
 The Linux-only `hpc` environment pins Foldseek 10.941cd33 and MMseqs2 18.8cc5c.
-The preparation workflow writes directly to a shared absolute database root, so
-terabyte-scale resources are never staged into Nextflow work directories. Its
+The preparation workflow publishes final resources to a shared absolute database
+root, so terabyte-scale resources are never staged into Nextflow work directories. Its
 default hard project cap is 1.8 TB and it requires 200 GB of filesystem headroom.
 That cap is a safety ceiling, not an estimate of this prototype's fixed inputs.
 Observed compressed inputs total about 4.62 GB (approximately 2.33 GB PDB100,
@@ -343,9 +344,10 @@ The database CLI thread count is derived from the allocated Nextflow `task.cpus`
 so MMseqs2 indexing and the bounded search operations do not use the old
 independent four-thread default. The internal concurrency of `foldseek databases`
 still needs confirmation against the pinned Linux executable before the real
-site run. The Marmic profile starts database preparation at 8 CPUs, 64 GB, and
-48 hours; this is an initial measurement allocation, not a runtime or capacity
-guarantee.
+site run. The revised Marmic measurement profile requests 100 CPUs, 2,000 GB,
+and 48 hours. The memory request selects the large-memory node and provides
+enough `/dev/shm` capacity for the 800 GB project cap plus temporary overhead;
+requesting the node's full 4 TB would not improve the I/O-bound phases.
 
 An intended full preparation run is:
 
@@ -353,7 +355,7 @@ An intended full preparation run is:
 pixi install -e hpc --frozen
 pixi run -e hpc nextflow run prepare_databases.nf -profile marmic \
   --database_root /absolute/shared/nf-genome-to-diffraction/databases \
-  --scratch_root /absolute/compute-node/scratch \
+  --scratch_root /dev/shm/job-owned-nf-gtd-directory \
   --minimum_scratch_free_bytes REVIEWED_SCRATCH_BYTES \
   --outdir /absolute/shared/nf-genome-to-diffraction/database-results \
   --prepare_pdb_foldseek true \
@@ -406,22 +408,21 @@ validated before atomic promotion; a server-declined or unvalidated resume start
 cleanly. Each completed source is journalled, so a later fixed staging attempt
 reuses verified completed files and resumes the interrupted file without
 redownloading earlier inputs. Capacity and free-space headroom are checked
-throughout. External tools
-are monitored through their declared durable and scratch write roots, avoiding
-a full scan of the large shared database tree every 20 seconds, and the complete
-process group is stopped if either filesystem loses headroom, the durable cap is
-crossed, or the scoped watchdog fails. Explicit `SLURM_TMPDIR` scratch must be
-an existing canonical owned directory on a different filesystem. When a site
-does not export `SLURM_TMPDIR`, the fixed database job creates one unique
-mode-0700 parent below compute-node `/scratch/$USER` and removes it at
-finalisation. Both routes reject `/dev/shm`, shared-device scratch, and
-insufficient headroom before a payload starts. Source archives, partial-transfer
-state, and the PDB SEQRES download are written directly below the durable
-database source root on the login node, not to compute-node scratch. Foldseek
-extracts from those verified local files into durable resource staging.
-Only disposable execution state and MMseqs2 index workspace use
-`/scratch/$USER`; immutable database content and Foldseek transfer state remain
-under the durable database root.
+throughout. External tools are monitored through their declared durable and
+scratch write roots, avoiding a full scan of the large shared database tree
+every 20 seconds. Scratch payload bytes count towards the same project cap as
+durable bytes, and the complete process group is stopped if either filesystem
+loses headroom, the combined cap is crossed, or the scoped watchdog fails. The
+fixed database job creates one unique mode-0700 parent directly below
+compute-node `/dev/shm`, requires it to be on a different filesystem from the
+durable database root, and removes it at finalisation. Source archives and
+resumable partial-transfer state are downloaded directly below the durable
+source root on the login node. Foldseek and MMseqs2 then construct each resource
+in `/dev/shm`, inventory it there, stream one progress-logged copy into empty
+durable staging, recompute all destination SHA-256 checksums, and only then
+atomically publish the resource. A copy failure retains the bounded durable
+staging for explicit archival and leaves no partially published `current`
+resource; cleanup is never automatic.
 
 The approval-gated database staging operation materialises the frozen per-run
 `hpc` Pixi environment and the fixed source bundle on the login node. It writes

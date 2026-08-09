@@ -226,6 +226,43 @@ def test_scratch_headroom_is_checked_before_execution(
     assert not marker.exists()
 
 
+def test_scratch_payload_counts_towards_project_storage_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    storage = tmp_path / "storage"
+    scratch = tmp_path / "scratch"
+    active = storage / "active"
+    active.mkdir(parents=True)
+    scratch.mkdir()
+    (storage / "retained").write_bytes(b"1234")
+    (scratch / "building").write_bytes(b"5678")
+    marker = tmp_path / "must-not-run"
+    monkeypatch.setattr(
+        common_module,
+        "_device_id",
+        lambda path: 2 if path == scratch else 1,
+    )
+
+    with pytest.raises(StorageLimitError, match="root and build scratch use 8 bytes"):
+        run_command(
+            [
+                sys.executable,
+                "-c",
+                "import pathlib,sys; pathlib.Path(sys.argv[1]).touch()",
+                str(marker),
+            ],
+            log_path=storage / "logs" / "combined-cap.log",
+            storage_root=storage,
+            write_roots=(active,),
+            storage_limit_bytes=7,
+            minimum_free_bytes=0,
+            progress=False,
+            scratch_roots=(scratch,),
+            minimum_scratch_free_bytes=1,
+        )
+    assert not marker.exists()
+
+
 def test_scratch_watchdog_stops_process_when_headroom_drops(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
