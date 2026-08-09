@@ -62,6 +62,10 @@ All notable changes to this project are documented here.
 - Offline Foldseek extraction now shadows its aria2/curl/wget fallback chain
   with fixed-URL, staging-confined local-copy shims, preventing a fallback from
   attempting compute-node network access.
+- A collected, terminal database software failure can now release its retained
+  build guard through an exact-confirmation operation that archives rather than
+  deletes the log-derived staging tree and rejects configuration drift or unsafe
+  entries.
 - Large Foldseek and MMseqs2 temporary data can now use explicit distinct
   compute-node scratch with continuous headroom monitoring, process-group
   termination, and exact-child cleanup; no scratch fallback is inferred.

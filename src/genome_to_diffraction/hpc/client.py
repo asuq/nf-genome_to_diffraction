@@ -443,6 +443,34 @@ class HpcController:
             "operation": "database-submit",
         }
 
+    def database_archive_failed(
+        self, run_id: str, confirmation: str
+    ) -> dict[str, object]:
+        """Archive the failed staging cited by one collected database run."""
+
+        record = self._owned_run(run_id)
+        if record.profile != "database":
+            raise ValidationError("database-archive-failed requires a database run")
+        if record.failure_signature is None:
+            raise ValidationError(
+                "collect the failed database run before archiving its staging"
+            )
+        if confirmation != run_id:
+            raise ValidationError(
+                "database archive confirmation must exactly equal the run ID"
+            )
+        self.logger.warning(
+            "archiving reviewed failed database staging",
+            extra={"run_id": run_id, "failure_signature": record.failure_signature},
+        )
+        return {
+            **self.transport.run(
+                "database-archive-failed",
+                [run_id, record.owner_id, confirmation],
+            ),
+            "operation": "database-archive-failed",
+        }
+
     def submit(self, profile: str, run_id: str) -> dict[str, object]:
         """Submit one reviewed fixed profile for an owned staged run."""
 

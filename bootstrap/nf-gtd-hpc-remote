@@ -889,6 +889,34 @@ database_diagnostic_log() {
     printf '%s' "$candidate"
 }
 
+database_failed_staging() {
+    [[ "$#" -eq 1 ]] || return 1
+    local application_log="$1"
+    local line candidate="" basename resource resource_root resolved unsafe
+    database_config_readiness || return 1
+    while IFS= read -r line; do
+        [[ "$line" == *'"staging_path": "'* ]] || continue
+        candidate="${line#*\"staging_path\": \"}"
+        candidate="${candidate%%\"*}"
+    done < "$application_log"
+    [[ -n "$candidate" && "$candidate" =~ $SAFE_PATH_RE ]] || return 1
+    basename="${candidate##*/}"
+    [[ "$basename" =~ ^\.staging-[0-9a-f]{32}\.failed$ ]] || return 1
+    resource_root="$(dirname "$candidate")"
+    resource="${resource_root##*/}"
+    [[ "$resource" =~ ^(coordinate_cache|pdb_foldseek|pdb_sequences|prostt5)$ ]] || \
+        return 1
+    [[ "$(dirname "$resource_root")" == "$DATABASE_ROOT/resources" ]] || return 1
+    resolved="$(realpath -e "$candidate" 2>/dev/null)" || return 1
+    [[ "$resolved" == "$candidate" && -d "$candidate" && ! -L "$candidate" && \
+        -O "$candidate" ]] || return 1
+    unsafe="$(find "$candidate" -xdev \( ! -type d -a ! -type f \) -print -quit)"
+    [[ -z "$unsafe" ]] || return 1
+    unsafe="$(find "$candidate" -xdev ! -user "$(id -u)" -print -quit)"
+    [[ -z "$unsafe" ]] || return 1
+    printf '%s' "$candidate"
+}
+
 logs_run() {
     [[ "$#" -eq 3 ]] || fail wrapper_failure "logs expects run ID, owner ID, and line count"
     local run_id="$1"
@@ -961,6 +989,82 @@ cancel_run() {
     emit scheduler_state CANCEL_REQUESTED
 }
 
+database_archive_failed_run() {
+    [[ "$#" -eq 3 ]] || \
+        fail wrapper_failure "database-archive-failed expects run ID, owner ID, and confirmation"
+    local run_id="$1"
+    local owner_id="$2"
+    local confirmation="$3"
+    local run profile phase failure_class expected_config source destination
+    local basename file_count=0 total_bytes=0 timestamp record temporary candidate size
+    require_owned_run "$run_id" "$owner_id"
+    [[ "$confirmation" == "$run_id" ]] || \
+        fail wrapper_failure "database archive confirmation does not match"
+    run="$(run_directory "$run_id")"
+    [[ -f "$run/state/profile" ]] || fail wrapper_failure "run profile is absent"
+    profile="$(<"$run/state/profile")"
+    [[ "$profile" == database ]] || \
+        fail wrapper_failure "database archive requires a database run"
+    [[ -f "$run/state/phase" && -f "$run/state/failure-class" ]] || \
+        fail wrapper_failure "terminal database state is incomplete"
+    phase="$(<"$run/state/phase")"
+    failure_class="$(<"$run/state/failure-class")"
+    [[ "$phase" == completed && "$failure_class" == software_failure ]] || \
+        fail wrapper_failure "database archive requires a completed software failure"
+    [[ -f "$run/logs/database.log" && ! -L "$run/logs/database.log" && \
+        -O "$run/logs/database.log" ]] || \
+        fail filesystem_failure "database application log is missing or unsafe"
+    database_config_readiness || \
+        fail environment_failure "database configuration is not ready"
+    [[ -f "$run/state/database-config-sha256" ]] || \
+        fail wrapper_failure "recorded database configuration checksum is absent"
+    expected_config="$(<"$run/state/database-config-sha256")"
+    [[ "$expected_config" =~ $CHECKSUM_RE && \
+        "$expected_config" == "$DATABASE_CONFIG_SHA256" ]] || \
+        fail wrapper_failure "database configuration changed after the failed run"
+    source="$(database_failed_staging "$run/logs/database.log" || true)"
+    [[ -n "$source" ]] || \
+        fail filesystem_failure "reviewed failed staging could not be resolved safely"
+    basename="${source##*/}"
+    destination="$(dirname "$source")/${basename%.failed}.reviewed-${run_id}"
+    [[ ! -e "$destination" && ! -L "$destination" ]] || \
+        fail filesystem_failure "failed-staging archive destination already exists"
+    while IFS= read -r -d '' candidate; do
+        size="$(file_size "$candidate")"
+        [[ "$size" =~ $BYTE_COUNT_RE ]] || \
+            fail filesystem_failure "failed-staging file size is invalid"
+        file_count=$((file_count + 1))
+        total_bytes=$((total_bytes + size))
+    done < <(find "$source" -xdev -type f -print0)
+    [[ "$file_count" =~ $INTEGER_RE && "$total_bytes" =~ $BYTE_COUNT_RE ]] || \
+        fail filesystem_failure "failed-staging inventory could not be measured"
+    mv -- "$source" "$destination" || \
+        fail filesystem_failure "failed staging could not be archived atomically"
+    timestamp="$(now_utc)"
+    record="$run/state/database-failed-staging-archive.json"
+    temporary="${record}.tmp.$$"
+    cat > "$temporary" <<EOF
+{
+  "schema_version": "1.0",
+  "run_id": "$run_id",
+  "archived_at": "$timestamp",
+  "source": "$source",
+  "destination": "$destination",
+  "file_count": $file_count,
+  "total_bytes": $total_bytes
+}
+EOF
+    mv -f -- "$temporary" "$record"
+    append_event "$run" "database_failed_staging_archived"
+    emit operation database-archive-failed
+    emit run_id "$run_id"
+    emit archived true
+    emit source "$source"
+    emit destination "$destination"
+    emit file_count "$file_count"
+    emit total_bytes "$total_bytes"
+}
+
 collect_run() {
     [[ "$#" -eq 2 ]] || fail wrapper_failure "collect expects run ID and owner ID"
     local run_id="$1"
@@ -979,6 +1083,7 @@ collect_run() {
         state/job-id \
         state/phase \
         state/job-result.json \
+        state/database-failed-staging-archive.json \
         state/failure-class \
         state/exit-code \
         logs/git-fetch.log \
@@ -1076,6 +1181,7 @@ main() {
         database-stage) database_stage_run "$@" ;;
         submit) submit_run "$@" ;;
         database-submit) database_submit_run "$@" ;;
+        database-archive-failed) database_archive_failed_run "$@" ;;
         status) status_run "$@" ;;
         logs) logs_run "$@" ;;
         collect) collect_run "$@" ;;

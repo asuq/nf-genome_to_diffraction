@@ -97,6 +97,8 @@ the HPC controller from an immutable reviewed commit if its checksum no longer
 matches the recorded value. Add back only the routine Codex approval pattern
 documented in the [HPC feedback-loop runbook](hpc-feedback-loop.md#cleanup-and-codex-approval);
 keep database start, raw SSH, scheduler commands, and cleanup approval-gated.
+The recoverable `database-archive-failed` operation is also excluded from
+persistent approval because it mutates retained remote evidence.
 
 ## Remote settings are separate
 

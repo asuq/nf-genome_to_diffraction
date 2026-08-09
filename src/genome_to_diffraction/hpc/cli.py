@@ -54,6 +54,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="submit the separately approval-gated database job",
     )
     database_submit.add_argument("--run-id", required=True)
+    database_archive = actions.add_parser(
+        "database-archive-failed",
+        help="archive one reviewed failed database staging without deleting it",
+    )
+    database_archive.add_argument("--run-id", required=True)
+    database_archive.add_argument("--confirm", required=True)
 
     stage = actions.add_parser("stage", help="stage an immutable pushed commit")
     stage.add_argument("profile", choices=("smoke", "p0"))
@@ -96,6 +102,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.database_stage(args.revision)
     if args.operation == "database-submit":
         return controller.database_submit(args.run_id)
+    if args.operation == "database-archive-failed":
+        return controller.database_archive_failed(args.run_id, args.confirm)
     if args.operation == "stage":
         return controller.stage(
             args.profile,

@@ -195,6 +195,26 @@ nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test collect --run-id RUN_ID
 ```
 
+If a collected database run retains failed extraction or indexing staging,
+review its main and cited command logs first. The separately approval-gated
+recovery operation accepts no path and requires the exact owned run ID twice:
+
+```bash
+nf-gtd-hpc-test database-archive-failed \
+  --run-id RUN_ID \
+  --confirm RUN_ID
+```
+
+The dispatcher requires a completed `software_failure`, the unchanged external
+configuration fingerprint, the fixed database profile, and an owner-controlled
+regular directory cited by the run log directly below one recognised resource
+root. It rejects symlinks, special files, foreign ownership, and escaped paths.
+Success atomically renames the directory to a run-qualified `.reviewed-*`
+archive and records its original path, destination, file count, and byte count.
+It deletes no evidence but releases the resource's `.failed` build guard. Never
+run this before collection and diagnosis, and do not include it in automatic
+feedback or a persistent approval rule.
+
 `readiness p0` is a fixed, read-only prerequisite inspection. It accepts no
 path, revision, run ID, or shell fragment; creates no run; and submits no job.
 Its JSON reports the exact Pixi-version status and a sanitised P0 configuration
@@ -344,12 +364,13 @@ directly.
 Only after preflight passes does the job prepare PDB Foldseek, PDB sequence,
 ProstT5, and coordinate-cache resources under the durable root. No downloader
 user configuration is consulted during offline extraction. Success requires a
-frozen manifest checksum
-and a second anchored `--verify-only --full-verify` pass. Fixed small manifests,
+frozen manifest checksum and a second anchored `--verify-only --full-verify`
+pass. Fixed small manifests,
 preflight evidence, and logs are collectable; database payloads stay on Marmic.
 Source transfers are resumable. Failed extraction or index staging is retained
 and blocks another build until explicit operator review; it is never deleted or
-blindly retried by the fixed driver.
+blindly retried by the fixed driver. The archive operation above is a manual,
+recoverable release of that guard, not cleanup.
 
 ## Results and failure interpretation
 

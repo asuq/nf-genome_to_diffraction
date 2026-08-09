@@ -951,6 +951,132 @@ def test_database_failure_log_rejects_an_escaped_path(tmp_path: Path) -> None:
     assert "must not be returned" not in content
 
 
+def test_database_failed_staging_is_archived_without_deletion_or_path_input(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    config = _write_database_paths(remote_root)
+    run = remote_root / "runs" / DATABASE_RUN_ID
+    (run / "state").mkdir(parents=True)
+    (run / "logs").mkdir()
+    (run / "state" / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (run / "state" / "profile").write_text("database\n", encoding="ascii")
+    (run / "state" / "phase").write_text("completed\n", encoding="ascii")
+    (run / "state" / "failure-class").write_text("software_failure\n", encoding="ascii")
+    (run / "state" / "database-config-sha256").write_text(
+        f"{hashlib.sha256(config.read_bytes()).hexdigest()}\n", encoding="ascii"
+    )
+    resource = remote_root / "database-admin" / "databases" / "resources" / "prostt5"
+    failed = resource / f".staging-{'a' * 32}.failed"
+    failed.mkdir(parents=True)
+    (failed / "provider.log").write_text("preserved evidence\n", encoding="ascii")
+    (run / "logs" / "database.log").write_text(
+        f'{{"level": "error", "staging_path": "{failed}"}}\n',
+        encoding="ascii",
+    )
+
+    result = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "database-archive-failed",
+                DATABASE_RUN_ID,
+                OWNER_ID,
+                DATABASE_RUN_ID,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    destination = Path(result["destination"])
+    assert result["archived"] == "true"
+    assert result["file_count"] == "1"
+    assert result["total_bytes"] == str(len("preserved evidence\n"))
+    assert not failed.exists()
+    assert destination.is_dir()
+    assert (destination / "provider.log").read_text() == "preserved evidence\n"
+    record = json.loads(
+        (run / "state" / "database-failed-staging-archive.json").read_text()
+    )
+    assert record["source"] == str(failed)
+    assert record["destination"] == str(destination)
+    assert "database_failed_staging_archived" in (run / "events.jsonl").read_text()
+    archive_path = tmp_path / "archived-failure-evidence.tar.gz"
+    archive_path.write_bytes(
+        _run(
+            [str(dispatcher), "collect", DATABASE_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    with tarfile.open(archive_path, "r:gz") as archive:
+        assert "state/database-failed-staging-archive.json" in archive.getnames()
+
+    repeated = _run(
+        [
+            str(dispatcher),
+            "database-archive-failed",
+            DATABASE_RUN_ID,
+            OWNER_ID,
+            DATABASE_RUN_ID,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(repeated.stdout)["failure_class"] == "filesystem_failure"
+    assert destination.is_dir()
+
+
+def test_database_failed_staging_archive_rejects_config_drift(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_database_paths(remote_root)
+    run = remote_root / "runs" / DATABASE_RUN_ID
+    (run / "state").mkdir(parents=True)
+    (run / "logs").mkdir()
+    (run / "state" / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (run / "state" / "profile").write_text("database\n", encoding="ascii")
+    (run / "state" / "phase").write_text("completed\n", encoding="ascii")
+    (run / "state" / "failure-class").write_text("software_failure\n", encoding="ascii")
+    (run / "state" / "database-config-sha256").write_text(
+        f"{'0' * 64}\n", encoding="ascii"
+    )
+    failed = (
+        remote_root
+        / "database-admin"
+        / "databases"
+        / "resources"
+        / "prostt5"
+        / f".staging-{'b' * 32}.failed"
+    )
+    failed.mkdir(parents=True)
+    (run / "logs" / "database.log").write_text(
+        f'{{"level": "error", "staging_path": "{failed}"}}\n',
+        encoding="ascii",
+    )
+
+    rejected = _run(
+        [
+            str(dispatcher),
+            "database-archive-failed",
+            DATABASE_RUN_ID,
+            OWNER_ID,
+            DATABASE_RUN_ID,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+
+    fields = _decode_protocol(rejected.stdout)
+    assert fields["failure_class"] == "wrapper_failure"
+    assert "configuration changed" in fields["message"]
+    assert failed.is_dir()
+
+
 @pytest.mark.parametrize(
     "storage_limit",
     ("02000000000000", "999999999999999999999999999999"),

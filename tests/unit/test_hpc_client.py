@@ -289,6 +289,34 @@ def test_database_start_has_a_separate_local_authority_boundary(
         controller.database_submit(smoke_run)
 
 
+def test_database_failed_staging_archive_requires_collected_owned_evidence(
+    tmp_path: Path,
+) -> None:
+    job_result = json.dumps(
+        {
+            "failure_class": "software_failure",
+            "exit_code": 1,
+            "scheduler_state": "FAILED",
+        }
+    ).encode()
+    transport = FakeTransport(archive=_archive({"state/job-result.json": job_result}))
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.database_stage("HEAD")["run_id"])
+
+    with pytest.raises(ValidationError, match="collect the failed database run"):
+        controller.database_archive_failed(run_id, run_id)
+    controller.collect(run_id)
+    with pytest.raises(ValidationError, match="exactly equal"):
+        controller.database_archive_failed(run_id, "wrong")
+
+    result = controller.database_archive_failed(run_id, run_id)
+
+    assert result["operation"] == "database-archive-failed"
+    assert transport.calls[-1][0] == "database-archive-failed"
+    assert transport.calls[-1][1][0] == run_id
+    assert transport.calls[-1][1][2] == run_id
+
+
 def test_stage_refuses_dirty_or_injected_revisions(tmp_path: Path) -> None:
     (tmp_path / "pixi.lock").write_text("locked\n", encoding="utf-8")
     transport = FakeTransport()
