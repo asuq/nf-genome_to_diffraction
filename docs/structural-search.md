@@ -255,8 +255,10 @@ external search and then exposed biological-assembly copy suffixes at the
 SEQRES crosswalk; see the
 [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md). The bounded
 evidence now isolates both source-derived corrections, and adapter v3 applies
-the assembly-copy mapping above. Passing the next identical 128-sequence slice
-qualifies the real adapter path,
+the assembly-copy mapping above. The next identical 128-sequence slice passed,
+published 292 retained hits for 102 hit groups, preserved 26 completed no-hits,
+and cached all three discovery processes on resume. This qualifies the bounded
+real adapter path,
 not the deferred 1,492 eligible sequences. The full M1 P1 gate still requires
 the uncapped qualification, passing the pilot AFDB mapping through fixed
 immutable run inputs, the optional-provider policy decision, and provider-aware

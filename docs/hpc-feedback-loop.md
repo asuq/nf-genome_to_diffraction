@@ -450,8 +450,10 @@ ProstT5 sequence query require a missing query Cα database. Adapter v2 removes
 that field based on the exact Foldseek source. The next identical slice
 completed Foldseek, then exposed RCSB biological-assembly copy suffixes such as
 `A-2` at the SEQRES crosswalk. Adapter v3 maps those copies back to the original
-case-sensitive chain while preserving copy provenance; its next identical slice
-remains the qualification run. Deferred sequences are `skipped_policy`, never no-hits.
+case-sensitive chain while preserving copy provenance. Its next identical slice
+passed as coordinator job `625655`: 292 hits were retained for 102 groups, 26
+groups completed with no hit, and all three processes were cached on resume.
+Deferred sequences are `skipped_policy`, never no-hits.
 See the
 [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md).
 

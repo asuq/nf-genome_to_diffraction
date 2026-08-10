@@ -208,7 +208,8 @@ and showed that adapter v1 incorrectly requested the Cα-dependent Foldseek
 `prob` field for ProstT5 sequence queries. Adapter v2 corrected the Foldseek
 call, and the next real slice completed the external search before exposing
 RCSB assembly-copy suffixes at the SEQRES crosswalk. Adapter v3 contains that
-second source-derived correction and awaits the next real slice. T7.4 is
+second source-derived correction and passed the next real slice with 292 hits,
+explicit no-hit/deferred states, and a fully cached resume. T7.4 is
 implemented with strict accession/API/mmCIF verification, atomic coordinate
 caching, typed workflow wiring, a successful live public `P69905`
 qualification, and the exact pilot-derived
@@ -584,11 +585,12 @@ full-catalogue Foldseek attempt failed without durable native diagnostics; its
 bounded 128-sequence retry then isolated the incompatible `prob` output field;
 see the [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md). The
 next slice completed Foldseek and isolated the biological-assembly copy-chain
-mapping defect. The active next work is the adapter-v3 128-sequence real rerun,
-followed
-immediately by the uncapped run, optional ESM Atlas decision, provider-aware
-union, and full P1 gate.
+mapping defect. Adapter v3 then passed the same fixed 128-sequence slice. The
+active next work is the real downstream candidate/model path while the uncapped
+Foldseek run, optional ESM Atlas decision, provider-aware union, and full P1 gate
+remain tracked qualification work.
 
-After the focused adapter gate passes, prioritise the real catalogue run over
-additional synthetic test polish. M1 output remains structural/model evidence,
-not a final protein identification.
+After the focused adapter gate passes, prioritise the real downstream prototype
+path while retaining the uncapped catalogue search as qualification work; do
+not delay both with additional synthetic test polish. M1 output remains
+structural/model evidence, not a final protein identification.

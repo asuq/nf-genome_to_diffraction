@@ -207,6 +207,9 @@ All notable changes to this project are documented here.
   `A-2` at the SEQRES crosswalk. Adapter v3 strips only documented numeric
   operator suffixes for assembly-qualified lookup while retaining the complete
   Foldseek target, assembly number, and operator indices in hit provenance.
+- The fixed adapter-v3 Marmic pilot passed on 128 real sequence groups, retaining
+  292 hits for 102 groups, 26 completed no-hits, 18 assembly-copy hits, explicit
+  policy deferral of the other 1,492 eligible groups, and a fully cached resume.
 
 ### Not implemented
 

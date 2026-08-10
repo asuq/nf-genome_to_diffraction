@@ -17,7 +17,9 @@ qualification. A bounded real ProstT5/Foldseek retry identified that its
 adapter v2 corrected that call and completed the 128-sequence external search.
 The result then exposed RCSB biological-assembly copy suffixes such as `A-2`
 at the SEQRES crosswalk. Adapter v3 applies the source-derived chain mapping and
-awaits the next 128-sequence Marmic run. The uncapped real catalogue gate
+passed the fixed 128-sequence Marmic run with 292 retained hits across 102
+sequence groups, 26 completed no-hits, explicit deferral of the other 1,492
+eligible groups, and a fully cached resume. The uncapped real catalogue gate
 remains open.
 Exact-accession AlphaFold DB retrieval
 is implemented with API/mmCIF sequence verification and immutable coordinate

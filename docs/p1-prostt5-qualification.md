@@ -15,10 +15,17 @@ chain `A`. These runs provide execution evidence, not completed searches and
 not scientific no-hits. The direct PDB and exact AFDB branches produced
 retained artefacts where the workflow reached them.
 
+Adapter v3 then passed the same fixed 128-sequence real slice on Marmic. It
+published 292 hits for 102 sequence groups, retained 26 completed no-hits,
+preserved one ineligible group, and left all 1,492 capped eligible groups as
+`skipped_policy` / `not_interpretable`. Eighteen retained hits contained parsed
+assembly-copy operators and resolved to their original case-sensitive model
+chains. All three discovery processes were cached on resume.
+
 This report retains all three failed runs so that later success cannot erase the
-operational evidence. The immediate priority remains a representative real-data
-result, followed by the full-catalogue gate; additional synthetic polishing is
-not a prerequisite.
+operational evidence. The immediate priority is now the downstream real-data
+candidate/model path while the full-catalogue search continues as a separate
+qualification gate; additional synthetic polishing is not a prerequisite.
 
 ## Immutable attempt and retained evidence
 
@@ -143,9 +150,39 @@ normalised this way. The behaviour follows the exact
 and the official
 [RCSB biological-assembly chain convention](https://www.rcsb.org/news/62559153c8eabd0c4864f208).
 
+## Passing adapter-v3 pilot
+
+| Item | Observed value |
+| --- | --- |
+| Fixed run | `gtd-p1-20260810T103038Z-b5f43b4acadb-abff8c28` |
+| Source revision | `b5f43b4acadb01ce59a3c2b3215afb154fa1d8bd` |
+| nf-helper revision | `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a` |
+| Coordinator Slurm job | `625655`, completed, exit status 0 |
+| Child jobs | AFDB `625656`; MMseqs2 `625657`; ProstT5/Foldseek `625658` |
+| Run interval | 10 August 2026 10:41:54–10:51:18 UTC |
+| Catalogue | 1,625 source records, 1,621 exact sequence groups |
+| ProstT5 input | first 128 of 1,620 eligible exact sequences, CPU mode, 100 threads |
+| Foldseek results | 102 hit groups, 26 no-hit groups, 292 retained hits |
+| Deferred/ineligible | 1,492 policy-deferred; 1 ineligible |
+| Assembly-copy evidence | 18 retained hits; assembly numbers 1–4 |
+| Foldseek process | 2m 9s realtime; 38.8 GB peak RSS; 88.2 GB peak virtual memory |
+| Resume | all three discovery processes cached |
+| Search-manifest SHA-256 | `8b0480117a82d3ebb79a9b1e5ccad3322a18b87768049d64c5b61ee8e02fafac` |
+| Structural-hit SHA-256 | `280323c2d40a204404f6988d32faddcf47b7232b7a9d8ca72c69108cfcb427f0` |
+
+The published hit evidence includes the formerly failing targets, for example
+`1iom-assembly1_A-2` resolves to model key
+`pdb:1IOM:legacy_seqres_suffix:A` while retaining Foldseek chain `A-2`, assembly
+number 1, and operator index 2. The fixed coordinator also reran the accepted
+direct-PDB qualification and retained the exact 8OOX/8OOW control family. Its
+qualification report concerns the direct provider; the Foldseek pilot is
+accepted here from its schema-valid manifest, checksum-matched hit file,
+successful fixed process, and cached resume rather than mislabelling the direct
+provider report as a Foldseek-specific scientific validator.
+
 ## Acceptance boundary
 
-The next passing 128-query run will qualify command construction, real ProstT5
+The passing 128-query run qualifies command construction, real ProstT5
 inference, Foldseek/PDB search, result parsing, target crosswalking, explicit
 deferred states, publication, and cached resume on the actual Marmic resources.
 It does not close catalogue-wide P1 and cannot be described as complete evidence
