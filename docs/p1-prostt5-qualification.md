@@ -2,16 +2,20 @@
 
 ## Current result
 
-The first real full-catalogue ProstT5/Foldseek attempt and the bounded
-128-sequence retry both reached the external search but failed with Foldseek
-exit status 1. The retry retained the native log tail and identified a specific
+The first real full-catalogue ProstT5/Foldseek attempt and first bounded
+128-sequence retry reached the external search but failed with Foldseek exit
+status 1. The retry retained the native log tail and identified a specific
 adapter incompatibility: requesting `prob` from a ProstT5 sequence query makes
-Foldseek `convertalis` require a query Cα database that does not exist. These
-runs provide execution evidence, not completed searches and not scientific
-no-hits. The direct PDB and exact AFDB branches in the retry produced retained
-artefacts.
+Foldseek `convertalis` require a query Cα database that does not exist. Adapter
+v2 removed that field, and the next real 128-sequence run completed Foldseek
+successfully in 6 minutes 39 seconds. It then failed loudly at target
+crosswalking because PDB100 contains RCSB biological-assembly symmetry-copy
+chains such as `A-2`, whereas the SEQRES resource is keyed by the original
+chain `A`. These runs provide execution evidence, not completed searches and
+not scientific no-hits. The direct PDB and exact AFDB branches produced
+retained artefacts where the workflow reached them.
 
-This report retains both failures so that later success cannot erase the
+This report retains all three failed runs so that later success cannot erase the
 operational evidence. The immediate priority remains a representative real-data
 result, followed by the full-catalogue gate; additional synthetic polishing is
 not a prerequisite.
@@ -104,13 +108,48 @@ The adapter version and cache identity changed so failed v1 output cannot be
 mistaken for v2 evidence. A focused command-construction regression test rejects
 reintroduction of `prob` or the other query-coordinate fields.
 
+## Source-corrected search and assembly-copy finding
+
+| Item | Observed value |
+| --- | --- |
+| Fixed run | `gtd-p1-20260810T094507Z-0411a521d725-d1eb9519` |
+| Source revision | `0411a521d7250ada74ae57657789902fdc37dcd5` |
+| nf-helper revision | `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a` |
+| Coordinator Slurm job | `625649` |
+| Compute host | `slurm-302.mpi-bremen.de` |
+| Catalogue | 1,625 source records, 1,621 exact sequence groups |
+| ProstT5 input | first 128 of 1,620 eligible exact sequences, CPU mode, 100 threads |
+| Foldseek interval | 10 August 2026 10:01:00–10:07:40 UTC |
+| Foldseek exit status | `0` |
+| Fixed failure class | `test_failure` |
+| Failure signature | `f8d8aa06c5b658abdabc461429ea32bf0ace8e95b336598b4be45f0dd7ab4f0c` |
+
+This run proves that removing `prob` was sufficient for the exact pinned
+Foldseek command to complete on the intended real inputs and database. Parsing
+then reported unmapped identifiers including `1IOM-assembly1_A-2`,
+`2BB3-assembly1_B-3`, and `3CTA-assembly1_A-2`. The suffix is not a SEQRES chain:
+RCSB appends a numeric transformation-operator ID to copies in generated
+biological assemblies. Foldseek's pinned PDB100 build uses assembly mmCIF input
+with `--chain-name-mode 1`, and its `createdb` implementation writes the parsed
+chain name to the database header unchanged.
+
+Adapter v3 strips only trailing positive numeric operator components from an
+assembly-qualified target for crosswalk lookup. It retains the unmodified
+Foldseek target, raw assembly chain, biological-assembly number, and parsed
+operator indices in output provenance. Targets without `-assemblyN` are not
+normalised this way. The behaviour follows the exact
+[Foldseek PDB100 build command](https://github.com/steineggerlab/foldseek/blob/941cd33ff0771cd2e3f144e3293e22a2b87e9fda/util/update_webserver_pdb/single-script.sh#L41),
+[Foldseek header construction](https://github.com/steineggerlab/foldseek/blob/941cd33ff0771cd2e3f144e3293e22a2b87e9fda/src/strucclustutils/structcreatedb.cpp#L417-L421),
+and the official
+[RCSB biological-assembly chain convention](https://www.rcsb.org/news/62559153c8eabd0c4864f208).
+
 ## Acceptance boundary
 
-The 128-query run qualifies command construction, real ProstT5 inference,
-Foldseek/PDB search, result parsing, target crosswalking, explicit deferred
-states, publication, and cached resume on the actual Marmic resources. It does
-not close catalogue-wide P1 and cannot be described as complete evidence for
-the 1,492 deferred eligible sequences.
+The next passing 128-query run will qualify command construction, real ProstT5
+inference, Foldseek/PDB search, result parsing, target crosswalking, explicit
+deferred states, publication, and cached resume on the actual Marmic resources.
+It does not close catalogue-wide P1 and cannot be described as complete evidence
+for the 1,492 deferred eligible sequences.
 
 After the corrected pilot slice passes, proceed directly to the next real
 prototype stage while running the uncapped catalogue search as the remaining

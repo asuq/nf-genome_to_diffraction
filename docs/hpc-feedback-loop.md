@@ -447,8 +447,11 @@ did not survive outer cleanup. The bounded retry retained its native-log tail,
 used the large-node resource label, and searched the first 128 sorted eligible
 real sequences. It demonstrated that requesting Foldseek `prob` makes a
 ProstT5 sequence query require a missing query Cα database. Adapter v2 removes
-that field based on the exact Foldseek source; the next identical slice remains
-the qualification run. Deferred sequences are `skipped_policy`, never no-hits.
+that field based on the exact Foldseek source. The next identical slice
+completed Foldseek, then exposed RCSB biological-assembly copy suffixes such as
+`A-2` at the SEQRES crosswalk. Adapter v3 maps those copies back to the original
+case-sensitive chain while preserving copy provenance; its next identical slice
+remains the qualification run. Deferred sequences are `skipped_policy`, never no-hits.
 See the
 [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md).
 

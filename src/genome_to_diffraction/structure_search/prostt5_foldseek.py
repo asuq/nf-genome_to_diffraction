@@ -44,7 +44,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.prostt5_foldseek")
-_ADAPTER_VERSION = "prostt5-foldseek-pdb-v2"
+_ADAPTER_VERSION = "prostt5-foldseek-pdb-v3"
 _PROVIDER = "foldseek_prostt5_pdb"
 _RAW_HIT_LIMIT = 1000
 _FAILURE_LOG_TAIL_BYTES = 16 * 1024
@@ -54,6 +54,9 @@ _PDB_TARGET = re.compile(
     r"^(?P<pdb_id>[0-9][A-Za-z0-9]{3})"
     r"(?:-assembly(?P<assembly_number>[1-9][0-9]*))?"
     r"_(?P<chain>[^\s\t]+)$"
+)
+_ASSEMBLY_OPERATOR_SUFFIX = re.compile(
+    r"^(?P<chain>.+?)(?P<operators>(?:-[1-9][0-9]*)+)$"
 )
 _RESULT_FIELDS = (
     "query",
@@ -130,11 +133,27 @@ class _RawHit:
 
 
 @dataclass(frozen=True)
-class _TargetMapping:
+class _ParsedTarget:
+    pdb_id: str
+    chain: str
+    seqres_token: str
+    assembly_number: int | None
+    operator_indices: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class _SequenceMapping:
     pdb_id: str
     namespace: str
     token: str
     seqres_target: str
+
+
+@dataclass(frozen=True)
+class _TargetMapping(_SequenceMapping):
+    foldseek_chain: str
+    assembly_number: int | None
+    operator_indices: tuple[int, ...]
 
 
 def _validate_request(request: ProstT5FoldseekSearchRequest) -> None:
@@ -460,21 +479,44 @@ def _parse_results(
     }
 
 
-def _target_key(target: str) -> tuple[str, str]:
+def _parse_target(target: str) -> _ParsedTarget:
     match = _PDB_TARGET.fullmatch(target)
     if match is None:
         raise ResultParseError(f"unsupported Foldseek PDB target identifier: {target}")
-    return match.group("pdb_id").upper(), match.group("chain")
+    chain = match.group("chain")
+    assembly_number_text = match.group("assembly_number")
+    operator_indices: tuple[int, ...] = ()
+    seqres_token = chain
+    if assembly_number_text is not None:
+        operator_match = _ASSEMBLY_OPERATOR_SUFFIX.fullmatch(chain)
+        if operator_match is not None:
+            seqres_token = operator_match.group("chain")
+            operator_indices = tuple(
+                int(value)
+                for value in operator_match.group("operators").split("-")
+                if value
+            )
+    return _ParsedTarget(
+        pdb_id=match.group("pdb_id").upper(),
+        chain=chain,
+        seqres_token=seqres_token,
+        assembly_number=(
+            int(assembly_number_text) if assembly_number_text is not None else None
+        ),
+        operator_indices=operator_indices,
+    )
 
 
 def _load_target_mappings(
     path: Path, targets: frozenset[str], *, progress: bool
 ) -> dict[str, _TargetMapping]:
-    target_keys = {target: _target_key(target) for target in targets}
-    if not target_keys:
+    parsed_targets = {target: _parse_target(target) for target in targets}
+    if not parsed_targets:
         return {}
-    needed = frozenset(target_keys.values())
-    by_key: dict[tuple[str, str], _TargetMapping] = {}
+    needed = frozenset(
+        (parsed.pdb_id, parsed.seqres_token) for parsed in parsed_targets.values()
+    )
+    by_key: dict[tuple[str, str], _SequenceMapping] = {}
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         required = {
@@ -499,7 +541,7 @@ def _load_target_mappings(
                 raise ResultParseError(
                     f"duplicate PDB target mapping: {row['target_id']}"
                 )
-            by_key[key] = _TargetMapping(
+            by_key[key] = _SequenceMapping(
                 pdb_id=key[0],
                 namespace=row["identifier_namespace"],
                 token=key[1],
@@ -513,7 +555,19 @@ def _load_target_mappings(
         raise ResultParseError(
             "Foldseek PDB targets lack coordinate mappings: " + formatted
         )
-    return {target: by_key[key] for target, key in target_keys.items()}
+    resolved: dict[str, _TargetMapping] = {}
+    for target, parsed in parsed_targets.items():
+        sequence_mapping = by_key[(parsed.pdb_id, parsed.seqres_token)]
+        resolved[target] = _TargetMapping(
+            pdb_id=sequence_mapping.pdb_id,
+            namespace=sequence_mapping.namespace,
+            token=sequence_mapping.token,
+            seqres_target=sequence_mapping.seqres_target,
+            foldseek_chain=parsed.chain,
+            assembly_number=parsed.assembly_number,
+            operator_indices=parsed.operator_indices,
+        )
+    return resolved
 
 
 def search_prostt5_foldseek(
@@ -708,6 +762,9 @@ def search_prostt5_foldseek(
                     "prostt5_database_id": resources.prostt5.database_id,
                     "mapping_database_id": resources.pdb_sequences.database_id,
                     "probability_unavailable_reason": (_PROBABILITY_UNAVAILABLE_REASON),
+                    "foldseek_target_chain": mapping.foldseek_chain,
+                    "biological_assembly_number": mapping.assembly_number,
+                    "assembly_operator_indices": list(mapping.operator_indices),
                 },
                 eligibility_status=EligibilityStatus.SELECTED,
                 eligibility_reason=(

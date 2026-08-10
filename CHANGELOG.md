@@ -202,6 +202,11 @@ All notable changes to this project are documented here.
   fail-closed command/path validation while tolerating NFS-cold alternate login
   nodes. The local rollback guide records how the stable SSH alias selects and
   restores an operator-chosen login node.
+- The source-corrected real 128-sequence ProstT5/Foldseek run completed its
+  external search, then exposed RCSB biological-assembly copy chains such as
+  `A-2` at the SEQRES crosswalk. Adapter v3 strips only documented numeric
+  operator suffixes for assembly-qualified lookup while retaining the complete
+  Foldseek target, assembly number, and operator indices in hit provenance.
 
 ### Not implemented
 

@@ -14,8 +14,11 @@ including real Phenix and database probes. M1 structural discovery is active:
 the local MMseqs2-to-PDB sequence-search route passed its real catalogue P1
 qualification. A bounded real ProstT5/Foldseek retry identified that its
 `prob` output field incorrectly required unavailable query Cα coordinates;
-adapter v2 applies the exact Foldseek-source correction and awaits its next
-128-sequence Marmic run. The uncapped real catalogue gate remains open.
+adapter v2 corrected that call and completed the 128-sequence external search.
+The result then exposed RCSB biological-assembly copy suffixes such as `A-2`
+at the SEQRES crosswalk. Adapter v3 applies the source-derived chain mapping and
+awaits the next 128-sequence Marmic run. The uncapped real catalogue gate
+remains open.
 Exact-accession AlphaFold DB retrieval
 is implemented with API/mmCIF sequence verification and immutable coordinate
 caching, and the exact pilot-derived `WP_042685700.1` to `A0A832VZP6` retrieval
@@ -460,7 +463,11 @@ Foldseek results and requires each deterministically strongest hit to resolve
 through the protein-only SEQRES crosswalk. Plain `PDBID_CHAIN` and Foldseek's
 assembly-qualified `PDBID-assemblyN_CHAIN` targets resolve to the same PDB entry
 and case-sensitive chain key while the original search identifier remains in
-the evidence. The MMseqs2 sequence hit must have the exact fixed query hash;
+the evidence. Biological-assembly symmetry copies such as
+`PDBID-assemblyN_CHAIN-2` and `..._CHAIN-12-60` resolve through the original
+SEQRES chain while retaining the Foldseek chain, assembly number, and operator
+indices as raw provenance. The MMseqs2 sequence hit must have the exact fixed
+query hash;
 Foldseek additionally enforces its score and coverage thresholds without
 confusing structural rank with sequence identity. Preparation
 separately maps `1ubq_A` through the same crosswalk. That fixed control binds the

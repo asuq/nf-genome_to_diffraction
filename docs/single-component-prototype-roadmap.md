@@ -205,8 +205,10 @@ Implementation status on 10 August 2026: T7.1 is qualified on the real pilot.
 The first T7.2 full-catalogue execution reached Foldseek but failed before
 publication. Its deterministic 128-sequence retry retained the native failure
 and showed that adapter v1 incorrectly requested the Cα-dependent Foldseek
-`prob` field for ProstT5 sequence queries. Adapter v2 contains the exact
-source-derived correction and awaits the next real slice. T7.4 is
+`prob` field for ProstT5 sequence queries. Adapter v2 corrected the Foldseek
+call, and the next real slice completed the external search before exposing
+RCSB assembly-copy suffixes at the SEQRES crosswalk. Adapter v3 contains that
+second source-derived correction and awaits the next real slice. T7.4 is
 implemented with strict accession/API/mmCIF verification, atomic coordinate
 caching, typed workflow wiring, a successful live public `P69905`
 qualification, and the exact pilot-derived
@@ -581,7 +583,9 @@ See the [P1 direct-PDB qualification](p1-direct-pdb-qualification.md). The first
 full-catalogue Foldseek attempt failed without durable native diagnostics; its
 bounded 128-sequence retry then isolated the incompatible `prob` output field;
 see the [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md). The
-active next work is the source-corrected 128-sequence real rerun, followed
+next slice completed Foldseek and isolated the biological-assembly copy-chain
+mapping defect. The active next work is the adapter-v3 128-sequence real rerun,
+followed
 immediately by the uncapped run, optional ESM Atlas decision, provider-aware
 union, and full P1 gate.
 

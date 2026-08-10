@@ -55,6 +55,20 @@ target coverage, and target identifier. See the exact
 [Foldseek output-field implementation](https://github.com/steineggerlab/foldseek/blob/941cd33ff0771cd2e3f144e3293e22a2b87e9fda/src/commons/LocalParameters.cpp#L383-L403)
 and [official ProstT5 sequence-query example](https://github.com/steineggerlab/foldseek/blob/941cd33ff0771cd2e3f144e3293e22a2b87e9fda/README.md#L422-L429).
 
+Foldseek PDB100 is built from biological-assembly mmCIF files with
+`--chain-name-mode 1`; the pinned source passes each parsed mmCIF chain name
+directly into the database header. RCSB retains the original chain name for the
+first occurrence and appends transformation-operator numbers to symmetry
+copies, for example `A-2` and `A-12-60`. The adapter therefore removes only a
+trailing sequence of positive numeric `-OPERATOR` components, and only when the
+target also has a valid `-assemblyN` qualifier, before looking up the
+case-sensitive SEQRES chain. The complete target identifier, Foldseek chain,
+assembly number, and operator indices remain in the hit evidence; the reusable
+model key uses the original coordinate chain. See the exact
+[PDB100 build command](https://github.com/steineggerlab/foldseek/blob/941cd33ff0771cd2e3f144e3293e22a2b87e9fda/util/update_webserver_pdb/single-script.sh#L41),
+[header construction](https://github.com/steineggerlab/foldseek/blob/941cd33ff0771cd2e3f144e3293e22a2b87e9fda/src/strucclustutils/structcreatedb.cpp#L417-L421),
+and [RCSB biological-assembly chain convention](https://www.rcsb.org/news/62559153c8eabd0c4864f208).
+
 `--maximum-queries N` optionally selects the first `N` otherwise eligible
 records in lexicographic `sequence_group_id` order. Zero, the general default,
 means unlimited. The cap is an explicit real-pilot control: deferred records
@@ -234,12 +248,15 @@ model keys, a fully cached resume, and measured CPU, memory, process I/O, result
 size, and cache state. See the
 [P1 direct-PDB qualification](p1-direct-pdb-qualification.md).
 
-The first real full-catalogue ProstT5/Foldseek execution and its bounded
-128-sequence retry both reached Foldseek but failed before publication; see the
+The first real full-catalogue ProstT5/Foldseek execution and its first bounded
+128-sequence retry both reached Foldseek but failed before publication. A second
+bounded run proved the coordinate-independent Foldseek call by completing the
+external search and then exposed biological-assembly copy suffixes at the
+SEQRES crosswalk; see the
 [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md). The bounded
-retry retained enough native output to identify the incompatible `prob` field,
-and adapter v2 applies the source-derived correction above. Passing the next
-identical 128-sequence slice qualifies the real adapter path,
+evidence now isolates both source-derived corrections, and adapter v3 applies
+the assembly-copy mapping above. Passing the next identical 128-sequence slice
+qualifies the real adapter path,
 not the deferred 1,492 eligible sequences. The full M1 P1 gate still requires
 the uncapped qualification, passing the pilot AFDB mapping through fixed
 immutable run inputs, the optional-provider policy decision, and provider-aware

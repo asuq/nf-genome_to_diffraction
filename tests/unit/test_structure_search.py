@@ -27,6 +27,9 @@ from genome_to_diffraction.structure_search import (
     search_pdb_sequences,
     search_prostt5_foldseek,
 )
+from genome_to_diffraction.structure_search import (
+    prostt5_foldseek as prostt5_foldseek_module,
+)
 from genome_to_diffraction.structure_search import qualification as qualification_module
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -252,7 +255,7 @@ def _write_foldseek(
     path: Path,
     query_id: str,
     *,
-    target: str = "1abc-assembly1_A",
+    target: str = "1abc-assembly1_A-2",
     bits: str = "60",
 ) -> None:
     path.write_text(
@@ -269,6 +272,35 @@ def _write_foldseek(
         encoding="utf-8",
     )
     path.chmod(0o755)
+
+
+@pytest.mark.parametrize(
+    (
+        "target",
+        "expected_chain",
+        "expected_seqres_token",
+        "expected_assembly",
+        "expected_operators",
+    ),
+    (
+        ("1iom-assembly1_A-2", "A-2", "A", 1, (2,)),
+        ("1abc-assembly12_A-12-60", "A-12-60", "A", 12, (12, 60)),
+        ("1abc_A-2", "A-2", "A-2", None, ()),
+    ),
+)
+def test_foldseek_target_preserves_assembly_copy_provenance(
+    target: str,
+    expected_chain: str,
+    expected_seqres_token: str,
+    expected_assembly: int | None,
+    expected_operators: tuple[int, ...],
+) -> None:
+    parsed = prostt5_foldseek_module._parse_target(target)
+
+    assert parsed.chain == expected_chain
+    assert parsed.seqres_token == expected_seqres_token
+    assert parsed.assembly_number == expected_assembly
+    assert parsed.operator_indices == expected_operators
 
 
 def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
@@ -294,7 +326,8 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
     hit = by_query[groups[0].sequence_group_id].hits[0]
     assert hit.provider == "foldseek_prostt5_pdb"
     assert hit.model_key == "pdb:1ABC:legacy_seqres_suffix:A"
-    assert hit.target_id == "1abc-assembly1_A"
+    assert hit.target_id == "1abc-assembly1_A-2"
+    assert hit.target_chain_or_entity == "A"
     assert hit.query_coverage == 1.0
     assert hit.target_coverage == 1.0
     assert hit.probability is None
@@ -308,7 +341,10 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
         ExecutionStatus.SKIPPED_INELIGIBLE
     )
     manifest = json.loads(output.search_manifest.read_text(encoding="utf-8"))
-    assert manifest["adapter_version"] == "prostt5-foldseek-pdb-v2"
+    assert hit.raw_metrics["foldseek_target_chain"] == "A-2"
+    assert hit.raw_metrics["biological_assembly_number"] == 1
+    assert hit.raw_metrics["assembly_operator_indices"] == [2]
+    assert manifest["adapter_version"] == "prostt5-foldseek-pdb-v3"
     assert "prob" not in manifest["parameters"]["output_fields"]
     assert manifest["resource_ids"] == {
         "pdb_foldseek": "db_test_pdb_foldseek",
