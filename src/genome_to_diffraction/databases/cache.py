@@ -27,6 +27,7 @@ from genome_to_diffraction.ids import canonical_digest
 _LOGGER = logging.getLogger("genome_to_diffraction.databases")
 _PROVIDERS = ("pdb", "afdb", "esm_atlas")
 _PDB_ID = re.compile(r"^[0-9][A-Za-z0-9]{3}$")
+_AFDB_MODEL_ID = re.compile(r"^AF-[A-Za-z0-9][A-Za-z0-9._-]{1,198}$")
 
 
 @dataclass(frozen=True)
@@ -312,6 +313,146 @@ def publish_pdb_coordinate(
             "pdb_id": normalised_id,
             "object_sha256": digest,
             "size_bytes": record.size_bytes,
+        },
+    )
+    return record
+
+
+def publish_afdb_coordinate(
+    root: Path,
+    source: Path,
+    *,
+    model_entity_id: str,
+    accession: str,
+    requested_url: str,
+    source_url: str,
+    retrieved_at: str,
+    source_release: str,
+    source_sequence_sha256: str,
+    confidence_summary: dict[str, JsonValue],
+    etag: str | None,
+    last_modified: str | None,
+    content_type: str | None,
+    progress: bool = True,
+) -> CachedCoordinate:
+    """Atomically publish one exact-sequence AFDB mmCIF object into the cache."""
+
+    verify_coordinate_cache(root)
+    if _AFDB_MODEL_ID.fullmatch(model_entity_id) is None:
+        raise DatabaseError(
+            f"invalid AFDB model entity identifier: {model_entity_id!r}"
+        )
+    if not accession or any(character in accession for character in "/\\\0"):
+        raise DatabaseError(f"invalid AFDB source accession: {accession!r}")
+    if len(source_sequence_sha256) != 64 or any(
+        character not in "0123456789abcdef" for character in source_sequence_sha256
+    ):
+        raise DatabaseError("invalid AFDB source-sequence checksum")
+    if not source.is_file() or source.is_symlink() or source.stat().st_size == 0:
+        raise DatabaseError(f"AFDB coordinate source is missing or unsafe: {source}")
+
+    digest = sha256_file(source, progress=progress, logger=_LOGGER)
+    size_bytes = source.stat().st_size
+    object_relative = Path("afdb") / "objects" / digest[:2] / f"{digest}.cif"
+    metadata = {
+        "schema_version": "1.0",
+        "provider": "afdb",
+        "source_id": model_entity_id,
+        "source_accession": accession,
+        "source_release": source_release,
+        "source_sequence_sha256": source_sequence_sha256,
+        "exact_sequence_match": True,
+        "confidence_summary": confidence_summary,
+        "license_or_provenance": "AlphaFold DB CC-BY-4.0",
+        "requested_url": requested_url,
+        "source_url": source_url,
+        "retrieved_at": retrieved_at,
+        "etag": etag,
+        "last_modified": last_modified,
+        "content_type": content_type,
+        "object_relative_path": object_relative.as_posix(),
+        "object_sha256": digest,
+        "size_bytes": size_bytes,
+    }
+    metadata_id = canonical_digest(metadata)
+    metadata_relative = (
+        Path("afdb") / "metadata" / model_entity_id / f"{metadata_id}.json"
+    )
+    object_path = root / object_relative
+    metadata_path = root / metadata_relative
+    lock_path = root / "afdb" / "locks" / f"{model_entity_id}.lock"
+    with exclusive_lock(lock_path, progress=progress):
+        if object_path.exists():
+            if object_path.is_symlink() or not object_path.is_file():
+                raise DatabaseError(f"cached AFDB object is unsafe: {object_path}")
+            if sha256_file(object_path, progress=progress, logger=_LOGGER) != digest:
+                raise DatabaseError(
+                    f"cached AFDB object checksum mismatch: {object_path}"
+                )
+        else:
+            _atomic_copy(source, object_path, progress=progress)
+            if sha256_file(object_path, progress=False) != digest:
+                raise DatabaseError(
+                    f"published AFDB object checksum mismatch: {object_path}"
+                )
+        index_path = root / "digest_index" / f"{digest}.json"
+        expected_index = {
+            "schema_version": "1.0",
+            "provider": "afdb",
+            "object_relative_path": object_relative.as_posix(),
+            "object_sha256": digest,
+            "size_bytes": size_bytes,
+        }
+        if index_path.exists():
+            try:
+                existing_index = json.loads(index_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise DatabaseError(
+                    f"invalid coordinate digest index: {index_path}"
+                ) from error
+            if existing_index != expected_index:
+                raise DatabaseError(f"coordinate digest index collision: {index_path}")
+        else:
+            atomic_write_json(index_path, expected_index)
+        if metadata_path.exists():
+            try:
+                existing_metadata = json.loads(
+                    metadata_path.read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError) as error:
+                raise DatabaseError(
+                    f"invalid cached AFDB coordinate metadata: {metadata_path}"
+                ) from error
+            if existing_metadata != metadata:
+                raise DatabaseError(
+                    f"cached AFDB coordinate metadata collision: {metadata_path}"
+                )
+        else:
+            atomic_write_json(metadata_path, metadata)
+        metadata_sha256 = sha256_file(metadata_path, progress=False)
+
+    record = CachedCoordinate(
+        provider="afdb",
+        source_id=model_entity_id,
+        requested_url=requested_url,
+        source_url=source_url,
+        retrieved_at=retrieved_at,
+        etag=etag,
+        last_modified=last_modified,
+        content_type=content_type,
+        object_sha256=digest,
+        size_bytes=size_bytes,
+        object_relative_path=object_relative.as_posix(),
+        metadata_relative_path=metadata_relative.as_posix(),
+        metadata_sha256=metadata_sha256,
+    )
+    _LOGGER.info(
+        "AFDB coordinate cached",
+        extra={
+            "model_entity_id": model_entity_id,
+            "source_accession": accession,
+            "object_sha256": digest,
+            "size_bytes": size_bytes,
         },
     )
     return record

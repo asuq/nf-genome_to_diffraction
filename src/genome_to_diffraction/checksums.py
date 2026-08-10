@@ -103,6 +103,30 @@ def atomic_write_text(path: Path, text: str, *, encoding: str = "utf-8") -> None
         raise
 
 
+def atomic_write_bytes(path: Path, payload: bytes) -> None:
+    """Atomically replace *path* with binary content."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    except BaseException:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
+
+
 JsonValue = (
     None | bool | int | float | str | Sequence["JsonValue"] | Mapping[str, "JsonValue"]
 )

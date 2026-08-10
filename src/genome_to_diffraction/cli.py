@@ -68,10 +68,12 @@ from genome_to_diffraction.schemas.io import (
 )
 from genome_to_diffraction.status import GenomeToDiffractionError
 from genome_to_diffraction.structure_search import (
+    AfdbExactRequest,
     P1QualificationRequest,
     PdbSequenceSearchRequest,
     ProstT5FoldseekSearchRequest,
     qualify_p1_search,
+    search_afdb_exact,
     search_pdb_sequences,
     search_prostt5_foldseek,
 )
@@ -507,6 +509,24 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="enable Foldseek/ProstT5 GPU execution (CPU is the default)",
     )
+    afdb_parser = search_actions.add_parser(
+        "afdb-exact",
+        help="retrieve sequence-exact AlphaFold DB models for mapped accessions",
+    )
+    afdb_parser.add_argument("--sequence-groups", type=Path, required=True)
+    afdb_parser.add_argument("--source-records", type=Path, required=True)
+    afdb_parser.add_argument("--database-manifest", type=Path, required=True)
+    afdb_parser.add_argument("--outdir", type=Path, required=True)
+    afdb_parser.add_argument(
+        "--accession-map",
+        type=Path,
+        help=(
+            "optional TSV with source_record_id and uniprot_accession columns; "
+            "strict UniProt identifiers are otherwise read from original_protein_id"
+        ),
+    )
+    afdb_parser.add_argument("--request-timeout-seconds", type=float, default=60.0)
+    afdb_parser.add_argument("--retry-count", type=int, default=3)
     qualify_p1_parser = search_actions.add_parser(
         "qualify-p1",
         help="validate direct-PDB results, positive control, resources, and resume",
@@ -831,6 +851,25 @@ def _run_structure_search(args: argparse.Namespace) -> int:
             )
         )
         print(f"P1 direct-PDB search qualified: {report}")
+        return 0
+    if args.structure_search_action == "afdb-exact":
+        afdb_result = search_afdb_exact(
+            AfdbExactRequest(
+                sequence_groups_jsonl=args.sequence_groups,
+                source_records_jsonl=args.source_records,
+                database_manifest=args.database_manifest,
+                output_directory=args.outdir,
+                accession_map_tsv=args.accession_map,
+                request_timeout_seconds=args.request_timeout_seconds,
+                retry_count=args.retry_count,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Checked {len(afdb_result.results)} exact sequence groups and cached "
+            f"{len(afdb_result.coordinate_sources)} exact AFDB models: "
+            f"{afdb_result.search_manifest}"
+        )
         return 0
     if args.structure_search_action == "prostt5-foldseek":
         foldseek_result = search_prostt5_foldseek(

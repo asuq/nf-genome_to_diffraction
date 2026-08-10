@@ -170,11 +170,19 @@ All notable changes to this project are documented here.
   requests no unavailable query-coordinate metrics, crosswalks assembly-chain
   targets to reusable PDB model keys, and exposes explicit GPU opt-in through
   the typed discovery workflow.
+- An exact AlphaFold DB provider now accepts strict UniProt accessions or an
+  explicit source-record mapping, rejects RefSeq identifiers as implicit
+  mappings, verifies both API and mmCIF polymer sequences against the catalogue
+  digest, excludes complex/fragment models, and caches the selected coordinate
+  plus provenance atomically. Its dedicated Nextflow network branch sends no
+  biological sequence and emits explicit ineligible/no-hit/error states. A live
+  public `P69905` control passed the current API, exact mmCIF-polymer check, and
+  cache-publication boundary.
 
 ### Not implemented
 
-- Real-catalogue ProstT5/Foldseek qualification, exact AFDB retrieval, optional
-  ESM Atlas search, provider hit union, model preparation, molecular replacement,
+- Real-catalogue ProstT5/Foldseek qualification, real exact-AFDB qualification,
+  optional ESM Atlas search, provider hit union, model preparation, molecular replacement,
   refinement, map-based sequence assessment, final ranking, and final
   scientific reporting.
 - The remaining multi-provider P1 gate and all downstream MR gates.

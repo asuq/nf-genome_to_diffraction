@@ -201,6 +201,14 @@ limit, or network failure is not.
    database/provider identity. Publish reusable results outside the ephemeral
    Nextflow work cache.
 
+Implementation status on 10 August 2026: T7.1 is qualified on the real pilot;
+T7.2 is implemented and its real full-catalogue P1 run is active; T7.4 is
+implemented with strict accession/API/mmCIF verification, atomic coordinate
+caching, typed workflow wiring, and a successful live public `P69905`
+qualification. A mapped pilot/prokaryotic example remains desirable. T7.3 and
+T7.5 remain unimplemented. This ordering keeps the real
+prototype moving while preserving the evidence boundary.
+
 ### Tests
 
 - parser fixtures for hit, no-hit, warning-heavy, malformed/truncated, and
@@ -548,8 +556,8 @@ reusable structural discovery**, with the shortest path to real feedback:
 1. finish the shared result contract and local MMseqs2-to-PDB adapter;
 2. run catalogue-wide direct PDB search through a fixed Marmic P1 operation;
 3. verify that the 8OOX positive-control structural family remains retained;
-4. qualify the implemented local ProstT5/Foldseek-to-PDB search and exact model
-   keys on the real catalogue;
+4. qualify the implemented local ProstT5/Foldseek-to-PDB search and the exact
+   AFDB provider/model keys on real mapped data;
 5. union provider evidence without collapsing unlike scores; and
 6. pass the P1 real-data, cache-reuse, mapping, and resource-measurement gate.
 
@@ -557,8 +565,9 @@ The shared contract and direct PDB adapter in item 1 are implemented. The fixed,
 path-closed P1 operation passed its first real Marmic run with exact 8OOX/8OOW
 family retention, model keys, measured resources, and a fully cached resume.
 See the [P1 direct-PDB qualification](p1-direct-pdb-qualification.md). The active
-next work is the real-data part of item 4, followed by provider-aware union and
-the full P1 gate.
+next work is the real-data part of item 4 (the Foldseek run is already active),
+then a decision on optional ESM Atlas, provider-aware union, and the full P1
+gate.
 
 After the focused adapter gate passes, prioritise the real catalogue run over
 additional synthetic test polish. M1 output remains structural/model evidence,

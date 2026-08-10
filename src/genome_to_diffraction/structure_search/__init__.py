@@ -1,5 +1,10 @@
 """Reproducible structural-search provider adapters."""
 
+from genome_to_diffraction.structure_search.afdb_exact import (
+    AfdbExactOutput,
+    AfdbExactRequest,
+    search_afdb_exact,
+)
 from genome_to_diffraction.structure_search.pdb_sequence import (
     PdbSequenceSearchOutput,
     PdbSequenceSearchRequest,
@@ -16,12 +21,15 @@ from genome_to_diffraction.structure_search.qualification import (
 )
 
 __all__ = [
+    "AfdbExactOutput",
+    "AfdbExactRequest",
     "P1QualificationRequest",
     "PdbSequenceSearchOutput",
     "PdbSequenceSearchRequest",
     "ProstT5FoldseekSearchOutput",
     "ProstT5FoldseekSearchRequest",
     "qualify_p1_search",
+    "search_afdb_exact",
     "search_pdb_sequences",
     "search_prostt5_foldseek",
 ]

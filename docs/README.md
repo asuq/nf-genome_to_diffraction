@@ -18,11 +18,14 @@ remain authoritative for scientific policy and interface contracts.
   biological/MTZ evidence, preparatory Gemmi findings, fixed P0 boundary, and
   the operator-held evidence still required before structural discovery.
 - [Structural-search interface](structural-search.md): active M1 provider
-  contract, direct PDB sequence-search command and Nextflow entry point,
-  outputs, cache identity, statuses, and failure semantics.
+  contract, local PDB and exact AFDB commands and Nextflow entry point, outputs,
+  cache identity, statuses, and failure semantics.
 - [P1 direct-PDB qualification](p1-direct-pdb-qualification.md): immutable
   Marmic run provenance, catalogue/search counts, exact 8OOX-family retention,
   cached resume, resource observations, and remaining M1 scope.
+- [P1 exact AFDB qualification](p1-afdb-exact-qualification.md): live public
+  accession/API/mmCIF sequence equality, coordinate checksum and cache
+  provenance, status semantics, and remaining pilot-mapping limitation.
 - [Public methanogen and methanotroph control panel](public-control-panel.md):
   ten frozen X-ray structures, catalogue-to-construct mappings, reproducible
   source/MTZ preparation, runnable-control order, and one deliberate heteromer

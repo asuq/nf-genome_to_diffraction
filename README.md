@@ -13,13 +13,16 @@ hypotheses. M0 real-site qualification passed on all three pilot MTZ datasets,
 including real Phenix and database probes. M1 structural discovery is active:
 the local MMseqs2-to-PDB sequence-search route passed its real catalogue P1
 qualification and the CPU-default ProstT5/Foldseek-to-PDB adapter is implemented
-but still awaits its real catalogue gate. The remaining providers and evidence
-union are not yet complete. Molecular replacement, refinement, map-based sequence
+but still awaits its real catalogue gate. Exact-accession AlphaFold DB retrieval
+is implemented with API/mmCIF sequence verification and immutable coordinate
+caching; its real exact-mapping gate and the provider evidence union are not yet
+complete. Optional ESM Atlas remains disabled. Molecular replacement, refinement, map-based sequence
 assessment, ranking, and final identification remain unimplemented.
 `main.nf` therefore ends with an explicit
 `task05_preflight_complete_downstream_deferred` scope record; its successful exit
 does not mean that a protein identity was found. The separate
-`discover_structures.nf` entry point runs both local PDB search providers and
+`discover_structures.nf` entry point runs both local PDB search providers plus
+the accession-only AFDB branch and
 likewise does not identify a protein by itself.
 
 The complete scientific and engineering handoff is retained separately and is
@@ -73,6 +76,7 @@ genome-to-diffraction contract canonicalise pipeline-config examples/config.yaml
 genome-to-diffraction contract schema sequence-group
 genome-to-diffraction structure-search pdb-sequence --help
 genome-to-diffraction structure-search prostt5-foldseek --help
+genome-to-diffraction structure-search afdb-exact --help
 genome-to-diffraction structure-search qualify-p1 --help
 ```
 
@@ -94,8 +98,9 @@ dispatcher. The `smoke` profile runs `pixi run check`; the separately bounded
 `p0` profile verifies real Phenix, performs anchored database metadata and
 functional-smoke revalidation, and runs the three-crystal Task 05 preflight
 twice to prove cache reuse. The fixed `p1` profile imports the same frozen
-catalogue, runs catalogue-wide direct PDB sequence discovery, repeats it with
-`-resume`, and applies the tracked 8OOX positive-control and model-key gate. P0
+catalogue, runs the three implemented structural-discovery branches, repeats
+them with `-resume`, and applies the tracked direct-PDB 8OOX positive-control
+and model-key gate. P0
 deliberately does not perform a terabyte-scale full-checksum audit. The
 separately approval-gated `database` profile runs fixed route/capacity
 preflight, `/dev/shm` resource construction, verified shared-storage
@@ -325,9 +330,10 @@ for debugging; an existing versioned installation is never overwritten.
   Phenix-manifest, output/cache, review, approval, and execution-profile inputs.
 - `prepare_databases.nf` exposes database-root, output, preparation switches,
   coordinate-cache initialisation, and verify-only inputs.
-- `discover_structures.nf` exposes exact sequence groups, the qualified database
-  manifest, output/cache roots, and bounded direct-PDB and
-  ProstT5/Foldseek-to-PDB parameters.
+- `discover_structures.nf` exposes exact sequence groups, source records, the
+  qualified database manifest, output/cache roots, bounded direct-PDB and
+  ProstT5/Foldseek-to-PDB parameters, and optional exact UniProt mappings for
+  AFDB retrieval.
 
 The safe workflow smoke test is:
 
@@ -360,14 +366,22 @@ For the implemented local structural-discovery routes:
 ```bash
 pixi run -e hpc nextflow run discover_structures.nf -profile local \
   --sequence_groups /absolute/results/catalogue/sequence_groups.jsonl \
+  --source_records /absolute/results/catalogue/source_records.jsonl \
   --database_manifest /absolute/shared/database_manifest.json \
   --outdir /absolute/results/structural-discovery \
   --cache_root /absolute/cache/nf-genome-to-diffraction
 ```
 
+When trusted catalogue metadata does not itself contain a strict UniProt
+accession, supply an optional two-column mapping with
+`--afdb_accession_map /absolute/input/afdb_accessions.tsv`. Its exact header is
+`source_record_id<TAB>uniprot_accession`. RefSeq `WP_...` identifiers are not
+silently treated as UniProt accessions.
+
 This entry point requires the Linux `hpc` environment because MMseqs2 and
-Foldseek are not in the macOS development environment. It is not a final
-identification workflow.
+Foldseek are not in the macOS development environment. The AFDB branch sends
+only mapped public accessions to the official service; it does not submit
+protein sequences. It is not a final identification workflow.
 
 ## Reference-database preparation
 

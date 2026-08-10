@@ -1521,7 +1521,11 @@ collect_run() {
         artifacts/p1/discovery/pdb_sequence_search/raw/mmseqs.log \
         artifacts/p1/discovery/prostt5_foldseek_search/search_manifest.json \
         artifacts/p1/discovery/prostt5_foldseek_search/structural_hits.jsonl \
-        artifacts/p1/discovery/prostt5_foldseek_search/raw/foldseek.log; do
+        artifacts/p1/discovery/prostt5_foldseek_search/raw/foldseek.log \
+        artifacts/p1/discovery/afdb_exact_search/search_manifest.json \
+        artifacts/p1/discovery/afdb_exact_search/structural_hits.jsonl \
+        artifacts/p1/discovery/afdb_exact_search/coordinate_sources.jsonl \
+        artifacts/p1/discovery/afdb_exact_search/raw/http.log; do
         if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then
             size="$(file_size "$run/$candidate")"
             (( size <= MAX_FILE_BYTES )) || fail transfer_failure "artefact exceeds per-file limit"
