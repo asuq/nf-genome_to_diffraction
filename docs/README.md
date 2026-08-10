@@ -29,6 +29,9 @@ remain authoritative for scientific policy and interface contracts.
 - [P1 exact AFDB qualification](p1-afdb-exact-qualification.md): live public
   accession/API/mmCIF sequence equality, the exact pilot-derived
   `WP_042685700.1` mapping, coordinate checksums, and cache provenance.
+- [M2 predicted-model preparation](m2-predicted-model-preparation.md): immutable
+  predicted-coordinate mapping, fixed Phenix confidence processing, output
+  identity, the real pilot qualification, and the still-open M2 boundaries.
 - [Public methanogen and methanotroph control panel](public-control-panel.md):
   ten frozen X-ray structures, catalogue-to-construct mappings, reproducible
   source/MTZ preparation, runnable-control order, and one deliberate heteromer

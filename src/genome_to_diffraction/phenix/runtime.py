@@ -563,13 +563,15 @@ def capture_from_manifest(
     arguments: Sequence[str],
     *,
     working_directory: Path,
-    timeout_seconds: float,
+    timeout_seconds: float | None,
 ) -> subprocess.CompletedProcess[bytes]:
     """Run a verified recorded Phenix command and capture its byte streams.
 
     The executable is replaced with the absolute, previously verified path from
     the manifest. This boundary is used by parsers that must preserve and inspect
-    external-tool logs without modifying the parent Pixi environment.
+    external-tool logs without modifying the parent Pixi environment. ``None``
+    leaves the child command without a per-command deadline for NFS-sensitive
+    HPC execution.
     """
 
     if not arguments:

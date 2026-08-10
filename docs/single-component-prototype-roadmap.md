@@ -237,6 +237,14 @@ prototype moving while preserving the evidence boundary.
 
 ## M2 — Coordinate/model registry and bounded candidate funnel
 
+Current progress: the exact pilot AFDB coordinate now passes a real Phenix
+2.1-6048 confidence-processing adapter. Its source checksum, full-sequence
+mapping, retained residue ranges, sequence-derived processed mass, model
+checksum, and content-derived identity are validated and recorded. This closes
+the first vertical slice of T8.3–T8.4, not the M2 gate; PDB retrieval,
+domain/experimental variants, Nextflow wiring, and the bounded funnel remain.
+See the [M2 predicted-model preparation report](m2-predicted-model-preparation.md).
+
 ### Work packages
 
 1. **T8.1–T8.2 — Coordinate retrieval.** Cache PDB mmCIF and selected AFDB/Atlas

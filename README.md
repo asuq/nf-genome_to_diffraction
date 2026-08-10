@@ -18,8 +18,12 @@ full-catalogue execution failure; the uncapped real catalogue gate remains
 open. Exact-accession AlphaFold DB retrieval
 is implemented with API/mmCIF sequence verification and immutable coordinate
 caching, and the exact pilot-derived `WP_042685700.1` to `A0A832VZP6` retrieval
-is qualified. Passing that mapping through the fixed Marmic run and the provider
-evidence union remain incomplete. Optional ESM Atlas remains disabled. Molecular replacement, refinement, map-based sequence
+is qualified. The first M2 vertical slice now converts that exact pilot model
+into a residue-mapped, confidence-pruned, content-addressed MR model through
+verified Phenix 2.1-6048. PDB coordinate registration, domain/experimental
+variants, the bounded candidate funnel, fixed Marmic model preparation, and the
+provider evidence union remain incomplete. Optional ESM Atlas remains disabled.
+Molecular replacement, refinement, map-based sequence
 assessment, ranking, and final identification remain unimplemented.
 `main.nf` therefore ends with an explicit
 `task05_preflight_complete_downstream_deferred` scope record; its successful exit
@@ -81,6 +85,7 @@ genome-to-diffraction structure-search pdb-sequence --help
 genome-to-diffraction structure-search prostt5-foldseek --help
 genome-to-diffraction structure-search afdb-exact --help
 genome-to-diffraction structure-search qualify-p1 --help
+genome-to-diffraction model prepare-predicted --help
 ```
 
 `schema-check` validates every tracked JSON Schema against Draft 2020-12,
@@ -133,6 +138,9 @@ The accepted direct-search evidence and its limits are recorded in the
 [P1 direct-PDB qualification](docs/p1-direct-pdb-qualification.md).
 The first real ProstT5/Foldseek attempt and its bounded retry are recorded in the
 [P1 ProstT5/Foldseek qualification](docs/p1-prostt5-qualification.md).
+The first immutable predicted-model adapter and its real Phenix result are
+recorded in the
+[M2 predicted-model preparation report](docs/m2-predicted-model-preparation.md).
 
 ## Public X-ray control panel
 

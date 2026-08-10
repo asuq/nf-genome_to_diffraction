@@ -186,12 +186,20 @@ All notable changes to this project are documented here.
   tail. The fixed real retry uses a deterministic 128-sequence pilot cap with
   explicit `skipped_policy` results and Marmic's 100-CPU/2,000-GB process
   allocation; the uncapped catalogue gate remains open.
+- A deterministic predicted-model adapter now verifies immutable AFDB/Atlas
+  source coordinates against exact catalogue sequences, invokes verified
+  `phenix.process_predicted_model` in an isolated shell, validates retained
+  residue positions, recalculates processed-model mass, and publishes
+  content-addressed mmCIF/record/manifest/log outputs. The real pilot-derived
+  `A0A832VZP6` model passed Phenix 2.1-6048 with 429 of 442 residues retained.
 
 ### Not implemented
 
 - Uncapped real-catalogue ProstT5/Foldseek qualification, fixed-Marmic execution
   of the qualified pilot AFDB mapping, optional ESM Atlas search, provider hit
-  union, model preparation, molecular replacement, refinement, map-based
+  union, PDB coordinate registration, model-domain/experimental variants,
+  candidate-funnel and Nextflow model-preparation wiring, molecular replacement,
+  refinement, map-based
   sequence assessment, final ranking, and final scientific reporting.
 - The remaining multi-provider P1 gate and all downstream MR gates.
 

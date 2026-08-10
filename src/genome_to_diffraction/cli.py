@@ -48,6 +48,10 @@ from genome_to_diffraction.matthews import (
     enumerate_matthews,
     qualify_matthews_reference,
 )
+from genome_to_diffraction.model_registry import (
+    PredictedModelPreparationRequest,
+    prepare_predicted_models,
+)
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
 from genome_to_diffraction.phenix.recovery import (
@@ -471,6 +475,30 @@ def _build_parser() -> argparse.ArgumentParser:
     reference_parser.add_argument("--sequence-group-id", required=True)
     reference_parser.add_argument("--outdir", type=Path, required=True)
     reference_parser.add_argument("--timeout-seconds", type=float, default=600.0)
+
+    model_parser = subparsers.add_parser(
+        "model", help="prepare integrity-checked molecular-replacement models"
+    )
+    model_actions = model_parser.add_subparsers(dest="model_action", required=True)
+    predicted_parser = model_actions.add_parser(
+        "prepare-predicted",
+        help="confidence-process selected AFDB/Atlas coordinates with Phenix",
+    )
+    predicted_parser.add_argument("--coordinate-sources", type=Path, required=True)
+    predicted_parser.add_argument("--sequence-groups", type=Path, required=True)
+    predicted_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    predicted_parser.add_argument("--outdir", type=Path, required=True)
+    predicted_parser.add_argument(
+        "--coordinate-id",
+        action="append",
+        default=[],
+        help="repeatable coordinate ID; by default process all predicted sources",
+    )
+    predicted_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        help="optional explicit Phenix deadline; by default no deadline is imposed",
+    )
 
     search_parser = subparsers.add_parser(
         "structure-search", help="search immutable structural-reference databases"
@@ -928,6 +956,26 @@ def _run_structure_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_model(args: argparse.Namespace) -> int:
+    if args.model_action != "prepare-predicted":
+        raise AssertionError(f"unhandled model action: {args.model_action}")
+    result = prepare_predicted_models(
+        PredictedModelPreparationRequest(
+            coordinate_sources_jsonl=args.coordinate_sources,
+            sequence_groups_jsonl=args.sequence_groups,
+            phenix_manifest=args.phenix_manifest,
+            output_directory=args.outdir,
+            coordinate_ids=tuple(args.coordinate_id),
+            timeout_seconds=args.timeout_seconds,
+            progress=not args.no_progress,
+        )
+    )
+    print(
+        f"Prepared {len(result.records)} predicted MR model(s): {result.manifest_json}"
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
@@ -964,6 +1012,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_diffraction(args)
         if args.command == "matthews":
             return _run_matthews(args)
+        if args.command == "model":
+            return _run_model(args)
         if args.command == "structure-search":
             return _run_structure_search(args)
     except PhenixInstallCommandError as error:
