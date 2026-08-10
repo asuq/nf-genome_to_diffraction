@@ -440,11 +440,13 @@ process on resume. Detailed sanitised evidence and limitations are recorded in t
 
 The first P1 run containing the full-catalogue ProstT5/Foldseek provider reached
 Foldseek but exited 1 before publication. Its native log was on task scratch and
-did not survive outer cleanup, so the root cause remains unclassified rather
-than being guessed. The fixed retry retains a bounded native-log tail, gives
-that provider the large-node resource label, and searches the first 128 sorted
-eligible real sequences. Deferred sequences are `skipped_policy`, never
-no-hits. See the
+did not survive outer cleanup. The bounded retry retained its native-log tail,
+used the large-node resource label, and searched the first 128 sorted eligible
+real sequences. It demonstrated that requesting Foldseek `prob` makes a
+ProstT5 sequence query require a missing query Cα database. Adapter v2 removes
+that field based on the exact Foldseek source; the next identical slice remains
+the qualification run. Deferred sequences are `skipped_policy`, never no-hits.
+See the
 [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md).
 
 ## Database administration boundary

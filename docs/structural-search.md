@@ -43,11 +43,17 @@ search retains the best three normalised hits per query after preserving up to
 1,000 raw Foldseek alignments, uses E-value at most `1e-3`, and requires at least
 `0.5` query coverage. GPU execution is available only with explicit `--gpu`.
 The requested fields are query/target identifiers, sequence identity, alignment
-coordinates and lengths, E-value, bit score, and Foldseek homology probability.
-It deliberately does not request query Cα coordinates, TM-scores, LDDT,
-rotations, or translations: ProstT5 produces a 3Di sequence, not atomic query
-coordinates. This follows the [official Foldseek search and ProstT5
-documentation](https://github.com/steineggerlab/foldseek#fast-structure-search-from-fasta-input).
+coordinates and lengths, query/target coverage, E-value, and bit score. The
+normalised `probability` field is deliberately null for this provider. In the
+exact qualified Foldseek `10-941cd33` source, `qcov` and `tcov` do not request
+Cα data, whereas `prob` sets the query-Cα, target-Cα, LDDT, backtrace, and
+TM-aligner requirements. A ProstT5 FASTA query has a predicted 3Di sequence but
+no atomic query coordinates, so requesting `prob` makes `convertalis` seek a
+non-existent `query_ca` database. The adapter records this reason in
+`raw_metrics` and ranks deterministically by E-value, bit score, query coverage,
+target coverage, and target identifier. See the exact
+[Foldseek output-field implementation](https://github.com/steineggerlab/foldseek/blob/941cd33ff0771cd2e3f144e3293e22a2b87e9fda/src/commons/LocalParameters.cpp#L383-L403)
+and [official ProstT5 sequence-query example](https://github.com/steineggerlab/foldseek/blob/941cd33ff0771cd2e3f144e3293e22a2b87e9fda/README.md#L422-L429).
 
 `--maximum-queries N` optionally selects the first `N` otherwise eligible
 records in lexicographic `sequence_group_id` order. Zero, the general default,
@@ -210,8 +216,8 @@ Focused tests cover the local providers' hit/no-hit/ineligible/policy-deferred
 separation, paths
 containing spaces, normalised sequence identity, exact PDB/chain mapping,
 parameter propagation, explicit GPU activation, valid ProstT5 output fields,
-probability bounds, bounded native failure logs, and fail-loud handling of
-unmapped targets. The Nextflow
+explicit omission of the Cα-dependent `prob` field, nullable probability,
+bounded native failure logs, and fail-loud handling of unmapped targets. The Nextflow
 acceptance suite checks parser-v2 linting, publication, standard reports, and
 cached stub resume.
 
@@ -228,11 +234,12 @@ model keys, a fully cached resume, and measured CPU, memory, process I/O, result
 size, and cache state. See the
 [P1 direct-PDB qualification](p1-direct-pdb-qualification.md).
 
-The first real full-catalogue ProstT5/Foldseek execution reached Foldseek but
-failed before publication; see the
-[P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md). Its first
-retry is deliberately capped at 128 sorted real sequences and includes the
-known 8OOX-family control. Passing that slice qualifies the real adapter path,
+The first real full-catalogue ProstT5/Foldseek execution and its bounded
+128-sequence retry both reached Foldseek but failed before publication; see the
+[P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md). The bounded
+retry retained enough native output to identify the incompatible `prob` field,
+and adapter v2 applies the source-derived correction above. Passing the next
+identical 128-sequence slice qualifies the real adapter path,
 not the deferred 1,492 eligible sequences. The full M1 P1 gate still requires
 the uncapped qualification, passing the pilot AFDB mapping through fixed
 immutable run inputs, the optional-provider policy decision, and provider-aware

@@ -44,7 +44,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.prostt5_foldseek")
-_ADAPTER_VERSION = "prostt5-foldseek-pdb-v1"
+_ADAPTER_VERSION = "prostt5-foldseek-pdb-v2"
 _PROVIDER = "foldseek_prostt5_pdb"
 _RAW_HIT_LIMIT = 1000
 _FAILURE_LOG_TAIL_BYTES = 16 * 1024
@@ -70,7 +70,10 @@ _RESULT_FIELDS = (
     "tcov",
     "evalue",
     "bits",
-    "prob",
+)
+_PROBABILITY_UNAVAILABLE_REASON = (
+    "Foldseek prob requires query and target C-alpha coordinates; "
+    "ProstT5 sequence queries do not provide query C-alpha coordinates"
 )
 
 
@@ -124,7 +127,6 @@ class _RawHit:
     target_coverage: float
     evalue: float
     bits: float
-    probability: float
 
 
 @dataclass(frozen=True)
@@ -399,9 +401,6 @@ def _parse_results(
                 values["evalue"], line_number=line_number, name="evalue"
             )
             bits = _parse_float(values["bits"], line_number=line_number, name="bits")
-            probability = _parse_float(
-                values["prob"], line_number=line_number, name="prob"
-            )
             query_coverage = _parse_float(
                 values["qcov"], line_number=line_number, name="qcov"
             )
@@ -414,7 +413,6 @@ def _parse_results(
                 or target_start > target_end
                 or target_end > target_length
                 or not 0 <= identity_fraction <= 1
-                or not 0 <= probability <= 1
                 or not 0 <= query_coverage <= 1
                 or not 0 <= target_coverage <= 1
                 or evalue < 0
@@ -439,7 +437,6 @@ def _parse_results(
                     target_coverage=target_coverage,
                     evalue=evalue,
                     bits=bits,
-                    probability=probability,
                 )
             )
             if len(grouped[query]) > _RAW_HIT_LIMIT:
@@ -452,7 +449,6 @@ def _parse_results(
                 hits,
                 key=lambda hit: (
                     hit.evalue,
-                    -hit.probability,
                     -hit.bits,
                     -hit.query_coverage,
                     -hit.target_coverage,
@@ -680,7 +676,6 @@ def search_prostt5_foldseek(
                 "target_end": raw_hit.target_end,
                 "evalue": raw_hit.evalue,
                 "bits": raw_hit.bits,
-                "probability": raw_hit.probability,
             }
             hit = StructuralSearchHit(
                 schema_version="1.0",
@@ -703,7 +698,6 @@ def search_prostt5_foldseek(
                 sequence_identity=raw_hit.identity_fraction,
                 evalue=raw_hit.evalue,
                 bits=raw_hit.bits,
-                probability=raw_hit.probability,
                 database_id=resources.pdb_foldseek.database_id,
                 raw_result_pointer=raw_pointer,
                 raw_metrics={
@@ -713,6 +707,7 @@ def search_prostt5_foldseek(
                     "seqres_target": mapping.seqres_target,
                     "prostt5_database_id": resources.prostt5.database_id,
                     "mapping_database_id": resources.pdb_sequences.database_id,
+                    "probability_unavailable_reason": (_PROBABILITY_UNAVAILABLE_REASON),
                 },
                 eligibility_status=EligibilityStatus.SELECTED,
                 eligibility_reason=(

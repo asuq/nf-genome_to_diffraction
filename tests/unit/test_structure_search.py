@@ -253,7 +253,7 @@ def _write_foldseek(
     query_id: str,
     *,
     target: str = "1abc-assembly1_A",
-    probability: str = "0.99",
+    bits: str = "60",
 ) -> None:
     path.write_text(
         "#!/usr/bin/env bash\n"
@@ -264,8 +264,8 @@ def _write_foldseek(
         "fi\n"
         '[[ "${1-}" == easy-search ]] || exit 64\n'
         "printf '%s\\t%s\\t0.25\\t4\\t1\\t4\\t1\\t4\\t4\\t4\\t"
-        "1\\t1\\t1e-8\\t60\\t%s\\n' "
-        f"'{query_id}' '{target}' '{probability}' > \"$4\"\n",
+        "1\\t1\\t1e-8\\t%s\\n' "
+        f"'{query_id}' '{target}' '{bits}' > \"$4\"\n",
         encoding="utf-8",
     )
     path.chmod(0o755)
@@ -297,7 +297,10 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
     assert hit.target_id == "1abc-assembly1_A"
     assert hit.query_coverage == 1.0
     assert hit.target_coverage == 1.0
-    assert hit.probability == pytest.approx(0.99)
+    assert hit.probability is None
+    probability_reason = hit.raw_metrics["probability_unavailable_reason"]
+    assert isinstance(probability_reason, str)
+    assert "query C-alpha" in probability_reason
     assert by_query[groups[1].sequence_group_id].execution_status is (
         ExecutionStatus.COMPLETED_NO_HIT
     )
@@ -305,6 +308,8 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
         ExecutionStatus.SKIPPED_INELIGIBLE
     )
     manifest = json.loads(output.search_manifest.read_text(encoding="utf-8"))
+    assert manifest["adapter_version"] == "prostt5-foldseek-pdb-v2"
+    assert "prob" not in manifest["parameters"]["output_fields"]
     assert manifest["resource_ids"] == {
         "pdb_foldseek": "db_test_pdb_foldseek",
         "pdb_sequences": "db_test_pdb_sequences",
@@ -320,7 +325,15 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
     assert "query,target,fident,alnlen,qstart,qend,tstart,tend,qlen,tlen,qcov,tcov" in (
         command_log
     )
-    for forbidden in ("qca", "qtmscore", "alntmscore", "lddt", "--gpu"):
+    assert ",evalue,bits" in command_log
+    for forbidden in (
+        ",prob",
+        "qca",
+        "qtmscore",
+        "alntmscore",
+        "lddt",
+        "--gpu",
+    ):
         assert forbidden not in command_log
 
 
@@ -435,7 +448,7 @@ def test_prostt5_foldseek_gpu_is_explicit(
     assert "--gpu 1" in command_log
 
 
-def test_prostt5_foldseek_rejects_out_of_range_probability(
+def test_prostt5_foldseek_rejects_non_positive_bit_score(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     sequence_path, manifest_path, groups = _write_foldseek_inputs(tmp_path)
@@ -444,7 +457,7 @@ def test_prostt5_foldseek_rejects_out_of_range_probability(
     _write_foldseek(
         bin_directory / "foldseek",
         groups[0].sequence_group_id,
-        probability="1.01",
+        bits="0",
     )
     monkeypatch.setenv("PATH", f"{bin_directory}{os.pathsep}{os.environ['PATH']}")
 
@@ -453,7 +466,7 @@ def test_prostt5_foldseek_rejects_out_of_range_probability(
             ProstT5FoldseekSearchRequest(
                 sequence_groups_jsonl=sequence_path,
                 database_manifest=manifest_path,
-                output_directory=tmp_path / "bad-probability",
+                output_directory=tmp_path / "bad-bit-score",
                 progress=False,
             )
         )

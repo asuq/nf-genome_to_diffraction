@@ -192,6 +192,11 @@ All notable changes to this project are documented here.
   residue positions, recalculates processed-model mass, and publishes
   content-addressed mmCIF/record/manifest/log outputs. The real pilot-derived
   `A0A832VZP6` model passed Phenix 2.1-6048 with 429 of 442 residues retained.
+- The bounded real ProstT5 retry showed that Foldseek `prob` requires unavailable
+  query Cα coordinates for FASTA/ProstT5 searches. Adapter v2 follows the exact
+  `10-941cd33` source by omitting only that field, retaining identity, coverage,
+  E-value, and bit score, recording nullable probability provenance, and
+  invalidating the former cache identity.
 
 ### Not implemented
 

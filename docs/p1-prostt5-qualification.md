@@ -2,15 +2,19 @@
 
 ## Current result
 
-The first real full-catalogue ProstT5/Foldseek attempt reached the external
-search but failed with Foldseek exit status 1. It therefore provides execution
-evidence, not a completed search and not a scientific no-hit. The direct PDB
-branch in the same immutable run completed normally.
+The first real full-catalogue ProstT5/Foldseek attempt and the bounded
+128-sequence retry both reached the external search but failed with Foldseek
+exit status 1. The retry retained the native log tail and identified a specific
+adapter incompatibility: requesting `prob` from a ProstT5 sequence query makes
+Foldseek `convertalis` require a query Cα database that does not exist. These
+runs provide execution evidence, not completed searches and not scientific
+no-hits. The direct PDB and exact AFDB branches in the retry produced retained
+artefacts.
 
-This report records the failure before the retry so that later success cannot
-erase the original operational evidence. The immediate priority is a
-representative real-data result, followed by the full-catalogue gate; additional
-synthetic polishing is not a prerequisite.
+This report retains both failures so that later success cannot erase the
+operational evidence. The immediate priority remains a representative real-data
+result, followed by the full-catalogue gate; additional synthetic polishing is
+not a prerequisite.
 
 ## Immutable attempt and retained evidence
 
@@ -42,9 +46,37 @@ evidence identifies out-of-memory, malformed input, database corruption, or a
 specific Foldseek defect. Treating any one of those as the root cause would be
 speculation.
 
-## Focused correction and pilot slice
+## Bounded retry and diagnosed root cause
 
-The retry changes only the demonstrated operational boundaries:
+| Item | Observed value |
+| --- | --- |
+| Fixed run | `gtd-p1-20260810T004207Z-b0a33315a57c-c924c5fa` |
+| Source revision | `b0a33315a57c02ab0bcb14e22e818e6e124d08bc` |
+| nf-helper revision | `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a` |
+| Coordinator Slurm job | `625585` |
+| Catalogue | 1,625 source records, 1,621 exact sequence groups |
+| ProstT5 input | first 128 of 1,620 eligible exact sequences, CPU mode, 100 threads |
+| Run interval | 10 August 2026 00:43:10–00:59:43 UTC |
+| Fixed failure class | `test_failure` |
+| Failure signature | `eb60cf9bf626f8c3f7f8055c3cb5605a01c000fba56f583d6ad0a03847ce5571` |
+
+ProstT5 inference, prefiltering, and structural alignment completed for all 128
+selected queries. Foldseek then warned that the query Cα database was absent,
+disabled structure-bit sorting, and failed in `convertalis` with `No datafile
+could be found for .../query_ca`. The fixed output list ended in `prob`.
+
+The exact installed Foldseek tag is `10-941cd33` at source commit
+`941cd33ff0771cd2e3f144e3293e22a2b87e9fda`. Its output-field parser leaves
+`qcov` and `tcov` coordinate-independent, while `prob` sets `needQCa`,
+`needTCa`, `needLDDT`, `needBacktrace`, and `needTMaligner`; see
+[`LocalParameters.cpp` lines 383–403](https://github.com/steineggerlab/foldseek/blob/941cd33ff0771cd2e3f144e3293e22a2b87e9fda/src/commons/LocalParameters.cpp#L383-L403).
+The software failure is therefore in adapter output construction, not evidence
+of insufficient CPUs or RAM, slow NFS, database corruption, catalogue defects,
+or a scientific no-hit.
+
+## Focused corrections and next pilot slice
+
+The first retry changed only the demonstrated operational boundaries:
 
 1. an external-tool failure includes at most the final 16 KiB and 40 lines of
    the native Foldseek log in durable structured error output;
@@ -64,6 +96,14 @@ sequence group is sorted rank 118, so it is included. Its sequence-group ID is
 This provides a known real catalogue control without inventing a separate toy
 sequence.
 
+Adapter v2 now removes only `prob` from `--format-output`, keeps identity,
+coordinates, lengths, coverage, E-value, and bit score, and reports probability
+as unavailable with the source-derived reason. Hit ordering is E-value, then
+descending bit score, query coverage, target coverage, and target identifier.
+The adapter version and cache identity changed so failed v1 output cannot be
+mistaken for v2 evidence. A focused command-construction regression test rejects
+reintroduction of `prob` or the other query-coordinate fields.
+
 ## Acceptance boundary
 
 The 128-query run qualifies command construction, real ProstT5 inference,
@@ -72,8 +112,8 @@ states, publication, and cached resume on the actual Marmic resources. It does
 not close catalogue-wide P1 and cannot be described as complete evidence for
 the 1,492 deferred eligible sequences.
 
-After the pilot slice passes, proceed directly to coordinate/model preparation
-for the known positive-control path while running the uncapped catalogue search
-as the remaining T7.2 gate. A second identical full-catalogue failure will now
-carry the bounded native diagnostic required to decide whether batching,
-Foldseek parameters, resource selection, or database repair is warranted.
+After the corrected pilot slice passes, proceed directly to the next real
+prototype stage while running the uncapped catalogue search as the remaining
+T7.2 gate. The known positive-control AFDB coordinate/model-preparation path has
+already passed independently; it does not substitute for the local
+ProstT5/Foldseek gate.
