@@ -3,7 +3,6 @@
 import hashlib
 import json
 from pathlib import Path
-from typing import cast
 
 import gemmi
 import pytest
@@ -50,7 +49,7 @@ def _mmcif(sequence: str) -> bytes:
     structure = gemmi.read_pdb_string(f"{atoms}END\n")
     structure.name = "afdb-test"
     structure.setup_entities()
-    return cast(str, structure.make_mmcif_document().as_string()).encode("ascii")
+    return str(structure.make_mmcif_document().as_string()).encode("ascii")
 
 
 def _write_inputs(
