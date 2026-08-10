@@ -69,7 +69,10 @@ _REMOTE_TOOL_PATHS = (
     PurePosixPath("bootstrap/nf-gtd-hpc-smoke-job"),
 )
 SSH_CONNECT_TIMEOUT_SECONDS = 15
-SSH_OPERATION_TIMEOUT_SECONDS = 60
+# Marmic login-node commands may block on NFS-cold executables and metadata.
+# Keep the transport bounded, but give routine fixed dispatcher operations the
+# same conservative margin as immutable source/environment staging.
+SSH_OPERATION_TIMEOUT_SECONDS = 45 * 60
 P0_STAGE_TIMEOUT_SECONDS = 45 * 60
 DATABASE_STAGE_TIMEOUT_SECONDS = 6 * 60 * 60
 P0_INPUT_STAGE_TIMEOUT_SECONDS = 15 * 60

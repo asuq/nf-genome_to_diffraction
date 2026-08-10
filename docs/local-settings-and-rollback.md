@@ -26,6 +26,16 @@ Pixi being available on `PATH` was an operator installation, not a repository
 setting. Do not remove it as part of this rollback unless that separate
 installation is intentionally being retired.
 
+The controller configuration names the stable SSH alias `marmic`; the selected
+login node remains an operator setting in `~/.ssh/config`. To change login nodes,
+preserve the previous `Host marmic` block in the dated rollback directory and
+change only its `HostName`. Do not put the concrete site hostname into the
+tracked controller configuration or grant a second raw-SSH approval. Restore
+the former node by restoring the saved block, leaving the controller
+configuration and owned run capabilities unchanged. The installed controller's
+routine remote-operation margin is compiled into its reviewed zipapp; restoring
+an older backed-up controller also restores that version's shorter margin.
+
 ## Disable without deleting evidence
 
 Use a dated, user-owned backup directory so reversal remains recoverable. Replace

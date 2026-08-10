@@ -197,6 +197,11 @@ All notable changes to this project are documented here.
   `10-941cd33` source by omitting only that field, retaining identity, coverage,
   E-value, and bit score, recording nullable probability provenance, and
   invalidating the former cache identity.
+- Fixed routine Marmic dispatcher operations now use a 45-minute transport
+  margin instead of 60 seconds, retaining connection liveness checks and
+  fail-closed command/path validation while tolerating NFS-cold alternate login
+  nodes. The local rollback guide records how the stable SSH alias selects and
+  restores an operator-chosen login node.
 
 ### Not implemented
 

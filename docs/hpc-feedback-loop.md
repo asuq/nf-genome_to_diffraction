@@ -42,10 +42,13 @@ recorded job when appropriate.
 
 Every SSH invocation is also independently bounded: connection setup allows one
 attempt with a 15-second connect timeout, routine dispatcher operations have a
-60-second hard client timeout, and fixed artefact collection has a 10-minute
-hard client timeout. Server-alive probes detect an unresponsive established
-connection. A timeout is reported as `transfer_failure`; the controller does not
-fall back to raw SSH, infer that a remote job failed, or cancel it implicitly.
+45-minute conservative client margin for NFS-cold login-node commands, and
+fixed artefact collection has a 10-minute hard client timeout. Server-alive
+probes detect an unresponsive established connection. A timeout is reported as
+`transfer_failure`; the controller does not fall back to raw SSH, infer that a
+remote job failed, or cancel it implicitly. The 45-minute margin replaced the
+original 60-second bound after a healthy alternate login node accepted SSH but
+could not complete fixed P1 readiness before that short deadline.
 
 ## Filesystem and execution model
 
