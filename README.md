@@ -13,10 +13,13 @@ hypotheses. M0 real-site qualification passed on all three pilot MTZ datasets,
 including real Phenix and database probes. M1 structural discovery is active:
 the local MMseqs2-to-PDB sequence-search route passed its real catalogue P1
 qualification and the CPU-default ProstT5/Foldseek-to-PDB adapter is implemented
-but still awaits its real catalogue gate. Exact-accession AlphaFold DB retrieval
+with a deterministic real pilot-slice retry prepared after its first
+full-catalogue execution failure; the uncapped real catalogue gate remains
+open. Exact-accession AlphaFold DB retrieval
 is implemented with API/mmCIF sequence verification and immutable coordinate
-caching; its real exact-mapping gate and the provider evidence union are not yet
-complete. Optional ESM Atlas remains disabled. Molecular replacement, refinement, map-based sequence
+caching, and the exact pilot-derived `WP_042685700.1` to `A0A832VZP6` retrieval
+is qualified. Passing that mapping through the fixed Marmic run and the provider
+evidence union remain incomplete. Optional ESM Atlas remains disabled. Molecular replacement, refinement, map-based sequence
 assessment, ranking, and final identification remain unimplemented.
 `main.nf` therefore ends with an explicit
 `task05_preflight_complete_downstream_deferred` scope record; its successful exit
@@ -100,7 +103,9 @@ functional-smoke revalidation, and runs the three-crystal Task 05 preflight
 twice to prove cache reuse. The fixed `p1` profile imports the same frozen
 catalogue, runs the three implemented structural-discovery branches, repeats
 them with `-resume`, and applies the tracked direct-PDB 8OOX positive-control
-and model-key gate. P0
+and model-key gate. Its current first ProstT5/Foldseek retry is capped at 128
+deterministically sorted real sequences; deferred records are explicitly
+uninterpreted, and the uncapped provider gate remains open. P0
 deliberately does not perform a terabyte-scale full-checksum audit. The
 separately approval-gated `database` profile runs fixed route/capacity
 preflight, `/dev/shm` resource construction, verified shared-storage
@@ -126,6 +131,8 @@ The current M0 evidence and remaining scientific prerequisites are separated in
 the [M0 qualification dashboard](docs/m0-qualification.md).
 The accepted direct-search evidence and its limits are recorded in the
 [P1 direct-PDB qualification](docs/p1-direct-pdb-qualification.md).
+The first real ProstT5/Foldseek attempt and its bounded retry are recorded in the
+[P1 ProstT5/Foldseek qualification](docs/p1-prostt5-qualification.md).
 
 ## Public X-ray control panel
 

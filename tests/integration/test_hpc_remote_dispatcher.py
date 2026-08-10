@@ -1964,7 +1964,7 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
     )
     assert "--cpus-per-task=2" in submitted_arguments
     assert "--mem=8G" in submitted_arguments
-    assert "--time=48:00:00" in submitted_arguments
+    assert "--time=41-16:00:00" in submitted_arguments
 
     job_environment = dict(environment)
     job_environment["SLURM_JOB_ID"] = "123"
@@ -1988,6 +1988,9 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
     assert "phase=p1_first_run profile=p1" in p1_log
     assert "phase=p1_resume_run profile=p1" in p1_log
     assert "p1_status=direct_pdb_sequence_search_qualified" in p1_log
+    assert (
+        "prostt5_foldseek_status=pilot_slice_complete_full_catalogue_pending" in p1_log
+    )
 
     archive_path = tmp_path / "p1-collected.tar.gz"
     archive_path.write_bytes(

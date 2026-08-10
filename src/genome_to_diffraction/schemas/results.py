@@ -175,11 +175,14 @@ class StructuralSearchResult(ContractModel):
                 raise ValueError("completed_no_hit requires no_hit")
             if self.hits:
                 raise ValueError("completed_no_hit cannot contain hits")
-        elif self.execution_status is ExecutionStatus.SKIPPED_INELIGIBLE:
+        elif self.execution_status in {
+            ExecutionStatus.SKIPPED_POLICY,
+            ExecutionStatus.SKIPPED_INELIGIBLE,
+        }:
             if self.scientific_status is not SearchScientificStatus.NOT_INTERPRETABLE:
-                raise ValueError("skipped_ineligible must be not_interpretable")
+                raise ValueError("skipped search must be not_interpretable")
             if self.hits:
-                raise ValueError("skipped_ineligible cannot contain hits")
+                raise ValueError("skipped search cannot contain hits")
         else:
             raise ValueError("structural-search result has unsupported terminal status")
         for hit in self.hits:

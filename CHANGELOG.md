@@ -178,13 +178,21 @@ All notable changes to this project are documented here.
   biological sequence and emits explicit ineligible/no-hit/error states. A live
   public `P69905` control passed the current API, exact mmCIF-polymer check, and
   cache-publication boundary.
+- The exact pilot RefSeq-to-UniProt mapping
+  `WP_042685700.1` to `A0A832VZP6` now has a tracked narrow input and passed a
+  live accession/API/mmCIF sequence-equality retrieval with immutable hashes.
+- After the first full-catalogue ProstT5/Foldseek attempt exited without a
+  durable native scratch log, failures now retain a bounded 16-KiB/40-line log
+  tail. The fixed real retry uses a deterministic 128-sequence pilot cap with
+  explicit `skipped_policy` results and Marmic's 100-CPU/2,000-GB process
+  allocation; the uncapped catalogue gate remains open.
 
 ### Not implemented
 
-- Real-catalogue ProstT5/Foldseek qualification, real exact-AFDB qualification,
-  optional ESM Atlas search, provider hit union, model preparation, molecular replacement,
-  refinement, map-based sequence assessment, final ranking, and final
-  scientific reporting.
+- Uncapped real-catalogue ProstT5/Foldseek qualification, fixed-Marmic execution
+  of the qualified pilot AFDB mapping, optional ESM Atlas search, provider hit
+  union, model preparation, molecular replacement, refinement, map-based
+  sequence assessment, final ranking, and final scientific reporting.
 - The remaining multi-provider P1 gate and all downstream MR gates.
 
 ## 1.0 - 31 July 2026

@@ -17,6 +17,7 @@ workflow PDB_SEQUENCE_DISCOVERY {
     prostt5_maximum_evalue: Float
     prostt5_minimum_query_coverage: Float
     prostt5_maximum_query_length: Integer
+    prostt5_maximum_queries: Integer
     prostt5_gpu: Boolean
     afdb_accession_map: Path?
     afdb_request_timeout_seconds: Float
@@ -38,6 +39,7 @@ workflow PDB_SEQUENCE_DISCOVERY {
         prostt5_maximum_evalue,
         prostt5_minimum_query_coverage,
         prostt5_maximum_query_length,
+        prostt5_maximum_queries,
         prostt5_gpu
     )
     afdb_bundle = RETRIEVE_AFDB_EXACT(

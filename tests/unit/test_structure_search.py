@@ -14,7 +14,11 @@ from genome_to_diffraction.schemas.results import (
     SearchScientificStatus,
     SequenceGroupRecord,
 )
-from genome_to_diffraction.status import ExecutionStatus, ResultParseError
+from genome_to_diffraction.status import (
+    ExecutionStatus,
+    ResultParseError,
+    ToolExecutionError,
+)
 from genome_to_diffraction.structure_search import (
     P1QualificationRequest,
     PdbSequenceSearchRequest,
@@ -318,6 +322,92 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
     )
     for forbidden in ("qca", "qtmscore", "alntmscore", "lddt", "--gpu"):
         assert forbidden not in command_log
+
+
+def test_prostt5_foldseek_query_cap_is_deterministic_and_not_a_no_hit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sequence_path, manifest_path, groups = _write_foldseek_inputs(tmp_path)
+    eligible = sorted(groups[:2], key=lambda item: item.sequence_group_id)
+    selected, deferred = eligible
+    bin_directory = tmp_path / "mock capped Foldseek bin"
+    bin_directory.mkdir()
+    _write_foldseek(bin_directory / "foldseek", selected.sequence_group_id)
+    monkeypatch.setenv("PATH", f"{bin_directory}{os.pathsep}{os.environ['PATH']}")
+
+    output = search_prostt5_foldseek(
+        ProstT5FoldseekSearchRequest(
+            sequence_groups_jsonl=sequence_path,
+            database_manifest=manifest_path,
+            output_directory=tmp_path / "capped output",
+            maximum_queries=1,
+            progress=False,
+        )
+    )
+
+    by_query = {result.sequence_group_id: result for result in output.results}
+    assert by_query[selected.sequence_group_id].execution_status is (
+        ExecutionStatus.COMPLETED_HIT
+    )
+    deferred_result = by_query[deferred.sequence_group_id]
+    assert deferred_result.execution_status is ExecutionStatus.SKIPPED_POLICY
+    assert deferred_result.scientific_status is SearchScientificStatus.NOT_INTERPRETABLE
+    assert deferred_result.warnings == (
+        "query deferred by the configured deterministic pilot cap of 1 sequences",
+    )
+    assert by_query[groups[2].sequence_group_id].execution_status is (
+        ExecutionStatus.SKIPPED_INELIGIBLE
+    )
+    manifest = json.loads(output.search_manifest.read_text(encoding="utf-8"))
+    assert manifest["eligible_before_query_cap_count"] == 2
+    assert manifest["eligible_query_count"] == 1
+    assert manifest["deferred_query_count"] == 1
+    assert manifest["parameters"]["maximum_queries"] == 1
+    query_fasta = (output.search_manifest.parent / "raw" / "queries.faa").read_text(
+        encoding="ascii"
+    )
+    assert selected.sequence_group_id in query_fasta
+    assert deferred.sequence_group_id not in query_fasta
+
+
+def test_prostt5_foldseek_failure_includes_bounded_native_log_tail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sequence_path, manifest_path, _ = _write_foldseek_inputs(tmp_path)
+    bin_directory = tmp_path / "failing Foldseek bin"
+    bin_directory.mkdir()
+    foldseek = bin_directory / "foldseek"
+    foldseek.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'if [[ "${1-}" == version ]]; then\n'
+        "  printf 'mock-foldseek-1.0\\n'\n"
+        "  exit 0\n"
+        "fi\n"
+        '[[ "${1-}" == easy-search ]] || exit 64\n'
+        "for ((i=1; i<=80; i++)); do printf 'diagnostic-%02d\\n' \"$i\"; done\n"
+        "printf 'fatal-prostt5-marker\\n'\n"
+        "exit 1\n",
+        encoding="utf-8",
+    )
+    foldseek.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_directory}{os.pathsep}{os.environ['PATH']}")
+
+    with pytest.raises(ToolExecutionError) as raised:
+        search_prostt5_foldseek(
+            ProstT5FoldseekSearchRequest(
+                sequence_groups_jsonl=sequence_path,
+                database_manifest=manifest_path,
+                output_directory=tmp_path / "failed output",
+                progress=False,
+            )
+        )
+
+    message = str(raised.value)
+    assert "Foldseek search failed with exit status 1" in message
+    assert "fatal-prostt5-marker" in message
+    assert "diagnostic-80" in message
+    assert "diagnostic-01" not in message
 
 
 def test_prostt5_foldseek_gpu_is_explicit(

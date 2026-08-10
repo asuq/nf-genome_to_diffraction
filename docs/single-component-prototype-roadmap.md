@@ -201,12 +201,15 @@ limit, or network failure is not.
    database/provider identity. Publish reusable results outside the ephemeral
    Nextflow work cache.
 
-Implementation status on 10 August 2026: T7.1 is qualified on the real pilot;
-T7.2 is implemented and its real full-catalogue P1 run is active; T7.4 is
+Implementation status on 10 August 2026: T7.1 is qualified on the real pilot.
+The first T7.2 full-catalogue execution reached Foldseek but failed before
+publication; its bounded-log and large-node correction plus a deterministic
+128-sequence real retry are prepared. T7.4 is
 implemented with strict accession/API/mmCIF verification, atomic coordinate
-caching, typed workflow wiring, and a successful live public `P69905`
-qualification. A mapped pilot/prokaryotic example remains desirable. T7.3 and
-T7.5 remain unimplemented. This ordering keeps the real
+caching, typed workflow wiring, a successful live public `P69905`
+qualification, and the exact pilot-derived
+`WP_042685700.1` to `A0A832VZP6` retrieval. T7.3 and T7.5 remain
+unimplemented. This ordering keeps the real
 prototype moving while preserving the evidence boundary.
 
 ### Tests
@@ -564,9 +567,11 @@ reusable structural discovery**, with the shortest path to real feedback:
 The shared contract and direct PDB adapter in item 1 are implemented. The fixed,
 path-closed P1 operation passed its first real Marmic run with exact 8OOX/8OOW
 family retention, model keys, measured resources, and a fully cached resume.
-See the [P1 direct-PDB qualification](p1-direct-pdb-qualification.md). The active
-next work is the real-data part of item 4 (the Foldseek run is already active),
-then a decision on optional ESM Atlas, provider-aware union, and the full P1
+See the [P1 direct-PDB qualification](p1-direct-pdb-qualification.md). The first
+full-catalogue Foldseek attempt failed without durable native diagnostics; see
+the [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md). The active
+next work is its deterministic 128-sequence real retry, followed immediately by
+the uncapped run, optional ESM Atlas decision, provider-aware union, and full P1
 gate.
 
 After the focused adapter gate passes, prioritise the real catalogue run over

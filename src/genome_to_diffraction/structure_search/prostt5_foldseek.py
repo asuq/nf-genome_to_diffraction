@@ -47,6 +47,8 @@ _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.prostt5_fold
 _ADAPTER_VERSION = "prostt5-foldseek-pdb-v1"
 _PROVIDER = "foldseek_prostt5_pdb"
 _RAW_HIT_LIMIT = 1000
+_FAILURE_LOG_TAIL_BYTES = 16 * 1024
+_FAILURE_LOG_TAIL_LINES = 40
 _STANDARD_AMINO_ACIDS = frozenset("ACDEFGHIKLMNPQRSTVWY")
 _PDB_TARGET = re.compile(
     r"^(?P<pdb_id>[0-9][A-Za-z0-9]{3})"
@@ -84,6 +86,7 @@ class ProstT5FoldseekSearchRequest:
     maximum_evalue: float = 1.0e-3
     minimum_query_coverage: float = 0.5
     maximum_query_length: int = 10_000
+    maximum_queries: int = 0
     gpu: bool = False
     progress: bool = True
 
@@ -146,6 +149,8 @@ def _validate_request(request: ProstT5FoldseekSearchRequest) -> None:
         raise ValueError("minimum_query_coverage must be between 0 and 1")
     if request.maximum_query_length < 1:
         raise ValueError("maximum_query_length must be positive")
+    if request.maximum_queries < 0:
+        raise ValueError("maximum_queries cannot be negative")
 
 
 def _load_sequence_groups(
@@ -246,6 +251,21 @@ def _write_query_fasta(path: Path, records: tuple[SequenceGroupRecord, ...]) -> 
     )
 
 
+def _failure_log_tail(log_path: Path) -> str:
+    """Return a bounded, printable tail suitable for durable error records."""
+
+    try:
+        with log_path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - _FAILURE_LOG_TAIL_BYTES))
+            content = handle.read().decode("utf-8", errors="replace")
+    except OSError as error:
+        return f"<unable to read Foldseek log: {error}>"
+    lines = content.splitlines()[-_FAILURE_LOG_TAIL_LINES:]
+    return "\n".join(lines) if lines else "<Foldseek log was empty>"
+
+
 def _execute_foldseek(command: list[str], log_path: Path) -> None:
     _LOGGER.info(
         "ProstT5/Foldseek PDB search started",
@@ -268,9 +288,10 @@ def _execute_foldseek(command: list[str], log_path: Path) -> None:
     except OSError as error:
         raise ToolExecutionError(f"cannot execute Foldseek search: {error}") from error
     if completed.returncode != 0:
+        log_tail = _failure_log_tail(log_path)
         raise ToolExecutionError(
             f"Foldseek search failed with exit status {completed.returncode}; "
-            f"see {log_path}"
+            f"bounded tail of {log_path}:\n{log_tail}"
         )
     _LOGGER.info(
         "ProstT5/Foldseek PDB search completed",
@@ -546,7 +567,27 @@ def search_prostt5_foldseek(
             eligible.append(record)
         else:
             ineligible[record.sequence_group_id] = reason
-    eligible_records = tuple(eligible)
+    eligible_before_query_cap = tuple(eligible)
+    policy_skipped: dict[str, str] = {}
+    if request.maximum_queries and len(eligible) > request.maximum_queries:
+        for record in eligible[request.maximum_queries :]:
+            policy_skipped[record.sequence_group_id] = (
+                "query deferred by the configured deterministic pilot cap of "
+                f"{request.maximum_queries} sequences"
+            )
+        eligible_records = tuple(eligible[: request.maximum_queries])
+    else:
+        eligible_records = eligible_before_query_cap
+    _LOGGER.info(
+        "ProstT5/Foldseek query batch selected",
+        extra={
+            "query_count": len(sequence_groups),
+            "eligible_before_query_cap_count": len(eligible_before_query_cap),
+            "selected_query_count": len(eligible_records),
+            "deferred_query_count": len(policy_skipped),
+            "maximum_queries": request.maximum_queries,
+        },
+    )
     _write_query_fasta(query_path, eligible_records)
 
     parameters = {
@@ -555,6 +596,7 @@ def search_prostt5_foldseek(
         "maximum_evalue": request.maximum_evalue,
         "minimum_query_coverage": request.minimum_query_coverage,
         "maximum_query_length": request.maximum_query_length,
+        "maximum_queries": request.maximum_queries,
         "coverage_mode": 2,
         "gpu": request.gpu,
         "output_fields": list(_RESULT_FIELDS),
@@ -680,9 +722,14 @@ def search_prostt5_foldseek(
             record_hits.append(hit)
             all_hits.append(hit)
 
+        policy_reason = policy_skipped.get(record.sequence_group_id)
         reason = ineligible.get(record.sequence_group_id)
         warnings: tuple[str, ...]
-        if reason is not None:
+        if policy_reason is not None:
+            execution_status = ExecutionStatus.SKIPPED_POLICY
+            scientific_status = SearchScientificStatus.NOT_INTERPRETABLE
+            warnings = (policy_reason,)
+        elif reason is not None:
             execution_status = ExecutionStatus.SKIPPED_INELIGIBLE
             scientific_status = SearchScientificStatus.NOT_INTERPRETABLE
             warnings = (reason,)
@@ -761,7 +808,9 @@ def search_prostt5_foldseek(
             "tool_version": foldseek_version,
             "batch_cache_key": batch_cache_key,
             "query_count": len(sequence_groups),
+            "eligible_before_query_cap_count": len(eligible_before_query_cap),
             "eligible_query_count": len(eligible_records),
+            "deferred_query_count": len(policy_skipped),
             "hit_count": len(all_hits),
             "status_counts": dict(sorted(status_counts.items())),
             "parameters": parameters,
@@ -789,7 +838,9 @@ def search_prostt5_foldseek(
         "ProstT5/Foldseek PDB outputs published",
         extra={
             "query_count": len(results),
+            "eligible_before_query_cap_count": len(eligible_before_query_cap),
             "eligible_query_count": len(eligible_records),
+            "deferred_query_count": len(policy_skipped),
             "hit_count": len(all_hits),
             "output_directory": str(outdir),
         },

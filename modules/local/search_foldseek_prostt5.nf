@@ -2,7 +2,7 @@ nextflow.enable.types = true
 
 process SEARCH_FOLDSEEK_PROSTT5 {
     tag 'catalogue-wide-prostt5-foldseek-pdb-search'
-    label 'process_search'
+    label 'process_prostt5_search'
     publishDir params.outdir, mode: 'copy', overwrite: true
 
     input:
@@ -12,6 +12,7 @@ process SEARCH_FOLDSEEK_PROSTT5 {
     maximum_evalue: Float
     minimum_query_coverage: Float
     maximum_query_length: Integer
+    maximum_queries: Integer
     gpu: Boolean
 
     output:
@@ -28,6 +29,7 @@ process SEARCH_FOLDSEEK_PROSTT5 {
         --maximum-evalue '${maximum_evalue}'
         --minimum-query-coverage '${minimum_query_coverage}'
         --maximum-query-length '${maximum_query_length}'
+        --maximum-queries '${maximum_queries}'
     )
     [[ '${gpu}' == 'true' ]] && args+=(--gpu)
 

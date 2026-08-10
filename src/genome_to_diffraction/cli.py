@@ -505,6 +505,15 @@ def _build_parser() -> argparse.ArgumentParser:
     prostt5_parser.add_argument("--minimum-query-coverage", type=float, default=0.5)
     prostt5_parser.add_argument("--maximum-query-length", type=int, default=10_000)
     prostt5_parser.add_argument(
+        "--maximum-queries",
+        type=int,
+        default=0,
+        help=(
+            "deterministically search at most this many eligible queries; "
+            "0 is unlimited"
+        ),
+    )
+    prostt5_parser.add_argument(
         "--gpu",
         action="store_true",
         help="enable Foldseek/ProstT5 GPU execution (CPU is the default)",
@@ -882,6 +891,7 @@ def _run_structure_search(args: argparse.Namespace) -> int:
                 maximum_evalue=args.maximum_evalue,
                 minimum_query_coverage=args.minimum_query_coverage,
                 maximum_query_length=args.maximum_query_length,
+                maximum_queries=args.maximum_queries,
                 gpu=args.gpu,
                 progress=not args.no_progress,
             )

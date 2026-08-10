@@ -544,7 +544,8 @@ run_p1_nextflow() {
         --source_records "$P1_CATALOGUE_OUT/source_records.jsonl" \
         --database_manifest "$EXPECTED_DATABASE_MANIFEST" \
         --outdir "$P1_DISCOVERY_OUT" \
-        --cache_root "$RUN/cache/p1-nextflow"
+        --cache_root "$RUN/cache/p1-nextflow" \
+        --prostt5_maximum_queries 128
 }
 
 run_p1() {
@@ -645,8 +646,8 @@ run_p1() {
         return 3
     }
     printf 'p1_status=direct_pdb_sequence_search_qualified\n'
-    printf 'prostt5_foldseek_status=execution_complete_real_qualification_pending\n'
-    printf 'afdb_exact_status=execution_complete_exact_mapping_qualification_pending\n'
+    printf 'prostt5_foldseek_status=pilot_slice_complete_full_catalogue_pending\n'
+    printf 'afdb_exact_status=exact_mapping_marmic_execution_pending\n'
 }
 
 run_database() {

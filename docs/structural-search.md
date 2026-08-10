@@ -49,6 +49,12 @@ rotations, or translations: ProstT5 produces a 3Di sequence, not atomic query
 coordinates. This follows the [official Foldseek search and ProstT5
 documentation](https://github.com/steineggerlab/foldseek#fast-structure-search-from-fasta-input).
 
+`--maximum-queries N` optionally selects the first `N` otherwise eligible
+records in lexicographic `sequence_group_id` order. Zero, the general default,
+means unlimited. The cap is an explicit real-pilot control: deferred records
+remain `skipped_policy` / `not_interpretable`, the cap enters cache identity,
+and no deferred record becomes a scientific no-hit.
+
 `structure-search afdb-exact` additionally requires `source_records.jsonl` and
 one ready, smoke-qualified `coordinate_cache` resource. A source
 `original_protein_id` is accepted only when it is a strict UniProt accession or
@@ -70,6 +76,10 @@ ordering. All alternatives and rejections remain in raw query evidence. This is
 necessary because the current AFDB contains isoforms, fragments, predictions
 from multiple datasets, and complexes; see the [official AFDB FAQ](https://alphafold.com/faq).
 
+The repository's only pilot mapping is the reviewed public
+[`WP_042685700.1` to `A0A832VZP6` control](../benchmarks/public-controls/afdb_accessions.tsv).
+Do not generalise it to the rest of the RefSeq catalogue.
+
 ## Command-line and workflow entry points
 
 ```bash
@@ -89,7 +99,8 @@ pixi run genome-to-diffraction \
   --sequence-groups /absolute/catalogue/sequence_groups.jsonl \
   --database-manifest /absolute/databases/database_manifest.json \
   --outdir /absolute/results/prostt5-foldseek \
-  --threads 16
+  --threads 16 \
+  --maximum-queries 128
 
 pixi run genome-to-diffraction \
   --log-format json \
@@ -105,9 +116,11 @@ pixi run genome-to-diffraction \
 The equivalent typed DSL2 entry point is `discover_structures.nf`. It runs the
 three providers independently and publishes complete `pdb_sequence_search`,
 `prostt5_foldseek_search`, and `afdb_exact_search` directories plus standard
-Nextflow report, timeline, trace, and DAG files. The AFDB process has the
-dedicated `process_network` label; compute-node internet access must therefore
-be an explicit site capability. `-stub-run -profile test` uses only tracked
+Nextflow report, timeline, trace, and DAG files. ProstT5/Foldseek has the
+dedicated `process_prostt5_search` label because sequence-to-3Di inference can
+need substantially more memory than direct sequence search. The AFDB process
+has the dedicated `process_network` label; compute-node internet access must
+therefore be an explicit site capability. `-stub-run -profile test` uses only tracked
 fixtures. A normal run requires the real qualified databases.
 
 ## Outputs
@@ -124,7 +137,7 @@ fixtures. A normal run requires the real qualified databases.
   `afdb:<modelEntityId>:v<latestVersion>`.
 - `search_manifest.json`: provider, adapter, database, tool, parameter, count,
   status, and output-integrity summary.
-- `raw/queries.faa`: the exact eligible query batch.
+- `raw/queries.faa`: the exact selected eligible query batch.
 - `raw/mmseqs-results.tsv`: unmodified tabular MMseqs2 result evidence.
 - `raw/mmseqs.log`: the resolved command and combined tool output.
 - `raw/foldseek-results.tsv` and `raw/foldseek.log`: unmodified structural-hit
@@ -143,6 +156,7 @@ is running. A non-empty output directory is rejected to prevent mixed evidence.
 |---|---|---|
 | `completed_hit` | `hits_found` | At least one configured PDB sequence hit was retained |
 | `completed_no_hit` | `no_hit` | Search completed normally but retained no hit |
+| `skipped_policy` | `not_interpretable` | An otherwise eligible query was explicitly deferred by the configured deterministic pilot cap |
 | `skipped_ineligible` | `not_interpretable` | Catalogue policy, sequence content, or absent exact accession mapping prevented a valid query |
 
 An unavailable or unqualified database, tool-version mismatch, command failure,
@@ -152,6 +166,11 @@ inconsistency fails the affected provider. Such failures never become a
 scientific no-hit and do not count as evidence against a candidate. A valid
 accession returning HTTP 404 or only non-exact models is `completed_no_hit`; the
 rejection evidence preserves why.
+
+If Foldseek exits non-zero, the durable error includes at most the final 16 KiB
+and 40 lines of its native combined log. This is enough to retain decisive
+failure text after compute-node scratch cleanup without copying an unbounded log
+through the exception channel.
 
 ## Reproducibility and cache identity
 
@@ -187,24 +206,34 @@ database-device bytes.
 
 ## Test coverage and present qualification
 
-Focused tests cover the local providers' hit/no-hit/ineligible separation, paths
+Focused tests cover the local providers' hit/no-hit/ineligible/policy-deferred
+separation, paths
 containing spaces, normalised sequence identity, exact PDB/chain mapping,
 parameter propagation, explicit GPU activation, valid ProstT5 output fields,
-probability bounds, and fail-loud handling of unmapped targets. The Nextflow
+probability bounds, bounded native failure logs, and fail-loud handling of
+unmapped targets. The Nextflow
 acceptance suite checks parser-v2 linting, publication, standard reports, and
 cached stub resume.
 
 AFDB tests cover explicit RefSeq-to-UniProt mapping, zero-network RefSeq
 ineligibility, exact API and parseable-mmCIF sequence agreement, atomic cache
 publication, non-exact rejection, and fail-loud coordinate disagreement. The
-official live service contract passed a small exact `P69905` retrieval; see the
+official live service contract passed a small exact `P69905` retrieval and an
+exact pilot-derived `WP_042685700.1` to `A0A832VZP6` retrieval; see the
 [P1 exact AFDB qualification](p1-afdb-exact-qualification.md).
 
 The direct provider and fixed qualification boundary passed their first real
 full-catalogue Marmic run. It retained the exact 8OOX/8OOW family, complete
 model keys, a fully cached resume, and measured CPU, memory, process I/O, result
 size, and cache state. See the
-[P1 direct-PDB qualification](p1-direct-pdb-qualification.md). The full M1 P1
-gate still requires real catalogue qualification of ProstT5/Foldseek, a mapped
-pilot/prokaryotic AFDB accession if available, the optional-provider
-policy decision, and provider-aware evidence union.
+[P1 direct-PDB qualification](p1-direct-pdb-qualification.md).
+
+The first real full-catalogue ProstT5/Foldseek execution reached Foldseek but
+failed before publication; see the
+[P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md). Its first
+retry is deliberately capped at 128 sorted real sequences and includes the
+known 8OOX-family control. Passing that slice qualifies the real adapter path,
+not the deferred 1,492 eligible sequences. The full M1 P1 gate still requires
+the uncapped qualification, passing the pilot AFDB mapping through fixed
+immutable run inputs, the optional-provider policy decision, and provider-aware
+evidence union.

@@ -12,7 +12,7 @@ never edits or pushes source.
 | --- | --- | --- |
 | `smoke` | Locked `pixi run check` | Software/environment foundation only |
 | `p0` | Real Phenix verification, bounded anchored database revalidation, all-three-crystal Task 05 run, and cached resume | M0 execution evidence only; downstream identity search remains deferred |
-| `p1` | Frozen catalogue import, catalogue-wide direct PDB sequence search, cached resume, and tracked 8OOX qualification | M1 direct-search evidence only; no crystal identity or MR claim |
+| `p1` | Frozen catalogue import, catalogue-wide direct PDB search, deterministic 128-query ProstT5/Foldseek pilot slice, AFDB exact branch, cached resume, and tracked 8OOX qualification | M1 provider evidence only; deferred ProstT5 queries remain uninterpreted and no crystal identity or MR is claimed |
 | `database` | Login-node source staging, offline capacity preflight, all-resource preparation, and anchored full verification | Shared database administration only; no pipeline or protein-identification claim |
 
 The reviewed local application is the routine approval boundary. Persistent
@@ -23,18 +23,20 @@ file-transfer tools, scheduler commands, and `clean` must not receive persistent
 automatic approval.
 
 The routine drivers use partition `slurm`, 2 CPUs, and 8 GB memory. Foundation
-smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin and P1 has a
-48-hour margin because Marmic NFS-cold executable and database access are not
-predictably bounded. P1's Nextflow `process_search` child requests 16 CPUs,
-64 GB, and a 24-hour process margin through the checked Marmic site
-configuration; the small outer allocation only coordinates that child. The database driver
+smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin and P1 uses
+the Marmic site's 1,000-hour maximum margin because NFS-cold executable and
+database access are not predictably bounded. The direct PDB
+`process_search` child requests 16 CPUs, 64 GB, and 24 hours. The distinct
+`process_prostt5_search` child requests 100 CPUs, 2,000 GB, and the same
+1,000-hour site margin because catalogue-scale sequence-to-3Di inference is the
+memory-intensive step. The small outer allocation only coordinates those children. The database driver
 uses the same partition with 100 CPUs, 2,000 GB, and a 48-hour walltime. The
 large memory request supplies `/dev/shm` build space;
 the node's full 4 TB is not requested because it would not accelerate serial
 network, checksum, or copy-back I/O. Only one managed job may be active across
 all profiles. Queue
-waiting stops after 30 minutes. Local execution waiting uses the same 45-minute,
-24-hour, 48-hour, and 48-hour margins for smoke, P0, P1, and database jobs; none of these
+waiting stops after 30 minutes. Local execution waiting uses 45-minute,
+24-hour, 1,000-hour, and 48-hour margins for smoke, P0, P1, and database jobs; none of these
 limits silently cancels a job. The caller must inspect status and cancel the
 recorded job when appropriate.
 
@@ -417,7 +419,7 @@ checksums, imports the catalogue once, and runs `discover_structures.nf -profile
 marmic` against the local PDB sequence resource. The checked `nf-helper` Marmic
 configuration gives the MMseqs2 process compute-node `/scratch` and copies its
 declared output to durable storage. The job repeats the identical workflow with
-`-resume` and fails unless the only search process is cached.
+`-resume` and fails unless every discovery process is cached.
 
 The final qualifier rechecks every declared result checksum, requires exactly
 one result per catalogue sequence group, verifies that all retained hits carry
@@ -435,6 +437,15 @@ It evaluated 1,621 exact-sequence groups (1,620 search eligible), retained
 15,401 hits, recovered the exact 8OOX/8OOW family, and cached the sole search
 process on resume. Detailed sanitised evidence and limitations are recorded in the
 [P1 direct-PDB qualification](p1-direct-pdb-qualification.md).
+
+The first P1 run containing the full-catalogue ProstT5/Foldseek provider reached
+Foldseek but exited 1 before publication. Its native log was on task scratch and
+did not survive outer cleanup, so the root cause remains unclassified rather
+than being guessed. The fixed retry retains a bounded native-log tail, gives
+that provider the large-node resource label, and searches the first 128 sorted
+eligible real sequences. Deferred sequences are `skipped_policy`, never
+no-hits. See the
+[P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md).
 
 ## Database administration boundary
 

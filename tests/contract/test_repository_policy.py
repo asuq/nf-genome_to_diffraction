@@ -27,6 +27,17 @@ def test_packaging_only_handoff_files_are_absent() -> None:
         assert not (REPOSITORY / name).exists()
 
 
+def test_pilot_afdb_mapping_is_explicit_and_narrow() -> None:
+    mapping = (
+        REPOSITORY / "benchmarks" / "public-controls" / "afdb_accessions.tsv"
+    ).read_text(encoding="ascii")
+    assert mapping.splitlines() == [
+        "source_record_id\tuniprot_accession",
+        "src_e7a42a60baf486a4d28372148586124f0edeb57692f74918f2e89ae8cd8bf4ab"
+        "\tA0A832VZP6",
+    ]
+
+
 def test_remote_sequence_submission_defaults_off() -> None:
     crystal = (REPOSITORY / "examples" / "crystal_manifest.json").read_text(
         encoding="utf-8"
@@ -56,6 +67,8 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
     assert "cpus = 100" in wrapper
     assert "memory = '2000 GB'" in wrapper
     assert "time = '48 hours'" in wrapper
+    assert "withLabel: process_prostt5_search" in wrapper
+    assert "time = '1000 hours'" in wrapper
 
     nextflow_config = (REPOSITORY / "nextflow.config").read_text(encoding="utf-8")
     assert "includeConfig 'conf/marmic.config'" in nextflow_config
@@ -95,6 +108,7 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     )
     assert approved_operations in runbook
     job = smoke_job.read_text(encoding="utf-8")
+    assert "--prostt5_maximum_queries 128" in job
     assert "phase=database_revalidate_bounded profile=p0" in job
     p0_body, database_body = job.split("run_database()", maxsplit=1)
     assert "--full-verify" not in p0_body

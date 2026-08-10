@@ -23,9 +23,12 @@ remain authoritative for scientific policy and interface contracts.
 - [P1 direct-PDB qualification](p1-direct-pdb-qualification.md): immutable
   Marmic run provenance, catalogue/search counts, exact 8OOX-family retention,
   cached resume, resource observations, and remaining M1 scope.
+- [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md): immutable
+  first real failure evidence, bounded-log correction, large-node resources,
+  deterministic real pilot slice, and the still-open full-catalogue boundary.
 - [P1 exact AFDB qualification](p1-afdb-exact-qualification.md): live public
-  accession/API/mmCIF sequence equality, coordinate checksum and cache
-  provenance, status semantics, and remaining pilot-mapping limitation.
+  accession/API/mmCIF sequence equality, the exact pilot-derived
+  `WP_042685700.1` mapping, coordinate checksums, and cache provenance.
 - [Public methanogen and methanotroph control panel](public-control-panel.md):
   ten frozen X-ray structures, catalogue-to-construct mappings, reproducible
   source/MTZ preparation, runnable-control order, and one deliberate heteromer
