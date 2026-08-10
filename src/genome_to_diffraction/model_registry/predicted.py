@@ -213,7 +213,12 @@ def _coordinate_view(path: Path, *, label: str) -> _CoordinateView:
             raise PredictedModelParseError(
                 f"{label} predicted coordinate cannot contain insertion codes"
             )
-        positions.append(residue.seqid.num)
+        position = residue.seqid.num
+        if position is None:
+            raise PredictedModelParseError(
+                f"{label} predicted coordinate contains an unnumbered residue"
+            )
+        positions.append(position)
     sequence = "".join(letters)
     return _CoordinateView(
         chain_id=chain.name,
