@@ -753,6 +753,10 @@ stage_run_common() {
     local database_manifest_sha256="" database_manifest_json="null"
     local database_config_sha256="" database_config_json="null"
     local database_source_bundle_sha256="" database_source_bundle_json="null"
+    local p1_prefetch_sha256="" p1_prefetch_json="null"
+    local p1_catalogue p1_prefetch p1_prefetch_checksums p1_prefetch_tmp
+    local candidate coordinate_count hit_count
+    local -a p0_values=()
 
     validate_run_id "$run_id"
     [[ "$commit" =~ $COMMIT_RE ]] || fail wrapper_failure "invalid commit SHA"
@@ -939,6 +943,85 @@ stage_run_common() {
         append_event "$run" "stage_database_sources_ready"
     fi
 
+    if [[ "$profile" == p1 ]]; then
+        mapfile -t p0_values < "$P0_CONFIG"
+        [[ "${#p0_values[@]}" -eq 7 ]] || \
+            fail wrapper_failure "P0 configuration changed during P1 staging"
+        p1_catalogue="$run/artifacts/p1/catalogue"
+        p1_prefetch="$run/artifacts/p1/afdb-login-prefetch"
+        mkdir -p "$run/artifacts/p1"
+        printf 'phase=p1_login_catalogue_import profile=p1\n' \
+            > "$run/logs/p1-login-prefetch.log"
+        if ! "$gtd" --log-format json --no-progress catalogue import \
+            --catalogues "${p0_values[1]}" \
+            --config "${p0_values[3]}" \
+            --outdir "$p1_catalogue" \
+            >> "$run/logs/p1-login-prefetch.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "software_failure"
+            append_event "$run" "stage_p1_catalogue_failed"
+            fail software_failure "P1 catalogue staging failed on the login node"
+        fi
+        printf 'phase=p1_login_afdb_prefetch profile=p1\n' \
+            >> "$run/logs/p1-login-prefetch.log"
+        if ! "$gtd" --log-format json --no-progress \
+            structure-search afdb-exact \
+            --sequence-groups "$p1_catalogue/sequence_groups.jsonl" \
+            --source-records "$p1_catalogue/source_records.jsonl" \
+            --database-manifest "${p0_values[5]}" \
+            --accession-map \
+            "$run/source/benchmarks/public-controls/afdb_accessions.tsv" \
+            --outdir "$p1_prefetch" \
+            >> "$run/logs/p1-login-prefetch.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_p1_afdb_prefetch_failed"
+            fail transfer_failure "fixed AFDB prefetch failed on the login node"
+        fi
+        for candidate in \
+            "$p1_catalogue/catalogue_import_manifest.json" \
+            "$p1_catalogue/sequence_groups.jsonl" \
+            "$p1_catalogue/source_records.jsonl" \
+            "$p1_prefetch/search_manifest.json" \
+            "$p1_prefetch/search_results.jsonl" \
+            "$p1_prefetch/structural_hits.jsonl" \
+            "$p1_prefetch/coordinate_sources.jsonl"; do
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || {
+                atomic_text "$run/state/phase" "stage_failed"
+                atomic_text "$run/state/failure-class" "filesystem_failure"
+                append_event "$run" "stage_p1_prefetch_output_invalid"
+                fail filesystem_failure "P1 login prefetch output is missing or unsafe"
+            }
+        done
+        coordinate_count="$(awk 'NF { count++ } END { print count + 0 }' \
+            "$p1_prefetch/coordinate_sources.jsonl")"
+        hit_count="$(awk 'NF { count++ } END { print count + 0 }' \
+            "$p1_prefetch/structural_hits.jsonl")"
+        [[ "$coordinate_count" -eq 1 && "$hit_count" -eq 1 ]] || {
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "test_failure"
+            append_event "$run" "stage_p1_prefetch_cardinality_failed"
+            fail test_failure "P1 login prefetch did not produce exactly one exact model"
+        }
+        p1_prefetch_checksums="$run/state/p1-login-prefetch.sha256"
+        p1_prefetch_tmp="${p1_prefetch_checksums}.tmp.$$"
+        sha256sum \
+            "$p1_catalogue/catalogue_import_manifest.json" \
+            "$p1_catalogue/sequence_groups.jsonl" \
+            "$p1_catalogue/source_records.jsonl" \
+            "$p1_prefetch/search_manifest.json" \
+            "$p1_prefetch/search_results.jsonl" \
+            "$p1_prefetch/structural_hits.jsonl" \
+            "$p1_prefetch/coordinate_sources.jsonl" \
+            > "$p1_prefetch_tmp"
+        mv -f -- "$p1_prefetch_tmp" "$p1_prefetch_checksums"
+        p1_prefetch_sha256="$(sha256sum "$p1_prefetch_checksums" | awk '{print $1}')"
+        [[ "$p1_prefetch_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "P1 login-prefetch checksum failed"
+        p1_prefetch_json="\"$p1_prefetch_sha256\""
+        append_event "$run" "stage_p1_afdb_prefetch_ready"
+    fi
+
     manifest_tmp="$run/manifest.json.tmp.$$"
     cat > "$manifest_tmp" <<EOF
 {
@@ -956,6 +1039,7 @@ stage_run_common() {
   "database_manifest_sha256": $database_manifest_json,
   "database_config_sha256": $database_config_json,
   "database_source_bundle_sha256": $database_source_bundle_json,
+  "p1_login_prefetch_sha256": $p1_prefetch_json,
   "staged_at": "$(now_utc)",
   "source_snapshot_status": "immutable"
 }
@@ -1466,11 +1550,13 @@ collect_run() {
         state/phase \
         state/job-result.json \
         state/database-failed-staging-archive.json \
+        state/p1-login-prefetch.sha256 \
         state/failure-class \
         state/exit-code \
         logs/git-fetch.log \
         logs/git-clone.log \
         logs/pixi-install.log \
+        logs/p1-login-prefetch.log \
         logs/database-source-stage.log \
         logs/sbatch.err \
         logs/smoke.log \
@@ -1537,6 +1623,11 @@ collect_run() {
         artifacts/p1/discovery/afdb_exact_search/structural_hits.jsonl \
         artifacts/p1/discovery/afdb_exact_search/coordinate_sources.jsonl \
         artifacts/p1/discovery/afdb_exact_search/raw/http.log \
+        artifacts/p1/afdb-login-prefetch/search_manifest.json \
+        artifacts/p1/afdb-login-prefetch/search_results.jsonl \
+        artifacts/p1/afdb-login-prefetch/structural_hits.jsonl \
+        artifacts/p1/afdb-login-prefetch/coordinate_sources.jsonl \
+        artifacts/p1/afdb-login-prefetch/raw/http.log \
         artifacts/p1/model-preparation/predicted_model_preparation/model_preparation_manifest.json \
         artifacts/p1/model-preparation/predicted_model_preparation/processed_models.jsonl; do
         if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then

@@ -208,18 +208,50 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
         '[[ "${FAKE_DATABASE_SOURCE_FAIL:-0}" != 1 ]] || exit 12\n'
+        "mode=\n"
         "previous=\n"
         "output=\n"
+        "outdir=\n"
+        'case " $* " in\n'
+        '  *" catalogue import "*) mode=catalogue ;;\n'
+        '  *" structure-search afdb-exact "*) mode=afdb ;;\n'
+        '  *" databases stage-sources "*) mode=database ;;\n'
+        "esac\n"
         'for argument in "$@"; do\n'
         '  [[ "$previous" != --manifest ]] || output="$argument"\n'
+        '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
         '  previous="$argument"\n'
         "done\n"
-        '[[ -n "$output" ]] || exit 9\n'
-        'mkdir -p "$(dirname "$output")"\n'
-        'printf \'{"schema_version":"1.0","status":"ready",'
+        'if [[ "$mode" == catalogue ]]; then\n'
+        '  mkdir -p "$outdir"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/catalogue_import_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/sequence_groups.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/source_records.jsonl"\n'
+        'elif [[ "$mode" == afdb ]]; then\n'
+        '  [[ "${FAKE_AFDB_PREFETCH_FAIL:-0}" != 1 ]] || exit 13\n'
+        '  mkdir -p "$outdir/raw"\n'
+        '  printf \'{"schema_version":"1.0","coordinate_source_count":1}\\n\' '
+        '> "$outdir/search_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/search_results.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/structural_hits.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/coordinate_sources.jsonl"\n'
+        "  printf 'fake login-node HTTP provenance\\n' > \"$outdir/raw/http.log\"\n"
+        'elif [[ "$mode" == database ]]; then\n'
+        '  [[ -n "$output" ]] || exit 9\n'
+        '  mkdir -p "$(dirname "$output")"\n'
+        '  printf \'{"schema_version":"1.0","status":"ready",'
         '"bundle_id":"dbsrc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
         'aaaaaaaaaaaaaaaa","created_at":"2026-08-09T00:00:00Z",'
         '"resources":[]}\\n\' > "$output"\n'
+        "else\n"
+        "  exit 9\n"
+        "fi\n"
         "FAKE_GTD\n"
         '      chmod 0755 "$env_bin/genome-to-diffraction"\n'
         "      for tool in nextflow mmseqs foldseek; do\n"
@@ -1980,6 +2012,13 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
     )
     assert staged["profile"] == "p1"
     run = remote_root / "runs" / P1_RUN_ID
+    login_prefetch_log = (run / "logs/p1-login-prefetch.log").read_text(
+        encoding="utf-8"
+    )
+    assert "phase=p1_login_catalogue_import profile=p1" in login_prefetch_log
+    assert "phase=p1_login_afdb_prefetch profile=p1" in login_prefetch_log
+    assert (run / "state/p1-login-prefetch.sha256").is_file()
+    assert (run / "artifacts/p1/afdb-login-prefetch/coordinate_sources.jsonl").is_file()
     _install_fake_p1_runtime(run)
 
     submitted = _decode_protocol(
@@ -2024,13 +2063,13 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
     )
     assert "phase=p1_model_first_run profile=p1" in p1_log
     assert "phase=p1_model_resume_run profile=p1" in p1_log
-    assert "afdb_exact_status=exact_mapping_retrieved_and_cached" in p1_log
+    assert "phase=p1_login_prefetch_verify profile=p1" in p1_log
+    assert "afdb_exact_status=login_prefetch_verified_compute_offline" in p1_log
     assert "predicted_model_status=confidence_processed_and_resume_cached" in p1_log
     nextflow_commands = (run / "execution/fake-nextflow-commands.log").read_text(
         encoding="utf-8"
     )
-    assert "--afdb_accession_map" in nextflow_commands
-    assert "afdb_accessions.tsv" in nextflow_commands
+    assert "--afdb_accession_map" not in nextflow_commands
     assert "prepare_models.nf" in nextflow_commands
     assert "--phenix_manifest" in nextflow_commands
 
@@ -2058,6 +2097,42 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
         "artifacts/p1/model-preparation/predicted_model_preparation/"
         "processed_models.jsonl"
     ) in names
+    assert "state/p1-login-prefetch.sha256" in names
+    assert "logs/p1-login-prefetch.log" in names
+    assert "artifacts/p1/afdb-login-prefetch/search_manifest.json" in names
+    assert "artifacts/p1/afdb-login-prefetch/coordinate_sources.jsonl" in names
+
+
+def test_p1_stage_classifies_login_node_afdb_transfer_failure(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    _write_p0_paths(smoke_job.parent.parent)
+    failing_environment = dict(environment)
+    failing_environment["FAKE_AFDB_PREFETCH_FAIL"] = "1"
+
+    failed = _run(
+        [
+            str(dispatcher),
+            "stage",
+            P1_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "p1",
+        ],
+        cwd=tmp_path,
+        environment=failing_environment,
+        success=False,
+    )
+
+    assert _decode_protocol(failed.stdout)["failure_class"] == "transfer_failure"
+    run = smoke_job.parent.parent / "runs" / P1_RUN_ID
+    assert (run / "state/phase").read_text(encoding="ascii").strip() == ("stage_failed")
+    assert (run / "state/failure-class").read_text(encoding="ascii").strip() == (
+        "transfer_failure"
+    )
+    log = (run / "logs/p1-login-prefetch.log").read_text(encoding="utf-8")
+    assert "phase=p1_login_afdb_prefetch profile=p1" in log
 
 
 def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(

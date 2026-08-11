@@ -101,11 +101,15 @@ entry point deliberately does not retrieve coordinates or choose candidates;
 the upstream discovery evidence and reviewed mapping remain separate inputs.
 
 The fixed P1 path supplies the tracked one-row
-`WP_042685700.1`/`A0A832VZP6` mapping to discovery, completes and resumes that
-network workflow, then runs and resumes model preparation with a separate cache.
-It fails if the pilot does not yield exactly one processed record or if the
-model task is not cached on resume. This protects the real vertical slice
-without generalising one accession mapping to the remaining proteome.
+`WP_042685700.1`/`A0A832VZP6` mapping to a bounded login-node prefetch because
+Marmic compute nodes reject outbound HTTPS. Staging imports the immutable
+catalogue, retrieves and sequence-verifies exactly one public model, and records
+checksums for every hand-off file. The compute job verifies that record, runs
+the remaining discovery branches offline, then runs and resumes model
+preparation with a separate cache. It fails if the prefetch or model preparation
+does not yield exactly one record, or if the model task is not cached on resume.
+This protects the real vertical slice without generalising one accession
+mapping to the remaining proteome.
 
 ## Outputs and identity
 

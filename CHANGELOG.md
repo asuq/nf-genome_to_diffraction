@@ -214,6 +214,10 @@ All notable changes to this project are documented here.
   sequence records to the verified Phenix adapter. The fixed P1 operation
   supplies only the tracked pilot AFDB mapping, requires one processed model,
   verifies cached discovery/model resumes, and collects only small provenance.
+- After Marmic compute nodes rejected outbound AFDB HTTPS, the fixed P1 route
+  was split at the network boundary: immutable login-node staging now retrieves
+  and sequence-verifies the one public pilot model, records hand-off checksums,
+  and scheduled discovery/model work verifies and consumes it offline.
 
 ### Not implemented
 

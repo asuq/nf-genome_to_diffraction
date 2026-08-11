@@ -543,7 +543,6 @@ run_p1_nextflow() {
         --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
         --source_records "$P1_CATALOGUE_OUT/source_records.jsonl" \
         --database_manifest "$EXPECTED_DATABASE_MANIFEST" \
-        --afdb_accession_map "$PILOT_AFDB_MAP" \
         --outdir "$P1_DISCOVERY_OUT" \
         --cache_root "$RUN/cache/p1-nextflow" \
         --prostt5_maximum_queries 128
@@ -558,7 +557,7 @@ run_p1_model_nextflow() {
         "$@" \
         -profile marmic \
         --coordinate_sources \
-        "$P1_DISCOVERY_OUT/afdb_exact_search/coordinate_sources.jsonl" \
+        "$P1_PREFETCH_OUT/coordinate_sources.jsonl" \
         --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
         --phenix_manifest "$PHENIX_MANIFEST" \
         --outdir "$P1_MODEL_OUT" \
@@ -573,6 +572,7 @@ run_p1() {
     PILOT_AFDB_MAP="$RUN/source/benchmarks/public-controls/afdb_accessions.tsv"
     P1_OUT="$RUN/artifacts/p1"
     P1_CATALOGUE_OUT="$P1_OUT/catalogue"
+    P1_PREFETCH_OUT="$P1_OUT/afdb-login-prefetch"
     P1_DISCOVERY_OUT="$P1_OUT/discovery"
     P1_MODEL_OUT="$P1_OUT/model-preparation"
     mkdir -p \
@@ -594,6 +594,7 @@ run_p1() {
         "$PHENIX_MANIFEST" \
         "$control_spec" \
         "$PILOT_AFDB_MAP" \
+        "$RUN/state/p1-login-prefetch.sha256" \
         > "$qualification/p1-input-checksums.sha256"
 
     cd "$RUN/source"
@@ -623,11 +624,17 @@ run_p1() {
     }
 
     PHASE=test
-    printf 'phase=p1_catalogue_import profile=p1\n'
-    "$GTD" --log-format json --no-progress catalogue import \
-        --catalogues "$CATALOGUES" \
-        --config "$PIPELINE_CONFIG" \
-        --outdir "$P1_CATALOGUE_OUT"
+    printf 'phase=p1_login_prefetch_verify profile=p1\n'
+    [[ -f "$RUN/state/p1-login-prefetch.sha256" ]] || {
+        printf 'P1 login-prefetch checksum record is absent\n' >&2
+        return 2
+    }
+    sha256sum -c "$RUN/state/p1-login-prefetch.sha256"
+    [[ "$(awk 'NF { count++ } END { print count + 0 }' \
+        "$P1_PREFETCH_OUT/coordinate_sources.jsonl")" -eq 1 ]] || {
+        printf 'P1 login prefetch no longer contains exactly one coordinate\n' >&2
+        return 4
+    }
 
     export JAVA_CMD
     export NXF_HOME="$RUN/cache/nextflow-home"
@@ -725,7 +732,7 @@ EOF
     }
     printf 'p1_status=direct_pdb_sequence_search_qualified\n'
     printf 'prostt5_foldseek_status=pilot_slice_complete_full_catalogue_pending\n'
-    printf 'afdb_exact_status=exact_mapping_retrieved_and_cached\n'
+    printf 'afdb_exact_status=login_prefetch_verified_compute_offline\n'
     printf 'predicted_model_status=confidence_processed_and_resume_cached\n'
 }
 

@@ -593,10 +593,12 @@ Foldseek run, optional ESM Atlas decision, provider-aware union, and full P1 gat
 remain tracked qualification work.
 
 The first downstream slice now supplies the tracked one-row AFDB mapping through
-the fixed P1 discovery operation and passes its exact coordinate to a separate
-typed `prepare_models.nf` run using the verified Phenix manifest. Local
-parser-v2, stub-resume, schema, and fake-Slurm acceptance pass; the next gate is
-the immutable real Marmic execution and collected model provenance.
+a checksum-bound login-node prefetch and passes its exact coordinate to a
+separate typed `prepare_models.nf` run using the verified Phenix manifest. This
+split is required because Marmic compute nodes reject outbound HTTPS; the
+scheduled discovery processes therefore run offline. Local parser-v2,
+stub-resume, schema, and fake-Slurm acceptance pass; the next gate is the
+immutable real Marmic execution and collected model provenance.
 
 After the focused adapter gate passes, prioritise the real downstream prototype
 path while retaining the uncapped catalogue search as qualification work; do

@@ -421,10 +421,13 @@ pixi run -e hpc nextflow run prepare_models.nf -profile local \
   --cache_root /absolute/cache/nf-genome-to-diffraction-models
 ```
 
-The fixed Marmic P1 operation supplies only the tracked one-row pilot mapping,
-then runs this entry point separately after discovery so the network retrieval
-is cached before licensed Phenix execution. A normal successful run must
-produce exactly one processed pilot model and cache the model process on resume.
+The fixed Marmic P1 operation supplies only the tracked one-row pilot mapping.
+Because Marmic compute nodes do not provide outbound HTTPS, immutable staging
+retrieves and sequence-verifies that public model on the login node, records a
+checksum manifest, and passes the frozen coordinate record to this entry point.
+The compute job verifies those checksums before running discovery offline and
+licensed Phenix on Slurm. A normal successful run must produce exactly one
+processed pilot model and cache the model process on resume.
 
 ## Reference-database preparation
 

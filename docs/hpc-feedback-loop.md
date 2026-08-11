@@ -435,13 +435,27 @@ Passing this profile qualifies the direct-PDB route only. It does not perform
 molecular replacement or identify any blind pilot crystal.
 
 The next fixed P1 revision additionally supplies the tracked one-row exact AFDB
-mapping, completes and resumes discovery, then runs `prepare_models.nf` with the
-P0-verified Phenix manifest and a separate Nextflow cache. It requires exactly
-one processed pilot model and a fully cached model-preparation resume. The
-collected allow-list adds only the model manifest, processed-model record, model
-traces, and bounded Nextflow logs; coordinates, licensed software, and the full
-run tree remain on Marmic. This extends the real vertical slice but still does
-not claim a final candidate identity or an MR solution.
+mapping. Immutable staging imports the catalogue and retrieves the public model
+on the login node, where outbound HTTPS is available. It requires one exact hit
+and coordinate, records fixed-file checksums, and leaves all heavy work to
+Slurm. The compute job verifies that record, runs discovery without remote
+accessions, then runs `prepare_models.nf` with the P0-verified Phenix manifest
+and a separate Nextflow cache. It requires exactly one processed pilot model
+and a fully cached model-preparation resume. The collected allow-list adds only
+the prefetch/model manifests, records, traces, and bounded logs; coordinates,
+licensed software, and the full run tree remain on Marmic. This extends the real
+vertical slice but still does not claim a final candidate identity or an MR
+solution.
+
+The first attempt at this slice, immutable run
+`gtd-p1-20260811T075356Z-0741c79d7723-75d0e6bd` (Slurm job `625736`), failed
+before scientific search or Phenix execution. Compute host `slurm-302` refused
+all three HTTPS attempts to the official AlphaFold prediction API. The collected
+failure signature is
+`751f993436611721ef26cf3b8fcfededc770c6688339a59a0101ca71498210cc`.
+This evidence is why the fixed route now performs only the bounded public
+retrieval on the login node and verifies its checksum-bound hand-off on the
+compute node. It is an infrastructure failure, not a no-hit result.
 
 The first real P1 run passed on immutable commit
 `f198884a5d7e6c66c0f6a94f1a28cadb0004fe37` as coordinator job `625575`.
