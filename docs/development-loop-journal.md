@@ -548,3 +548,53 @@ Actions run. If it passes, rebuild/install the local controller, deploy the
 matching dispatcher and job script, run `readiness p2-diverse`, and stage the
 same pushed revision. If it fails, inspect only the failing log before making
 another focused change.
+
+## 2026-08-11 — Fixed the real P2-diverse login-stage tool environment
+
+### Discoveries
+
+- Ubuntu GitHub Actions run `31511471600` passed for revision
+  `586caa42cf01cb108e62f5645feb46ae9575f0b3`; the Linux Gemmi typing repair is
+  therefore qualified.
+- The CI-qualified controller was installed with SHA-256
+  `68bf2c82818da78396c6413ebe7d12a292746006c13d334abbc1813c97b8e6bf`,
+  the remote tools were deployed with recorded checksums, and
+  `readiness p2-diverse` returned `ready=true`.
+- Retained run
+  `gtd-p2-diverse-20260811T162025Z-586caa42cf01-24575cdc` failed during login
+  staging before any Slurm submission. The collected structured log shows that
+  Pixi installed the locked HPC environment, but the absolute Python CLI
+  inherited a shell `PATH` that did not contain the same environment's
+  `mmseqs`; its fixed version probe failed with executable-not-found.
+- This is a dispatcher environment bug, not evidence of an invalid database,
+  PDB search, coordinate cache, NFS failure, or scientific no-hit. The retained
+  failed run must not be cleaned or reinterpreted as a candidate result.
+
+### Accomplishments and immutable evidence
+
+- Focused commit `48507c4ea825bf9c1ac336e0d31192c1f9ee354c` gives only the
+  fixed login-stage catalogue/provider/search operations a closed path made of
+  the per-run locked Pixi `bin` plus system `/usr/bin:/bin`. It does not source
+  an interactive shell or expose caller-controlled path entries.
+- The fake remote lifecycle now requires `mmseqs` to be discoverable from the
+  staged command environment, so the observed real failure regresses without
+  this fix.
+- Both focused P2-diverse fake lifecycle tests pass. The full locked local gate
+  again passes with 279 unit, 54 contract, and 39 integration tests and all
+  remaining repository checks.
+
+### Unresolved work
+
+- Push the focused login-stage repair and this journal entry, require GitHub
+  Actions to pass, and deploy the new dispatcher checksum before retrying.
+- Stage a new immutable P2-diverse run. Do not reuse or clean the failed staging
+  run, do not submit until the new login-stage checksum record exists, and
+  retain both attempts as separate evidence.
+
+### Next exact starting point
+
+Commit this journal entry, push through
+`48507c4ea825bf9c1ac336e0d31192c1f9ee354c`, and monitor the exact GitHub
+Actions run. After success, deploy the updated remote tools, rerun readiness,
+and stage a new P2-diverse attempt for the same commit. Inspect the staging JSON
+for a completed checksum-bound handoff before submitting to Slurm.
