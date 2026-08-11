@@ -296,8 +296,8 @@ def _pdb_entity(path: Path, *, hit: StructuralSearchHit) -> _PdbEntity:
         )
     labels_by_entity: dict[str, list[str]] = defaultdict(list)
     for row in block.find(["_struct_asym.id", "_struct_asym.entity_id"]):
-        label, entity = (gemmi.cif.as_string(str(value)) for value in row)
-        labels_by_entity[entity].append(label)
+        label, entity_key = (gemmi.cif.as_string(str(value)) for value in row)
+        labels_by_entity[entity_key].append(label)
     candidates: list[_PdbEntity] = []
     for row in block.find(
         [
@@ -339,16 +339,16 @@ def _pdb_entity(path: Path, *, hit: StructuralSearchHit) -> _PdbEntity:
         )
     expected_length = _required_metric(hit, "target_sequence_length", int)
     expected_sha256 = _required_metric(hit, "target_sequence_sha256", str)
-    entity = candidates[0]
+    pdb_entity = candidates[0]
     if (
-        len(entity.sequence) != expected_length
-        or entity.sequence_sha256 != expected_sha256
+        len(pdb_entity.sequence) != expected_length
+        or pdb_entity.sequence_sha256 != expected_sha256
     ):
         raise PdbCoordinateParseError(
             "PDB coordinate entity differs from the searched SEQRES snapshot: "
             f"{hit.hit_id}"
         )
-    return entity
+    return pdb_entity
 
 
 def _download_coordinate(

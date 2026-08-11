@@ -144,6 +144,28 @@ def _residue_label(number: int, insertion_code: str) -> str:
     return f"{number}{insertion_code.strip()}"
 
 
+def _sequence_number(seqid: gemmi.SeqId) -> int:
+    """Return a present residue sequence number across Gemmi type variants."""
+
+    number = seqid.num
+    if not isinstance(number, int):
+        raise ExperimentalModelParseError(
+            "selected PDB chain contains a residue without a sequence number"
+        )
+    return number
+
+
+def _gemmi_version() -> str:
+    """Return Gemmi's runtime version without relying on incomplete type stubs."""
+
+    value = getattr(gemmi, "__version__", None)
+    if not isinstance(value, str) or not value:
+        raise ExperimentalModelParseError(
+            "Gemmi did not expose a non-empty runtime version"
+        )
+    return value
+
+
 def _compress_ranges(
     chain_id: str, residues: Sequence[gemmi.Residue]
 ) -> tuple[str, ...]:
@@ -152,25 +174,30 @@ def _compress_ranges(
     ranges: list[str] = []
     start = residues[0].seqid
     previous = start
+    start_number = _sequence_number(start)
+    previous_number = start_number
     for residue in residues[1:]:
         current = residue.seqid
+        current_number = _sequence_number(current)
         contiguous = (
             not previous.icode.strip()
             and not current.icode.strip()
-            and current.num == previous.num + 1
+            and current_number == previous_number + 1
         )
         if not contiguous:
-            start_label = _residue_label(start.num, start.icode)
-            previous_label = _residue_label(previous.num, previous.icode)
+            start_label = _residue_label(start_number, start.icode)
+            previous_label = _residue_label(previous_number, previous.icode)
             ranges.append(
                 f"{chain_id}:{start_label}"
                 if start_label == previous_label
                 else f"{chain_id}:{start_label}-{previous_label}"
             )
             start = current
+            start_number = current_number
         previous = current
-    start_label = _residue_label(start.num, start.icode)
-    previous_label = _residue_label(previous.num, previous.icode)
+        previous_number = current_number
+    start_label = _residue_label(start_number, start.icode)
+    previous_label = _residue_label(previous_number, previous.icode)
     ranges.append(
         f"{chain_id}:{start_label}"
         if start_label == previous_label
@@ -302,6 +329,7 @@ def prepare_experimental_models(
     source_index = {item.coordinate_id: item for item in sources}
     group_index = {item.sequence_group_id: item for item in groups}
     selected = _selected_mappings(mappings, request.mapping_ids)
+    processing_version = _gemmi_version()
     output = request.output_directory.resolve()
     if output.exists() and any(output.iterdir()):
         raise ExperimentalModelInputError(
@@ -416,7 +444,7 @@ def prepare_experimental_models(
             "variant_type": _VARIANT_TYPE,
             "residue_ranges": cleaned.residue_ranges,
             "processing_tool": "gemmi",
-            "processing_version": gemmi.__version__,
+            "processing_version": processing_version,
             "processing_parameters": parameters,
             "model_sha256": model_sha256,
         }
@@ -427,7 +455,7 @@ def prepare_experimental_models(
             variant_type=_VARIANT_TYPE,
             residue_ranges=cleaned.residue_ranges,
             processing_tool="gemmi",
-            processing_version=gemmi.__version__,
+            processing_version=processing_version,
             processing_parameters=parameters,
             estimated_coordinate_error=None,
             model_mass_da=mass.exact_da,
@@ -487,7 +515,7 @@ def prepare_experimental_models(
             "adapter_version": _ADAPTER_VERSION,
             "scope": "experimental_cleaned_source_chain_only",
             "processing_tool": "gemmi",
-            "processing_version": gemmi.__version__,
+            "processing_version": processing_version,
             "input_sha256": input_sha256,
             "selected_mapping_count": len(selected),
             "processed_model_count": len(records),
