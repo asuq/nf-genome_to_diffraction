@@ -255,6 +255,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "  printf 'fake login-node HTTP provenance\\n' > \"$outdir/raw/http.log\"\n"
         'elif [[ "$mode" == pdb ]]; then\n'
         '  [[ "${FAKE_PDB_SEARCH_FAIL:-0}" != 1 ]] || exit 14\n'
+        "  command -v mmseqs >/dev/null || exit 16\n"
         '  mkdir -p "$outdir/raw"\n'
         '  printf \'{"schema_version":"1.0","hit_count":1}\\n\' '
         '> "$outdir/search_manifest.json"\n'

@@ -750,7 +750,7 @@ stage_run_common() {
     local iteration="$5"
     local profile="$6"
     local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp
-    local gtd nextflow java mmseqs foldseek
+    local gtd nextflow java mmseqs foldseek hpc_path
     local p0_config_sha256="" p0_config_json="null"
     local database_manifest_sha256="" database_manifest_json="null"
     local database_config_sha256="" database_config_json="null"
@@ -903,6 +903,7 @@ stage_run_common() {
             fail environment_failure "locked HPC environment installation failed"
         fi
         gtd="$run/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+        hpc_path="$run/source/.pixi/envs/hpc/bin:/usr/bin:/bin"
         [[ -x "$gtd" ]] || {
             atomic_text "$run/state/phase" "stage_failed"
             atomic_text "$run/state/failure-class" "environment_failure"
@@ -974,7 +975,7 @@ stage_run_common() {
         fi
         printf 'phase=p1_login_afdb_prefetch profile=%s\n' "$profile" \
             >> "$run/logs/p1-login-prefetch.log"
-        if ! "$gtd" --log-format json --no-progress \
+        if ! PATH="$hpc_path" "$gtd" --log-format json --no-progress \
             structure-search afdb-exact \
             --sequence-groups "$p1_catalogue/sequence_groups.jsonl" \
             --source-records "$p1_catalogue/source_records.jsonl" \
@@ -1038,7 +1039,7 @@ stage_run_common() {
         mkdir -p "$run/artifacts/p2-diverse"
         printf 'phase=p2_diverse_login_pdb_search profile=%s\n' "$profile" \
             > "$run/logs/p2-diverse-login-stage.log"
-        if ! "$gtd" --log-format json --no-progress \
+        if ! PATH="$hpc_path" "$gtd" --log-format json --no-progress \
             structure-search pdb-sequence \
             --sequence-groups "$p1_catalogue/sequence_groups.jsonl" \
             --database-manifest "${p0_values[5]}" \
@@ -1056,7 +1057,7 @@ stage_run_common() {
         fi
         printf 'phase=p2_diverse_login_coordinate_registration profile=%s\n' \
             "$profile" >> "$run/logs/p2-diverse-login-stage.log"
-        if ! "$gtd" --log-format json --no-progress \
+        if ! PATH="$hpc_path" "$gtd" --log-format json --no-progress \
             structure-search register-pdb-coordinates \
             --structural-hits "$p2_diverse_search/structural_hits.jsonl" \
             --sequence-groups "$p1_catalogue/sequence_groups.jsonl" \
