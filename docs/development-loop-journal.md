@@ -410,12 +410,17 @@ clean retained runs.
   stub/resume routes, plus both HPC shell parsers. The network download tests
   were rerun outside the restricted sandbox so their loopback server could
   bind; no public biological data or credentials were transmitted.
+- Focused implementation commit `8372f1c530a9bd9a2f311a60376cf4ec7ddbd382`
+  contains the closed profile, execution cap, remote lifecycle, tests, and
+  operational documentation. The rebuilt and installed local controller has
+  matching SHA-256
+  `6e935a8f47ca44a2cf7dae68288e5e6f0ab517a9ae16c13fd25cfd70ecb58d2c`.
 
 ### Unresolved work
 
-- Create the focused local commit, push it, require GitHub Actions to pass,
-  rebuild/install the immutable controller, and deploy the checksum-verified
-  dispatcher/job pair before Marmic can fetch this profile.
+- Push the focused implementation commit, require GitHub Actions to pass, and
+  deploy the checksum-verified dispatcher/job pair before Marmic can fetch this
+  profile. The local controller is already installed from that commit.
 - Run the real `p2-diverse` stage/submit sequence, retain the remote run,
   inspect all normalised CD6 results against the strict `LLG > 100` and
   `TFZ > 10` gate, and record resource/cache behaviour. The fake lifecycle is
@@ -427,8 +432,8 @@ clean retained runs.
 
 ### Next exact starting point
 
-Verify the focused commit and GitHub Actions. Then build and install the local
-controller from that immutable commit, deploy the reviewed remote tools, run
+Push implementation commit `8372f1c530a9bd9a2f311a60376cf4ec7ddbd382`
+and require GitHub Actions to pass. Then deploy the reviewed remote tools, run
 `readiness p2-diverse`, and stage the same pushed revision. Do not submit until
 the login-node search/registration checksum record is present; after
 submission, use structured status with the recorded 30-minute monitoring
