@@ -2,7 +2,7 @@
 
 ## Purpose and boundary
 
-The interface has three routine closed profiles plus one separately gated
+The interface has four routine closed profiles plus one separately gated
 database-administration profile. Local Git remains the sole source of truth.
 Marmic fetches an exact pushed commit, creates an isolated read-only checkout,
 runs only the selected reviewed job body, and returns bounded diagnostics. It
@@ -13,6 +13,7 @@ never edits or pushes source.
 | `smoke` | Locked `pixi run check` | Software/environment foundation only |
 | `p0` | Real Phenix verification, bounded anchored database revalidation, all-three-crystal Task 05 run, and cached resume | M0 execution evidence only; downstream identity search remains deferred |
 | `p1` | Frozen catalogue import, login-node exact-AFDB pilot retrieval, catalogue-wide direct PDB search, deterministic 128-query ProstT5/Foldseek slice, Phenix predicted-model preparation, cached resumes, and tracked 8OOX qualification | M1 plus the first M2 vertical slice only; deferred ProstT5 queries remain uninterpreted and no crystal identity or MR is claimed |
+| `p2` | Replay the checksum-frozen P0/P1 evidence, build the exact-predicted bounded funnel, and run one CD6 first-copy Phaser hypothesis plus cached resume | Smallest M3 real-feedback slice only; a hit remains provisional and a no-hit is a completed scientific result |
 | `database` | Login-node source staging, offline capacity preflight, all-resource preparation, and anchored full verification | Shared database administration only; no pipeline or protein-identification claim |
 
 The reviewed local application is the routine approval boundary. Persistent
@@ -23,7 +24,8 @@ file-transfer tools, scheduler commands, and `clean` must not receive persistent
 automatic approval.
 
 The routine drivers use partition `slurm`, 2 CPUs, and 8 GB memory. Foundation
-smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin and P1 uses
+smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin, while P1 and
+P2 use
 the Marmic site's 1,000-hour maximum margin because NFS-cold executable and
 database access are not predictably bounded. The direct PDB
 `process_search` child requests 16 CPUs, 64 GB, and 24 hours. The distinct
@@ -36,7 +38,8 @@ the node's full 4 TB is not requested because it would not accelerate serial
 network, checksum, or copy-back I/O. Only one managed job may be active across
 all profiles. Queue
 waiting stops after 30 minutes. Local execution waiting uses 45-minute,
-24-hour, 1,000-hour, and 48-hour margins for smoke, P0, P1, and database jobs; none of these
+24-hour, 1,000-hour, 1,000-hour, and 48-hour margins for smoke, P0, P1, P2,
+and database jobs; none of these
 limits silently cancels a job. The caller must inspect status and cancel the
 recorded job when appropriate.
 
@@ -80,11 +83,12 @@ RUN_ROOT/
 
 Each staged source tree is detached at one full commit SHA, includes the pinned
 `nf-helper` submodule, and is made read-only. A per-run locked Pixi environment
-is attached outside that source tree. For P0, P1, and database profiles, staging
+is attached outside that source tree. For P0, P1, P2, and database profiles, staging
 materialises that environment on the network-enabled login node; compute jobs
 only verify and use it and therefore do not contact package channels.
 
-The foundation smoke copies source to `SLURM_TMPDIR` or `/dev/shm`. P0 and P1 keep the
+The foundation smoke copies source to `SLURM_TMPDIR` or `/dev/shm`. P0, P1,
+and P2 keep the
 source, Pixi environment, Nextflow cache/work directory, logs, and results on
 shared durable storage because child Slurm nodes cannot see the driver's
 `/dev/shm`. Only driver temporaries use memory-backed local storage; `nf-helper` stages each
@@ -225,6 +229,25 @@ nf-gtd-hpc-test wait --run-id RUN_ID
 nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test collect --run-id RUN_ID
 ```
+
+P2 accepts no new path, crystal identifier, model, score threshold, or Phaser
+argument. It is fixed to the checksum-frozen CD6 MTZ in the approved P0 bundle,
+the exact predicted model produced by P1, and the tracked strict provisional
+gate:
+
+```bash
+nf-gtd-hpc-test readiness p2
+nf-gtd-hpc-test stage p2 --revision HEAD
+nf-gtd-hpc-test submit p2 --run-id RUN_ID
+nf-gtd-hpc-test wait --run-id RUN_ID
+nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test collect --run-id RUN_ID
+```
+
+The dispatcher resolves the MTZ directly from the P0 bundle's fixed
+`manifests/` plus `inputs/` layout. It does not recursively search the qualified
+site root, which avoids broad NFS metadata scans and rejects stale or ambiguous
+copies.
 
 If a collected database run retains extraction or indexing staging after a
 software failure or explicit cancellation, review its main and cited command
@@ -492,6 +515,37 @@ Deferred sequences are `skipped_policy`, never no-hits.
 See the
 [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md).
 
+## P2 fixed CD6 first-copy profile
+
+The fixed P2 route deliberately replays P0 and P1 inside the same immutable
+run before entering molecular replacement. This preserves the exact catalogue,
+preflight, Matthews, coordinate, processed-model, database, and Phenix anchors
+instead of accepting a caller-selected intermediate. After replay it:
+
+1. verifies the single CD6 MTZ from the checksum-frozen P0 bundle layout;
+2. builds the inspectable exact-predicted funnel and requires exactly one
+   physically possible, bounded hypothesis for this pilot slice;
+3. runs `screen_first_copy.nf -profile marmic`, with each Phenix process using
+   two CPUs, 8 GB, compute-node `/scratch`, and the 1,000-hour site margin;
+4. validates the normalised MR result regardless of hit or no-hit status;
+5. repeats the identical route with `-resume` and requires both deterministic
+   processes to report `CACHED`; and
+6. rechecks the source commit and tracked worktree before reporting success.
+
+The adapter itself has no default Phaser timeout. The scheduler and local wait
+margins are conservative observation boundaries; neither silently cancels a
+job. Collection is limited to fixed small provenance, funnel, result, Phaser
+log/command, optional solution files, and first/resume trace artefacts. A
+successful P2 run means the CD6 first-copy attempt executed reproducibly. It
+does not by itself identify a protein, validate the full P2 gate, or authorise
+same-component additional-copy searches.
+
+The reviewed fake Git/Slurm/Nextflow/Phenix lifecycle covers fixed staging,
+submission resources, immutable input reuse, first run, cached resume,
+normalised no-hit handling, collection allow-lists, and job-result provenance.
+Real Marmic qualification remains pending until a clean pushed commit is
+staged and run.
+
 ## Database administration boundary
 
 Full preparation and `verify-only --full-verify` use separate, long-running
@@ -599,7 +653,7 @@ Failure classes are:
 - `success`: the selected fixed profile completed its explicit gate checks;
 - `software_failure`: the job detected unexpected source mutation or application
   behaviour outside a test assertion;
-- `test_failure`: the foundation checks or a fixed P0/P1 workflow gate failed;
+- `test_failure`: the foundation checks or a fixed P0/P1/P2 workflow gate failed;
 - `scheduler_rejection` or `queue_timeout`: scheduling did not start normally;
 - `node_failure`: Slurm reported a failed node;
 - `environment_failure`: Pixi, resources, walltime, or runtime preparation failed;
@@ -662,8 +716,8 @@ local settings does not authorise deletion of shared Marmic state.
 
 ## Deferred scope
 
-P0 and P1 consume already prepared real Phenix and database resources; they do not
+P0, P1, and P2 consume already prepared real Phenix and database resources; they do not
 install licensed software, download databases, accept arbitrary Nextflow
-parameters, or expose raw SSH. Additional structural providers, MR, refinement,
-map-based sequence work, full pilots, and benchmarks require their later roadmap
-gates.
+parameters, or expose raw SSH. Broader structural providers, MR variants,
+same-component copy placement, refinement, map-based sequence work, full pilots,
+and benchmarks require their later roadmap gates.

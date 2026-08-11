@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "hypothesis_id": "mrhyp_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "tool_version": "Phenix stub-2.1-6048; Phaser stub",
+  "execution_status": "completed_no_hit",
+  "llg": null,
+  "llgi": null,
+  "tfz": null,
+  "placed_copy_count": 0,
+  "packing_summary": {
+    "solution_count": 0,
+    "top_solution_packed": false
+  },
+  "parser_warnings": [],
+  "raw_log_pointer": "PHASER.log",
+  "preliminary_credibility_class": "no_solution",
+  "rejection_reason": "stub_no_solution"
+}

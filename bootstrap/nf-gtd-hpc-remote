@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -188,8 +188,8 @@ readiness_p0() {
     local profile="$1"
     local pixi_bin="" pixi_version="" pixi_status=unavailable ready=false
     validate_profile "$profile"
-    [[ "$profile" == p0 || "$profile" == p1 ]] || \
-        fail wrapper_failure "readiness is available only for p0 and p1"
+    [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 ]] || \
+        fail wrapper_failure "readiness is available only for p0, p1, and p2"
 
     if [[ -f "$PIXI_PATH_FILE" ]]; then
         IFS= read -r pixi_bin < "$PIXI_PATH_FILE"
@@ -850,7 +850,7 @@ stage_run_common() {
     ln -s "$run/environment/.pixi" "$run/source/.pixi" || \
         fail filesystem_failure "cannot attach the per-run Pixi environment"
 
-    if [[ "$profile" == p0 || "$profile" == p1 ]]; then
+    if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
             atomic_text "$run/state/phase" "stage_failed"
@@ -883,7 +883,8 @@ stage_run_common() {
         database_config_json="\"$database_config_sha256\""
     fi
 
-    if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == database ]]; then
+    if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
+          "$profile" == database ]]; then
         if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
             --manifest-path "$run/source/pixi.toml" \
             --environment hpc \
@@ -901,7 +902,7 @@ stage_run_common() {
             append_event "$run" "stage_${profile}_cli_absent"
             fail environment_failure "locked HPC CLI is unavailable"
         }
-        if [[ "$profile" == p0 || "$profile" == p1 ]]; then
+        if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
             java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
             mmseqs="$run/source/.pixi/envs/hpc/bin/mmseqs"
@@ -943,14 +944,14 @@ stage_run_common() {
         append_event "$run" "stage_database_sources_ready"
     fi
 
-    if [[ "$profile" == p1 ]]; then
+    if [[ "$profile" == p1 || "$profile" == p2 ]]; then
         mapfile -t p0_values < "$P0_CONFIG"
         [[ "${#p0_values[@]}" -eq 7 ]] || \
             fail wrapper_failure "P0 configuration changed during P1 staging"
         p1_catalogue="$run/artifacts/p1/catalogue"
         p1_prefetch="$run/artifacts/p1/afdb-login-prefetch"
         mkdir -p "$run/artifacts/p1"
-        printf 'phase=p1_login_catalogue_import profile=p1\n' \
+        printf 'phase=p1_login_catalogue_import profile=%s\n' "$profile" \
             > "$run/logs/p1-login-prefetch.log"
         if ! "$gtd" --log-format json --no-progress catalogue import \
             --catalogues "${p0_values[1]}" \
@@ -962,7 +963,7 @@ stage_run_common() {
             append_event "$run" "stage_p1_catalogue_failed"
             fail software_failure "P1 catalogue staging failed on the login node"
         fi
-        printf 'phase=p1_login_afdb_prefetch profile=p1\n' \
+        printf 'phase=p1_login_afdb_prefetch profile=%s\n' "$profile" \
             >> "$run/logs/p1-login-prefetch.log"
         if ! "$gtd" --log-format json --no-progress \
             structure-search afdb-exact \
@@ -1091,7 +1092,7 @@ submit_run() {
     cpus=2
     memory=8G
     [[ "$profile" != p0 ]] || walltime=24:00:00
-    if [[ "$profile" == p1 ]]; then
+    if [[ "$profile" == p1 || "$profile" == p2 ]]; then
         walltime=41-16:00:00
     fi
 
@@ -1562,6 +1563,7 @@ collect_run() {
         logs/smoke.log \
         logs/p0.log \
         logs/p1.log \
+        logs/p2.log \
         logs/database.log \
         logs/nextflow-first.log \
         logs/nextflow-resume.log \
@@ -1569,6 +1571,8 @@ collect_run() {
         logs/nextflow-p1-resume.log \
         logs/nextflow-p1-model-first.log \
         logs/nextflow-p1-model-resume.log \
+        logs/nextflow-p2-first-copy-first.log \
+        logs/nextflow-p2-first-copy-resume.log \
         artifacts/qualification/input-checksums.sha256 \
         artifacts/qualification/phenix-verification.log \
         artifacts/qualification/database_manifest.p0-revalidated.json \
@@ -1593,6 +1597,22 @@ collect_run() {
         artifacts/qualification/p1-model-resume-pipeline-info/timeline.html \
         artifacts/qualification/p1-model-resume-pipeline-info/trace.tsv \
         artifacts/qualification/p1-model-resume-pipeline-info/dag.html \
+        artifacts/qualification/p2-input-checksums.sha256 \
+        artifacts/qualification/p2-first-copy-resume-check.json \
+        artifacts/qualification/p2-first-copy-result.json \
+        artifacts/qualification/p2-first-copy-command.json \
+        artifacts/qualification/p2-first-copy-PHASER.log \
+        artifacts/qualification/p2-first-copy-capture.log \
+        artifacts/qualification/p2-first-copy-solution.pdb \
+        artifacts/qualification/p2-first-copy-solution.mtz \
+        artifacts/qualification/p2-first-copy-first-pipeline-info/report.html \
+        artifacts/qualification/p2-first-copy-first-pipeline-info/timeline.html \
+        artifacts/qualification/p2-first-copy-first-pipeline-info/trace.tsv \
+        artifacts/qualification/p2-first-copy-first-pipeline-info/dag.html \
+        artifacts/qualification/p2-first-copy-resume-pipeline-info/report.html \
+        artifacts/qualification/p2-first-copy-resume-pipeline-info/timeline.html \
+        artifacts/qualification/p2-first-copy-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/p2-first-copy-resume-pipeline-info/dag.html \
         artifacts/qualification/first-pipeline-info/report.html \
         artifacts/qualification/first-pipeline-info/timeline.html \
         artifacts/qualification/first-pipeline-info/trace.tsv \
@@ -1629,7 +1649,10 @@ collect_run() {
         artifacts/p1/afdb-login-prefetch/coordinate_sources.jsonl \
         artifacts/p1/afdb-login-prefetch/raw/http.log \
         artifacts/p1/model-preparation/predicted_model_preparation/model_preparation_manifest.json \
-        artifacts/p1/model-preparation/predicted_model_preparation/processed_models.jsonl; do
+        artifacts/p1/model-preparation/predicted_model_preparation/processed_models.jsonl \
+        artifacts/p2/first-copy/exact_predicted_funnel/funnel_manifest.json \
+        artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.jsonl \
+        artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.tsv; do
         if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then
             size="$(file_size "$run/$candidate")"
             (( size <= MAX_FILE_BYTES )) || fail transfer_failure "artefact exceeds per-file limit"

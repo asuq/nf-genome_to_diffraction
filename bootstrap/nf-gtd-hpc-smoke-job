@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Fixed Slurm job body for the reviewed smoke, P0, P1, and separately gated
+# Fixed Slurm job body for the reviewed smoke, P0, P1, P2, and separately gated
 # database-administration profiles.
 
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -138,6 +138,9 @@ finalise() {
     elif [[ "$PROFILE" == p1 ]]; then
         reports_json='["artifacts/qualification/p1-qualification.json"]'
         retained_json='["artifacts/p1","artifacts/qualification"]'
+    elif [[ "$PROFILE" == p2 ]]; then
+        reports_json='["artifacts/qualification/p2-first-copy-result.json","artifacts/qualification/p2-first-copy-resume-check.json"]'
+        retained_json='["artifacts/p0","artifacts/p1","artifacts/p2","artifacts/qualification"]'
     elif [[ "$PROFILE" == database ]]; then
         reports_json='["artifacts/database/preflight.json"]'
         retained_json='["artifacts/database"]'
@@ -736,6 +739,177 @@ EOF
     printf 'predicted_model_status=confidence_processed_and_resume_cached\n'
 }
 
+run_p2_first_copy_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/nextflow-p2-first-copy-${label}.log" \
+        run "$RUN/source/screen_first_copy.nf" \
+        "$@" \
+        -profile marmic \
+        --coordinate_sources "$P1_PREFETCH_OUT/coordinate_sources.jsonl" \
+        --prepared_models "$P1_MODEL_OUT/predicted_model_preparation" \
+        --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
+        --matthews "$P0_OUT/matthews/matthews_hypotheses.jsonl" \
+        --preflight "$P0_OUT/preflight/mtz_preflight.jsonl" \
+        --config "$PIPELINE_CONFIG" \
+        --crystal_id CD6QS2P2G1_5 \
+        --mtz "$P2_MTZ" \
+        --phenix_manifest "$PHENIX_MANIFEST" \
+        --outdir "$P2_FIRST_COPY_OUT" \
+        --cache_root "$RUN/cache/p2-first-copy"
+}
+
+run_p2() {
+    local p2_mtz_candidate result_directory result_json result_count hypothesis_count
+    local first_trace resume_trace cache_counts total cached
+    local -a result_directories=()
+    local qualification="$RUN/artifacts/qualification"
+
+    printf 'phase=p2_replay_p0 profile=p2\n'
+    run_p0
+    printf 'phase=p2_replay_p1 profile=p2\n'
+    run_p1
+
+    P2_OUT="$RUN/artifacts/p2"
+    P2_FIRST_COPY_OUT="$P2_OUT/first-copy"
+    mkdir -p "$P2_FIRST_COPY_OUT" "$RUN/cache/p2-first-copy"
+    [[ "$(basename "$(dirname "$CRYSTALS")")" == manifests ]] || {
+        printf 'P2 requires the checksum-frozen P0 bundle layout\n' >&2
+        return 2
+    }
+    p2_mtz_candidate="$(dirname "$(dirname "$CRYSTALS")")/inputs/CD6QS2P2G1_5.mtz"
+    P2_MTZ="$(realpath -e "$p2_mtz_candidate")" || {
+        printf 'fixed CD6 MTZ cannot be resolved\n' >&2
+        return 2
+    }
+    [[ "$P2_MTZ" == "$p2_mtz_candidate" && -f "$P2_MTZ" && \
+        ! -L "$p2_mtz_candidate" ]] || {
+        printf 'fixed CD6 MTZ is not canonical and regular\n' >&2
+        return 2
+    }
+    path_within_root "$P0_ALLOWED_ROOT" "$P2_MTZ" || {
+        printf 'fixed CD6 MTZ escaped the qualified input root\n' >&2
+        return 2
+    }
+
+    sha256sum \
+        "$P0_CONFIG_PATH" \
+        "$PIPELINE_CONFIG" \
+        "$P2_MTZ" \
+        "$P0_OUT/preflight/mtz_preflight.jsonl" \
+        "$P0_OUT/matthews/matthews_hypotheses.jsonl" \
+        "$P1_PREFETCH_OUT/coordinate_sources.jsonl" \
+        "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
+        "$P1_MODEL_OUT/predicted_model_preparation/processed_models.jsonl" \
+        "$P1_MODEL_OUT/predicted_model_preparation/model_preparation_manifest.json" \
+        "$PHENIX_MANIFEST" \
+        > "$qualification/p2-input-checksums.sha256"
+
+    PHASE=test
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    cd "$RUN/execution"
+    printf 'phase=p2_first_copy_first_run profile=p2 crystal=CD6QS2P2G1_5\n'
+    run_p2_first_copy_nextflow first
+    cp -a \
+        "$P2_FIRST_COPY_OUT/pipeline_info" \
+        "$qualification/p2-first-copy-first-pipeline-info"
+
+    printf 'phase=p2_first_copy_resume_run profile=p2 crystal=CD6QS2P2G1_5\n'
+    run_p2_first_copy_nextflow resume -resume
+    cp -a \
+        "$P2_FIRST_COPY_OUT/pipeline_info" \
+        "$qualification/p2-first-copy-resume-pipeline-info"
+
+    hypothesis_count="$(awk 'NF { count++ } END { print count + 0 }' \
+        "$P2_FIRST_COPY_OUT/exact_predicted_funnel/mr_hypotheses.jsonl")"
+    [[ "$hypothesis_count" -eq 1 ]] || {
+        printf 'P2 expected exactly one bounded CD6 hypothesis: observed=%s\n' \
+            "$hypothesis_count" >&2
+        return 4
+    }
+    mapfile -t result_directories < <(
+        find "$P2_FIRST_COPY_OUT" \
+            -mindepth 1 \
+            -maxdepth 1 \
+            -type d \
+            -name 'first_copy_phaser_mrhyp_*' \
+            -print
+    )
+    result_count="${#result_directories[@]}"
+    [[ "$result_count" -eq 1 ]] || {
+        printf 'P2 expected exactly one first-copy result directory: observed=%s\n' \
+            "$result_count" >&2
+        return 4
+    }
+    result_directory="${result_directories[0]}"
+    result_json="$result_directory/normalised_mr_result.json"
+    "$GTD" --log-format json --no-progress contract validate \
+        normalised-mr-result \
+        "$result_json"
+    cp -- "$result_json" "$qualification/p2-first-copy-result.json"
+    cp -- \
+        "$result_directory/phaser_command.json" \
+        "$qualification/p2-first-copy-command.json"
+    [[ ! -f "$result_directory/PHASER.log" ]] || \
+        cp -- "$result_directory/PHASER.log" \
+            "$qualification/p2-first-copy-PHASER.log"
+    cp -- \
+        "$result_directory/phenix.phaser.capture.log" \
+        "$qualification/p2-first-copy-capture.log"
+    [[ ! -f "$result_directory/PHASER.1.pdb" ]] || \
+        cp -- "$result_directory/PHASER.1.pdb" \
+            "$qualification/p2-first-copy-solution.pdb"
+    [[ ! -f "$result_directory/PHASER.1.mtz" ]] || \
+        cp -- "$result_directory/PHASER.1.mtz" \
+            "$qualification/p2-first-copy-solution.mtz"
+
+    first_trace="$qualification/p2-first-copy-first-pipeline-info/trace.tsv"
+    resume_trace="$qualification/p2-first-copy-resume-pipeline-info/trace.tsv"
+    [[ -f "$first_trace" && -f "$resume_trace" ]] || {
+        printf 'P2 first/resume traces were not produced\n' >&2
+        return 4
+    }
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$resume_trace")"
+    read -r total cached <<< "$cache_counts"
+    [[ "$total" -eq 2 && "$cached" -eq 2 ]] || {
+        printf 'P2 first-copy resume was not fully cached: total=%s cached=%s\n' \
+            "$total" "$cached" >&2
+        return 4
+    }
+    cat > "$qualification/p2-first-copy-resume-check.json" <<EOF
+{
+  "schema_version": "1.0",
+  "run_id": "$RUN_ID",
+  "profile": "p2",
+  "crystal_id": "CD6QS2P2G1_5",
+  "process_count": $total,
+  "cached_process_count": $cached,
+  "all_first_copy_processes_cached": true
+}
+EOF
+
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == \
+        "$(<"$RUN/state/commit")" ]] || {
+        printf 'P2 source commit changed during execution\n' >&2
+        return 3
+    }
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || {
+        printf 'P2 execution modified tracked source files\n' >&2
+        return 3
+    }
+    printf 'p2_status=cd6_first_copy_completed_and_resume_cached\n'
+}
+
 run_database() {
     local gtd real_aria2 wrapper_bin database_manifest_sha256
     local source_bundle source_bundle_sha256 actual_source_bundle_sha256
@@ -932,6 +1106,7 @@ case "$PROFILE" in
     smoke) run_smoke ;;
     p0) run_p0 ;;
     p1) run_p1 ;;
+    p2) run_p2 ;;
     database) run_database ;;
 esac
 

@@ -3,9 +3,11 @@
 ## Purpose
 
 This runbook reproduces the implemented Task 05 boundary on Marmic: trusted
-catalogue import, MTZ preflight, and Matthews enumeration. Scientific stages
-after Task 05 are deferred. Use absolute paths and keep raw inputs, generated
-results, environments, caches, and logs outside Git.
+catalogue import, MTZ preflight, and Matthews enumeration. The separately
+reviewed fixed-profile controller can also replay that evidence through the
+current P1 discovery/model slice and the single CD6 first-copy P2 slice. Later
+scientific stages remain deferred. Use absolute paths and keep raw inputs,
+generated results, environments, caches, and logs outside Git.
 
 The initial verified run is summarised in the
 [prototype test report](prototype-test-report-2026-08-02.md).
@@ -107,12 +109,41 @@ Slurm configuration can override site settings supplied by `nf-helper`.
 The tracked [Marmic wrapper](../conf/marmic.config) imports the pinned
 `nf-helper` site profile and puts the project `hpc` environment on each process
 `PATH`. The site profile supplies the Slurm executor, conservative submission
-limits, `--export=ALL`, and compute-node scratch staging.
+limits, `--export=ALL`, and compute-node `/scratch` staging.
 
 The Nextflow driver may use `/dev/shm` for its small temporary files when the
 login filesystem is slow. Keep `cache/work` and the output directory unchanged
 between resume runs. Do not place irreplaceable inputs only in `/dev/shm` or
 compute-node scratch.
+
+## Fixed P2 prototype feedback run
+
+Prefer the reviewed `nf-gtd-hpc-test` controller over a hand-written driver for
+the current real first-copy experiment. It accepts no caller-supplied data path
+or Phaser option; the fixed P2 route reuses the verified P0 bundle and P1 exact
+model, runs CD6, and checks a fully cached resume:
+
+```bash
+nf-gtd-hpc-test readiness p2
+nf-gtd-hpc-test stage p2 --revision HEAD
+nf-gtd-hpc-test submit p2 --run-id RUN_ID
+nf-gtd-hpc-test wait --run-id RUN_ID
+nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test collect --run-id RUN_ID
+```
+
+Replace `RUN_ID` after `stage` with the emitted identifier. Stage only a clean
+commit already available from the private remote. The outer coordinator and
+Phaser process use a 1,000-hour site margin; the Phaser adapter has no default
+timeout. This margin accommodates unpredictable NFS startup and does not imply
+that a one-hypothesis search should normally run that long. Do not cancel on
+elapsed time alone: inspect status and logs first.
+
+A successful command sequence proves reproducible execution, not a biological
+identification. Inspect `normalised_mr_result.json`: `completed_no_hit` is a
+valid scientific outcome, while a provisional hit requires strict `LLG > 100`
+and `TFZ > 10`, final packing, and the requested placed-copy count. Broader
+review, maps, refinement, and expert approval remain required.
 
 ## Submit the workflow
 

@@ -64,13 +64,16 @@ def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
         parser.parse_args(["submit", "database", "--run-id", "RUN_ID"])
 
 
-def test_p1_uses_only_the_fixed_routine_interface() -> None:
+@pytest.mark.parametrize("profile", ["p1", "p2"])
+def test_scientific_profile_uses_only_the_fixed_routine_interface(
+    profile: str,
+) -> None:
     parser = _build_parser()
 
-    readiness = parser.parse_args(["readiness", "p1"])
-    staged = parser.parse_args(["stage", "p1", "--revision", "HEAD"])
-    submitted = parser.parse_args(["submit", "p1", "--run-id", "RUN_ID"])
+    readiness = parser.parse_args(["readiness", profile])
+    staged = parser.parse_args(["stage", profile, "--revision", "HEAD"])
+    submitted = parser.parse_args(["submit", profile, "--run-id", "RUN_ID"])
 
-    assert readiness.profile == "p1"
-    assert staged.profile == "p1"
-    assert submitted.profile == "p1"
+    assert readiness.profile == profile
+    assert staged.profile == profile
+    assert submitted.profile == profile

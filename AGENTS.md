@@ -123,11 +123,19 @@ The first three MTZ datasets are feasibility tests, not a general validation set
 
 ## 10. Development sequencing
 
-M0 real-site qualification is accepted and M1 structural discovery is the
-active milestone. Follow the tracked single-component roadmap and the approved
-external handoff through M6. Do not start heteromer logic, AF3 complex logic,
-or local ESM Atlas deployment before the monomer/domain prototype satisfies its
-acceptance criteria.
+M0 real-site qualification is accepted, the first fixed M1 discovery slice has
+passed, and M2-to-M3 model-funnel/first-copy MR integration is active. Follow
+the tracked single-component roadmap and the approved external handoff through
+M6. Do not start heteromer logic, AF3 complex logic, or local ESM Atlas
+deployment before the monomer/domain prototype satisfies its acceptance
+criteria.
+
+At the start of each new development loop, read the newest entry in
+`docs/development-loop-journal.md` before changing code or running a new remote
+profile. Before every session close or hand-off, append a concise dated entry
+covering discoveries, accomplishments, immutable evidence, unresolved work, and
+the exact next starting point. Do not include private paths, inputs, credentials,
+or generated scientific data in this tracked journal.
 
 ## 11. Documentation expectations
 

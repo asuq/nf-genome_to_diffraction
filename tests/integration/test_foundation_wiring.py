@@ -22,12 +22,14 @@ def test_module_cli_version() -> None:
 
 
 @pytest.mark.integration
-def test_nextflow_task05_processes_are_typed_and_have_stubs() -> None:
+def test_nextflow_scientific_processes_are_typed_and_have_stubs() -> None:
     for name in (
         "validate_task05_inputs.nf",
         "import_catalogues.nf",
         "mtz_preflight.nf",
         "enumerate_matthews.nf",
+        "build_exact_predicted_funnel.nf",
+        "run_first_copy_phaser.nf",
     ):
         source = (REPOSITORY / "modules/local" / name).read_text(encoding="utf-8")
         assert "nextflow.enable.types = true" in source

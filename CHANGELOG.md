@@ -221,15 +221,31 @@ All notable changes to this project are documented here.
 - The corrected fixed route passed as Slurm job `625744` on immutable commit
   `c901dafe585d1b68b117d7d216e5053ef4985230`. Phenix 2.1-6048 retained 429 of
   442 residues in the exact pilot model and the model process cached on resume.
+- An exact-predicted-model funnel now verifies coordinate/model/sequence
+  identity and checksums, excludes physically impossible copy counts, preserves
+  inspectable priority fields, applies deterministic hard caps, and emits one
+  immutable record per first-copy MR job.
+- The first-copy Phaser adapter now runs through the isolated licensed runtime,
+  preserves commands/logs/output checksums, uses final packing evidence,
+  separates scientific no-hits from execution failures, and enforces the
+  provisional strict `LLG > 100` and `TFZ > 10` gate without a default timeout.
+- A typed `screen_first_copy.nf` route and fixed checksum-gated Marmic P2
+  operation now execute the bounded CD6 exact-model hypothesis and require a
+  fully cached resume. The fixed fake Git/Slurm/Nextflow/Phenix lifecycle passes;
+  real P2 qualification remains pending.
+- The tracked development-loop journal is now a mandatory read-first and
+  write-before-handoff record so scientific discoveries, completed evidence,
+  unresolved work, and the exact restart point survive task boundaries.
 
 ### Not implemented
 
 - Uncapped real-catalogue ProstT5/Foldseek qualification, optional ESM Atlas
   search, provider hit union, PDB coordinate registration,
-  model-domain/experimental variants, candidate-funnel selection, molecular
-  replacement, refinement, map-based sequence assessment, final ranking, and
-  final scientific reporting.
-- The remaining multi-provider P1 gate and all downstream MR gates.
+  model-domain/experimental variants, broader diversity-aware funnel selection,
+  same-component copy placement, refinement, map-based sequence assessment,
+  final ranking, and final scientific reporting.
+- The remaining multi-provider P1 gate, real fixed P2 run, broader P2
+  qualification/review package, and downstream MR gates.
 
 ## 1.0 - 31 July 2026
 

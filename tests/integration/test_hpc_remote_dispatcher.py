@@ -20,6 +20,7 @@ RUN_ID = "gtd-smoke-20260802T120000Z-0123456789ab-01234567"
 SECOND_RUN_ID = "gtd-smoke-20260802T120001Z-0123456789ab-01234568"
 P0_RUN_ID = "gtd-p0-20260802T120000Z-0123456789ab-01234567"
 P1_RUN_ID = "gtd-p1-20260802T120000Z-0123456789ab-01234567"
+P2_RUN_ID = "gtd-p2-20260802T120000Z-0123456789ab-01234567"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
 
@@ -533,13 +534,18 @@ def _lock_checksum(tmp_path: Path) -> str:
 def _write_p0_paths(root: Path, *, unsafe: bool = False) -> Path:
     allowed = root / "p0-inputs"
     allowed.mkdir()
+    manifests = allowed / "manifests"
+    manifests.mkdir()
+    mtz_inputs = allowed / "inputs"
+    mtz_inputs.mkdir()
+    (mtz_inputs / "CD6QS2P2G1_5.mtz").write_bytes(b"fixed CD6 test MTZ\n")
     database_root = allowed / "databases"
     database_root.mkdir()
     database_manifest = allowed / "database_manifest.json"
     database_manifest.write_text("{}\n", encoding="utf-8")
     inputs = []
     for name in ("catalogues.json", "crystals.json", "config.yaml", "phenix.json"):
-        path = allowed / name
+        path = manifests / name
         path.write_text("{}\n", encoding="utf-8")
         inputs.append(path)
     p0_config = root / "_config" / "p0.paths"
@@ -1897,16 +1903,24 @@ def _install_fake_p1_runtime(run: Path) -> None:
         "output=\n"
         "first_trace=\n"
         "resume_trace=\n"
+        "manifest=\n"
+        "verification_log=\n"
         "previous=\n"
         'case " $* " in\n'
         '  *" catalogue import "*) mode=catalogue ;;\n'
         '  *" structure-search qualify-p1 "*) mode=qualify ;;\n'
+        '  *" phenix verify "*) mode=phenix ;;\n'
+        '  *" databases prepare "*) mode=databases ;;\n'
+        '  *" contract validate "*) mode=contract ;;\n'
         "esac\n"
         'for argument in "$@"; do\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
         '  [[ "$previous" != --output ]] || output="$argument"\n'
         '  [[ "$previous" != --first-trace ]] || first_trace="$argument"\n'
         '  [[ "$previous" != --resume-trace ]] || resume_trace="$argument"\n'
+        '  [[ "$previous" != --manifest ]] || manifest="$argument"\n'
+        '  [[ "$previous" != --verification-log ]] || '
+        'verification_log="$argument"\n'
         '  previous="$argument"\n'
         "done\n"
         'if [[ "$mode" == catalogue ]]; then\n'
@@ -1923,6 +1937,17 @@ def _install_fake_p1_runtime(run: Path) -> None:
         '  printf \'{"schema_version":"1.0","profile":"p1",'
         '"status":"passed","all_resume_processes_cached":true}\\n\' '
         '> "$output"\n'
+        'elif [[ "$mode" == phenix ]]; then\n'
+        '  [[ -n "$verification_log" ]]\n'
+        "  printf 'verified\\n' > \"$verification_log\"\n"
+        'elif [[ "$mode" == databases ]]; then\n'
+        '  [[ -n "$manifest" ]]\n'
+        "  printf '{}\\n' > \"$manifest\"\n"
+        '  printf \'{"schema_version":"1.0","verification_level":'
+        '"inventory_metadata_and_functional_smoke","full_checksums":false}\\n\' '
+        '> "${manifest%.json}.verification.json"\n'
+        'elif [[ "$mode" == contract ]]; then\n'
+        '  [[ -f "${@: -1}" ]]\n'
         "else\n"
         "  exit 9\n"
         "fi\n",
@@ -1937,7 +1962,9 @@ def _install_fake_p1_runtime(run: Path) -> None:
         "status=COMPLETED\n"
         'printf \'%s\\n\' "$*" >> "$PWD/fake-nextflow-commands.log"\n'
         'for argument in "$@"; do\n'
+        '  [[ "$argument" != */main.nf ]] || mode=p0\n'
         '  [[ "$argument" != */prepare_models.nf ]] || mode=model\n'
+        '  [[ "$argument" != */screen_first_copy.nf ]] || mode=p2\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
         '  [[ "$argument" != -resume ]] || status=CACHED\n'
         '  previous="$argument"\n'
@@ -1947,16 +1974,68 @@ def _install_fake_p1_runtime(run: Path) -> None:
         "printf 'task_id\\tnative_id\\tname\\tstatus\\texit\\tduration\\t"
         "realtime\\t%%cpu\\tpeak_rss\\tpeak_vmem\\trchar\\twchar\\n' "
         '> "$outdir/pipeline_info/trace.tsv"\n'
-        'if [[ "$mode" == model ]]; then\n'
+        'if [[ "$mode" == p0 ]]; then\n'
+        "  for task in 1 2 3 4; do printf '"
+        "%s\\t123\\tP0_TASK\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
+        "10 MB\\t20 MB\\t30 MB\\t4 MB\\n' "
+        '"$task" "$status"; done >> "$outdir/pipeline_info/trace.tsv"\n'
+        'elif [[ "$mode" == p2 ]]; then\n'
+        "  for task in 1 2; do printf '"
+        "%s\\t123\\tP2_TASK\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
+        "10 MB\\t20 MB\\t30 MB\\t4 MB\\n' "
+        '"$task" "$status"; done >> "$outdir/pipeline_info/trace.tsv"\n'
+        'elif [[ "$mode" == model ]]; then\n'
         "  process_name=PREPARE_PREDICTED_MODELS\n"
+        "  printf '1\\t123\\t%s\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
+        "10 MB\\t20 MB\\t30 MB\\t4 MB\\n' "
+        '"$process_name" "$status" >> "$outdir/pipeline_info/trace.tsv"\n'
         "else\n"
         "  process_name=SEARCH_PDB_SEQUENCES\n"
+        "  printf '1\\t123\\t%s\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
+        "10 MB\\t20 MB\\t30 MB\\t4 MB\\n' "
+        '"$process_name" "$status" >> "$outdir/pipeline_info/trace.tsv"\n'
         "fi\n"
-        "printf '1\\t123\\t%s\\t%s\\t0\\t2s\\t1s\\t100%%\\t"
-        '10 MB\\t20 MB\\t30 MB\\t4 MB\\n\' "$process_name" "$status" '
-        '>> "$outdir/pipeline_info/trace.tsv"\n'
         "for name in report.html timeline.html dag.html; do "
         "printf '<html></html>\\n' > \"$outdir/pipeline_info/$name\"; done\n"
+        'if [[ "$mode" == p0 ]]; then\n'
+        '  mkdir -p "$outdir/scope" "$outdir/catalogue" '
+        '"$outdir/preflight" "$outdir/matthews"\n'
+        "  printf '{}\\n' > \"$outdir/scope/pipeline_scope.json\"\n"
+        "  printf '{}\\n' > "
+        '"$outdir/catalogue/catalogue_import_manifest.json"\n'
+        "  printf '{}\\n' > \"$outdir/preflight/mtz_preflight.jsonl\"\n"
+        "  printf 'header\\n' > \"$outdir/preflight/mtz_preflight.tsv\"\n"
+        "  printf '# preflight\\n' > "
+        '"$outdir/preflight/preflight_report.md"\n'
+        "  printf '{}\\n' > "
+        '"$outdir/matthews/matthews_hypotheses.jsonl"\n'
+        "  printf '# matthews\\n' > \"$outdir/matthews/matthews_report.md\"\n"
+        "  exit 0\n"
+        "fi\n"
+        'if [[ "$mode" == p2 ]]; then\n'
+        "  hypothesis=mrhyp_"
+        "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\n"
+        '  result="$outdir/first_copy_phaser_${hypothesis}"\n'
+        '  mkdir -p "$outdir/exact_predicted_funnel" "$result"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/exact_predicted_funnel/funnel_manifest.json"\n'
+        '  printf \'{"hypothesis_id":"%s"}\\n\' "$hypothesis" > '
+        '"$outdir/exact_predicted_funnel/mr_hypotheses.jsonl"\n'
+        "  printf 'hypothesis_id\\n%s\\n' \"$hypothesis\" > "
+        '"$outdir/exact_predicted_funnel/mr_hypotheses.tsv"\n'
+        '  printf \'{"schema_version":"1.0","hypothesis_id":"%s",'
+        '"tool_version":"fake","execution_status":"completed_no_hit",'
+        '"llg":null,"llgi":null,"tfz":null,"placed_copy_count":0,'
+        '"packing_summary":{},"parser_warnings":[],"raw_log_pointer":'
+        '"PHASER.log","preliminary_credibility_class":"no_solution",'
+        '"rejection_reason":"fake_no_solution"}\\n\' "$hypothesis" > '
+        '"$result/normalised_mr_result.json"\n'
+        "  printf '{}\\n' > \"$result/phaser_command.json\"\n"
+        "  printf 'fake Phaser log\\n' > \"$result/PHASER.log\"\n"
+        "  printf 'fake capture\\n' > "
+        '"$result/phenix.phaser.capture.log"\n'
+        "  exit 0\n"
+        "fi\n"
         'if [[ "$mode" == model ]]; then\n'
         '  mkdir -p "$outdir/predicted_model_preparation"\n'
         '  printf \'{"schema_version":"1.0","model_id":"model_test"}\\n\' '
@@ -2133,6 +2212,141 @@ def test_p1_stage_classifies_login_node_afdb_transfer_failure(tmp_path: Path) ->
     )
     log = (run / "logs/p1-login-prefetch.log").read_text(encoding="utf-8")
     assert "phase=p1_login_afdb_prefetch profile=p1" in log
+
+
+def test_p2_stage_and_submit_are_fixed_and_reuse_verified_prefetch(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
+
+    readiness = _decode_protocol(
+        _run(
+            [str(dispatcher), "readiness", "p2"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert readiness["profile"] == "p2"
+    assert readiness["ready"] == "true"
+
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                P2_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "p2",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert staged["profile"] == "p2"
+    run = remote_root / "runs" / P2_RUN_ID
+    prefetch_log = (run / "logs/p1-login-prefetch.log").read_text(encoding="utf-8")
+    assert "phase=p1_login_catalogue_import profile=p2" in prefetch_log
+    assert "phase=p1_login_afdb_prefetch profile=p2" in prefetch_log
+    assert (run / "state/p1-login-prefetch.sha256").is_file()
+
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", P2_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert submitted["profile"] == "p2"
+    arguments = (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    assert "--cpus-per-task=2" in arguments
+    assert "--mem=8G" in arguments
+    assert "--time=41-16:00:00" in arguments
+    assert arguments[-4:] == [str(smoke_job), P2_RUN_ID, str(remote_root), "p2"]
+
+
+def test_p2_job_runs_fixed_cd6_first_copy_and_collects_normalised_result(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            P2_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "p2",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    run = remote_root / "runs" / P2_RUN_ID
+    _install_fake_p1_runtime(run)
+    _run(
+        [str(dispatcher), "submit", P2_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "123"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+    _run(
+        [str(smoke_job), P2_RUN_ID, str(remote_root), "p2"],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
+
+    job_result = json.loads((run / "state/job-result.json").read_text(encoding="utf-8"))
+    assert job_result["failure_class"] == "success"
+    assert job_result["profile"] == "p2"
+    result = json.loads(
+        (run / "artifacts/qualification/p2-first-copy-result.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert result["execution_status"] == "completed_no_hit"
+    resume = json.loads(
+        (run / "artifacts/qualification/p2-first-copy-resume-check.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert resume["crystal_id"] == "CD6QS2P2G1_5"
+    assert resume["process_count"] == 2
+    assert resume["cached_process_count"] == 2
+    p2_log = (run / "logs/p2.log").read_text(encoding="utf-8")
+    assert "phase=p2_replay_p0 profile=p2" in p2_log
+    assert "phase=p2_replay_p1 profile=p2" in p2_log
+    assert "phase=p2_first_copy_first_run profile=p2" in p2_log
+    assert "phase=p2_first_copy_resume_run profile=p2" in p2_log
+    assert "p2_status=cd6_first_copy_completed_and_resume_cached" in p2_log
+
+    archive_path = tmp_path / "p2-collected.tar.gz"
+    archive_path.write_bytes(
+        _run(
+            [str(dispatcher), "collect", P2_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    with tarfile.open(archive_path, "r:gz") as archive:
+        names = set(archive.getnames())
+    assert "artifacts/qualification/p2-first-copy-result.json" in names
+    assert "artifacts/qualification/p2-first-copy-command.json" in names
+    assert "artifacts/qualification/p2-first-copy-PHASER.log" in names
+    assert (
+        "artifacts/qualification/p2-first-copy-resume-pipeline-info/trace.tsv" in names
+    )
+    assert "artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.jsonl" in names
 
 
 def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(

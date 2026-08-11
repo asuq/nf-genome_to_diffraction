@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "funnel_id": "funnel_stub_exact_predicted",
+  "adapter_version": "exact-predicted-funnel-v1",
+  "scope": "exact_predicted_model_vertical_slice",
+  "resource_profile": "pilot",
+  "selected_hypothesis_count": 1,
+  "global_cap": 100,
+  "per_model_copy_cap": 3,
+  "execution_status": "completed_success"
+}

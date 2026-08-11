@@ -30,6 +30,7 @@ from genome_to_diffraction.hpc.models import (
     MAX_FEEDBACK_RUNS,
     P0_EXECUTION_TIMEOUT_SECONDS,
     P1_EXECUTION_TIMEOUT_SECONDS,
+    P2_EXECUTION_TIMEOUT_SECONDS,
     FailureClass,
     HpcConfig,
     LocalRunRecord,
@@ -80,10 +81,16 @@ SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
 MAX_P0_PATHS_BYTES = 4096
 FAILURE_SIGNATURE_LOG_BYTES = 64 * 1024
 _FAILURE_APPLICATION_LOGS = frozenset(
-    {"logs/smoke.log", "logs/p0.log", "logs/p1.log", "logs/database.log"}
+    {
+        "logs/smoke.log",
+        "logs/p0.log",
+        "logs/p1.log",
+        "logs/p2.log",
+        "logs/database.log",
+    }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|database)-[0-9]{8}T[0-9]{6}Z-"
+    r"gtd-(?:smoke|p0|p1|p2|database)-[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
 _SIGNATURE_TIMESTAMP_RE = re.compile(
@@ -264,7 +271,7 @@ class SshTransport:
         elif (
             operation == "stage"
             and len(arguments) == 6
-            and arguments[5] in {"p0", "p1"}
+            and arguments[5] in {"p0", "p1", "p2"}
         ):
             operation_timeout = P0_STAGE_TIMEOUT_SECONDS
         try:
@@ -496,9 +503,9 @@ class HpcController:
         """Inspect one fixed profile's remote prerequisites without creating a run."""
 
         validate_profile(profile)
-        if profile not in {"p0", "p1"}:
+        if profile not in {"p0", "p1", "p2"}:
             raise ValidationError(
-                "readiness inspection is available only for p0 and p1"
+                "readiness inspection is available only for p0, p1, and p2"
             )
         self.logger.info(
             "inspecting fixed HPC profile readiness",
@@ -766,7 +773,11 @@ class HpcController:
                 else (
                     P1_EXECUTION_TIMEOUT_SECONDS
                     if record.profile == "p1"
-                    else self.config.execution_timeout_seconds
+                    else (
+                        P2_EXECUTION_TIMEOUT_SECONDS
+                        if record.profile == "p2"
+                        else self.config.execution_timeout_seconds
+                    )
                 )
             )
         )

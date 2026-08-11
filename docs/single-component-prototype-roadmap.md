@@ -63,15 +63,18 @@ overstated:
 | Epic 4, catalogue import | Trusted catalogue normalisation passed the real `GCF_000711905.1` pilot, including compound CDS and repeated-accession loci | Add regression catalogues as new biological edge cases are observed |
 | Epic 5, MTZ preflight | Gemmi and real Xtriage qualification passed for all three pilot MTZ datasets, including `CD6QS2P2G1_5` | Extend only when new MTZ edge cases are observed |
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
-| Epics 7–8 | Direct PDB and bounded ProstT5/Foldseek discovery pass; the first exact-AFDB/Phenix model-preparation slice passes on Marmic | Finish provider union, PDB coordinate variants, and the bounded candidate funnel |
-| Epics 9–13 | Contracts/reserved package areas exist | Molecular replacement, refinement, map/sequence assessment, ranking, and reporting are not implemented |
+| Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; the first exact-AFDB/Phenix model-preparation slice passes on Marmic; the exact-predicted funnel is locally tested, hard-capped, and wired into the fixed P2 route | Finish provider union, PDB coordinate variants, diversity-aware selection, and the real funnel run |
+| Epic 10 | The first-copy Phaser adapter, final-packing parser, strict provisional gate, typed fan-out, stub execution, cached resume, and fixed P2 lifecycle pass locally | Run the immutable CD6 route on Marmic, qualify positive/no-solution controls, enforce the per-crystal smoke cap, and build the review package |
+| Epics 11–13 | Contracts/reserved package areas exist | Same-component copies, refinement, map/sequence assessment, final ranking, and reporting are not implemented |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
-The successful current workflow terminates at
-`task05_preflight_complete_downstream_deferred`. It has not identified the
-protein in `CD6QS2P2G1_5`. See the
+The accepted real Marmic workflow still terminates at
+`task05_preflight_complete_downstream_deferred`. A separate first-copy route now
+passes local stub acceptance, but it has not yet run on Marmic and has not
+identified the protein in `CD6QS2P2G1_5`. See the
 [initial Marmic report](prototype-test-report-2026-08-02.md) for the exact
-evidence and limitations.
+baseline evidence and the [M3 first-copy report](m3-first-copy-phaser.md) for
+the active boundary.
 
 ## Dependency path
 
@@ -252,6 +255,10 @@ domain/experimental variants, and the bounded funnel remain. The typed
 model-preparation entry point and fixed pilot mapping/resume orchestration
 passed on Marmic commit `c901dafe585d1b68b117d7d216e5053ef4985230` as job
 `625744`.
+The exact-predicted funnel is now implemented with checksum verification,
+physical-impossibility exclusion, deterministic caps, inspectable feature
+fields, and one immutable input record per MR job. Its fixed P2 orchestration
+passes locally; real Marmic funnel evidence remains the next gate.
 See the [M2 predicted-model preparation report](m2-predicted-model-preparation.md).
 
 ### Work packages
@@ -290,6 +297,11 @@ See the [M2 predicted-model preparation report](m2-predicted-model-preparation.m
 - the final job count can be calculated before Phaser submission.
 
 ## M3 — First-copy Phaser and MR seed checkpoint
+
+The adapter/parser, typed stub route, and fixed checksum-gated P2 controller
+pass locally. The next feedback step is the smallest immutable CD6 Marmic run;
+review-package and full P2 acceptance work remains open. See the
+[M3 first-copy report](m3-first-copy-phaser.md).
 
 ### Work packages
 

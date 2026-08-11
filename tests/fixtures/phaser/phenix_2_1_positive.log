@@ -1,0 +1,21 @@
+### PHENIX: Phaser 2.8.4 ###
+
+Purge solutions according to highest LLG from Refinement
+Top LLG (all) = 1622.91
+Top LLG (packs) = 1622.91
+
+SOLUTION #1 OF 2
+Refined TF/TFZ equivalent = 1622.91/ 49.7 (Unrefined TF/TFZ=1338.36/ 17.4)
+
+PACKING FUNCTION
+2 accepted of 2 solutions
+2 pack of 2 accepted solutions
+
+** There were 2 solutions
+** Solution #1 written to PDB file:  PHASER.1.pdb
+** Solution #1 written to MTZ file:  PHASER.1.mtz
+
+ADVISORY
+The top solution from a FTF did not pack
+
+EXIT STATUS: SUCCESS

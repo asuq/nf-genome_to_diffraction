@@ -52,6 +52,7 @@ from genome_to_diffraction.model_registry import (
     PredictedModelPreparationRequest,
     prepare_predicted_models,
 )
+from genome_to_diffraction.mr import PhaserRunRequest, run_first_copy_phaser
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
 from genome_to_diffraction.phenix.recovery import (
@@ -61,6 +62,10 @@ from genome_to_diffraction.phenix.recovery import (
 from genome_to_diffraction.phenix.runtime import (
     execute_from_manifest,
     verify_manifest,
+)
+from genome_to_diffraction.ranking import (
+    ExactPredictedFunnelRequest,
+    build_exact_predicted_funnel,
 )
 from genome_to_diffraction.schema_check import validate_repository
 from genome_to_diffraction.schemas.io import (
@@ -498,6 +503,61 @@ def _build_parser() -> argparse.ArgumentParser:
         "--timeout-seconds",
         type=float,
         help="optional explicit Phenix deadline; by default no deadline is imposed",
+    )
+
+    ranking_parser = subparsers.add_parser(
+        "ranking", help="build inspectable, hard-capped candidate funnels"
+    )
+    ranking_actions = ranking_parser.add_subparsers(
+        dest="ranking_action", required=True
+    )
+    exact_predicted_parser = ranking_actions.add_parser(
+        "exact-predicted-funnel",
+        help="join exact predicted models to physical copy hypotheses",
+    )
+    exact_predicted_parser.add_argument(
+        "--coordinate-sources", type=Path, required=True
+    )
+    exact_predicted_parser.add_argument("--processed-models", type=Path, required=True)
+    exact_predicted_parser.add_argument(
+        "--model-preparation-manifest", type=Path, required=True
+    )
+    exact_predicted_parser.add_argument("--sequence-groups", type=Path, required=True)
+    exact_predicted_parser.add_argument("--matthews", type=Path, required=True)
+    exact_predicted_parser.add_argument("--preflight", type=Path, required=True)
+    exact_predicted_parser.add_argument("--config", type=Path, required=True)
+    exact_predicted_parser.add_argument("--outdir", type=Path, required=True)
+    exact_predicted_parser.add_argument(
+        "--crystal-id",
+        action="append",
+        default=[],
+        help="repeatable crystal ID; by default use all supplied preflights",
+    )
+
+    mr_parser = subparsers.add_parser(
+        "mr", help="execute bounded molecular-replacement hypotheses"
+    )
+    mr_actions = mr_parser.add_subparsers(dest="mr_action", required=True)
+    first_copy_parser = mr_actions.add_parser(
+        "first-copy",
+        help="run one exact-predicted independent first-copy Phaser search",
+    )
+    first_copy_parser.add_argument("--hypotheses", type=Path, required=True)
+    first_copy_parser.add_argument("--hypothesis-id", required=True)
+    first_copy_parser.add_argument("--sequence-groups", type=Path, required=True)
+    first_copy_parser.add_argument("--processed-models", type=Path, required=True)
+    first_copy_parser.add_argument(
+        "--model-preparation-manifest", type=Path, required=True
+    )
+    first_copy_parser.add_argument("--preflight", type=Path, required=True)
+    first_copy_parser.add_argument("--mtz", type=Path, required=True)
+    first_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    first_copy_parser.add_argument("--outdir", type=Path, required=True)
+    first_copy_parser.add_argument("--threads", type=int, default=1)
+    first_copy_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        help="optional explicit Phaser deadline; by default no deadline is imposed",
     )
 
     search_parser = subparsers.add_parser(
@@ -976,6 +1036,53 @@ def _run_model(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_ranking(args: argparse.Namespace) -> int:
+    if args.ranking_action != "exact-predicted-funnel":
+        raise AssertionError(f"unhandled ranking action: {args.ranking_action}")
+    result = build_exact_predicted_funnel(
+        ExactPredictedFunnelRequest(
+            coordinate_sources_jsonl=args.coordinate_sources,
+            processed_models_jsonl=args.processed_models,
+            model_preparation_manifest=args.model_preparation_manifest,
+            sequence_groups_jsonl=args.sequence_groups,
+            matthews_hypotheses_jsonl=args.matthews,
+            mtz_preflight_jsonl=args.preflight,
+            pipeline_config=args.config,
+            output_directory=args.outdir,
+            crystal_ids=tuple(args.crystal_id),
+            progress=not args.no_progress,
+        )
+    )
+    print(
+        f"Selected {len(result.hypotheses)} exact-predicted MR hypothesis(es): "
+        f"{result.manifest_json}"
+    )
+    return 0
+
+
+def _run_mr(args: argparse.Namespace) -> int:
+    if args.mr_action != "first-copy":
+        raise AssertionError(f"unhandled MR action: {args.mr_action}")
+    output = run_first_copy_phaser(
+        PhaserRunRequest(
+            hypotheses_jsonl=args.hypotheses,
+            hypothesis_id=args.hypothesis_id,
+            sequence_groups_jsonl=args.sequence_groups,
+            processed_models_jsonl=args.processed_models,
+            model_preparation_manifest=args.model_preparation_manifest,
+            preflight_jsonl=args.preflight,
+            mtz=args.mtz,
+            phenix_manifest=args.phenix_manifest,
+            output_directory=args.outdir,
+            threads=args.threads,
+            timeout_seconds=args.timeout_seconds,
+            progress=not args.no_progress,
+        )
+    )
+    print(f"First-copy MR {output.result.execution_status.value}: {output.result_json}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
@@ -1014,6 +1121,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_matthews(args)
         if args.command == "model":
             return _run_model(args)
+        if args.command == "ranking":
+            return _run_ranking(args)
+        if args.command == "mr":
+            return _run_mr(args)
         if args.command == "structure-search":
             return _run_structure_search(args)
     except PhenixInstallCommandError as error:

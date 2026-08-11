@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "adapter_version": "phenix-first-copy-mr-v1",
+  "hypothesis_id": "mrhyp_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "arguments": ["phenix.phaser", "phaser.mode=MR_AUTO", "phaser.search_copies=1"],
+  "model_identity_percent": 100.0,
+  "stub": true
+}

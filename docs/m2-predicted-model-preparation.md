@@ -7,9 +7,11 @@ coordinate for molecular replacement with verified
 `phenix.process_predicted_model`. It implements one intentionally bounded
 variant: a confidence-pruned, unsplit full predicted model. It does not yet
 implement PDB coordinate retrieval, domain splitting, experimental-model
-variants, or the candidate funnel. A typed `prepare_models.nf` entry point now
-wires the qualified adapter for isolated execution and cached resume. The fixed
-Marmic route passed on 11 August 2026.
+variants, or their broader diversity-aware candidate funnel. The exact-predicted
+vertical slice now has a checksum-verified bounded funnel described in the
+[M3 first-copy report](m3-first-copy-phaser.md). A typed `prepare_models.nf`
+entry point wires the qualified preparation adapter for isolated execution and
+cached resume. The fixed Marmic route passed on 11 August 2026.
 
 The adapter was qualified on 10 August 2026 with Phenix 2.1-6048 on macOS
 Apple Silicon using the real pilot-derived `Methermicoccus shengliensis`
@@ -179,4 +181,5 @@ tails. Parser-v2 lint and stub execution cover the typed Nextflow entry point,
 published directory, and cached resume. The real Phenix run above is the current
 T8.4 evidence. M2 remains open until the repository also provides reviewable
 PDB chain/entity/range retrieval, bounded experimental and domain variants, and
-a candidate funnel whose job count is known before Phaser submission.
+their diversity-aware selection. The exact-predicted slice now produces a
+known, hard-capped job count before Phaser submission.
