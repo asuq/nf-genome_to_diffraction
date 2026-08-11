@@ -1481,6 +1481,8 @@ collect_run() {
         logs/nextflow-resume.log \
         logs/nextflow-p1-first.log \
         logs/nextflow-p1-resume.log \
+        logs/nextflow-p1-model-first.log \
+        logs/nextflow-p1-model-resume.log \
         artifacts/qualification/input-checksums.sha256 \
         artifacts/qualification/phenix-verification.log \
         artifacts/qualification/database_manifest.p0-revalidated.json \
@@ -1496,6 +1498,15 @@ collect_run() {
         artifacts/qualification/p1-resume-pipeline-info/timeline.html \
         artifacts/qualification/p1-resume-pipeline-info/trace.tsv \
         artifacts/qualification/p1-resume-pipeline-info/dag.html \
+        artifacts/qualification/p1-model-resume-check.json \
+        artifacts/qualification/p1-model-first-pipeline-info/report.html \
+        artifacts/qualification/p1-model-first-pipeline-info/timeline.html \
+        artifacts/qualification/p1-model-first-pipeline-info/trace.tsv \
+        artifacts/qualification/p1-model-first-pipeline-info/dag.html \
+        artifacts/qualification/p1-model-resume-pipeline-info/report.html \
+        artifacts/qualification/p1-model-resume-pipeline-info/timeline.html \
+        artifacts/qualification/p1-model-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/p1-model-resume-pipeline-info/dag.html \
         artifacts/qualification/first-pipeline-info/report.html \
         artifacts/qualification/first-pipeline-info/timeline.html \
         artifacts/qualification/first-pipeline-info/trace.tsv \
@@ -1525,7 +1536,9 @@ collect_run() {
         artifacts/p1/discovery/afdb_exact_search/search_manifest.json \
         artifacts/p1/discovery/afdb_exact_search/structural_hits.jsonl \
         artifacts/p1/discovery/afdb_exact_search/coordinate_sources.jsonl \
-        artifacts/p1/discovery/afdb_exact_search/raw/http.log; do
+        artifacts/p1/discovery/afdb_exact_search/raw/http.log \
+        artifacts/p1/model-preparation/predicted_model_preparation/model_preparation_manifest.json \
+        artifacts/p1/model-preparation/predicted_model_preparation/processed_models.jsonl; do
         if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then
             size="$(file_size "$run/$candidate")"
             (( size <= MAX_FILE_BYTES )) || fail transfer_failure "artefact exceeds per-file limit"

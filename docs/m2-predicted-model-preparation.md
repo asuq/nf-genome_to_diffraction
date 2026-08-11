@@ -7,7 +7,9 @@ coordinate for molecular replacement with verified
 `phenix.process_predicted_model`. It implements one intentionally bounded
 variant: a confidence-pruned, unsplit full predicted model. It does not yet
 implement PDB coordinate retrieval, domain splitting, experimental-model
-variants, the candidate funnel, or Nextflow orchestration.
+variants, or the candidate funnel. A typed `prepare_models.nf` entry point now
+wires the qualified adapter for isolated execution and cached resume; real
+fixed-Marmic evidence remains pending.
 
 The adapter was qualified on 10 August 2026 with Phenix 2.1-6048 on macOS
 Apple Silicon using the real pilot-derived `Methermicoccus shengliensis`
@@ -89,6 +91,22 @@ match Phenix defaults because they materially define the model. Disabling
 domain splitting prevents this initial slice from silently generating an
 unbounded variant family. Domain models will be a separate, explicit policy.
 
+## Nextflow boundary
+
+`prepare_models.nf` takes the AFDB/Atlas `coordinate_sources.jsonl`, exact
+catalogue `sequence_groups.jsonl`, and verified Phenix installation manifest.
+Its single `process_phenix` task runs in nf-helper's compute-node `/scratch` on
+Marmic and publishes one complete `predicted_model_preparation` directory. The
+entry point deliberately does not retrieve coordinates or choose candidates;
+the upstream discovery evidence and reviewed mapping remain separate inputs.
+
+The fixed P1 path supplies the tracked one-row
+`WP_042685700.1`/`A0A832VZP6` mapping to discovery, completes and resumes that
+network workflow, then runs and resumes model preparation with a separate cache.
+It fails if the pilot does not yield exactly one processed record or if the
+model task is not cached on resume. This protects the real vertical slice
+without generalising one accession mapping to the remaining proteome.
+
 ## Outputs and identity
 
 The output directory contains:
@@ -132,7 +150,9 @@ an interactive terminal.
 
 Focused tests cover content addressing, exact residue mapping, paths with
 spaces, output contracts, source checksum drift, and bounded native failure
-tails. The real Phenix run above is the current T8.4 evidence. M2 remains open
-until the repository also provides reviewable PDB chain/entity/range retrieval,
-bounded experimental and domain variants, Nextflow execution/resume evidence,
-and a candidate funnel whose job count is known before Phaser submission.
+tails. Parser-v2 lint and stub execution cover the typed Nextflow entry point,
+published directory, and cached resume. The real Phenix run above is the current
+T8.4 evidence. M2 remains open until the fixed Marmic Nextflow path passes and
+the repository also provides reviewable PDB chain/entity/range retrieval,
+bounded experimental and domain variants, and a candidate funnel whose job
+count is known before Phaser submission.

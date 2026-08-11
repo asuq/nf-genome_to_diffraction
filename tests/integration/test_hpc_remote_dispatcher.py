@@ -107,14 +107,25 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     shutil.copy2(
         REPOSITORY / "discover_structures.nf", source / "discover_structures.nf"
     )
+    shutil.copy2(REPOSITORY / "prepare_models.nf", source / "prepare_models.nf")
     controls = source / "benchmarks" / "public-controls"
     controls.mkdir(parents=True)
     shutil.copy2(
         REPOSITORY / "benchmarks/public-controls/pdb_8oox.yaml",
         controls / "pdb_8oox.yaml",
     )
+    shutil.copy2(
+        REPOSITORY / "benchmarks/public-controls/afdb_accessions.tsv",
+        controls / "afdb_accessions.tsv",
+    )
     _git(
-        source, "add", "pixi.lock", "bootstrap", "discover_structures.nf", "benchmarks"
+        source,
+        "add",
+        "pixi.lock",
+        "bootstrap",
+        "discover_structures.nf",
+        "prepare_models.nf",
+        "benchmarks",
     )
     _git(
         source,
@@ -1888,29 +1899,49 @@ def _install_fake_p1_runtime(run: Path) -> None:
         bin_directory / "nextflow",
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
+        "mode=discovery\n"
         "outdir=\n"
         "previous=\n"
         "status=COMPLETED\n"
+        'printf \'%s\\n\' "$*" >> "$PWD/fake-nextflow-commands.log"\n'
         'for argument in "$@"; do\n'
+        '  [[ "$argument" != */prepare_models.nf ]] || mode=model\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
         '  [[ "$argument" != -resume ]] || status=CACHED\n'
         '  previous="$argument"\n'
         "done\n"
         '[[ -n "$outdir" ]]\n'
-        'mkdir -p "$outdir/pipeline_info" "$outdir/pdb_sequence_search/raw"\n'
+        'mkdir -p "$outdir/pipeline_info"\n'
         "printf 'task_id\\tnative_id\\tname\\tstatus\\texit\\tduration\\t"
         "realtime\\t%%cpu\\tpeak_rss\\tpeak_vmem\\trchar\\twchar\\n' "
         '> "$outdir/pipeline_info/trace.tsv"\n'
-        "printf '1\\t123\\tSEARCH_PDB_SEQUENCES\\t%s\\t0\\t2s\\t1s\\t100%%\\t"
-        '10 MB\\t20 MB\\t30 MB\\t4 MB\\n\' "$status" '
+        'if [[ "$mode" == model ]]; then\n'
+        "  process_name=PREPARE_PREDICTED_MODELS\n"
+        "else\n"
+        "  process_name=SEARCH_PDB_SEQUENCES\n"
+        "fi\n"
+        "printf '1\\t123\\t%s\\t%s\\t0\\t2s\\t1s\\t100%%\\t"
+        '10 MB\\t20 MB\\t30 MB\\t4 MB\\n\' "$process_name" "$status" '
         '>> "$outdir/pipeline_info/trace.tsv"\n'
         "for name in report.html timeline.html dag.html; do "
         "printf '<html></html>\\n' > \"$outdir/pipeline_info/$name\"; done\n"
+        'if [[ "$mode" == model ]]; then\n'
+        '  mkdir -p "$outdir/predicted_model_preparation"\n'
+        '  printf \'{"schema_version":"1.0","model_id":"model_test"}\\n\' '
+        '> "$outdir/predicted_model_preparation/processed_models.jsonl"\n'
+        '  printf \'{"schema_version":"1.0","processed_model_count":1}\\n\' '
+        '> "$outdir/predicted_model_preparation/model_preparation_manifest.json"\n'
+        "  exit 0\n"
+        "fi\n"
+        'mkdir -p "$outdir/pdb_sequence_search/raw" '
+        '"$outdir/afdb_exact_search/raw"\n'
         'printf \'{"schema_version":"1.0",'
         '"provider":"pdb_sequence_mmseqs"}\\n\' '
         '> "$outdir/pdb_sequence_search/search_manifest.json"\n'
         "printf 'fake mmseqs log\\n' > "
-        '"$outdir/pdb_sequence_search/raw/mmseqs.log"\n',
+        '"$outdir/pdb_sequence_search/raw/mmseqs.log"\n'
+        'printf \'{"schema_version":"1.0"}\\n\' '
+        '> "$outdir/afdb_exact_search/coordinate_sources.jsonl"\n',
     )
 
 
@@ -1991,6 +2022,17 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
     assert (
         "prostt5_foldseek_status=pilot_slice_complete_full_catalogue_pending" in p1_log
     )
+    assert "phase=p1_model_first_run profile=p1" in p1_log
+    assert "phase=p1_model_resume_run profile=p1" in p1_log
+    assert "afdb_exact_status=exact_mapping_retrieved_and_cached" in p1_log
+    assert "predicted_model_status=confidence_processed_and_resume_cached" in p1_log
+    nextflow_commands = (run / "execution/fake-nextflow-commands.log").read_text(
+        encoding="utf-8"
+    )
+    assert "--afdb_accession_map" in nextflow_commands
+    assert "afdb_accessions.tsv" in nextflow_commands
+    assert "prepare_models.nf" in nextflow_commands
+    assert "--phenix_manifest" in nextflow_commands
 
     archive_path = tmp_path / "p1-collected.tar.gz"
     archive_path.write_bytes(
@@ -2004,8 +2046,18 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
         names = set(archive.getnames())
     assert "artifacts/qualification/p1-qualification.json" in names
     assert "artifacts/qualification/p1-resume-pipeline-info/trace.tsv" in names
+    assert "artifacts/qualification/p1-model-resume-check.json" in names
+    assert "artifacts/qualification/p1-model-resume-pipeline-info/trace.tsv" in names
     assert "artifacts/p1/discovery/pdb_sequence_search/search_manifest.json" in names
     assert "artifacts/p1/discovery/pdb_sequence_search/raw/mmseqs.log" in names
+    assert (
+        "artifacts/p1/model-preparation/predicted_model_preparation/"
+        "model_preparation_manifest.json"
+    ) in names
+    assert (
+        "artifacts/p1/model-preparation/predicted_model_preparation/"
+        "processed_models.jsonl"
+    ) in names
 
 
 def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(

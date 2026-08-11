@@ -434,6 +434,15 @@ manifest, and bounded MMseqs2 log; the full result tree remains on Marmic.
 Passing this profile qualifies the direct-PDB route only. It does not perform
 molecular replacement or identify any blind pilot crystal.
 
+The next fixed P1 revision additionally supplies the tracked one-row exact AFDB
+mapping, completes and resumes discovery, then runs `prepare_models.nf` with the
+P0-verified Phenix manifest and a separate Nextflow cache. It requires exactly
+one processed pilot model and a fully cached model-preparation resume. The
+collected allow-list adds only the model manifest, processed-model record, model
+traces, and bounded Nextflow logs; coordinates, licensed software, and the full
+run tree remain on Marmic. This extends the real vertical slice but still does
+not claim a final candidate identity or an MR solution.
+
 The first real P1 run passed on immutable commit
 `f198884a5d7e6c66c0f6a94f1a28cadb0004fe37` as coordinator job `625575`.
 It evaluated 1,621 exact-sequence groups (1,620 search eligible), retained

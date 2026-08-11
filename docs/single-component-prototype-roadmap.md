@@ -247,7 +247,9 @@ Current progress: the exact pilot AFDB coordinate now passes a real Phenix
 mapping, retained residue ranges, sequence-derived processed mass, model
 checksum, and content-derived identity are validated and recorded. This closes
 the first vertical slice of T8.3–T8.4, not the M2 gate; PDB retrieval,
-domain/experimental variants, Nextflow wiring, and the bounded funnel remain.
+domain/experimental variants, real fixed-Marmic Nextflow evidence, and the
+bounded funnel remain. The typed model-preparation entry point and fixed pilot
+mapping/resume orchestration are implemented locally.
 See the [M2 predicted-model preparation report](m2-predicted-model-preparation.md).
 
 ### Work packages
@@ -589,6 +591,12 @@ mapping defect. Adapter v3 then passed the same fixed 128-sequence slice. The
 active next work is the real downstream candidate/model path while the uncapped
 Foldseek run, optional ESM Atlas decision, provider-aware union, and full P1 gate
 remain tracked qualification work.
+
+The first downstream slice now supplies the tracked one-row AFDB mapping through
+the fixed P1 discovery operation and passes its exact coordinate to a separate
+typed `prepare_models.nf` run using the verified Phenix manifest. Local
+parser-v2, stub-resume, schema, and fake-Slurm acceptance pass; the next gate is
+the immutable real Marmic execution and collected model provenance.
 
 After the focused adapter gate passes, prioritise the real downstream prototype
 path while retaining the uncapped catalogue search as qualification work; do

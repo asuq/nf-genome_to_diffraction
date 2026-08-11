@@ -1,8 +1,13 @@
 """Contract tests for the intentionally narrow foundation repository."""
 
+import hashlib
+import json
 from pathlib import Path
 
+import gemmi
 import yaml
+
+from genome_to_diffraction.schemas.results import ProcessedModelRecord
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
@@ -36,6 +41,24 @@ def test_pilot_afdb_mapping_is_explicit_and_narrow() -> None:
         "src_e7a42a60baf486a4d28372148586124f0edeb57692f74918f2e89ae8cd8bf4ab"
         "\tA0A832VZP6",
     ]
+
+
+def test_predicted_model_stub_is_schema_valid_and_checksum_bound() -> None:
+    root = REPOSITORY / "tests/fixtures/stubs/predicted_model_preparation"
+    records = (root / "processed_models.jsonl").read_text(encoding="ascii").splitlines()
+    assert len(records) == 1
+    record = ProcessedModelRecord.model_validate_json(records[0])
+    manifest = json.loads(
+        (root / "model_preparation_manifest.json").read_text(encoding="ascii")
+    )
+    assert manifest["processed_model_count"] == 1
+    assert manifest["entries"][0]["model_id"] == record.model_id
+    model = root / manifest["entries"][0]["model_path"]
+    assert hashlib.sha256(model.read_bytes()).hexdigest() == record.model_sha256
+    structure = gemmi.read_structure(str(model))
+    structure.setup_entities()
+    assert len(structure) == 1
+    assert structure[0]["A"].get_polymer().make_one_letter_sequence() == "ACDE"
 
 
 def test_remote_sequence_submission_defaults_off() -> None:

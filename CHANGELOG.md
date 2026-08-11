@@ -210,14 +210,17 @@ All notable changes to this project are documented here.
 - The fixed adapter-v3 Marmic pilot passed on 128 real sequence groups, retaining
   292 hits for 102 groups, 26 completed no-hits, 18 assembly-copy hits, explicit
   policy deferral of the other 1,492 eligible groups, and a fully cached resume.
+- A typed predicted-model Nextflow entry point now passes exact coordinate and
+  sequence records to the verified Phenix adapter. The fixed P1 operation
+  supplies only the tracked pilot AFDB mapping, requires one processed model,
+  verifies cached discovery/model resumes, and collects only small provenance.
 
 ### Not implemented
 
-- Uncapped real-catalogue ProstT5/Foldseek qualification, fixed-Marmic execution
-  of the qualified pilot AFDB mapping, optional ESM Atlas search, provider hit
+- Uncapped real-catalogue ProstT5/Foldseek qualification, fixed-Marmic evidence
+  for the wired pilot AFDB/model path, optional ESM Atlas search, provider hit
   union, PDB coordinate registration, model-domain/experimental variants,
-  candidate-funnel and Nextflow model-preparation wiring, molecular replacement,
-  refinement, map-based
+  candidate-funnel selection, molecular replacement, refinement, map-based
   sequence assessment, final ranking, and final scientific reporting.
 - The remaining multi-provider P1 gate and all downstream MR gates.
 

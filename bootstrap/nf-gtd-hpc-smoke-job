@@ -543,23 +543,45 @@ run_p1_nextflow() {
         --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
         --source_records "$P1_CATALOGUE_OUT/source_records.jsonl" \
         --database_manifest "$EXPECTED_DATABASE_MANIFEST" \
+        --afdb_accession_map "$PILOT_AFDB_MAP" \
         --outdir "$P1_DISCOVERY_OUT" \
         --cache_root "$RUN/cache/p1-nextflow" \
         --prostt5_maximum_queries 128
 }
 
+run_p1_model_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/nextflow-p1-model-${label}.log" \
+        run "$RUN/source/prepare_models.nf" \
+        "$@" \
+        -profile marmic \
+        --coordinate_sources \
+        "$P1_DISCOVERY_OUT/afdb_exact_search/coordinate_sources.jsonl" \
+        --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
+        --phenix_manifest "$PHENIX_MANIFEST" \
+        --outdir "$P1_MODEL_OUT" \
+        --cache_root "$RUN/cache/p1-model-nextflow"
+}
+
 run_p1() {
-    local first_trace resume_trace
+    local first_trace resume_trace model_first_trace model_resume_trace
+    local model_cache_counts model_total model_cached model_record_count
     local qualification="$RUN/artifacts/qualification"
     local control_spec="$RUN/source/benchmarks/public-controls/pdb_8oox.yaml"
+    PILOT_AFDB_MAP="$RUN/source/benchmarks/public-controls/afdb_accessions.tsv"
     P1_OUT="$RUN/artifacts/p1"
     P1_CATALOGUE_OUT="$P1_OUT/catalogue"
     P1_DISCOVERY_OUT="$P1_OUT/discovery"
+    P1_MODEL_OUT="$P1_OUT/model-preparation"
     mkdir -p \
         "$qualification" \
         "$P1_CATALOGUE_OUT" \
         "$P1_DISCOVERY_OUT" \
+        "$P1_MODEL_OUT" \
         "$RUN/cache/p1-nextflow" \
+        "$RUN/cache/p1-model-nextflow" \
         "$RUN/execution"
 
     load_p0_config
@@ -569,7 +591,9 @@ run_p1() {
         "$CATALOGUES" \
         "$PIPELINE_CONFIG" \
         "$EXPECTED_DATABASE_MANIFEST" \
+        "$PHENIX_MANIFEST" \
         "$control_spec" \
+        "$PILOT_AFDB_MAP" \
         > "$qualification/p1-input-checksums.sha256"
 
     cd "$RUN/source"
@@ -620,12 +644,66 @@ run_p1() {
         "$P1_DISCOVERY_OUT/pipeline_info" \
         "$qualification/p1-resume-pipeline-info"
 
+    printf 'phase=p1_model_first_run profile=p1\n'
+    run_p1_model_nextflow first
+    cp -a \
+        "$P1_MODEL_OUT/pipeline_info" \
+        "$qualification/p1-model-first-pipeline-info"
+
+    printf 'phase=p1_model_resume_run profile=p1\n'
+    run_p1_model_nextflow resume -resume
+    cp -a \
+        "$P1_MODEL_OUT/pipeline_info" \
+        "$qualification/p1-model-resume-pipeline-info"
+
     first_trace="$qualification/p1-first-pipeline-info/trace.tsv"
     resume_trace="$qualification/p1-resume-pipeline-info/trace.tsv"
     [[ -f "$first_trace" && -f "$resume_trace" ]] || {
         printf 'P1 first/resume traces were not produced\n' >&2
         return 4
     }
+    model_first_trace="$qualification/p1-model-first-pipeline-info/trace.tsv"
+    model_resume_trace="$qualification/p1-model-resume-pipeline-info/trace.tsv"
+    [[ -f "$model_first_trace" && -f "$model_resume_trace" ]] || {
+        printf 'P1 model first/resume traces were not produced\n' >&2
+        return 4
+    }
+    [[ -s "$P1_MODEL_OUT/predicted_model_preparation/processed_models.jsonl" && \
+        -s "$P1_MODEL_OUT/predicted_model_preparation/model_preparation_manifest.json" ]] || {
+        printf 'P1 predicted-model outputs were not produced\n' >&2
+        return 4
+    }
+    model_record_count="$(wc -l < \
+        "$P1_MODEL_OUT/predicted_model_preparation/processed_models.jsonl")"
+    [[ "$model_record_count" -eq 1 ]] || {
+        printf 'P1 expected exactly one mapped predicted model: observed=%s\n' \
+            "$model_record_count" >&2
+        return 4
+    }
+    model_cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$model_resume_trace")"
+    read -r model_total model_cached <<< "$model_cache_counts"
+    [[ "$model_total" -eq 1 && "$model_cached" -eq 1 ]] || {
+        printf 'P1 predicted-model resume was not fully cached: total=%s cached=%s\n' \
+            "$model_total" "$model_cached" >&2
+        return 4
+    }
+    cat > "$qualification/p1-model-resume-check.json" <<EOF
+{
+  "schema_version": "1.0",
+  "run_id": "$RUN_ID",
+  "profile": "p1",
+  "process_count": $model_total,
+  "cached_process_count": $model_cached,
+  "all_model_processes_cached": true
+}
+EOF
     printf 'phase=p1_qualification profile=p1\n'
     "$GTD" --log-format json --no-progress structure-search qualify-p1 \
         --sequence-groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
@@ -647,7 +725,8 @@ run_p1() {
     }
     printf 'p1_status=direct_pdb_sequence_search_qualified\n'
     printf 'prostt5_foldseek_status=pilot_slice_complete_full_catalogue_pending\n'
-    printf 'afdb_exact_status=exact_mapping_marmic_execution_pending\n'
+    printf 'afdb_exact_status=exact_mapping_retrieved_and_cached\n'
+    printf 'predicted_model_status=confidence_processed_and_resume_cached\n'
 }
 
 run_database() {

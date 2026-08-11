@@ -27,8 +27,9 @@ caching, and the exact pilot-derived `WP_042685700.1` to `A0A832VZP6` retrieval
 is qualified. The first M2 vertical slice now converts that exact pilot model
 into a residue-mapped, confidence-pruned, content-addressed MR model through
 verified Phenix 2.1-6048. PDB coordinate registration, domain/experimental
-variants, the bounded candidate funnel, fixed Marmic model preparation, and the
-provider evidence union remain incomplete. Optional ESM Atlas remains disabled.
+variants, the bounded candidate funnel, real fixed-Marmic model-preparation
+evidence, and the provider evidence union remain incomplete. Optional ESM Atlas
+remains disabled.
 Molecular replacement, refinement, map-based sequence
 assessment, ranking, and final identification remain unimplemented.
 `main.nf` therefore ends with an explicit
@@ -357,6 +358,9 @@ for debugging; an existing versioned installation is never overwritten.
   qualified database manifest, output/cache roots, bounded direct-PDB and
   ProstT5/Foldseek-to-PDB parameters, and optional exact UniProt mappings for
   AFDB retrieval.
+- `prepare_models.nf` exposes exact coordinate-source and sequence-group
+  records, a verified Phenix manifest, and output/cache roots for deterministic
+  confidence-pruned predicted-model preparation.
 
 The safe workflow smoke test is:
 
@@ -405,6 +409,22 @@ This entry point requires the Linux `hpc` environment because MMseqs2 and
 Foldseek are not in the macOS development environment. The AFDB branch sends
 only mapped public accessions to the official service; it does not submit
 protein sequences. It is not a final identification workflow.
+
+For the implemented predicted-model preparation route:
+
+```bash
+pixi run -e hpc nextflow run prepare_models.nf -profile local \
+  --coordinate_sources /absolute/results/structural-discovery/afdb_exact_search/coordinate_sources.jsonl \
+  --sequence_groups /absolute/results/catalogue/sequence_groups.jsonl \
+  --phenix_manifest /absolute/software/manifests/phenix.json \
+  --outdir /absolute/results/model-preparation \
+  --cache_root /absolute/cache/nf-genome-to-diffraction-models
+```
+
+The fixed Marmic P1 operation supplies only the tracked one-row pilot mapping,
+then runs this entry point separately after discovery so the network retrieval
+is cached before licensed Phenix execution. A normal successful run must
+produce exactly one processed pilot model and cache the model process on resume.
 
 ## Reference-database preparation
 

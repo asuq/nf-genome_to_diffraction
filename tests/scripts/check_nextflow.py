@@ -167,6 +167,7 @@ def check_stubs() -> None:
         main_out = temporary_root / "main-results"
         database_out = temporary_root / "database-results"
         discovery_out = temporary_root / "discovery-results"
+        model_out = temporary_root / "model-results"
         cache_root = temporary_root / "cache"
 
         main_command = [
@@ -260,6 +261,44 @@ def check_stubs() -> None:
             raise RuntimeError(
                 "resumed structural-discovery stub did not report cached work:\n"
                 + discovery_resumed_output
+            )
+
+        model_command = [
+            "nextflow",
+            "run",
+            "prepare_models.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "--coordinate_sources",
+            "tests/fixtures/stubs/afdb_exact_search/coordinate_sources.jsonl",
+            "--sequence_groups",
+            "tests/fixtures/stubs/sequence_groups.jsonl",
+            "--phenix_manifest",
+            "tests/fixtures/stubs/phenix_install_manifest.json",
+            "--outdir",
+            str(model_out),
+            "--cache_root",
+            str(cache_root / "model-preparation"),
+        ]
+        _run(model_command, environment=environment)
+        _assert_files(
+            model_out,
+            {
+                "processed_models.jsonl",
+                "model_preparation_manifest.json",
+                "stub.cif",
+                "phenix.process_predicted_model.log",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        model_resumed = _run([*model_command, "-resume"], environment=environment)
+        if "cached" not in f"{model_resumed.stdout}\n{model_resumed.stderr}".lower():
+            raise RuntimeError(
+                "resumed predicted-model stub did not report cached work"
             )
 
         database_command = [
