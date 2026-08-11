@@ -25,7 +25,7 @@ from genome_to_diffraction.schemas.results import (
 )
 
 
-def _mmcif(sequence: str, positions: Sequence[int] | None = None) -> bytes:
+def _pdb(sequence: str, positions: Sequence[int] | None = None) -> bytes:
     residue_names = {
         "A": "ALA",
         "C": "CYS",
@@ -43,7 +43,11 @@ def _mmcif(sequence: str, positions: Sequence[int] | None = None) -> bytes:
         "1.00 90.00           C\n"
         for atom_index, position in enumerate(selected, start=1)
     )
-    structure = gemmi.read_pdb_string(f"{atoms}END\n")
+    return f"{atoms}END\n".encode("ascii")
+
+
+def _mmcif(sequence: str, positions: Sequence[int] | None = None) -> bytes:
+    structure = gemmi.read_pdb_string(_pdb(sequence, positions).decode("ascii"))
     structure.name = "predicted-model-test"
     structure.setup_entities()
     return str(structure.make_mmcif_document().as_string()).encode("ascii")
@@ -121,8 +125,8 @@ def _fake_runtime(
                     if item.startswith("output_files.processed_model_prefix=")
                 )
             )
-            prefix.with_name(f"{prefix.name}_A_1.cif").write_bytes(
-                _mmcif("ACDEFGHI", positions=(2, 3, 5, 6, 7, 8))
+            prefix.with_name(f"{prefix.name}_A_1.pdb").write_bytes(
+                _pdb("ACDEFGHI", positions=(2, 3, 5, 6, 7, 8))
             )
         return subprocess.CompletedProcess(arguments, returncode, stdout, b"")
 
@@ -158,11 +162,14 @@ def test_predicted_model_preparation_is_mapped_content_addressed_and_space_safe(
     assert "low_confidence_residues_removed" in record.quality_flags
     assert "process_predicted_model.split_model_by_compact_regions=False" in arguments
     assert "process_predicted_model.remove_low_confidence_residues=True" in arguments
+    assert "output_files.target_output_format=pdb" in arguments
 
     preparation = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     entry = preparation["entries"][0]
     model_path = output / entry["model_path"]
     assert model_path.is_file()
+    assert model_path.suffix == ".pdb"
+    assert model_path.read_text(encoding="ascii").startswith("ATOM")
     assert hashlib.sha256(model_path.read_bytes()).hexdigest() == record.model_sha256
     assert entry["source_residue_count"] == 8
     assert entry["retained_residue_count"] == 6

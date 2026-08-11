@@ -762,7 +762,7 @@ run_p2_first_copy_nextflow() {
 
 run_p2() {
     local p2_mtz_candidate result_directory result_json result_count hypothesis_count
-    local first_trace resume_trace cache_counts total cached
+    local first_trace resume_trace cache_counts total cached execution_status
     local -a result_directories=()
     local qualification="$RUN/artifacts/qualification"
 
@@ -864,6 +864,24 @@ run_p2() {
     [[ ! -f "$result_directory/PHASER.1.mtz" ]] || \
         cp -- "$result_directory/PHASER.1.mtz" \
             "$qualification/p2-first-copy-solution.mtz"
+
+    execution_status="$(sed -n \
+        's/.*"execution_status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+        "$result_json")"
+    case "$execution_status" in
+        completed_hit|completed_no_hit)
+            ;;
+        failed_tool_execution|failed_parse|failed_infrastructure)
+            printf 'P2 first-copy adapter did not complete scientifically: status=%s\n' \
+                "$execution_status" >&2
+            return 4
+            ;;
+        *)
+            printf 'P2 first-copy result has an ineligible execution status: %s\n' \
+                "$execution_status" >&2
+            return 4
+            ;;
+    esac
 
     first_trace="$qualification/p2-first-copy-first-pipeline-info/trace.tsv"
     resume_trace="$qualification/p2-first-copy-resume-pipeline-info/trace.tsv"

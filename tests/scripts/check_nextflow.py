@@ -288,7 +288,7 @@ def check_stubs() -> None:
             {
                 "processed_models.jsonl",
                 "model_preparation_manifest.json",
-                "stub.cif",
+                "stub.pdb",
                 "phenix.process_predicted_model.log",
                 "report.html",
                 "timeline.html",
@@ -324,7 +324,7 @@ def check_stubs() -> None:
             "--crystal_id",
             "test_crystal_01",
             "--mtz",
-            "tests/fixtures/stubs/predicted_model_preparation/models/stub.cif",
+            "tests/fixtures/stubs/predicted_model_preparation/models/stub.pdb",
             "--phenix_manifest",
             "tests/fixtures/stubs/phenix_install_manifest.json",
             "--outdir",

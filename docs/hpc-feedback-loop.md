@@ -527,7 +527,8 @@ instead of accepting a caller-selected intermediate. After replay it:
    physically possible, bounded hypothesis for this pilot slice;
 3. runs `screen_first_copy.nf -profile marmic`, with each Phenix process using
    two CPUs, 8 GB, compute-node `/scratch`, and the 1,000-hour site margin;
-4. validates the normalised MR result regardless of hit or no-hit status;
+4. validates and preserves the normalised MR result, then requires its execution
+   status to be `completed_hit` or `completed_no_hit`;
 5. repeats the identical route with `-resume` and requires both deterministic
    processes to report `CACHED`; and
 6. rechecks the source commit and tracked worktree before reporting success.
@@ -536,15 +537,27 @@ The adapter itself has no default Phaser timeout. The scheduler and local wait
 margins are conservative observation boundaries; neither silently cancels a
 job. Collection is limited to fixed small provenance, funnel, result, Phaser
 log/command, optional solution files, and first/resume trace artefacts. A
-successful P2 run means the CD6 first-copy attempt executed reproducibly. It
-does not by itself identify a protein, validate the full P2 gate, or authorise
+successful P2 run means the CD6 first-copy attempt executed reproducibly. A
+tool, parser, or infrastructure failure remains collectable but makes the outer
+run a `test_failure`; it is never converted into a successful no-hit. It does
+not by itself identify a protein, validate the full P2 gate, or authorise
 same-component additional-copy searches.
 
 The reviewed fake Git/Slurm/Nextflow/Phenix lifecycle covers fixed staging,
 submission resources, immutable input reuse, first run, cached resume,
-normalised no-hit handling, collection allow-lists, and job-result provenance.
-Real Marmic qualification remains pending until a clean pushed commit is
-staged and run.
+normalised no-hit handling, adapter-failure rejection, collection allow-lists,
+and job-result provenance.
+
+The first real attempt at corrected database validation failed before Phaser
+because a bounded MMseqs tie set omitted literal `1ubq_A`; the correction now
+uses the strongest sequence-equivalent hit while retaining the independent
+fixed 1UBQ mapping and coordinate anchors. The next immutable run replayed P0
+and P1 successfully and cached both P2 processes, but its normalised result was
+`failed_tool_execution`: Phaser 2.8.4 reported no scattering in the processed
+mmCIF. That run established route reproducibility, not P2 scientific
+completion. Predicted-model preparation now publishes the Phenix-generated PDB
+validated by a real positive control; immutable Marmic requalification remains
+pending.
 
 ## Database administration boundary
 

@@ -158,7 +158,7 @@ def test_funnel_fails_before_publication_on_model_checksum_change(
     tmp_path: Path,
 ) -> None:
     request = _request(tmp_path)
-    model = request.model_preparation_manifest.parent / "models/stub.cif"
+    model = request.model_preparation_manifest.parent / "models/stub.pdb"
     model.write_text("changed\n", encoding="utf-8")
 
     with pytest.raises(FunnelInputError, match="checksum mismatch"):

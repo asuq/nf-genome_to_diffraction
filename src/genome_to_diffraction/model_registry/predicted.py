@@ -4,7 +4,7 @@ The adapter accepts immutable ``CoordinateSourceRecord`` and
 ``SequenceGroupRecord`` JSONL files, verifies their checksums and exact sequence
 mapping, and invokes the verified Phenix 2.1
 ``phenix.process_predicted_model`` command in an isolated child shell.  It emits
-content-addressed mmCIF models, ``ProcessedModelRecord`` JSONL, a preparation
+content-addressed PDB models, ``ProcessedModelRecord`` JSONL, a preparation
 manifest, and one raw command log per coordinate.
 
 Only the bounded confidence-pruned, unsplit full-model variant is implemented
@@ -64,7 +64,7 @@ _PREDICTED_PROVIDERS = frozenset({"afdb", "esm_atlas"})
 _LOG_TAIL_BYTES = 16 * 1024
 _LOG_TAIL_LINES = 40
 _PHIL_PARAMETERS: dict[str, JsonValue] = {
-    "output_files.target_output_format": "mmcif",
+    "output_files.target_output_format": "pdb",
     "process_predicted_model.remove_low_confidence_residues": True,
     "process_predicted_model.split_model_by_compact_regions": False,
     "process_predicted_model.b_value_field_is": "plddt",
@@ -412,10 +412,10 @@ def _prepare_one(
                 f"{completed.returncode}; see {command_log.resolve()}"
                 + (f"; bounded log tail:\n{tail}" if tail else "")
             )
-        candidates = sorted(work.glob("processed_*.cif"))
+        candidates = sorted(work.glob("processed_*.pdb"))
         if len(candidates) != 1:
             raise PredictedModelToolError(
-                "Phenix must produce exactly one unsplit processed mmCIF, found "
+                "Phenix must produce exactly one unsplit processed PDB, found "
                 f"{len(candidates)}; see {command_log.resolve()}"
             )
         temporary_model = candidates[0]
@@ -468,7 +468,7 @@ def _prepare_one(
         "model_sha256": model_sha256,
     }
     model_id = content_id("model_", identity)
-    model_relative = Path("models") / model_sha256[:2] / f"{model_sha256}.cif"
+    model_relative = Path("models") / model_sha256[:2] / f"{model_sha256}.pdb"
     model_path = output_directory / model_relative
     _publish_model(model_path, model_payload, model_sha256)
     removed_count = group.length_aa - len(processed_view.positions)

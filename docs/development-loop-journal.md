@@ -133,3 +133,59 @@ Read this entry, inspect the six-file correction diff, and create an immutable
 commit only if it remains restricted to the observed tie-order regression and
 its documentation. Then use only the reviewed wrapper for the immutable P2
 retry; do not clean either remote run automatically.
+
+## 2026-08-11 — Real P2 replay and Phaser model-format boundary
+
+### Discoveries
+
+- Commit `df153bebc0d1f02f6caaa9b8653fb8872aefbc65` and GitHub Actions run
+  `31482902767` passed. Its immutable P2 retry successfully replayed database
+  validation, P0, and P1, produced one physically possible CD6 hypothesis, and
+  cached both P2 processes on resume.
+- The resulting normalised MR record was `failed_tool_execution`, not a
+  scientific no-hit: Phaser 2.8.4 stopped before search with `INPUT: No
+  scattering in coordinate file`. The outer wrapper's former success therefore
+  established route reproducibility only and must not count as P2 acceptance.
+- The exact public AFDB source reproduced the remote processed mmCIF checksum.
+  The file contains 429 mapped residues and atoms, but the Phenix-written atom
+  site has unknown entity identifiers and the installed Phaser ensemble reader
+  derives no scatterers from it.
+- Asking the same verified `phenix.process_predicted_model` command for PDB
+  preserves the retained residue ranges and produces a model Phaser reads. A
+  local real 8OOX positive-control run reached one accepted packed solution with
+  final LLG 1149.2 and TFZ 46.0. This qualifies the software-format boundary,
+  not the blind CD6 scientific result.
+
+### Accomplishments and evidence
+
+- Predicted-model preparation now publishes a content-addressed PDB for the
+  bounded single-chain prototype variant and records `pdb` in its processing
+  parameters. Source coordinate archival remains mmCIF; broader chain/entity
+  support remains deferred to an explicit conversion policy.
+- Model-preparation, funnel, Phaser, Nextflow-stub, and repository fixtures now
+  exercise the PDB boundary and its checksum.
+- The fixed P2 job now preserves a schema-valid result and logs but returns
+  `test_failure` when its execution status is tool, parser, or infrastructure
+  failure. Only `completed_hit` and `completed_no_hit` qualify the outer route.
+- Focused model/Phaser/funnel/repository tests passed. The P2 fake lifecycle
+  passes for a completed no-hit and a new regression proves that a
+  `failed_tool_execution` result is rejected while its evidence remains.
+- The complete locked gate passed after the correction: Ruff format/lint,
+  strict mypy, 259 unit tests, 53 contract tests, 37 integration tests, schema
+  and public-panel validation, documentation links, GitHub workflow linting,
+  Nextflow syntax and every stub/resume route, and HPC shell syntax.
+
+### Unresolved work
+
+- Inspect the focused diff and create/push an immutable correction commit.
+- Rebuild and deploy the checksum-verified controller scripts, rerun the fixed
+  CD6 P2 route, and collect the normalised result. Do not clean any remote run.
+- If Phaser completes, interpret hit versus no-hit without tuning the strict
+  `LLG > 100` and `TFZ > 10` gate. If another tool failure occurs, use its exact
+  retained diagnostic as the next boundary.
+
+### Next exact starting point
+
+Read this entry, inspect the model-format and P2 status-gate diff, then create
+the immutable correction commit. Do not broaden the model funnel or polish
+unrelated tests before the real CD6 retry.

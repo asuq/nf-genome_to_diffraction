@@ -2015,6 +2015,7 @@ def _install_fake_p1_runtime(run: Path) -> None:
         'if [[ "$mode" == p2 ]]; then\n'
         "  hypothesis=mrhyp_"
         "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\n"
+        '  p2_execution_status="${FAKE_P2_EXECUTION_STATUS:-completed_no_hit}"\n'
         '  result="$outdir/first_copy_phaser_${hypothesis}"\n'
         '  mkdir -p "$outdir/exact_predicted_funnel" "$result"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > '
@@ -2024,11 +2025,12 @@ def _install_fake_p1_runtime(run: Path) -> None:
         "  printf 'hypothesis_id\\n%s\\n' \"$hypothesis\" > "
         '"$outdir/exact_predicted_funnel/mr_hypotheses.tsv"\n'
         '  printf \'{"schema_version":"1.0","hypothesis_id":"%s",'
-        '"tool_version":"fake","execution_status":"completed_no_hit",'
+        '"tool_version":"fake","execution_status":"%s",'
         '"llg":null,"llgi":null,"tfz":null,"placed_copy_count":0,'
         '"packing_summary":{},"parser_warnings":[],"raw_log_pointer":'
         '"PHASER.log","preliminary_credibility_class":"no_solution",'
-        '"rejection_reason":"fake_no_solution"}\\n\' "$hypothesis" > '
+        '"rejection_reason":"fake_no_solution"}\\n\' '
+        '"$hypothesis" "$p2_execution_status" > '
         '"$result/normalised_mr_result.json"\n'
         "  printf '{}\\n' > \"$result/phaser_command.json\"\n"
         "  printf 'fake Phaser log\\n' > \"$result/PHASER.log\"\n"
@@ -2347,6 +2349,57 @@ def test_p2_job_runs_fixed_cd6_first_copy_and_collects_normalised_result(
         "artifacts/qualification/p2-first-copy-resume-pipeline-info/trace.tsv" in names
     )
     assert "artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.jsonl" in names
+
+
+def test_p2_job_rejects_adapter_failure_as_test_failure(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            P2_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "p2",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    run = remote_root / "runs" / P2_RUN_ID
+    _install_fake_p1_runtime(run)
+    _run(
+        [str(dispatcher), "submit", P2_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "123"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+    job_environment["FAKE_P2_EXECUTION_STATUS"] = "failed_tool_execution"
+    completed = _run(
+        [str(smoke_job), P2_RUN_ID, str(remote_root), "p2"],
+        cwd=tmp_path,
+        environment=job_environment,
+        success=False,
+    )
+
+    assert completed.returncode == 4
+    job_result = json.loads((run / "state/job-result.json").read_text(encoding="utf-8"))
+    assert job_result["failure_class"] == "test_failure"
+    result = json.loads(
+        (run / "artifacts/qualification/p2-first-copy-result.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert result["execution_status"] == "failed_tool_execution"
+    assert not (
+        run / "artifacts/qualification/p2-first-copy-resume-check.json"
+    ).exists()
 
 
 def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(

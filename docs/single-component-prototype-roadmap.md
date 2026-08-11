@@ -249,7 +249,11 @@ prototype moving while preserving the evidence boundary.
 Current progress: the exact pilot AFDB coordinate now passes a real Phenix
 2.1-6048 confidence-processing adapter. Its source checksum, full-sequence
 mapping, retained residue ranges, sequence-derived processed mass, model
-checksum, and content-derived identity are validated and recorded. This closes
+checksum, and content-derived identity are validated and recorded. The first
+real P2 replay showed that Phaser 2.8.4 could not derive scatterers from the
+Phenix-written mmCIF; the adapter now requests the same validated single-chain
+model as PDB. That PDB passed the public 8OOX control with final LLG 1149.2 and
+TFZ 46.0 but still awaits immutable Marmic requalification. This advances
 the first vertical slice of T8.3–T8.4, not the M2 gate; PDB retrieval,
 domain/experimental variants, and the bounded funnel remain. The typed
 model-preparation entry point and fixed pilot mapping/resume orchestration
@@ -299,7 +303,10 @@ See the [M2 predicted-model preparation report](m2-predicted-model-preparation.m
 ## M3 — First-copy Phaser and MR seed checkpoint
 
 The adapter/parser, typed stub route, and fixed checksum-gated P2 controller
-pass locally. The next feedback step is the smallest immutable CD6 Marmic run;
+pass locally. A first immutable CD6 replay reached Phaser but failed at the
+mmCIF/scatterer boundary before search; the outer controller now rejects such
+failure statuses. The next feedback step is the smallest immutable CD6 Marmic
+retry with the positive-control-qualified PDB correction;
 review-package and full P2 acceptance work remains open. See the
 [M3 first-copy report](m3-first-copy-phaser.md).
 

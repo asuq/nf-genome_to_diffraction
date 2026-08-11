@@ -5,13 +5,17 @@
 The first M2 vertical slice prepares an exact sequence-mapped AFDB or ESM Atlas
 coordinate for molecular replacement with verified
 `phenix.process_predicted_model`. It implements one intentionally bounded
-variant: a confidence-pruned, unsplit full predicted model. It does not yet
+variant: a confidence-pruned, unsplit full predicted model written as PDB for
+the installed Phaser 2.8.4 ensemble reader. It does not yet
 implement PDB coordinate retrieval, domain splitting, experimental-model
 variants, or their broader diversity-aware candidate funnel. The exact-predicted
 vertical slice now has a checksum-verified bounded funnel described in the
 [M3 first-copy report](m3-first-copy-phaser.md). A typed `prepare_models.nf`
 entry point wires the qualified preparation adapter for isolated execution and
-cached resume. The fixed Marmic route passed on 11 August 2026.
+cached resume. The original fixed Marmic route passed model preparation on 11
+August 2026. Its mmCIF output was later shown to be unsuitable for the installed
+Phaser reader; the PDB correction has passed a local real positive control and
+awaits an immutable Marmic requalification.
 
 The adapter was qualified on 10 August 2026 with Phenix 2.1-6048 on macOS
 Apple Silicon using the real pilot-derived `Methermicoccus shengliensis`
@@ -29,7 +33,8 @@ must not be generalised to the rest of the proteome.
 | Starting / retained residues | 442 / 429 |
 | Retained ranges | `A:3-56`, `A:65-82`, `A:85-313`, `A:315-442` |
 | Processed model mass | 48,052.3422 Da, calculated from the retained sequence |
-| Processed model SHA-256 | `85bbc57e37096abd9c2c8fa0f21d5c7b809fb75f277c248576a75a45e3dbf4cb` |
+| Superseded mmCIF SHA-256 | `85bbc57e37096abd9c2c8fa0f21d5c7b809fb75f277c248576a75a45e3dbf4cb` |
+| Corrected local PDB SHA-256 | `d8441aee746b6631d81777bd02f397affd1b312634b1231cb26344c059023356` |
 | Marmic processed model ID | `model_31c9084ed833be246694dbe836485d4b438ae3313f6014f8601ea91739e44210` |
 | macOS qualification model ID | `model_8af5db867c4ce13ce4ce3acdd2704ce55fef50c157c268e2195dac20c3f20c93` |
 
@@ -76,7 +81,7 @@ For every selected source it requires:
   before confidence processing.
 
 The source checksum is checked again after Phenix returns. The processed model
-must be one unsplit mmCIF, preserve the chain identifier, contain only integer
+must be one unsplit PDB, preserve the chain identifier, contain only integer
 residue positions within the catalogue sequence, and match the expected amino
 acid at every retained position.
 
@@ -84,7 +89,7 @@ acid at every retained position.
 
 The adapter records and pins the scientifically relevant Phenix settings:
 
-- target format `mmcif`;
+- target format `pdb`;
 - B-value field interpreted as `plddt` on the 0–100 scale;
 - low-confidence removal enabled; and
 - compact-region/domain splitting disabled for this first full-model variant.
@@ -93,6 +98,20 @@ Low-confidence removal and pLDDT interpretation are recorded even where they
 match Phenix defaults because they materially define the model. Disabling
 domain splitting prevents this initial slice from silently generating an
 unbounded variant family. Domain models will be a separate, explicit policy.
+
+PDB is intentional only for this validated single-model, single-chain,
+integer-numbered prototype boundary. The broader registry should retain mmCIF
+as its archival coordinate format and define an explicit validated Phaser input
+conversion when it gains multi-character chains or richer entity metadata.
+
+The format choice is execution-derived. Phenix 2.1-6048 produced a parseable
+429-residue mmCIF with atoms, but its atom-site entity identifiers were unknown
+and Phaser 2.8.4 stopped with `INPUT: No scattering in coordinate file`. Asking
+the same verified Phenix command for PDB preserved the retained residue ranges
+and let Phaser calculate a 429-C-alpha trace. Against the public 8OOX positive
+control, the exact processed PDB produced one packed solution with final LLG
+1149.2 and TFZ 46.0. This control establishes the software boundary; it does not
+predict the blind CD6 result.
 
 ## Nextflow boundary
 
@@ -141,7 +160,7 @@ The output directory contains:
 - `processed_models.jsonl`, validated `ProcessedModelRecord` objects;
 - `model_preparation_manifest.json`, relocatable model/log paths and residue
   counts;
-- `models/<sha-prefix>/<sha256>.cif`, content-addressed processed models; and
+- `models/<sha-prefix>/<sha256>.pdb`, content-addressed processed models; and
 - `raw/<coordinate-id>/phenix.process_predicted_model.log`, the complete native
   command log.
 
@@ -162,7 +181,7 @@ to use the full candidate sequence mass.
 A successful record uses `completed_success`. Checksum drift, unknown or
 duplicate IDs, unsupported experimental coordinates, and coordinate-to-sequence
 mismatches are input-contract failures. A non-zero/timeout Phenix execution or
-missing/ambiguous output is a tool-execution failure. An unreadable mmCIF,
+missing/ambiguous output is a tool-execution failure. An unreadable coordinate,
 unknown residue, insertion code, chain change, or residue-level mapping failure
 is a parse failure. These failures must not be converted into scientific
 negative evidence against the candidate.
@@ -178,8 +197,10 @@ an interactive terminal.
 Focused tests cover content addressing, exact residue mapping, paths with
 spaces, output contracts, source checksum drift, and bounded native failure
 tails. Parser-v2 lint and stub execution cover the typed Nextflow entry point,
-published directory, and cached resume. The real Phenix run above is the current
-T8.4 evidence. M2 remains open until the repository also provides reviewable
+published directory, and cached resume. The original Marmic Phenix run and the
+corrected local Phaser positive control are the current T8.4 evidence; the
+corrected PDB route still requires immutable Marmic requalification. M2 remains
+open until the repository also provides reviewable
 PDB chain/entity/range retrieval, bounded experimental and domain variants, and
 their diversity-aware selection. The exact-predicted slice now produces a
 known, hard-capped job count before Phaser submission.

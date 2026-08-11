@@ -6,10 +6,13 @@ The active M3 vertical slice joins the integrity-checked exact-predicted model
 from M2 to physically possible Matthews copy hypotheses, then runs one
 independent Phaser search per immutable hypothesis. The Python adapter, parser,
 strict provisional score gate, and typed Nextflow stub route passed local
-acceptance on 11 August 2026. A real positive-control Phaser output has also
-been parsed, but the new route has not yet run against the CD6 pilot on Marmic.
-It must not be described as a scientific identification until that immutable
-remote run and review are complete.
+acceptance on 11 August 2026. The first immutable CD6 route reached Phaser after
+replaying the real P0 and P1 evidence, but Phaser rejected the processed mmCIF
+before search because it found no scatterers. This is a tool-execution failure,
+not a CD6 no-hit. The corrected PDB model boundary passed a local real 8OOX
+positive control and still requires an immutable CD6 retry. It must not be
+described as a scientific identification until that remote run and review are
+complete.
 
 This slice deliberately excludes experimental PDB model variants, domains,
 same-component additional copies, refinement, map inspection, sequence-from-map
@@ -73,7 +76,8 @@ Phenix subprocess wrapper in a hypothesis-owned directory with:
 - exactly one searched copy;
 - explicit 100% sequence identity for the exact catalogue/model mapping;
 - model uncertainty retained through the B values produced by
-  `phenix.process_predicted_model`;
+  `phenix.process_predicted_model`, with its validated single-chain PDB output
+  supplied to Phaser;
 - the preflight-selected observation labels;
 - the preflight space group with alternative-space-group search disabled; and
 - `task.cpus` passed to Phaser's job control.
@@ -120,7 +124,10 @@ Statuses remain distinct:
 
 Scientific no-hit records exit successfully so unrelated hypotheses can
 continue. Input-contract failures remain loud because continuing would change
-the hypothesis identity or risk interpreting the wrong data.
+the hypothesis identity or risk interpreting the wrong data. The fixed P2
+qualification wrapper additionally fails unless the normalised execution status
+is `completed_hit` or `completed_no_hit`; a schema-valid tool, parser, or
+infrastructure failure is collectable evidence but cannot qualify the route.
 
 ## Nextflow boundary, cache, and outputs
 
@@ -158,11 +165,16 @@ deterministic hard caps, model checksum drift, path traversal, and one-file-per-
 hypothesis fan-out. Ruff, strict mypy, parser-v2 lint, a full stub run, published
 outputs, and cached resume pass locally.
 
-The fixed, checksum-gated Marmic P2 route is now implemented and passes its
+The fixed, checksum-gated Marmic P2 route is implemented and passes its
 complete fake Git/Slurm/Nextflow/Phenix lifecycle, including fixed-input
-resolution, normalised no-hit handling, bounded collection, and cached resume.
-The immediate remaining work is one immutable real CD6 first-copy run. The
-broader P2 gate
+resolution, normalised no-hit handling, failure-status rejection, bounded
+collection, and cached resume. Immutable commit
+`df153bebc0d1f02f6caaa9b8653fb8872aefbc65` replayed the qualified database,
+P0, P1, one-hypothesis funnel, and cached P2 resume. Phaser then returned
+`failed_tool_execution` with `INPUT: No scattering in coordinate file` for the
+processed mmCIF. The former outer success is not P2 acceptance and is now
+prevented by the wrapper status gate. The immediate remaining work is one
+immutable real CD6 retry with the PDB correction. The broader P2 gate
 still requires a runnable known positive and deliberate no-solution case,
 per-crystal smoke enforcement, the top-10/25 review package, and approval-file
 validation. No same-component additional-copy search should begin before this
