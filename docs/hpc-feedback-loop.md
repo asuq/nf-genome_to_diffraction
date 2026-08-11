@@ -413,10 +413,10 @@ symlink remains invalid. The job then:
 3. fingerprints the frozen database manifest during staging, then runs database
    `verify-only` for PDB Foldseek, ProstT5, PDB sequences, and the coordinate
    cache, checking inventory metadata and comparing the exact resource records
-   with that trust anchor; bounded MMseqs2/ProstT5/Foldseek smokes rerun locally,
-   require exactly one significant query-equivalent `1ubq_A` positive-control
-   hit for MMseqs sequence search, and compare the fixed query, thresholds,
-   best-hit scores, and fixed mapping. Foldseek validates its strongest
+   with that trust anchor; bounded MMseqs2/ProstT5/Foldseek smokes rerun locally.
+   The strongest MMseqs2 hit must be significant and exactly query-equivalent,
+   while the fixed `1ubq_A` SEQRES mapping and cached `1UBQ` coordinate are
+   required independently. Foldseek likewise validates its strongest
    query-equivalent biological-assembly hit and the separate fixed `1UBQ`
    coordinate-cache control; external-tool version probes also have no default
    deadline. The full result and first ten hits remain audit evidence, while hit

@@ -282,30 +282,6 @@ def _select_functional_smoke_hit(hits: tuple[SmokeHit, ...]) -> SmokeHit:
     return hit
 
 
-def _require_expected_smoke_hit(hits: tuple[SmokeHit, ...]) -> SmokeHit:
-    """Return the unique fixed positive-control hit after checking its scores."""
-    expected_key = _parse_pdb_seqres_target(_EXPECTED_SMOKE_TARGET)
-    matches = tuple(
-        hit for hit in hits if _parse_pdb_seqres_target(hit.target) == expected_key
-    )
-    if len(matches) != 1:
-        raise DatabaseError(
-            "database smoke result must contain exactly one canonical 1ubq_A hit"
-        )
-    hit = matches[0]
-    if (
-        hit.evalue > _SMOKE_MAX_EVALUE
-        or hit.bits < _SMOKE_MIN_BITS
-        or hit.query_coverage < _SMOKE_MIN_COVERAGE
-        or hit.target_coverage < _SMOKE_MIN_COVERAGE
-    ):
-        raise DatabaseError(
-            "expected 1ubq_A database smoke hit failed significance or coverage "
-            "thresholds"
-        )
-    return hit
-
-
 def _smoke_query(path: Path) -> None:
     path.write_text(f">{_SMOKE_QUERY_ID}\n{_SMOKE_SEQUENCE}\n", encoding="ascii")
 
@@ -1483,10 +1459,6 @@ def _run_pdb_sequence_smoke(
         selected_hit_mapping = _require_query_equivalent_smoke_mapping(
             sequence_root, selected_hit
         )
-        expected_hit = _require_expected_smoke_hit(hits)
-        expected_hit_mapping = _require_query_equivalent_smoke_mapping(
-            sequence_root, expected_hit
-        )
         mapping = _require_expected_smoke_mapping(sequence_root)
         return {
             "kind": "known_ubiquitin_mmseqs_search",
@@ -1498,8 +1470,6 @@ def _run_pdb_sequence_smoke(
             "hit_count": len(hits),
             "selected_hit": selected_hit.as_json(),
             "selected_hit_mapping": selected_hit_mapping,
-            "expected_hit": expected_hit.as_json(),
-            "expected_hit_mapping": expected_hit_mapping,
             "mapping": mapping,
             "query": _preserve_smoke_file(
                 database_root,

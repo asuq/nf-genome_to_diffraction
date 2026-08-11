@@ -755,9 +755,11 @@ for the exact revision.
 The job verified all seven required Phenix 2.1-6048 commands without
 per-command deadlines. It revalidated four immutable database resources:
 MMseqs2 PDB sequences, ProstT5, Foldseek PDB, and the coordinate cache. The
-MMseqs2 smoke returned one significant query-equivalent `1ubq_A` control; the
+MMseqs2 smoke returned a significant query-equivalent ubiquitin hit; the
 Foldseek smoke returned a significant query-equivalent biological-assembly hit;
-and the cached `1UBQ` sequence-to-coordinate mapping was independently checked.
+and the fixed `1ubq_A` SEQRES plus cached `1UBQ` sequence-to-coordinate anchors
+were independently checked. The bounded result lists do not require a specific
+deposition among tied, duplicated ubiquitin sequences.
 
 All three real MTZ inputs completed Task 05:
 

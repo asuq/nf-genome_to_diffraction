@@ -145,12 +145,11 @@ All notable changes to this project are documented here.
 - P0 verifies pinned MMseqs2 and Foldseek during staging and prepends the locked
   environment to `PATH`, so offline database revalidation resolves those exact
   tools while retaining the batch system utilities.
-- PDB search revalidation now requires one significant, query-equivalent
-  `1ubq_A` positive-control hit for MMseqs sequence search and preserves
-  complete bounded result evidence. Foldseek instead validates its strongest
-  biological-assembly hit plus the separate fixed `1UBQ` coordinate control.
-  It compares the fixed query, thresholds, best-hit scores, and fixed mapping,
-  but no longer treats ordering, tied target identity, bounded hit count, or the
+- PDB search revalidation requires the strongest MMseqs sequence-search hit to
+  be significant and exactly query-equivalent, while independently verifying
+  the fixed `1ubq_A` SEQRES mapping and cached `1UBQ` coordinate. Foldseek uses
+  the same separation with its strongest biological-assembly hit. Revalidation
+  does not treat ordering, tied target identity, bounded hit count, or the
   complete result checksum as reproducible scientific invariants.
 - A shared structural-search result contract and the first M1 provider now run
   catalogue-wide local MMseqs2 searches against the qualified PDB sequence

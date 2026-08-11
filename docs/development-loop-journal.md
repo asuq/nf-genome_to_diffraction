@@ -80,6 +80,13 @@ fixture; do not tune the CD6 scientific conclusion against it.
   short Phaser deadline. The adapter has no default timeout; the fixed Marmic
   process and controller use the site's conservative 1,000-hour observation
   margin without implicit cancellation.
+- The first real P2 attempt stopped during replayed database validation before
+  molecular replacement. MMseqs2 returned hundreds of strong full-coverage
+  ubiquitin hits but its bounded tie set omitted literal `1ubq_A`. Requiring a
+  particular duplicated deposition in that result contradicts the earlier
+  source-derived qualification: search function is established by a strongest
+  sequence-equivalent hit, while fixed `1ubq_A` SEQRES and cached coordinate
+  anchors are verified independently.
 
 ### Accomplishments and evidence
 
@@ -100,21 +107,29 @@ fixture; do not tune the CD6 scientific conclusion against it.
   tests, 53 contract tests, 36 integration tests, schema and public-panel
   validation, documentation links, GitHub workflow linting, Nextflow syntax,
   every stub/resume route, and HPC shell syntax.
+- Commit `037d257d3854084793132abd34d1161fcc3031f6` passed GitHub Actions run
+  `31481766623`. Its first real P2 run produced retained failure signature
+  `11bec80298639c14851a50692dd09e977deb8852f49184954026f5f80f41440e`;
+  this immutable evidence establishes an upstream environment-validation
+  failure, not a Phaser or CD6 scientific result.
+- The bounded-MMseqs correction removes only the deposition-specific result-list
+  requirement. A full smoke regression now proves that a strong
+  sequence-equivalent hit is accepted only when the independent fixed 1UBQ
+  mapping remains valid. The corrected complete gate passes with 259 unit, 53
+  contract, and 36 integration tests plus all workflow/documentation checks.
 
 ### Unresolved work
 
-- Review and commit the focused implementation, push the immutable revision,
-  and confirm GitHub Actions.
-- Build and checksum the local controller, deploy the checksum-verified remote
-  tools, then run and collect the first real Marmic P2 result.
+- Commit and push the focused correction, confirm GitHub Actions, redeploy the
+  checksum-verified tools, then rerun and collect the first real Marmic P2
+  result.
 - Review that real result before deciding whether the next smallest step is a
   parser/source correction, a broader model/provider funnel, or the remaining
   positive/no-solution and review-package work in the P2 gate.
 
 ### Next exact starting point
 
-Read this entry, inspect the complete staged diff for unintended files or
-scientific-policy changes, and create the immutable P2 candidate commit only if
-the tree remains focused and the full gate still passes. Then use only the
-reviewed wrapper for deploy, readiness, stage, submit, wait, logs, and collect;
-do not clean remote evidence automatically.
+Read this entry, inspect the six-file correction diff, and create an immutable
+commit only if it remains restricted to the observed tie-order regression and
+its documentation. Then use only the reviewed wrapper for the immutable P2
+retry; do not clean either remote run automatically.

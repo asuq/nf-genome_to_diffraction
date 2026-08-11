@@ -411,25 +411,52 @@ def test_pdb_smoke_rejects_weak_best_hit() -> None:
         )
 
 
-def test_pdb_smoke_requires_unique_fixed_positive_control() -> None:
-    expected = SmokeHit("ubiquitin_smoke", "1ubq_A", 1e-20, 100.0, 1.0, 1.0)
-    other = SmokeHit("ubiquitin_smoke", "2xyz_Z", 1e-20, 100.0, 1.0, 1.0)
+def test_pdb_sequence_smoke_accepts_equivalent_hit_with_independent_1ubq_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_root = tmp_path / "database"
+    sequence_root = database_root / "pdb-sequences"
+    (database_root / "tmp").mkdir(parents=True)
+    sequence_root.mkdir()
+    source = tmp_path / "pdb-seqres.txt.gz"
+    with gzip.open(source, "wt", encoding="utf-8") as handle:
+        for target in ("1ubq_A", "2xyz_Z"):
+            handle.write(f">{target} mol:protein length:76 ubiquitin\n")
+            handle.write(f"{prepare_module._SMOKE_SEQUENCE}\n")
+    prepare_module._normalise_pdb_sequences(
+        source,
+        sequence_root / "pdb_seqres.faa",
+        sequence_root / "target_mapping.tsv",
+        progress=False,
+    )
 
-    assert prepare_module._require_expected_smoke_hit((other, expected)) == expected
-    with pytest.raises(DatabaseError, match="exactly one canonical 1ubq_A"):
-        prepare_module._require_expected_smoke_hit((other,))
-    with pytest.raises(DatabaseError, match="exactly one canonical 1ubq_A"):
-        prepare_module._require_expected_smoke_hit((expected, expected))
-
-
-def test_pdb_smoke_rejects_weak_fixed_positive_control() -> None:
-    with pytest.raises(DatabaseError, match=r"expected 1ubq_A.*failed"):
-        prepare_module._require_expected_smoke_hit(
-            (
-                SmokeHit("ubiquitin_smoke", "1ubq_A", 1e-2, 20.0, 0.8, 0.8),
-                SmokeHit("ubiquitin_smoke", "2xyz_Z", 1e-20, 100.0, 1.0, 1.0),
-            )
+    def write_equivalent_result(
+        command: list[str], **options: object
+    ) -> subprocess.CompletedProcess[str]:
+        Path(command[4]).write_text(
+            "ubiquitin_smoke\t2xyz_Z\t1e-42\t152\t1\t1\n",
+            encoding="utf-8",
         )
+        log_path = options["log_path"]
+        assert isinstance(log_path, Path)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("fake mmseqs success\n", encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(prepare_module, "run_command", write_equivalent_result)
+    qualification = prepare_module._run_pdb_sequence_smoke(
+        _request(tmp_path, database_root=database_root),
+        database_root,
+        sequence_root,
+    )
+
+    selected = qualification["selected_hit"]
+    mapping = qualification["mapping"]
+    assert isinstance(selected, dict)
+    assert isinstance(mapping, dict)
+    assert selected["target"] == "2xyz_Z"
+    assert mapping["target_id"] == "1ubq_A"
+    assert "expected_hit" not in qualification
 
 
 def test_search_smoke_comparison_accepts_tied_hit_order_variation() -> None:
