@@ -26,10 +26,12 @@ is implemented with API/mmCIF sequence verification and immutable coordinate
 caching, and the exact pilot-derived `WP_042685700.1` to `A0A832VZP6` retrieval
 is qualified. The first M2 vertical slice now converts that exact pilot model
 into a residue-mapped, confidence-pruned, content-addressed MR model through
-verified Phenix 2.1-6048. PDB coordinate registration, domain/experimental
-variants, the bounded candidate funnel, real fixed-Marmic model-preparation
-evidence, and the provider evidence union remain incomplete. Optional ESM Atlas
-remains disabled.
+verified Phenix 2.1-6048. The checksum-bound fixed Marmic path passed on commit
+`c901dafe585d1b68b117d7d216e5053ef4985230`: login-node staging retrieved one
+sequence-exact AFDB model, the Slurm task retained 429 of 442 residues, and the
+model process was cached on resume. PDB coordinate registration,
+domain/experimental variants, the bounded candidate funnel, and the provider
+evidence union remain incomplete. Optional ESM Atlas remains disabled.
 Molecular replacement, refinement, map-based sequence
 assessment, ranking, and final identification remain unimplemented.
 `main.nf` therefore ends with an explicit

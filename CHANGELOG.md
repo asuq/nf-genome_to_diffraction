@@ -218,14 +218,17 @@ All notable changes to this project are documented here.
   was split at the network boundary: immutable login-node staging now retrieves
   and sequence-verifies the one public pilot model, records hand-off checksums,
   and scheduled discovery/model work verifies and consumes it offline.
+- The corrected fixed route passed as Slurm job `625744` on immutable commit
+  `c901dafe585d1b68b117d7d216e5053ef4985230`. Phenix 2.1-6048 retained 429 of
+  442 residues in the exact pilot model and the model process cached on resume.
 
 ### Not implemented
 
-- Uncapped real-catalogue ProstT5/Foldseek qualification, fixed-Marmic evidence
-  for the wired pilot AFDB/model path, optional ESM Atlas search, provider hit
-  union, PDB coordinate registration, model-domain/experimental variants,
-  candidate-funnel selection, molecular replacement, refinement, map-based
-  sequence assessment, final ranking, and final scientific reporting.
+- Uncapped real-catalogue ProstT5/Foldseek qualification, optional ESM Atlas
+  search, provider hit union, PDB coordinate registration,
+  model-domain/experimental variants, candidate-funnel selection, molecular
+  replacement, refinement, map-based sequence assessment, final ranking, and
+  final scientific reporting.
 - The remaining multi-provider P1 gate and all downstream MR gates.
 
 ## 1.0 - 31 July 2026

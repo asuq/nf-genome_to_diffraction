@@ -12,7 +12,7 @@ never edits or pushes source.
 | --- | --- | --- |
 | `smoke` | Locked `pixi run check` | Software/environment foundation only |
 | `p0` | Real Phenix verification, bounded anchored database revalidation, all-three-crystal Task 05 run, and cached resume | M0 execution evidence only; downstream identity search remains deferred |
-| `p1` | Frozen catalogue import, catalogue-wide direct PDB search, deterministic 128-query ProstT5/Foldseek pilot slice, AFDB exact branch, cached resume, and tracked 8OOX qualification | M1 provider evidence only; deferred ProstT5 queries remain uninterpreted and no crystal identity or MR is claimed |
+| `p1` | Frozen catalogue import, login-node exact-AFDB pilot retrieval, catalogue-wide direct PDB search, deterministic 128-query ProstT5/Foldseek slice, Phenix predicted-model preparation, cached resumes, and tracked 8OOX qualification | M1 plus the first M2 vertical slice only; deferred ProstT5 queries remain uninterpreted and no crystal identity or MR is claimed |
 | `database` | Login-node source staging, offline capacity preflight, all-resource preparation, and anchored full verification | Shared database administration only; no pipeline or protein-identification claim |
 
 The reviewed local application is the routine approval boundary. Persistent
@@ -431,11 +431,13 @@ family for the tracked `GCF_000711905.1` sequence. It retains Nextflow CPU,
 memory, process-I/O, result-size, and cache evidence. `collect` returns only the
 qualification JSON, first/resume report files, catalogue manifest, search
 manifest, and bounded MMseqs2 log; the full result tree remains on Marmic.
-Passing this profile qualifies the direct-PDB route only. It does not perform
-molecular replacement or identify any blind pilot crystal.
+Passing the direct-search qualifier establishes that provider route. The
+expanded fixed profile additionally qualifies one exact predicted-model
+preparation, but it still does not perform molecular replacement or identify
+any blind pilot crystal.
 
-The next fixed P1 revision additionally supplies the tracked one-row exact AFDB
-mapping. Immutable staging imports the catalogue and retrieves the public model
+The fixed P1 route additionally supplies the tracked one-row exact AFDB mapping.
+Immutable staging imports the catalogue and retrieves the public model
 on the login node, where outbound HTTPS is available. It requires one exact hit
 and coordinate, records fixed-file checksums, and leaves all heavy work to
 Slurm. The compute job verifies that record, runs discovery without remote
@@ -456,6 +458,16 @@ failure signature is
 This evidence is why the fixed route now performs only the bounded public
 retrieval on the login node and verifies its checksum-bound hand-off on the
 compute node. It is an infrastructure failure, not a no-hit result.
+
+The corrected route passed on immutable commit
+`c901dafe585d1b68b117d7d216e5053ef4985230` as run
+`gtd-p1-20260811T080728Z-c901dafe585d-d0e103c7`, coordinator job `625744`.
+All seven staged hand-off files passed compute-node checksum verification. The
+three discovery processes completed and cached on resume; the single Phenix
+2.1-6048 model task completed in 54.7 seconds realtime with 334.4 MB peak RSS,
+retained 429 of 442 residues, and cached on resume. The overall recorded job
+ran from 08:09:17Z to 08:17:31Z. This qualifies the first real predicted-model
+vertical slice only, not the candidate funnel or molecular replacement.
 
 The first real P1 run passed on immutable commit
 `f198884a5d7e6c66c0f6a94f1a28cadb0004fe37` as coordinator job `625575`.

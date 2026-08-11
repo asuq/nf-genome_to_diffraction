@@ -8,8 +8,8 @@ coordinate for molecular replacement with verified
 variant: a confidence-pruned, unsplit full predicted model. It does not yet
 implement PDB coordinate retrieval, domain splitting, experimental-model
 variants, or the candidate funnel. A typed `prepare_models.nf` entry point now
-wires the qualified adapter for isolated execution and cached resume; real
-fixed-Marmic evidence remains pending.
+wires the qualified adapter for isolated execution and cached resume. The fixed
+Marmic route passed on 11 August 2026.
 
 The adapter was qualified on 10 August 2026 with Phenix 2.1-6048 on macOS
 Apple Silicon using the real pilot-derived `Methermicoccus shengliensis`
@@ -28,7 +28,8 @@ must not be generalised to the rest of the proteome.
 | Retained ranges | `A:3-56`, `A:65-82`, `A:85-313`, `A:315-442` |
 | Processed model mass | 48,052.3422 Da, calculated from the retained sequence |
 | Processed model SHA-256 | `85bbc57e37096abd9c2c8fa0f21d5c7b809fb75f277c248576a75a45e3dbf4cb` |
-| Processed model ID | `model_8af5db867c4ce13ce4ce3acdd2704ce55fef50c157c268e2195dac20c3f20c93` |
+| Marmic processed model ID | `model_31c9084ed833be246694dbe836485d4b438ae3313f6014f8601ea91739e44210` |
+| macOS qualification model ID | `model_8af5db867c4ce13ce4ce3acdd2704ce55fef50c157c268e2195dac20c3f20c93` |
 
 The real run initially exposed an invalid parser assumption: Gemmi's
 `make_one_letter_sequence()` represents coordinate discontinuities and is not
@@ -111,6 +112,26 @@ does not yield exactly one record, or if the model task is not cached on resume.
 This protects the real vertical slice without generalising one accession
 mapping to the remaining proteome.
 
+## Marmic execution evidence
+
+Immutable commit `c901dafe585d1b68b117d7d216e5053ef4985230` passed as
+fixed run `gtd-p1-20260811T080728Z-c901dafe585d-d0e103c7`, coordinated by
+Slurm job `625744`. The recorded execution ran from 08:09:17Z to 08:17:31Z.
+Login-node staging evaluated all 1,621 exact sequence groups, found exactly one
+eligible mapping and exact AFDB hit, retrieved model `AF-A0A832VZP6-F1` version
+6, and recorded coordinate SHA-256
+`5555477700990be7f61151911153d5cd6089f6c6bafd0dd5388d0d30ae06738b`.
+
+The compute node verified all seven hand-off checksums before starting
+Nextflow. All three discovery processes completed and cached on resume. The
+single Phenix 2.1-6048 model task completed in 54.7 seconds realtime, used
+334.4 MB peak RSS and 1.2 GB peak virtual memory, then cached on resume. It
+retained 429 of 442 residues, removed 13 low-confidence residues, and produced
+the same processed-model SHA-256 as the macOS qualification. The Marmic and
+macOS model IDs intentionally differ because the content identity includes the
+platform-specific verified Phenix-manifest checksum; the processed coordinate
+bytes are identical.
+
 ## Outputs and identity
 
 The output directory contains:
@@ -156,7 +177,6 @@ Focused tests cover content addressing, exact residue mapping, paths with
 spaces, output contracts, source checksum drift, and bounded native failure
 tails. Parser-v2 lint and stub execution cover the typed Nextflow entry point,
 published directory, and cached resume. The real Phenix run above is the current
-T8.4 evidence. M2 remains open until the fixed Marmic Nextflow path passes and
-the repository also provides reviewable PDB chain/entity/range retrieval,
-bounded experimental and domain variants, and a candidate funnel whose job
-count is known before Phaser submission.
+T8.4 evidence. M2 remains open until the repository also provides reviewable
+PDB chain/entity/range retrieval, bounded experimental and domain variants, and
+a candidate funnel whose job count is known before Phaser submission.

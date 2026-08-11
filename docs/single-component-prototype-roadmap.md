@@ -58,12 +58,13 @@ overstated:
 | --- | --- | --- |
 | Epic 0, repository and environments | Locked Pixi/Nextflow/Python environment, CI, tests, documentation, and immutable Marmic smoke loop are operational | Maintain pins and CI while scientific modules are added |
 | Epic 1, contracts and identifiers | Foundation and downstream typed contracts exist; canonical IDs and serialisation are tested | Extend/finalise result contracts only alongside their real adapters and preserve schema compatibility deliberately |
-| Epic 2, Phenix boundary | Checksum-gated installer, isolated executor, verifier, and synthetic tests exist | Verify a user-supplied real Phenix installation and every required command on Marmic |
-| Epic 3, databases | PDB Foldseek, ProstT5, PDB sequence, coordinate-cache, and optional Atlas-connectivity preparation code exists | Prepare and fully verify real immutable resources at the site; confirm the PDB sequence-to-coordinate mapping |
+| Epic 2, Phenix boundary | Checksum-gated installer, isolated executor, and Phenix 2.1-6048 verification passed locally and on Marmic | Requalify deliberately when the licensed build or site installation changes |
+| Epic 3, databases | Real PDB Foldseek, ProstT5, PDB sequence, and coordinate-cache resources are qualified on Marmic | Complete uncapped provider qualification, PDB sequence-to-coordinate registration, and any approved optional Atlas route |
 | Epic 4, catalogue import | Trusted catalogue normalisation passed the real `GCF_000711905.1` pilot, including compound CDS and repeated-accession loci | Add regression catalogues as new biological edge cases are observed |
-| Epic 5, MTZ preflight | Gemmi inspection and workflow publication passed for `CD6QS2P2G1_5` | Run real Xtriage, add real parser fixtures, and qualify all three pilot MTZ datasets |
+| Epic 5, MTZ preflight | Gemmi and real Xtriage qualification passed for all three pilot MTZ datasets, including `CD6QS2P2G1_5` | Extend only when new MTZ edge cases are observed |
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
-| Epics 7–13 | Contracts/reserved package areas exist | Scientific processes are not implemented |
+| Epics 7–8 | Direct PDB and bounded ProstT5/Foldseek discovery pass; the first exact-AFDB/Phenix model-preparation slice passes on Marmic | Finish provider union, PDB coordinate variants, and the bounded candidate funnel |
+| Epics 9–13 | Contracts/reserved package areas exist | Molecular replacement, refinement, map/sequence assessment, ranking, and reporting are not implemented |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
 The successful current workflow terminates at
@@ -247,9 +248,10 @@ Current progress: the exact pilot AFDB coordinate now passes a real Phenix
 mapping, retained residue ranges, sequence-derived processed mass, model
 checksum, and content-derived identity are validated and recorded. This closes
 the first vertical slice of T8.3–T8.4, not the M2 gate; PDB retrieval,
-domain/experimental variants, real fixed-Marmic Nextflow evidence, and the
-bounded funnel remain. The typed model-preparation entry point and fixed pilot
-mapping/resume orchestration are implemented locally.
+domain/experimental variants, and the bounded funnel remain. The typed
+model-preparation entry point and fixed pilot mapping/resume orchestration
+passed on Marmic commit `c901dafe585d1b68b117d7d216e5053ef4985230` as job
+`625744`.
 See the [M2 predicted-model preparation report](m2-predicted-model-preparation.md).
 
 ### Work packages
@@ -597,8 +599,12 @@ a checksum-bound login-node prefetch and passes its exact coordinate to a
 separate typed `prepare_models.nf` run using the verified Phenix manifest. This
 split is required because Marmic compute nodes reject outbound HTTPS; the
 scheduled discovery processes therefore run offline. Local parser-v2,
-stub-resume, schema, and fake-Slurm acceptance pass; the next gate is the
-immutable real Marmic execution and collected model provenance.
+stub-resume, schema, and fake-Slurm acceptance pass. The immutable Marmic run
+also passed: staging retained one exact AFDB coordinate, Phenix retained 429 of
+442 residues, and discovery plus model preparation cached on resume. The next
+prototype-critical gate is reviewable PDB coordinate registration followed by
+the bounded candidate funnel; the uncapped Foldseek run remains parallel
+qualification work.
 
 After the focused adapter gate passes, prioritise the real downstream prototype
 path while retaining the uncapped catalogue search as qualification work; do
