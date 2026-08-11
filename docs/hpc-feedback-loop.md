@@ -53,6 +53,25 @@ remote job failed, or cancel it implicitly. The 45-minute margin replaced the
 original 60-second bound after a healthy alternate login node accepted SSH but
 could not complete fixed P1 readiness before that short deadline.
 
+### Real-data monitoring cadence
+
+Real biological-data profiles may run for hours. After submission, confirm the
+owned job ID, structured `RUNNING` state, and current fixed phase once. If the
+job is then expected to remain quiet, stop only the local `wait` client and
+schedule this development task to reactivate after 30 minutes. On reactivation:
+
+1. run the approved structured `status` operation;
+2. if the job remains non-terminal, record any meaningful phase change and
+   reactivate again after 30 minutes;
+3. if the job is terminal, inspect bounded `logs`, run `collect`, and classify
+   the retained result before changing source; and
+4. never infer failure from silence, issue implicit `cancel`, or run `clean`.
+
+Before each pause or hand-off, update the tracked development-loop journal with
+the current immutable commit, job state, accomplished checkpoints, unresolved
+work, and exact reactivation action. Run IDs and machine-specific paths remain
+in ignored local evidence rather than the tracked journal.
+
 ## Filesystem and execution model
 
 The remote dispatcher is installed under an approved run root with this layout:
@@ -556,8 +575,13 @@ and P1 successfully and cached both P2 processes, but its normalised result was
 `failed_tool_execution`: Phaser 2.8.4 reported no scattering in the processed
 mmCIF. That run established route reproducibility, not P2 scientific
 completion. Predicted-model preparation now publishes the Phenix-generated PDB
-validated by a real positive control; immutable Marmic requalification remains
-pending.
+validated by a real positive control. The next PDB-model run completed Phaser
+but exposed an unrecognised terminal no-solution phrase. Immutable commit
+`4e64ce5bc10c518276a86f2c0870e4c18899f86d` corrected that parser boundary;
+its replay completed successfully as `completed_no_hit`, with zero
+accepted/packed solutions, no output solution files, and both P2 processes
+cached on resume. This qualifies the fixed route, not the full P2 gate or a
+protein identification.
 
 ## Database administration boundary
 

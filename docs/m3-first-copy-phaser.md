@@ -12,9 +12,12 @@ before search because it found no scatterers. This is a tool-execution failure,
 not a CD6 no-hit. The corrected PDB model boundary passed a local real 8OOX
 positive control. Its first immutable CD6 retry completed the full search and
 packing calculation with no accepted solution, but exposed a narrow parser gap
-for Phaser's terminal `Sorry - No solution` wording. The corrected parser must
-pass one immutable replay before the fixed route qualifies. This no-hit must
-not be described as a scientific identification.
+for Phaser's terminal `Sorry - No solution` wording. Immutable commit
+`4e64ce5bc10c518276a86f2c0870e4c18899f86d` corrected that boundary and
+passed the fixed Marmic route: `completed_no_hit`, zero accepted/packed
+solutions, no solution files, and a fully cached two-process resume. This
+qualifies the bounded route, not a scientific identification or the full P2
+gate.
 
 This slice deliberately excludes experimental PDB model variants, domains,
 same-component additional copies, refinement, map inspection, sequence-from-map
@@ -188,8 +191,9 @@ successfully: 76 translations entered packing, zero were accepted, no output
 solution files were written, and the top translation TFZ was 5.11. This is a
 scientific no-hit, but the adapter classified it as `failed_parse` because that
 real log omitted the synthetic fixture's explicit zero-count phrase. The
-parser regression is corrected locally; one immutable replay remains before
-route qualification. The broader P2 gate
+parser correction's immutable replay reproduced the raw result, normalised it
+as `completed_no_hit`, completed the outer job successfully, and cached both P2
+processes on resume. The broader P2 gate
 still requires a runnable known positive and deliberate no-solution case,
 per-crystal smoke enforcement, the top-10/25 review package, and approval-file
 validation. No same-component additional-copy search should begin before this

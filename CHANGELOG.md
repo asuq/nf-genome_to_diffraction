@@ -247,6 +247,10 @@ All notable changes to this project are documented here.
   written, and the top translation TFZ was 5.11. The parser now recognises
   Phaser's terminal `Sorry - No solution` form as a valid completed no-hit
   while continuing to reject logs without terminal solution evidence.
+- The immutable parser-correction replay now qualifies the fixed Marmic P2
+  route as `completed_no_hit`: outer execution succeeds, the result contract
+  validates, both P2 processes cache on resume, and no tool/parse failure is
+  mistaken for a scientific result.
 - The tracked development-loop journal is now a mandatory read-first and
   write-before-handoff record so scientific discoveries, completed evidence,
   unresolved work, and the exact restart point survive task boundaries.

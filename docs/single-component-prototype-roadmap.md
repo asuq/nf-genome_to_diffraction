@@ -64,7 +64,7 @@ overstated:
 | Epic 5, MTZ preflight | Gemmi and real Xtriage qualification passed for all three pilot MTZ datasets, including `CD6QS2P2G1_5` | Extend only when new MTZ edge cases are observed |
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; the first exact-AFDB/Phenix model-preparation slice and exact-predicted funnel run on Marmic | Finish provider union, PDB coordinate variants, and diversity-aware selection |
-| Epic 10 | The first-copy Phaser adapter, strict provisional gate, typed fan-out, cached resume, and fixed P2 lifecycle pass locally; the real CD6 PDB-model search completed with no accepted packing solution and exposed one no-solution parser wording gap | Replay the parser correction, qualify the deliberate controls, enforce the per-crystal smoke cap, and build the review package |
+| Epic 10 | The first-copy Phaser adapter, strict provisional gate, typed fan-out, cached resume, and fixed P2 lifecycle pass locally; the real CD6 PDB-model route now completes reproducibly as a valid no-hit | Qualify the deliberate controls, enforce the per-crystal smoke cap, expand the bounded real-candidate set, and build the review package |
 | Epics 11–13 | Contracts/reserved package areas exist | Same-component copies, refinement, map/sequence assessment, final ranking, and reporting are not implemented |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
@@ -308,9 +308,10 @@ pass locally. The first immutable CD6 replay failed at the mmCIF/scatterer
 boundary; the PDB correction then completed the real search and packing with
 zero accepted solutions and no output files. The adapter incorrectly required
 another zero-count phrase and classified the valid terminal no-solution wording
-as `failed_parse`. The next feedback step is the smallest immutable replay of
-that focused parser correction; review-package and full P2 acceptance work
-remains open. See the
+as `failed_parse`. The focused parser correction's immutable replay now
+completes as `completed_no_hit` and caches both P2 processes on resume. The
+fixed route is qualified; bounded real-candidate breadth, controls,
+review-package, and full P2 acceptance work remain open. See the
 [M3 first-copy report](m3-first-copy-phaser.md).
 
 ### Work packages

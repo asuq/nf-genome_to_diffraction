@@ -215,6 +215,11 @@ unrelated tests before the real CD6 retry.
   when no first component was found. It also distinguishes `No solution with
   all components` for partial solutions, so the zero-solution parser uses an
   exact terminal-line match and does not accept that longer phrase.
+- The immutable parser-correction replay reproduced the same terminal Phaser
+  evidence and now normalises it as `completed_no_hit`: zero accepted/packed
+  solutions, no placed copy, no solution files, and no parser warnings. This
+  excludes only the tested exact-model first-copy hypothesis; it does not
+  exclude other catalogue sequences or coordinate/model variants.
 
 ### Accomplishments and immutable evidence
 
@@ -239,17 +244,49 @@ unrelated tests before the real CD6 retry.
   integration tests, strict typing, formatting/lint, schemas, public controls,
   documentation, workflow lint, Nextflow syntax/stubs, cached resumes, and HPC
   shell syntax.
+- Commit `4e64ce5bc10c518276a86f2c0870e4c18899f86d` contains the focused
+  no-solution parser correction. GitHub Actions run `31491762880` completed
+  successfully.
+- The rebuilt and installed controller has SHA-256
+  `c187a1cbffbd0a333575aa39474030c0bbbca8fd0bd6ae08628b556aeebaacd5`.
+  The reviewed dispatcher and fixed remote job were redeployed for the exact
+  correction commit with unchanged script checksums, and P2 readiness passed.
+- The correction replay passed database revalidation, cached P0, P1 hand-off
+  checks, cached P1 discovery, cached PDB model preparation, and P1
+  qualification before submitting the same one-hypothesis Phaser process. The
+  scheduler still reported `RUNNING` when active polling was paused.
+- Long real-data profiles now use a recorded 30-minute reactivation cadence:
+  stop only the local observer, leave the scheduled job untouched, check
+  structured status on reactivation, collect immediately after a terminal
+  state, and never infer failure or cancel from silence.
+- The same-task `Monitor Marmic P2 replay` heartbeat handled the terminal run
+  and is now paused; future long real-data runs should create or reactivate a
+  run-specific 30-minute heartbeat.
+- The correction replay completed with scheduler state `COMPLETED`, exit zero,
+  outer failure class `success`, and no failure signature. Both P2 processes
+  were cached on resume. The collected normalised result, native Phaser log,
+  resume record, command record, and outer job record have SHA-256 values
+  `c2f9142b6a5b61a98b6b546d5b4494d9f30d2dce09533359455c4cb38d5116cf`,
+  `70051d054ffc76143735a6281adc8c87bb925ef83495bf3b49aed1e70fec8bca`,
+  `98e287e8a082e57a152dd19c9f42a5f6f4fe08809618eaed8afab11ee2253261`,
+  `7f11bd71af4ee359e363cbb41f88e5dfad12a81555b5f5a05d79bd101e049854`,
+  and
+  `6ae78c9dc9547436b6a2dd5cfc98fd903f1e1881f780adb7e66dab725097e8f2`,
+  respectively.
 
 ### Unresolved work
 
-- Create and push the focused parser correction, then confirm GitHub Actions.
-- Redeploy the checksum-gated job and replay the same immutable P2 profile. The
-  expected classification from the already retained raw evidence is
-  `completed_no_hit`; verify it rather than assuming it.
-- After route qualification, proceed to the smallest remaining P2 acceptance
-  work without tuning the LLG/TFZ gate or polishing unrelated fixtures.
+- The fixed one-hypothesis P2 route is qualified, but full P2 is not: qualify
+  the scheduled positive/incorrect-model controls, enforce the per-crystal
+  smoke cap, and produce the bounded review package.
+- Move real-data breadth forward by registering a small, provenance-complete
+  set of direct-PDB coordinates and diversity-aware candidate/model variants,
+  then run no more than 25 first-copy hypotheses for the crystal. Do not tune
+  the strict LLG/TFZ gate against the present no-hit.
 
 ### Next exact starting point
 
-Inspect and create one immutable correction commit, then replay the fixed P2
-route through the reviewed wrapper; do not clean either retained remote run.
+Read this terminal evidence, then inspect the direct-PDB hit-to-coordinate and
+review-package boundaries. Implement the smallest provenance-complete,
+hard-capped real-candidate expansion before adding same-component copies; do
+not clean any retained remote run.
