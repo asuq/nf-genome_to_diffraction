@@ -631,6 +631,9 @@ for a completed checksum-bound handoff before submitting to Slurm.
   submission reported phase `submitted`, scheduler state `RUNNING`,
   `terminal=false`, and no failure class. Silence or elapsed time must not be
   reinterpreted as failure.
+- Journal handoff commit `2276290458b820a7c54d762251533a543617acba` is
+  pushed on `main`; Ubuntu GitHub Actions run `31514837916` passed the complete
+  foundation gate in 3 minutes 40 seconds.
 - The approved 30-minute heartbeat now targets this exact run and permits only
   the installed wrapper's bounded status/log/collect operations. It explicitly
   forbids raw SSH, cancellation, cleanup, runtime timeouts, and failure
@@ -658,3 +661,65 @@ If non-terminal, leave it untouched. If terminal, run bounded logs and collect
 as separate commands, inspect all recorded P2 and review artefacts, retain the
 remote run, and complete the journal/check/commit/push/CI portion of this cycle
 before choosing the next scientific control.
+
+## 2026-08-11 — Repaired the real P2-diverse coordinate staging collision
+
+### Discoveries
+
+- Retained run
+  `gtd-p2-diverse-20260811T163440Z-247de6b71678-cc37d614`, Slurm job
+  `625831`, ran from `2026-08-11T16:52:19Z` to `2026-08-11T17:22:10Z`
+  and ended with exit code `1`, scheduler state `FAILED`, and classification
+  `test_failure`. Its failure signature is
+  `1036872ee349394ef99e50d6fd75e004776e2b888a85d19fcda9bde039e228d1`.
+- P0, database revalidation, P1 discovery, predicted-model preparation, direct
+  PDB registration, experimental-model preparation, and their resume checks
+  completed before the failure. P1 qualified 1,621 catalogue queries, 15,401
+  direct-PDB hits, and 14 control hits.
+- The first diverse-funnel process received its predicted and PDB coordinate
+  inputs under the same staged basename, `coordinate_sources.jsonl`. Both CLI
+  arguments therefore resolved to the same file, and the funnel correctly
+  rejected a duplicate content-addressed coordinate ID. This was a Nextflow
+  staging collision, not duplicate scientific evidence in the two providers.
+- Failure occurred before any Phaser task. No normalised P2 result, Phaser log,
+  first-copy resume record, P2 summary, or MR seed review package exists, so
+  there is no `LLG`/`TFZ`, packing, or placed-copy result to interpret.
+
+### Accomplishments and immutable evidence
+
+- The diverse-funnel module now stages the predicted and PDB coordinate-source
+  contracts explicitly as `predicted_coordinate_sources.jsonl` and
+  `pdb_coordinate_sources.jsonl`. Both distinct staged paths remain separate
+  CLI inputs; scientific ranking and duplicate-ID validation are unchanged.
+- A focused repository contract test protects the two `stageAs` declarations
+  and both command arguments. The observed collision will regress if either
+  input is allowed to reuse the other's basename.
+- Focused acceptance passes: all 55 contract tests, Nextflow parser-v2 syntax,
+  and the complete Nextflow stub/resume suite. The final locked repository gate
+  also passes formatting, Ruff lint, strict mypy, 279 unit tests, 55 contract
+  tests, 39 integration tests, schemas, the ten-entry public panel,
+  documentation and workflow lint, Nextflow syntax/stubs/resume, and both HPC
+  shell parsers.
+- The failed remote run and its bounded collected evidence remain retained.
+  No remote cleanup or source mutation occurred.
+
+### Unresolved work
+
+- Commit and push the focused staging repair, require Ubuntu GitHub Actions to
+  pass, and stage a fresh immutable `p2-diverse` run from that exact revision.
+  Do not reuse or clean job `625831`.
+- Submit only after the new login-stage checksum record exists. Monitor at the
+  30-minute cadence without a runtime timeout or failure inference from
+  silence.
+- When the replay reaches Phaser, inspect at most 25 normalised CD6 results
+  against strict `LLG > 100` and `TFZ > 10`, while keeping packing and
+  placed-copy evidence independent. The known-positive and deliberate
+  incorrect-model controls and human approval remain prerequisites for M4.
+
+### Next exact starting point
+
+Commit the module, regression test, and this journal entry as one focused
+repair; push `main` and monitor the exact GitHub Actions run. After CI passes,
+run `readiness p2-diverse`, stage that immutable revision, collect and verify
+its login-stage checksum, submit one new Slurm job, and retarget the 30-minute
+heartbeat to the new run. Retain the current failed run unchanged.

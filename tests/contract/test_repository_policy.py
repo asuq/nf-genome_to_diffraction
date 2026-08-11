@@ -76,6 +76,20 @@ def test_pilot_retention_cap_preserves_the_qualified_8oox_copy_rank() -> None:
     assert config["matthews"]["max_hypotheses_per_candidate"] == 4
 
 
+def test_diverse_funnel_stages_coordinate_sources_under_unique_names() -> None:
+    module = (
+        REPOSITORY / "modules" / "local" / "build_diverse_first_copy_funnel.nf"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "stageAs predicted_coordinate_sources, "
+        "'predicted_coordinate_sources.jsonl'" in module
+    )
+    assert "stageAs pdb_coordinate_sources, 'pdb_coordinate_sources.jsonl'" in module
+    assert "--coordinate-sources '${predicted_coordinate_sources}'" in module
+    assert "--coordinate-sources '${pdb_coordinate_sources}'" in module
+
+
 def test_nf_helper_submodule_exposes_marmic_profile() -> None:
     gitmodules = (REPOSITORY / ".gitmodules").read_text(encoding="utf-8")
     assert "path = external/nf-helper" in gitmodules

@@ -18,6 +18,10 @@ process BUILD_DIVERSE_FIRST_COPY_FUNNEL {
     crystal_id: String
     maximum_first_copy_jobs: Integer
 
+    stage:
+    stageAs predicted_coordinate_sources, 'predicted_coordinate_sources.jsonl'
+    stageAs pdb_coordinate_sources, 'pdb_coordinate_sources.jsonl'
+
     output:
     funnel: Path = file('diverse_first_copy_funnel')
 
