@@ -723,3 +723,99 @@ repair; push `main` and monitor the exact GitHub Actions run. After CI passes,
 run `readiness p2-diverse`, stage that immutable revision, collect and verify
 its login-stage checksum, submit one new Slurm job, and retarget the 30-minute
 heartbeat to the new run. Retain the current failed run unchanged.
+
+## 2026-08-11 — Submitted the coordinate-staging replay
+
+### Discoveries
+
+- Focused repair commit `4f1cc6cb1ec8dd1d6c22863f5192f7c6a754249e`
+  passed Ubuntu GitHub Actions run `31524663666` in 3 minutes 2 seconds.
+- Fixed-profile readiness remained `ready=true` with Pixi `0.74.0` and the
+  same checksum-bound P0 input configuration. No dispatcher or job-script
+  change was required for the Nextflow-module-only repair.
+- Fresh replay
+  `gtd-p2-diverse-20260811T185217Z-4f1cc6cb1ec8-880f5758` completed its
+  login stage from the exact repair commit and nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a`.
+
+### Accomplishments and immutable evidence
+
+- The replay's collected `p2-diverse-login-stage.sha256` record binds all six
+  direct-PDB search and coordinate-registration artefacts before submission.
+- Submission created Slurm job `625842`. Its first structured status reported
+  scheduler state `RUNNING`, `terminal=false`, no exit code, and no failure
+  class.
+- The 30-minute heartbeat now targets only the replay run. The earlier failed
+  job `625831` and its evidence remain retained and untouched.
+
+### Unresolved work
+
+- Let job `625842` run without interference. Check it only at the recorded
+  30-minute cadence through the installed wrapper; do not infer failure from
+  an SSH outage, silence, or elapsed time.
+- When terminal, inspect and collect the complete bounded P2 evidence. If the
+  staging fix reaches Phaser, review all normalised hypotheses against strict
+  `LLG > 100` and `TFZ > 10`, with packing and placed-copy evidence preserved
+  independently.
+- Qualification of a scheduled known-positive control, a deliberate
+  incorrect-model control, and a human-reviewed approval file remain required
+  before same-component additional-copy placement.
+
+### Next exact starting point
+
+At the next heartbeat, run only
+`nf-gtd-hpc-test --no-progress status --run-id gtd-p2-diverse-20260811T185217Z-4f1cc6cb1ec8-880f5758`.
+If non-terminal, leave the job untouched. If terminal, run bounded logs and
+collect as separate operations, inspect every available P2 result/review/resume
+record, retain the remote run, and complete the journal/check/commit/push/CI
+cycle before selecting the next control or repair.
+
+## 2026-08-11 — Raised useful Marmic Phaser parallelism to the site cap
+
+### Discoveries
+
+- The small outer P2-diverse Slurm allocation is a Nextflow driver; scientific
+  work is submitted as child Slurm tasks. Increasing only that driver would
+  reserve idle CPU and memory without accelerating Phaser.
+- Each `process_mr` task forwards its resolved `task.cpus` value to
+  `phaser.keywords.general.jobs`. The current diverse funnel schedules at most
+  25 independent hypotheses, while the Marmic site profile declares a 100-CPU
+  limit and a queue size of 30.
+- Four CPUs per MR task can therefore provide up to 100 useful Phaser workers
+  when all 25 hypotheses run concurrently. No out-of-memory evidence supports
+  increasing the existing 8 GB per-hypothesis request.
+
+### Accomplishments and immutable evidence
+
+- The Marmic `process_mr` override now requests four CPUs and 8 GB per
+  hypothesis with the existing conservative scheduler margin. The 25-job cap
+  prevents the aggregate request from exceeding the declared 100-CPU site
+  capacity.
+- Contract coverage binds the four-CPU override, the unchanged memory request,
+  the documented fanout rationale, and propagation of `task.cpus` to the
+  Phaser adapter.
+- Documentation distinguishes the outer workflow driver from the child Phaser
+  allocations and explains why memory was not increased without evidence.
+- The full locked repository gate passes: formatting, Ruff, strict mypy, 279
+  unit tests, 55 contract tests, 39 integration tests, schemas, public-panel,
+  documentation and workflow lint, Nextflow syntax/stubs/resume, and both HPC
+  shell parsers.
+
+### Unresolved work
+
+- Commit, push, and require GitHub Actions to qualify the resource override.
+  The running replay job `625842` remains bound to earlier commit
+  `4f1cc6cb1ec8dd1d6c22863f5192f7c6a754249e` and must not be restarted or
+  reinterpreted as using four CPUs per Phaser task.
+- Use the new allocation only for subsequent scheduled controls or a replay
+  required by terminal evidence. Inspect Slurm/Nextflow traces before any
+  further CPU or memory increase.
+
+### Next exact starting point
+
+Commit the Marmic configuration, contract assertion, documentation, and this
+journal handoff; push and monitor the exact GitHub Actions run. Continue to
+monitor job `625842` at the existing 30-minute cadence. When it becomes
+terminal, collect and interpret its evidence under the resources recorded by
+its immutable commit, then apply the qualified four-CPU allocation to the next
+scientifically required job.

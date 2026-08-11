@@ -100,6 +100,12 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
     assert "external/nf-helper/conf/sites/marmic.config" in wrapper
     assert "beforeScript" in wrapper
     assert ".pixi/envs/hpc/bin" in wrapper
+    mr_block = wrapper.split("withLabel: process_mr", maxsplit=1)[1].split(
+        "withLabel: process_prostt5_search", maxsplit=1
+    )[0]
+    assert "cpus = 4" in mr_block
+    assert "memory = '8 GB'" in mr_block
+    assert "25-job prototype fanout" in wrapper
     assert "withLabel: process_database_download" in wrapper
     assert "cpus = 100" in wrapper
     assert "memory = '2000 GB'" in wrapper
@@ -122,6 +128,11 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
         encoding="utf-8"
     )
     assert "DATABASE_SCRATCH_ROOT='/dev/shm'" in database_job
+
+    phaser_module = (
+        REPOSITORY / "modules" / "local" / "run_first_copy_phaser.nf"
+    ).read_text(encoding="utf-8")
+    assert "--threads '${task.cpus}'" in phaser_module
 
 
 def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> None:

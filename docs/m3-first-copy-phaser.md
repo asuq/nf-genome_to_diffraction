@@ -190,6 +190,14 @@ pixi run -e hpc nextflow run screen_diverse_first_copy.nf -profile local \
   --cache_root /absolute/cache/diverse-first-copy
 ```
 
+On Marmic, each `process_mr` task requests four CPUs and passes all four to
+`phaser.keywords.general.jobs`. The diverse prototype schedules at most 25
+hypotheses, so its maximum simultaneous Phaser allocation is 100 CPUs, matching
+the site profile's declared cap. Each task retains 8 GB because excess memory
+does not accelerate Phaser and no out-of-memory evidence has been observed.
+The small outer Slurm job is only the Nextflow driver; increasing its allocation
+would not increase the child Phaser tasks' usable resources.
+
 Selection reserves exact mappings, then round-robins deterministically over
 `(sequence_group_id, coordinate_provider, model_variant_type)` buckets so one
 source class cannot consume the entire early queue. It applies the
