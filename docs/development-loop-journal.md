@@ -598,3 +598,63 @@ Commit this journal entry, push through
 Actions run. After success, deploy the updated remote tools, rerun readiness,
 and stage a new P2-diverse attempt for the same commit. Inspect the staging JSON
 for a completed checksum-bound handoff before submitting to Slurm.
+
+## 2026-08-11 — Submitted the checksum-bound real P2-diverse run
+
+### Discoveries
+
+- Ubuntu GitHub Actions run `31512732384` passed in 3 minutes 33 seconds for
+  pushed revision `247de6b71678b4faf416a29b8eceaa6141c8fcc4`; the login-stage
+  `PATH` repair is therefore qualified by both the locked local gate and Linux
+  CI.
+- The matching remote dispatcher was deployed with SHA-256
+  `c0b83fd937225af15d3dfd2521f6369fc831fd2e374ef4b46f1ada4398410f45`;
+  the fixed job script retained SHA-256
+  `ffdcb323878662070f191259313229460802c3f9c9f89a340b8d627f272d6b9f`.
+  `readiness p2-diverse` returned `ready=true`.
+- Fresh run
+  `gtd-p2-diverse-20260811T163440Z-247de6b71678-cc37d614` completed the
+  fixed login stage. Its bounded collection contains the PDB search and
+  coordinate-registration manifests plus
+  `state/p2-diverse-login-stage.sha256`, which binds all six generated search
+  and registration artefacts. This is the required completed staging evidence;
+  it is distinct from the retained pre-Slurm failure
+  `gtd-p2-diverse-20260811T162025Z-586caa42cf01-24575cdc`.
+
+### Accomplishments and immutable evidence
+
+- The staged run records exact repository commit
+  `247de6b71678b4faf416a29b8eceaa6141c8fcc4`, nf-helper submodule commit
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a`, Pixi `0.74.0`, and the
+  `p2-diverse` profile.
+- Submission created Slurm job `625831`. The first structured status after
+  submission reported phase `submitted`, scheduler state `RUNNING`,
+  `terminal=false`, and no failure class. Silence or elapsed time must not be
+  reinterpreted as failure.
+- The approved 30-minute heartbeat now targets this exact run and permits only
+  the installed wrapper's bounded status/log/collect operations. It explicitly
+  forbids raw SSH, cancellation, cleanup, runtime timeouts, and failure
+  inference from silence.
+
+### Unresolved work
+
+- Let job `625831` run without interference. At each 30-minute cycle, read this
+  journal first and issue one wrapper status command. Do not submit another
+  simultaneous P2-diverse job.
+- When terminal, collect the bounded evidence and inspect the outer job result,
+  normalised P2-diverse results, Phaser logs, resume records, and MR seed review
+  package. Apply `LLG > 100` and `TFZ > 10` strictly while retaining packing
+  and placed-copy evidence as independent fields.
+- A real CD6 candidate result does not by itself authorise additional-copy
+  placement. The scheduled known-positive and deliberate incorrect-model
+  controls, followed by a human-completed and validated approval file, remain
+  prerequisites for M4.
+
+### Next exact starting point
+
+At the next 30-minute heartbeat, run only
+`nf-gtd-hpc-test --no-progress status --run-id gtd-p2-diverse-20260811T163440Z-247de6b71678-cc37d614`.
+If non-terminal, leave it untouched. If terminal, run bounded logs and collect
+as separate commands, inspect all recorded P2 and review artefacts, retain the
+remote run, and complete the journal/check/commit/push/CI portion of this cycle
+before choosing the next scientific control.
