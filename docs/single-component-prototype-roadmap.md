@@ -63,15 +63,15 @@ overstated:
 | Epic 4, catalogue import | Trusted catalogue normalisation passed the real `GCF_000711905.1` pilot, including compound CDS and repeated-accession loci | Add regression catalogues as new biological edge cases are observed |
 | Epic 5, MTZ preflight | Gemmi and real Xtriage qualification passed for all three pilot MTZ datasets, including `CD6QS2P2G1_5` | Extend only when new MTZ edge cases are observed |
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
-| Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; the first exact-AFDB/Phenix model-preparation slice passes on Marmic; the exact-predicted funnel is locally tested, hard-capped, and wired into the fixed P2 route | Finish provider union, PDB coordinate variants, diversity-aware selection, and the real funnel run |
-| Epic 10 | The first-copy Phaser adapter, final-packing parser, strict provisional gate, typed fan-out, stub execution, cached resume, and fixed P2 lifecycle pass locally | Run the immutable CD6 route on Marmic, qualify positive/no-solution controls, enforce the per-crystal smoke cap, and build the review package |
+| Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; the first exact-AFDB/Phenix model-preparation slice and exact-predicted funnel run on Marmic | Finish provider union, PDB coordinate variants, and diversity-aware selection |
+| Epic 10 | The first-copy Phaser adapter, strict provisional gate, typed fan-out, cached resume, and fixed P2 lifecycle pass locally; the real CD6 PDB-model search completed with no accepted packing solution and exposed one no-solution parser wording gap | Replay the parser correction, qualify the deliberate controls, enforce the per-crystal smoke cap, and build the review package |
 | Epics 11–13 | Contracts/reserved package areas exist | Same-component copies, refinement, map/sequence assessment, final ranking, and reporting are not implemented |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
 The accepted real Marmic workflow still terminates at
 `task05_preflight_complete_downstream_deferred`. A separate first-copy route now
-passes local stub acceptance, but it has not yet run on Marmic and has not
-identified the protein in `CD6QS2P2G1_5`. See the
+passes local stub acceptance and has run one exact model on Marmic without a
+credible solution; it has not identified the protein in `CD6QS2P2G1_5`. See the
 [initial Marmic report](prototype-test-report-2026-08-02.md) for the exact
 baseline evidence and the [M3 first-copy report](m3-first-copy-phaser.md) for
 the active boundary.
@@ -253,7 +253,8 @@ checksum, and content-derived identity are validated and recorded. The first
 real P2 replay showed that Phaser 2.8.4 could not derive scatterers from the
 Phenix-written mmCIF; the adapter now requests the same validated single-chain
 model as PDB. That PDB passed the public 8OOX control with final LLG 1149.2 and
-TFZ 46.0 but still awaits immutable Marmic requalification. This advances
+TFZ 46.0. The same PDB boundary completed a real Marmic CD6 search with no
+accepted packing solution. This advances
 the first vertical slice of T8.3–T8.4, not the M2 gate; PDB retrieval,
 domain/experimental variants, and the bounded funnel remain. The typed
 model-preparation entry point and fixed pilot mapping/resume orchestration
@@ -262,7 +263,7 @@ passed on Marmic commit `c901dafe585d1b68b117d7d216e5053ef4985230` as job
 The exact-predicted funnel is now implemented with checksum verification,
 physical-impossibility exclusion, deterministic caps, inspectable feature
 fields, and one immutable input record per MR job. Its fixed P2 orchestration
-passes locally; real Marmic funnel evidence remains the next gate.
+passes locally and its one-hypothesis Marmic execution is now established.
 See the [M2 predicted-model preparation report](m2-predicted-model-preparation.md).
 
 ### Work packages
@@ -303,11 +304,13 @@ See the [M2 predicted-model preparation report](m2-predicted-model-preparation.m
 ## M3 — First-copy Phaser and MR seed checkpoint
 
 The adapter/parser, typed stub route, and fixed checksum-gated P2 controller
-pass locally. A first immutable CD6 replay reached Phaser but failed at the
-mmCIF/scatterer boundary before search; the outer controller now rejects such
-failure statuses. The next feedback step is the smallest immutable CD6 Marmic
-retry with the positive-control-qualified PDB correction;
-review-package and full P2 acceptance work remains open. See the
+pass locally. The first immutable CD6 replay failed at the mmCIF/scatterer
+boundary; the PDB correction then completed the real search and packing with
+zero accepted solutions and no output files. The adapter incorrectly required
+another zero-count phrase and classified the valid terminal no-solution wording
+as `failed_parse`. The next feedback step is the smallest immutable replay of
+that focused parser correction; review-package and full P2 acceptance work
+remains open. See the
 [M3 first-copy report](m3-first-copy-phaser.md).
 
 ### Work packages

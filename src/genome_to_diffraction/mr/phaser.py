@@ -66,6 +66,7 @@ _REFINED_TFZ = re.compile(
 )
 _LLGI = re.compile(r"\bLLGI\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
 _SOLUTION_COUNT = re.compile(r"\*\* There (?:were|was)\s+(\d+) solutions?", re.I)
+_NO_SOLUTION = re.compile(r"^\s*(?:\*\*\s+)?Sorry\s+-\s+No solutions?\s*$", re.I | re.M)
 _PACKING = re.compile(
     r"(\d+) accepted of (\d+) solutions\s+(\d+) pack of (\d+) accepted solutions"
 )
@@ -324,10 +325,17 @@ def _last_match_float(pattern: re.Pattern[str], text: str) -> float | None:
 def parse_phaser_log(text: str) -> ParsedPhaserLog:
     """Parse final Phaser metrics without treating early advisories as terminal."""
 
-    solution_counts = [int(value) for value in _SOLUTION_COUNT.findall(text)]
-    if not solution_counts:
+    solution_matches = list(_SOLUTION_COUNT.finditer(text))
+    no_solution_matches = list(_NO_SOLUTION.finditer(text))
+    if no_solution_matches and (
+        not solution_matches
+        or no_solution_matches[-1].start() > solution_matches[-1].start()
+    ):
+        solution_count = 0
+    elif solution_matches:
+        solution_count = int(solution_matches[-1].group(1))
+    else:
         raise PhaserParseError("Phaser log lacks a final solution count")
-    solution_count = solution_counts[-1]
     packing_rows = [
         tuple(int(value) for value in row) for row in _PACKING.findall(text)
     ]

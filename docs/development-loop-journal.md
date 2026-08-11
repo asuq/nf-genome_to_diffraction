@@ -189,3 +189,67 @@ retry; do not clean either remote run automatically.
 Read this entry, inspect the model-format and P2 status-gate diff, then create
 the immutable correction commit. Do not broaden the model funnel or polish
 unrelated tests before the real CD6 retry.
+
+## 2026-08-11 — Phaser-readable PDB retry and no-solution parser boundary
+
+### Discoveries
+
+- The corrected model-format boundary and outer status gate passed the complete
+  locked repository check and GitHub Actions. The remaining uncertainty is now
+  the real molecular-replacement search, not repository validation or the
+  earlier mmCIF reader failure.
+- The immutable Marmic replay passed database revalidation, P0, P1 discovery,
+  exact-model hand-off verification, PDB confidence processing, qualification,
+  and cached P1 resume before submitting the one physically possible
+  first-copy hypothesis to Phaser.
+- The real Phaser process completed normally after about one hour of CPU time.
+  Seventy-six translations entered final packing, zero were accepted, no
+  solution files were written, the top translation TFZ was 5.11, and Phaser
+  emitted `Sorry - No solution` with a successful exit.
+- The adapter misclassified this valid scientific no-hit as `failed_parse`
+  because its fixture used a different explicit zero-solution phrase. The raw
+  final packing table and terminal no-solution marker provide sufficient,
+  internally consistent zero-solution evidence; a successful exit alone still
+  does not.
+- The versioned Phaser source confirms that `Sorry - No solution` is emitted
+  when no first component was found. It also distinguishes `No solution with
+  all components` for partial solutions, so the zero-solution parser uses an
+  exact terminal-line match and does not accept that longer phrase.
+
+### Accomplishments and immutable evidence
+
+- Commit `b93bf32e6ab5871c23e8579b91fb4d15dc3339e3` contains the narrow PDB
+  boundary and failure-status correction. GitHub Actions run `31486180388`
+  completed successfully.
+- The installed checksum-gated local controller has SHA-256
+  `c874a6bd90e6d6f7ce002099083cdf55d9e121af009af30a6a223d96d29596a7`.
+  The deployed fixed remote job has SHA-256
+  `5705cd70a657a40e8ff768b95d055f510d9d3742eb6b4b1c76412ab9281b982d`;
+  the dispatcher remains the reviewed immutable version.
+- Marmic P2 readiness passed, and the immutable retry is using the exact Git
+  commit and recorded `nf-helper` submodule revision.
+- The collected run was correctly rejected by the outer status gate as
+  `test_failure`; it also completed a fully cached P2 resume and retained
+  failure signature
+  `bcccb018e5dc896e877d3d875e264bf61e7ed67e495fcd367ffd5e9a79e80958`.
+- A reduced real-format no-solution fixture and focused parser regression now
+  pass locally. Terminal no-solution wording supersedes an earlier intermediate
+  solution count only when it appears later in the log.
+- The complete locked gate passes with 261 unit tests, 53 contract tests, 37
+  integration tests, strict typing, formatting/lint, schemas, public controls,
+  documentation, workflow lint, Nextflow syntax/stubs, cached resumes, and HPC
+  shell syntax.
+
+### Unresolved work
+
+- Create and push the focused parser correction, then confirm GitHub Actions.
+- Redeploy the checksum-gated job and replay the same immutable P2 profile. The
+  expected classification from the already retained raw evidence is
+  `completed_no_hit`; verify it rather than assuming it.
+- After route qualification, proceed to the smallest remaining P2 acceptance
+  work without tuning the LLG/TFZ gate or polishing unrelated fixtures.
+
+### Next exact starting point
+
+Inspect and create one immutable correction commit, then replay the fixed P2
+route through the reviewed wrapper; do not clean either retained remote run.

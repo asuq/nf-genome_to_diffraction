@@ -10,9 +10,11 @@ acceptance on 11 August 2026. The first immutable CD6 route reached Phaser after
 replaying the real P0 and P1 evidence, but Phaser rejected the processed mmCIF
 before search because it found no scatterers. This is a tool-execution failure,
 not a CD6 no-hit. The corrected PDB model boundary passed a local real 8OOX
-positive control and still requires an immutable CD6 retry. It must not be
-described as a scientific identification until that remote run and review are
-complete.
+positive control. Its first immutable CD6 retry completed the full search and
+packing calculation with no accepted solution, but exposed a narrow parser gap
+for Phaser's terminal `Sorry - No solution` wording. The corrected parser must
+pass one immutable replay before the fixed route qualifies. This no-hit must
+not be described as a scientific identification.
 
 This slice deliberately excludes experimental PDB model variants, domains,
 same-component additional copies, refinement, map inspection, sequence-from-map
@@ -96,6 +98,14 @@ because the qualified positive log first reported that the top FTF solution did
 not pack, then later accepted and packed the refined solutions. That advisory
 is retained as a warning without overriding the final table.
 
+Phaser 2.8.4 can express a successful no-solution result either with an explicit
+zero-solution count or with a final packing table followed by `Sorry - No
+solution`. The latter is terminal zero-solution evidence when it follows any
+earlier intermediate count. A successful exit marker alone remains
+insufficient and is classified as a parse failure. Exact terminal matching
+deliberately excludes `No solution with all components`, which Phaser can use
+when partial solutions exist.
+
 The normalised result preserves LLG, LLGI, TFZ, accepted/packed counts, placed
 copy count, output coordinate and MTZ checksums, warnings, raw-log pointer, and
 the preliminary credibility class. A solution passes the user-defined
@@ -156,10 +166,11 @@ by the selected site profile.
 
 ## Test evidence and remaining P2 work
 
-Focused tests cover real-format final-packing parsing, the early packing
-advisory, missing final packing, exact command construction, strict LLG/TFZ
-equalities, scientific no-solution, separate tool and parse failures, MTZ
-checksum drift, paths containing spaces, and the CLI's no-timeout default. The
+Focused tests cover real-format final-packing parsing, both observed
+no-solution forms, the early packing advisory, missing final packing, exact
+command construction, strict LLG/TFZ equalities, separate tool and parse
+failures, MTZ checksum drift, paths containing spaces, and the CLI's no-timeout
+default. The
 funnel tests cover impossible-copy exclusion, inspectable features,
 deterministic hard caps, model checksum drift, path traversal, and one-file-per-
 hypothesis fan-out. Ruff, strict mypy, parser-v2 lint, a full stub run, published
@@ -172,9 +183,13 @@ collection, and cached resume. Immutable commit
 `df153bebc0d1f02f6caaa9b8653fb8872aefbc65` replayed the qualified database,
 P0, P1, one-hypothesis funnel, and cached P2 resume. Phaser then returned
 `failed_tool_execution` with `INPUT: No scattering in coordinate file` for the
-processed mmCIF. The former outer success is not P2 acceptance and is now
-prevented by the wrapper status gate. The immediate remaining work is one
-immutable real CD6 retry with the PDB correction. The broader P2 gate
+processed mmCIF. The PDB correction's next immutable replay completed Phaser
+successfully: 76 translations entered packing, zero were accepted, no output
+solution files were written, and the top translation TFZ was 5.11. This is a
+scientific no-hit, but the adapter classified it as `failed_parse` because that
+real log omitted the synthetic fixture's explicit zero-count phrase. The
+parser regression is corrected locally; one immutable replay remains before
+route qualification. The broader P2 gate
 still requires a runnable known positive and deliberate no-solution case,
 per-crystal smoke enforcement, the top-10/25 review package, and approval-file
 validation. No same-component additional-copy search should begin before this

@@ -242,6 +242,11 @@ All notable changes to this project are documented here.
   `failed_infrastructure` normalised results as qualification failures while
   preserving their bounded result, command, and logs. Only completed hit or
   completed no-hit outcomes can make the outer P2 feedback run successful.
+- The real PDB-model retry reached a successful Phaser no-solution termination:
+  76 translations entered packing, none were accepted, no solution files were
+  written, and the top translation TFZ was 5.11. The parser now recognises
+  Phaser's terminal `Sorry - No solution` form as a valid completed no-hit
+  while continuing to reject logs without terminal solution evidence.
 - The tracked development-loop journal is now a mandatory read-first and
   write-before-handoff record so scientific discoveries, completed evidence,
   unresolved work, and the exact restart point survive task boundaries.

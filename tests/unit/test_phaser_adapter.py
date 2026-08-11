@@ -42,6 +42,9 @@ POSITIVE_LOG = (PHASER_FIXTURES / "phenix_2_1_positive.log").read_text(encoding=
 NO_SOLUTION_LOG = (PHASER_FIXTURES / "phenix_2_1_no_solution.log").read_text(
     encoding="utf-8"
 )
+PACKING_NO_SOLUTION_LOG = (
+    PHASER_FIXTURES / "phenix_2_1_no_solution_packing.log"
+).read_text(encoding="utf-8")
 
 
 def _inputs(tmp_path: Path) -> PhaserRunRequest:
@@ -173,6 +176,27 @@ def test_parser_rejects_solution_without_final_packing() -> None:
         )
 
 
+def test_real_no_solution_format_uses_terminal_marker_and_packing() -> None:
+    parsed = parse_phaser_log(PACKING_NO_SOLUTION_LOG)
+
+    assert parsed.phaser_version == "2.8.4"
+    assert parsed.solution_count == 0
+    assert parsed.accepted_solution_count == 0
+    assert parsed.packed_solution_count == 0
+    assert parsed.llg is None
+    assert parsed.tfz is None
+    assert parsed.parser_warnings == ()
+
+
+def test_partial_solution_phrase_is_not_zero_solution_evidence() -> None:
+    with pytest.raises(PhaserParseError, match="final packing evidence"):
+        parse_phaser_log(
+            "** There was 1 solution\n"
+            "** Sorry - No solution with all components\n"
+            "EXIT STATUS: SUCCESS\n"
+        )
+
+
 def test_adapter_runs_exact_composition_and_emits_credible_hit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -227,7 +251,7 @@ def test_adapter_records_scientific_no_solution_without_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     request = _inputs(tmp_path)
-    _fake_runtime(monkeypatch, log_text=NO_SOLUTION_LOG)
+    _fake_runtime(monkeypatch, log_text=PACKING_NO_SOLUTION_LOG)
 
     result = run_first_copy_phaser(request).result
 
