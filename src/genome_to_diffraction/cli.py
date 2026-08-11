@@ -49,7 +49,9 @@ from genome_to_diffraction.matthews import (
     qualify_matthews_reference,
 )
 from genome_to_diffraction.model_registry import (
+    ExperimentalModelPreparationRequest,
     PredictedModelPreparationRequest,
+    prepare_experimental_models,
     prepare_predicted_models,
 )
 from genome_to_diffraction.mr import PhaserRunRequest, run_first_copy_phaser
@@ -64,7 +66,9 @@ from genome_to_diffraction.phenix.runtime import (
     verify_manifest,
 )
 from genome_to_diffraction.ranking import (
+    DiverseFirstCopyFunnelRequest,
     ExactPredictedFunnelRequest,
+    build_diverse_first_copy_funnel,
     build_exact_predicted_funnel,
 )
 from genome_to_diffraction.schema_check import validate_repository
@@ -79,9 +83,11 @@ from genome_to_diffraction.status import GenomeToDiffractionError
 from genome_to_diffraction.structure_search import (
     AfdbExactRequest,
     P1QualificationRequest,
+    PdbCoordinateRegistrationRequest,
     PdbSequenceSearchRequest,
     ProstT5FoldseekSearchRequest,
     qualify_p1_search,
+    register_pdb_coordinates,
     search_afdb_exact,
     search_pdb_sequences,
     search_prostt5_foldseek,
@@ -504,6 +510,22 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help="optional explicit Phenix deadline; by default no deadline is imposed",
     )
+    experimental_parser = model_actions.add_parser(
+        "prepare-experimental",
+        help="prepare one cleaned PDB source-chain model per registered mapping",
+    )
+    experimental_parser.add_argument("--coordinate-sources", type=Path, required=True)
+    experimental_parser.add_argument(
+        "--coordinate-hit-mappings", type=Path, required=True
+    )
+    experimental_parser.add_argument("--sequence-groups", type=Path, required=True)
+    experimental_parser.add_argument("--outdir", type=Path, required=True)
+    experimental_parser.add_argument(
+        "--mapping-id",
+        action="append",
+        default=[],
+        help="repeatable mapping ID; by default process every registered mapping",
+    )
 
     ranking_parser = subparsers.add_parser(
         "ranking", help="build inspectable, hard-capped candidate funnels"
@@ -533,6 +555,31 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="repeatable crystal ID; by default use all supplied preflights",
     )
+    diverse_parser = ranking_actions.add_parser(
+        "diverse-first-copy-funnel",
+        help="join predicted and experimental models under hard diversity caps",
+    )
+    diverse_parser.add_argument(
+        "--coordinate-sources", type=Path, action="append", required=True
+    )
+    diverse_parser.add_argument(
+        "--processed-models", type=Path, action="append", required=True
+    )
+    diverse_parser.add_argument(
+        "--model-preparation-manifest", type=Path, action="append", required=True
+    )
+    diverse_parser.add_argument("--coordinate-hit-mappings", type=Path)
+    diverse_parser.add_argument("--sequence-groups", type=Path, required=True)
+    diverse_parser.add_argument("--matthews", type=Path, required=True)
+    diverse_parser.add_argument("--preflight", type=Path, required=True)
+    diverse_parser.add_argument("--config", type=Path, required=True)
+    diverse_parser.add_argument("--outdir", type=Path, required=True)
+    diverse_parser.add_argument(
+        "--crystal-id",
+        action="append",
+        default=[],
+        help="repeatable crystal ID; by default use all supplied preflights",
+    )
 
     mr_parser = subparsers.add_parser(
         "mr", help="execute bounded molecular-replacement hypotheses"
@@ -540,7 +587,7 @@ def _build_parser() -> argparse.ArgumentParser:
     mr_actions = mr_parser.add_subparsers(dest="mr_action", required=True)
     first_copy_parser = mr_actions.add_parser(
         "first-copy",
-        help="run one exact-predicted independent first-copy Phaser search",
+        help="run one registered independent first-copy Phaser search",
     )
     first_copy_parser.add_argument("--hypotheses", type=Path, required=True)
     first_copy_parser.add_argument("--hypothesis-id", required=True)
@@ -580,6 +627,32 @@ def _build_parser() -> argparse.ArgumentParser:
         "--minimum-query-coverage", type=float, default=0.5
     )
     pdb_sequence_parser.add_argument("--maximum-query-length", type=int, default=10_000)
+    pdb_coordinates_parser = search_actions.add_parser(
+        "register-pdb-coordinates",
+        help="cache and register a bounded, diversity-reserved set of direct-PDB hits",
+    )
+    pdb_coordinates_parser.add_argument("--structural-hits", type=Path, required=True)
+    pdb_coordinates_parser.add_argument("--sequence-groups", type=Path, required=True)
+    pdb_coordinates_parser.add_argument("--database-manifest", type=Path, required=True)
+    pdb_coordinates_parser.add_argument("--outdir", type=Path, required=True)
+    pdb_coordinates_parser.add_argument(
+        "--maximum-hits-per-sequence-group", type=int, default=3
+    )
+    pdb_coordinates_parser.add_argument("--maximum-mappings", type=int, default=25)
+    pdb_coordinates_parser.add_argument(
+        "--hit-id",
+        action="append",
+        default=[],
+        help=(
+            "repeatable explicit direct-PDB hit ID; otherwise select deterministically"
+        ),
+    )
+    pdb_coordinates_parser.add_argument(
+        "--storage-limit-bytes", type=int, default=100_000_000_000
+    )
+    pdb_coordinates_parser.add_argument(
+        "--minimum-free-bytes", type=int, default=1_000_000_000
+    )
     prostt5_parser = search_actions.add_parser(
         "prostt5-foldseek",
         help="search exact sequences against local PDB using ProstT5 and Foldseek",
@@ -991,6 +1064,27 @@ def _run_structure_search(args: argparse.Namespace) -> int:
             f"{foldseek_result.search_manifest}"
         )
         return 0
+    if args.structure_search_action == "register-pdb-coordinates":
+        registration = register_pdb_coordinates(
+            PdbCoordinateRegistrationRequest(
+                structural_hits_jsonl=args.structural_hits,
+                sequence_groups_jsonl=args.sequence_groups,
+                database_manifest=args.database_manifest,
+                output_directory=args.outdir,
+                maximum_hits_per_sequence_group=(args.maximum_hits_per_sequence_group),
+                maximum_mappings=args.maximum_mappings,
+                hit_ids=tuple(args.hit_id),
+                storage_limit_bytes=args.storage_limit_bytes,
+                minimum_free_bytes=args.minimum_free_bytes,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Registered {len(registration.mappings)} direct-PDB mapping(s) from "
+            f"{len(registration.coordinate_sources)} coordinate source(s): "
+            f"{registration.manifest_json}"
+        )
+        return 0
     if args.structure_search_action != "pdb-sequence":
         raise AssertionError(
             f"unhandled structure-search action: {args.structure_search_action}"
@@ -1017,9 +1111,25 @@ def _run_structure_search(args: argparse.Namespace) -> int:
 
 
 def _run_model(args: argparse.Namespace) -> int:
+    if args.model_action == "prepare-experimental":
+        experimental_result = prepare_experimental_models(
+            ExperimentalModelPreparationRequest(
+                coordinate_sources_jsonl=args.coordinate_sources,
+                coordinate_hit_mappings_jsonl=args.coordinate_hit_mappings,
+                sequence_groups_jsonl=args.sequence_groups,
+                output_directory=args.outdir,
+                mapping_ids=tuple(args.mapping_id),
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Prepared {len(experimental_result.records)} experimental MR model(s): "
+            f"{experimental_result.manifest_json}"
+        )
+        return 0
     if args.model_action != "prepare-predicted":
         raise AssertionError(f"unhandled model action: {args.model_action}")
-    result = prepare_predicted_models(
+    predicted_result = prepare_predicted_models(
         PredictedModelPreparationRequest(
             coordinate_sources_jsonl=args.coordinate_sources,
             sequence_groups_jsonl=args.sequence_groups,
@@ -1031,12 +1141,34 @@ def _run_model(args: argparse.Namespace) -> int:
         )
     )
     print(
-        f"Prepared {len(result.records)} predicted MR model(s): {result.manifest_json}"
+        f"Prepared {len(predicted_result.records)} predicted MR model(s): "
+        f"{predicted_result.manifest_json}"
     )
     return 0
 
 
 def _run_ranking(args: argparse.Namespace) -> int:
+    if args.ranking_action == "diverse-first-copy-funnel":
+        diverse_result = build_diverse_first_copy_funnel(
+            DiverseFirstCopyFunnelRequest(
+                coordinate_sources_jsonl=tuple(args.coordinate_sources),
+                processed_models_jsonl=tuple(args.processed_models),
+                model_preparation_manifests=tuple(args.model_preparation_manifest),
+                coordinate_hit_mappings_jsonl=args.coordinate_hit_mappings,
+                sequence_groups_jsonl=args.sequence_groups,
+                matthews_hypotheses_jsonl=args.matthews,
+                mtz_preflight_jsonl=args.preflight,
+                pipeline_config=args.config,
+                output_directory=args.outdir,
+                crystal_ids=tuple(args.crystal_id),
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Selected {len(diverse_result.hypotheses)} multi-source first-copy "
+            f"hypothesis(es): {diverse_result.manifest_json}"
+        )
+        return 0
     if args.ranking_action != "exact-predicted-funnel":
         raise AssertionError(f"unhandled ranking action: {args.ranking_action}")
     result = build_exact_predicted_funnel(

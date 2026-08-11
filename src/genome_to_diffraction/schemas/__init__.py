@@ -11,6 +11,7 @@ from genome_to_diffraction.schemas.manifests import (
     validate_manifest_references,
 )
 from genome_to_diffraction.schemas.results import (
+    CoordinateHitMappingRecord,
     CoordinateSourceRecord,
     MatthewsHypothesis,
     MrHypothesis,
@@ -28,6 +29,7 @@ from genome_to_diffraction.schemas.results import (
 
 __all__ = [
     "CatalogueManifest",
+    "CoordinateHitMappingRecord",
     "CoordinateSourceRecord",
     "CrystalManifest",
     "DatabaseManifest",

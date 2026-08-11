@@ -211,6 +211,43 @@ class CoordinateSourceRecord(ContractModel):
     license_or_provenance: NonEmptyString
 
 
+class CoordinateHitMappingRecord(ContractModel):
+    """Reviewable mapping from one catalogue hit to a cached PDB entity."""
+
+    schema_version: Literal["1.0"]
+    mapping_id: NonEmptyString
+    hit_id: NonEmptyString
+    coordinate_id: NonEmptyString
+    sequence_group_id: NonEmptyString
+    candidate_sequence_sha256: Sha256Hex
+    pdb_id: str = Field(pattern=r"^[0-9A-Za-z]{4}$")
+    identifier_namespace: NonEmptyString
+    seqres_token: NonEmptyString
+    entity_id: NonEmptyString
+    label_asym_ids: tuple[NonEmptyString, ...] = Field(min_length=1)
+    source_sequence_sha256: Sha256Hex
+    source_sequence_length: PositiveInt
+    query_start: PositiveInt
+    query_end: PositiveInt
+    target_start: PositiveInt
+    target_end: PositiveInt
+    aligned_length: PositiveInt
+    query_coverage: float = Field(ge=0, le=1)
+    target_coverage: float = Field(ge=0, le=1)
+    sequence_identity: float = Field(ge=0, le=1)
+    exact_sequence_match: bool
+
+    @model_validator(mode="after")
+    def _valid_alignment_ranges(self) -> Self:
+        if self.query_start > self.query_end:
+            raise ValueError("query_start must not exceed query_end")
+        if self.target_start > self.target_end:
+            raise ValueError("target_start must not exceed target_end")
+        if self.target_end > self.source_sequence_length:
+            raise ValueError("target alignment exceeds the PDB source sequence")
+        return self
+
+
 class ProcessedModelRecord(ContractModel):
     """MR-ready model derived from an immutable coordinate source."""
 

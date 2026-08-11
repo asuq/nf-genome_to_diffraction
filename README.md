@@ -29,11 +29,18 @@ into a residue-mapped, confidence-pruned, content-addressed MR model through
 verified Phenix 2.1-6048. The checksum-bound fixed Marmic path passed on commit
 `c901dafe585d1b68b117d7d216e5053ef4985230`: login-node staging retrieved one
 sequence-exact AFDB model, the Slurm task retained 429 of 442 residues, and the
-model process was cached on resume. PDB coordinate registration,
-domain/experimental variants, the bounded candidate funnel, and the provider
-evidence union remain incomplete. Optional ESM Atlas remains disabled.
-Molecular replacement, refinement, map-based sequence
-assessment, ranking, and final identification remain unimplemented.
+model process was cached on resume. PDB coordinate registration, one cleaned
+experimental source-chain variant, and a diversity-aware first-copy funnel are
+now implemented with typed Nextflow boundaries. The funnel preserves predicted
+and experimental evidence separately and enforces no more than 25 first-copy
+jobs per crystal in smoke mode. These new boundaries pass local unit/stub/resume
+acceptance but are not yet qualified on the real Marmic direct-PDB candidates.
+Domain and sequence-adapted variants and the provider evidence union remain
+incomplete. Optional ESM Atlas remains disabled. First-copy molecular
+replacement is implemented and the fixed exact-model CD6 route completed
+reproducibly as a scientific no-hit. Same-component copy placement, refinement,
+map-based sequence assessment, final ranking, and final identification remain
+unimplemented.
 `main.nf` therefore ends with an explicit
 `task05_preflight_complete_downstream_deferred` scope record; its successful exit
 does not mean that a protein identity was found. The separate
@@ -91,10 +98,13 @@ genome-to-diffraction contract validate catalogue-manifest examples/catalogues.t
 genome-to-diffraction contract canonicalise pipeline-config examples/config.yaml
 genome-to-diffraction contract schema sequence-group
 genome-to-diffraction structure-search pdb-sequence --help
+genome-to-diffraction structure-search register-pdb-coordinates --help
 genome-to-diffraction structure-search prostt5-foldseek --help
 genome-to-diffraction structure-search afdb-exact --help
 genome-to-diffraction structure-search qualify-p1 --help
+genome-to-diffraction model prepare-experimental --help
 genome-to-diffraction model prepare-predicted --help
+genome-to-diffraction ranking diverse-first-copy-funnel --help
 ```
 
 `schema-check` validates every tracked JSON Schema against Draft 2020-12,
@@ -360,9 +370,20 @@ for debugging; an existing versioned installation is never overwritten.
   qualified database manifest, output/cache roots, bounded direct-PDB and
   ProstT5/Foldseek-to-PDB parameters, and optional exact UniProt mappings for
   AFDB retrieval.
+- `register_coordinates.nf` exposes direct-PDB hit and sequence-group records,
+  the qualified database manifest, a per-group source quota, and a hard global
+  mapping cap for content-addressed PDB coordinate registration.
 - `prepare_models.nf` exposes exact coordinate-source and sequence-group
   records, a verified Phenix manifest, and output/cache roots for deterministic
   confidence-pruned predicted-model preparation.
+- `prepare_pdb_models.nf` exposes registered PDB coordinate sources, typed
+  hit-to-coordinate mappings, and catalogue sequence groups for the one cleaned
+  experimental source-chain variant.
+- `screen_first_copy.nf` runs the qualified exact-predicted first-copy route.
+- `screen_diverse_first_copy.nf` joins predicted and registered experimental
+  model bundles, applies source/variant diversity and the profile-specific hard
+  cap, publishes one aggregate immutable model registry, and fans the selected
+  first-copy hypotheses out to Phaser.
 
 The safe workflow smoke test is:
 
@@ -411,6 +432,25 @@ This entry point requires the Linux `hpc` environment because MMseqs2 and
 Foldseek are not in the macOS development environment. The AFDB branch sends
 only mapped public accessions to the official service; it does not submit
 protein sequences. It is not a final identification workflow.
+
+For the bounded direct-PDB coordinate-registration route:
+
+```bash
+pixi run -e hpc nextflow run register_coordinates.nf -profile local \
+  --structural_hits /absolute/results/structural-discovery/pdb_sequence_search/structural_hits.jsonl \
+  --sequence_groups /absolute/results/catalogue/sequence_groups.jsonl \
+  --database_manifest /absolute/shared/database_manifest.json \
+  --maximum_hits_per_sequence_group 3 \
+  --maximum_mappings 25 \
+  --outdir /absolute/results/pdb-coordinate-registration \
+  --cache_root /absolute/cache/nf-genome-to-diffraction-coordinates
+```
+
+This network-labelled step submits only public four-character PDB accessions to
+the official coordinate archive. On Marmic it must be executed during the
+checksum-gated login-node prefetch because compute nodes have no outbound HTTPS;
+the scheduled workflow consumes only the resulting immutable records and cached
+objects.
 
 For the implemented predicted-model preparation route:
 

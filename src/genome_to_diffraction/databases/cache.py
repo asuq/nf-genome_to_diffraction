@@ -610,3 +610,51 @@ def verify_cached_pdb_coordinate(
     ):
         raise DatabaseError("cached PDB coordinate object checksum mismatch")
     return record
+
+
+def find_cached_pdb_coordinates(
+    root: Path,
+    *,
+    pdb_id: str,
+    full_checksum: bool = True,
+    progress: bool = True,
+) -> tuple[CachedCoordinate, ...]:
+    """Return every integrity-checked cached retrieval for one PDB entry."""
+
+    verify_coordinate_cache(root)
+    if _PDB_ID.fullmatch(pdb_id) is None:
+        raise DatabaseError(f"invalid PDB cache source identifier: {pdb_id!r}")
+    metadata_root = root / "pdb" / "metadata" / pdb_id.lower()
+    if not metadata_root.exists():
+        return ()
+    if metadata_root.is_symlink() or not metadata_root.is_dir():
+        raise DatabaseError(f"cached PDB metadata root is unsafe: {metadata_root}")
+    records: list[CachedCoordinate] = []
+    for metadata_path in sorted(metadata_root.glob("*.json")):
+        if metadata_path.is_symlink() or not metadata_path.is_file():
+            raise DatabaseError(f"cached PDB metadata is unsafe: {metadata_path}")
+        try:
+            document = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise DatabaseError(
+                f"invalid cached PDB coordinate metadata: {metadata_path}"
+            ) from error
+        if not isinstance(document, dict):
+            raise DatabaseError(
+                f"invalid cached PDB coordinate metadata: {metadata_path}"
+            )
+        raw_record = dict(document)
+        raw_record.pop("schema_version", None)
+        raw_record["metadata_relative_path"] = metadata_path.relative_to(
+            root
+        ).as_posix()
+        raw_record["metadata_sha256"] = sha256_file(metadata_path, progress=False)
+        records.append(
+            verify_cached_pdb_coordinate(
+                root,
+                raw_record,
+                full_checksum=full_checksum,
+                progress=progress,
+            )
+        )
+    return tuple(records)

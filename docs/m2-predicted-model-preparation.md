@@ -7,15 +7,18 @@ coordinate for molecular replacement with verified
 `phenix.process_predicted_model`. It implements one intentionally bounded
 variant: a confidence-pruned, unsplit full predicted model written as PDB for
 the installed Phaser 2.8.4 ensemble reader. It does not yet
-implement PDB coordinate retrieval, domain splitting, experimental-model
-variants, or their broader diversity-aware candidate funnel. The exact-predicted
+implement domain splitting, sequence-adapted experimental variants, or their
+broader diversity-aware candidate funnel. Direct-PDB registration and the first
+cleaned source-chain variant are documented separately in
+[M2 experimental PDB model preparation](m2-experimental-model-preparation.md).
+The exact-predicted
 vertical slice now has a checksum-verified bounded funnel described in the
 [M3 first-copy report](m3-first-copy-phaser.md). A typed `prepare_models.nf`
 entry point wires the qualified preparation adapter for isolated execution and
 cached resume. The original fixed Marmic route passed model preparation on 11
 August 2026. Its mmCIF output was later shown to be unsuitable for the installed
-Phaser reader; the PDB correction has passed a local real positive control and
-awaits an immutable Marmic requalification.
+Phaser reader; the PDB correction passed both a local real positive control and
+an immutable Marmic CD6 no-hit replay.
 
 The adapter was qualified on 10 August 2026 with Phenix 2.1-6048 on macOS
 Apple Silicon using the real pilot-derived `Methermicoccus shengliensis`
@@ -198,9 +201,11 @@ Focused tests cover content addressing, exact residue mapping, paths with
 spaces, output contracts, source checksum drift, and bounded native failure
 tails. Parser-v2 lint and stub execution cover the typed Nextflow entry point,
 published directory, and cached resume. The original Marmic Phenix run and the
-corrected local Phaser positive control are the current T8.4 evidence; the
-corrected PDB route still requires immutable Marmic requalification. M2 remains
-open until the repository also provides reviewable
-PDB chain/entity/range retrieval, bounded experimental and domain variants, and
-their diversity-aware selection. The exact-predicted slice now produces a
+corrected local Phaser positive control plus the immutable Marmic no-hit replay
+are the current T8.4 evidence. Reviewable PDB chain/entity/range retrieval, one
+bounded cleaned experimental variant, and multi-source diversity-aware
+selection are now implemented and pass local tests. M2 remains open until those
+new boundaries run on real Marmic candidates and the positive-control family is
+shown to survive selection. Sequence-adapted/side-chain-pruned and clear-domain
+variants remain separate evidence-gated extensions. The funnel produces a
 known, hard-capped job count before Phaser submission.

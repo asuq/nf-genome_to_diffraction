@@ -83,7 +83,8 @@ def _write_inputs(tmp_path: Path) -> tuple[Path, Path, tuple[SequenceGroupRecord
     (resource_root / "target_mapping.tsv").write_text(
         "target_id\tpdb_id\tidentifier_namespace\tseqres_token\t"
         "sequence_length\tsequence_sha256\toriginal_header\n"
-        f"1abc_A\t1ABC\tlegacy_seqres_suffix\tA\t4\t{'a' * 64}\t1abc_A\n",
+        "1abc_A\t1ABC\tlegacy_seqres_suffix\tA\t4\t"
+        f"{hashlib.sha256(b'ACDE').hexdigest()}\t1abc_A\n",
         encoding="utf-8",
     )
     manifest_path = tmp_path / "database manifest.json"
@@ -156,6 +157,10 @@ def test_pdb_sequence_search_preserves_hit_no_hit_and_ineligible_states(
     assert hit_result.hits[0].pdb_id == "1ABC"
     assert hit_result.hits[0].target_chain_or_entity == "A"
     assert hit_result.hits[0].sequence_identity == pytest.approx(0.75)
+    assert hit_result.hits[0].raw_metrics["target_sequence_length"] == 4
+    assert hit_result.hits[0].raw_metrics["target_sequence_sha256"] == (
+        hashlib.sha256(b"ACDE").hexdigest()
+    )
     assert by_query[groups[1].sequence_group_id].execution_status is (
         ExecutionStatus.COMPLETED_NO_HIT
     )
@@ -168,6 +173,7 @@ def test_pdb_sequence_search_preserves_hit_no_hit_and_ineligible_states(
     assert manifest["query_count"] == 3
     assert manifest["eligible_query_count"] == 2
     assert manifest["hit_count"] == 1
+    assert manifest["adapter_version"] == "pdb-sequence-mmseqs-v2"
     command_log = (output.search_manifest.parent / "raw" / "mmseqs.log").read_text(
         encoding="utf-8"
     )

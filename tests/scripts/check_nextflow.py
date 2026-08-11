@@ -167,8 +167,11 @@ def check_stubs() -> None:
         main_out = temporary_root / "main-results"
         database_out = temporary_root / "database-results"
         discovery_out = temporary_root / "discovery-results"
+        coordinate_out = temporary_root / "coordinate-results"
+        pdb_model_out = temporary_root / "pdb-model-results"
         model_out = temporary_root / "model-results"
         first_copy_out = temporary_root / "first-copy-results"
+        diverse_first_copy_out = temporary_root / "diverse-first-copy-results"
         cache_root = temporary_root / "cache"
 
         main_command = [
@@ -264,6 +267,88 @@ def check_stubs() -> None:
                 + discovery_resumed_output
             )
 
+        coordinate_command = [
+            "nextflow",
+            "run",
+            "register_coordinates.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "--structural_hits",
+            "tests/fixtures/stubs/structure_search/structural_hits.jsonl",
+            "--sequence_groups",
+            "tests/fixtures/stubs/sequence_groups.jsonl",
+            "--database_manifest",
+            "tests/fixtures/stubs/database_manifest.json",
+            "--outdir",
+            str(coordinate_out),
+            "--cache_root",
+            str(cache_root / "coordinate-registration"),
+        ]
+        _run(coordinate_command, environment=environment)
+        _assert_files(
+            coordinate_out,
+            {
+                "coordinate_sources.jsonl",
+                "coordinate_hit_mappings.jsonl",
+                "registration_manifest.json",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        coordinate_resumed = _run(
+            [*coordinate_command, "-resume"], environment=environment
+        )
+        if "cached" not in (
+            f"{coordinate_resumed.stdout}\n{coordinate_resumed.stderr}".lower()
+        ):
+            raise RuntimeError(
+                "resumed PDB coordinate-registration stub did not report cached work"
+            )
+
+        pdb_model_command = [
+            "nextflow",
+            "run",
+            "prepare_pdb_models.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "--coordinate_sources",
+            "tests/fixtures/stubs/pdb_coordinate_registration/coordinate_sources.jsonl",
+            "--coordinate_hit_mappings",
+            "tests/fixtures/stubs/pdb_coordinate_registration/coordinate_hit_mappings.jsonl",
+            "--sequence_groups",
+            "tests/fixtures/stubs/sequence_groups.jsonl",
+            "--outdir",
+            str(pdb_model_out),
+            "--cache_root",
+            str(cache_root / "pdb-model-preparation"),
+        ]
+        _run(pdb_model_command, environment=environment)
+        _assert_files(
+            pdb_model_out,
+            {
+                "processed_models.jsonl",
+                "model_preparation_manifest.json",
+                "stub.pdb",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        pdb_model_resumed = _run(
+            [*pdb_model_command, "-resume"], environment=environment
+        )
+        if "cached" not in (
+            f"{pdb_model_resumed.stdout}\n{pdb_model_resumed.stderr}".lower()
+        ):
+            raise RuntimeError(
+                "resumed experimental-model stub did not report cached work"
+            )
+
         model_command = [
             "nextflow",
             "run",
@@ -357,6 +442,76 @@ def check_stubs() -> None:
             f"{first_copy_resumed.stdout}\n{first_copy_resumed.stderr}".lower()
         ):
             raise RuntimeError("resumed first-copy stub did not report cached work")
+
+        diverse_first_copy_command = [
+            "nextflow",
+            "run",
+            "screen_diverse_first_copy.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "--predicted_coordinate_sources",
+            "tests/fixtures/stubs/afdb_exact_search/coordinate_sources.jsonl",
+            "--predicted_prepared_models",
+            "tests/fixtures/stubs/predicted_model_preparation",
+            "--pdb_coordinate_sources",
+            "tests/fixtures/stubs/pdb_coordinate_registration/coordinate_sources.jsonl",
+            "--coordinate_hit_mappings",
+            "tests/fixtures/stubs/pdb_coordinate_registration/coordinate_hit_mappings.jsonl",
+            "--experimental_prepared_models",
+            "tests/fixtures/stubs/experimental_model_preparation",
+            "--sequence_groups",
+            "tests/fixtures/stubs/sequence_groups.jsonl",
+            "--matthews",
+            "tests/fixtures/stubs/mtz_preflight.jsonl",
+            "--preflight",
+            "tests/fixtures/stubs/mtz_preflight.jsonl",
+            "--config",
+            "examples/config.yaml",
+            "--crystal_id",
+            "test_crystal_01",
+            "--mtz",
+            "tests/fixtures/stubs/predicted_model_preparation/models/stub.pdb",
+            "--phenix_manifest",
+            "tests/fixtures/stubs/phenix_install_manifest.json",
+            "--outdir",
+            str(diverse_first_copy_out),
+            "--cache_root",
+            str(cache_root / "diverse-first-copy"),
+        ]
+        _run(diverse_first_copy_command, environment=environment)
+        _assert_files(
+            diverse_first_copy_out,
+            {
+                "funnel_manifest.json",
+                "mr_hypotheses.jsonl",
+                "mr_hypotheses.tsv",
+                "processed_models.jsonl",
+                "model_preparation_manifest.json",
+                "normalised_mr_result.json",
+                "normalised_mr_result.jsonl",
+                "phaser_command.json",
+                "PHASER.log",
+                "phenix.phaser.capture.log",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        diverse_first_copy_resumed = _run(
+            [*diverse_first_copy_command, "-resume"], environment=environment
+        )
+        if (
+            "cached"
+            not in (
+                f"{diverse_first_copy_resumed.stdout}\n"
+                f"{diverse_first_copy_resumed.stderr}"
+            ).lower()
+        ):
+            raise RuntimeError(
+                "resumed diverse first-copy stub did not report cached work"
+            )
 
         database_command = [
             "nextflow",

@@ -290,3 +290,81 @@ Read this terminal evidence, then inspect the direct-PDB hit-to-coordinate and
 review-package boundaries. Implement the smallest provenance-complete,
 hard-capped real-candidate expansion before adding same-component copies; do
 not clean any retained remote run.
+
+## 2026-08-11 — Direct-PDB model path and hard-capped multi-source funnel
+
+### Discoveries
+
+- A direct-PDB search hit needs a separate immutable hit-to-coordinate mapping.
+  The searched SEQRES snapshot, downloaded mmCIF entry/entity/author chain,
+  candidate alignment, source/candidate sequence digests, and cache object must
+  all agree before the coordinate can become MR input.
+- The smallest defensible experimental-model expansion is one cleaned source
+  chain. Removing non-polymer atoms and hydrogens while retaining alternate
+  conformations is deterministic; sequence adaptation, side-chain pruning,
+  domains, ensembles, and additional conformers would multiply unqualified
+  hypotheses and remain deferred.
+- The original first-copy Phaser adapter was exact-predicted-only. It rejected
+  homologous PDB models and hard-coded `phaser.model_identity=100`; merely
+  wiring a diverse funnel to that adapter would therefore have failed or
+  misrepresented the model. Adapter v2 now requires matching mapping IDs and
+  candidate-to-source identity in hypothesis and processed-model provenance,
+  uses 100% only for exact predicted models, and passes the verified homologue
+  identity for cleaned PDB models.
+- Marmic compute nodes have already rejected outbound HTTPS. The real route
+  must therefore register/download selected PDB coordinates during a fixed,
+  path-closed login-node staging operation, then let the Slurm phase verify and
+  consume those shared-cache objects offline. `process_network` alone is not a
+  valid Marmic download strategy.
+- Diversity must be reserved before quality-only ordering. The implemented
+  selector round-robins over sequence-group, provider, and model-variant
+  buckets, then enforces the smoke ceiling of 25 first-copy jobs per crystal.
+  This is an execution-safety bound, not evidence that 25 is scientifically
+  sufficient.
+
+### Accomplishments and evidence
+
+- Direct-PDB registration now selects sequence-group-first bounded hits,
+  reuses or downloads official RCSB mmCIF objects through the verified
+  content-addressed cache, validates the searched SEQRES snapshot against the
+  live coordinate entity, and publishes typed coordinate sources, mappings,
+  and an integrity manifest.
+- Experimental-model preparation now produces one content-addressed,
+  Phaser-readable single-chain PDB per mapping with exact observed sequence,
+  mass, atom/residue counts, source completeness, mapping identity, quality
+  flags, structured logging, and bounded progress.
+- The multi-source funnel verifies paired predicted/experimental preparation
+  bundles, mapping joins, checksums, preflights, and physical copy hypotheses;
+  it preserves independent priority features, emits one record per selected
+  job, and publishes a self-contained aggregate model registry for Phaser.
+- Typed parser-v2 entry points now cover coordinate registration, experimental
+  model preparation, and multi-source first-copy fan-out. Every new entry point
+  passes stub publication and cached resume.
+- The full locked gate passes: Ruff format/lint, strict mypy, 269 unit tests,
+  54 contract tests, 37 integration tests, Draft 2020-12 schemas, the ten-entry
+  public panel, documentation links, GitHub workflow linting, Nextflow syntax,
+  all stub/resume routes, and HPC shell syntax. No real Marmic direct-PDB model
+  or diverse Phaser job was run in this loop.
+
+### Unresolved work
+
+- Create and push the focused immutable commit, then require GitHub Actions to
+  pass before Marmic fetches it.
+- Add a checksum-gated, path-closed real operation that performs PDB coordinate
+  registration on the Marmic login node and schedules only offline model
+  preparation, capped funnel construction, Phaser fan-out, and cached resume.
+- Execute no more than 25 real CD6 first-copy hypotheses, collect every
+  normalised result/log/command and the funnel manifest, and retain the remote
+  run. Do not interpret external PDB identities as catalogue identities.
+- Qualify the scheduled known-positive and deliberate incorrect-model controls,
+  then implement the top-10/25 review package and approval validation. Do not
+  start same-component additional-copy placement yet.
+
+### Next exact starting point
+
+Read this entry and verify the focused commit/CI. Then inspect the existing
+fixed P2 stage/submit implementation and add the smallest separate
+`p2-diverse` login-stage plus offline Slurm operation. Reuse immutable P1,
+catalogue, MTZ, Phenix, and database evidence; accept no caller-controlled
+remote path or shell fragment, do not download from a compute node, and do not
+clean retained runs.

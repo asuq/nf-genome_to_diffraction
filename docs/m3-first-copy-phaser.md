@@ -19,9 +19,11 @@ solutions, no solution files, and a fully cached two-process resume. This
 qualifies the bounded route, not a scientific identification or the full P2
 gate.
 
-This slice deliberately excludes experimental PDB model variants, domains,
-same-component additional copies, refinement, map inspection, sequence-from-map
-analysis, ranking reports, and reviewer approval. Those remain separate gates.
+The next local slice adds registered direct-PDB cleaned source-chain models to
+the same independent first-copy boundary. It deliberately still excludes
+sequence-adapted/domain variants, same-component additional copies, refinement,
+map inspection, sequence-from-map analysis, ranking reports, and reviewer
+approval. Those remain separate gates.
 
 ## Exact-model funnel
 
@@ -79,10 +81,12 @@ Phenix subprocess wrapper in a hypothesis-owned directory with:
 - `MR_AUTO` mode;
 - sequence-based total composition and the hypothesis's expected copy count;
 - exactly one searched copy;
-- explicit 100% sequence identity for the exact catalogue/model mapping;
+- explicit 100% sequence identity for an exact predicted catalogue/model
+  mapping, or the registered candidate-to-source identity for a cleaned PDB
+  homologue;
 - model uncertainty retained through the B values produced by
-  `phenix.process_predicted_model`, with its validated single-chain PDB output
-  supplied to Phaser;
+  `phenix.process_predicted_model` for predicted models, while cleaned PDB
+  homologues retain native coordinate B values;
 - the preflight-selected observation labels;
 - the preflight space group with alternative-space-group search disabled; and
 - `task.cpus` passed to Phaser's job control.
@@ -162,6 +166,37 @@ Nextflow additionally hashes the staged inputs, process script, resolved task
 configuration, and environment. Changing any of these creates a different task
 rather than silently reusing an old result.
 
+The separate `screen_diverse_first_copy.nf` entry point accepts one predicted
+coordinate/preparation bundle plus one registered PDB
+coordinate/mapping/preparation bundle. It builds a self-contained aggregate
+model registry, then reuses the same one-hypothesis-per-Phaser-process boundary:
+
+```bash
+pixi run -e hpc nextflow run screen_diverse_first_copy.nf -profile local \
+  --predicted_coordinate_sources /absolute/predicted/coordinate_sources.jsonl \
+  --predicted_prepared_models /absolute/predicted/model-preparation \
+  --pdb_coordinate_sources /absolute/pdb-registration/coordinate_sources.jsonl \
+  --coordinate_hit_mappings /absolute/pdb-registration/coordinate_hit_mappings.jsonl \
+  --experimental_prepared_models /absolute/pdb-model-preparation \
+  --sequence_groups /absolute/catalogue/sequence_groups.jsonl \
+  --matthews /absolute/matthews/matthews_hypotheses.jsonl \
+  --preflight /absolute/preflight/mtz_preflight.jsonl \
+  --config /absolute/input/config.yaml \
+  --crystal_id CRYSTAL_ID \
+  --mtz /absolute/input/integrated.mtz \
+  --phenix_manifest /absolute/software/manifests/phenix.json \
+  --outdir /absolute/results/diverse-first-copy \
+  --cache_root /absolute/cache/diverse-first-copy
+```
+
+Selection round-robins deterministically over `(sequence_group_id,
+coordinate_provider, model_variant_type)` buckets so one source class cannot
+consume the entire early queue. It then applies both configuration caps and a
+profile ceiling: smoke 25, pilot 200, extended 1,000 first-copy jobs per
+crystal. The smoke ceiling is a hard safety bound, not a claim that 25 models
+are scientifically sufficient. All ranking features and excluded counts remain
+inspectable in `funnel_manifest.json`.
+
 The test profile retains work only inside the harness's disposable `/tmp` root
 so its required `-resume` assertion is meaningful; the temporary root is
 removed by the harness after acceptance. Production retention remains governed
@@ -193,8 +228,9 @@ scientific no-hit, but the adapter classified it as `failed_parse` because that
 real log omitted the synthetic fixture's explicit zero-count phrase. The
 parser correction's immutable replay reproduced the raw result, normalised it
 as `completed_no_hit`, completed the outer job successfully, and cached both P2
-processes on resume. The broader P2 gate
-still requires a runnable known positive and deliberate no-solution case,
-per-crystal smoke enforcement, the top-10/25 review package, and approval-file
-validation. No same-component additional-copy search should begin before this
-evidence is reviewed.
+processes on resume. The broader P2 gate still requires scheduled
+positive/incorrect-model controls, the top-10/25 review package, and
+approval-file validation. Per-crystal smoke enforcement now passes unit and
+Nextflow stub/resume tests but still needs a real Marmic multi-candidate run. No
+same-component additional-copy search should begin before this evidence is
+reviewed.

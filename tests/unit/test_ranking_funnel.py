@@ -1,4 +1,4 @@
-"""Tests for the bounded, inspectable exact-predicted-model funnel."""
+"""Tests for bounded, inspectable exact and multi-source first-copy funnels."""
 
 import json
 import shutil
@@ -9,14 +9,17 @@ import pytest
 
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.ranking import (
+    DiverseFirstCopyFunnelRequest,
     ExactPredictedFunnelRequest,
     FunnelInputError,
+    build_diverse_first_copy_funnel,
     build_exact_predicted_funnel,
 )
 from genome_to_diffraction.schemas.results import (
     CoordinateSourceRecord,
     MatthewsHypothesis,
     PhysicalStatus,
+    ProcessedModelRecord,
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -180,3 +183,132 @@ def test_funnel_rejects_path_traversal_in_preparation_manifest(
 
     with pytest.raises(FunnelInputError, match="unsafe processed-model path"):
         build_exact_predicted_funnel(request)
+
+
+def _diverse_request(tmp_path: Path) -> DiverseFirstCopyFunnelRequest:
+    base = _request(tmp_path)
+    predicted_coordinates = base.coordinate_sources_jsonl
+    predicted_preparation = base.model_preparation_manifest.parent
+    experimental_preparation = tmp_path / "experimental preparation"
+    shutil.copytree(STUBS / "experimental_model_preparation", experimental_preparation)
+    experimental_coordinates = tmp_path / "experimental coordinates.jsonl"
+    shutil.copyfile(
+        STUBS / "pdb_coordinate_registration/coordinate_sources.jsonl",
+        experimental_coordinates,
+    )
+    mappings = tmp_path / "coordinate hit mappings.jsonl"
+    shutil.copyfile(
+        STUBS / "pdb_coordinate_registration/coordinate_hit_mappings.jsonl",
+        mappings,
+    )
+    return DiverseFirstCopyFunnelRequest(
+        coordinate_sources_jsonl=(
+            predicted_coordinates,
+            experimental_coordinates,
+        ),
+        processed_models_jsonl=(
+            predicted_preparation / "processed_models.jsonl",
+            experimental_preparation / "processed_models.jsonl",
+        ),
+        model_preparation_manifests=(
+            predicted_preparation / "model_preparation_manifest.json",
+            experimental_preparation / "model_preparation_manifest.json",
+        ),
+        coordinate_hit_mappings_jsonl=mappings,
+        sequence_groups_jsonl=base.sequence_groups_jsonl,
+        matthews_hypotheses_jsonl=base.matthews_hypotheses_jsonl,
+        mtz_preflight_jsonl=base.mtz_preflight_jsonl,
+        pipeline_config=base.pipeline_config,
+        output_directory=tmp_path / "diverse funnel output",
+        crystal_ids=base.crystal_ids,
+        progress=False,
+    )
+
+
+def test_diverse_funnel_preserves_predicted_and_experimental_sources(
+    tmp_path: Path,
+) -> None:
+    result = build_diverse_first_copy_funnel(_diverse_request(tmp_path))
+
+    assert len(result.hypotheses) == 4
+    source_classes = {
+        item.priority_features["structural_source_class"] for item in result.hypotheses
+    }
+    assert source_classes == {"experimental", "predicted"}
+    experimental = next(
+        item
+        for item in result.hypotheses
+        if item.priority_features["structural_source_class"] == "experimental"
+    )
+    mapping_id = experimental.priority_features["coordinate_mapping_id"]
+    assert isinstance(mapping_id, str)
+    assert mapping_id.startswith("coordmap_")
+    assert experimental.priority_features["pdb_id"] == "1UBQ"
+    registry = result.model_registry_directory
+    records = registry / "processed_models.jsonl"
+    assert records.read_text(encoding="utf-8").count("\n") == 2
+    assert len(list((registry / "models").rglob("*.pdb"))) == 2
+    manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["selected_hypothesis_count"] == 4
+    assert manifest["per_crystal_selected_counts"] == {"test_crystal_01": 4}
+    assert manifest["per_crystal_first_copy_cap"] == 200
+    assert manifest["diversity_buckets"] == [
+        "sequence_group_id",
+        "coordinate_provider",
+        "model_variant_type",
+    ]
+
+
+def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
+    tmp_path: Path,
+) -> None:
+    base = _request(tmp_path)
+    preparation = base.model_preparation_manifest.parent
+    original = ProcessedModelRecord.model_validate_json(
+        (preparation / "processed_models.jsonl").read_text(encoding="utf-8")
+    )
+    models = tuple(
+        original.model_copy(update={"model_id": f"model_{index:064x}"})
+        for index in range(1, 31)
+    )
+    (preparation / "processed_models.jsonl").write_text(
+        "".join(f"{canonical_json_text(item)}\n" for item in models),
+        encoding="utf-8",
+    )
+    manifest = json.loads(
+        (preparation / "model_preparation_manifest.json").read_text(encoding="utf-8")
+    )
+    template = manifest["entries"][0]
+    manifest["entries"] = [{**template, "model_id": model.model_id} for model in models]
+    manifest["processed_model_count"] = len(models)
+    (preparation / "model_preparation_manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    smoke_config = tmp_path / "smoke config.yaml"
+    smoke_config.write_text(
+        base.pipeline_config.read_text(encoding="utf-8").replace(
+            "profile: pilot", "profile: smoke"
+        ),
+        encoding="utf-8",
+    )
+    request = DiverseFirstCopyFunnelRequest(
+        coordinate_sources_jsonl=(base.coordinate_sources_jsonl,),
+        processed_models_jsonl=(preparation / "processed_models.jsonl",),
+        model_preparation_manifests=(preparation / "model_preparation_manifest.json",),
+        sequence_groups_jsonl=base.sequence_groups_jsonl,
+        matthews_hypotheses_jsonl=base.matthews_hypotheses_jsonl,
+        mtz_preflight_jsonl=base.mtz_preflight_jsonl,
+        pipeline_config=smoke_config,
+        output_directory=tmp_path / "hard capped smoke funnel",
+        crystal_ids=base.crystal_ids,
+        progress=False,
+    )
+
+    result = build_diverse_first_copy_funnel(request)
+
+    assert len(result.hypotheses) == 25
+    manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["candidate_count_before_caps"] == 30
+    assert manifest["per_crystal_first_copy_cap"] == 25
+    assert manifest["per_crystal_selected_counts"] == {"test_crystal_01": 25}
+    assert manifest["excluded_by_caps_count"] == 5

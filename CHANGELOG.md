@@ -7,6 +7,18 @@ All notable changes to this project are documented here.
 ### Added
 
 - Initial repository foundation for Task 00 / Epic 0.
+- Bounded direct-PDB coordinate registration with sequence-group-first
+  diversity, exact PDB entity/chain and searched-snapshot verification,
+  content-addressed cache reuse, typed hit-to-coordinate mappings, and a
+  resumable `register_coordinates.nf` stub boundary.
+- One non-combinatorial experimental-model variant that verifies each registered
+  PDB mapping, removes non-polymer residues and hydrogens, retains alternate
+  conformations, writes a content-addressed single-chain PDB, and exposes a
+  resumable `prepare_pdb_models.nf` boundary.
+- A multi-source first-copy funnel that verifies paired model bundles and PDB
+  mappings, round-robins across sequence/provider/variant buckets, enforces a
+  hard 25-job-per-crystal smoke ceiling, publishes a relocatable aggregate model
+  registry, and exposes a resumable `screen_diverse_first_copy.nf` Phaser route.
 - Locked Pixi development environment for Python 3.14.6 and Nextflow 26.04.6.
 - Typed, fail-loud Nextflow entry-point stubs.
 - Python logging, status, checksum, atomic-write, and schema-checking utilities.
@@ -228,6 +240,9 @@ All notable changes to this project are documented here.
   preserves commands/logs/output checksums, uses final packing evidence,
   separates scientific no-hits from execution failures, and enforces the
   provisional strict `LLG > 100` and `TFZ > 10` gate without a default timeout.
+- The first-copy Phaser adapter now accepts the bounded cleaned-PDB policy only
+  when its mapping ID and candidate-to-source identity match the processed-model
+  provenance, and passes that verified identity instead of an unjustified 100%.
 - A typed `screen_first_copy.nf` route and fixed checksum-gated Marmic P2
   operation now execute the bounded CD6 exact-model hypothesis and require a
   fully cached resume. The fixed fake Git/Slurm/Nextflow/Phenix lifecycle passes;
@@ -258,11 +273,11 @@ All notable changes to this project are documented here.
 ### Not implemented
 
 - Uncapped real-catalogue ProstT5/Foldseek qualification, optional ESM Atlas
-  search, provider hit union, PDB coordinate registration,
-  model-domain/experimental variants, broader diversity-aware funnel selection,
+  search, provider hit union, real Marmic PDB coordinate qualification,
+  sequence-adapted/domain model variants, real multi-source funnel qualification,
   same-component copy placement, refinement, map-based sequence assessment,
   final ranking, and final scientific reporting.
-- The remaining multi-provider P1 gate, real fixed P2 run, broader P2
+- The remaining multi-provider P1 gate, real diverse P2 run, broader P2
   qualification/review package, and downstream MR gates.
 
 ## 1.0 - 31 July 2026

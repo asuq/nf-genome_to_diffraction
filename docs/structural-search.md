@@ -131,6 +131,17 @@ pixi run genome-to-diffraction \
   --accession-map /absolute/input/afdb_accessions.tsv \
   --database-manifest /absolute/databases/database_manifest.json \
   --outdir /absolute/results/afdb-exact
+
+pixi run genome-to-diffraction \
+  --log-format json \
+  --no-progress \
+  structure-search register-pdb-coordinates \
+  --structural-hits /absolute/results/pdb-sequence/structural_hits.jsonl \
+  --sequence-groups /absolute/catalogue/sequence_groups.jsonl \
+  --database-manifest /absolute/databases/database_manifest.json \
+  --maximum-hits-per-sequence-group 3 \
+  --maximum-mappings 25 \
+  --outdir /absolute/results/pdb-coordinate-registration
 ```
 
 The equivalent typed DSL2 entry point is `discover_structures.nf`. It runs the
@@ -142,6 +153,26 @@ need substantially more memory than direct sequence search. The AFDB process
 has the dedicated `process_network` label; compute-node internet access must
 therefore be an explicit site capability. `-stub-run -profile test` uses only tracked
 fixtures. A normal run requires the real qualified databases.
+
+`register_coordinates.nf` is the separate T8.1 coordinate boundary. It accepts
+only selected `pdb_sequence_mmseqs` hits from adapter v2, whose raw metrics now
+include the full target SEQRES length and SHA-256 from the qualified target
+crosswalk. The default policy keeps at most three direct hits per catalogue
+sequence group and fills successive diversity rounds before taking a second or
+third homologue from any group. `--maximum-mappings` is a hard registration cap,
+not evidence that the selected entries are the correct crystal components.
+Repeatable `--hit-id` values provide a reviewed explicit subset while retaining
+the same per-group and global bounds.
+
+For each selected hit, the adapter resolves the case-sensitive author-chain
+token to exactly one protein entity in the downloaded PDB mmCIF, verifies the
+full entity sequence against the searched PDB snapshot, checks the candidate
+and target alignment bounds, and publishes the bytes through the shared
+content-addressed coordinate cache. Existing objects and metadata are fully
+checksummed before offline reuse. The typed hit-to-coordinate record preserves
+candidate/source sequence digests, PDB entry/entity/chain labels, alignment
+ranges, coverage, identity, and whether the sequences are exact. External PDB
+sequences remain model evidence and never enter the catalogue identity universe.
 
 ## Outputs
 
@@ -155,6 +186,12 @@ fixtures. A normal run requires the real qualified databases.
   catalogue-sequence checksum, model version, confidence summary, retrieval
   time, checksum, cache path, and CC-BY-4.0 provenance. Its model key is
   `afdb:<modelEntityId>:v<latestVersion>`.
+- `coordinate_hit_mappings.jsonl`: for direct-PDB registration, one typed,
+  content-derived candidate-hit-to-coordinate/entity mapping with the exact
+  alignment evidence and source/candidate sequence checksums.
+- `registration_manifest.json`: direct-PDB selection parameters, database/cache
+  identities, input/output checksums, selected counts, and cache reuse/download
+  counts.
 - `search_manifest.json`: provider, adapter, database, tool, parameter, count,
   status, and output-integrity summary.
 - `raw/queries.faa`: the exact selected eligible query batch.
@@ -187,6 +224,14 @@ scientific no-hit and do not count as evidence against a candidate. A valid
 accession returning HTTP 404 or only non-exact models is `completed_no_hit`; the
 rejection evidence preserves why.
 
+Coordinate registration fails before claiming a mapping when a hit lacks the
+v2 target sequence identity, refers to an unknown catalogue group or database,
+has incomplete/out-of-range alignment fields, resolves to zero or multiple PDB
+protein entities, differs from the searched SEQRES snapshot, or fails download,
+cache, checksum, gzip, or mmCIF validation. A partially populated immutable
+cache is safe to reuse after such a failure, but no registration manifest is
+published as successful.
+
 If Foldseek exits non-zero, the durable error includes at most the final 16 KiB
 and 40 lines of its native combined log. This is enough to retain decisive
 failure text after compute-node scratch cleanup without copying an unbounded log
@@ -203,7 +248,12 @@ recorded in the command but intentionally does not alter scientific cache
 identity. Nextflow binds input files and parameters to its process cache; a
 repeated unchanged workflow run must report cached work with `-resume`.
 
-The local providers perform no remote calls. The AFDB cache key additionally
+The local search providers perform no remote calls. Direct-PDB coordinate
+registration sends only selected public PDB entry accessions to the official
+archive, never catalogue sequences, crystal metadata, or SDS-PAGE data. It is a
+`process_network` step and therefore requires an explicitly network-capable
+execution location; Marmic uses fixed login-node prefetch and offline compute.
+The AFDB cache key additionally
 binds the exact sequence digest, candidate accession set, optional mapping-file
 checksum, endpoint-field contract, adapter version, and coordinate-cache
 resource ID. It sends only mapped public accession strings to AFDB, never a
@@ -234,6 +284,14 @@ explicit omission of the Cα-dependent `prob` field, nullable probability,
 bounded native failure logs, and fail-loud handling of unmapped targets. The Nextflow
 acceptance suite checks parser-v2 linting, publication, standard reports, and
 cached stub resume.
+
+Coordinate-registration tests cover sequence-group-first diversity, the global
+cap, paths containing spaces, exact versus homologous mappings, target-snapshot
+sequence verification, content-addressed cache publication, full-checksum
+offline reuse, missing v2 evidence, structured logging, and progress
+suppression. The typed registration workflow has parser-v2, publication, and
+cached stub-resume coverage. Real pilot registration remains to be qualified on
+Marmic before this boundary is considered complete.
 
 AFDB tests cover explicit RefSeq-to-UniProt mapping, zero-network RefSeq
 ineligibility, exact API and parseable-mmCIF sequence agreement, atomic cache

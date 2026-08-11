@@ -28,6 +28,7 @@ from genome_to_diffraction.schemas.results import (
     MrHypothesisStatus,
     MrSearchStage,
     MtzPreflightRecord,
+    ProcessedModelRecord,
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -94,6 +95,39 @@ def _inputs(tmp_path: Path) -> PhaserRunRequest:
         threads=4,
         progress=False,
     )
+
+
+def _experimental_inputs(tmp_path: Path) -> PhaserRunRequest:
+    request = _inputs(tmp_path)
+    preparation = request.model_preparation_manifest.parent
+    shutil.rmtree(preparation)
+    shutil.copytree(STUBS / "experimental_model_preparation", preparation)
+    model = ProcessedModelRecord.model_validate_json(
+        request.processed_models_jsonl.read_text(encoding="utf-8")
+    )
+    parameters = dict(model.processing_parameters)
+    parameters["sequence_identity"] = 0.625
+    model = model.model_copy(update={"processing_parameters": parameters})
+    request.processed_models_jsonl.write_text(
+        f"{canonical_json_text(model)}\n", encoding="utf-8"
+    )
+    hypothesis = MrHypothesis.model_validate_json(
+        request.hypotheses_jsonl.read_text(encoding="utf-8")
+    ).model_copy(
+        update={
+            "model_id": model.model_id,
+            "priority_features": {
+                "exact_sequence_mapping": False,
+                "structural_source_class": "experimental",
+                "coordinate_mapping_id": parameters["mapping_id"],
+                "candidate_source_sequence_identity": 0.625,
+            },
+        }
+    )
+    request.hypotheses_jsonl.write_text(
+        f"{canonical_json_text(hypothesis)}\n", encoding="utf-8"
+    )
+    return request
 
 
 def _manifest() -> PhenixInstallManifest:
@@ -219,6 +253,38 @@ def test_adapter_runs_exact_composition_and_emits_credible_hit(
     assert "phaser.keywords.sgalternative.select=none" in command
     record = json.loads(output.command_json.read_text(encoding="utf-8"))
     assert record["model_uncertainty_source"].startswith("phenix.process")
+
+
+def test_adapter_uses_registered_experimental_sequence_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _experimental_inputs(tmp_path)
+    commands = _fake_runtime(monkeypatch, log_text=PACKING_NO_SOLUTION_LOG)
+
+    output = run_first_copy_phaser(request)
+
+    assert output.result.execution_status == "completed_no_hit"
+    assert "phaser.model_identity=62.5" in commands[0]
+    record = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert record["model_identity_percent"] == pytest.approx(62.5)
+    assert record["model_uncertainty_source"].startswith("registered PDB")
+
+
+def test_adapter_rejects_experimental_identity_drift(tmp_path: Path) -> None:
+    request = _experimental_inputs(tmp_path)
+    hypothesis = MrHypothesis.model_validate_json(
+        request.hypotheses_jsonl.read_text(encoding="utf-8")
+    )
+    features = dict(hypothesis.priority_features)
+    features["candidate_source_sequence_identity"] = 0.5
+    changed = hypothesis.model_copy(update={"priority_features": features})
+    request.hypotheses_jsonl.write_text(
+        f"{canonical_json_text(changed)}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PhaserInputError, match="sequence identities differ"):
+        run_first_copy_phaser(request)
 
 
 @pytest.mark.parametrize(

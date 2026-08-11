@@ -43,7 +43,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.pdb_sequence")
-_ADAPTER_VERSION = "pdb-sequence-mmseqs-v1"
+_ADAPTER_VERSION = "pdb-sequence-mmseqs-v2"
 _PROVIDER = "pdb_sequence_mmseqs"
 _STANDARD_AMINO_ACIDS = frozenset("ACDEFGHIKLMNPQRSTVWY")
 _RESULT_FIELDS = (
@@ -109,6 +109,8 @@ class _TargetMapping:
     pdb_id: str
     namespace: str
     token: str
+    sequence_length: int
+    sequence_sha256: str
 
 
 def _validate_request(request: PdbSequenceSearchRequest) -> None:
@@ -404,6 +406,8 @@ def _load_target_mappings(
             "pdb_id",
             "identifier_namespace",
             "seqres_token",
+            "sequence_length",
+            "sequence_sha256",
         }
         if reader.fieldnames is None or not required.issubset(reader.fieldnames):
             raise ResultParseError("PDB target mapping has invalid headers")
@@ -419,11 +423,30 @@ def _load_target_mappings(
                 continue
             if target in mappings:
                 raise ResultParseError(f"duplicate PDB target mapping: {target}")
+            try:
+                sequence_length = int(row["sequence_length"])
+            except ValueError as error:
+                raise ResultParseError(
+                    f"invalid PDB target-mapping length: {target}"
+                ) from error
+            sequence_sha256 = row["sequence_sha256"]
+            if (
+                sequence_length < 1
+                or len(sequence_sha256) != 64
+                or any(
+                    character not in "0123456789abcdef" for character in sequence_sha256
+                )
+            ):
+                raise ResultParseError(
+                    f"invalid PDB target-mapping sequence identity: {target}"
+                )
             mappings[target] = _TargetMapping(
                 target_id=target,
                 pdb_id=row["pdb_id"],
                 namespace=row["identifier_namespace"],
                 token=row["seqres_token"],
+                sequence_length=sequence_length,
+                sequence_sha256=sequence_sha256,
             )
             if len(mappings) == len(targets):
                 break
@@ -582,7 +605,11 @@ def search_pdb_sequences(
                 bits=raw_hit.bits,
                 database_id=resource.database_id,
                 raw_result_pointer=raw_pointer,
-                raw_metrics={"identity_fraction": raw_hit.identity_fraction},
+                raw_metrics={
+                    "identity_fraction": raw_hit.identity_fraction,
+                    "target_sequence_length": mapping.sequence_length,
+                    "target_sequence_sha256": mapping.sequence_sha256,
+                },
                 eligibility_status=EligibilityStatus.SELECTED,
                 eligibility_reason="passed configured PDB sequence-search thresholds",
             )

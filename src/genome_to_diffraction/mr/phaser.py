@@ -4,9 +4,10 @@ The adapter accepts one immutable ``MrHypothesis``, verifies its sequence,
 processed model, MTZ, preflight, and Phenix runtime, then executes
 ``phenix.phaser`` in a hypothesis-owned directory. Total composition comes from
 the full candidate sequence and expected copy count; exactly one copy is
-searched. The exact-predicted vertical slice passes factual 100% sequence
-identity explicitly, while Phenix-processed model B values retain predicted
-coordinate uncertainty.
+searched. Exact predicted models pass factual 100% sequence identity, while a
+registered experimental homologue passes its verified candidate-to-source
+sequence identity. Phenix-processed model B values retain predicted coordinate
+uncertainty; cleaned PDB models retain their source-coordinate B values.
 
 Tool failure, malformed output, scientific no-hit, and a preliminary hit remain
 distinct. The user-defined provisional score gate is strict: LLG > 100 and
@@ -54,7 +55,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
-_ADAPTER_VERSION = "phenix-first-copy-mr-v1"
+_ADAPTER_VERSION = "phenix-first-copy-mr-v2"
 _ROOT = "PHASER"
 _LLG_GATE = 100.0
 _TFZ_GATE = 10.0
@@ -136,6 +137,8 @@ class _ResolvedInput:
     model_path: Path
     preflight: MtzPreflightRecord
     mtz_path: Path
+    model_identity_percent: float
+    model_uncertainty_source: str
 
 
 def _read_jsonl[T: BaseModel](
@@ -229,6 +232,74 @@ def _normalise_space_group(value: str) -> str:
     return " ".join(value.split()).upper()
 
 
+def _experimental_model_identity(
+    hypothesis: MrHypothesis, model: ProcessedModelRecord
+) -> float:
+    mapping_id = hypothesis.priority_features.get("coordinate_mapping_id")
+    model_mapping_id = model.processing_parameters.get("mapping_id")
+    identity = hypothesis.priority_features.get("candidate_source_sequence_identity")
+    model_identity = model.processing_parameters.get("sequence_identity")
+    if (
+        not isinstance(mapping_id, str)
+        or mapping_id == ""
+        or mapping_id != model_mapping_id
+    ):
+        raise PhaserInputError(
+            "experimental hypothesis and model mapping identities differ"
+        )
+    if (
+        isinstance(identity, bool)
+        or not isinstance(identity, (int, float))
+        or isinstance(model_identity, bool)
+        or not isinstance(model_identity, (int, float))
+    ):
+        raise PhaserInputError("experimental model lacks numeric sequence identity")
+    identity_fraction = float(identity)
+    model_identity_fraction = float(model_identity)
+    if not 0 < identity_fraction <= 1:
+        raise PhaserInputError("experimental sequence identity is outside (0, 1]")
+    if abs(identity_fraction - model_identity_fraction) > 1e-12:
+        raise PhaserInputError(
+            "experimental hypothesis and model sequence identities differ"
+        )
+    if (
+        hypothesis.priority_features.get("exact_sequence_mapping") is True
+        and identity_fraction != 1.0
+    ):
+        raise PhaserInputError(
+            "an exact experimental mapping must have 100% sequence identity"
+        )
+    return identity_fraction * 100.0
+
+
+def _model_execution_policy(
+    hypothesis: MrHypothesis, model: ProcessedModelRecord
+) -> tuple[float, str]:
+    if (
+        model.variant_type == "predicted_confidence_pruned_full"
+        and model.processing_tool == "phenix.process_predicted_model"
+    ):
+        if hypothesis.priority_features.get("exact_sequence_mapping") is not True:
+            raise PhaserInputError("predicted first-copy model requires exact mapping")
+        return 100.0, "phenix.process_predicted_model converted B values"
+    if (
+        model.variant_type == "experimental_cleaned_source_chain"
+        and model.processing_tool == "gemmi"
+    ):
+        if (
+            hypothesis.priority_features.get("structural_source_class")
+            != "experimental"
+        ):
+            raise PhaserInputError(
+                "cleaned PDB model lacks experimental source classification"
+            )
+        return (
+            _experimental_model_identity(hypothesis, model),
+            "registered PDB homologue identity with native coordinate B values",
+        )
+    raise PhaserInputError("processed model does not match a first-copy policy")
+
+
 def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
     hypotheses = _read_jsonl(
         request.hypotheses_jsonl, MrHypothesis, label="MR hypotheses"
@@ -248,8 +319,6 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
         raise PhaserInputError(
             "hypothesis is not a queued independent first-copy search"
         )
-    if hypothesis.priority_features.get("exact_sequence_mapping") is not True:
-        raise PhaserInputError("first exact-predicted adapter requires exact mapping")
     groups = _read_jsonl(
         request.sequence_groups_jsonl, SequenceGroupRecord, label="sequence groups"
     )
@@ -268,12 +337,11 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
         key=lambda item: item.model_id,
         label="processed model",
     )
-    if (
-        model.full_candidate_sequence_group_id != group.sequence_group_id
-        or model.variant_type != "predicted_confidence_pruned_full"
-        or model.processing_tool != "phenix.process_predicted_model"
-    ):
-        raise PhaserInputError("processed model does not match exact-predicted policy")
+    if model.full_candidate_sequence_group_id != group.sequence_group_id:
+        raise PhaserInputError("processed model does not match the sequence group")
+    model_identity_percent, model_uncertainty_source = _model_execution_policy(
+        hypothesis, model
+    )
     model_path = _resolve_model_path(
         request.model_preparation_manifest, model, progress=request.progress
     )
@@ -314,6 +382,8 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
         model_path=model_path,
         preflight=preflight,
         mtz_path=mtz_path,
+        model_identity_percent=model_identity_percent,
+        model_uncertainty_source=model_uncertainty_source,
     )
 
 
@@ -380,7 +450,7 @@ def _command(resolved: _ResolvedInput, sequence_fasta: Path, threads: int) -> li
         f"phaser.labin={hypothesis.obs_labels}",
         f"phaser.model={resolved.model_path}",
         f"phaser.seq_file={sequence_fasta}",
-        "phaser.model_identity=100",
+        f"phaser.model_identity={resolved.model_identity_percent:.12g}",
         f"phaser.component_copies={hypothesis.copy_count_expected}",
         "phaser.search_copies=1",
         f"phaser.keywords.general.root={_ROOT}",
@@ -536,7 +606,7 @@ def _normalised_success(
 
 
 def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
-    """Execute and normalise one exact-predicted independent first-copy search."""
+    """Execute and normalise one registered independent first-copy search."""
 
     if request.threads < 1:
         raise ValueError("threads must be positive")
@@ -567,10 +637,8 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
             "arguments": arguments,
             "threads": request.threads,
             "timeout_seconds": request.timeout_seconds,
-            "model_identity_percent": 100.0,
-            "model_uncertainty_source": (
-                "phenix.process_predicted_model converted B values"
-            ),
+            "model_identity_percent": resolved.model_identity_percent,
+            "model_uncertainty_source": resolved.model_uncertainty_source,
             "mtz_sha256": resolved.preflight.mtz_sha256,
             "model_sha256": resolved.model.model_sha256,
             "sequence_sha256": resolved.group.sha256,
@@ -585,6 +653,7 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
             "hypothesis_id": resolved.hypothesis.hypothesis_id,
             "copy_count_expected": resolved.hypothesis.copy_count_expected,
             "copy_number_to_search": 1,
+            "model_identity_percent": resolved.model_identity_percent,
             "threads": request.threads,
             "output_directory": str(output),
         },

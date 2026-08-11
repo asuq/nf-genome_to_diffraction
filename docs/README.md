@@ -32,9 +32,14 @@ remain authoritative for scientific policy and interface contracts.
 - [M2 predicted-model preparation](m2-predicted-model-preparation.md): immutable
   predicted-coordinate mapping, fixed Phenix confidence processing, output
   identity, the real pilot qualification, and the still-open M2 boundaries.
-- [M3 first-copy Phaser boundary](m3-first-copy-phaser.md): exact-model funnel,
-  isolated Phaser command, final-packing parser, strict provisional score gate,
-  status semantics, typed Nextflow fan-out, cache identity, and open P2 work.
+- [M2 experimental PDB model preparation](m2-experimental-model-preparation.md):
+  registered hit-to-coordinate inputs, the deterministic cleaned source-chain
+  variant, identity/failure/cache semantics, tests, and the real qualification
+  still required.
+- [M3 first-copy Phaser boundary](m3-first-copy-phaser.md): exact and
+  multi-source funnels, homologue-aware Phaser identity, final-packing parser,
+  strict provisional score gate, typed fan-out, cache identity, and open P2
+  work.
 - [Development loop journal](development-loop-journal.md): the mandatory
   read-first hand-off record of discoveries, accomplishments, immutable
   evidence, unresolved work, and the next exact starting point.

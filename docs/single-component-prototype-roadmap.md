@@ -59,12 +59,12 @@ overstated:
 | Epic 0, repository and environments | Locked Pixi/Nextflow/Python environment, CI, tests, documentation, and immutable Marmic smoke loop are operational | Maintain pins and CI while scientific modules are added |
 | Epic 1, contracts and identifiers | Foundation and downstream typed contracts exist; canonical IDs and serialisation are tested | Extend/finalise result contracts only alongside their real adapters and preserve schema compatibility deliberately |
 | Epic 2, Phenix boundary | Checksum-gated installer, isolated executor, and Phenix 2.1-6048 verification passed locally and on Marmic | Requalify deliberately when the licensed build or site installation changes |
-| Epic 3, databases | Real PDB Foldseek, ProstT5, PDB sequence, and coordinate-cache resources are qualified on Marmic | Complete uncapped provider qualification, PDB sequence-to-coordinate registration, and any approved optional Atlas route |
+| Epic 3, databases | Real PDB Foldseek, ProstT5, PDB sequence, and coordinate-cache resources are qualified on Marmic; direct-PDB registration is implemented locally | Qualify real hit-to-coordinate registration, complete uncapped provider qualification, and decide any optional Atlas route |
 | Epic 4, catalogue import | Trusted catalogue normalisation passed the real `GCF_000711905.1` pilot, including compound CDS and repeated-accession loci | Add regression catalogues as new biological edge cases are observed |
 | Epic 5, MTZ preflight | Gemmi and real Xtriage qualification passed for all three pilot MTZ datasets, including `CD6QS2P2G1_5` | Extend only when new MTZ edge cases are observed |
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
-| Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; the first exact-AFDB/Phenix model-preparation slice and exact-predicted funnel run on Marmic | Finish provider union, PDB coordinate variants, and diversity-aware selection |
-| Epic 10 | The first-copy Phaser adapter, strict provisional gate, typed fan-out, cached resume, and fixed P2 lifecycle pass locally; the real CD6 PDB-model route now completes reproducibly as a valid no-hit | Qualify the deliberate controls, enforce the per-crystal smoke cap, expand the bounded real-candidate set, and build the review package |
+| Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are implemented | Qualify the direct-PDB model/funnel route on Marmic, preserve the positive-control family, and finish provider union |
+| Epic 10 | The first-copy Phaser adapter, strict provisional gate, typed fan-out, cached resume, and fixed P2 lifecycle pass; the real exact-model CD6 route is a reproducible valid no-hit | Run the at-most-25 real diverse smoke set, qualify deliberate controls, and build the review package |
 | Epics 11–13 | Contracts/reserved package areas exist | Same-component copies, refinement, map/sequence assessment, final ranking, and reporting are not implemented |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
@@ -254,9 +254,12 @@ real P2 replay showed that Phaser 2.8.4 could not derive scatterers from the
 Phenix-written mmCIF; the adapter now requests the same validated single-chain
 model as PDB. That PDB passed the public 8OOX control with final LLG 1149.2 and
 TFZ 46.0. The same PDB boundary completed a real Marmic CD6 search with no
-accepted packing solution. This advances
-the first vertical slice of T8.3–T8.4, not the M2 gate; PDB retrieval,
-domain/experimental variants, and the bounded funnel remain. The typed
+accepted packing solution. Direct-PDB hit-to-coordinate registration, the
+first cleaned experimental source-chain variant, and a diversity-aware funnel
+with a hard 25-job smoke ceiling are now implemented and locally tested. This
+advances T8.1–T9.3 but does not close M2 until the new route runs on real Marmic
+candidates and preserves the positive-control family. Sequence-adapted and
+domain variants remain deferred. The typed
 model-preparation entry point and fixed pilot mapping/resume orchestration
 passed on Marmic commit `c901dafe585d1b68b117d7d216e5053ef4985230` as job
 `625744`.
@@ -278,9 +281,10 @@ See the [M2 predicted-model preparation report](m2-predicted-model-preparation.m
 3. **T8.4 — Predicted-model processing.** Wrap
    `phenix.process_predicted_model`, preserve confidence/error metadata, trim or
    split uncertain models deterministically, and test a real Phenix fixture.
-4. **T8.5 — Experimental variants.** Begin with a small documented set: cleaned
-   source chain/domain, one justified sequence-adapted or side-chain-pruned
-   variant, and an optional clear domain. Avoid combinatorial generation.
+4. **T8.5 — Experimental variants.** Begin with the cleaned source chain,
+   followed only after evidence by one justified sequence-adapted or
+   side-chain-pruned variant and an optional clear domain. Avoid combinatorial
+   generation.
 5. **T9.1–T9.2 — Inspectable selection.** Apply source quotas, coverage/homology,
    coordinate quality, model completeness, Matthews, expected detectability,
    SDS soft prior, and structural diversity. Preserve each feature and rejection
@@ -310,8 +314,9 @@ zero accepted solutions and no output files. The adapter incorrectly required
 another zero-count phrase and classified the valid terminal no-solution wording
 as `failed_parse`. The focused parser correction's immutable replay now
 completes as `completed_no_hit` and caches both P2 processes on resume. The
-fixed route is qualified; bounded real-candidate breadth, controls,
-review-package, and full P2 acceptance work remain open. See the
+fixed route is qualified; the hard-capped multi-source route is implemented
+locally, while bounded real-candidate execution, controls, review-package, and
+full P2 acceptance work remain open. See the
 [M3 first-copy report](m3-first-copy-phaser.md).
 
 ### Work packages
@@ -593,43 +598,22 @@ or evidence model. None is part of the 26–44 week baseline estimate.
 
 ## Immediate next goal
 
-M0 passed its operational gate on Marmic. The active bounded goal is now **M1
-reusable structural discovery**, with the shortest path to real feedback:
+M0 passed and the fixed exact-model P2 route is operational. The active bounded
+goal is now **real multi-source first-copy screening**, with the shortest path
+to prototype feedback:
 
-1. finish the shared result contract and local MMseqs2-to-PDB adapter;
-2. run catalogue-wide direct PDB search through a fixed Marmic P1 operation;
-3. verify that the 8OOX positive-control structural family remains retained;
-4. qualify the implemented local ProstT5/Foldseek-to-PDB search and the exact
-   AFDB provider/model keys on real mapped data;
-5. union provider evidence without collapsing unlike scores; and
-6. pass the P1 real-data, cache-reuse, mapping, and resource-measurement gate.
+1. take a small provenance-complete set of direct-PDB hits from immutable P1;
+2. register and verify their PDB entry/entity/author-chain coordinates;
+3. prepare the one cleaned source-chain model per selected mapping;
+4. build the diverse funnel and confirm at most 25 CD6 hypotheses before Phaser;
+5. run the immutable Marmic route, collect every normalised result and resume
+   record, and preserve hit/no-hit/tool-failure distinctions; and
+6. qualify the known positive and deliberate incorrect-model controls, then
+   build the bounded review package.
 
-The shared contract and direct PDB adapter in item 1 are implemented. The fixed,
-path-closed P1 operation passed its first real Marmic run with exact 8OOX/8OOW
-family retention, model keys, measured resources, and a fully cached resume.
-See the [P1 direct-PDB qualification](p1-direct-pdb-qualification.md). The first
-full-catalogue Foldseek attempt failed without durable native diagnostics; its
-bounded 128-sequence retry then isolated the incompatible `prob` output field;
-see the [P1 ProstT5/Foldseek qualification](p1-prostt5-qualification.md). The
-next slice completed Foldseek and isolated the biological-assembly copy-chain
-mapping defect. Adapter v3 then passed the same fixed 128-sequence slice. The
-active next work is the real downstream candidate/model path while the uncapped
-Foldseek run, optional ESM Atlas decision, provider-aware union, and full P1 gate
-remain tracked qualification work.
-
-The first downstream slice now supplies the tracked one-row AFDB mapping through
-a checksum-bound login-node prefetch and passes its exact coordinate to a
-separate typed `prepare_models.nf` run using the verified Phenix manifest. This
-split is required because Marmic compute nodes reject outbound HTTPS; the
-scheduled discovery processes therefore run offline. Local parser-v2,
-stub-resume, schema, and fake-Slurm acceptance pass. The immutable Marmic run
-also passed: staging retained one exact AFDB coordinate, Phenix retained 429 of
-442 residues, and discovery plus model preparation cached on resume. The next
-prototype-critical gate is reviewable PDB coordinate registration followed by
-the bounded candidate funnel; the uncapped Foldseek run remains parallel
-qualification work.
-
-After the focused adapter gate passes, prioritise the real downstream prototype
-path while retaining the uncapped catalogue search as qualification work; do
-not delay both with additional synthetic test polish. M1 output remains
-structural/model evidence, not a final protein identification.
+The software for items 1–4 now passes focused tests and parser-v2 stub/resume
+acceptance. The next evidence must come from the real immutable Marmic inputs;
+additional synthetic polish should not delay it. The uncapped Foldseek run,
+optional ESM Atlas decision, and provider-aware union remain tracked
+qualification work, not blockers for this bounded run. A PDB model is evidence
+for a supplied catalogue candidate, never a reportable external identity.
