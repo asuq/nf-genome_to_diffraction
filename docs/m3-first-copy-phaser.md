@@ -241,11 +241,15 @@ parser correction's immutable replay reproduced the raw result, normalised it
 as `completed_no_hit`, completed the outer job successfully, and cached both P2
 processes on resume. The broader P2 gate still requires scheduled
 positive/incorrect-model controls. The top-10/25 review and approval boundary is
-implemented locally as described below, but it still requires real P2-diverse
-evidence. The fixed `p2-diverse` login-stage/offline Slurm operation and bounded
-evidence package pass their fake lifecycle, but still need a real Marmic
-multi-candidate run. No same-component additional-copy search should begin
-before this evidence is reviewed.
+implemented as described below. The first real Marmic P2-diverse panel completed
+all 25 Phaser hypotheses as scientific no-hits. It independently recorded 11
+packed single-copy placements, but none passed both `LLG > 100` and `TFZ > 10`;
+the strongest LLG was 27.383 at TFZ 5.1 and the strongest TFZ was 5.5 at LLG
+19.726. Review-package generation then exposed a contract bug for no-solution
+records with no stored `score_gate_passed` field. That bug does not turn the
+weak packing evidence into a hit. A corrected immutable replay is required to
+publish the package, and no same-component additional-copy search should begin
+before the scheduled controls and human review are complete.
 
 ## MR seed review checkpoint
 
@@ -283,6 +287,14 @@ follow retention policy, while complete solution PDB/MTZ assets are copied only
 for the configured finalist cap. The retained remote P2 publication remains the
 authoritative full result.
 
+The review operation always recomputes the strict raw score gate from the
+normalised LLG and TFZ fields. A missing stored `score_gate_passed` field is
+permitted and evaluates to the recomputed result, which is false for a
+no-solution record with no numeric scores. If the field is present, it must be a
+Boolean and must agree exactly with the recomputed gate; an explicit
+contradiction fails loudly. Packing and placed-copy evidence remain separate
+review fields and never substitute for the score gate.
+
 `genome-to-diffraction review validate-mr-seeds` takes the generated manifest,
 a human-edited review-decision TSV, and an output JSON path. It verifies the
 package and copied-output checksums, content-derived package and `sol_...`
@@ -298,7 +310,10 @@ start additional-copy placement.
 The review cache identity is the funnel and all joined input checksums, every
 content-derived solution ID, the shortlist sizes, the result-asset retention
 cap, and package creation timestamp. Unit tests cover a credible hit, a
-scientific no-hit override, schema-valid empty template, stale identifiers,
-edited review output, result-path traversal, and approval provenance. The fake
-Git/Slurm/Nextflow lifecycle covers package creation, fixed summary binding,
-and bounded collection. Real Phenix/Marmic review evidence remains required.
+scientific no-hit override, a no-solution result without a stored gate, an
+explicit stored/recomputed gate contradiction, schema-valid empty template,
+stale identifiers, edited review output, result-path traversal, and approval
+provenance. The fake Git/Slurm/Nextflow lifecycle covers package creation,
+fixed summary binding, and bounded collection. A corrected real Marmic replay
+must still produce the review package, and the scheduled positive and negative
+controls remain required.

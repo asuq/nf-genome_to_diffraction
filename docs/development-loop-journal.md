@@ -800,11 +800,13 @@ cycle before selecting the next control or repair.
   unit tests, 55 contract tests, 39 integration tests, schemas, public-panel,
   documentation and workflow lint, Nextflow syntax/stubs/resume, and both HPC
   shell parsers.
+- Resource-allocation commit `d9085e47206287de3c497ffcaccc89d876814c02`
+  is pushed on `main`; Ubuntu GitHub Actions run `31529529076` passed the full
+  foundation gate in 3 minutes 41 seconds.
 
 ### Unresolved work
 
-- Commit, push, and require GitHub Actions to qualify the resource override.
-  The running replay job `625842` remains bound to earlier commit
+- The running replay job `625842` remains bound to earlier commit
   `4f1cc6cb1ec8dd1d6c22863f5192f7c6a754249e` and must not be restarted or
   reinterpreted as using four CPUs per Phaser task.
 - Use the new allocation only for subsequent scheduled controls or a replay
@@ -813,9 +815,79 @@ cycle before selecting the next control or repair.
 
 ### Next exact starting point
 
-Commit the Marmic configuration, contract assertion, documentation, and this
-journal handoff; push and monitor the exact GitHub Actions run. Continue to
-monitor job `625842` at the existing 30-minute cadence. When it becomes
-terminal, collect and interpret its evidence under the resources recorded by
-its immutable commit, then apply the qualified four-CPU allocation to the next
-scientifically required job.
+Continue to monitor job `625842` at the existing 30-minute cadence. When it
+becomes terminal, collect and interpret its evidence under the resources
+recorded by its immutable commit, then apply the qualified four-CPU allocation
+to the next scientifically required job.
+
+## 2026-08-12 — Real P2-diverse panel completed as a valid no-hit
+
+### Discoveries
+
+- Retained run
+  `gtd-p2-diverse-20260811T185217Z-4f1cc6cb1ec8-880f5758`, Slurm job
+  `625842`, ran from `2026-08-11T18:55:50Z` to
+  `2026-08-11T21:40:41Z`. The outer job ended with exit code `1`, scheduler
+  state `FAILED`, classification `test_failure`, and failure signature
+  `fd67cad70d838ab30cc7a0b97804a3b80916d6354b144cef66c1b8e740c50375`.
+- P0, P1, predicted- and experimental-model preparation, diverse funnel, and
+  all 25 first-copy Phaser hypotheses completed before the review error. Every
+  normalised result is `completed_no_hit`; there are zero stored or recomputed
+  strict `LLG > 100` and `TFZ > 10` passers.
+- Eleven results independently reported numeric scores, a solution coordinate,
+  a packed top solution, and one placed copy. The best LLG was 27.383 with TFZ
+  5.1; the best TFZ was 5.5 with LLG 19.726. These values are far below the
+  strict gate, so packing and placed-copy evidence do not establish a credible
+  molecular-replacement hit.
+- The first-copy resume trace records all 26 processes as cached: one funnel
+  and 25 Phaser processes. The model-preparation resume record independently
+  reports one of one process cached.
+- Review packaging rejected one legitimate no-solution result whose optional
+  `score_gate_passed` field was absent. Its LLG and TFZ are null, packing counts
+  are zero, `top_solution_packed` is false, and placed-copy count is zero. The
+  review implementation incorrectly treated absence as a contradiction even
+  though recomputation correctly yields false. Consequently the run has no
+  review manifest, TSV/HTML package, final P2-diverse summary, or generated
+  first-copy resume-check JSON, despite the complete underlying traces.
+
+### Accomplishments and immutable evidence
+
+- Collected bounded logs, structured state, all normalised P2 results, funnel
+  records, first and resume traces, model resume evidence, and bounded Phaser
+  tails through the installed wrapper. The remote run remains retained and
+  unchanged.
+- Review now treats an absent stored gate as the recomputed strict result. A
+  present value must still be Boolean and exactly equal to the recomputation,
+  so explicit contradictory evidence continues to fail loudly.
+- Regression tests cover both the real no-solution shape without a stored gate
+  and an explicit stored/recomputed disagreement. The focused review suite
+  passes all seven tests.
+- The complete locked repository gate passes formatting, Ruff lint, strict
+  mypy, 281 unit tests, 55 contract tests, 39 integration tests, schemas, the
+  public panel, documentation and workflow lint, Nextflow syntax/stubs/resume,
+  and both HPC shell parsers.
+
+### Unresolved work
+
+- Commit and push the focused review-contract repair, require Ubuntu GitHub
+  Actions to pass, and stage a fresh immutable P2-diverse replay from that exact
+  revision. The qualified four-CPU-per-Phaser-task Marmic override applies only
+  to this future replay; do not reinterpret job `625842` as using it.
+- The corrected replay must publish and collect the MR seed review manifest,
+  TSV/HTML package, final summary, and first-copy resume-check record while
+  preserving the observed no-hit conclusion unless new scientific evidence
+  differs.
+- A scheduled known-positive control must demonstrate that the workflow can
+  exceed the strict thresholds, and a deliberate incorrect-model control must
+  remain rejected. Those controls and a human-completed approval file remain
+  prerequisites for M4; this CD6 no-hit does not authorise additional-copy
+  placement.
+
+### Next exact starting point
+
+Commit the review fix, regression tests, P2 interpretation documentation, and
+this journal handoff; push `main` and monitor the exact GitHub Actions run.
+After CI passes, run `readiness p2-diverse`, stage the immutable revision,
+collect and verify its login-stage checksum, submit one fresh Slurm job, and
+retarget the 30-minute heartbeat to that run. Retain job `625842` and its
+collected evidence unchanged.

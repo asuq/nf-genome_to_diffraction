@@ -288,6 +288,49 @@ def test_ineligible_approval_requires_explicit_override(tmp_path: Path) -> None:
     assert validate_mr_seed_approvals(request).approved_solution_ids == (solution_id,)
 
 
+def test_review_recomputes_missing_gate_for_no_solution(tmp_path: Path) -> None:
+    request = _request(tmp_path, hit=False)
+    result = _result(hit=False).model_copy(
+        update={
+            "llg": None,
+            "tfz": None,
+            "packing_summary": {
+                "accepted_solution_count": 0,
+                "packed_solution_count": 0,
+                "solution_count": 0,
+                "top_solution_packed": False,
+            },
+            "preliminary_credibility_class": "no_solution",
+            "rejection_reason": "phaser_reported_no_solution",
+        }
+    )
+    result_text = f"{canonical_json_text(result)}\n"
+    request.results_jsonl.write_text(result_text, encoding="utf-8")
+    bundle = request.result_root / f"first_copy_phaser_{HYPOTHESIS_ID}"
+    (bundle / "normalised_mr_result.jsonl").write_text(result_text, encoding="utf-8")
+
+    package = build_mr_seed_review(request)
+    rows = list(
+        csv.DictReader(package.review_tsv.open(encoding="utf-8"), delimiter="\t")
+    )
+    assert rows[0]["score_gate_passed"] == "False"
+    assert rows[0]["automatic_eligibility"] == "False"
+
+
+def test_review_rejects_explicit_score_gate_disagreement(tmp_path: Path) -> None:
+    request = _request(tmp_path, hit=False)
+    result = _result(hit=False).model_copy(
+        update={"packing_summary": {"score_gate_passed": True}}
+    )
+    result_text = f"{canonical_json_text(result)}\n"
+    request.results_jsonl.write_text(result_text, encoding="utf-8")
+    bundle = request.result_root / f"first_copy_phaser_{HYPOTHESIS_ID}"
+    (bundle / "normalised_mr_result.jsonl").write_text(result_text, encoding="utf-8")
+
+    with pytest.raises(MrSeedReviewError, match="stored and recomputed"):
+        build_mr_seed_review(request)
+
+
 def test_rejects_result_bundle_path_traversal(tmp_path: Path) -> None:
     request = _request(tmp_path, hit=False, raw_log="../outside.log")
     (request.result_root / "outside.log").write_text("unsafe\n", encoding="utf-8")

@@ -536,10 +536,7 @@ def _score_gate(result: NormalisedMrResult) -> bool:
         and (result.llg > 100.0 and result.tfz > 10.0)
     )
     recorded = result.packing_summary.get("score_gate_passed")
-    if recorded is None and result.execution_status not in {
-        ExecutionStatus.COMPLETED_HIT,
-        ExecutionStatus.COMPLETED_NO_HIT,
-    }:
+    if recorded is None:
         return raw_gate
     if not isinstance(recorded, bool) or recorded != raw_gate:
         raise MrSeedReviewError(
