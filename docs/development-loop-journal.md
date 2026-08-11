@@ -981,14 +981,15 @@ documentation, checks, a focused commit, push, and exact GitHub Actions result.
   passes formatting, Ruff, strict mypy, 284 unit tests, 55 contract tests, 39
   integration tests, schemas, the ten-entry public panel, documentation and
   workflow lint, Nextflow syntax/stubs/resume, and both HPC shell parsers.
+- Policy-migration commit `69b69c4bead9db81501707b0c5dc6809509488e2`
+  is pushed on `main`; Ubuntu GitHub Actions run `31543208944` passed the full
+  foundation gate in 3 minutes 31 seconds.
 - The 30-minute heartbeat now applies `LLG > 50` or `TFZ > 5` to raw terminal
   evidence and explicitly recognises that job `625882` predates the change.
 
 ### Unresolved work
 
-- Commit and push this policy migration and require the exact Ubuntu GitHub
-  Actions run to pass. Do not stage a second P2-diverse run while job `625882`
-  is active.
+- Do not stage a second P2-diverse run while job `625882` is active.
 - When job `625882` becomes terminal, collect its bounded package and recompute
   eligibility from the raw scores. Its generated version-1 review package, if
   present, remains evidence of the old policy and must not be relabelled in
@@ -1000,9 +1001,9 @@ documentation, checks, a focused commit, push, and exact GitHub Actions result.
 
 ### Next exact starting point
 
-Inspect the focused policy diff, run documentation and whitespace checks,
-commit it as one scientific-policy change, push `main`, and monitor the exact
-GitHub Actions run. Continue monitoring only job `625882` through the installed
-wrapper at the 30-minute cadence; do not cancel, clean, or infer failure from
-silence. When terminal, collect and compare the old stored classification with
-the new raw-score recomputation before choosing the next immutable run.
+Continue monitoring only job `625882` through the installed wrapper at the
+30-minute cadence; do not cancel, clean, or infer failure from silence. When
+terminal, collect and compare the old stored classification with the new
+raw-score recomputation before choosing the next immutable run. The next source
+change should be driven by that terminal evidence or by the scheduled control
+requirements, not by additional synthetic-test polishing.
