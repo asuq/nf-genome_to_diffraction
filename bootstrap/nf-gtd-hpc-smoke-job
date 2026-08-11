@@ -986,7 +986,8 @@ run_p2_diverse() {
     local cache_counts model_total model_cached total cached expected_process_count
     local result_directory result_json result_jsonl command_json execution_status
     local pretty_execution_status expected_hypothesis actual_hypothesis
-    local pretty_hypothesis
+    local pretty_hypothesis review_directory review_manifest review_package_id
+    local review_manifest_sha256
     local completed_hit_count=0 completed_no_hit_count=0 candidate relative checksum
     local results_tmp commands_tmp tails_tmp checksums_tmp
     local -a result_directories=()
@@ -1239,6 +1240,42 @@ EOF
     mv -f -- "$commands_tmp" "$qualification/p2-diverse-commands.jsonl"
     mv -f -- "$tails_tmp" "$qualification/p2-diverse-log-tails.txt"
 
+    printf 'phase=p2_diverse_review_package profile=p2-diverse crystal=CD6QS2P2G1_5\n'
+    review_directory="$qualification/p2-diverse-review"
+    "$GTD" --log-format json --no-progress review build-mr-seed \
+        --hypotheses \
+        "$P2_DIVERSE_FIRST_COPY_OUT/diverse_first_copy_funnel/mr_hypotheses.jsonl" \
+        --results "$qualification/p2-diverse-results.jsonl" \
+        --result-root "$P2_DIVERSE_FIRST_COPY_OUT" \
+        --funnel-manifest \
+        "$P2_DIVERSE_FIRST_COPY_OUT/diverse_first_copy_funnel/funnel_manifest.json" \
+        --sequence-groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
+        --source-records "$P1_CATALOGUE_OUT/source_records.jsonl" \
+        --matthews "$P0_OUT/matthews/matthews_hypotheses.jsonl" \
+        --config "$PIPELINE_CONFIG" \
+        --outdir "$review_directory"
+    review_manifest="$review_directory/mr_seed_review_manifest.json"
+    for candidate in \
+        "$review_manifest" \
+        "$review_directory/mr_seed_candidates.tsv" \
+        "$review_directory/mr_seed_candidates.html" \
+        "$review_directory/mr_seed_approval_candidates.tsv" \
+        "$review_directory/approved_mr_seeds.tsv"; do
+        [[ -f "$candidate" && ! -L "$candidate" ]] || {
+            printf 'P2-diverse review package is incomplete: %s\n' \
+                "$(basename "$candidate")" >&2
+            return 4
+        }
+    done
+    review_package_id="$(sed -n \
+        's/^[[:space:]]*"package_id":[[:space:]]*"\([^"]*\)",*$/\1/p' \
+        "$review_manifest")"
+    [[ "$review_package_id" =~ ^reviewpkg_[a-f0-9]{64}$ ]] || {
+        printf 'P2-diverse review package ID is invalid\n' >&2
+        return 4
+    }
+    review_manifest_sha256="$(sha256sum "$review_manifest" | awk '{print $1}')"
+
     first_trace="$qualification/p2-diverse-first-copy-first-pipeline-info/trace.tsv"
     resume_trace="$qualification/p2-diverse-first-copy-resume-pipeline-info/trace.tsv"
     [[ -f "$first_trace" && -f "$resume_trace" ]] || {
@@ -1287,6 +1324,8 @@ EOF
   "result_count": $result_count,
   "completed_hit_count": $completed_hit_count,
   "completed_no_hit_count": $completed_no_hit_count,
+  "mr_seed_review_package_id": "$review_package_id",
+  "mr_seed_review_manifest_sha256": "$review_manifest_sha256",
   "login_pdb_search_sha256": "$login_search_sha256",
   "scheduled_pdb_search_sha256": "$scheduled_search_sha256",
   "all_results_completed_scientifically": true,
@@ -1303,6 +1342,11 @@ EOF
         "$qualification/p2-diverse-log-tails.txt" \
         "$qualification/p2-diverse-model-resume-check.json" \
         "$qualification/p2-diverse-first-copy-resume-check.json" \
+        "$review_directory/mr_seed_review_manifest.json" \
+        "$review_directory/mr_seed_candidates.tsv" \
+        "$review_directory/mr_seed_candidates.html" \
+        "$review_directory/mr_seed_approval_candidates.tsv" \
+        "$review_directory/approved_mr_seeds.tsv" \
         "$P2_DIVERSE_REGISTRATION_OUT/registration_manifest.json" \
         "$P2_DIVERSE_MODEL_OUT/experimental_model_preparation/model_preparation_manifest.json" \
         "$P2_DIVERSE_FIRST_COPY_OUT/diverse_first_copy_funnel/funnel_manifest.json" \

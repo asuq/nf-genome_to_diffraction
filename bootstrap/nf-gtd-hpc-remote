@@ -1723,6 +1723,11 @@ collect_run() {
         artifacts/qualification/p2-diverse-artifact-sha256.tsv \
         artifacts/qualification/p2-diverse-model-resume-check.json \
         artifacts/qualification/p2-diverse-first-copy-resume-check.json \
+        artifacts/qualification/p2-diverse-review/mr_seed_review_manifest.json \
+        artifacts/qualification/p2-diverse-review/mr_seed_candidates.tsv \
+        artifacts/qualification/p2-diverse-review/mr_seed_candidates.html \
+        artifacts/qualification/p2-diverse-review/mr_seed_approval_candidates.tsv \
+        artifacts/qualification/p2-diverse-review/approved_mr_seeds.tsv \
         artifacts/qualification/p2-diverse-model-first-pipeline-info/report.html \
         artifacts/qualification/p2-diverse-model-first-pipeline-info/timeline.html \
         artifacts/qualification/p2-diverse-model-first-pipeline-info/trace.tsv \

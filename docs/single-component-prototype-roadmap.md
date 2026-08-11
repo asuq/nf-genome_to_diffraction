@@ -542,19 +542,32 @@ the entire roadmap.
 
 For each reviewable change:
 
-1. start from a clean local `main` and record the exact baseline;
-2. implement the smallest complete contract + adapter + parser + fixture slice;
-3. run focused tests and `pixi run check`;
+1. read the newest development-journal entry, start from a clean local `main`,
+   and record the exact baseline;
+2. write the smallest complete contract + adapter + parser + fixture slice;
+3. run focused Pixi tests followed by the complete locked `pixi run check` gate;
 4. inspect staged and unstaged diffs and commit a coherent review point;
-5. push the immutable commit;
-6. run the foundation smoke profile through `nf-gtd-hpc-test`;
-7. for an approved scientific gate, run only the fixed reviewed integration
-   profile on Marmic;
-8. collect structured results/logs before diagnosing;
-9. classify infrastructure failures separately from software/scientific
-   outcomes; and
-10. stop after the same failure signature repeats twice or a gate requires human
-    scientific review.
+5. push the immutable commit and require its GitHub Actions checks to finish
+   successfully;
+6. when the reviewed control scripts changed, deploy their checksum-verified
+   immutable copies; otherwise retain the installed matching versions;
+7. run readiness and the foundation smoke profile through
+   `nf-gtd-hpc-test`;
+8. for an approved scientific gate, stage and submit only the fixed reviewed
+   Marmic integration profile for that same commit;
+9. monitor through structured status at the recorded long-running cadence,
+   collect structured results/logs before diagnosing, and never infer failure
+   from silence;
+10. classify infrastructure failures separately from software/scientific
+    outcomes, record discoveries, accomplishments, immutable evidence,
+    unresolved work, and the exact next starting point in the journal; and
+11. repeat from item 1 until a human checkpoint, an external dependency, or the
+    milestone acceptance gate ends the loop.
+
+Do not skip GitHub Actions merely because local Pixi checks pass, and do not
+start Marmic scientific execution from an unpushed or CI-failing revision.
+Stop after the same failure signature repeats twice or when a gate requires
+human scientific review.
 
 `deploy-tools` is only for the two reviewed HPC control scripts. It must not
 become a general source-deployment or arbitrary SSH facility.

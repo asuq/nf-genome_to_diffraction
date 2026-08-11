@@ -1941,6 +1941,7 @@ def _install_fake_p1_runtime(run: Path) -> None:
         '  *" phenix verify "*) mode=phenix ;;\n'
         '  *" databases prepare "*) mode=databases ;;\n'
         '  *" contract validate "*) mode=contract ;;\n'
+        '  *" review build-mr-seed "*) mode=review ;;\n'
         "esac\n"
         'for argument in "$@"; do\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
@@ -1958,6 +1959,7 @@ def _install_fake_p1_runtime(run: Path) -> None:
         "  printf '{}\\n' > \"$outdir/sequence_groups.jsonl\"\n"
         '  printf \'{"schema_version":"1.0"}\\n\' > '
         '"$outdir/catalogue_import_manifest.json"\n'
+        "  printf '{}\\n' > \"$outdir/source_records.jsonl\"\n"
         'elif [[ "$mode" == qualify ]]; then\n'
         '  [[ -n "$output" && -f "$first_trace" && -f "$resume_trace" ]]\n'
         "  grep -q $'\\tCOMPLETED\\t' \"$first_trace\"\n"
@@ -1977,6 +1979,23 @@ def _install_fake_p1_runtime(run: Path) -> None:
         '> "${manifest%.json}.verification.json"\n'
         'elif [[ "$mode" == contract ]]; then\n'
         '  [[ -f "${@: -1}" || -f "${@: -3:1}" ]]\n'
+        'elif [[ "$mode" == review ]]; then\n'
+        '  [[ -n "$outdir" ]]\n'
+        '  mkdir -p "$outdir"\n'
+        "  package_id=reviewpkg_"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+        "  printf 'rank\\tsolution_id\\n1\\tsol_%064d\\n' 1 > "
+        '"$outdir/mr_seed_candidates.tsv"\n'
+        "  printf '<html></html>\\n' > "
+        '"$outdir/mr_seed_candidates.html"\n'
+        "  printf 'solution_id\\nsol_%064d\\n' 1 > "
+        '"$outdir/mr_seed_approval_candidates.tsv"\n'
+        "  printf 'checkpoint\\titem_id\\tdecision\\treviewer\\t"
+        "reviewed_at\\tcomment\\toverride_reason\\n' > "
+        '"$outdir/approved_mr_seeds.tsv"\n'
+        '  printf \'{\\n  "schema_version": "1.0",\\n  '
+        '"package_id": "%s"\\n}\\n\' "$package_id" > '
+        '"$outdir/mr_seed_review_manifest.json"\n'
         "else\n"
         "  exit 9\n"
         "fi\n",
@@ -2572,6 +2591,8 @@ def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(
     assert summary["experimental_hypothesis_count"] == 1
     assert summary["result_count"] == 2
     assert summary["completed_no_hit_count"] == 2
+    assert summary["mr_seed_review_package_id"] == "reviewpkg_" + "a" * 64
+    assert len(summary["mr_seed_review_manifest_sha256"]) == 64
     assert (
         summary["login_pdb_search_sha256"] == (summary["scheduled_pdb_search_sha256"])
     )
@@ -2603,6 +2624,13 @@ def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(
     assert "artifacts/qualification/p2-diverse-commands.jsonl" in names
     assert "artifacts/qualification/p2-diverse-log-tails.txt" in names
     assert "artifacts/qualification/p2-diverse-artifact-sha256.tsv" in names
+    assert (
+        "artifacts/qualification/p2-diverse-review/mr_seed_review_manifest.json"
+    ) in names
+    assert (
+        "artifacts/qualification/p2-diverse-review/mr_seed_candidates.html"
+    ) in names
+    assert ("artifacts/qualification/p2-diverse-review/approved_mr_seeds.tsv") in names
     assert (
         "artifacts/p2-diverse/first-copy/diverse_first_copy_funnel/mr_hypotheses.jsonl"
     ) in names

@@ -71,6 +71,12 @@ from genome_to_diffraction.ranking import (
     build_diverse_first_copy_funnel,
     build_exact_predicted_funnel,
 )
+from genome_to_diffraction.review import (
+    MrSeedApprovalRequest,
+    MrSeedReviewRequest,
+    build_mr_seed_review,
+    validate_mr_seed_approvals,
+)
 from genome_to_diffraction.schema_check import validate_repository
 from genome_to_diffraction.schemas.io import (
     ContractError,
@@ -611,6 +617,31 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help="optional explicit Phaser deadline; by default no deadline is imposed",
     )
+
+    review_parser = subparsers.add_parser(
+        "review", help="build and validate file-based human checkpoints"
+    )
+    review_actions = review_parser.add_subparsers(dest="review_action", required=True)
+    mr_seed_review_parser = review_actions.add_parser(
+        "build-mr-seed",
+        help="assemble a bounded first-copy MR review package",
+    )
+    mr_seed_review_parser.add_argument("--hypotheses", type=Path, required=True)
+    mr_seed_review_parser.add_argument("--results", type=Path, required=True)
+    mr_seed_review_parser.add_argument("--result-root", type=Path, required=True)
+    mr_seed_review_parser.add_argument("--funnel-manifest", type=Path, required=True)
+    mr_seed_review_parser.add_argument("--sequence-groups", type=Path, required=True)
+    mr_seed_review_parser.add_argument("--source-records", type=Path, required=True)
+    mr_seed_review_parser.add_argument("--matthews", type=Path, required=True)
+    mr_seed_review_parser.add_argument("--config", type=Path, required=True)
+    mr_seed_review_parser.add_argument("--outdir", type=Path, required=True)
+    mr_seed_approval_parser = review_actions.add_parser(
+        "validate-mr-seeds",
+        help="validate explicit MR-seed decisions against a current package",
+    )
+    mr_seed_approval_parser.add_argument("--package-manifest", type=Path, required=True)
+    mr_seed_approval_parser.add_argument("--decisions", type=Path, required=True)
+    mr_seed_approval_parser.add_argument("--out", type=Path, required=True)
 
     search_parser = subparsers.add_parser(
         "structure-search", help="search immutable structural-reference databases"
@@ -1221,6 +1252,44 @@ def _run_mr(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_review(args: argparse.Namespace) -> int:
+    if args.review_action == "build-mr-seed":
+        output = build_mr_seed_review(
+            MrSeedReviewRequest(
+                hypotheses_jsonl=args.hypotheses,
+                results_jsonl=args.results,
+                result_root=args.result_root,
+                funnel_manifest=args.funnel_manifest,
+                sequence_groups_jsonl=args.sequence_groups,
+                source_records_jsonl=args.source_records,
+                matthews_hypotheses_jsonl=args.matthews,
+                pipeline_config=args.config,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Built MR seed review package with {output.candidate_count} "
+            f"candidate(s): {output.manifest_json}"
+        )
+        return 0
+    if args.review_action != "validate-mr-seeds":
+        raise AssertionError(f"unhandled review action: {args.review_action}")
+    approval = validate_mr_seed_approvals(
+        MrSeedApprovalRequest(
+            package_manifest=args.package_manifest,
+            decisions=args.decisions,
+            output_json=args.out,
+            progress=not args.no_progress,
+        )
+    )
+    print(
+        f"Validated {len(approval.approved_solution_ids)} approved MR seed(s): "
+        f"{approval.output_json}"
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
@@ -1263,6 +1332,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_ranking(args)
         if args.command == "mr":
             return _run_mr(args)
+        if args.command == "review":
+            return _run_review(args)
         if args.command == "structure-search":
             return _run_structure_search(args)
     except PhenixInstallCommandError as error:

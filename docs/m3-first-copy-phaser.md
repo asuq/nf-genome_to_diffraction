@@ -232,8 +232,65 @@ real log omitted the synthetic fixture's explicit zero-count phrase. The
 parser correction's immutable replay reproduced the raw result, normalised it
 as `completed_no_hit`, completed the outer job successfully, and cached both P2
 processes on resume. The broader P2 gate still requires scheduled
-positive/incorrect-model controls, the top-10/25 review package, and
-approval-file validation. The fixed `p2-diverse` login-stage/offline Slurm
-operation and bounded evidence package pass their fake lifecycle, but still
-need a real Marmic multi-candidate run. No same-component additional-copy search
-should begin before this evidence is reviewed.
+positive/incorrect-model controls. The top-10/25 review and approval boundary is
+implemented locally as described below, but it still requires real P2-diverse
+evidence. The fixed `p2-diverse` login-stage/offline Slurm operation and bounded
+evidence package pass their fake lifecycle, but still need a real Marmic
+multi-candidate run. No same-component additional-copy search should begin
+before this evidence is reviewed.
+
+## MR seed review checkpoint
+
+`genome-to-diffraction review build-mr-seed` joins the immutable diverse-funnel
+hypotheses to exactly one normalised result bundle each. Its required inputs
+are the hypotheses and funnel manifest, aggregate normalised results, published
+per-hypothesis result root, sequence groups, source-protein records, Matthews
+hypotheses, and resolved pipeline configuration. The fixed `p2-diverse` job
+runs this operation only after every hypothesis has a terminal scientific
+result and before it writes the final summary.
+
+The operation publishes:
+
+- `mr_seed_candidates.tsv`, retaining model/sequence provenance, source loci,
+  copy and Matthews/SDS context, raw LLG/LLGI/TFZ, packing, placed-copy
+  agreement, warnings, and asset links;
+- a self-contained `mr_seed_candidates.html` view with the same independent
+  fields and an explicit warning that its lexicographic order is not a
+  calibrated probability;
+- `mr_seed_approval_candidates.tsv`, which states whether approving each
+  current item requires an override reason;
+- an empty, schema-valid `approved_mr_seeds.tsv` template, so scheduled work
+  never creates or implies an approval; and
+- `mr_seed_review_manifest.json`, binding every `sol_...` identifier to the
+  hypothesis, normalised result, funnel, command, log, and result-asset
+  checksums.
+
+Ranking is deterministic and inspectable: completed-hit/no-hit/failure class,
+the strict raw `LLG > 100` and `TFZ > 10` gate, packing, searched-copy
+agreement, raw LLG, raw TFZ, and immutable funnel order. Primary and extended
+labels apply to the first 10 and 25 distinct sequence-equivalence groups from
+the resolved configuration. They allocate review attention; they are not
+posterior probabilities or automatic biological assignments. Logs and commands
+follow retention policy, while complete solution PDB/MTZ assets are copied only
+for the configured finalist cap. The retained remote P2 publication remains the
+authoritative full result.
+
+`genome-to-diffraction review validate-mr-seeds` takes the generated manifest,
+a human-edited review-decision TSV, and an output JSON path. It verifies the
+package and copied-output checksums, content-derived package and `sol_...`
+identities, the `mr_seed` checkpoint, non-duplicate current item IDs, reviewer
+and UTC timestamp, and at least one explicit `approve`. An approval for an item
+that did not satisfy automatic eligibility requires a non-empty
+`override_reason`; this does not rewrite its preliminary score-gate class.
+Unknown, stale, edited, pre-package, placeholder, empty, or wrong-checkpoint
+decisions fail with an input-contract error before downstream execution. A
+successful validation writes a content-derived `rev_...` record; it does not
+start additional-copy placement.
+
+The review cache identity is the funnel and all joined input checksums, every
+content-derived solution ID, the shortlist sizes, the result-asset retention
+cap, and package creation timestamp. Unit tests cover a credible hit, a
+scientific no-hit override, schema-valid empty template, stale identifiers,
+edited review output, result-path traversal, and approval provenance. The fake
+Git/Slurm/Nextflow lifecycle covers package creation, fixed summary binding,
+and bounded collection. Real Phenix/Marmic review evidence remains required.
