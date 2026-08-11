@@ -506,3 +506,45 @@ the two checksum-verified remote tools from the same pushed revision, run
 `readiness p2-diverse`, and stage that revision. Verify the login-stage checksum
 record before submit; monitor at the recorded 30-minute cadence, never infer
 failure from silence, and do not clean the retained run.
+
+## 2026-08-11 — Repaired Linux Gemmi typing after CI feedback
+
+### Discoveries
+
+- GitHub Actions run `31510865883` reached the locked foundation gate but
+  failed only at strict mypy. Linux's typed Gemmi build exposed twelve type
+  errors that the macOS build treated as dynamic: a reused variable changed
+  from an mmCIF entity key to a parsed entity record, residue sequence numbers
+  were typed as optional, and `gemmi.__version__` was absent from the stubs.
+- The failure was platform typing feedback, not a Phaser, coordinate, model,
+  parser, or scientific-result difference. The repair must still validate
+  absent residue numbers loudly instead of adding an unchecked cast.
+
+### Accomplishments and immutable evidence
+
+- Focused commit `cb66aae193e82fc6166bafaff0ef9cd9f4a4b21c` gives the
+  mmCIF entity key and parsed entity distinct variables, validates every Gemmi
+  residue sequence number before range arithmetic, and obtains the runtime
+  version through an explicit non-empty string check.
+- The coordinate-registration and experimental-model unit tests pass. The full
+  locked local gate again passes with 279 unit, 54 contract, and 39 integration
+  tests plus every formatting, type, schema, documentation, workflow,
+  Nextflow, and HPC shell check. No scientific policy or output contract
+  changed.
+
+### Unresolved work
+
+- Push the focused CI repair and this journal update, then require a new Ubuntu
+  GitHub Actions run to pass. The Linux-specific type repair is not qualified
+  until that remote gate succeeds.
+- After CI passes, install and deploy the review-package controller/tools from
+  the new immutable revision before real P2-diverse staging.
+
+### Next exact starting point
+
+Commit this journal entry, push through
+`cb66aae193e82fc6166bafaff0ef9cd9f4a4b21c`, and monitor the exact GitHub
+Actions run. If it passes, rebuild/install the local controller, deploy the
+matching dispatcher and job script, run `readiness p2-diverse`, and stage the
+same pushed revision. If it fails, inspect only the failing log before making
+another focused change.
