@@ -891,3 +891,52 @@ After CI passes, run `readiness p2-diverse`, stage the immutable revision,
 collect and verify its login-stage checksum, submit one fresh Slurm job, and
 retarget the 30-minute heartbeat to that run. Retain job `625842` and its
 collected evidence unchanged.
+
+## 2026-08-12 — Submitted the review-contract replay
+
+### Discoveries
+
+- Review-repair commit `5914536eecf6a5409240ec93a74f44ca18036a36`
+  passed Ubuntu GitHub Actions run `31541184883` in 2 minutes 56 seconds.
+- Fixed-profile readiness is `ready=true` with Pixi `0.74.0` and the unchanged
+  P0 configuration checksum
+  `ac7ad4d2d4f9693683b89c8b492f645eddf026f782d90300b726f6be6d855dbb`.
+- Fresh replay
+  `gtd-p2-diverse-20260811T221301Z-5914536eecf6-2d589750` completed its login
+  stage from the exact repair commit and nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a`.
+
+### Accomplishments and immutable evidence
+
+- The collected `p2-diverse-login-stage.sha256` record binds six direct-PDB
+  search and registration artefacts. The four allowlisted payloads present in
+  the bounded local collection match their recorded SHA-256 values; the two
+  larger search-result payloads remain retained remotely and are bound by the
+  same submit-time record.
+- The fixed dispatcher accepted the staged record and submitted Slurm job
+  `625882`. Its first status is scheduler state `RUNNING`, `terminal=false`,
+  with no exit code or failure class.
+- The 30-minute heartbeat now targets only this replay. Earlier jobs `625842`
+  and `625831` and their collected evidence remain retained and untouched.
+
+### Unresolved work
+
+- Let job `625882` run without interference or a runtime timeout. Check it only
+  through the installed wrapper at the recorded 30-minute cadence; do not infer
+  failure from silence, elapsed time, or an SSH outage.
+- When terminal, collect bounded evidence and require the corrected review
+  manifest, TSV/HTML package, final summary, and first-copy resume-check record.
+  Re-evaluate every result against strict `LLG > 100` and `TFZ > 10`, retaining
+  packing and placed-copy evidence independently.
+- The known-positive and deliberate incorrect-model controls, followed by a
+  human-completed approval file, remain prerequisites for M4 even if the CD6
+  replay reproduces its 25 scientific no-hits.
+
+### Next exact starting point
+
+At the next heartbeat, run only
+`nf-gtd-hpc-test --no-progress status --run-id gtd-p2-diverse-20260811T221301Z-5914536eecf6-2d589750`.
+If non-terminal, leave the run untouched. If terminal, run bounded logs and
+collect as separate operations, inspect the complete review/result/resume
+evidence, retain the remote run, and close the development loop with
+documentation, checks, a focused commit, push, and exact GitHub Actions result.
