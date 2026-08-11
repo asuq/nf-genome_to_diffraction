@@ -368,3 +368,68 @@ fixed P2 stage/submit implementation and add the smallest separate
 catalogue, MTZ, Phenix, and database evidence; accept no caller-controlled
 remote path or shell fragment, do not download from a compute node, and do not
 clean retained runs.
+
+## 2026-08-11 — Fixed P2-diverse login-stage and offline Slurm lifecycle
+
+### Discoveries
+
+- Registering 25 direct-PDB mappings alongside the exact predicted model can
+  create 26 candidates under the pilot configuration. The fixed real-feedback
+  route therefore needs an explicit execution cap independent of the broader
+  profile limit, and the selector must reserve exact mappings before filling
+  the remaining diverse slots.
+- A network-free Slurm hand-off can be checked without trusting staging
+  success alone: rehash every login-stage output and require the normalised PDB
+  search records to match the independently scheduled P1 search exactly.
+- Result cardinality alone is insufficient for fan-out evidence. Each result
+  directory must match its normalised hypothesis ID, its JSON and JSONL status
+  must agree, and only completed scientific hit/no-hit states may enter the
+  aggregate review package.
+
+### Accomplishments and evidence
+
+- The separate closed `p2-diverse` profile now supports readiness, immutable
+  staging, submission, structured status/logs, bounded collection,
+  owner-bound cancellation, long-margin waiting, and normalised failure
+  signatures without accepting a remote path or shell fragment.
+- Login-node staging runs the fixed two-thread PDB sequence search, registers
+  at most three hits per group and 25 mappings overall through the shared
+  coordinate cache, validates cardinality and ownership, and atomically binds
+  a checksum-list digest into the run manifest.
+- The offline job replays P0/P1, verifies the staging hand-off, prepares one
+  cleaned experimental model per mapping, reserves exact predicted evidence,
+  enforces at most 25 Phaser jobs, validates every scientific result, and
+  requires both model-preparation and first-copy resumes to be fully cached.
+- Full native outputs remain on the retained remote run. Collection is limited
+  to mappings/manifests, hypotheses, normalised results and commands, 200-line
+  log tails, traces, summaries, and a SHA-256 inventory.
+- The complete locked repository gate passes from base commit
+  `b0b2ad35d606b6c64f119ec99c731b7992254f80`: 274 unit tests, 54 contract
+  tests, 39 integration tests, strict typing and formatting/lint, schemas, the
+  ten-entry public panel, documentation/action lint, Nextflow syntax and all
+  stub/resume routes, plus both HPC shell parsers. The network download tests
+  were rerun outside the restricted sandbox so their loopback server could
+  bind; no public biological data or credentials were transmitted.
+
+### Unresolved work
+
+- Create the focused local commit, push it, require GitHub Actions to pass,
+  rebuild/install the immutable controller, and deploy the checksum-verified
+  dispatcher/job pair before Marmic can fetch this profile.
+- Run the real `p2-diverse` stage/submit sequence, retain the remote run,
+  inspect all normalised CD6 results against the strict `LLG > 100` and
+  `TFZ > 10` gate, and record resource/cache behaviour. The fake lifecycle is
+  software evidence, not real-candidate scientific qualification.
+- Qualify the known-positive and deliberate incorrect-model scheduled
+  controls, then implement approval-file validation and the final top-10/25
+  review checkpoint. Same-component additional-copy placement remains
+  deferred.
+
+### Next exact starting point
+
+Verify the focused commit and GitHub Actions. Then build and install the local
+controller from that immutable commit, deploy the reviewed remote tools, run
+`readiness p2-diverse`, and stage the same pushed revision. Do not submit until
+the login-node search/registration checksum record is present; after
+submission, use structured status with the recorded 30-minute monitoring
+cadence and never infer failure from silence or clean the retained run.

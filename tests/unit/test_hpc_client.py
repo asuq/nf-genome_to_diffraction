@@ -374,7 +374,7 @@ def test_all_owned_operations_use_the_recorded_capability(tmp_path: Path) -> Non
     assert len(owner_values) == 1
 
 
-@pytest.mark.parametrize("profile", ["p0", "p1", "p2"])
+@pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse"])
 def test_scientific_profile_has_a_closed_run_id_and_remote_argument(
     tmp_path: Path, profile: str
 ) -> None:
@@ -393,7 +393,7 @@ def test_scientific_profile_has_a_closed_run_id_and_remote_argument(
         controller.submit("smoke", run_id)
 
 
-@pytest.mark.parametrize("profile", ["p0", "p1", "p2"])
+@pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse"])
 def test_scientific_readiness_accepts_no_path_or_run_authority(
     tmp_path: Path, profile: str
 ) -> None:
@@ -405,7 +405,7 @@ def test_scientific_readiness_accepts_no_path_or_run_authority(
     assert result["operation"] == "readiness"
     assert result["profile"] == profile
     assert transport.calls == [("readiness", (profile,))]
-    with pytest.raises(ValidationError, match="only for p0, p1, and p2"):
+    with pytest.raises(ValidationError, match="only for p0, p1, p2"):
         controller.readiness("smoke")
     with pytest.raises(ValidationError):
         controller.readiness("p0;touch-bad")

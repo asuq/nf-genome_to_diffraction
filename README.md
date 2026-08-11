@@ -381,9 +381,11 @@ for debugging; an existing versioned installation is never overwritten.
   experimental source-chain variant.
 - `screen_first_copy.nf` runs the qualified exact-predicted first-copy route.
 - `screen_diverse_first_copy.nf` joins predicted and registered experimental
-  model bundles, applies source/variant diversity and the profile-specific hard
-  cap, publishes one aggregate immutable model registry, and fans the selected
-  first-copy hypotheses out to Phaser.
+model bundles, applies source/variant diversity and the profile-specific hard
+cap plus an optional stricter execution cap, publishes one aggregate immutable
+model registry, and fans the selected first-copy hypotheses out to Phaser. The
+fixed `p2-diverse` HPC operation sets this additional cap to 25, but has not yet
+been qualified on real Marmic direct-PDB candidates.
 
 The safe workflow smoke test is:
 

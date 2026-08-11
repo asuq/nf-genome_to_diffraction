@@ -16,6 +16,7 @@ process BUILD_DIVERSE_FIRST_COPY_FUNNEL {
     preflight: Path
     pipeline_config: Path
     crystal_id: String
+    maximum_first_copy_jobs: Integer
 
     output:
     funnel: Path = file('diverse_first_copy_funnel')
@@ -38,6 +39,7 @@ process BUILD_DIVERSE_FIRST_COPY_FUNNEL {
         --preflight '${preflight}' \
         --config '${pipeline_config}' \
         --crystal-id '${crystal_id}' \
+        --maximum-first-copy-jobs ${maximum_first_copy_jobs} \
         --outdir diverse_first_copy_funnel
     """
 

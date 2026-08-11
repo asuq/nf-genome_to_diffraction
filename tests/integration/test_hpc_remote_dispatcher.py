@@ -21,6 +21,7 @@ SECOND_RUN_ID = "gtd-smoke-20260802T120001Z-0123456789ab-01234568"
 P0_RUN_ID = "gtd-p0-20260802T120000Z-0123456789ab-01234567"
 P1_RUN_ID = "gtd-p1-20260802T120000Z-0123456789ab-01234567"
 P2_RUN_ID = "gtd-p2-20260802T120000Z-0123456789ab-01234567"
+P2_DIVERSE_RUN_ID = "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
 
@@ -109,6 +110,11 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         REPOSITORY / "discover_structures.nf", source / "discover_structures.nf"
     )
     shutil.copy2(REPOSITORY / "prepare_models.nf", source / "prepare_models.nf")
+    shutil.copy2(REPOSITORY / "prepare_pdb_models.nf", source / "prepare_pdb_models.nf")
+    shutil.copy2(
+        REPOSITORY / "screen_diverse_first_copy.nf",
+        source / "screen_diverse_first_copy.nf",
+    )
     controls = source / "benchmarks" / "public-controls"
     controls.mkdir(parents=True)
     shutil.copy2(
@@ -126,6 +132,8 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         "bootstrap",
         "discover_structures.nf",
         "prepare_models.nf",
+        "prepare_pdb_models.nf",
+        "screen_diverse_first_copy.nf",
         "benchmarks",
     )
     _git(
@@ -216,6 +224,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         'case " $* " in\n'
         '  *" catalogue import "*) mode=catalogue ;;\n'
         '  *" structure-search afdb-exact "*) mode=afdb ;;\n'
+        '  *" structure-search pdb-sequence "*) mode=pdb ;;\n'
+        '  *" structure-search register-pdb-coordinates "*) mode=register ;;\n'
         '  *" databases stage-sources "*) mode=database ;;\n'
         "esac\n"
         'for argument in "$@"; do\n'
@@ -243,6 +253,25 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  printf \'{"schema_version":"1.0"}\\n\' > '
         '"$outdir/coordinate_sources.jsonl"\n'
         "  printf 'fake login-node HTTP provenance\\n' > \"$outdir/raw/http.log\"\n"
+        'elif [[ "$mode" == pdb ]]; then\n'
+        '  [[ "${FAKE_PDB_SEARCH_FAIL:-0}" != 1 ]] || exit 14\n'
+        '  mkdir -p "$outdir/raw"\n'
+        '  printf \'{"schema_version":"1.0","hit_count":1}\\n\' '
+        '> "$outdir/search_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/search_results.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/structural_hits.jsonl"\n'
+        "  printf 'fake direct PDB search\\n' > \"$outdir/raw/mmseqs.log\"\n"
+        'elif [[ "$mode" == register ]]; then\n'
+        '  [[ "${FAKE_PDB_REGISTRATION_FAIL:-0}" != 1 ]] || exit 15\n'
+        '  mkdir -p "$outdir"\n'
+        '  printf \'{"schema_version":"1.0","coordinate_id":"coord_test"}\\n\' '
+        '> "$outdir/coordinate_sources.jsonl"\n'
+        '  printf \'{"schema_version":"1.0","mapping_id":"mapping_test"}\\n\' '
+        '> "$outdir/coordinate_hit_mappings.jsonl"\n'
+        '  printf \'{"schema_version":"1.0","selected_mapping_count":1}\\n\' '
+        '> "$outdir/registration_manifest.json"\n'
         'elif [[ "$mode" == database ]]; then\n'
         '  [[ -n "$output" ]] || exit 9\n'
         '  mkdir -p "$(dirname "$output")"\n'
@@ -1947,7 +1976,7 @@ def _install_fake_p1_runtime(run: Path) -> None:
         '"inventory_metadata_and_functional_smoke","full_checksums":false}\\n\' '
         '> "${manifest%.json}.verification.json"\n'
         'elif [[ "$mode" == contract ]]; then\n'
-        '  [[ -f "${@: -1}" ]]\n'
+        '  [[ -f "${@: -1}" || -f "${@: -3:1}" ]]\n'
         "else\n"
         "  exit 9\n"
         "fi\n",
@@ -1964,7 +1993,9 @@ def _install_fake_p1_runtime(run: Path) -> None:
         'for argument in "$@"; do\n'
         '  [[ "$argument" != */main.nf ]] || mode=p0\n'
         '  [[ "$argument" != */prepare_models.nf ]] || mode=model\n'
+        '  [[ "$argument" != */prepare_pdb_models.nf ]] || mode=p2div-model\n'
         '  [[ "$argument" != */screen_first_copy.nf ]] || mode=p2\n'
+        '  [[ "$argument" != */screen_diverse_first_copy.nf ]] || mode=p2div\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
         '  [[ "$argument" != -resume ]] || status=CACHED\n'
         '  previous="$argument"\n'
@@ -1984,8 +2015,18 @@ def _install_fake_p1_runtime(run: Path) -> None:
         "%s\\t123\\tP2_TASK\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
         "10 MB\\t20 MB\\t30 MB\\t4 MB\\n' "
         '"$task" "$status"; done >> "$outdir/pipeline_info/trace.tsv"\n'
+        'elif [[ "$mode" == p2div ]]; then\n'
+        "  for task in 1 2 3; do printf '"
+        "%s\\t123\\tP2_DIVERSE_TASK\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
+        "10 MB\\t20 MB\\t30 MB\\t4 MB\\n' "
+        '"$task" "$status"; done >> "$outdir/pipeline_info/trace.tsv"\n'
         'elif [[ "$mode" == model ]]; then\n'
         "  process_name=PREPARE_PREDICTED_MODELS\n"
+        "  printf '1\\t123\\t%s\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
+        "10 MB\\t20 MB\\t30 MB\\t4 MB\\n' "
+        '"$process_name" "$status" >> "$outdir/pipeline_info/trace.tsv"\n'
+        'elif [[ "$mode" == p2div-model ]]; then\n'
+        "  process_name=PREPARE_EXPERIMENTAL_MODELS\n"
         "  printf '1\\t123\\t%s\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
         "10 MB\\t20 MB\\t30 MB\\t4 MB\\n' "
         '"$process_name" "$status" >> "$outdir/pipeline_info/trace.tsv"\n'
@@ -2038,12 +2079,56 @@ def _install_fake_p1_runtime(run: Path) -> None:
         '"$result/phenix.phaser.capture.log"\n'
         "  exit 0\n"
         "fi\n"
+        'if [[ "$mode" == p2div ]]; then\n'
+        '  p2_execution_status="${FAKE_P2_DIVERSE_EXECUTION_STATUS:-'
+        'completed_no_hit}"\n'
+        '  funnel="$outdir/diverse_first_copy_funnel"\n'
+        '  mkdir -p "$funnel"\n'
+        '  printf \'{"schema_version":"1.0","selected_hypothesis_count":2}\\n\' '
+        '> "$funnel/funnel_manifest.json"\n'
+        '  : > "$funnel/mr_hypotheses.jsonl"\n'
+        "  printf 'hypothesis_id\\n' > \"$funnel/mr_hypotheses.tsv\"\n"
+        "  for suffix in 1 2; do\n"
+        "    hypothesis=mrhyp_$(printf '%064d' \"$suffix\")\n"
+        "    source_class=experimental\n"
+        '    [[ "$suffix" != 1 ]] || source_class=predicted\n'
+        '    printf \'{"hypothesis_id":"%s","priority_features":'
+        '{"structural_source_class":"%s"}}\\n\' '
+        '"$hypothesis" "$source_class" >> "$funnel/mr_hypotheses.jsonl"\n'
+        '    printf \'%s\\n\' "$hypothesis" >> "$funnel/mr_hypotheses.tsv"\n'
+        '    result="$outdir/first_copy_phaser_${hypothesis}"\n'
+        '    mkdir -p "$result"\n'
+        '    printf \'{"schema_version":"1.0","hypothesis_id":"%s",'
+        '"tool_version":"fake","execution_status":"%s",'
+        '"llg":null,"llgi":null,"tfz":null,"placed_copy_count":0,'
+        '"packing_summary":{},"parser_warnings":[],"raw_log_pointer":'
+        '"PHASER.log","preliminary_credibility_class":"no_solution",'
+        '"rejection_reason":"fake_no_solution"}\\n\' '
+        '"$hypothesis" "$p2_execution_status" > '
+        '"$result/normalised_mr_result.json"\n'
+        '    cp "$result/normalised_mr_result.json" '
+        '"$result/normalised_mr_result.jsonl"\n'
+        "    printf '{}\\n' > \"$result/phaser_command.json\"\n"
+        "    printf 'fake diverse Phaser log\\n' > \"$result/PHASER.log\"\n"
+        "    printf 'fake diverse capture\\n' > "
+        '"$result/phenix.phaser.capture.log"\n'
+        "  done\n"
+        "  exit 0\n"
+        "fi\n"
         'if [[ "$mode" == model ]]; then\n'
         '  mkdir -p "$outdir/predicted_model_preparation"\n'
         '  printf \'{"schema_version":"1.0","model_id":"model_test"}\\n\' '
         '> "$outdir/predicted_model_preparation/processed_models.jsonl"\n'
         '  printf \'{"schema_version":"1.0","processed_model_count":1}\\n\' '
         '> "$outdir/predicted_model_preparation/model_preparation_manifest.json"\n'
+        "  exit 0\n"
+        "fi\n"
+        'if [[ "$mode" == p2div-model ]]; then\n'
+        '  mkdir -p "$outdir/experimental_model_preparation"\n'
+        '  printf \'{"schema_version":"1.0","model_id":"pdb_model_test"}\\n\' '
+        '> "$outdir/experimental_model_preparation/processed_models.jsonl"\n'
+        '  printf \'{"schema_version":"1.0","processed_model_count":1}\\n\' '
+        '> "$outdir/experimental_model_preparation/model_preparation_manifest.json"\n'
         "  exit 0\n"
         "fi\n"
         'mkdir -p "$outdir/pdb_sequence_search/raw" '
@@ -2053,6 +2138,8 @@ def _install_fake_p1_runtime(run: Path) -> None:
         '> "$outdir/pdb_sequence_search/search_manifest.json"\n'
         "printf 'fake mmseqs log\\n' > "
         '"$outdir/pdb_sequence_search/raw/mmseqs.log"\n'
+        'printf \'{"schema_version":"1.0"}\\n\' '
+        '> "$outdir/pdb_sequence_search/structural_hits.jsonl"\n'
         'printf \'{"schema_version":"1.0"}\\n\' '
         '> "$outdir/afdb_exact_search/coordinate_sources.jsonl"\n',
     )
@@ -2400,6 +2487,157 @@ def test_p2_job_rejects_adapter_failure_as_test_failure(tmp_path: Path) -> None:
     assert not (
         run / "artifacts/qualification/p2-first-copy-resume-check.json"
     ).exists()
+
+
+def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
+
+    readiness = _decode_protocol(
+        _run(
+            [str(dispatcher), "readiness", "p2-diverse"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert readiness["profile"] == "p2-diverse"
+    assert readiness["ready"] == "true"
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                P2_DIVERSE_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "p2-diverse",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert staged["profile"] == "p2-diverse"
+    run = remote_root / "runs" / P2_DIVERSE_RUN_ID
+    assert (run / "state/p2-diverse-login-stage.sha256").is_file()
+    login_log = (run / "logs/p2-diverse-login-stage.log").read_text(encoding="utf-8")
+    assert "phase=p2_diverse_login_pdb_search" in login_log
+    assert "phase=p2_diverse_login_coordinate_registration" in login_log
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    assert len(manifest["p2_diverse_login_stage_sha256"]) == 64
+
+    _install_fake_p1_runtime(run)
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", P2_DIVERSE_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert submitted["profile"] == "p2-diverse"
+    arguments = (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    assert "--time=41-16:00:00" in arguments
+    assert arguments[-4:] == [
+        str(smoke_job),
+        P2_DIVERSE_RUN_ID,
+        str(remote_root),
+        "p2-diverse",
+    ]
+
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "123"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+    _run(
+        [str(smoke_job), P2_DIVERSE_RUN_ID, str(remote_root), "p2-diverse"],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
+
+    result = json.loads((run / "state/job-result.json").read_text(encoding="utf-8"))
+    assert result["failure_class"] == "success"
+    assert result["profile"] == "p2-diverse"
+    summary = json.loads(
+        (run / "artifacts/qualification/p2-diverse-summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert summary["registered_mapping_count"] == 1
+    assert summary["experimental_model_count"] == 1
+    assert summary["hypothesis_count"] == 2
+    assert summary["predicted_hypothesis_count"] == 1
+    assert summary["experimental_hypothesis_count"] == 1
+    assert summary["result_count"] == 2
+    assert summary["completed_no_hit_count"] == 2
+    assert (
+        summary["login_pdb_search_sha256"] == (summary["scheduled_pdb_search_sha256"])
+    )
+    resume = json.loads(
+        (
+            run / "artifacts/qualification/p2-diverse-first-copy-resume-check.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert resume["process_count"] == 3
+    assert resume["cached_process_count"] == 3
+    commands = (run / "execution/fake-nextflow-commands.log").read_text(
+        encoding="utf-8"
+    )
+    assert "screen_diverse_first_copy.nf" in commands
+    assert "--maximum_first_copy_jobs 25" in commands
+
+    archive_path = tmp_path / "p2-diverse-collected.tar.gz"
+    archive_path.write_bytes(
+        _run(
+            [str(dispatcher), "collect", P2_DIVERSE_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    with tarfile.open(archive_path, "r:gz") as archive:
+        names = set(archive.getnames())
+    assert "artifacts/qualification/p2-diverse-summary.json" in names
+    assert "artifacts/qualification/p2-diverse-results.jsonl" in names
+    assert "artifacts/qualification/p2-diverse-commands.jsonl" in names
+    assert "artifacts/qualification/p2-diverse-log-tails.txt" in names
+    assert "artifacts/qualification/p2-diverse-artifact-sha256.tsv" in names
+    assert (
+        "artifacts/p2-diverse/first-copy/diverse_first_copy_funnel/mr_hypotheses.jsonl"
+    ) in names
+
+
+def test_p2_diverse_stage_classifies_coordinate_registration_failure(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    _write_p0_paths(smoke_job.parent.parent)
+    failing_environment = dict(environment)
+    failing_environment["FAKE_PDB_REGISTRATION_FAIL"] = "1"
+
+    failed = _run(
+        [
+            str(dispatcher),
+            "stage",
+            P2_DIVERSE_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "p2-diverse",
+        ],
+        cwd=tmp_path,
+        environment=failing_environment,
+        success=False,
+    )
+
+    assert _decode_protocol(failed.stdout)["failure_class"] == "transfer_failure"
+    run = smoke_job.parent.parent / "runs" / P2_DIVERSE_RUN_ID
+    assert (run / "state/phase").read_text(encoding="ascii").strip() == ("stage_failed")
+    assert (run / "state/failure-class").read_text(
+        encoding="ascii"
+    ).strip() == "transfer_failure"
 
 
 def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(

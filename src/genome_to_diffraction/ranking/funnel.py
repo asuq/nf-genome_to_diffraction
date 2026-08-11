@@ -106,6 +106,7 @@ class DiverseFirstCopyFunnelRequest:
     output_directory: Path
     coordinate_hit_mappings_jsonl: Path | None = None
     crystal_ids: tuple[str, ...] = ()
+    maximum_first_copy_jobs: int | None = None
     progress: bool = True
 
 
@@ -827,6 +828,17 @@ def _diverse_priority_features(
     return features
 
 
+def _diverse_candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
+    """Reserve exact mappings before ordering the remaining evidence features."""
+
+    exact_mapping = candidate.hypothesis.priority_features.get("exact_sequence_mapping")
+    return (
+        candidate.hypothesis.crystal_id,
+        0 if exact_mapping is True else 1,
+        *_candidate_sort_key(candidate)[1:],
+    )
+
+
 def _make_diverse_candidate(
     *,
     coordinate: CoordinateSourceRecord,
@@ -988,16 +1000,22 @@ def _join_diverse_candidates(
                 )
             )
             per_crystal_counts[row.crystal_id] = used + 1
-    candidates.sort(key=_candidate_sort_key)
+    candidates.sort(key=_diverse_candidate_sort_key)
     return candidates
 
 
 def _select_diverse_candidates(
-    candidates: Sequence[_Candidate], config: PipelineConfig
+    candidates: Sequence[_Candidate],
+    config: PipelineConfig,
+    execution_cap: int | None,
 ) -> tuple[tuple[_Candidate, ...], int]:
+    if execution_cap is not None and not 1 <= execution_cap <= 1000:
+        raise ValueError("maximum_first_copy_jobs must be between 1 and 1000")
+    requested_cap = execution_cap if execution_cap is not None else 1000
     per_crystal_cap = min(
         _FIRST_COPY_PROFILE_CAPS[config.prototype.profile],
         config.search_limits.max_first_copy_jobs,
+        requested_cap,
     )
     by_crystal: dict[str, list[_Candidate]] = {}
     for candidate in candidates:
@@ -1013,9 +1031,9 @@ def _select_diverse_candidates(
             )
             buckets.setdefault(bucket, []).append(candidate)
         for values in buckets.values():
-            values.sort(key=_candidate_sort_key)
+            values.sort(key=_diverse_candidate_sort_key)
         ordered_buckets = sorted(
-            buckets, key=lambda key: _candidate_sort_key(buckets[key][0])
+            buckets, key=lambda key: _diverse_candidate_sort_key(buckets[key][0])
         )
         crystal_selected: list[_Candidate] = []
         round_index = 0
@@ -1036,6 +1054,7 @@ def _select_diverse_candidates(
     global_cap = min(
         config.search_limits.max_structural_hypotheses,
         config.search_limits.max_first_copy_jobs,
+        requested_cap,
     )
     return tuple(selected[:global_cap]), per_crystal_cap
 
@@ -1178,7 +1197,9 @@ def build_diverse_first_copy_funnel(
         preflights=preflights,
         crystal_ids=request.crystal_ids,
     )
-    selected, per_crystal_cap = _select_diverse_candidates(candidates, config)
+    selected, per_crystal_cap = _select_diverse_candidates(
+        candidates, config, request.maximum_first_copy_jobs
+    )
     output = request.output_directory.resolve()
     if output.exists() and any(output.iterdir()):
         raise FunnelInputError(
@@ -1231,6 +1252,7 @@ def build_diverse_first_copy_funnel(
             "per_crystal_selected_counts": dict(sorted(per_crystal_counts.items())),
             "global_structural_cap": config.search_limits.max_structural_hypotheses,
             "global_first_copy_cap": config.search_limits.max_first_copy_jobs,
+            "requested_execution_cap": request.maximum_first_copy_jobs,
             "per_model_copy_cap": _copy_cap(config),
             "diversity_buckets": [
                 "sequence_group_id",
@@ -1238,6 +1260,7 @@ def build_diverse_first_copy_funnel(
                 "model_variant_type",
             ],
             "ordering_features": [
+                "exact_sequence_mapping",
                 "matthews_physical_status",
                 "matthews_prior",
                 "matthews_rank_within_candidate",

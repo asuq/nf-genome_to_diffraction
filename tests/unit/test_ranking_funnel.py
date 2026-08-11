@@ -2,6 +2,7 @@
 
 import json
 import shutil
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from genome_to_diffraction.ranking import (
     build_exact_predicted_funnel,
 )
 from genome_to_diffraction.schemas.results import (
+    CoordinateHitMappingRecord,
     CoordinateSourceRecord,
     MatthewsHypothesis,
     PhysicalStatus,
@@ -259,6 +261,54 @@ def test_diverse_funnel_preserves_predicted_and_experimental_sources(
     ]
 
 
+def test_diverse_funnel_reserves_exact_mapping_before_homologue(
+    tmp_path: Path,
+) -> None:
+    request = _diverse_request(tmp_path)
+    pdb_sources = request.coordinate_sources_jsonl[1]
+    pdb_source = CoordinateSourceRecord.model_validate_json(
+        pdb_sources.read_text(encoding="utf-8")
+    ).model_copy(update={"source_sequence_sha256": "1" * 64})
+    pdb_sources.write_text(f"{canonical_json_text(pdb_source)}\n", encoding="utf-8")
+    mappings_path = request.coordinate_hit_mappings_jsonl
+    assert mappings_path is not None
+    mapping = CoordinateHitMappingRecord.model_validate_json(
+        mappings_path.read_text(encoding="utf-8")
+    ).model_copy(
+        update={
+            "source_sequence_sha256": "1" * 64,
+            "sequence_identity": 0.625,
+            "exact_sequence_match": False,
+        }
+    )
+    mappings_path.write_text(f"{canonical_json_text(mapping)}\n", encoding="utf-8")
+    experimental_models = request.processed_models_jsonl[1]
+    model = ProcessedModelRecord.model_validate_json(
+        experimental_models.read_text(encoding="utf-8")
+    )
+    parameters = dict(model.processing_parameters)
+    parameters.update({"source_sequence_sha256": "1" * 64, "sequence_identity": 0.625})
+    homologue_model = model.model_copy(update={"processing_parameters": parameters})
+    experimental_models.write_text(
+        f"{canonical_json_text(homologue_model)}\n",
+        encoding="utf-8",
+    )
+    request.pipeline_config.write_text(
+        request.pipeline_config.read_text(encoding="utf-8").replace(
+            "max_first_copy_jobs: 200", "max_first_copy_jobs: 1"
+        ),
+        encoding="utf-8",
+    )
+
+    result = build_diverse_first_copy_funnel(request)
+
+    assert len(result.hypotheses) == 1
+    assert result.hypotheses[0].priority_features["exact_sequence_mapping"] is True
+    assert result.hypotheses[0].priority_features["structural_source_class"] == (
+        "predicted"
+    )
+
+
 def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
     tmp_path: Path,
 ) -> None:
@@ -312,3 +362,14 @@ def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
     assert manifest["per_crystal_first_copy_cap"] == 25
     assert manifest["per_crystal_selected_counts"] == {"test_crystal_01": 25}
     assert manifest["excluded_by_caps_count"] == 5
+
+
+def test_diverse_funnel_applies_stricter_execution_cap(tmp_path: Path) -> None:
+    request = replace(_diverse_request(tmp_path), maximum_first_copy_jobs=1)
+
+    result = build_diverse_first_copy_funnel(request)
+
+    assert len(result.hypotheses) == 1
+    manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["per_crystal_first_copy_cap"] == 1
+    assert manifest["requested_execution_cap"] == 1

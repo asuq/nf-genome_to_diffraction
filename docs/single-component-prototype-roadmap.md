@@ -314,9 +314,10 @@ zero accepted solutions and no output files. The adapter incorrectly required
 another zero-count phrase and classified the valid terminal no-solution wording
 as `failed_parse`. The focused parser correction's immutable replay now
 completes as `completed_no_hit` and caches both P2 processes on resume. The
-fixed route is qualified; the hard-capped multi-source route is implemented
-locally, while bounded real-candidate execution, controls, review-package, and
-full P2 acceptance work remain open. See the
+fixed route is qualified; the hard-capped multi-source route and its fixed
+login-stage/offline Slurm lifecycle are implemented locally, while bounded
+real-candidate execution, controls, approval validation, and full P2 acceptance
+work remain open. See the
 [M3 first-copy report](m3-first-copy-phaser.md).
 
 ### Work packages
@@ -611,9 +612,10 @@ to prototype feedback:
 6. qualify the known positive and deliberate incorrect-model controls, then
    build the bounded review package.
 
-The software for items 1–4 now passes focused tests and parser-v2 stub/resume
-acceptance. The next evidence must come from the real immutable Marmic inputs;
-additional synthetic polish should not delay it. The uncapped Foldseek run,
+The software for items 1–5 now passes focused tests, parser-v2 stub/resume
+acceptance, and the fake fixed-profile lifecycle. The next evidence must come
+from staging and submitting the real immutable Marmic operation; additional
+synthetic polish should not delay it. The uncapped Foldseek run,
 optional ESM Atlas decision, and provider-aware union remain tracked
 qualification work, not blockers for this bounded run. A PDB model is evidence
 for a supplied catalogue candidate, never a reportable external identity.

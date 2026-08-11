@@ -580,6 +580,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         help="repeatable crystal ID; by default use all supplied preflights",
     )
+    diverse_parser.add_argument(
+        "--maximum-first-copy-jobs",
+        type=int,
+        help="optional additional hard cap applied after configured profile limits",
+    )
 
     mr_parser = subparsers.add_parser(
         "mr", help="execute bounded molecular-replacement hypotheses"
@@ -1161,6 +1166,7 @@ def _run_ranking(args: argparse.Namespace) -> int:
                 pipeline_config=args.config,
                 output_directory=args.outdir,
                 crystal_ids=tuple(args.crystal_id),
+                maximum_first_copy_jobs=args.maximum_first_copy_jobs,
                 progress=not args.no_progress,
             )
         )

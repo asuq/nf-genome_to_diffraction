@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Fixed Slurm job body for the reviewed smoke, P0, P1, P2, and separately gated
-# database-administration profiles.
+# Fixed Slurm job body for the reviewed smoke, P0, P1, P2, P2-diverse, and
+# separately gated database-administration profiles.
 
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -141,6 +141,9 @@ finalise() {
     elif [[ "$PROFILE" == p2 ]]; then
         reports_json='["artifacts/qualification/p2-first-copy-result.json","artifacts/qualification/p2-first-copy-resume-check.json"]'
         retained_json='["artifacts/p0","artifacts/p1","artifacts/p2","artifacts/qualification"]'
+    elif [[ "$PROFILE" == p2-diverse ]]; then
+        reports_json='["artifacts/qualification/p2-diverse-summary.json","artifacts/qualification/p2-diverse-first-copy-resume-check.json"]'
+        retained_json='["artifacts/p0","artifacts/p1","artifacts/p2-diverse","artifacts/qualification"]'
     elif [[ "$PROFILE" == database ]]; then
         reports_json='["artifacts/database/preflight.json"]'
         retained_json='["artifacts/database"]'
@@ -928,6 +931,403 @@ EOF
     printf 'p2_status=cd6_first_copy_completed_and_resume_cached\n'
 }
 
+run_p2_diverse_model_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/nextflow-p2-diverse-model-${label}.log" \
+        run "$RUN/source/prepare_pdb_models.nf" \
+        "$@" \
+        -profile marmic \
+        --coordinate_sources \
+        "$P2_DIVERSE_REGISTRATION_OUT/coordinate_sources.jsonl" \
+        --coordinate_hit_mappings \
+        "$P2_DIVERSE_REGISTRATION_OUT/coordinate_hit_mappings.jsonl" \
+        --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
+        --outdir "$P2_DIVERSE_MODEL_OUT" \
+        --cache_root "$RUN/cache/p2-diverse-model"
+}
+
+run_p2_diverse_first_copy_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/nextflow-p2-diverse-first-copy-${label}.log" \
+        run "$RUN/source/screen_diverse_first_copy.nf" \
+        "$@" \
+        -profile marmic \
+        --predicted_coordinate_sources \
+        "$P1_PREFETCH_OUT/coordinate_sources.jsonl" \
+        --predicted_prepared_models \
+        "$P1_MODEL_OUT/predicted_model_preparation" \
+        --pdb_coordinate_sources \
+        "$P2_DIVERSE_REGISTRATION_OUT/coordinate_sources.jsonl" \
+        --coordinate_hit_mappings \
+        "$P2_DIVERSE_REGISTRATION_OUT/coordinate_hit_mappings.jsonl" \
+        --experimental_prepared_models \
+        "$P2_DIVERSE_MODEL_OUT/experimental_model_preparation" \
+        --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
+        --matthews "$P0_OUT/matthews/matthews_hypotheses.jsonl" \
+        --preflight "$P0_OUT/preflight/mtz_preflight.jsonl" \
+        --config "$PIPELINE_CONFIG" \
+        --crystal_id CD6QS2P2G1_5 \
+        --maximum_first_copy_jobs 25 \
+        --mtz "$P2_MTZ" \
+        --phenix_manifest "$PHENIX_MANIFEST" \
+        --outdir "$P2_DIVERSE_FIRST_COPY_OUT" \
+        --cache_root "$RUN/cache/p2-diverse-first-copy"
+}
+
+run_p2_diverse() {
+    local p2_mtz_candidate login_search_hits scheduled_search_hits
+    local login_search_sha256 scheduled_search_sha256 mapping_count model_count
+    local hypothesis_count predicted_count experimental_count result_count
+    local model_first_trace model_resume_trace first_trace resume_trace
+    local cache_counts model_total model_cached total cached expected_process_count
+    local result_directory result_json result_jsonl command_json execution_status
+    local pretty_execution_status expected_hypothesis actual_hypothesis
+    local pretty_hypothesis
+    local completed_hit_count=0 completed_no_hit_count=0 candidate relative checksum
+    local results_tmp commands_tmp tails_tmp checksums_tmp
+    local -a result_directories=()
+    local qualification="$RUN/artifacts/qualification"
+
+    printf 'phase=p2_diverse_replay_p0 profile=p2-diverse\n'
+    run_p0
+    printf 'phase=p2_diverse_replay_p1 profile=p2-diverse\n'
+    run_p1
+
+    P2_DIVERSE_OUT="$RUN/artifacts/p2-diverse"
+    P2_DIVERSE_SEARCH_OUT="$P2_DIVERSE_OUT/login-pdb-search"
+    P2_DIVERSE_REGISTRATION_OUT="$P2_DIVERSE_OUT/login-pdb-registration"
+    P2_DIVERSE_MODEL_OUT="$P2_DIVERSE_OUT/experimental-model-preparation"
+    P2_DIVERSE_FIRST_COPY_OUT="$P2_DIVERSE_OUT/first-copy"
+    mkdir -p \
+        "$P2_DIVERSE_MODEL_OUT" \
+        "$P2_DIVERSE_FIRST_COPY_OUT" \
+        "$RUN/cache/p2-diverse-model" \
+        "$RUN/cache/p2-diverse-first-copy"
+
+    [[ "$(basename "$(dirname "$CRYSTALS")")" == manifests ]] || {
+        printf 'P2-diverse requires the checksum-frozen P0 bundle layout\n' >&2
+        return 2
+    }
+    p2_mtz_candidate="$(dirname "$(dirname "$CRYSTALS")")/inputs/CD6QS2P2G1_5.mtz"
+    P2_MTZ="$(realpath -e "$p2_mtz_candidate")" || {
+        printf 'fixed CD6 MTZ cannot be resolved for P2-diverse\n' >&2
+        return 2
+    }
+    [[ "$P2_MTZ" == "$p2_mtz_candidate" && -f "$P2_MTZ" && \
+        ! -L "$p2_mtz_candidate" ]] || {
+        printf 'fixed CD6 MTZ is not canonical and regular for P2-diverse\n' >&2
+        return 2
+    }
+    path_within_root "$P0_ALLOWED_ROOT" "$P2_MTZ" || {
+        printf 'fixed CD6 MTZ escaped the qualified input root\n' >&2
+        return 2
+    }
+
+    PHASE=test
+    printf 'phase=p2_diverse_login_stage_verify profile=p2-diverse\n'
+    [[ -f "$RUN/state/p2-diverse-login-stage.sha256" ]] || {
+        printf 'P2-diverse login-stage checksum record is absent\n' >&2
+        return 2
+    }
+    sha256sum -c "$RUN/state/p2-diverse-login-stage.sha256"
+    login_search_hits="$P2_DIVERSE_SEARCH_OUT/structural_hits.jsonl"
+    scheduled_search_hits="$P1_DISCOVERY_OUT/pdb_sequence_search/structural_hits.jsonl"
+    login_search_sha256="$(sha256sum "$login_search_hits" | awk '{print $1}')"
+    scheduled_search_sha256="$(sha256sum "$scheduled_search_hits" | awk '{print $1}')"
+    [[ "$login_search_sha256" == "$scheduled_search_sha256" ]] || {
+        printf 'login and scheduled PDB searches produced different normalised hits\n' >&2
+        return 4
+    }
+    mapping_count="$(awk 'NF { count++ } END { print count + 0 }' \
+        "$P2_DIVERSE_REGISTRATION_OUT/coordinate_hit_mappings.jsonl")"
+    (( mapping_count >= 1 && mapping_count <= 25 )) || {
+        printf 'P2-diverse registration escaped the 1..25 mapping bound\n' >&2
+        return 4
+    }
+
+    sha256sum \
+        "$RUN/state/p1-login-prefetch.sha256" \
+        "$RUN/state/p2-diverse-login-stage.sha256" \
+        "$P0_CONFIG_PATH" \
+        "$PIPELINE_CONFIG" \
+        "$P2_MTZ" \
+        "$P0_OUT/preflight/mtz_preflight.jsonl" \
+        "$P0_OUT/matthews/matthews_hypotheses.jsonl" \
+        "$P1_PREFETCH_OUT/coordinate_sources.jsonl" \
+        "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
+        "$P1_MODEL_OUT/predicted_model_preparation/processed_models.jsonl" \
+        "$P1_MODEL_OUT/predicted_model_preparation/model_preparation_manifest.json" \
+        "$login_search_hits" \
+        "$P2_DIVERSE_REGISTRATION_OUT/coordinate_sources.jsonl" \
+        "$P2_DIVERSE_REGISTRATION_OUT/coordinate_hit_mappings.jsonl" \
+        "$P2_DIVERSE_REGISTRATION_OUT/registration_manifest.json" \
+        "$PHENIX_MANIFEST" \
+        > "$qualification/p2-diverse-input-checksums.sha256"
+
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    cd "$RUN/execution"
+    printf 'phase=p2_diverse_model_first_run profile=p2-diverse\n'
+    run_p2_diverse_model_nextflow first
+    cp -a \
+        "$P2_DIVERSE_MODEL_OUT/pipeline_info" \
+        "$qualification/p2-diverse-model-first-pipeline-info"
+    printf 'phase=p2_diverse_model_resume_run profile=p2-diverse\n'
+    run_p2_diverse_model_nextflow resume -resume
+    cp -a \
+        "$P2_DIVERSE_MODEL_OUT/pipeline_info" \
+        "$qualification/p2-diverse-model-resume-pipeline-info"
+
+    [[ -s "$P2_DIVERSE_MODEL_OUT/experimental_model_preparation/processed_models.jsonl" && \
+       -s "$P2_DIVERSE_MODEL_OUT/experimental_model_preparation/model_preparation_manifest.json" ]] || {
+        printf 'P2-diverse experimental-model outputs were not produced\n' >&2
+        return 4
+    }
+    model_count="$(awk 'NF { count++ } END { print count + 0 }' \
+        "$P2_DIVERSE_MODEL_OUT/experimental_model_preparation/processed_models.jsonl")"
+    [[ "$model_count" -eq "$mapping_count" ]] || {
+        printf 'P2-diverse model/mapping count differs: models=%s mappings=%s\n' \
+            "$model_count" "$mapping_count" >&2
+        return 4
+    }
+
+    model_first_trace="$qualification/p2-diverse-model-first-pipeline-info/trace.tsv"
+    model_resume_trace="$qualification/p2-diverse-model-resume-pipeline-info/trace.tsv"
+    [[ -f "$model_first_trace" && -f "$model_resume_trace" ]] || {
+        printf 'P2-diverse model first/resume traces were not produced\n' >&2
+        return 4
+    }
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$model_resume_trace")"
+    read -r model_total model_cached <<< "$cache_counts"
+    [[ "$model_total" -eq 1 && "$model_cached" -eq 1 ]] || {
+        printf 'P2-diverse model resume was not fully cached: total=%s cached=%s\n' \
+            "$model_total" "$model_cached" >&2
+        return 4
+    }
+    cat > "$qualification/p2-diverse-model-resume-check.json" <<EOF
+{
+  "schema_version": "1.0",
+  "run_id": "$RUN_ID",
+  "profile": "p2-diverse",
+  "process_count": $model_total,
+  "cached_process_count": $model_cached,
+  "all_model_processes_cached": true
+}
+EOF
+
+    printf 'phase=p2_diverse_first_copy_first_run profile=p2-diverse crystal=CD6QS2P2G1_5\n'
+    run_p2_diverse_first_copy_nextflow first
+    cp -a \
+        "$P2_DIVERSE_FIRST_COPY_OUT/pipeline_info" \
+        "$qualification/p2-diverse-first-copy-first-pipeline-info"
+    printf 'phase=p2_diverse_first_copy_resume_run profile=p2-diverse crystal=CD6QS2P2G1_5\n'
+    run_p2_diverse_first_copy_nextflow resume -resume
+    cp -a \
+        "$P2_DIVERSE_FIRST_COPY_OUT/pipeline_info" \
+        "$qualification/p2-diverse-first-copy-resume-pipeline-info"
+
+    hypothesis_count="$(awk 'NF { count++ } END { print count + 0 }' \
+        "$P2_DIVERSE_FIRST_COPY_OUT/diverse_first_copy_funnel/mr_hypotheses.jsonl")"
+    (( hypothesis_count >= 1 && hypothesis_count <= 25 )) || {
+        printf 'P2-diverse hypothesis count escaped the 1..25 bound: %s\n' \
+            "$hypothesis_count" >&2
+        return 4
+    }
+    predicted_count="$(grep -c \
+        '"structural_source_class":"predicted"' \
+        "$P2_DIVERSE_FIRST_COPY_OUT/diverse_first_copy_funnel/mr_hypotheses.jsonl" || true)"
+    experimental_count="$(grep -c \
+        '"structural_source_class":"experimental"' \
+        "$P2_DIVERSE_FIRST_COPY_OUT/diverse_first_copy_funnel/mr_hypotheses.jsonl" || true)"
+    (( predicted_count >= 1 && experimental_count >= 1 )) || {
+        printf 'P2-diverse funnel did not retain both predicted and experimental evidence\n' >&2
+        return 4
+    }
+    mapfile -t result_directories < <(
+        find "$P2_DIVERSE_FIRST_COPY_OUT" \
+            -mindepth 1 \
+            -maxdepth 1 \
+            -type d \
+            -name 'first_copy_phaser_mrhyp_*' \
+            -print | LC_ALL=C sort
+    )
+    result_count="${#result_directories[@]}"
+    [[ "$result_count" -eq "$hypothesis_count" ]] || {
+        printf 'P2-diverse result/hypothesis count differs: results=%s hypotheses=%s\n' \
+            "$result_count" "$hypothesis_count" >&2
+        return 4
+    }
+
+    results_tmp="$qualification/p2-diverse-results.jsonl.tmp.$$"
+    commands_tmp="$qualification/p2-diverse-commands.jsonl.tmp.$$"
+    tails_tmp="$qualification/p2-diverse-log-tails.txt.tmp.$$"
+    : > "$results_tmp"
+    : > "$commands_tmp"
+    : > "$tails_tmp"
+    for result_directory in "${result_directories[@]}"; do
+        result_json="$result_directory/normalised_mr_result.json"
+        result_jsonl="$result_directory/normalised_mr_result.jsonl"
+        command_json="$result_directory/phaser_command.json"
+        [[ -f "$result_json" && ! -L "$result_json" && \
+           -f "$result_jsonl" && ! -L "$result_jsonl" && \
+           -f "$command_json" && ! -L "$command_json" ]] || {
+            printf 'P2-diverse result bundle is incomplete: %s\n' \
+                "$(basename "$result_directory")" >&2
+            return 4
+        }
+        "$GTD" --log-format json --no-progress contract validate \
+            normalised-mr-result "$result_json"
+        "$GTD" --log-format json --no-progress contract validate \
+            normalised-mr-result "$result_jsonl" --format json
+        execution_status="$(sed -n \
+            's/.*"execution_status":"\([^"]*\)".*/\1/p' "$result_jsonl")"
+        pretty_execution_status="$(sed -n \
+            's/.*"execution_status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+            "$result_json")"
+        expected_hypothesis="${result_directory##*/first_copy_phaser_}"
+        actual_hypothesis="$(sed -n \
+            's/.*"hypothesis_id":"\([^"]*\)".*/\1/p' "$result_jsonl")"
+        pretty_hypothesis="$(sed -n \
+            's/.*"hypothesis_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+            "$result_json")"
+        [[ "$execution_status" == "$pretty_execution_status" && \
+           "$actual_hypothesis" == "$expected_hypothesis" && \
+           "$pretty_hypothesis" == "$expected_hypothesis" ]] || {
+            printf 'P2-diverse JSON/JSONL result identity differs: %s\n' \
+                "$expected_hypothesis" >&2
+            return 4
+        }
+        case "$execution_status" in
+            completed_hit)
+                completed_hit_count=$((completed_hit_count + 1))
+                ;;
+            completed_no_hit)
+                completed_no_hit_count=$((completed_no_hit_count + 1))
+                ;;
+            *)
+                printf 'P2-diverse result did not complete scientifically: status=%s\n' \
+                    "$execution_status" >&2
+                return 4
+                ;;
+        esac
+        cat -- "$result_jsonl" >> "$results_tmp"
+        tr -d '\n' < "$command_json" >> "$commands_tmp"
+        printf '\n' >> "$commands_tmp"
+        printf '{"result_directory":"%s","tail_lines":200}\n' \
+            "$(basename "$result_directory")" >> "$tails_tmp"
+        if [[ -f "$result_directory/PHASER.log" && \
+              ! -L "$result_directory/PHASER.log" ]]; then
+            tail -n 200 "$result_directory/PHASER.log" >> "$tails_tmp"
+        fi
+        if [[ -f "$result_directory/phenix.phaser.capture.log" && \
+              ! -L "$result_directory/phenix.phaser.capture.log" ]]; then
+            tail -n 200 "$result_directory/phenix.phaser.capture.log" >> "$tails_tmp"
+        fi
+    done
+    mv -f -- "$results_tmp" "$qualification/p2-diverse-results.jsonl"
+    mv -f -- "$commands_tmp" "$qualification/p2-diverse-commands.jsonl"
+    mv -f -- "$tails_tmp" "$qualification/p2-diverse-log-tails.txt"
+
+    first_trace="$qualification/p2-diverse-first-copy-first-pipeline-info/trace.tsv"
+    resume_trace="$qualification/p2-diverse-first-copy-resume-pipeline-info/trace.tsv"
+    [[ -f "$first_trace" && -f "$resume_trace" ]] || {
+        printf 'P2-diverse first-copy traces were not produced\n' >&2
+        return 4
+    }
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$resume_trace")"
+    read -r total cached <<< "$cache_counts"
+    expected_process_count=$((hypothesis_count + 1))
+    [[ "$total" -eq "$expected_process_count" && "$cached" -eq "$total" ]] || {
+        printf 'P2-diverse resume was not fully cached: expected=%s total=%s cached=%s\n' \
+            "$expected_process_count" "$total" "$cached" >&2
+        return 4
+    }
+    cat > "$qualification/p2-diverse-first-copy-resume-check.json" <<EOF
+{
+  "schema_version": "1.0",
+  "run_id": "$RUN_ID",
+  "profile": "p2-diverse",
+  "crystal_id": "CD6QS2P2G1_5",
+  "process_count": $total,
+  "cached_process_count": $cached,
+  "hypothesis_count": $hypothesis_count,
+  "all_first_copy_processes_cached": true
+}
+EOF
+    cat > "$qualification/p2-diverse-summary.json" <<EOF
+{
+  "schema_version": "1.0",
+  "run_id": "$RUN_ID",
+  "profile": "p2-diverse",
+  "crystal_id": "CD6QS2P2G1_5",
+  "maximum_first_copy_jobs": 25,
+  "registered_mapping_count": $mapping_count,
+  "experimental_model_count": $model_count,
+  "hypothesis_count": $hypothesis_count,
+  "predicted_hypothesis_count": $predicted_count,
+  "experimental_hypothesis_count": $experimental_count,
+  "result_count": $result_count,
+  "completed_hit_count": $completed_hit_count,
+  "completed_no_hit_count": $completed_no_hit_count,
+  "login_pdb_search_sha256": "$login_search_sha256",
+  "scheduled_pdb_search_sha256": "$scheduled_search_sha256",
+  "all_results_completed_scientifically": true,
+  "all_resume_processes_cached": true
+}
+EOF
+
+    checksums_tmp="$qualification/p2-diverse-artifact-sha256.tsv.tmp.$$"
+    printf 'sha256\tpath\n' > "$checksums_tmp"
+    for candidate in \
+        "$qualification/p2-diverse-summary.json" \
+        "$qualification/p2-diverse-results.jsonl" \
+        "$qualification/p2-diverse-commands.jsonl" \
+        "$qualification/p2-diverse-log-tails.txt" \
+        "$qualification/p2-diverse-model-resume-check.json" \
+        "$qualification/p2-diverse-first-copy-resume-check.json" \
+        "$P2_DIVERSE_REGISTRATION_OUT/registration_manifest.json" \
+        "$P2_DIVERSE_MODEL_OUT/experimental_model_preparation/model_preparation_manifest.json" \
+        "$P2_DIVERSE_FIRST_COPY_OUT/diverse_first_copy_funnel/funnel_manifest.json" \
+        "$first_trace" \
+        "$resume_trace"; do
+        checksum="$(sha256sum "$candidate" | awk '{print $1}')"
+        relative="${candidate#"$RUN/"}"
+        printf '%s\t%s\n' "$checksum" "$relative" >> "$checksums_tmp"
+    done
+    mv -f -- "$checksums_tmp" \
+        "$qualification/p2-diverse-artifact-sha256.tsv"
+
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == \
+        "$(<"$RUN/state/commit")" ]] || {
+        printf 'P2-diverse source commit changed during execution\n' >&2
+        return 3
+    }
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || {
+        printf 'P2-diverse execution modified tracked source files\n' >&2
+        return 3
+    }
+    printf 'p2_diverse_status=bounded_multi_source_first_copy_complete_and_resume_cached\n'
+}
+
 run_database() {
     local gtd real_aria2 wrapper_bin database_manifest_sha256
     local source_bundle source_bundle_sha256 actual_source_bundle_sha256
@@ -1125,6 +1525,7 @@ case "$PROFILE" in
     p0) run_p0 ;;
     p1) run_p1 ;;
     p2) run_p2 ;;
+    p2-diverse) run_p2_diverse ;;
     database) run_database ;;
 esac
 

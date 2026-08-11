@@ -183,19 +183,22 @@ pixi run -e hpc nextflow run screen_diverse_first_copy.nf -profile local \
   --preflight /absolute/preflight/mtz_preflight.jsonl \
   --config /absolute/input/config.yaml \
   --crystal_id CRYSTAL_ID \
+  --maximum_first_copy_jobs 25 \
   --mtz /absolute/input/integrated.mtz \
   --phenix_manifest /absolute/software/manifests/phenix.json \
   --outdir /absolute/results/diverse-first-copy \
   --cache_root /absolute/cache/diverse-first-copy
 ```
 
-Selection round-robins deterministically over `(sequence_group_id,
-coordinate_provider, model_variant_type)` buckets so one source class cannot
-consume the entire early queue. It then applies both configuration caps and a
-profile ceiling: smoke 25, pilot 200, extended 1,000 first-copy jobs per
-crystal. The smoke ceiling is a hard safety bound, not a claim that 25 models
-are scientifically sufficient. All ranking features and excluded counts remain
-inspectable in `funnel_manifest.json`.
+Selection reserves exact mappings, then round-robins deterministically over
+`(sequence_group_id, coordinate_provider, model_variant_type)` buckets so one
+source class cannot consume the entire early queue. It applies the
+configuration caps, the profile ceiling (smoke 25, pilot 200, extended 1,000),
+and the optional stricter `maximum_first_copy_jobs` execution cap. The fixed
+`p2-diverse` operation supplies 25 independently of the pilot configuration.
+This is a hard safety bound, not a claim that 25 models are scientifically
+sufficient. All ranking features and excluded counts remain inspectable in
+`funnel_manifest.json`.
 
 The test profile retains work only inside the harness's disposable `/tmp` root
 so its required `-resume` assertion is meaningful; the temporary root is
@@ -230,7 +233,7 @@ parser correction's immutable replay reproduced the raw result, normalised it
 as `completed_no_hit`, completed the outer job successfully, and cached both P2
 processes on resume. The broader P2 gate still requires scheduled
 positive/incorrect-model controls, the top-10/25 review package, and
-approval-file validation. Per-crystal smoke enforcement now passes unit and
-Nextflow stub/resume tests but still needs a real Marmic multi-candidate run. No
-same-component additional-copy search should begin before this evidence is
-reviewed.
+approval-file validation. The fixed `p2-diverse` login-stage/offline Slurm
+operation and bounded evidence package pass their fake lifecycle, but still
+need a real Marmic multi-candidate run. No same-component additional-copy search
+should begin before this evidence is reviewed.

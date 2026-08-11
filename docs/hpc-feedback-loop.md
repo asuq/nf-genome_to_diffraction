@@ -2,7 +2,7 @@
 
 ## Purpose and boundary
 
-The interface has four routine closed profiles plus one separately gated
+The interface has five routine closed profiles plus one separately gated
 database-administration profile. Local Git remains the sole source of truth.
 Marmic fetches an exact pushed commit, creates an isolated read-only checkout,
 runs only the selected reviewed job body, and returns bounded diagnostics. It
@@ -14,6 +14,7 @@ never edits or pushes source.
 | `p0` | Real Phenix verification, bounded anchored database revalidation, all-three-crystal Task 05 run, and cached resume | M0 execution evidence only; downstream identity search remains deferred |
 | `p1` | Frozen catalogue import, login-node exact-AFDB pilot retrieval, catalogue-wide direct PDB search, deterministic 128-query ProstT5/Foldseek slice, Phenix predicted-model preparation, cached resumes, and tracked 8OOX qualification | M1 plus the first M2 vertical slice only; deferred ProstT5 queries remain uninterpreted and no crystal identity or MR is claimed |
 | `p2` | Replay the checksum-frozen P0/P1 evidence, build the exact-predicted bounded funnel, and run one CD6 first-copy Phaser hypothesis plus cached resume | Smallest M3 real-feedback slice only; a hit remains provisional and a no-hit is a completed scientific result |
+| `p2-diverse` | Stage a bounded direct-PDB search and coordinate set on the login node, replay P0/P1, prepare cleaned PDB models offline, and run at most 25 multi-source CD6 first-copy hypotheses plus cached resumes | First real-candidate M2/M3 feedback slice; it does not identify a protein or authorise additional-copy placement |
 | `database` | Login-node source staging, offline capacity preflight, all-resource preparation, and anchored full verification | Shared database administration only; no pipeline or protein-identification claim |
 
 The reviewed local application is the routine approval boundary. Persistent
@@ -24,8 +25,8 @@ file-transfer tools, scheduler commands, and `clean` must not receive persistent
 automatic approval.
 
 The routine drivers use partition `slurm`, 2 CPUs, and 8 GB memory. Foundation
-smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin, while P1 and
-P2 use
+smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin, while P1,
+P2, and P2-diverse use
 the Marmic site's 1,000-hour maximum margin because NFS-cold executable and
 database access are not predictably bounded. The direct PDB
 `process_search` child requests 16 CPUs, 64 GB, and 24 hours. The distinct
@@ -38,8 +39,8 @@ the node's full 4 TB is not requested because it would not accelerate serial
 network, checksum, or copy-back I/O. Only one managed job may be active across
 all profiles. Queue
 waiting stops after 30 minutes. Local execution waiting uses 45-minute,
-24-hour, 1,000-hour, 1,000-hour, and 48-hour margins for smoke, P0, P1, P2,
-and database jobs; none of these
+24-hour, 1,000-hour, 1,000-hour, 1,000-hour, and 48-hour margins for smoke, P0,
+P1, P2, P2-diverse, and database jobs; none of these
 limits silently cancels a job. The caller must inspect status and cancel the
 recorded job when appropriate.
 
@@ -102,12 +103,13 @@ RUN_ROOT/
 
 Each staged source tree is detached at one full commit SHA, includes the pinned
 `nf-helper` submodule, and is made read-only. A per-run locked Pixi environment
-is attached outside that source tree. For P0, P1, P2, and database profiles, staging
-materialises that environment on the network-enabled login node; compute jobs
-only verify and use it and therefore do not contact package channels.
+is attached outside that source tree. For P0, P1, P2, P2-diverse, and database
+profiles, staging materialises that environment on the network-enabled login
+node; compute jobs only verify and use it and therefore do not contact package
+channels.
 
 The foundation smoke copies source to `SLURM_TMPDIR` or `/dev/shm`. P0, P1,
-and P2 keep the
+P2, and P2-diverse keep the
 source, Pixi environment, Nextflow cache/work directory, logs, and results on
 shared durable storage because child Slurm nodes cannot see the driver's
 `/dev/shm`. Only driver temporaries use memory-backed local storage; `nf-helper` stages each
@@ -582,6 +584,57 @@ its replay completed successfully as `completed_no_hit`, with zero
 accepted/packed solutions, no output solution files, and both P2 processes
 cached on resume. This qualifies the fixed route, not the full P2 gate or a
 protein identification.
+
+## P2-diverse bounded multi-source profile
+
+`p2-diverse` is a separate fixed operation so the qualified one-model `p2`
+route remains unchanged. It accepts no path, crystal, accession, hit ID,
+threshold, model variant, or shell fragment. Staging on the network-capable
+login node:
+
+1. performs the same immutable P1 catalogue import and exact-AFDB prefetch;
+2. runs the local PDB sequence search with two threads, at most 25 hits per
+   query, E-value at most `1e-5`, query coverage at least `0.5`, and query
+   length at most 10,000 residues;
+3. registers at most three hits per sequence group and 25 mappings overall,
+   downloading or reusing official PDB mmCIF objects through the verified
+   shared coordinate cache; and
+4. requires 1–25 mappings, records every fixed output checksum atomically, and
+   binds the checksum-list digest into the run manifest.
+
+The scheduled phase is offline. It replays P0/P1, verifies the login-stage
+checksum list, and requires the normalised login-node PDB hit file to have the
+same SHA-256 as the scheduled P1 search. It then runs
+`prepare_pdb_models.nf` and `screen_diverse_first_copy.nf`, each once normally
+and once with `-resume`. The funnel receives an explicit additional cap of 25
+jobs even though the underlying pilot configuration permits more. It must
+retain at least one exact predicted and one mapped experimental hypothesis,
+must publish no more than 25 hypotheses, and must produce one validated
+Phaser result for each. Only `completed_hit` and `completed_no_hit` are accepted
+as scientific completions; the strict provisional hit gate remains `LLG > 100`
+and `TFZ > 10`.
+
+Full model/result directories and native Phaser logs remain in the retained
+remote run. Collection is bounded to login-stage manifests/mappings, model and
+funnel manifests, hypotheses, first/resume traces, normalised result and
+command JSONL, 200-line log tails, summary counts, and a SHA-256 inventory.
+Neither the wrapper nor the adapter imposes a Phaser deadline.
+
+```bash
+nf-gtd-hpc-test readiness p2-diverse
+nf-gtd-hpc-test stage p2-diverse --revision HEAD
+nf-gtd-hpc-test submit p2-diverse --run-id RUN_ID
+nf-gtd-hpc-test status --run-id RUN_ID
+nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test collect --run-id RUN_ID
+```
+
+The fake Git/Slurm/Nextflow lifecycle covers login-node registration failure,
+offline checksum hand-off, the 25-job command cap, predicted/experimental
+retention, result cardinality, scientific status validation, both cached
+resumes, and bounded collection. This software route has not yet run against
+the real Marmic direct-PDB candidates; do not treat local acceptance as M2/M3
+scientific qualification.
 
 ## Database administration boundary
 

@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -188,8 +188,10 @@ readiness_p0() {
     local profile="$1"
     local pixi_bin="" pixi_version="" pixi_status=unavailable ready=false
     validate_profile "$profile"
-    [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 ]] || \
-        fail wrapper_failure "readiness is available only for p0, p1, and p2"
+    [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
+       "$profile" == p2-diverse ]] || \
+        fail wrapper_failure \
+            "readiness is available only for p0, p1, p2, and p2-diverse"
 
     if [[ -f "$PIXI_PATH_FILE" ]]; then
         IFS= read -r pixi_bin < "$PIXI_PATH_FILE"
@@ -755,6 +757,9 @@ stage_run_common() {
     local database_source_bundle_sha256="" database_source_bundle_json="null"
     local p1_prefetch_sha256="" p1_prefetch_json="null"
     local p1_catalogue p1_prefetch p1_prefetch_checksums p1_prefetch_tmp
+    local p2_diverse_sha256="" p2_diverse_json="null"
+    local p2_diverse_search p2_diverse_registration p2_diverse_checksums
+    local p2_diverse_tmp mapping_count source_count
     local candidate coordinate_count hit_count
     local -a p0_values=()
 
@@ -850,7 +855,8 @@ stage_run_common() {
     ln -s "$run/environment/.pixi" "$run/source/.pixi" || \
         fail filesystem_failure "cannot attach the per-run Pixi environment"
 
-    if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 ]]; then
+    if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
+          "$profile" == p2-diverse ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
             atomic_text "$run/state/phase" "stage_failed"
@@ -884,6 +890,7 @@ stage_run_common() {
     fi
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
+          "$profile" == p2-diverse || \
           "$profile" == database ]]; then
         if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
             --manifest-path "$run/source/pixi.toml" \
@@ -902,7 +909,8 @@ stage_run_common() {
             append_event "$run" "stage_${profile}_cli_absent"
             fail environment_failure "locked HPC CLI is unavailable"
         }
-        if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 ]]; then
+        if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
+              "$profile" == p2-diverse ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
             java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
             mmseqs="$run/source/.pixi/envs/hpc/bin/mmseqs"
@@ -944,7 +952,8 @@ stage_run_common() {
         append_event "$run" "stage_database_sources_ready"
     fi
 
-    if [[ "$profile" == p1 || "$profile" == p2 ]]; then
+    if [[ "$profile" == p1 || "$profile" == p2 || \
+          "$profile" == p2-diverse ]]; then
         mapfile -t p0_values < "$P0_CONFIG"
         [[ "${#p0_values[@]}" -eq 7 ]] || \
             fail wrapper_failure "P0 configuration changed during P1 staging"
@@ -1023,6 +1032,90 @@ stage_run_common() {
         append_event "$run" "stage_p1_afdb_prefetch_ready"
     fi
 
+    if [[ "$profile" == p2-diverse ]]; then
+        p2_diverse_search="$run/artifacts/p2-diverse/login-pdb-search"
+        p2_diverse_registration="$run/artifacts/p2-diverse/login-pdb-registration"
+        mkdir -p "$run/artifacts/p2-diverse"
+        printf 'phase=p2_diverse_login_pdb_search profile=%s\n' "$profile" \
+            > "$run/logs/p2-diverse-login-stage.log"
+        if ! "$gtd" --log-format json --no-progress \
+            structure-search pdb-sequence \
+            --sequence-groups "$p1_catalogue/sequence_groups.jsonl" \
+            --database-manifest "${p0_values[5]}" \
+            --outdir "$p2_diverse_search" \
+            --threads 2 \
+            --maximum-hits-per-query 25 \
+            --maximum-evalue 1e-5 \
+            --minimum-query-coverage 0.5 \
+            --maximum-query-length 10000 \
+            >> "$run/logs/p2-diverse-login-stage.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "software_failure"
+            append_event "$run" "stage_p2_diverse_pdb_search_failed"
+            fail software_failure "fixed PDB sequence search failed on the login node"
+        fi
+        printf 'phase=p2_diverse_login_coordinate_registration profile=%s\n' \
+            "$profile" >> "$run/logs/p2-diverse-login-stage.log"
+        if ! "$gtd" --log-format json --no-progress \
+            structure-search register-pdb-coordinates \
+            --structural-hits "$p2_diverse_search/structural_hits.jsonl" \
+            --sequence-groups "$p1_catalogue/sequence_groups.jsonl" \
+            --database-manifest "${p0_values[5]}" \
+            --maximum-hits-per-sequence-group 3 \
+            --maximum-mappings 25 \
+            --outdir "$p2_diverse_registration" \
+            >> "$run/logs/p2-diverse-login-stage.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_p2_diverse_coordinate_registration_failed"
+            fail transfer_failure \
+                "fixed PDB coordinate registration failed on the login node"
+        fi
+        for candidate in \
+            "$p2_diverse_search/search_manifest.json" \
+            "$p2_diverse_search/search_results.jsonl" \
+            "$p2_diverse_search/structural_hits.jsonl" \
+            "$p2_diverse_registration/coordinate_sources.jsonl" \
+            "$p2_diverse_registration/coordinate_hit_mappings.jsonl" \
+            "$p2_diverse_registration/registration_manifest.json"; do
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || {
+                atomic_text "$run/state/phase" "stage_failed"
+                atomic_text "$run/state/failure-class" "filesystem_failure"
+                append_event "$run" "stage_p2_diverse_output_invalid"
+                fail filesystem_failure \
+                    "P2-diverse login-stage output is missing or unsafe"
+            }
+        done
+        mapping_count="$(awk 'NF { count++ } END { print count + 0 }' \
+            "$p2_diverse_registration/coordinate_hit_mappings.jsonl")"
+        source_count="$(awk 'NF { count++ } END { print count + 0 }' \
+            "$p2_diverse_registration/coordinate_sources.jsonl")"
+        (( mapping_count >= 1 && mapping_count <= 25 && \
+           source_count >= 1 && source_count <= mapping_count )) || {
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "test_failure"
+            append_event "$run" "stage_p2_diverse_cardinality_failed"
+            fail test_failure \
+                "P2-diverse registration must contain 1..25 bounded mappings"
+        }
+        p2_diverse_checksums="$run/state/p2-diverse-login-stage.sha256"
+        p2_diverse_tmp="${p2_diverse_checksums}.tmp.$$"
+        sha256sum \
+            "$p2_diverse_search/search_manifest.json" \
+            "$p2_diverse_search/search_results.jsonl" \
+            "$p2_diverse_search/structural_hits.jsonl" \
+            "$p2_diverse_registration/coordinate_sources.jsonl" \
+            "$p2_diverse_registration/coordinate_hit_mappings.jsonl" \
+            "$p2_diverse_registration/registration_manifest.json" \
+            > "$p2_diverse_tmp"
+        mv -f -- "$p2_diverse_tmp" "$p2_diverse_checksums"
+        p2_diverse_sha256="$(sha256sum "$p2_diverse_checksums" | awk '{print $1}')"
+        [[ "$p2_diverse_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "P2-diverse login-stage checksum failed"
+        p2_diverse_json="\"$p2_diverse_sha256\""
+        append_event "$run" "stage_p2_diverse_login_ready"
+    fi
+
     manifest_tmp="$run/manifest.json.tmp.$$"
     cat > "$manifest_tmp" <<EOF
 {
@@ -1041,6 +1134,7 @@ stage_run_common() {
   "database_config_sha256": $database_config_json,
   "database_source_bundle_sha256": $database_source_bundle_json,
   "p1_login_prefetch_sha256": $p1_prefetch_json,
+  "p2_diverse_login_stage_sha256": $p2_diverse_json,
   "staged_at": "$(now_utc)",
   "source_snapshot_status": "immutable"
 }
@@ -1092,7 +1186,8 @@ submit_run() {
     cpus=2
     memory=8G
     [[ "$profile" != p0 ]] || walltime=24:00:00
-    if [[ "$profile" == p1 || "$profile" == p2 ]]; then
+    if [[ "$profile" == p1 || "$profile" == p2 || \
+          "$profile" == p2-diverse ]]; then
         walltime=41-16:00:00
     fi
 
@@ -1552,18 +1647,21 @@ collect_run() {
         state/job-result.json \
         state/database-failed-staging-archive.json \
         state/p1-login-prefetch.sha256 \
+        state/p2-diverse-login-stage.sha256 \
         state/failure-class \
         state/exit-code \
         logs/git-fetch.log \
         logs/git-clone.log \
         logs/pixi-install.log \
         logs/p1-login-prefetch.log \
+        logs/p2-diverse-login-stage.log \
         logs/database-source-stage.log \
         logs/sbatch.err \
         logs/smoke.log \
         logs/p0.log \
         logs/p1.log \
         logs/p2.log \
+        logs/p2-diverse.log \
         logs/database.log \
         logs/nextflow-first.log \
         logs/nextflow-resume.log \
@@ -1573,6 +1671,10 @@ collect_run() {
         logs/nextflow-p1-model-resume.log \
         logs/nextflow-p2-first-copy-first.log \
         logs/nextflow-p2-first-copy-resume.log \
+        logs/nextflow-p2-diverse-model-first.log \
+        logs/nextflow-p2-diverse-model-resume.log \
+        logs/nextflow-p2-diverse-first-copy-first.log \
+        logs/nextflow-p2-diverse-first-copy-resume.log \
         artifacts/qualification/input-checksums.sha256 \
         artifacts/qualification/phenix-verification.log \
         artifacts/qualification/database_manifest.p0-revalidated.json \
@@ -1613,6 +1715,30 @@ collect_run() {
         artifacts/qualification/p2-first-copy-resume-pipeline-info/timeline.html \
         artifacts/qualification/p2-first-copy-resume-pipeline-info/trace.tsv \
         artifacts/qualification/p2-first-copy-resume-pipeline-info/dag.html \
+        artifacts/qualification/p2-diverse-input-checksums.sha256 \
+        artifacts/qualification/p2-diverse-summary.json \
+        artifacts/qualification/p2-diverse-results.jsonl \
+        artifacts/qualification/p2-diverse-commands.jsonl \
+        artifacts/qualification/p2-diverse-log-tails.txt \
+        artifacts/qualification/p2-diverse-artifact-sha256.tsv \
+        artifacts/qualification/p2-diverse-model-resume-check.json \
+        artifacts/qualification/p2-diverse-first-copy-resume-check.json \
+        artifacts/qualification/p2-diverse-model-first-pipeline-info/report.html \
+        artifacts/qualification/p2-diverse-model-first-pipeline-info/timeline.html \
+        artifacts/qualification/p2-diverse-model-first-pipeline-info/trace.tsv \
+        artifacts/qualification/p2-diverse-model-first-pipeline-info/dag.html \
+        artifacts/qualification/p2-diverse-model-resume-pipeline-info/report.html \
+        artifacts/qualification/p2-diverse-model-resume-pipeline-info/timeline.html \
+        artifacts/qualification/p2-diverse-model-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/p2-diverse-model-resume-pipeline-info/dag.html \
+        artifacts/qualification/p2-diverse-first-copy-first-pipeline-info/report.html \
+        artifacts/qualification/p2-diverse-first-copy-first-pipeline-info/timeline.html \
+        artifacts/qualification/p2-diverse-first-copy-first-pipeline-info/trace.tsv \
+        artifacts/qualification/p2-diverse-first-copy-first-pipeline-info/dag.html \
+        artifacts/qualification/p2-diverse-first-copy-resume-pipeline-info/report.html \
+        artifacts/qualification/p2-diverse-first-copy-resume-pipeline-info/timeline.html \
+        artifacts/qualification/p2-diverse-first-copy-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/p2-diverse-first-copy-resume-pipeline-info/dag.html \
         artifacts/qualification/first-pipeline-info/report.html \
         artifacts/qualification/first-pipeline-info/timeline.html \
         artifacts/qualification/first-pipeline-info/trace.tsv \
@@ -1650,6 +1776,15 @@ collect_run() {
         artifacts/p1/afdb-login-prefetch/raw/http.log \
         artifacts/p1/model-preparation/predicted_model_preparation/model_preparation_manifest.json \
         artifacts/p1/model-preparation/predicted_model_preparation/processed_models.jsonl \
+        artifacts/p2-diverse/login-pdb-search/search_manifest.json \
+        artifacts/p2-diverse/login-pdb-registration/registration_manifest.json \
+        artifacts/p2-diverse/login-pdb-registration/coordinate_sources.jsonl \
+        artifacts/p2-diverse/login-pdb-registration/coordinate_hit_mappings.jsonl \
+        artifacts/p2-diverse/experimental-model-preparation/experimental_model_preparation/model_preparation_manifest.json \
+        artifacts/p2-diverse/experimental-model-preparation/experimental_model_preparation/processed_models.jsonl \
+        artifacts/p2-diverse/first-copy/diverse_first_copy_funnel/funnel_manifest.json \
+        artifacts/p2-diverse/first-copy/diverse_first_copy_funnel/mr_hypotheses.jsonl \
+        artifacts/p2-diverse/first-copy/diverse_first_copy_funnel/mr_hypotheses.tsv \
         artifacts/p2/first-copy/exact_predicted_funnel/funnel_manifest.json \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.jsonl \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.tsv; do
