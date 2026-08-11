@@ -61,6 +61,9 @@ def test_runnable_control_construct_mapping_matches_panel(pdb_id: str) -> None:
 
     assert control.target_protein_id == entry.catalogue_targets[0].protein_id
     assert control.target_construct == entry.catalogue_targets[0].construct_mapping
+    assert control.score_gate.llg_greater_than == 50
+    assert control.score_gate.tfz_greater_than == 5
+    assert control.score_gate.combination == "or"
 
 
 def test_construct_mapping_rejects_off_by_one_span() -> None:

@@ -141,9 +141,11 @@ elapsed time alone: inspect status and logs first.
 
 A successful command sequence proves reproducible execution, not a biological
 identification. Inspect `normalised_mr_result.json`: `completed_no_hit` is a
-valid scientific outcome, while a provisional hit requires strict `LLG > 100`
-and `TFZ > 10`, final packing, and the requested placed-copy count. Broader
-review, maps, refinement, and expert approval remain required.
+valid scientific outcome, while a provisional hit requires strict `LLG > 50`
+or `TFZ > 5`, final packing, and the requested placed-copy count. Equality does
+not pass either comparison. Broader review, maps, refinement, and expert
+approval remain required because the disjunctive screening rule is deliberately
+sensitive and may retain false positives.
 
 ## Submit the workflow
 

@@ -32,6 +32,7 @@ from genome_to_diffraction.databases.network import (
     download_public_resource,
 )
 from genome_to_diffraction.ids import canonical_sequence
+from genome_to_diffraction.mr.policy import SCORE_GATE_LLG, SCORE_GATE_TFZ
 from genome_to_diffraction.schemas.base import (
     ContractModel,
     NonEmptyString,
@@ -171,6 +172,7 @@ class ScoreGateSpec(ContractModel):
 
     llg_greater_than: float
     tfz_greater_than: float
+    combination: Literal["or"]
 
 
 class PublicControlSpec(ContractModel):
@@ -220,10 +222,10 @@ class PublicControlSpec(ContractModel):
         model_roles = {model.source_role for model in self.mr_models}
         if model_roles != {"exact_mr_coordinates", "homolog_mr_coordinates"}:
             raise ValueError("both exact and homolog MR models are required")
-        if self.score_gate.llg_greater_than != 100:
-            raise ValueError("the prototype control requires strict LLG > 100")
-        if self.score_gate.tfz_greater_than != 10:
-            raise ValueError("the prototype control requires strict TFZ > 10")
+        if self.score_gate.llg_greater_than != SCORE_GATE_LLG:
+            raise ValueError("the prototype control requires strict LLG > 50")
+        if self.score_gate.tfz_greater_than != SCORE_GATE_TFZ:
+            raise ValueError("the prototype control requires strict TFZ > 5")
         exact_models = [
             model
             for model in self.mr_models

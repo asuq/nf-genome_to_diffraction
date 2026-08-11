@@ -89,11 +89,14 @@ def _result(*, hit: bool = True, raw_log: str = "PHASER.log") -> NormalisedMrRes
         execution_status=(
             ExecutionStatus.COMPLETED_HIT if hit else ExecutionStatus.COMPLETED_NO_HIT
         ),
-        llg=111.0 if hit else 99.0,
-        tfz=11.0,
+        llg=111.0 if hit else 49.0,
+        tfz=11.0 if hit else 5.0,
         placed_copy_count=1 if hit else 0,
         packing_summary={
             "score_gate_passed": hit,
+            "score_gate_llg_strictly_greater_than": 50.0,
+            "score_gate_tfz_strictly_greater_than": 5.0,
+            "score_gate_operator": "or",
             "top_solution_packed": hit,
         },
         solution_coordinate_path="PHASER.1.pdb" if hit else None,
@@ -107,7 +110,7 @@ def _result(*, hit: bool = True, raw_log: str = "PHASER.log") -> NormalisedMrRes
             if hit
             else "does_not_pass_strict_provisional_score_gate"
         ),
-        rejection_reason=None if hit else "strict_llg_tfz_gate_not_met",
+        rejection_reason=None if hit else "strict_llg_or_tfz_gate_not_met",
     )
 
 
@@ -226,6 +229,13 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
     assert "not a calibrated probability" in output.review_html.read_text(
         encoding="utf-8"
     )
+    manifest = json.loads(output.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["score_gate"] == {
+        "policy_id": "strict_llg_gt_50_or_tfz_gt_5",
+        "llg_strictly_greater_than": 50.0,
+        "tfz_strictly_greater_than": 5.0,
+        "operator": "or",
+    }
     template = load_contract(
         output.approval_template_tsv,
         "review-decisions",
@@ -329,6 +339,40 @@ def test_review_rejects_explicit_score_gate_disagreement(tmp_path: Path) -> None
 
     with pytest.raises(MrSeedReviewError, match="stored and recomputed"):
         build_mr_seed_review(request)
+
+
+def test_review_reclassifies_legacy_gate_from_preserved_raw_scores(
+    tmp_path: Path,
+) -> None:
+    request = _request(tmp_path)
+    result = _result().model_copy(
+        update={
+            "execution_status": ExecutionStatus.COMPLETED_NO_HIT,
+            "llg": 19.726,
+            "tfz": 5.5,
+            "packing_summary": {
+                "score_gate_passed": False,
+                "score_gate_llg_strictly_greater_than": 100.0,
+                "score_gate_tfz_strictly_greater_than": 10.0,
+                "top_solution_packed": True,
+            },
+            "preliminary_credibility_class": (
+                "does_not_pass_strict_provisional_score_gate"
+            ),
+            "rejection_reason": "strict_llg_tfz_gate_not_met",
+        }
+    )
+    result_text = f"{canonical_json_text(result)}\n"
+    request.results_jsonl.write_text(result_text, encoding="utf-8")
+    bundle = request.result_root / f"first_copy_phaser_{HYPOTHESIS_ID}"
+    (bundle / "normalised_mr_result.jsonl").write_text(result_text, encoding="utf-8")
+
+    package = build_mr_seed_review(request)
+    rows = list(
+        csv.DictReader(package.review_tsv.open(encoding="utf-8"), delimiter="\t")
+    )
+    assert rows[0]["score_gate_passed"] == "True"
+    assert rows[0]["automatic_eligibility"] == "True"
 
 
 def test_rejects_result_bundle_path_traversal(tmp_path: Path) -> None:

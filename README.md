@@ -181,7 +181,9 @@ pixi run prepare-public-panel
 Public coordinate and structure-factor files, derived MTZs, logs, and preparation
 records are written below ignored `.untracked/public-controls/`; no public binary
 data are committed. Real Phenix runs and the provisional strict Phaser gates
-(`LLG > 100` and `TFZ > 10`) remain separate qualification steps.
+(`LLG > 50` or `TFZ > 5`) remain separate qualification steps. Equality does
+not pass either comparison; packing, placed-copy agreement, maps, and human
+review remain independent evidence.
 
 ## Trusted catalogue import
 

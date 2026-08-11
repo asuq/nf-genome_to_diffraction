@@ -33,6 +33,15 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.ids import canonical_digest, content_id
+from genome_to_diffraction.mr.policy import (
+    LEGACY_SCORE_GATE_LLG,
+    LEGACY_SCORE_GATE_TFZ,
+    SCORE_GATE_ID,
+    SCORE_GATE_LLG,
+    SCORE_GATE_OPERATOR,
+    SCORE_GATE_TFZ,
+    passes_provisional_score_gate,
+)
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import PipelineConfig
 from genome_to_diffraction.schemas.results import (
@@ -47,7 +56,7 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.mr_seed")
-_ADAPTER_VERSION = "mr-seed-review-v1"
+_ADAPTER_VERSION = "mr-seed-review-v2"
 _HYPOTHESIS_ID = re.compile(r"^mrhyp_[a-f0-9]{64}$")
 _SOLUTION_ID = re.compile(r"^sol_[a-f0-9]{64}$")
 _TSV_COLUMNS = (
@@ -530,15 +539,29 @@ def _boolean_feature(result: NormalisedMrResult, name: str) -> bool:
 
 
 def _score_gate(result: NormalisedMrResult) -> bool:
-    raw_gate = (
-        result.llg is not None
-        and result.tfz is not None
-        and (result.llg > 100.0 and result.tfz > 10.0)
-    )
+    raw_gate = passes_provisional_score_gate(llg=result.llg, tfz=result.tfz)
     recorded = result.packing_summary.get("score_gate_passed")
     if recorded is None:
         return raw_gate
-    if not isinstance(recorded, bool) or recorded != raw_gate:
+    if not isinstance(recorded, bool):
+        raise MrSeedReviewError(
+            f"stored score gate is not Boolean: {result.hypothesis_id}"
+        )
+    recorded_llg = result.packing_summary.get("score_gate_llg_strictly_greater_than")
+    recorded_tfz = result.packing_summary.get("score_gate_tfz_strictly_greater_than")
+    recorded_operator = result.packing_summary.get("score_gate_operator")
+    metadata = (recorded_llg, recorded_tfz, recorded_operator)
+    if metadata == (LEGACY_SCORE_GATE_LLG, LEGACY_SCORE_GATE_TFZ, None):
+        return raw_gate
+    if metadata != (None, None, None) and metadata != (
+        SCORE_GATE_LLG,
+        SCORE_GATE_TFZ,
+        SCORE_GATE_OPERATOR,
+    ):
+        raise MrSeedReviewError(
+            f"unsupported stored score-gate policy: {result.hypothesis_id}"
+        )
+    if recorded != raw_gate:
         raise MrSeedReviewError(
             f"stored and recomputed strict score gates differ: {result.hypothesis_id}"
         )
@@ -547,7 +570,8 @@ def _score_gate(result: NormalisedMrResult) -> bool:
 
 def _automatic_eligibility(candidate: _Candidate) -> bool:
     return (
-        candidate.result.execution_status is ExecutionStatus.COMPLETED_HIT
+        candidate.result.execution_status
+        in {ExecutionStatus.COMPLETED_HIT, ExecutionStatus.COMPLETED_NO_HIT}
         and _score_gate(candidate.result)
         and _boolean_feature(candidate.result, "top_solution_packed")
         and candidate.result.placed_copy_count
@@ -567,6 +591,7 @@ def _candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
         ExecutionStatus.COMPLETED_NO_HIT: 1,
     }.get(candidate.result.execution_status, 2)
     return (
+        0 if _automatic_eligibility(candidate) else 1,
         status_rank,
         0 if _score_gate(candidate.result) else 1,
         0 if _boolean_feature(candidate.result, "top_solution_packed") else 1,
@@ -807,8 +832,8 @@ code{overflow-wrap:anywhere}.note{max-width:75rem}
 </head><body>
 <h1>First-copy MR seed checkpoint</h1>
 <p><strong>Package:</strong> <code>PACKAGE_ID</code></p>
-<p class="note">Rows use explicit lexicographic evidence: execution class,
-the strict provisional LLG &gt; 100 and TFZ &gt; 10 gate, packing,
+<p class="note">Rows use explicit lexicographic evidence: automatic eligibility,
+execution class, the strict provisional LLG &gt; 50 or TFZ &gt; 5 gate, packing,
 placed-copy agreement, raw LLG, raw TFZ, then immutable funnel order.
 This is not a calibrated probability. Human map and packing inspection remains
 required.</p>
@@ -915,6 +940,7 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
         "primary_shortlist_size": config.review.primary_shortlist_size,
         "extended_shortlist_size": config.review.extended_shortlist_size,
         "max_full_artifact_finalists": config.retention.max_full_artifact_finalists,
+        "score_gate_policy": SCORE_GATE_ID,
     }
     package_id = content_id("reviewpkg_", package_identity)
     review_tsv = output / "mr_seed_candidates.tsv"
@@ -945,8 +971,9 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
             "created_at": created_at,
             "checkpoint": "mr_seed",
             "ordering_policy": [
+                "automatic_eligibility",
                 "execution_status",
-                "strict_llg_gt_100_and_tfz_gt_10",
+                SCORE_GATE_ID,
                 "top_solution_packed",
                 "placed_copy_count_matches",
                 "llg_descending",
@@ -954,6 +981,12 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
                 "immutable_funnel_order",
             ],
             "ranking_is_calibrated_probability": False,
+            "score_gate": {
+                "policy_id": SCORE_GATE_ID,
+                "llg_strictly_greater_than": SCORE_GATE_LLG,
+                "tfz_strictly_greater_than": SCORE_GATE_TFZ,
+                "operator": SCORE_GATE_OPERATOR,
+            },
             "candidate_count": len(rows),
             "sequence_group_count": len(group_ranks),
             "primary_shortlist_size": config.review.primary_shortlist_size,

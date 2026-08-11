@@ -82,8 +82,9 @@ mr_models:
     relationship_to_target: PmoF1 PCuAC domain from Methylocystis sp.; approximately 54% ungapped identity over the shorter domain
     leakage_class: homolog_challenge
 score_gate:
-  llg_greater_than: 100
-  tfz_greater_than: 10
+  llg_greater_than: 50
+  tfz_greater_than: 5
+  combination: "or"
 database_exclusions_for_homolog_challenge:
   - 6P1F
   - 6P1G

@@ -83,8 +83,9 @@ mr_models:
     relationship_to_target: approximately 57% global sequence identity; related archaeal glutamine synthetase
     leakage_class: homolog_challenge
 score_gate:
-  llg_greater_than: 100
-  tfz_greater_than: 10
+  llg_greater_than: 50
+  tfz_greater_than: 5
+  combination: "or"
 database_exclusions_for_homolog_challenge:
   - 8OOX
   - 8OOW

@@ -10,8 +10,8 @@ sequence identity. Phenix-processed model B values retain predicted coordinate
 uncertainty; cleaned PDB models retain their source-coordinate B values.
 
 Tool failure, malformed output, scientific no-hit, and a preliminary hit remain
-distinct. The user-defined provisional score gate is strict: LLG > 100 and
-TFZ > 10. Final packing and placed-copy checks are independent requirements and
+distinct. The user-defined provisional score gate is strict: LLG > 50 or
+TFZ > 5. Final packing and placed-copy checks are independent requirements and
 all raw metrics and advisories are preserved.
 """
 
@@ -33,6 +33,12 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.mr.policy import (
+    SCORE_GATE_LLG,
+    SCORE_GATE_OPERATOR,
+    SCORE_GATE_TFZ,
+    passes_provisional_score_gate,
+)
 from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
     validate_manifest_environment,
@@ -55,10 +61,8 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
-_ADAPTER_VERSION = "phenix-first-copy-mr-v2"
+_ADAPTER_VERSION = "phenix-first-copy-mr-v3"
 _ROOT = "PHASER"
-_LLG_GATE = 100.0
-_TFZ_GATE = 10.0
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
 _REFINED_TFZ = re.compile(
@@ -554,13 +558,13 @@ def _normalised_success(
     llg, tfz, placed_count, pak = _read_solution_metrics(parsed, coordinate)
     if llg is None or tfz is None or placed_count < 1:
         raise PhaserParseError("Phaser solution files lack final placement metrics")
-    score_gate = llg > _LLG_GATE and tfz > _TFZ_GATE
+    score_gate = passes_provisional_score_gate(llg=llg, tfz=tfz)
     top_packed = parsed.packed_solution_count > 0
     placed_expected = placed_count == resolved.hypothesis.copy_number_to_search
     credible = score_gate and top_packed and placed_expected
     rejection_reasons: list[str] = []
     if not score_gate:
-        rejection_reasons.append("strict_llg_tfz_gate_not_met")
+        rejection_reasons.append("strict_llg_or_tfz_gate_not_met")
     if not top_packed:
         rejection_reasons.append("final_packing_not_accepted")
     if not placed_expected:
@@ -586,8 +590,9 @@ def _normalised_success(
             "packed_solution_count": parsed.packed_solution_count,
             "top_solution_packed": top_packed,
             "top_solution_pak": pak,
-            "score_gate_llg_strictly_greater_than": _LLG_GATE,
-            "score_gate_tfz_strictly_greater_than": _TFZ_GATE,
+            "score_gate_llg_strictly_greater_than": SCORE_GATE_LLG,
+            "score_gate_tfz_strictly_greater_than": SCORE_GATE_TFZ,
+            "score_gate_operator": SCORE_GATE_OPERATOR,
             "score_gate_passed": score_gate,
         },
         solution_coordinate_path=coordinate.name,

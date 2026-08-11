@@ -116,16 +116,17 @@ when partial solutions exist.
 The normalised result preserves LLG, LLGI, TFZ, accepted/packed counts, placed
 copy count, output coordinate and MTZ checksums, warnings, raw-log pointer, and
 the preliminary credibility class. A solution passes the user-defined
-provisional score gate only when both inequalities are strict:
+provisional score gate when either strict inequality passes:
 
 ```text
-top LLG > 100 and top TFZ > 10
+top LLG > 50 or top TFZ > 5
 ```
 
-Equality does not pass. Passing the score gate is still insufficient when the
-final solution did not pack or the placed-copy count differs from the requested
-one. The rule is a prototype triage boundary, not a universal Phaser-success
-criterion and not a substitute for maps, refinement, or expert review.
+Equality does not pass either comparison. Passing the score gate is still
+insufficient when the final solution did not pack or the placed-copy count
+differs from the requested one. The sensitive disjunction is a prototype triage
+boundary, not a universal Phaser-success criterion and not a substitute for
+maps, refinement, or expert review.
 
 Statuses remain distinct:
 
@@ -242,14 +243,16 @@ as `completed_no_hit`, completed the outer job successfully, and cached both P2
 processes on resume. The broader P2 gate still requires scheduled
 positive/incorrect-model controls. The top-10/25 review and approval boundary is
 implemented as described below. The first real Marmic P2-diverse panel completed
-all 25 Phaser hypotheses as scientific no-hits. It independently recorded 11
-packed single-copy placements, but none passed both `LLG > 100` and `TFZ > 10`;
-the strongest LLG was 27.383 at TFZ 5.1 and the strongest TFZ was 5.5 at LLG
-19.726. Review-package generation then exposed a contract bug for no-solution
-records with no stored `score_gate_passed` field. That bug does not turn the
-weak packing evidence into a hit. A corrected immutable replay is required to
-publish the package, and no same-component additional-copy search should begin
-before the scheduled controls and human review are complete.
+all 25 Phaser hypotheses under the superseded `LLG > 100` and `TFZ > 10`
+policy. It independently recorded 11 packed single-copy placements. Recomputing
+the preserved raw scores under the user-approved `LLG > 50` or `TFZ > 5` policy
+classifies six as provisional acceptance candidates through the TFZ branch; all
+six also have accepted packing and one placed copy. None passes through LLG.
+The highest TFZ is 5.5, so these remain sensitive screening candidates rather
+than proven structures. Review-package generation also exposed a contract bug
+for no-solution records with no stored `score_gate_passed` field. A corrected
+immutable review package, scheduled controls, and human inspection are required
+before same-component additional-copy search begins.
 
 ## MR seed review checkpoint
 
@@ -277,22 +280,24 @@ The operation publishes:
   hypothesis, normalised result, funnel, command, log, and result-asset
   checksums.
 
-Ranking is deterministic and inspectable: completed-hit/no-hit/failure class,
-the strict raw `LLG > 100` and `TFZ > 10` gate, packing, searched-copy
-agreement, raw LLG, raw TFZ, and immutable funnel order. Primary and extended
-labels apply to the first 10 and 25 distinct sequence-equivalence groups from
-the resolved configuration. They allocate review attention; they are not
-posterior probabilities or automatic biological assignments. Logs and commands
-follow retention policy, while complete solution PDB/MTZ assets are copied only
-for the configured finalist cap. The retained remote P2 publication remains the
-authoritative full result.
+Ranking is deterministic and inspectable: automatic eligibility,
+completed-hit/no-hit/failure class, the strict raw `LLG > 50` or `TFZ > 5`
+gate, packing, searched-copy agreement, raw LLG, raw TFZ, and immutable funnel
+order. Primary and extended labels apply to the first 10 and 25 distinct
+sequence-equivalence groups from the resolved configuration. They allocate
+review attention; they are not posterior probabilities or automatic biological
+assignments. Logs and commands follow retention policy, while complete solution
+PDB/MTZ assets are copied only for the configured finalist cap. The retained
+remote P2 publication remains the authoritative full result.
 
-The review operation always recomputes the strict raw score gate from the
-normalised LLG and TFZ fields. A missing stored `score_gate_passed` field is
+The review operation always recomputes the current strict raw score gate from
+the normalised LLG and TFZ fields. A missing stored `score_gate_passed` field is
 permitted and evaluates to the recomputed result, which is false for a
-no-solution record with no numeric scores. If the field is present, it must be a
-Boolean and must agree exactly with the recomputed gate; an explicit
-contradiction fails loudly. Packing and placed-copy evidence remain separate
+no-solution record with no numeric scores. A result that records the superseded
+`LLG > 100` and `TFZ > 10` policy is explicitly reclassified from its raw scores
+without altering the source record. Under the current policy, a present stored
+Boolean must agree exactly with the recomputation; an explicit contradiction or
+unknown policy fails loudly. Packing and placed-copy evidence remain separate
 review fields and never substitute for the score gate.
 
 `genome-to-diffraction review validate-mr-seeds` takes the generated manifest,

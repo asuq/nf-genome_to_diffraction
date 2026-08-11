@@ -940,3 +940,69 @@ If non-terminal, leave the run untouched. If terminal, run bounded logs and
 collect as separate operations, inspect the complete review/result/resume
 evidence, retain the remote run, and close the development loop with
 documentation, checks, a focused commit, push, and exact GitHub Actions result.
+
+## 2026-08-12 — Lowered the provisional acceptance score gate
+
+### Discoveries
+
+- The user explicitly replaced the prototype score-gate policy with strict
+  `LLG > 50` or `TFZ > 5` acceptance. Equality fails each branch. Final packing
+  and the requested placed-copy count remain independent requirements, and the
+  handoff still requires raw metrics, calibration, and human review rather than
+  universal hard-threshold claims.
+- Recomputing the 25 preserved CD6 results from job `625842` under the new rule
+  yields six score-gate passers, all through `TFZ > 5`; none passes through
+  `LLG > 50`. All six also record accepted top-solution packing and one placed
+  copy. Their TFZ range only reaches 5.5, so they are sensitive provisional
+  candidates, not validated structures.
+- Active job `625882` is immutable at commit
+  `5914536eecf6a5409240ec93a74f44ca18036a36` and therefore stores the
+  superseded `LLG > 100` and `TFZ > 10` classification. It remains untouched;
+  its raw values are sufficient for policy reclassification after collection.
+
+### Accomplishments and immutable evidence
+
+- A central versioned MR policy now defines the two strict thresholds,
+  disjunctive operator, and policy identifier. The Phaser adapter is version 3,
+  records the thresholds and `or` operator in every solution result, and uses
+  the policy for hit/no-hit classification.
+- MR review version 2 recomputes the current gate from raw scores, includes the
+  policy in its cache/package identity and manifest, ranks automatic
+  eligibility explicitly, and accepts a known version-2 legacy policy for
+  reclassification. Unknown policies and contradictions under the current
+  policy still fail loudly.
+- The three runnable public-control specifications now bind `LLG > 50`,
+  `TFZ > 5`, and `combination: or`. Operational documentation explains the
+  increased sensitivity and keeps packing, copy agreement, maps, refinement,
+  scheduled controls, and expert review separate.
+- Regression coverage proves strict equality failures, acceptance through
+  either individual branch, rejection when both branches fail, policy metadata
+  emission, and legacy raw-score reclassification. The complete locked gate
+  passes formatting, Ruff, strict mypy, 284 unit tests, 55 contract tests, 39
+  integration tests, schemas, the ten-entry public panel, documentation and
+  workflow lint, Nextflow syntax/stubs/resume, and both HPC shell parsers.
+- The 30-minute heartbeat now applies `LLG > 50` or `TFZ > 5` to raw terminal
+  evidence and explicitly recognises that job `625882` predates the change.
+
+### Unresolved work
+
+- Commit and push this policy migration and require the exact Ubuntu GitHub
+  Actions run to pass. Do not stage a second P2-diverse run while job `625882`
+  is active.
+- When job `625882` becomes terminal, collect its bounded package and recompute
+  eligibility from the raw scores. Its generated version-1 review package, if
+  present, remains evidence of the old policy and must not be relabelled in
+  place.
+- After terminal collection, decide whether one new immutable version-2 review
+  replay is needed to publish a policy-correct approval package. The scheduled
+  known-positive and deliberate incorrect-model controls and a human-completed
+  approval file remain prerequisites for M4.
+
+### Next exact starting point
+
+Inspect the focused policy diff, run documentation and whitespace checks,
+commit it as one scientific-policy change, push `main`, and monitor the exact
+GitHub Actions run. Continue monitoring only job `625882` through the installed
+wrapper at the 30-minute cadence; do not cancel, clean, or infer failure from
+silence. When terminal, collect and compare the old stored classification with
+the new raw-score recomputation before choosing the next immutable run.

@@ -82,8 +82,9 @@ mr_models:
     relationship_to_target: GlnK1 paralogue from the same organism; 85.7% identity over the 112-residue native sequence
     leakage_class: homolog_challenge
 score_gate:
-  llg_greater_than: 100
-  tfz_greater_than: 10
+  llg_greater_than: 50
+  tfz_greater_than: 5
+  combination: "or"
 database_exclusions_for_homolog_challenge:
   - 7P50
   - 7P4Y

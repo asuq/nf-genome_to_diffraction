@@ -244,6 +244,9 @@ def test_adapter_runs_exact_composition_and_emits_credible_hit(
     assert output.result.tfz == pytest.approx(49.7)
     assert output.result.placed_copy_count == 1
     assert output.result.packing_summary["score_gate_passed"] is True
+    assert output.result.packing_summary["score_gate_operator"] == "or"
+    assert output.result.packing_summary["score_gate_llg_strictly_greater_than"] == 50.0
+    assert output.result.packing_summary["score_gate_tfz_strictly_greater_than"] == 5.0
     assert output.result.parser_warnings == ("phaser_advisory_top_ftf_did_not_pack",)
     command = commands[0]
     assert "phaser.model_identity=100" in command
@@ -288,14 +291,20 @@ def test_adapter_rejects_experimental_identity_drift(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("llg", "tfz"),
-    ((100.0, 49.7), (1622.879, 10.0)),
+    ("llg", "tfz", "expected_hit"),
+    (
+        (50.0, 5.0, False),
+        (50.0, 5.1, True),
+        (50.1, 5.0, True),
+        (49.9, 4.9, False),
+    ),
 )
-def test_score_gate_uses_strict_inequalities(
+def test_score_gate_uses_strict_or_semantics(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     llg: float,
     tfz: float,
+    expected_hit: bool,
 ) -> None:
     request = _inputs(tmp_path)
     _fake_runtime(
@@ -308,9 +317,13 @@ def test_score_gate_uses_strict_inequalities(
 
     result = run_first_copy_phaser(request).result
 
-    assert result.execution_status == "completed_no_hit"
-    assert result.packing_summary["score_gate_passed"] is False
-    assert result.rejection_reason == "strict_llg_tfz_gate_not_met"
+    assert result.execution_status == (
+        "completed_hit" if expected_hit else "completed_no_hit"
+    )
+    assert result.packing_summary["score_gate_passed"] is expected_hit
+    assert result.rejection_reason == (
+        None if expected_hit else "strict_llg_or_tfz_gate_not_met"
+    )
 
 
 def test_adapter_records_scientific_no_solution_without_failure(

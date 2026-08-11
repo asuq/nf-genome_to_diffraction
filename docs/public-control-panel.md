@@ -22,7 +22,7 @@ The panel currently contains:
 
 Here, `runnable_control` means that input preparation is implemented and locally
 verified. It does **not** mean that Phaser has already passed the provisional
-`LLG > 100` and `TFZ > 10` gates. Those score results must be recorded separately
+`LLG > 50` or `TFZ > 5` gate. Those score results must be recorded separately
 after execution with the licensed Phenix runtime.
 
 ## Panel composition
@@ -131,8 +131,8 @@ catalogue group changes, or if Gemmi conversion output drifts.
 
 - The public positives establish that a known `ASU = nA` answer is present. They
   do not reveal the identity of any operator pilot crystal.
-- The user-defined Phaser thresholds are strict comparisons: top `LLG > 100` and
-  top `TFZ > 10`. Equality does not pass.
+- The user-defined Phaser thresholds are strict comparisons combined with
+  `or`: top `LLG > 50` or top `TFZ > 5`. Equality does not pass either branch.
 - Exact alternate structures are operational controls and are intentionally not
   leakage-controlled. Homolog-only runs must exclude all exact target structures
   named in the active control specification.

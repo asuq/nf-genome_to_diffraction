@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Changed
+
+- The user-approved provisional first-copy acceptance score gate is now the
+  strict disjunction `LLG > 50` or `TFZ > 5`. The adapter records the operator
+  and thresholds, review packages recompute the policy from raw scores, and
+  legacy `LLG > 100` plus `TFZ > 10` results can be reclassified without
+  altering their preserved raw evidence. Packing and placed-copy agreement
+  remain additional independent requirements.
+
 ### Added
 
 - Initial repository foundation for Task 00 / Epic 0.

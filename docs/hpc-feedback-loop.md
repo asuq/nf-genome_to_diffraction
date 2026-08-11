@@ -611,8 +611,9 @@ jobs even though the underlying pilot configuration permits more. It must
 retain at least one exact predicted and one mapped experimental hypothesis,
 must publish no more than 25 hypotheses, and must produce one validated
 Phaser result for each. Only `completed_hit` and `completed_no_hit` are accepted
-as scientific completions; the strict provisional hit gate remains `LLG > 100`
-and `TFZ > 10`.
+as scientific completions; the strict provisional hit gate is `LLG > 50` or
+`TFZ > 5`. Final packing and the requested placed-copy count remain independent
+requirements.
 
 Full model/result directories and native Phaser logs remain in the retained
 remote run. Collection is bounded to login-stage manifests/mappings, model and
