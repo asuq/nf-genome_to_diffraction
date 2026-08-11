@@ -438,3 +438,71 @@ and require GitHub Actions to pass. Then deploy the reviewed remote tools, run
 the login-node search/registration checksum record is present; after
 submission, use structured status with the recorded 30-minute monitoring
 cadence and never infer failure from silence or clean the retained run.
+
+## 2026-08-11 — Added the file-based MR seed review checkpoint
+
+### Discoveries
+
+- The retained handoff requires MR review decisions to target content-derived
+  `sol_...` solution IDs, not mutable row numbers or an external PDB identity.
+  The solution identity therefore has to bind the current hypothesis, result,
+  funnel, command, raw log, and result-asset checksums before approval.
+- A schema-valid approval template must not imply an approval. A header-only
+  review TSV satisfies the existing contract while requiring the reviewer to
+  add every decision explicitly.
+- A preliminary strict score-gate pass is not a complete seed decision. The
+  review row must retain packing, placed-copy agreement, warnings, Matthews/SDS
+  context, and raw metrics independently, and an approval outside automatic
+  eligibility must preserve a written override reason.
+- The development cycle is now explicit in the roadmap: write code, run focused
+  Pixi tests and the full locked gate, commit, push, require GitHub Actions,
+  deploy checksum-verified control tools when changed, run the fixed Marmic
+  profile, collect evidence, and record the next journal handoff.
+
+### Accomplishments and immutable evidence
+
+- Implementation commit `f44fe6be3f5afa6b722d3aac640e6f9022afbfdf` adds
+  `review build-mr-seed` and
+  `review validate-mr-seeds`, deterministic top-10/top-25 sequence-group views,
+  checksum-bound `sol_...`/`reviewpkg_...`/`rev_...` identities, a
+  schema-valid empty approval template, and loud stale/edited/unsafe-input
+  failures.
+- The fixed `p2-diverse` job now generates the MR checkpoint after all bounded
+  first-copy results, binds its package ID and manifest checksum into the run
+  summary, and exposes the approved small review files through bounded
+  collection. It still creates no automatic decision and starts no
+  additional-copy search.
+- Focused tests pass for credible hit packaging, no-hit override semantics,
+  stale IDs, edited review files, path traversal, CLI wiring, and the complete
+  fake Git/Slurm/Nextflow P2-diverse lifecycle.
+- The final locked repository gate passes: 279 unit tests, 54 contract tests,
+  39 integration tests, strict formatting/lint/type checking, schemas, the
+  ten-entry public panel, documentation and GitHub workflow lint, Nextflow
+  syntax/stub/resume, and both HPC shell parsers. Loopback-only network tests
+  ran outside the restricted sandbox; no biological data or credentials were
+  transmitted.
+- The rebuilt local controller artefact has SHA-256
+  `d24afacb12b8d395fbd59ae49bf167d56bbff0bc5bf2e115e620338773d9f679`.
+
+### Unresolved work
+
+- Push the implementation and journal commits, require GitHub Actions to pass,
+  install the rebuilt controller, and deploy the matching reviewed dispatcher
+  and job script before Marmic staging.
+- Run the real fixed `p2-diverse` profile, retain the remote run, collect the MR
+  checkpoint, and inspect the at-most-25 CD6 results against the strict
+  `LLG > 100` and `TFZ > 10` gate plus independent packing/copy evidence.
+- Qualify the scheduled known-positive and deliberate incorrect-model controls.
+  Only then may a human-completed MR approval file be validated for the next
+  milestone. Same-component additional-copy placement remains deferred until
+  this evidence is reviewed.
+
+### Next exact starting point
+
+Commit this journal handoff and push through
+`f44fe6be3f5afa6b722d3aac640e6f9022afbfdf`, then monitor GitHub
+Actions to success. Install the controller with the recorded SHA-256, deploy
+the two checksum-verified remote tools from the same pushed revision, run
+`readiness p2-diverse`, and stage that revision. Verify the login-stage checksum
+record before submit; monitor at the recorded 30-minute cadence, never infer
+failure from silence, and do not clean the retained run.
