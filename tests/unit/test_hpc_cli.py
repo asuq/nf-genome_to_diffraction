@@ -77,3 +77,12 @@ def test_scientific_profile_uses_only_the_fixed_routine_interface(
     assert readiness.profile == profile
     assert staged.profile == profile
     assert submitted.profile == profile
+
+
+def test_review_collection_accepts_only_an_owned_run_identifier() -> None:
+    parser = _build_parser()
+
+    review = parser.parse_args(["review-collect", "--run-id", "RUN_ID"])
+
+    assert review.operation == "review-collect"
+    assert review.run_id == "RUN_ID"

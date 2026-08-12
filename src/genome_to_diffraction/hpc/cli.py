@@ -98,6 +98,12 @@ def _build_parser() -> argparse.ArgumentParser:
     logs.add_argument("--run-id", required=True)
     logs.add_argument("--tail", type=int, default=200)
 
+    review_collect = actions.add_parser(
+        "review-collect",
+        help="collect checksum-gated assets for manifest-eligible MR seeds",
+    )
+    review_collect.add_argument("--run-id", required=True)
+
     clean = actions.add_parser(
         "clean", help="delete one inactive run after external approval"
     )
@@ -139,6 +145,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.logs(args.run_id, args.tail)
     if args.operation == "collect":
         return controller.collect(args.run_id)
+    if args.operation == "review-collect":
+        return controller.review_collect(args.run_id)
     if args.operation == "cancel":
         return controller.cancel(args.run_id)
     if args.operation == "clean":

@@ -10,6 +10,7 @@ import os
 import re
 import secrets
 import shlex
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -28,6 +29,9 @@ from genome_to_diffraction.hpc.models import (
     MAX_ARTIFACT_FILE_BYTES,
     MAX_ARTIFACT_TOTAL_BYTES,
     MAX_FEEDBACK_RUNS,
+    MAX_REVIEW_ARTIFACT_ARCHIVE_BYTES,
+    MAX_REVIEW_ARTIFACT_FILE_BYTES,
+    MAX_REVIEW_ARTIFACT_TOTAL_BYTES,
     P0_EXECUTION_TIMEOUT_SECONDS,
     P1_EXECUTION_TIMEOUT_SECONDS,
     P2_EXECUTION_TIMEOUT_SECONDS,
@@ -78,6 +82,7 @@ P0_STAGE_TIMEOUT_SECONDS = 45 * 60
 DATABASE_STAGE_TIMEOUT_SECONDS = 6 * 60 * 60
 P0_INPUT_STAGE_TIMEOUT_SECONDS = 15 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
+SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS = 30 * 60
 MAX_P0_PATHS_BYTES = 4096
 FAILURE_SIGNATURE_LOG_BYTES = 64 * 1024
 _FAILURE_APPLICATION_LOGS = frozenset(
@@ -111,6 +116,22 @@ _SSH_FIXED_OPTIONS = (
     "-o",
     "ServerAliveCountMax=2",
 )
+_REVIEW_MANIFEST_RELATIVE = PurePosixPath(
+    "artifacts/qualification/p2-diverse-review/mr_seed_review_manifest.json"
+)
+_REVIEW_SUMMARY_RELATIVE = PurePosixPath(
+    "artifacts/qualification/p2-diverse-summary.json"
+)
+_REVIEW_JOB_RESULT_RELATIVE = PurePosixPath("state/job-result.json")
+_REVIEW_PACKAGE_ID_RE = re.compile(r"^reviewpkg_[0-9a-f]{64}$")
+_REVIEW_SOLUTION_ID_RE = re.compile(r"^sol_[0-9a-f]{64}$")
+_REVIEW_ASSET_BASENAMES = {
+    "command": "phaser_command.json",
+    "normalised_result": "normalised_mr_result.jsonl",
+    "output_mtz": "solution.mtz",
+    "raw_log": "phaser.log",
+    "solution_coordinate": "solution.pdb",
+}
 
 
 def _validated_p0_paths_payload(path: Path) -> bytes:
@@ -153,6 +174,9 @@ class TextTransport(Protocol):
 
     def collect(self, run_id: str, owner_id: str) -> bytes:
         """Return the fixed whitelisted artefact archive for an owned run."""
+
+    def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
+        """Return manifest-selected and checksum-gated MR review assets."""
 
     def p0_inputs_stage(
         self,
@@ -331,6 +355,34 @@ class SshTransport:
             )
             raise RemoteOperationError(
                 message or "remote artefact collection failed",
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        return result.stdout
+
+    def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
+        """Stream only assets selected by one immutable MR review manifest."""
+
+        try:
+            result = subprocess.run(
+                self._command("review-collect", [run_id, owner_id, manifest_sha256]),
+                check=False,
+                capture_output=True,
+                timeout=SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote review-asset collection exceeded the fixed "
+                f"{SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS}-second transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        if result.returncode != 0:
+            fields = _decode_remote_fields(result.stdout)
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+            )
+            raise RemoteOperationError(
+                message or "remote review-asset collection failed",
                 failure_class=_failure_class(fields.get("failure_class")),
             )
         return result.stdout
@@ -877,6 +929,46 @@ class HpcController:
             "failure_signature": failure_signature,
         }
 
+    def review_collect(self, run_id: str) -> dict[str, object]:
+        """Collect only checksum-bound assets for automatically eligible MR seeds."""
+
+        record = self._owned_run(run_id)
+        if record.profile != "p2-diverse":
+            raise ValidationError("review-collect requires a p2-diverse run")
+        collected = self.config.local_state_root / run_id / "collected"
+        expectations, package_id, solution_ids, manifest_sha256 = (
+            _review_asset_expectations(collected, record)
+        )
+        self.logger.info(
+            "collecting checksum-gated MR review assets",
+            extra={
+                "run_id": run_id,
+                "package_id": package_id,
+                "eligible_solution_count": len(solution_ids),
+                "manifest_sha256": manifest_sha256,
+            },
+        )
+        archive = self.transport.review_collect(
+            run_id, record.owner_id, manifest_sha256
+        )
+        destination = self.config.local_state_root / run_id / "review-assets"
+        files = _extract_verified_review_archive(
+            archive,
+            destination,
+            expectations,
+            progress=self.progress,
+        )
+        return {
+            "operation": "review-collect",
+            "run_id": run_id,
+            "destination": str(destination),
+            "package_id": package_id,
+            "manifest_sha256": manifest_sha256,
+            "eligible_solution_count": len(solution_ids),
+            "solution_ids": solution_ids,
+            "files": files,
+        }
+
     def cancel(self, run_id: str) -> dict[str, object]:
         """Cancel only the scheduler job bound to an owned local run record."""
 
@@ -1016,6 +1108,289 @@ def _extract_approved_archive(
             failure_class=FailureClass.TRANSFER_FAILURE,
         ) from error
     return sorted(extracted)
+
+
+def _safe_local_evidence_file(root: Path, relative: PurePosixPath) -> Path:
+    """Resolve one required collected evidence file without following symlinks."""
+
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValidationError("review evidence path is unsafe")
+    path = root.joinpath(*relative.parts)
+    root_resolved = root.resolve()
+    if path.is_symlink() or not path.is_file():
+        raise ValidationError(
+            f"collect the terminal run before review assets: {relative.as_posix()}"
+        )
+    parent = path.parent.resolve()
+    if parent != root_resolved and root_resolved not in parent.parents:
+        raise ValidationError("collected review evidence escaped its run root")
+    return path
+
+
+def _json_mapping(path: Path, label: str) -> Mapping[str, object]:
+    try:
+        value: object = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValidationError(f"{label} is not valid JSON") from error
+    if not isinstance(value, Mapping):
+        raise ValidationError(f"{label} must be a JSON object")
+    return value
+
+
+def _review_asset_expectations(
+    collected: Path,
+    record: LocalRunRecord,
+) -> tuple[dict[str, str], str, list[str], str]:
+    """Validate compact evidence and derive the only permitted review assets."""
+
+    manifest_path = _safe_local_evidence_file(collected, _REVIEW_MANIFEST_RELATIVE)
+    summary_path = _safe_local_evidence_file(collected, _REVIEW_SUMMARY_RELATIVE)
+    job_result_path = _safe_local_evidence_file(collected, _REVIEW_JOB_RESULT_RELATIVE)
+    manifest_sha256 = sha256_file(manifest_path)
+    manifest = _json_mapping(manifest_path, "MR review manifest")
+    summary = _json_mapping(summary_path, "P2-diverse summary")
+    job_result = _json_mapping(job_result_path, "HPC job result")
+
+    if (
+        job_result.get("run_id") != record.run_id
+        or job_result.get("profile") != "p2-diverse"
+        or job_result.get("failure_class") != FailureClass.SUCCESS
+        or job_result.get("scheduler_state") != "COMPLETED"
+        or job_result.get("exit_code") != 0
+    ):
+        raise ValidationError("review assets require a collected successful P2 run")
+    package_id = manifest.get("package_id")
+    if (
+        not isinstance(package_id, str)
+        or _REVIEW_PACKAGE_ID_RE.fullmatch(package_id) is None
+    ):
+        raise ValidationError("MR review package ID is invalid")
+    expected_gate = {
+        "llg_strictly_greater_than": 50.0,
+        "operator": "or",
+        "policy_id": "strict_llg_gt_50_or_tfz_gt_5",
+        "tfz_strictly_greater_than": 5.0,
+    }
+    if (
+        manifest.get("adapter_version") != "mr-seed-review-v2"
+        or manifest.get("score_gate") != expected_gate
+        or summary.get("run_id") != record.run_id
+        or summary.get("profile") != "p2-diverse"
+        or summary.get("mr_seed_review_package_id") != package_id
+        or summary.get("mr_seed_review_manifest_sha256") != manifest_sha256
+    ):
+        raise ValidationError("MR review evidence identity or policy does not match")
+
+    items = manifest.get("items")
+    if not isinstance(items, list):
+        raise ValidationError("MR review manifest items must be an array")
+    eligible = [
+        item
+        for item in items
+        if isinstance(item, Mapping) and item.get("automatic_eligibility") is True
+    ]
+    if not 1 <= len(eligible) <= 25:
+        raise ValidationError("MR review package must have 1..25 eligible seeds")
+    if summary.get("completed_hit_count") != len(eligible):
+        raise ValidationError("eligible review count differs from the run summary")
+
+    expectations = {
+        _REVIEW_MANIFEST_RELATIVE.as_posix(): manifest_sha256,
+        _REVIEW_SUMMARY_RELATIVE.as_posix(): sha256_file(summary_path),
+        _REVIEW_JOB_RESULT_RELATIVE.as_posix(): sha256_file(job_result_path),
+    }
+    solution_ids: list[str] = []
+    for item in eligible:
+        solution_id = item.get("solution_id")
+        copied_assets = item.get("copied_assets")
+        copied_sha256 = item.get("copied_asset_sha256")
+        if (
+            not isinstance(solution_id, str)
+            or _REVIEW_SOLUTION_ID_RE.fullmatch(solution_id) is None
+            or solution_id in solution_ids
+            or not isinstance(copied_assets, Mapping)
+            or not isinstance(copied_sha256, Mapping)
+        ):
+            raise ValidationError("eligible MR review item identity is invalid")
+        if set(copied_assets) != set(_REVIEW_ASSET_BASENAMES) or set(
+            copied_sha256
+        ) != set(_REVIEW_ASSET_BASENAMES):
+            raise ValidationError("eligible MR review asset set is incomplete")
+        solution_ids.append(solution_id)
+        for key, basename in _REVIEW_ASSET_BASENAMES.items():
+            expected_local = f"assets/{solution_id}/{basename}"
+            digest = copied_sha256.get(key)
+            if (
+                copied_assets.get(key) != expected_local
+                or not isinstance(digest, str)
+                or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+            ):
+                raise ValidationError("eligible MR review asset identity is invalid")
+            archive_relative = (
+                _REVIEW_MANIFEST_RELATIVE.parent / expected_local
+            ).as_posix()
+            if archive_relative in expectations:
+                raise ValidationError("eligible MR review asset path is duplicated")
+            expectations[archive_relative] = digest
+    return expectations, package_id, solution_ids, manifest_sha256
+
+
+def _extract_verified_review_archive(
+    archive: bytes,
+    destination: Path,
+    expectations: Mapping[str, str],
+    *,
+    progress: bool,
+) -> list[str]:
+    """Extract an exact manifest-derived archive after hashing every member."""
+
+    if len(archive) > MAX_REVIEW_ARTIFACT_ARCHIVE_BYTES:
+        raise RemoteOperationError(
+            "compressed review archive exceeds the local collection limit",
+            failure_class=FailureClass.TRANSFER_FAILURE,
+        )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary_root = Path(
+        tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent)
+    )
+    published = False
+    extracted: dict[str, str] = {}
+    total = 0
+    try:
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
+            members = tar.getmembers()
+            with tqdm(
+                total=len(members),
+                desc="Collecting MR review assets",
+                unit="file",
+                disable=not progress,
+            ) as progress_bar:
+                for member in members:
+                    relative = PurePosixPath(member.name)
+                    name = relative.as_posix()
+                    if (
+                        not member.isfile()
+                        or relative.is_absolute()
+                        or ".." in relative.parts
+                        or name not in expectations
+                        or name in extracted
+                    ):
+                        raise RemoteOperationError(
+                            f"unexpected review archive member: {member.name!r}",
+                            failure_class=FailureClass.TRANSFER_FAILURE,
+                        )
+                    if member.size > MAX_REVIEW_ARTIFACT_FILE_BYTES:
+                        raise RemoteOperationError(
+                            f"review asset exceeds per-file limit: {name}",
+                            failure_class=FailureClass.TRANSFER_FAILURE,
+                        )
+                    total += member.size
+                    if total > MAX_REVIEW_ARTIFACT_TOTAL_BYTES:
+                        raise RemoteOperationError(
+                            "review assets exceed total collection limit",
+                            failure_class=FailureClass.TRANSFER_FAILURE,
+                        )
+                    source = tar.extractfile(member)
+                    if source is None:
+                        raise RemoteOperationError(
+                            f"cannot read review archive member: {name}",
+                            failure_class=FailureClass.TRANSFER_FAILURE,
+                        )
+                    payload = source.read()
+                    digest = hashlib.sha256(payload).hexdigest()
+                    if digest != expectations[name]:
+                        raise RemoteOperationError(
+                            f"review asset checksum mismatch: {name}",
+                            failure_class=FailureClass.TRANSFER_FAILURE,
+                        )
+                    _atomic_write_bytes(
+                        temporary_root.joinpath(*relative.parts), payload
+                    )
+                    extracted[name] = digest
+                    progress_bar.update(1)
+        missing = sorted(set(expectations) - set(extracted))
+        if missing:
+            raise RemoteOperationError(
+                f"review archive omitted expected assets: {missing}",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        for name in extracted:
+            if name.endswith("/normalised_mr_result.jsonl"):
+                _validate_eligible_review_result(temporary_root / name, name)
+        if destination.exists() or destination.is_symlink():
+            if destination.is_symlink() or not destination.is_dir():
+                raise RemoteOperationError(
+                    "review-asset destination has unsafe identity",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            existing = {
+                path.relative_to(destination).as_posix(): sha256_file(path)
+                for path in destination.rglob("*")
+                if path.is_file() and not path.is_symlink()
+            }
+            if existing != extracted:
+                raise RemoteOperationError(
+                    "existing review assets differ from the immutable package",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+        else:
+            os.replace(temporary_root, destination)
+            published = True
+    except (tarfile.TarError, OSError) as error:
+        raise RemoteOperationError(
+            "remote review archive is invalid",
+            failure_class=FailureClass.TRANSFER_FAILURE,
+        ) from error
+    finally:
+        if not published:
+            shutil.rmtree(temporary_root, ignore_errors=True)
+    return sorted(extracted)
+
+
+def _validate_eligible_review_result(path: Path, label: str) -> None:
+    """Recompute fixed first-copy eligibility from one normalised result."""
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if len(lines) != 1:
+        raise RemoteOperationError(
+            f"eligible review result must contain one record: {label}",
+            failure_class=FailureClass.TRANSFER_FAILURE,
+        )
+    try:
+        result: object = json.loads(lines[0])
+    except json.JSONDecodeError as error:
+        raise RemoteOperationError(
+            f"eligible review result is invalid JSON: {label}",
+            failure_class=FailureClass.TRANSFER_FAILURE,
+        ) from error
+    if not isinstance(result, Mapping):
+        raise RemoteOperationError(
+            f"eligible review result is not an object: {label}",
+            failure_class=FailureClass.TRANSFER_FAILURE,
+        )
+    llg = result.get("llg")
+    tfz = result.get("tfz")
+    score_passed = (
+        isinstance(llg, int | float) and not isinstance(llg, bool) and llg > 50.0
+    ) or (isinstance(tfz, int | float) and not isinstance(tfz, bool) and tfz > 5.0)
+    packing = result.get("packing_summary")
+    if not (
+        result.get("execution_status") == "completed_hit"
+        and score_passed
+        and isinstance(packing, Mapping)
+        and packing.get("top_solution_packed") is True
+        and packing.get("score_gate_operator") == "or"
+        and packing.get("score_gate_llg_strictly_greater_than") == 50
+        and packing.get("score_gate_tfz_strictly_greater_than") == 5
+        and packing.get("score_gate_passed") is True
+        and result.get("placed_copy_count") == 1
+        and isinstance(result.get("solution_coordinate_path"), str)
+        and isinstance(result.get("output_mtz_path"), str)
+    ):
+        raise RemoteOperationError(
+            f"eligible review result fails the fixed first-copy gate: {label}",
+            failure_class=FailureClass.TRANSFER_FAILURE,
+        )
 
 
 def _atomic_write_bytes(path: Path, payload: bytes) -> None:

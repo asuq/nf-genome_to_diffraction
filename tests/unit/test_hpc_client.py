@@ -18,6 +18,7 @@ from genome_to_diffraction.hpc.client import (
     SSH_COLLECTION_TIMEOUT_SECONDS,
     SSH_CONNECT_TIMEOUT_SECONDS,
     SSH_OPERATION_TIMEOUT_SECONDS,
+    SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS,
     HpcController,
     SshTransport,
 )
@@ -56,6 +57,7 @@ class FakeGit:
 @dataclass
 class FakeTransport:
     archive: bytes = b""
+    review_archive: bytes = b""
     status_responses: list[dict[str, str]] = field(default_factory=list)
     calls: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     p0_archive: bytes = b""
@@ -77,6 +79,10 @@ class FakeTransport:
     def collect(self, run_id: str, owner_id: str) -> bytes:
         self.calls.append(("collect", (run_id, owner_id)))
         return self.archive
+
+    def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
+        self.calls.append(("review-collect", (run_id, owner_id, manifest_sha256)))
+        return self.review_archive
 
     def p0_inputs_stage(
         self,
@@ -140,6 +146,106 @@ def _archive(files: dict[str, bytes]) -> bytes:
             info.size = len(payload)
             tar.addfile(info, io.BytesIO(payload))
     return output.getvalue()
+
+
+def _write_review_evidence(
+    controller: HpcController,
+    run_id: str,
+    *,
+    score_gate: dict[str, object] | None = None,
+) -> tuple[str, str, dict[str, bytes]]:
+    collected = controller.config.local_state_root / run_id / "collected"
+    review = collected / "artifacts/qualification/p2-diverse-review"
+    review.mkdir(parents=True)
+    solution_id = "sol_" + "a" * 64
+    package_id = "reviewpkg_" + "b" * 64
+    assets = {
+        "command": ("phaser_command.json", b'{"command":"phenix.phaser"}\n'),
+        "normalised_result": (
+            "normalised_mr_result.jsonl",
+            b'{"execution_status":"completed_hit","llg":27.0,"tfz":5.5,'
+            b'"packing_summary":{"top_solution_packed":true,'
+            b'"score_gate_operator":"or",'
+            b'"score_gate_llg_strictly_greater_than":50,'
+            b'"score_gate_tfz_strictly_greater_than":5,'
+            b'"score_gate_passed":true},"placed_copy_count":1,'
+            b'"solution_coordinate_path":"PHASER.1.pdb",'
+            b'"output_mtz_path":"PHASER.1.mtz"}\n',
+        ),
+        "output_mtz": ("solution.mtz", b"fake mtz\n"),
+        "raw_log": ("phaser.log", b"fake Phaser log\n"),
+        "solution_coordinate": ("solution.pdb", b"ATOM\n"),
+    }
+    copied_assets = {
+        key: f"assets/{solution_id}/{basename}" for key, (basename, _) in assets.items()
+    }
+    copied_sha256 = {
+        key: hashlib.sha256(payload).hexdigest() for key, (_, payload) in assets.items()
+    }
+    manifest = {
+        "schema_version": "1.0",
+        "adapter_version": "mr-seed-review-v2",
+        "package_id": package_id,
+        "score_gate": score_gate
+        or {
+            "llg_strictly_greater_than": 50.0,
+            "operator": "or",
+            "policy_id": "strict_llg_gt_50_or_tfz_gt_5",
+            "tfz_strictly_greater_than": 5.0,
+        },
+        "items": [
+            {
+                "automatic_eligibility": True,
+                "solution_id": solution_id,
+                "copied_assets": copied_assets,
+                "copied_asset_sha256": copied_sha256,
+            }
+        ],
+    }
+    manifest_path = review / "mr_seed_review_manifest.json"
+    manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+    manifest_sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    summary = {
+        "schema_version": "1.0",
+        "run_id": run_id,
+        "profile": "p2-diverse",
+        "completed_hit_count": 1,
+        "mr_seed_review_package_id": package_id,
+        "mr_seed_review_manifest_sha256": manifest_sha256,
+    }
+    (collected / "artifacts/qualification/p2-diverse-summary.json").write_text(
+        json.dumps(summary) + "\n", encoding="utf-8"
+    )
+    state = collected / "state"
+    state.mkdir()
+    (state / "job-result.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "profile": "p2-diverse",
+                "failure_class": "success",
+                "scheduler_state": "COMPLETED",
+                "exit_code": 0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    archive_files = {
+        "artifacts/qualification/p2-diverse-review/mr_seed_review_manifest.json": (
+            manifest_path.read_bytes()
+        ),
+        "artifacts/qualification/p2-diverse-summary.json": (
+            collected / "artifacts/qualification/p2-diverse-summary.json"
+        ).read_bytes(),
+        "state/job-result.json": (state / "job-result.json").read_bytes(),
+    }
+    for key, (basename, payload) in assets.items():
+        assert key in copied_assets
+        archive_files[
+            f"artifacts/qualification/p2-diverse-review/assets/{solution_id}/{basename}"
+        ] = payload
+    return package_id, manifest_sha256, archive_files
 
 
 def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
@@ -284,16 +390,24 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
         transport.run("database-stage", ["1" * 40])
     with pytest.raises(RemoteOperationError, match="transport timeout") as collection:
         transport.collect("gtd-p0-20260802T120000Z-0123456789ab-01234567", "1" * 32)
+    with pytest.raises(RemoteOperationError, match="transport timeout") as review:
+        transport.review_collect(
+            "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567",
+            "1" * 32,
+            "2" * 64,
+        )
 
     assert operation.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert p0_staging.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert staging.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert collection.value.failure_class is FailureClass.TRANSFER_FAILURE
+    assert review.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert timeouts == [
         SSH_OPERATION_TIMEOUT_SECONDS,
         P0_STAGE_TIMEOUT_SECONDS,
         DATABASE_STAGE_TIMEOUT_SECONDS,
         SSH_COLLECTION_TIMEOUT_SECONDS,
+        SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS,
     ]
     assert all(command[0] == "ssh" for command in commands)
     assert all("BatchMode=yes" in command for command in commands)
@@ -684,6 +798,134 @@ def test_collection_rejects_symlinked_parent(tmp_path: Path) -> None:
     with pytest.raises(RemoteOperationError, match="escaped collection root"):
         controller.collect(run_id)
     assert list(outside.iterdir()) == []
+
+
+def test_review_collection_extracts_only_manifest_eligible_checksum_assets(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("p2-diverse", "HEAD")["run_id"])
+    package_id, manifest_sha256, files = _write_review_evidence(controller, run_id)
+    transport.review_archive = _archive(files)
+
+    result = controller.review_collect(run_id)
+
+    assert result["package_id"] == package_id
+    assert result["manifest_sha256"] == manifest_sha256
+    assert result["eligible_solution_count"] == 1
+    files_result = result["files"]
+    assert isinstance(files_result, list)
+    assert len(files_result) == 8
+    destination = Path(str(result["destination"]))
+    assert (destination / "state/job-result.json").is_file()
+    assert next(destination.rglob("solution.pdb")).read_bytes() == b"ATOM\n"
+    assert transport.calls[-1] == (
+        "review-collect",
+        (run_id, controller._owned_run(run_id).owner_id, manifest_sha256),
+    )
+
+
+def test_review_collection_rejects_wrong_profile_and_uncollected_run(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    smoke = str(controller.stage("smoke", "HEAD")["run_id"])
+    diverse = str(controller.stage("p2-diverse", "HEAD")["run_id"])
+
+    with pytest.raises(ValidationError, match="requires a p2-diverse run"):
+        controller.review_collect(smoke)
+    with pytest.raises(ValidationError, match="collect the terminal run"):
+        controller.review_collect(diverse)
+
+
+def test_review_collection_rejects_policy_drift_before_remote_transfer(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("p2-diverse", "HEAD")["run_id"])
+    _write_review_evidence(
+        controller,
+        run_id,
+        score_gate={
+            "llg_strictly_greater_than": 50.0,
+            "operator": "and",
+            "policy_id": "unsafe_drift",
+            "tfz_strictly_greater_than": 5.0,
+        },
+    )
+    previous_calls = list(transport.calls)
+
+    with pytest.raises(ValidationError, match="identity or policy"):
+        controller.review_collect(run_id)
+    assert transport.calls == previous_calls
+
+
+def test_review_collection_rejects_checksum_mismatch_atomically(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("p2-diverse", "HEAD")["run_id"])
+    _, _, files = _write_review_evidence(controller, run_id)
+    asset = next(name for name in files if name.endswith("solution.pdb"))
+    files[asset] = b"tampered\n"
+    transport.review_archive = _archive(files)
+
+    with pytest.raises(RemoteOperationError, match="checksum mismatch"):
+        controller.review_collect(run_id)
+    assert not (controller.config.local_state_root / run_id / "review-assets").exists()
+
+
+def test_review_collection_rejects_unexpected_archive_member(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("p2-diverse", "HEAD")["run_id"])
+    _, _, files = _write_review_evidence(controller, run_id)
+    files["arbitrary/path.txt"] = b"not permitted\n"
+    transport.review_archive = _archive(files)
+
+    with pytest.raises(RemoteOperationError, match="unexpected review archive"):
+        controller.review_collect(run_id)
+
+
+def test_review_collection_recomputes_first_copy_eligibility(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("p2-diverse", "HEAD")["run_id"])
+    _, _, files = _write_review_evidence(controller, run_id)
+    result_name = next(
+        name for name in files if name.endswith("normalised_mr_result.jsonl")
+    )
+    rejected = json.loads(files[result_name])
+    rejected["tfz"] = 5.0
+    payload = (json.dumps(rejected) + "\n").encode("utf-8")
+    files[result_name] = payload
+    manifest_name = next(
+        name for name in files if name.endswith("mr_seed_review_manifest.json")
+    )
+    manifest = json.loads(files[manifest_name])
+    manifest["items"][0]["copied_asset_sha256"]["normalised_result"] = hashlib.sha256(
+        payload
+    ).hexdigest()
+    manifest_payload = (json.dumps(manifest) + "\n").encode("utf-8")
+    files[manifest_name] = manifest_payload
+    manifest_sha256 = hashlib.sha256(manifest_payload).hexdigest()
+    summary_name = next(
+        name for name in files if name.endswith("p2-diverse-summary.json")
+    )
+    summary = json.loads(files[summary_name])
+    summary["mr_seed_review_manifest_sha256"] = manifest_sha256
+    files[summary_name] = (json.dumps(summary) + "\n").encode("utf-8")
+    collected = controller.config.local_state_root / run_id / "collected"
+    (collected / manifest_name).write_bytes(manifest_payload)
+    (collected / summary_name).write_bytes(files[summary_name])
+    transport.review_archive = _archive(files)
+
+    with pytest.raises(RemoteOperationError, match="fails the fixed first-copy gate"):
+        controller.review_collect(run_id)
 
 
 def test_same_failure_twice_stops_the_feedback_chain(tmp_path: Path) -> None:

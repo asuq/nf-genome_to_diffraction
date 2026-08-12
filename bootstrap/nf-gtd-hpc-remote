@@ -14,6 +14,8 @@ BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 MAX_FILE_BYTES=$((20 * 1024 * 1024))
 MAX_TOTAL_BYTES=$((100 * 1024 * 1024))
+MAX_REVIEW_FILE_BYTES=$((128 * 1024 * 1024))
+MAX_REVIEW_TOTAL_BYTES=$((512 * 1024 * 1024))
 MAX_P0_INPUT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 
 TOOL_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -1816,6 +1818,250 @@ collect_run() {
     tar -czf - -C "$run" "${files[@]}"
 }
 
+review_collect_run() {
+    [[ "$#" -eq 3 ]] || \
+        fail wrapper_failure \
+            "review-collect expects run ID, owner ID, and manifest checksum"
+    local run_id="$1"
+    local owner_id="$2"
+    local expected_manifest_sha256="$3"
+    local run python temporary payload inventory diagnostic message
+    local -a files=()
+    require_owned_run "$run_id" "$owner_id"
+    [[ "$run_id" == gtd-p2-diverse-* ]] || \
+        fail wrapper_failure "review-collect requires a p2-diverse run"
+    [[ "$expected_manifest_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "review manifest checksum is invalid"
+    run="$(run_directory "$run_id")"
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$python" ]] || \
+        fail environment_failure "locked run Python is unavailable"
+    temporary="$(mktemp -d /tmp/nf-gtd-review-collect.XXXXXXXX)" || \
+        fail filesystem_failure "cannot create review collection staging"
+    payload="$temporary/payload"
+    inventory="$temporary/files.txt"
+    diagnostic="$temporary/error.txt"
+    mkdir -p "$payload"
+
+    if ! "$python" - "$run" "$payload" "$inventory" \
+        "$expected_manifest_sha256" "$MAX_REVIEW_FILE_BYTES" \
+        "$MAX_REVIEW_TOTAL_BYTES" > /dev/null 2> "$diagnostic" <<'PY'
+import hashlib
+import json
+import os
+import re
+import shutil
+import stat
+import sys
+from pathlib import Path, PurePosixPath
+
+run = Path(sys.argv[1])
+payload = Path(sys.argv[2])
+inventory = Path(sys.argv[3])
+expected_manifest_sha256 = sys.argv[4]
+maximum_file_bytes = int(sys.argv[5])
+maximum_total_bytes = int(sys.argv[6])
+review_relative = PurePosixPath(
+    "artifacts/qualification/p2-diverse-review/mr_seed_review_manifest.json"
+)
+summary_relative = PurePosixPath(
+    "artifacts/qualification/p2-diverse-summary.json"
+)
+job_relative = PurePosixPath("state/job-result.json")
+solution_pattern = re.compile(r"sol_[0-9a-f]{64}")
+digest_pattern = re.compile(r"[0-9a-f]{64}")
+asset_basenames = {
+    "command": "phaser_command.json",
+    "normalised_result": "normalised_mr_result.jsonl",
+    "output_mtz": "solution.mtz",
+    "raw_log": "phaser.log",
+    "solution_coordinate": "solution.pdb",
+}
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def safe_file(relative: PurePosixPath) -> Path:
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("unsafe review asset path")
+    path = run.joinpath(*relative.parts)
+    metadata = path.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or path.is_symlink():
+        raise ValueError(f"review asset is not a regular file: {relative}")
+    parent = path.parent.resolve(strict=True)
+    root = run.resolve(strict=True)
+    if parent != root and root not in parent.parents:
+        raise ValueError(f"review asset escaped the run root: {relative}")
+    return path
+
+
+def load_json(relative: PurePosixPath) -> tuple[Path, dict[str, object]]:
+    path = safe_file(relative)
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"review evidence is not an object: {relative}")
+    return path, value
+
+
+def validate_eligible_result(path: Path, label: str) -> None:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if len(lines) != 1:
+        raise ValueError(f"eligible result must contain one record: {label}")
+    result = json.loads(lines[0])
+    if not isinstance(result, dict):
+        raise ValueError(f"eligible result is not an object: {label}")
+    llg = result.get("llg")
+    tfz = result.get("tfz")
+    score_passed = (
+        isinstance(llg, (int, float)) and not isinstance(llg, bool) and llg > 50.0
+    ) or (
+        isinstance(tfz, (int, float)) and not isinstance(tfz, bool) and tfz > 5.0
+    )
+    packing = result.get("packing_summary")
+    if not (
+        result.get("execution_status") == "completed_hit"
+        and score_passed
+        and isinstance(packing, dict)
+        and packing.get("top_solution_packed") is True
+        and packing.get("score_gate_operator") == "or"
+        and packing.get("score_gate_llg_strictly_greater_than") == 50
+        and packing.get("score_gate_tfz_strictly_greater_than") == 5
+        and packing.get("score_gate_passed") is True
+        and result.get("placed_copy_count") == 1
+        and isinstance(result.get("solution_coordinate_path"), str)
+        and isinstance(result.get("output_mtz_path"), str)
+    ):
+        raise ValueError(f"eligible result fails the fixed first-copy gate: {label}")
+
+
+manifest_path, manifest = load_json(review_relative)
+summary_path, summary = load_json(summary_relative)
+job_path, job_result = load_json(job_relative)
+manifest_sha256 = sha256_file(manifest_path)
+if manifest_sha256 != expected_manifest_sha256:
+    raise ValueError("review manifest checksum differs from local evidence")
+if not (
+    job_result.get("run_id") == run.name
+    and job_result.get("profile") == "p2-diverse"
+    and job_result.get("failure_class") == "success"
+    and job_result.get("scheduler_state") == "COMPLETED"
+    and job_result.get("exit_code") == 0
+):
+    raise ValueError("review assets require a successful terminal P2 run")
+package_id = manifest.get("package_id")
+if not isinstance(package_id, str) or not re.fullmatch(
+    r"reviewpkg_[0-9a-f]{64}", package_id
+):
+    raise ValueError("review package ID is invalid")
+expected_gate = {
+    "llg_strictly_greater_than": 50.0,
+    "operator": "or",
+    "policy_id": "strict_llg_gt_50_or_tfz_gt_5",
+    "tfz_strictly_greater_than": 5.0,
+}
+if not (
+    manifest.get("adapter_version") == "mr-seed-review-v2"
+    and manifest.get("score_gate") == expected_gate
+    and summary.get("run_id") == run.name
+    and summary.get("profile") == "p2-diverse"
+    and summary.get("mr_seed_review_package_id") == package_id
+    and summary.get("mr_seed_review_manifest_sha256") == manifest_sha256
+):
+    raise ValueError("review evidence identity or policy does not match")
+items = manifest.get("items")
+if not isinstance(items, list):
+    raise ValueError("review manifest items are invalid")
+eligible = [
+    item
+    for item in items
+    if isinstance(item, dict) and item.get("automatic_eligibility") is True
+]
+if not 1 <= len(eligible) <= 25:
+    raise ValueError("review package must have 1..25 eligible seeds")
+if summary.get("completed_hit_count") != len(eligible):
+    raise ValueError("eligible review count differs from the summary")
+
+expected: dict[PurePosixPath, str] = {
+    review_relative: manifest_sha256,
+    summary_relative: sha256_file(summary_path),
+    job_relative: sha256_file(job_path),
+}
+solution_ids: set[str] = set()
+for item in eligible:
+    solution_id = item.get("solution_id")
+    copied_assets = item.get("copied_assets")
+    copied_sha256 = item.get("copied_asset_sha256")
+    if not (
+        isinstance(solution_id, str)
+        and solution_pattern.fullmatch(solution_id)
+        and solution_id not in solution_ids
+        and isinstance(copied_assets, dict)
+        and isinstance(copied_sha256, dict)
+        and set(copied_assets) == set(asset_basenames)
+        and set(copied_sha256) == set(asset_basenames)
+    ):
+        raise ValueError("eligible review item identity is invalid")
+    solution_ids.add(solution_id)
+    for key, basename in asset_basenames.items():
+        manifest_asset = f"assets/{solution_id}/{basename}"
+        digest = copied_sha256.get(key)
+        if not (
+            copied_assets.get(key) == manifest_asset
+            and isinstance(digest, str)
+            and digest_pattern.fullmatch(digest)
+        ):
+            raise ValueError("eligible review asset identity is invalid")
+        relative = review_relative.parent / manifest_asset
+        if relative in expected:
+            raise ValueError("eligible review asset path is duplicated")
+        expected[relative] = digest
+
+total = 0
+copied: list[str] = []
+for relative, digest in expected.items():
+    source = safe_file(relative)
+    size = source.stat().st_size
+    if size > maximum_file_bytes:
+        raise ValueError(f"review asset exceeds per-file limit: {relative}")
+    total += size
+    if total > maximum_total_bytes:
+        raise ValueError("review assets exceed total collection limit")
+    if sha256_file(source) != digest:
+        raise ValueError(f"review asset checksum mismatch: {relative}")
+    if relative.name == "normalised_mr_result.jsonl":
+        validate_eligible_result(source, relative.as_posix())
+    target = payload.joinpath(*relative.parts)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target, follow_symlinks=False)
+    os.chmod(target, 0o400)
+    if sha256_file(target) != digest:
+        raise ValueError(f"staged review asset checksum mismatch: {relative}")
+    copied.append(relative.as_posix())
+inventory.write_text("".join(f"{name}\n" for name in copied), encoding="ascii")
+PY
+    then
+        message="$(tail -n 1 -- "$diagnostic" 2>/dev/null || true)"
+        rm -rf -- "$temporary"
+        fail transfer_failure "review asset validation failed: ${message:-unknown error}"
+    fi
+    mapfile -t files < "$inventory"
+    ((${#files[@]} >= 8)) || {
+        rm -rf -- "$temporary"
+        fail transfer_failure "review asset inventory is incomplete"
+    }
+    if ! COPYFILE_DISABLE=1 tar -czf - -C "$payload" "${files[@]}"; then
+        rm -rf -- "$temporary"
+        fail transfer_failure "review asset archive could not be streamed"
+    fi
+    rm -rf -- "$temporary"
+}
+
 clean_run() {
     [[ "$#" -eq 3 ]] || fail wrapper_failure "clean expects run ID, owner ID, and confirmation"
     local run_id="$1"
@@ -1860,6 +2106,7 @@ main() {
         status) status_run "$@" ;;
         logs) logs_run "$@" ;;
         collect) collect_run "$@" ;;
+        review-collect) review_collect_run "$@" ;;
         cancel) cancel_run "$@" ;;
         clean) clean_run "$@" ;;
         *) fail wrapper_failure "unsupported remote operation" ;;

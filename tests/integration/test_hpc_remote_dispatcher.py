@@ -285,6 +285,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "fi\n"
         "FAKE_GTD\n"
         '      chmod 0755 "$env_bin/genome-to-diffraction"\n'
+        f'      ln -sf {shlex.quote(sys.executable)} "$env_bin/python"\n'
         "      for tool in nextflow mmseqs foldseek; do\n"
         "        printf '#!/usr/bin/env bash\\nexit 0\\n' > \"$env_bin/$tool\"\n"
         "      done\n"
@@ -721,6 +722,7 @@ def test_database_administration_uses_separate_fixed_start_boundary(
 ) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
 
     missing = _run(
         [str(dispatcher), "database-readiness"],
@@ -919,6 +921,7 @@ def test_database_stage_fails_when_login_environment_install_fails(
 ) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
     _write_database_paths(remote_root)
     failing_environment = dict(environment)
     failing_environment["FAKE_PIXI_INSTALL_FAIL"] = "1"
@@ -2635,6 +2638,209 @@ def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(
     assert (
         "artifacts/p2-diverse/first-copy/diverse_first_copy_funnel/mr_hypotheses.jsonl"
     ) in names
+
+
+def _install_review_asset_fixture(run: Path) -> tuple[str, set[str]]:
+    review = run / "artifacts/qualification/p2-diverse-review"
+    state = run / "state"
+    review.mkdir(parents=True, exist_ok=True)
+    state.mkdir(exist_ok=True)
+    solution_id = "sol_" + "a" * 64
+    package_id = "reviewpkg_" + "b" * 64
+    assets = {
+        "command": ("phaser_command.json", b'{"command":"phenix.phaser"}\n'),
+        "normalised_result": (
+            "normalised_mr_result.jsonl",
+            b'{"execution_status":"completed_hit","llg":27.0,"tfz":5.5,'
+            b'"packing_summary":{"top_solution_packed":true,'
+            b'"score_gate_operator":"or",'
+            b'"score_gate_llg_strictly_greater_than":50,'
+            b'"score_gate_tfz_strictly_greater_than":5,'
+            b'"score_gate_passed":true},"placed_copy_count":1,'
+            b'"solution_coordinate_path":"PHASER.1.pdb",'
+            b'"output_mtz_path":"PHASER.1.mtz"}\n',
+        ),
+        "output_mtz": ("solution.mtz", b"fake mtz\n"),
+        "raw_log": ("phaser.log", b"fake Phaser log\n"),
+        "solution_coordinate": ("solution.pdb", b"ATOM\n"),
+    }
+    manifest = {
+        "schema_version": "1.0",
+        "adapter_version": "mr-seed-review-v2",
+        "package_id": package_id,
+        "score_gate": {
+            "llg_strictly_greater_than": 50.0,
+            "operator": "or",
+            "policy_id": "strict_llg_gt_50_or_tfz_gt_5",
+            "tfz_strictly_greater_than": 5.0,
+        },
+        "items": [
+            {
+                "automatic_eligibility": True,
+                "solution_id": solution_id,
+                "copied_assets": {
+                    key: f"assets/{solution_id}/{basename}"
+                    for key, (basename, _) in assets.items()
+                },
+                "copied_asset_sha256": {
+                    key: hashlib.sha256(payload).hexdigest()
+                    for key, (_, payload) in assets.items()
+                },
+            }
+        ],
+    }
+    manifest_path = review / "mr_seed_review_manifest.json"
+    manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+    manifest_sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    summary_path = run / "artifacts/qualification/p2-diverse-summary.json"
+    summary_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "run_id": run.name,
+                "profile": "p2-diverse",
+                "completed_hit_count": 1,
+                "mr_seed_review_package_id": package_id,
+                "mr_seed_review_manifest_sha256": manifest_sha256,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    job_path = state / "job-result.json"
+    job_path.write_text(
+        json.dumps(
+            {
+                "run_id": run.name,
+                "profile": "p2-diverse",
+                "failure_class": "success",
+                "scheduler_state": "COMPLETED",
+                "exit_code": 0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    expected = {
+        "artifacts/qualification/p2-diverse-review/mr_seed_review_manifest.json",
+        "artifacts/qualification/p2-diverse-summary.json",
+        "state/job-result.json",
+    }
+    for basename, payload in assets.values():
+        relative = (
+            f"artifacts/qualification/p2-diverse-review/assets/{solution_id}/{basename}"
+        )
+        path = run / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        expected.add(relative)
+    return manifest_sha256, expected
+
+
+def test_review_collect_streams_only_manifest_eligible_checksum_assets(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                P2_DIVERSE_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "p2-diverse",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert staged["profile"] == "p2-diverse"
+    run = remote_root / "runs" / P2_DIVERSE_RUN_ID
+    manifest_sha256, expected = _install_review_asset_fixture(run)
+
+    result = _run(
+        [
+            str(dispatcher),
+            "review-collect",
+            P2_DIVERSE_RUN_ID,
+            OWNER_ID,
+            manifest_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    with tarfile.open(fileobj=io.BytesIO(result.stdout), mode="r:gz") as archive:
+        names = set(archive.getnames())
+        assert names == expected
+        solution = archive.extractfile(
+            next(name for name in names if name.endswith("solution.pdb"))
+        )
+        assert solution is not None
+        assert solution.read() == b"ATOM\n"
+
+
+def test_review_collect_rejects_manifest_checksum_and_asset_tampering(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _write_p0_paths(remote_root)
+    _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                P2_DIVERSE_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "p2-diverse",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    run = remote_root / "runs" / P2_DIVERSE_RUN_ID
+    manifest_sha256, _ = _install_review_asset_fixture(run)
+
+    wrong_manifest = _run(
+        [
+            str(dispatcher),
+            "review-collect",
+            P2_DIVERSE_RUN_ID,
+            OWNER_ID,
+            "0" * 64,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(wrong_manifest.stdout)["failure_class"] == (
+        "transfer_failure"
+    )
+
+    solution = next(run.rglob("solution.pdb"))
+    solution.write_bytes(b"tampered\n")
+    tampered = _run(
+        [
+            str(dispatcher),
+            "review-collect",
+            P2_DIVERSE_RUN_ID,
+            OWNER_ID,
+            manifest_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(tampered.stdout)["failure_class"] == "transfer_failure"
 
 
 def test_p2_diverse_stage_classifies_coordinate_registration_failure(

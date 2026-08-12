@@ -19,7 +19,7 @@ never edits or pushes source.
 
 The reviewed local application is the routine approval boundary. Persistent
 rules may cover only `deploy-tools`, `readiness`, `stage`, `submit`, `status`,
-`wait`, `logs`, `collect`, or `cancel`. The distinct `database-stage` and
+`wait`, `logs`, `collect`, `review-collect`, or `cancel`. The distinct `database-stage` and
 `database-submit` start commands deliberately remain approval-gated. Raw SSH,
 file-transfer tools, scheduler commands, and `clean` must not receive persistent
 automatic approval.
@@ -47,7 +47,9 @@ recorded job when appropriate.
 Every SSH invocation is also independently bounded: connection setup allows one
 attempt with a 15-second connect timeout, routine dispatcher operations have a
 45-minute conservative client margin for NFS-cold login-node commands, and
-fixed artefact collection has a 10-minute hard client timeout. Server-alive
+fixed artefact collection has a 10-minute hard client timeout. The larger,
+checksum-gated review-asset collection has a 30-minute transport margin.
+Server-alive
 probes detect an unresponsive established connection. A timeout is reported as
 `transfer_failure`; the controller does not fall back to raw SSH, infer that a
 remote job failed, or cancel it implicitly. The 45-minute margin replaced the
@@ -225,6 +227,7 @@ nf-gtd-hpc-test status --run-id RUN_ID
 nf-gtd-hpc-test wait --run-id RUN_ID
 nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test collect --run-id RUN_ID
+nf-gtd-hpc-test review-collect --run-id RUN_ID
 nf-gtd-hpc-test cancel --run-id RUN_ID
 ```
 
@@ -238,6 +241,32 @@ nf-gtd-hpc-test wait --run-id RUN_ID
 nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test collect --run-id RUN_ID
 ```
+
+After a terminal successful `p2-diverse` run has been collected, the separate
+`review-collect` operation closes the M3-to-M4 human-review boundary without
+accepting a caller-supplied path or candidate ID:
+
+```bash
+nf-gtd-hpc-test review-collect --run-id RUN_ID
+```
+
+The local wrapper reads the collected version-2 review manifest, verifies its
+checksum and the current strict `LLG > 50` **or** `TFZ > 5` policy, and sends
+only the run ID, owner token, and manifest checksum to the dispatcher. The
+dispatcher independently revalidates the terminal job result, manifest,
+summary, automatic eligibility, final packing, and requested placed-copy count.
+For each manifest-eligible solution it returns exactly the normalised result,
+resolved command, Phaser log, PDB, and MTZ named by their recorded SHA-256
+digests. The manifest, run summary, and outer job result accompany those files.
+No other remote files are admitted. Limits are 25 eligible candidates, 128 MiB
+per file, and 512 MiB total. Local extraction rejects links, unexpected paths,
+duplicates, checksum mismatches, and partial publication, and writes the verified
+bundle atomically below `.untracked/hpc-test/RUN_ID/review-assets/`.
+
+This is an evidence-transfer operation, not an approval operation. Marginal
+TFZ-only candidates remain review candidates. Their raw scores, packing,
+placed-copy evidence, maps, and deliberate controls must be inspected before a
+reviewer creates an approval record or M4 searches additional copies.
 
 P1 reuses that same reviewed, read-only site configuration and database
 manifest. It accepts no new path or scientific parameter:
@@ -644,7 +673,7 @@ database-administration start commands. `database-stage` contacts only the
 fixed public Foldseek/RCSB routes from the login node and writes directly to a
 large shared root; the Slurm job is network-free. Routine `stage` and `submit`
 explicitly reject the `database` profile. Keep these mutating start operations
-separate from the seven routine smoke-test operations.
+separate from the routine smoke-test operations.
 
 Create `_config/database.paths` below the configured remote run root from the
 tracked [example](../conf/hpc-database.paths.example). It is user-owned, mode
@@ -770,7 +799,7 @@ include `clean` in a persistent Codex allow rule.
 
 After installing and checksumming the immutable local application, add allow
 rules only for its absolute path followed by `deploy-tools`, `readiness`, `stage`,
-`submit`, `status`, `wait`, `logs`, `collect`, or `cancel`. Keep raw SSH, transfer tools,
+`submit`, `status`, `wait`, `logs`, `collect`, `review-collect`, or `cancel`. Keep raw SSH, transfer tools,
 Slurm commands, `p0-inputs-stage`, `p0-configure`, and the wrapper's `clean`
 operation approval-gated.
 
@@ -781,7 +810,7 @@ substitutes. The intended Codex rule shape is:
 prefix_rule(
     pattern = [
         "/absolute/path/to/installed/nf-gtd-hpc-test",
-        ["deploy-tools", "readiness", "stage", "submit", "status", "wait", "logs", "collect", "cancel"],
+        ["deploy-tools", "readiness", "stage", "submit", "status", "wait", "logs", "collect", "review-collect", "cancel"],
     ],
     decision = "allow",
     justification = "Allow only the reviewed nf-genome_to_diffraction HPC interface.",
@@ -789,6 +818,7 @@ prefix_rule(
         "/absolute/path/to/installed/nf-gtd-hpc-test deploy-tools --revision HEAD",
         "/absolute/path/to/installed/nf-gtd-hpc-test readiness p0",
         "/absolute/path/to/installed/nf-gtd-hpc-test status --run-id RUN_ID",
+        "/absolute/path/to/installed/nf-gtd-hpc-test review-collect --run-id RUN_ID",
     ],
     not_match = [
         "/absolute/path/to/installed/nf-gtd-hpc-test clean --run-id RUN_ID --confirm RUN_ID",
