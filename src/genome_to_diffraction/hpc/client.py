@@ -365,7 +365,12 @@ class SshTransport:
         dispatcher_checksum: str,
         smoke_job_checksum: str,
     ) -> dict[str, str]:
-        """Stream the fixed reviewed recovery script after normal deploy breaks."""
+        """Run the fixed reviewed recovery script after normal deploy breaks."""
+
+        try:
+            recovery_text = recovery_script.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise ValidationError("committed recovery script must be ASCII") from error
 
         remote_command = shlex.join(
             [
@@ -378,8 +383,9 @@ class SshTransport:
                 "--noprofile",
                 "--norc",
                 "-p",
-                "-s",
-                "--",
+                "-c",
+                recovery_text,
+                "nf-gtd-hpc-recover-tools",
                 self._config.remote_dispatcher,
                 commit,
                 dispatcher_checksum,
@@ -396,7 +402,6 @@ class SshTransport:
         try:
             result = subprocess.run(
                 command,
-                input=recovery_script,
                 check=False,
                 capture_output=True,
                 timeout=SSH_OPERATION_TIMEOUT_SECONDS,

@@ -353,8 +353,10 @@ copies.
 
 If and only if the installed dispatcher fails before dispatch with the exact
 `environment_failure` message `base64 is unavailable`, the same local
-`deploy-tools` operation streams that committed recovery script over standard
-input. The recovery script accepts only the configured fixed dispatcher path,
+`deploy-tools` operation passes the exact committed recovery script as the
+fixed Bash program. Standard input remains open for Git, which otherwise tries
+to reopen the unavailable Marmic `/dev/null` after consuming a script stream.
+The recovery script accepts only the configured fixed dispatcher path,
 the exact 40-character commit, and the two locally calculated checksums. It
 requires the commit on private-mirror `origin/main`, extracts only the two fixed
 tool paths, validates ownership, checksums and Bash syntax, and performs the
