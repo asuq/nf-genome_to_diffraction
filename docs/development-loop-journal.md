@@ -1007,3 +1007,81 @@ terminal, collect and compare the old stored classification with the new
 raw-score recomputation before choosing the next immutable run. The next source
 change should be driven by that terminal evidence or by the scheduled control
 requirements, not by additional synthetic-test polishing.
+
+## 2026-08-12 — P2-diverse replay completed with six current-policy candidates
+
+### Discoveries
+
+- Retained run
+  `gtd-p2-diverse-20260811T221301Z-5914536eecf6-2d589750`, Slurm job
+  `625882`, ran from `2026-08-11T22:16:04Z` to
+  `2026-08-12T02:06:44Z`. It completed with scheduler state `COMPLETED`, exit
+  code `0`, and failure class `success` from commit
+  `5914536eecf6a5409240ec93a74f44ca18036a36`, nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a`, Pixi `0.74.0`, and lock
+  checksum `ecb7b12f890172eb53180ef5027b360b8187dff7d168a7cd8fc6507f9215fdc5`.
+- The immutable run used the superseded score policy and therefore stored 25
+  `completed_no_hit` results, zero `completed_hit` results, and a version-1
+  review package ordered by strict `LLG > 100` and `TFZ > 10`.
+- Recomputing from the preserved raw metrics under current strict `LLG > 50`
+  or `TFZ > 5` yields six provisional score-gate passers and six automatically
+  eligible candidates after independent packing, one-placed-copy, coordinate,
+  and MTZ checks. All six pass only through TFZ; no result has LLG above 50.
+- The six candidates map to catalogue accessions `WP_042686707.1`,
+  `WP_042684271.1`, `WP_042684304.1`, `WP_042684748.1`, `WP_042686121.1`,
+  and `WP_042685919.1`. Their LLG range is 19.726–27.383 and TFZ range is
+  5.1–5.5. The corresponding experimental model targets are 6SKF, 9ZNF, 9O17,
+  and 9NRI, with expected ASU copy counts from three to seven.
+- Bounded Phaser tails warn that these top TFZ values are below Phaser's own
+  cutoff of 8 for a definite solution. The current user gate therefore retains
+  them as sensitive review candidates, not validated structures or automatic
+  permission to begin additional-copy placement.
+- All 25 first-copy tasks completed. The largest observed task used 334.1% CPU
+  and 4.2 GB peak RSS, supporting the qualified four-CPU/eight-GB allocation
+  without evidence for a further memory increase.
+
+### Accomplishments and immutable evidence
+
+- The run published exactly 25 hypotheses: one predicted and 24 experimental,
+  across 24 sequence-equivalence groups. Login and scheduled PDB search hashes
+  match, and every result completed scientifically.
+- Model preparation resumed one of one process from cache. The first-copy
+  replay resumed all 26 processes from cache: one funnel plus 25 Phaser tasks.
+- Review package
+  `reviewpkg_8db1defec6c9e2a2c6e77c4abd6a95967ed072280c30ae23baf04b7f9708b848`
+  contains 25 candidates, 25 approval-candidate rows, HTML review, and a
+  header-only approval template. Its manifest SHA-256 is
+  `7f26e828a5dabeb6832e37818a5d82956e556da81c328f416e5f4f738d87c9ac`,
+  matching the summary and collected file.
+- All four review-output checksums match their manifest records. The broader
+  bounded artifact inventory binds the summary, results, commands, Phaser
+  tails, resume checks, review package, and approval template.
+- Evidence collection succeeded after the documented transient Marmic SSH
+  outages. The remote run remains retained and unchanged; no cleanup, cancel,
+  or remote source mutation occurred.
+
+### Unresolved work
+
+- The collected version-1 package is authoritative evidence of the policy that
+  produced it, but its stored `automatic_eligibility=false` fields and solution
+  ranking must not be relabelled in place. A new immutable version-2 review run
+  is required to publish current-policy solution IDs, ranking, and approval
+  candidates.
+- The current six candidates require human inspection of maps and packing.
+  Their marginal TFZ values make the known-positive control and deliberate
+  incorrect-model control especially important for calibrating the sensitive
+  disjunctive gate.
+- Do not start M4 until a policy-correct review package exists, at least one
+  human-reviewed seed is approved, and the scheduled controls demonstrate
+  useful separation. The CD6 result alone does not identify a structure.
+
+### Next exact starting point
+
+Commit and push this terminal-evidence handoff and require the exact GitHub
+Actions run to pass. Disable the completed-run heartbeat. Then run
+`readiness p2-diverse` and stage one fresh immutable replay from the qualified
+current-policy revision; collect and verify its login-stage checksum before
+submission. Monitor that replay without a runtime timeout. Its purpose is to
+publish the current-policy review package from real data, after which prioritise
+the known-positive and deliberate incorrect-model controls over further
+synthetic-test polishing.
