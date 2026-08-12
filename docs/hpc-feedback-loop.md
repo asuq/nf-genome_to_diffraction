@@ -354,16 +354,20 @@ copies.
 If and only if the installed dispatcher fails before dispatch with the exact
 `environment_failure` message `base64 is unavailable`, the same local
 `deploy-tools` operation passes the exact committed recovery script as the
-fixed Bash program. Standard input remains open for Git, which otherwise tries
-to reopen the unavailable Marmic `/dev/null` after consuming a script stream.
-The recovery script accepts only the configured fixed dispatcher path,
-the exact 40-character commit, and the two locally calculated checksums. It
-requires the commit on private-mirror `origin/main`, extracts only the two fixed
-tool paths, validates ownership, checksums and Bash syntax, and performs the
-same preserved-copy rollback. Other failure classes or messages never activate
-the recovery path. This avoids a recurring raw-SSH approval while keeping the
-repair operation checksum- and path-gated; normal upgrades continue through the
-installed dispatcher after recovery.
+fixed Bash program. Before transmission, the local controller requires a clean
+worktree, resolves the exact 40-character commit, requires it to be contained in
+the local `origin/main` tracking reference, and reads only the three fixed
+committed tool paths. The two replacement scripts are streamed as one bounded
+payload because Marmic's Git executable itself attempts to open the unavailable
+`/dev/null`, even when its standard descriptors are regular files. The recovery
+script accepts only the configured fixed dispatcher path, commit, two locally
+calculated checksums, and two payload sizes of at most 2 MiB each. It reads those
+exact byte counts, rejects truncation and trailing data, validates ownership,
+checksums and Bash syntax, and performs the same preserved-copy rollback. Other
+failure classes or messages never activate the recovery path. This avoids a
+recurring raw-SSH approval while keeping the repair operation commit-, checksum-
+and path-gated; normal upgrades continue through the installed dispatcher after
+recovery.
 
 The remote tools do not redirect to `/dev/null`. Marmic has returned
 `Permission denied` for that device in non-interactive SSH sessions, which can

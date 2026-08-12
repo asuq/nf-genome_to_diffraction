@@ -9,11 +9,14 @@ die() {
     exit 1
 }
 
-[[ "$#" -eq 4 ]] || die "expected dispatcher, commit, and two checksums"
+[[ "$#" -eq 6 ]] || \
+    die "expected dispatcher, commit, two checksums, and two payload sizes"
 dispatcher="$1"
 commit="$2"
 expected_dispatcher="$3"
 expected_job="$4"
+dispatcher_size="$5"
+job_size="$6"
 
 [[ "$dispatcher" =~ ^/[A-Za-z0-9._/-]+/nf-gtd-hpc-remote$ ]] || \
     die "dispatcher path is invalid"
@@ -21,13 +24,17 @@ expected_job="$4"
 [[ "$expected_dispatcher" =~ ^[0-9a-f]{64}$ ]] || \
     die "dispatcher checksum is invalid"
 [[ "$expected_job" =~ ^[0-9a-f]{64}$ ]] || die "job checksum is invalid"
+[[ "$dispatcher_size" =~ ^[1-9][0-9]{0,6}$ ]] || \
+    die "dispatcher payload size is invalid"
+[[ "$job_size" =~ ^[1-9][0-9]{0,6}$ ]] || \
+    die "job payload size is invalid"
+(( dispatcher_size <= 2097152 )) || die "dispatcher payload is too large"
+(( job_size <= 2097152 )) || die "job payload is too large"
 
 tool_dir="$(dirname "$dispatcher")"
 root="$(dirname "$tool_dir")"
 job="$tool_dir/nf-gtd-hpc-smoke-job"
-mirror="$root/_cache/git/nf-genome_to_diffraction.git"
 locks="$root/_locks"
-discard="$tool_dir/.discard-recovery.$$"
 
 [[ "$dispatcher" == "$tool_dir/nf-gtd-hpc-remote" ]] || \
     die "dispatcher target is inconsistent"
@@ -37,22 +44,6 @@ discard="$tool_dir/.discard-recovery.$$"
     die "installed dispatcher is unsafe"
 [[ -f "$job" && ! -L "$job" && -O "$job" ]] || \
     die "installed job script is unsafe"
-[[ -d "$mirror" ]] || die "bare Git mirror is absent"
-(umask 077; printf '' > "$discard") || die "cannot create recovery discard file"
-[[ -f "$discard" && ! -L "$discard" && -O "$discard" ]] || \
-    die "recovery discard file is unsafe"
-trap 'rm -f -- "$discard"' EXIT
-if ! { true <&0; } 2>"$discard"; then
-    exec 0<"$discard"
-fi
-bare_output="$tool_dir/.bare-repository.$$"
-trap 'rm -f -- "$discard" "$bare_output"' EXIT
-git --git-dir="$mirror" rev-parse --is-bare-repository \
-    <"$discard" >"$bare_output" 2>&1 || \
-    die "configured Git mirror cannot be inspected: $(head -c 256 "$bare_output")"
-bare_repository="$(<"$bare_output")"
-[[ "$bare_repository" == true ]] || \
-    die "configured Git mirror is not bare"
 
 mkdir -p "$locks"
 exec 9>"$locks/deploy-tools.lock"
@@ -62,8 +53,6 @@ staging="$(mktemp -d "$tool_dir/.recover-tools.XXXXXXXX")" || \
 cleanup() {
     chmod -R u+w "$staging" >"$staging/cleanup.log" 2>&1 || true
     rm -rf -- "$staging"
-    rm -f -- "$discard"
-    rm -f -- "$bare_output"
 }
 trap cleanup EXIT
 
@@ -72,27 +61,17 @@ new_job="$staging/nf-gtd-hpc-smoke-job"
 previous_dispatcher="$staging/previous-nf-gtd-hpc-remote"
 previous_job="$staging/previous-nf-gtd-hpc-smoke-job"
 record="$staging/deployed-tools.json"
+extra_payload="$staging/extra-payload"
 
-git --git-dir="$mirror" fetch --prune origin <"$discard" \
-    >"$staging/git-fetch.log" 2>&1 || \
-    die "Git mirror fetch failed"
-git --git-dir="$mirror" cat-file -e "${commit}^{commit}" \
-    <"$discard" >"$staging/cat-file.log" 2>&1 || \
-    die "commit is unavailable from the private mirror"
-git --git-dir="$mirror" rev-parse --verify refs/heads/main \
-    <"$discard" >"$staging/rev-parse.log" 2>&1 || \
-    die "origin main is absent from the private mirror"
-git --git-dir="$mirror" merge-base --is-ancestor "$commit" refs/heads/main \
-    <"$discard" >"$staging/merge-base.log" 2>&1 || \
-    die "commit is not reachable from origin main"
-git --git-dir="$mirror" show \
-    "${commit}:bootstrap/nf-gtd-hpc-remote" <"$discard" >"$new_dispatcher" \
-    2>"$staging/show-dispatcher.log" || \
-    die "dispatcher is absent from the commit"
-git --git-dir="$mirror" show \
-    "${commit}:bootstrap/nf-gtd-hpc-smoke-job" <"$discard" >"$new_job" \
-    2>"$staging/show-job.log" || \
-    die "job script is absent from the commit"
+head -c "$dispatcher_size" >"$new_dispatcher" || \
+    die "cannot read dispatcher payload"
+[[ "$(wc -c <"$new_dispatcher")" -eq "$dispatcher_size" ]] || \
+    die "dispatcher payload is truncated"
+head -c "$job_size" >"$new_job" || die "cannot read job payload"
+[[ "$(wc -c <"$new_job")" -eq "$job_size" ]] || \
+    die "job payload is truncated"
+head -c 1 >"$extra_payload" || die "cannot check payload boundary"
+[[ ! -s "$extra_payload" ]] || die "recovery payload contains trailing bytes"
 
 actual_dispatcher="$(sha256sum "$new_dispatcher" | awk '{print $1}')"
 actual_job="$(sha256sum "$new_job" | awk '{print $1}')"

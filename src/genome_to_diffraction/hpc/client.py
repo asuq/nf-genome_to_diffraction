@@ -178,6 +178,8 @@ class TextTransport(Protocol):
     def recover_tools(
         self,
         recovery_script: bytes,
+        dispatcher_script: bytes,
+        smoke_job_script: bytes,
         commit: str,
         dispatcher_checksum: str,
         smoke_job_checksum: str,
@@ -213,6 +215,9 @@ class GitRepository(Protocol):
 
     def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
         """Read one fixed repository file from an exact commit."""
+
+    def ensure_reachable_from_origin_main(self, commit: str) -> None:
+        """Fail unless the exact commit is contained in tracked origin/main."""
 
 
 class SubprocessGitRepository:
@@ -277,6 +282,13 @@ class SubprocessGitRepository:
                 f"cannot read {path.as_posix()} from commit {commit}: {detail}"
             )
         return result.stdout
+
+    def ensure_reachable_from_origin_main(self, commit: str) -> None:
+        """Require the commit in the locally tracked immutable main history."""
+
+        validate_commit(commit)
+        self._run(["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"])
+        self._run(["merge-base", "--is-ancestor", commit, "refs/remotes/origin/main"])
 
 
 class SshTransport:
@@ -361,6 +373,8 @@ class SshTransport:
     def recover_tools(
         self,
         recovery_script: bytes,
+        dispatcher_script: bytes,
+        smoke_job_script: bytes,
         commit: str,
         dispatcher_checksum: str,
         smoke_job_checksum: str,
@@ -390,6 +404,8 @@ class SshTransport:
                 commit,
                 dispatcher_checksum,
                 smoke_job_checksum,
+                str(len(dispatcher_script)),
+                str(len(smoke_job_script)),
             ]
         )
         command = [
@@ -404,6 +420,7 @@ class SshTransport:
                 command,
                 check=False,
                 capture_output=True,
+                input=dispatcher_script + smoke_job_script,
                 timeout=SSH_OPERATION_TIMEOUT_SECONDS,
             )
         except subprocess.TimeoutExpired as error:
@@ -557,7 +574,9 @@ class HpcController:
 
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
         checksums: dict[str, str] = {}
+        committed_tools: dict[str, bytes] = {}
         for relative in _REMOTE_TOOL_PATHS:
             committed = self.git.read_file_at_commit(commit, relative)
             worktree_path = self.config.repository.joinpath(*relative.parts)
@@ -569,6 +588,7 @@ class HpcController:
                 raise ValidationError(
                     f"worktree content differs from commit {commit}: {relative}"
                 )
+            committed_tools[relative.name] = committed
             checksums[relative.name] = hashlib.sha256(committed).hexdigest()
 
         dispatcher_checksum = checksums["nf-gtd-hpc-remote"]
@@ -603,6 +623,8 @@ class HpcController:
             )
             remote = self.transport.recover_tools(
                 recovery_script,
+                committed_tools["nf-gtd-hpc-remote"],
+                committed_tools["nf-gtd-hpc-smoke-job"],
                 commit,
                 dispatcher_checksum,
                 smoke_job_checksum,

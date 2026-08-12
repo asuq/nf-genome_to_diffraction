@@ -38,6 +38,7 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 class FakeGit:
     dirty: bool = False
     repository: Path | None = None
+    reachable: bool = True
 
     def ensure_clean(self) -> None:
         if self.dirty:
@@ -52,6 +53,10 @@ class FakeGit:
         if commit != COMMIT or self.repository is None:
             raise ValidationError("commit file")
         return self.repository.joinpath(*path.parts).read_bytes()
+
+    def ensure_reachable_from_origin_main(self, commit: str) -> None:
+        if commit != COMMIT or not self.reachable:
+            raise ValidationError("commit is unavailable from origin/main")
 
 
 @dataclass
@@ -82,6 +87,8 @@ class FakeTransport:
     def recover_tools(
         self,
         recovery_script: bytes,
+        dispatcher_script: bytes,
+        smoke_job_script: bytes,
         commit: str,
         dispatcher_checksum: str,
         smoke_job_checksum: str,
@@ -91,6 +98,8 @@ class FakeTransport:
                 "recover-tools",
                 (
                     hashlib.sha256(recovery_script).hexdigest(),
+                    hashlib.sha256(dispatcher_script).hexdigest(),
+                    hashlib.sha256(smoke_job_script).hexdigest(),
                     commit,
                     dispatcher_checksum,
                     smoke_job_checksum,
@@ -485,8 +494,12 @@ def test_deploy_tools_recovers_only_from_missing_base64(tmp_path: Path) -> None:
     assert operation == "recover-tools"
     recovery = tmp_path / "bootstrap" / "nf-gtd-hpc-recover-tools"
     assert arguments[0] == hashlib.sha256(recovery.read_bytes()).hexdigest()
-    assert arguments[1] == COMMIT
-    assert all(len(value) == 64 for value in arguments[2:])
+    dispatcher = tmp_path / "bootstrap" / "nf-gtd-hpc-remote"
+    smoke_job = tmp_path / "bootstrap" / "nf-gtd-hpc-smoke-job"
+    assert arguments[1] == hashlib.sha256(dispatcher.read_bytes()).hexdigest()
+    assert arguments[2] == hashlib.sha256(smoke_job.read_bytes()).hexdigest()
+    assert arguments[3] == COMMIT
+    assert all(len(value) == 64 for value in arguments[4:])
 
     transport.deploy_error = RemoteOperationError(
         "Git mirror fetch failed",
@@ -502,6 +515,10 @@ def test_deploy_tools_refuses_dirty_or_mismatched_worktree(tmp_path: Path) -> No
     controller = _controller(tmp_path, transport)
     controller.git = FakeGit(dirty=True, repository=tmp_path)
     with pytest.raises(ValidationError, match="dirty"):
+        controller.deploy_tools("HEAD")
+
+    controller.git = FakeGit(repository=tmp_path, reachable=False)
+    with pytest.raises(ValidationError, match="unavailable from origin/main"):
         controller.deploy_tools("HEAD")
 
     controller.git = FakeGit(repository=tmp_path)

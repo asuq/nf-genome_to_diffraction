@@ -612,10 +612,13 @@ def test_recovery_script_replaces_only_checksum_verified_tools(tmp_path: Path) -
             commit,
             dispatcher_digest,
             job_digest,
+            str((source_bootstrap / dispatcher.name).stat().st_size),
+            str((source_bootstrap / smoke_job.name).stat().st_size),
         ],
         cwd=tmp_path,
         environment=environment,
-        close_stdin=True,
+        input_data=(source_bootstrap / dispatcher.name).read_bytes()
+        + (source_bootstrap / smoke_job.name).read_bytes(),
     )
 
     assert recovered.stdout == b"deployed\n"
@@ -628,18 +631,38 @@ def test_recovery_script_replaces_only_checksum_verified_tools(tmp_path: Path) -
     assert record["recovery_used"] is True
 
     rejected = _run(
-        [str(recovery), str(dispatcher), commit, "0" * 64, job_digest],
+        [
+            str(recovery),
+            str(dispatcher),
+            commit,
+            "0" * 64,
+            job_digest,
+            str((source_bootstrap / dispatcher.name).stat().st_size),
+            str((source_bootstrap / smoke_job.name).stat().st_size),
+        ],
         cwd=tmp_path,
         environment=environment,
+        input_data=(source_bootstrap / dispatcher.name).read_bytes()
+        + (source_bootstrap / smoke_job.name).read_bytes(),
         success=False,
     )
     assert b"checksum differs from local review" in rejected.stderr
     assert hashlib.sha256(dispatcher.read_bytes()).hexdigest() == dispatcher_digest
 
     injected = _run(
-        [str(recovery), f"{dispatcher};touch", commit, dispatcher_digest, job_digest],
+        [
+            str(recovery),
+            f"{dispatcher};touch",
+            commit,
+            dispatcher_digest,
+            job_digest,
+            str((source_bootstrap / dispatcher.name).stat().st_size),
+            str((source_bootstrap / smoke_job.name).stat().st_size),
+        ],
         cwd=tmp_path,
         environment=environment,
+        input_data=(source_bootstrap / dispatcher.name).read_bytes()
+        + (source_bootstrap / smoke_job.name).read_bytes(),
         success=False,
     )
     assert b"dispatcher path is invalid" in injected.stderr
