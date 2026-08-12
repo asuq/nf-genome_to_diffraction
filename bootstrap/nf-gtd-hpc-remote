@@ -658,7 +658,8 @@ deploy_tools() {
     [[ "$expected_smoke_job" =~ $CHECKSUM_RE ]] || \
         fail wrapper_failure "invalid smoke-job checksum"
     [[ -d "$MIRROR" ]] || fail filesystem_failure "bare Git mirror is absent"
-    [[ "$(git --git-dir="$MIRROR" rev-parse --is-bare-repository 2>"$DISCARD")" == true ]] || \
+    [[ "$(git --git-dir="$MIRROR" rev-parse --is-bare-repository \
+        <"$DISCARD" 2>"$DISCARD")" == true ]] || \
         fail filesystem_failure "configured Git mirror is not bare"
     [[ -f "$DISPATCHER" && ! -L "$DISPATCHER" ]] || \
         fail filesystem_failure "installed dispatcher is not a regular file"
@@ -676,22 +677,26 @@ deploy_tools() {
     previous_smoke_job="$staging/previous-nf-gtd-hpc-smoke-job"
     record="$staging/deployed-tools.json"
 
-    if ! git --git-dir="$MIRROR" fetch --prune origin >"$staging/git-fetch.log" 2>&1; then
+    if ! git --git-dir="$MIRROR" fetch --prune origin <"$DISCARD" \
+        >"$staging/git-fetch.log" 2>&1; then
         deploy_failure "$staging" transfer_failure "Git mirror fetch failed during tool deployment"
     fi
-    if ! git --git-dir="$MIRROR" cat-file -e "${commit}^{commit}" 2>"$DISCARD"; then
+    if ! git --git-dir="$MIRROR" cat-file -e "${commit}^{commit}" \
+        <"$DISCARD" 2>"$DISCARD"; then
         deploy_failure "$staging" transfer_failure "deployment commit is unavailable from the private mirror"
     fi
-    if ! git --git-dir="$MIRROR" rev-parse --verify refs/heads/main >"$DISCARD" 2>&1 || \
-        ! git --git-dir="$MIRROR" merge-base --is-ancestor "$commit" refs/heads/main; then
+    if ! git --git-dir="$MIRROR" rev-parse --verify refs/heads/main \
+        <"$DISCARD" >"$DISCARD" 2>&1 || \
+        ! git --git-dir="$MIRROR" merge-base --is-ancestor "$commit" \
+        refs/heads/main <"$DISCARD"; then
         deploy_failure "$staging" transfer_failure "deployment commit is not reachable from origin main"
     fi
     if ! git --git-dir="$MIRROR" show \
-        "${commit}:bootstrap/nf-gtd-hpc-remote" > "$new_dispatcher"; then
+        "${commit}:bootstrap/nf-gtd-hpc-remote" <"$DISCARD" > "$new_dispatcher"; then
         deploy_failure "$staging" transfer_failure "fixed dispatcher file is absent from deployment commit"
     fi
     if ! git --git-dir="$MIRROR" show \
-        "${commit}:bootstrap/nf-gtd-hpc-smoke-job" > "$new_smoke_job"; then
+        "${commit}:bootstrap/nf-gtd-hpc-smoke-job" <"$DISCARD" > "$new_smoke_job"; then
         deploy_failure "$staging" transfer_failure "fixed smoke-job file is absent from deployment commit"
     fi
     actual_dispatcher="$(sha256sum "$new_dispatcher" | awk '{print $1}')"
@@ -780,7 +785,8 @@ stage_run_common() {
 
     mkdir -p "$RUNS" "$LOCKS" "$ROOT/_cache/pixi"
     [[ -d "$MIRROR" ]] || fail filesystem_failure "bare Git mirror is absent"
-    [[ "$(git --git-dir="$MIRROR" rev-parse --is-bare-repository 2>"$DISCARD")" == true ]] || \
+    [[ "$(git --git-dir="$MIRROR" rev-parse --is-bare-repository \
+        <"$DISCARD" 2>"$DISCARD")" == true ]] || \
         fail filesystem_failure "configured Git mirror is not bare"
 
     RESOLVED_PIXI=""
@@ -810,13 +816,15 @@ stage_run_common() {
     atomic_text "$run/state/profile" "$profile"
     append_event "$run" "stage_started"
 
-    if ! git --git-dir="$MIRROR" fetch --prune origin >"$run/logs/git-fetch.log" 2>&1; then
+    if ! git --git-dir="$MIRROR" fetch --prune origin <"$DISCARD" \
+        >"$run/logs/git-fetch.log" 2>&1; then
         atomic_text "$run/state/phase" "stage_failed"
         atomic_text "$run/state/failure-class" "transfer_failure"
         append_event "$run" "stage_fetch_failed"
         fail transfer_failure "Git mirror fetch failed"
     fi
-    git --git-dir="$MIRROR" cat-file -e "${commit}^{commit}" 2>"$DISCARD" || {
+    git --git-dir="$MIRROR" cat-file -e "${commit}^{commit}" \
+        <"$DISCARD" 2>"$DISCARD" || {
         atomic_text "$run/state/phase" "stage_failed"
         atomic_text "$run/state/failure-class" "transfer_failure"
         append_event "$run" "stage_commit_unavailable"
@@ -824,27 +832,28 @@ stage_run_common() {
     }
     rmdir "$run/source"
     if ! git clone --no-hardlinks --no-checkout "$MIRROR" "$run/source" \
+        <"$DISCARD" \
         >"$run/logs/git-clone.log" 2>&1; then
         atomic_text "$run/state/phase" "stage_failed"
         atomic_text "$run/state/failure-class" "filesystem_failure"
         append_event "$run" "stage_clone_failed"
         fail filesystem_failure "isolated Git clone failed"
     fi
-    if ! git -C "$run/source" checkout --detach "$commit" \
+    if ! git -C "$run/source" checkout --detach "$commit" <"$DISCARD" \
         >>"$run/logs/git-clone.log" 2>&1; then
         atomic_text "$run/state/phase" "stage_failed"
         atomic_text "$run/state/failure-class" "transfer_failure"
         append_event "$run" "stage_checkout_failed"
         fail transfer_failure "exact commit checkout failed"
     fi
-    if ! git -C "$run/source" submodule update --init --recursive \
+    if ! git -C "$run/source" submodule update --init --recursive <"$DISCARD" \
         >>"$run/logs/git-clone.log" 2>&1; then
         atomic_text "$run/state/phase" "stage_failed"
         atomic_text "$run/state/failure-class" "transfer_failure"
         append_event "$run" "stage_submodule_failed"
         fail transfer_failure "submodule checkout failed"
     fi
-    [[ "$(git -C "$run/source" rev-parse HEAD)" == "$commit" ]] || \
+    [[ "$(git -C "$run/source" rev-parse HEAD <"$DISCARD")" == "$commit" ]] || \
         fail wrapper_failure "staged commit does not match the request"
     actual_lock="$(sha256sum "$run/source/pixi.lock" | awk '{print $1}')"
     [[ "$actual_lock" == "$expected_lock" ]] || {
@@ -853,7 +862,8 @@ stage_run_common() {
         append_event "$run" "stage_lock_mismatch"
         fail transfer_failure "Pixi lock checksum differs from the local commit"
     }
-    submodule_commit="$(git -C "$run/source" submodule status -- external/nf-helper | \
+    submodule_commit="$(git -C "$run/source" submodule status -- external/nf-helper \
+        <"$DISCARD" | \
         awk '{sha=$1; sub(/^[-+U]/,"",sha); print sha}')"
     [[ "$submodule_commit" =~ $COMMIT_RE ]] || \
         fail transfer_failure "nf-helper submodule commit could not be recorded"
