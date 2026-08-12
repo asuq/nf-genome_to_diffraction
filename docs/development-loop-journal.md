@@ -1387,3 +1387,66 @@ status request for
 fails, leave the run untouched and wait for the next recurrence. If terminal,
 perform bounded log inspection and approved collection before drawing any
 scientific conclusion.
+
+## 2026-08-12 — Two-control fan-out corrected and replayed
+
+### Discoveries
+
+- Retained run
+  `gtd-p2-control-20260812T173905Z-f8b0ea3bbc35-e185cae0`, Slurm job
+  `626388`, reached terminal scheduler state `FAILED`, exit code `4`, and
+  wrapper class `test_failure`. It ran from `2026-08-12T17:41:29Z` to
+  `2026-08-12T18:12:34Z`; this was not a runtime, Phenix, MTZ, or scheduler
+  failure.
+- All fixed inputs passed their checksums, Phenix 2.1-6048 verification passed,
+  xtriage accepted the 8OOX MTZ in `P 43 3 2` at 3.088 A, and the control bundle
+  contained both the exact 8OOW positive and unrelated 1UBQ negative. However,
+  the Nextflow trace contained only the 1UBQ hypothesis, which completed in
+  28.5 minutes with four CPUs, 1 GB peak RSS, and exit code zero; the resume
+  replay cached that same single task.
+- The control workflow consumed its one-item `control_bundle` queue both to
+  enumerate hypotheses and as the prepared-models process input. Nextflow
+  therefore paired that consumable item with only one hypothesis instead of
+  broadcasting the directory to both. The final two-control summary was
+  correctly absent, so no scientific separation result was fabricated.
+- Repeated login-shell `/dev/null: Permission denied` messages are consistent
+  with one malformed or inaccessible Marmic `/dev/null` device exposed by many
+  ordinary shell redirects. They are a system issue distinct from this
+  Nextflow fan-out defect; hiding redirects in shell startup files would not
+  repair Git or other affected tools.
+
+### Accomplishments and immutable evidence
+
+- Commit `1085b3a088bfd35a397195a4425ca48bf0d79813` converts the prepared-model
+  directory to a reusable value before the process fan-out. Its stub acceptance
+  now requires exactly two trace rows and both frozen hypothesis IDs.
+- Nextflow syntax, the two-hypothesis stub and cached resume, all 45 integration
+  tests, Ruff formatting, and Ruff lint passed locally. GitHub Actions run
+  `31639054057` passed the full repository gate.
+- Corrected retained run
+  `gtd-p2-control-20260812T204719Z-1085b3a088bf-fca7a26c`, Slurm job
+  `626394`, was staged from that exact commit with nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a` and Pixi `0.74.0`; its first
+  wrapper status was `RUNNING`.
+- Heartbeat `monitor-marmic-p2-control` remains active at a 30-minute interval
+  and is now bound to the corrected run and job. Both remote runs are retained.
+
+### Unresolved work
+
+- Collect the corrected run only after terminal evidence exists. Verify that
+  both trace tasks ran, then apply the fixed positive-hit and negative-no-hit
+  acceptance conditions to raw scores, packing, and placed-copy evidence.
+- The Marmic administrator should inspect `/dev/null` as a system device. Do
+  not attempt an unprivileged recreation and do not treat its shell messages as
+  scientific failure evidence.
+- Human map and packing review remains the final M3 checkpoint before M4.
+
+### Next exact starting point
+
+At the next 30-minute heartbeat, check only
+`gtd-p2-control-20260812T204719Z-1085b3a088bf-fca7a26c` through the installed
+wrapper. Leave it untouched if non-terminal. If terminal, inspect bounded logs,
+collect the approved artefacts, validate both controls and resume provenance,
+and retain both runs. Do not add fallback engineering, retune the score gate,
+rerun P2-diverse, clean remote evidence, or start M4 before this control result
+and the human-review decision are recorded.
