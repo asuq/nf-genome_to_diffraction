@@ -351,10 +351,12 @@ copies until both mode-`0555` replacements and the atomic
 point leaves the installed pair unchanged or restores it from the preserved
 copies.
 
-If and only if the installed dispatcher fails before dispatch with the exact
-`environment_failure` message `base64 is unavailable`, the same local
-`deploy-tools` operation passes the exact committed recovery script as the
-fixed Bash program. Before transmission, the local controller requires a clean
+If and only if the installed dispatcher fails before mutation with either the
+legacy exact `environment_failure` message `base64 is unavailable` or the exact
+broken-Git preflight `filesystem_failure` message
+`configured Git mirror is not bare`, the same local `deploy-tools` operation
+passes the exact committed recovery script as the fixed Bash program. Before
+transmission, the local controller requires a clean
 worktree, resolves the exact 40-character commit, requires it to be contained in
 the local `origin/main` tracking reference, and reads only the three fixed
 committed tool paths. The two replacement scripts are streamed as one bounded

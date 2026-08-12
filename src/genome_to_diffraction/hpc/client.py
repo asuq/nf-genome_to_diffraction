@@ -787,8 +787,14 @@ class HpcController:
             )
         except RemoteOperationError as error:
             if not (
-                error.failure_class is FailureClass.ENVIRONMENT_FAILURE
-                and str(error) == "base64 is unavailable"
+                (
+                    error.failure_class is FailureClass.ENVIRONMENT_FAILURE
+                    and str(error) == "base64 is unavailable"
+                )
+                or (
+                    error.failure_class is FailureClass.FILESYSTEM_FAILURE
+                    and str(error) == "configured Git mirror is not bare"
+                )
             ):
                 raise
             recovery_script = self.git.read_file_at_commit(

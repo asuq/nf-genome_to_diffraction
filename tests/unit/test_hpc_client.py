@@ -528,6 +528,13 @@ def test_deploy_tools_recovers_only_from_missing_base64(tmp_path: Path) -> None:
         controller.deploy_tools("HEAD")
     assert transport.calls[-1][0] == "deploy-tools"
 
+    transport.deploy_error = RemoteOperationError(
+        "configured Git mirror is not bare",
+        failure_class=FailureClass.FILESYSTEM_FAILURE,
+    )
+    assert controller.deploy_tools("HEAD")["recovery_used"] == "true"
+    assert transport.calls[-1][0] == "recover-tools"
+
 
 def test_deploy_tools_refuses_dirty_or_mismatched_worktree(tmp_path: Path) -> None:
     transport = FakeTransport()
