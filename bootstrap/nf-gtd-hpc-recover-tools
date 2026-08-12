@@ -38,7 +38,7 @@ locks="$root/_locks"
     die "installed job script is unsafe"
 [[ -d "$mirror" ]] || die "bare Git mirror is absent"
 bare_repository="$(git --git-dir="$mirror" rev-parse --is-bare-repository 2>&1)" || \
-    die "configured Git mirror cannot be inspected"
+    die "configured Git mirror cannot be inspected: ${bare_repository:0:256}"
 [[ "$bare_repository" == true ]] || \
     die "configured Git mirror is not bare"
 

@@ -119,7 +119,6 @@ _SSH_FIXED_OPTIONS = (
     "-o",
     "ServerAliveCountMax=2",
 )
-_REMOTE_SYSTEM_PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 _REVIEW_MANIFEST_RELATIVE = PurePosixPath(
     "artifacts/qualification/p2-diverse-review/mr_seed_review_manifest.json"
 )
@@ -294,7 +293,6 @@ class SshTransport:
                 "BASH_ENV",
                 "-u",
                 "ENV",
-                f"PATH={_REMOTE_SYSTEM_PATH}",
                 "/bin/bash",
                 "--noprofile",
                 "--norc",
@@ -376,7 +374,6 @@ class SshTransport:
                 "BASH_ENV",
                 "-u",
                 "ENV",
-                f"PATH={_REMOTE_SYSTEM_PATH}",
                 "/bin/bash",
                 "--noprofile",
                 "--norc",

@@ -373,6 +373,12 @@ discard file is operational state outside Git; removing the whole installed
 `_tooling` directory during the documented local/HPC teardown removes it too,
 and a later dispatcher call recreates it safely.
 
+The local transport preserves the authenticated remote account's PATH so the
+Marmic site-provided Git and Slurm clients remain available. It does not source
+interactive startup files: `BASH_ENV` and `ENV` are cleared and the fixed
+dispatcher runs through absolute `/bin/bash --noprofile --norc -p`. Pixi and
+Phenix continue to use separately validated absolute paths rather than PATH.
+
 `stage` refuses a dirty worktree, a non-full revision other than `HEAD`, a commit
 unavailable from the private mirror, a changed Pixi lock, or a submodule mismatch.
 Local ownership records live under `.untracked/hpc-test/RUN_ID/`; another run ID
