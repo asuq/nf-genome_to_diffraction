@@ -10,7 +10,8 @@ from typing import Any
 from genome_to_diffraction.checksums import atomic_write_json
 
 RUN_ID_PATTERN = re.compile(
-    r"^gtd-(smoke|p0|p1|p2-diverse|p2|database)-[0-9]{8}T[0-9]{6}Z-"
+    r"^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|database)-"
+    r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}$"
 )
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
@@ -33,7 +34,9 @@ P1_EXECUTION_TIMEOUT_SECONDS = 1000 * 60 * 60
 P2_EXECUTION_TIMEOUT_SECONDS = 1000 * 60 * 60
 DATABASE_EXECUTION_TIMEOUT_SECONDS = 48 * 60 * 60
 POLL_SECONDS = 15
-PROFILES = frozenset({"smoke", "p0", "p1", "p2", "p2-diverse", "database"})
+PROFILES = frozenset(
+    {"smoke", "p0", "p1", "p2", "p2-diverse", "p2-control", "database"}
+)
 
 
 class FailureClass(StrEnum):
@@ -291,7 +294,8 @@ def validate_profile(value: str) -> str:
 
     if value not in PROFILES:
         raise ValidationError(
-            "profile must be one of: database, p0, p1, p2, p2-diverse, smoke"
+            "profile must be one of: database, p0, p1, p2, p2-control, "
+            "p2-diverse, smoke"
         )
     return value
 

@@ -38,7 +38,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "readiness",
         help="inspect fixed remote prerequisites without staging or submitting",
     )
-    readiness.add_argument("profile", choices=("p0", "p1", "p2", "p2-diverse"))
+    readiness.add_argument(
+        "profile", choices=("p0", "p1", "p2", "p2-diverse", "p2-control")
+    )
 
     p0_configure = actions.add_parser(
         "p0-configure",
@@ -77,12 +79,18 @@ def _build_parser() -> argparse.ArgumentParser:
     database_archive.add_argument("--confirm", required=True)
 
     stage = actions.add_parser("stage", help="stage an immutable pushed commit")
-    stage.add_argument("profile", choices=("smoke", "p0", "p1", "p2", "p2-diverse"))
+    stage.add_argument(
+        "profile",
+        choices=("smoke", "p0", "p1", "p2", "p2-diverse", "p2-control"),
+    )
     stage.add_argument("--revision", required=True)
     stage.add_argument("--parent-run")
 
     submit = actions.add_parser("submit", help="submit the fixed Slurm profile")
-    submit.add_argument("profile", choices=("smoke", "p0", "p1", "p2", "p2-diverse"))
+    submit.add_argument(
+        "profile",
+        choices=("smoke", "p0", "p1", "p2", "p2-diverse", "p2-control"),
+    )
     submit.add_argument("--run-id", required=True)
 
     for operation, help_text in (

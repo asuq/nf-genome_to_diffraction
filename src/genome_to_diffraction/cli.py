@@ -9,8 +9,10 @@ from typing import cast
 
 from genome_to_diffraction import __version__
 from genome_to_diffraction.benchmarks import (
+    MrControlBundleRequest,
     PublicControlPreparationRequest,
     PublicPanelPreparationRequest,
+    build_mr_control_bundle,
     load_public_control_panel,
     prepare_public_control,
     prepare_public_control_panel,
@@ -382,7 +384,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="prepare the tracked public MTZ positive control outside Git",
     )
     public_control_parser.add_argument("--specification", type=Path, required=True)
-    public_control_parser.add_argument("--proteome-faa", type=Path, required=True)
+    public_control_input = public_control_parser.add_mutually_exclusive_group(
+        required=True
+    )
+    public_control_input.add_argument("--proteome-faa", type=Path)
+    public_control_input.add_argument(
+        "--catalogue-manifest",
+        type=Path,
+        help="resolve the frozen proteome from one matching catalogue entry",
+    )
     public_control_parser.add_argument("--outdir", type=Path, required=True)
     public_control_parser.add_argument(
         "--offline",
@@ -391,6 +401,18 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     public_control_parser.add_argument("--storage-limit-mib", type=int, default=256)
     public_control_parser.add_argument("--minimum-free-mib", type=int, default=64)
+    control_bundle_parser = benchmark_actions.add_parser(
+        "build-first-copy-controls",
+        help="build the fixed exact-positive and unrelated-negative MR bundle",
+    )
+    control_bundle_parser.add_argument("--specification", type=Path, required=True)
+    control_bundle_parser.add_argument(
+        "--public-control-preparation", type=Path, required=True
+    )
+    control_bundle_parser.add_argument("--database-manifest", type=Path, required=True)
+    control_bundle_parser.add_argument("--sequence-groups", type=Path, required=True)
+    control_bundle_parser.add_argument("--preflight", type=Path, required=True)
+    control_bundle_parser.add_argument("--outdir", type=Path, required=True)
     panel_check_parser = benchmark_actions.add_parser(
         "check-public-panel",
         help="validate the tracked public panel and active control mappings",
@@ -446,9 +468,18 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="skip Xtriage and force pass-with-review (testing/preparation only)",
     )
-    preflight_parser.add_argument(
-        "--xtriage-timeout-seconds", type=float, default=3600.0
+    xtriage_timeout = preflight_parser.add_mutually_exclusive_group()
+    xtriage_timeout.add_argument(
+        "--xtriage-timeout-seconds", type=float, dest="xtriage_timeout_seconds"
     )
+    xtriage_timeout.add_argument(
+        "--no-xtriage-timeout",
+        action="store_const",
+        const=None,
+        dest="xtriage_timeout_seconds",
+        help="allow Xtriage to run without a command deadline",
+    )
+    preflight_parser.set_defaults(xtriage_timeout_seconds=3600.0)
     free_r_parser = diffraction_actions.add_parser(
         "generate-free-r",
         help="create one immutable Free-R derivative with verified Phenix",
@@ -931,8 +962,9 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         control_result = prepare_public_control(
             PublicControlPreparationRequest(
                 specification=args.specification,
-                proteome_faa=args.proteome_faa,
                 output_directory=args.outdir,
+                proteome_faa=args.proteome_faa,
+                catalogue_manifest=args.catalogue_manifest,
                 download_missing=not args.offline,
                 progress=not args.no_progress,
                 storage_limit_bytes=args.storage_limit_mib * mib,
@@ -942,6 +974,23 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         print(
             f"Prepared public control {control_result.control_id}: "
             f"{control_result.preparation_manifest}"
+        )
+        return 0
+    if args.benchmark_action == "build-first-copy-controls":
+        control_bundle = build_mr_control_bundle(
+            MrControlBundleRequest(
+                specification=args.specification,
+                public_control_preparation=args.public_control_preparation,
+                database_manifest=args.database_manifest,
+                sequence_groups_jsonl=args.sequence_groups,
+                preflight_jsonl=args.preflight,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Prepared first-copy controls {control_bundle.control_pair_id}: "
+            f"{control_bundle.manifest_json}"
         )
         return 0
     if args.benchmark_action == "check-public-panel":

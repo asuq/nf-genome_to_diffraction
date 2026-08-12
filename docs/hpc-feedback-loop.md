@@ -2,7 +2,7 @@
 
 ## Purpose and boundary
 
-The interface has five routine closed profiles plus one separately gated
+The interface has six routine closed profiles plus one separately gated
 database-administration profile. Local Git remains the sole source of truth.
 Marmic fetches an exact pushed commit, creates an isolated read-only checkout,
 runs only the selected reviewed job body, and returns bounded diagnostics. It
@@ -15,6 +15,7 @@ never edits or pushes source.
 | `p1` | Frozen catalogue import, login-node exact-AFDB pilot retrieval, catalogue-wide direct PDB search, deterministic 128-query ProstT5/Foldseek slice, Phenix predicted-model preparation, cached resumes, and tracked 8OOX qualification | M1 plus the first M2 vertical slice only; deferred ProstT5 queries remain uninterpreted and no crystal identity or MR is claimed |
 | `p2` | Replay the checksum-frozen P0/P1 evidence, build the exact-predicted bounded funnel, and run one CD6 first-copy Phaser hypothesis plus cached resume | Smallest M3 real-feedback slice only; a hit remains provisional and a no-hit is a completed scientific result |
 | `p2-diverse` | Stage a bounded direct-PDB search and coordinate set on the login node, replay P0/P1, prepare cleaned PDB models offline, and run at most 25 multi-source CD6 first-copy hypotheses plus cached resumes | First real-candidate M2/M3 feedback slice; it does not identify a protein or authorise additional-copy placement |
+| `p2-control` | Prepare checksum-frozen 8OOX inputs, build the exact 8OOW positive and unrelated 1UBQ negative, and run both through the production first-copy Phaser adapter plus cached resume | M3 score/packing/control separation only; it does not calibrate a universal success threshold or validate the full ASU |
 | `database` | Login-node source staging, offline capacity preflight, all-resource preparation, and anchored full verification | Shared database administration only; no pipeline or protein-identification claim |
 
 The reviewed local application is the routine approval boundary. Persistent
@@ -26,7 +27,7 @@ automatic approval.
 
 The routine drivers use partition `slurm`, 2 CPUs, and 8 GB memory. Foundation
 smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin, while P1,
-P2, and P2-diverse use
+P2, P2-diverse, and P2-control use
 the Marmic site's 1,000-hour maximum margin because NFS-cold executable and
 database access are not predictably bounded. The direct PDB
 `process_search` child requests 16 CPUs, 64 GB, and 24 hours. The distinct
@@ -39,8 +40,8 @@ the node's full 4 TB is not requested because it would not accelerate serial
 network, checksum, or copy-back I/O. Only one managed job may be active across
 all profiles. Queue
 waiting stops after 30 minutes. Local execution waiting uses 45-minute,
-24-hour, 1,000-hour, 1,000-hour, 1,000-hour, and 48-hour margins for smoke, P0,
-P1, P2, P2-diverse, and database jobs; none of these
+24-hour, 1,000-hour, 1,000-hour, 1,000-hour, 1,000-hour, and 48-hour margins for
+smoke, P0, P1, P2, P2-diverse, P2-control, and database jobs; none of these
 limits silently cancels a job. The caller must inspect status and cancel the
 recorded job when appropriate.
 
@@ -105,13 +106,14 @@ RUN_ROOT/
 
 Each staged source tree is detached at one full commit SHA, includes the pinned
 `nf-helper` submodule, and is made read-only. A per-run locked Pixi environment
-is attached outside that source tree. For P0, P1, P2, P2-diverse, and database
+is attached outside that source tree. For P0, P1, P2, P2-diverse, P2-control,
+and database
 profiles, staging materialises that environment on the network-enabled login
 node; compute jobs only verify and use it and therefore do not contact package
 channels.
 
-The foundation smoke copies source to `SLURM_TMPDIR` or `/dev/shm`. P0, P1,
-P2, and P2-diverse keep the
+The foundation smoke copies source to `SLURM_TMPDIR` or `/dev/shm`. P0, P1, P2,
+P2-diverse, and P2-control keep the
 source, Pixi environment, Nextflow cache/work directory, logs, and results on
 shared durable storage because child Slurm nodes cannot see the driver's
 `/dev/shm`. Only driver temporaries use memory-backed local storage; `nf-helper` stages each
@@ -665,6 +667,50 @@ retention, result cardinality, scientific status validation, both cached
 resumes, and bounded collection. This software route has not yet run against
 the real Marmic direct-PDB candidates; do not treat local acceptance as M2/M3
 scientific qualification.
+
+## P2-control same-MTZ separation profile
+
+`p2-control` is the closed M3 calibration run. It accepts no caller-selected
+MTZ, model, identity value, score threshold, copy count, path, or Phaser
+argument. Login-node staging resolves the checksum-frozen Methermicoccus
+proteome from the reviewed P0 catalogue manifest, prepares the tracked public
+8OOX control, imports its catalogue, and binds all generated inputs by SHA-256.
+The scheduled phase uses the same 8OOX MTZ for both hypotheses:
+
+1. the operational positive is exact 8OOW chain A and is expected to produce a
+   packed one-copy `completed_hit`;
+2. the deliberate negative is the independently qualified 1UBQ ubiquitin chain
+   from the shared coordinate cache and is expected to produce
+   `completed_no_hit`;
+3. the negative's fixed 1% Phaser identity is a conservative control-only error
+   model input, not measured sequence homology; typed model and hypothesis roles
+   must both declare this interpretation;
+4. both jobs use the production `RUN_FIRST_COPY_PHASER` process with four CPUs,
+   8 GB, `/scratch`, no adapter or Xtriage command deadline, and the site's long
+   scheduler margin; and
+5. the identical two-process run is resumed and both processes must be cached.
+
+The terminal separation requirement is strict `LLG > 50` **or** `TFZ > 5`, a
+packed positive top solution, exactly one placed positive copy, and no score-gate
+pass for the negative. The run preserves both normalised results, resolved
+commands, bounded Phaser log tails, preflight, model/hypothesis manifests,
+first/resume traces, input checksums, and a bounded artefact checksum inventory
+even when separation fails. A separation failure is `test_failure`, not an
+infrastructure failure and not evidence that the raw run disappeared.
+
+```bash
+nf-gtd-hpc-test readiness p2-control
+nf-gtd-hpc-test stage p2-control --revision HEAD
+nf-gtd-hpc-test submit p2-control --run-id RUN_ID
+nf-gtd-hpc-test status --run-id RUN_ID
+nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test collect --run-id RUN_ID
+```
+
+Passing this pair shows that the current operational positive and one unrelated
+negative separate under one first-copy screen. It does not estimate false
+positive rates, validate the current gate generally, prove a full two-copy ASU,
+or approve any marginal CD6 candidate.
 
 ## Database administration boundary
 

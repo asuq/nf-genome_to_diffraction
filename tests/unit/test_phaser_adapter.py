@@ -130,6 +130,51 @@ def _experimental_inputs(tmp_path: Path) -> PhaserRunRequest:
     return request
 
 
+def _unrelated_control_inputs(tmp_path: Path) -> PhaserRunRequest:
+    request = _experimental_inputs(tmp_path)
+    model = ProcessedModelRecord.model_validate_json(
+        request.processed_models_jsonl.read_text(encoding="utf-8")
+    )
+    parameters = dict(model.processing_parameters)
+    parameters.pop("mapping_id")
+    parameters.pop("sequence_identity")
+    parameters.update(
+        {
+            "control_role": "deliberate_unrelated_negative",
+            "phaser_identity_percent": 1.0,
+            "relationship_to_target": "deliberately_unrelated",
+            "identity_interpretation": "error_model_input_not_sequence_homology",
+        }
+    )
+    model = model.model_copy(
+        update={
+            "variant_type": "control_unrelated_cleaned_source_chain",
+            "processing_parameters": parameters,
+        }
+    )
+    request.processed_models_jsonl.write_text(
+        f"{canonical_json_text(model)}\n", encoding="utf-8"
+    )
+    hypothesis = MrHypothesis.model_validate_json(
+        request.hypotheses_jsonl.read_text(encoding="utf-8")
+    ).model_copy(
+        update={
+            "model_id": model.model_id,
+            "priority_features": {
+                "control_role": "deliberate_unrelated_negative",
+                "exact_sequence_mapping": False,
+                "structural_source_class": "deliberate_unrelated_control",
+                "phaser_identity_percent": 1.0,
+                "identity_interpretation": ("error_model_input_not_sequence_homology"),
+            },
+        }
+    )
+    request.hypotheses_jsonl.write_text(
+        f"{canonical_json_text(hypothesis)}\n", encoding="utf-8"
+    )
+    return request
+
+
 def _manifest() -> PhenixInstallManifest:
     model = load_contract(
         STUBS / "phenix_install_manifest.json",
@@ -287,6 +332,38 @@ def test_adapter_rejects_experimental_identity_drift(tmp_path: Path) -> None:
     )
 
     with pytest.raises(PhaserInputError, match="sequence identities differ"):
+        run_first_copy_phaser(request)
+
+
+def test_adapter_uses_fixed_unrelated_negative_control_error_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _unrelated_control_inputs(tmp_path)
+    commands = _fake_runtime(monkeypatch, log_text=PACKING_NO_SOLUTION_LOG)
+
+    output = run_first_copy_phaser(request)
+
+    assert output.result.execution_status == "completed_no_hit"
+    assert "phaser.model_identity=1" in commands[0]
+    record = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert record["model_identity_percent"] == 1.0
+    assert "not sequence homology" in record["model_uncertainty_source"]
+
+
+def test_adapter_rejects_unrelated_control_identity_drift(tmp_path: Path) -> None:
+    request = _unrelated_control_inputs(tmp_path)
+    model = ProcessedModelRecord.model_validate_json(
+        request.processed_models_jsonl.read_text(encoding="utf-8")
+    )
+    parameters = dict(model.processing_parameters)
+    parameters["phaser_identity_percent"] = 2.0
+    changed = model.model_copy(update={"processing_parameters": parameters})
+    request.processed_models_jsonl.write_text(
+        f"{canonical_json_text(changed)}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PhaserInputError, match="negative-control policy"):
         run_first_copy_phaser(request)
 
 

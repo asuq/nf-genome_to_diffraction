@@ -387,7 +387,13 @@ model bundles, applies source/variant diversity and the profile-specific hard
 cap plus an optional stricter execution cap, publishes one aggregate immutable
 model registry, and fans the selected first-copy hypotheses out to Phaser. The
 fixed `p2-diverse` HPC operation sets this additional cap to 25, but has not yet
-been qualified on real Marmic direct-PDB candidates.
+been interpreted as a protein identification despite completing on real Marmic
+direct-PDB candidates.
+- `screen_first_copy_controls.nf` runs the fixed same-MTZ first-copy calibration
+  pair: exact 8OOW chain A as the known-positive model and independently anchored
+  1UBQ ubiquitin as the deliberate unrelated negative. It uses the production
+  Phaser adapter and records the strict `LLG > 50` or `TFZ > 5` decision without
+  claiming that a passing first copy validates a complete ASU.
 
 The safe workflow smoke test is:
 

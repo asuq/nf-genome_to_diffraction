@@ -64,7 +64,7 @@ overstated:
 | Epic 5, MTZ preflight | Gemmi and real Xtriage qualification passed for all three pilot MTZ datasets, including `CD6QS2P2G1_5` | Extend only when new MTZ edge cases are observed |
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
-| Epic 10 | The first-copy Phaser adapter, strict provisional gate, typed fan-out, cached resume, and fixed P2 lifecycle pass; the real 25-model CD6 panel completed with six marginal TFZ-only review candidates, and their checksum-bound PDB/MTZ/log bundles are collected | Qualify the scheduled positive and deliberate incorrect-model controls, complete human map/packing review, and validate an explicit decision without promoting marginal candidates automatically |
+| Epic 10 | The first-copy Phaser adapter, strict provisional gate, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel completed with six marginal TFZ-only review candidates | Execute and collect the new control profile on Marmic, complete human map/packing review, and validate an explicit decision without promoting marginal candidates automatically |
 | Epics 11–13 | Contracts/reserved package areas exist | Same-component copies, refinement, map/sequence assessment, final ranking, and reporting are not implemented |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
@@ -309,17 +309,18 @@ See the [M2 predicted-model preparation report](m2-predicted-model-preparation.m
 
 ## M3 — First-copy Phaser and MR seed checkpoint
 
-The adapter/parser, typed stub route, and fixed checksum-gated P2 controller
+The adapter/parser, typed stub route, fixed checksum-gated P2 controller, and
+closed same-MTZ control profile
 pass locally. The first immutable CD6 replay failed at the mmCIF/scatterer
 boundary; the PDB correction then completed the real search and packing with
 zero accepted solutions and no output files. The adapter incorrectly required
 another zero-count phrase and classified the valid terminal no-solution wording
 as `failed_parse`. The focused parser correction's immutable replay now
 completes as `completed_no_hit` and caches both P2 processes on resume. The
-fixed route is qualified; the hard-capped multi-source route and its fixed
-login-stage/offline Slurm lifecycle are implemented locally, while bounded
-real-candidate execution, controls, approval validation, and full P2 acceptance
-work remain open. See the
+fixed route is qualified; the hard-capped multi-source route has completed on
+real candidates, while the newly implemented exact-positive/unrelated-negative
+profile still requires its immutable Marmic execution. Human review, approval
+validation, and full P2 acceptance remain open. See the
 [M3 first-copy report](m3-first-copy-phaser.md).
 
 ### Work packages
@@ -618,11 +619,11 @@ M0–M2 and the real bounded P2-diverse execution path have passed. The active
 goal is now **close the M3 scientific control and human-review gate**, with the
 shortest path toward same-component placement:
 
-1. run the existing checksum-frozen public positive through the same scheduled
-   first-copy adapter and demonstrate that its correct model is retained and
-   classified as a hit;
-2. run one deliberately unrelated model against the same fixed diffraction
-   data and demonstrate a parsed scientific no-hit or non-eligible result;
+1. run the implemented `p2-control` profile so the checksum-frozen public
+   positive passes through the same scheduled first-copy adapter and its exact
+   model is retained and classified as a hit;
+2. confirm that the paired independently anchored 1UBQ model against the same
+   diffraction data is a parsed scientific no-hit under the current gate;
 3. compare the controls with the six CD6 candidates without tuning the
    provisional `LLG > 50` or `TFZ > 5` gate from this one pilot crystal;
 4. inspect the collected candidate coordinates, coefficients, packing, and raw

@@ -64,7 +64,7 @@ def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
         parser.parse_args(["submit", "database", "--run-id", "RUN_ID"])
 
 
-@pytest.mark.parametrize("profile", ["p1", "p2", "p2-diverse"])
+@pytest.mark.parametrize("profile", ["p1", "p2", "p2-diverse", "p2-control"])
 def test_scientific_profile_uses_only_the_fixed_routine_interface(
     profile: str,
 ) -> None:

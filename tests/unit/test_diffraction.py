@@ -11,6 +11,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from genome_to_diffraction import cli as cli_module
 from genome_to_diffraction.cli import main
 from genome_to_diffraction.diffraction import free_r as free_r_module
 from genome_to_diffraction.diffraction import preflight as preflight_module
@@ -385,6 +386,39 @@ def test_preflight_runs_xtriage_through_captured_phenix_boundary(
     assert "Anisotropy-noise Z (least/most affected quarters): `0.10 / 1.20`" in (
         report_text
     )
+
+
+def test_preflight_cli_can_disable_xtriage_command_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed: list[object] = []
+
+    def fake_preflight(request: object) -> object:
+        observed.append(request)
+        return type("Result", (), {"records": ()})()
+
+    monkeypatch.setattr(cli_module, "preflight_crystals", fake_preflight)
+    assert (
+        main(
+            [
+                "--no-progress",
+                "diffraction",
+                "preflight",
+                "--crystals",
+                str(tmp_path / "crystals.json"),
+                "--phenix-manifest",
+                str(tmp_path / "phenix.json"),
+                "--outdir",
+                str(tmp_path / "preflight"),
+                "--no-xtriage-timeout",
+            ]
+        )
+        == 0
+    )
+    assert len(observed) == 1
+    request = observed[0]
+    assert isinstance(request, preflight_module.PreflightRequest)
+    assert request.xtriage_timeout_seconds is None
 
 
 def _sequence_group(

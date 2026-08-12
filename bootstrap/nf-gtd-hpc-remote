@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -191,9 +191,9 @@ readiness_p0() {
     local pixi_bin="" pixi_version="" pixi_status=unavailable ready=false
     validate_profile "$profile"
     [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
-       "$profile" == p2-diverse ]] || \
+       "$profile" == p2-diverse || "$profile" == p2-control ]] || \
         fail wrapper_failure \
-            "readiness is available only for p0, p1, p2, and p2-diverse"
+            "readiness is available only for p0, p1, p2, p2-diverse, and p2-control"
 
     if [[ -f "$PIXI_PATH_FILE" ]]; then
         IFS= read -r pixi_bin < "$PIXI_PATH_FILE"
@@ -762,6 +762,8 @@ stage_run_common() {
     local p2_diverse_sha256="" p2_diverse_json="null"
     local p2_diverse_search p2_diverse_registration p2_diverse_checksums
     local p2_diverse_tmp mapping_count source_count
+    local p2_control_sha256="" p2_control_json="null"
+    local p2_control_root p2_control_catalogue p2_control_checksums p2_control_tmp
     local candidate coordinate_count hit_count
     local -a p0_values=()
 
@@ -858,7 +860,7 @@ stage_run_common() {
         fail filesystem_failure "cannot attach the per-run Pixi environment"
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
-          "$profile" == p2-diverse ]]; then
+          "$profile" == p2-diverse || "$profile" == p2-control ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
             atomic_text "$run/state/phase" "stage_failed"
@@ -892,7 +894,7 @@ stage_run_common() {
     fi
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
-          "$profile" == p2-diverse || \
+          "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == database ]]; then
         if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
             --manifest-path "$run/source/pixi.toml" \
@@ -913,7 +915,7 @@ stage_run_common() {
             fail environment_failure "locked HPC CLI is unavailable"
         }
         if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
-              "$profile" == p2-diverse ]]; then
+              "$profile" == p2-diverse || "$profile" == p2-control ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
             java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
             mmseqs="$run/source/.pixi/envs/hpc/bin/mmseqs"
@@ -1119,6 +1121,73 @@ stage_run_common() {
         append_event "$run" "stage_p2_diverse_login_ready"
     fi
 
+    if [[ "$profile" == p2-control ]]; then
+        mapfile -t p0_values < "$P0_CONFIG"
+        [[ "${#p0_values[@]}" -eq 7 ]] || \
+            fail wrapper_failure "P0 configuration changed during control staging"
+        p2_control_root="$run/artifacts/p2-control/public-control"
+        p2_control_catalogue="$run/artifacts/p2-control/catalogue"
+        mkdir -p "$run/artifacts/p2-control"
+        printf 'phase=p2_control_prepare_public_control profile=%s\n' "$profile" \
+            > "$run/logs/p2-control-login-stage.log"
+        if ! PATH="$hpc_path" "$gtd" --log-format json --no-progress \
+            benchmark prepare-public-control \
+            --specification \
+            "$run/source/benchmarks/public-controls/pdb_8oox.yaml" \
+            --catalogue-manifest "${p0_values[1]}" \
+            --outdir "$p2_control_root" \
+            >> "$run/logs/p2-control-login-stage.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_p2_control_public_control_failed"
+            fail transfer_failure "fixed public-control preparation failed"
+        fi
+        printf 'phase=p2_control_catalogue_import profile=%s\n' "$profile" \
+            >> "$run/logs/p2-control-login-stage.log"
+        if ! "$gtd" --log-format json --no-progress catalogue import \
+            --catalogues "$p2_control_root/manifests/catalogues.json" \
+            --config "${p0_values[3]}" \
+            --outdir "$p2_control_catalogue" \
+            >> "$run/logs/p2-control-login-stage.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "software_failure"
+            append_event "$run" "stage_p2_control_catalogue_failed"
+            fail software_failure "fixed public-control catalogue import failed"
+        fi
+        for candidate in \
+            "$p2_control_root/manifests/preparation.json" \
+            "$p2_control_root/manifests/catalogues.json" \
+            "$p2_control_root/manifests/crystals.json" \
+            "$p2_control_root/derived/8OOX-autoproc-deposited.mtz" \
+            "$p2_control_root/models/8OOW-chain-A-polymer.pdb" \
+            "$p2_control_catalogue/sequence_groups.jsonl" \
+            "$p2_control_catalogue/source_records.jsonl"; do
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || {
+                atomic_text "$run/state/phase" "stage_failed"
+                atomic_text "$run/state/failure-class" "filesystem_failure"
+                append_event "$run" "stage_p2_control_output_invalid"
+                fail filesystem_failure "P2-control staging output is missing or unsafe"
+            }
+        done
+        p2_control_checksums="$run/state/p2-control-login-stage.sha256"
+        p2_control_tmp="${p2_control_checksums}.tmp.$$"
+        sha256sum \
+            "$p2_control_root/manifests/preparation.json" \
+            "$p2_control_root/manifests/catalogues.json" \
+            "$p2_control_root/manifests/crystals.json" \
+            "$p2_control_root/derived/8OOX-autoproc-deposited.mtz" \
+            "$p2_control_root/models/8OOW-chain-A-polymer.pdb" \
+            "$p2_control_catalogue/sequence_groups.jsonl" \
+            "$p2_control_catalogue/source_records.jsonl" \
+            > "$p2_control_tmp"
+        mv -f -- "$p2_control_tmp" "$p2_control_checksums"
+        p2_control_sha256="$(sha256sum "$p2_control_checksums" | awk '{print $1}')"
+        [[ "$p2_control_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "P2-control stage checksum failed"
+        p2_control_json="\"$p2_control_sha256\""
+        append_event "$run" "stage_p2_control_login_ready"
+    fi
+
     manifest_tmp="$run/manifest.json.tmp.$$"
     cat > "$manifest_tmp" <<EOF
 {
@@ -1138,6 +1207,7 @@ stage_run_common() {
   "database_source_bundle_sha256": $database_source_bundle_json,
   "p1_login_prefetch_sha256": $p1_prefetch_json,
   "p2_diverse_login_stage_sha256": $p2_diverse_json,
+  "p2_control_login_stage_sha256": $p2_control_json,
   "staged_at": "$(now_utc)",
   "source_snapshot_status": "immutable"
 }
@@ -1190,7 +1260,7 @@ submit_run() {
     memory=8G
     [[ "$profile" != p0 ]] || walltime=24:00:00
     if [[ "$profile" == p1 || "$profile" == p2 || \
-          "$profile" == p2-diverse ]]; then
+          "$profile" == p2-diverse || "$profile" == p2-control ]]; then
         walltime=41-16:00:00
     fi
 
@@ -1651,6 +1721,7 @@ collect_run() {
         state/database-failed-staging-archive.json \
         state/p1-login-prefetch.sha256 \
         state/p2-diverse-login-stage.sha256 \
+        state/p2-control-login-stage.sha256 \
         state/failure-class \
         state/exit-code \
         logs/git-fetch.log \
@@ -1658,6 +1729,7 @@ collect_run() {
         logs/pixi-install.log \
         logs/p1-login-prefetch.log \
         logs/p2-diverse-login-stage.log \
+        logs/p2-control-login-stage.log \
         logs/database-source-stage.log \
         logs/sbatch.err \
         logs/smoke.log \
@@ -1665,6 +1737,7 @@ collect_run() {
         logs/p1.log \
         logs/p2.log \
         logs/p2-diverse.log \
+        logs/p2-control.log \
         logs/database.log \
         logs/nextflow-first.log \
         logs/nextflow-resume.log \
@@ -1678,6 +1751,8 @@ collect_run() {
         logs/nextflow-p2-diverse-model-resume.log \
         logs/nextflow-p2-diverse-first-copy-first.log \
         logs/nextflow-p2-diverse-first-copy-resume.log \
+        logs/nextflow-p2-control-first.log \
+        logs/nextflow-p2-control-resume.log \
         artifacts/qualification/input-checksums.sha256 \
         artifacts/qualification/phenix-verification.log \
         artifacts/qualification/database_manifest.p0-revalidated.json \
@@ -1747,6 +1822,22 @@ collect_run() {
         artifacts/qualification/p2-diverse-first-copy-resume-pipeline-info/timeline.html \
         artifacts/qualification/p2-diverse-first-copy-resume-pipeline-info/trace.tsv \
         artifacts/qualification/p2-diverse-first-copy-resume-pipeline-info/dag.html \
+        artifacts/qualification/p2-control-input-checksums.sha256 \
+        artifacts/qualification/p2-control-artifact-sha256.tsv \
+        artifacts/qualification/p2-control-summary.json \
+        artifacts/qualification/p2-control-results.jsonl \
+        artifacts/qualification/p2-control-commands.jsonl \
+        artifacts/qualification/p2-control-log-tails.txt \
+        artifacts/qualification/p2-control-resume-check.json \
+        artifacts/qualification/p2-control-phenix-verification.log \
+        artifacts/qualification/p2-control-first-pipeline-info/report.html \
+        artifacts/qualification/p2-control-first-pipeline-info/timeline.html \
+        artifacts/qualification/p2-control-first-pipeline-info/trace.tsv \
+        artifacts/qualification/p2-control-first-pipeline-info/dag.html \
+        artifacts/qualification/p2-control-resume-pipeline-info/report.html \
+        artifacts/qualification/p2-control-resume-pipeline-info/timeline.html \
+        artifacts/qualification/p2-control-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/p2-control-resume-pipeline-info/dag.html \
         artifacts/qualification/first-pipeline-info/report.html \
         artifacts/qualification/first-pipeline-info/timeline.html \
         artifacts/qualification/first-pipeline-info/trace.tsv \
@@ -1793,6 +1884,13 @@ collect_run() {
         artifacts/p2-diverse/first-copy/diverse_first_copy_funnel/funnel_manifest.json \
         artifacts/p2-diverse/first-copy/diverse_first_copy_funnel/mr_hypotheses.jsonl \
         artifacts/p2-diverse/first-copy/diverse_first_copy_funnel/mr_hypotheses.tsv \
+        artifacts/p2-control/public-control/manifests/preparation.json \
+        artifacts/p2-control/catalogue/catalogue_import_manifest.json \
+        artifacts/p2-control/preflight/mtz_preflight.jsonl \
+        artifacts/p2-control/control-bundle/control_pair_manifest.json \
+        artifacts/p2-control/control-bundle/model_preparation_manifest.json \
+        artifacts/p2-control/control-bundle/processed_models.jsonl \
+        artifacts/p2-control/control-bundle/mr_hypotheses.jsonl \
         artifacts/p2/first-copy/exact_predicted_funnel/funnel_manifest.json \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.jsonl \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.tsv; do

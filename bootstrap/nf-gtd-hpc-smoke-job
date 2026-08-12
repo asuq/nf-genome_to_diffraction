@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -144,6 +144,9 @@ finalise() {
     elif [[ "$PROFILE" == p2-diverse ]]; then
         reports_json='["artifacts/qualification/p2-diverse-summary.json","artifacts/qualification/p2-diverse-first-copy-resume-check.json"]'
         retained_json='["artifacts/p0","artifacts/p1","artifacts/p2-diverse","artifacts/qualification"]'
+    elif [[ "$PROFILE" == p2-control ]]; then
+        reports_json='["artifacts/qualification/p2-control-summary.json","artifacts/qualification/p2-control-resume-check.json"]'
+        retained_json='["artifacts/p2-control","artifacts/qualification"]'
     elif [[ "$PROFILE" == database ]]; then
         reports_json='["artifacts/database/preflight.json"]'
         retained_json='["artifacts/database"]'
@@ -1372,6 +1375,203 @@ EOF
     printf 'p2_diverse_status=bounded_multi_source_first_copy_complete_and_resume_cached\n'
 }
 
+run_p2_control_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/nextflow-p2-control-${label}.log" \
+        run "$RUN/source/screen_first_copy_controls.nf" \
+        "$@" \
+        -profile marmic \
+        --control_bundle "$P2_CONTROL_BUNDLE" \
+        --sequence_groups "$P2_CONTROL_CATALOGUE/sequence_groups.jsonl" \
+        --preflight "$P2_CONTROL_PREFLIGHT/mtz_preflight.jsonl" \
+        --mtz "$P2_CONTROL_MTZ" \
+        --phenix_manifest "$PHENIX_MANIFEST" \
+        --outdir "$P2_CONTROL_RESULTS" \
+        --cache_root "$RUN/cache/p2-control-first-copy"
+}
+
+run_p2_control() {
+    local qualification="$RUN/artifacts/qualification"
+    local control_root="$RUN/artifacts/p2-control/public-control"
+    local cache_counts total cached result_directory result_jsonl role status
+    local llg tfz placed packed score_passed positive_status="" negative_status=""
+    local positive_pass=false negative_pass=false separated=false
+    local positive_llg="null" positive_tfz="null"
+    local negative_llg="null" negative_tfz="null"
+    local results_tmp="$qualification/p2-control-results.jsonl.tmp.$$"
+    local commands_tmp="$qualification/p2-control-commands.jsonl.tmp.$$"
+    local tails_tmp="$qualification/p2-control-log-tails.txt.tmp.$$"
+    local checksums_tmp candidate checksum relative
+    local -a result_directories=()
+
+    load_p0_config
+    P2_CONTROL_CATALOGUE="$RUN/artifacts/p2-control/catalogue"
+    P2_CONTROL_PREFLIGHT="$RUN/artifacts/p2-control/preflight"
+    P2_CONTROL_BUNDLE="$RUN/artifacts/p2-control/control-bundle"
+    P2_CONTROL_RESULTS="$RUN/artifacts/p2-control/first-copy"
+    P2_CONTROL_MTZ="$control_root/derived/8OOX-autoproc-deposited.mtz"
+    mkdir -p "$qualification" "$P2_CONTROL_PREFLIGHT" \
+        "$P2_CONTROL_RESULTS" "$RUN/cache/p2-control-first-copy" \
+        "$RUN/execution"
+
+    cd "$RUN/source"
+    [[ -f "$RUN/state/hpc-environment-status" && \
+        "$(<"$RUN/state/hpc-environment-status")" == ready ]] || {
+        printf 'locked P2-control environment was not prepared during staging\n' >&2
+        return 2
+    }
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
+
+    PHASE=test
+    printf 'phase=p2_control_stage_verify profile=p2-control\n'
+    [[ -f "$RUN/state/p2-control-login-stage.sha256" ]] || return 2
+    sha256sum -c "$RUN/state/p2-control-login-stage.sha256"
+    printf 'phase=p2_control_phenix_verify profile=p2-control\n'
+    "$GTD" --log-format json --no-progress phenix verify \
+        --manifest "$PHENIX_MANIFEST" \
+        --verification-log "$qualification/p2-control-phenix-verification.log" \
+        --no-command-timeout
+    printf 'phase=p2_control_mtz_preflight profile=p2-control\n'
+    "$GTD" --log-format json --no-progress diffraction preflight \
+        --crystals "$control_root/manifests/crystals.json" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --no-xtriage-timeout \
+        --outdir "$P2_CONTROL_PREFLIGHT"
+    [[ "$(sha256sum "$EXPECTED_DATABASE_MANIFEST" | awk '{print $1}')" == \
+        "$(<"$RUN/state/database-manifest-sha256")" ]] || return 2
+    printf 'phase=p2_control_bundle profile=p2-control\n'
+    "$GTD" --log-format json --no-progress benchmark build-first-copy-controls \
+        --specification \
+        "$RUN/source/benchmarks/public-controls/pdb_8oox_first_copy_controls.yaml" \
+        --public-control-preparation "$control_root/manifests/preparation.json" \
+        --database-manifest "$EXPECTED_DATABASE_MANIFEST" \
+        --sequence-groups "$P2_CONTROL_CATALOGUE/sequence_groups.jsonl" \
+        --preflight "$P2_CONTROL_PREFLIGHT/mtz_preflight.jsonl" \
+        --outdir "$P2_CONTROL_BUNDLE"
+    sha256sum "$RUN/state/p2-control-login-stage.sha256" \
+        "$RUN/source/benchmarks/public-controls/pdb_8oox_first_copy_controls.yaml" \
+        "$control_root/manifests/preparation.json" \
+        "$EXPECTED_DATABASE_MANIFEST" \
+        "$P2_CONTROL_CATALOGUE/sequence_groups.jsonl" \
+        "$P2_CONTROL_PREFLIGHT/mtz_preflight.jsonl" \
+        "$P2_CONTROL_BUNDLE/control_pair_manifest.json" \
+        "$P2_CONTROL_MTZ" "$PHENIX_MANIFEST" \
+        > "$qualification/p2-control-input-checksums.sha256"
+
+    cd "$RUN/execution"
+    printf 'phase=p2_control_first_run profile=p2-control\n'
+    run_p2_control_nextflow first
+    cp -a "$P2_CONTROL_RESULTS/pipeline_info" \
+        "$qualification/p2-control-first-pipeline-info"
+    printf 'phase=p2_control_resume_run profile=p2-control\n'
+    run_p2_control_nextflow resume -resume
+    cp -a "$P2_CONTROL_RESULTS/pipeline_info" \
+        "$qualification/p2-control-resume-pipeline-info"
+    cache_counts="$(awk -F '\t' '
+        NR == 1 { for (i = 1; i <= NF; i++) if ($i == "status") column = i; next }
+        column > 0 { total++; if ($column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$qualification/p2-control-resume-pipeline-info/trace.tsv")"
+    read -r total cached <<< "$cache_counts"
+    [[ "$total" -eq 2 && "$cached" -eq 2 ]] || return 4
+
+    mapfile -t result_directories < <(
+        find "$P2_CONTROL_RESULTS" -mindepth 1 -maxdepth 1 -type d \
+            -name 'first_copy_phaser_mrhyp_*' -print | LC_ALL=C sort
+    )
+    [[ "${#result_directories[@]}" -eq 2 ]] || return 4
+    : > "$results_tmp"
+    : > "$commands_tmp"
+    : > "$tails_tmp"
+    for result_directory in "${result_directories[@]}"; do
+        result_jsonl="$result_directory/normalised_mr_result.jsonl"
+        [[ -s "$result_jsonl" && ! -L "$result_jsonl" ]] || return 4
+        role="$($GTD --no-progress contract canonicalise mr-hypothesis \
+            "$P2_CONTROL_BUNDLE/hypotheses/${result_directory##*/first_copy_phaser_}.jsonl" \
+            --format json | sed -n 's/.*"control_role":"\([^"]*\)".*/\1/p')"
+        status="$(sed -n 's/.*"execution_status":"\([^"]*\)".*/\1/p' "$result_jsonl")"
+        llg="$(sed -n 's/.*"llg":\([^,]*\).*/\1/p' "$result_jsonl")"
+        tfz="$(sed -n 's/.*"tfz":\([^,]*\).*/\1/p' "$result_jsonl")"
+        placed="$(sed -n 's/.*"placed_copy_count":\([0-9]*\).*/\1/p' "$result_jsonl")"
+        packed="$(sed -n 's/.*"top_solution_packed":\([^,}]*\).*/\1/p' "$result_jsonl")"
+        score_passed="$(sed -n 's/.*"score_gate_passed":\([^,}]*\).*/\1/p' "$result_jsonl")"
+        case "$role" in
+            known_positive)
+                positive_status="$status"; positive_llg="$llg"; positive_tfz="$tfz"
+                if [[ "$status" == completed_hit && "$placed" == 1 && \
+                      "$packed" == true && "$score_passed" == true ]]; then
+                    positive_pass=true
+                fi
+                ;;
+            deliberate_unrelated_negative)
+                negative_status="$status"; negative_llg="$llg"; negative_tfz="$tfz"
+                if [[ "$status" == completed_no_hit && "$llg" == null && \
+                      "$tfz" == null && "$placed" == 0 && "$packed" == false && \
+                      ( -z "$score_passed" || "$score_passed" == false ) ]]; then
+                    negative_pass=true
+                fi
+                ;;
+            *) return 4 ;;
+        esac
+        cat -- "$result_jsonl" >> "$results_tmp"
+        [[ -s "$result_directory/phaser_command.json" && \
+           ! -L "$result_directory/phaser_command.json" ]] || return 4
+        "$RUN/source/.pixi/envs/hpc/bin/python" -c \
+            'import json,sys; print(json.dumps(json.load(open(sys.argv[1])),sort_keys=True,separators=(",",":")))' \
+            "$result_directory/phaser_command.json" >> "$commands_tmp"
+        printf '{"control_role":"%s","tail_lines":200}\n' "$role" >> "$tails_tmp"
+        [[ ! -f "$result_directory/PHASER.log" ]] || \
+            tail -n 200 "$result_directory/PHASER.log" >> "$tails_tmp"
+    done
+    mv -f -- "$results_tmp" "$qualification/p2-control-results.jsonl"
+    mv -f -- "$commands_tmp" "$qualification/p2-control-commands.jsonl"
+    mv -f -- "$tails_tmp" "$qualification/p2-control-log-tails.txt"
+    [[ -n "$positive_status" && -n "$negative_status" ]] || return 4
+    if [[ "$positive_pass" == true && "$negative_pass" == true ]]; then
+        separated=true
+    fi
+    cat > "$qualification/p2-control-resume-check.json" <<EOF
+{"schema_version":"1.0","run_id":"$RUN_ID","profile":"p2-control","process_count":$total,"cached_process_count":$cached,"all_first_copy_processes_cached":true}
+EOF
+    cat > "$qualification/p2-control-summary.json" <<EOF
+{"schema_version":"1.0","run_id":"$RUN_ID","profile":"p2-control","control_pair_id":"PDB_8OOX_FIRST_COPY","crystal_id":"PDB_8OOX","positive":{"execution_status":"$positive_status","llg":$positive_llg,"tfz":$positive_tfz,"passed_expected_outcome":$positive_pass},"negative":{"execution_status":"$negative_status","llg":$negative_llg,"tfz":$negative_tfz,"passed_expected_outcome":$negative_pass},"score_policy":"strict_llg_gt_50_or_tfz_gt_5","positive_and_negative_separated":$separated,"all_resume_processes_cached":true}
+EOF
+    checksums_tmp="$qualification/p2-control-artifact-sha256.tsv.tmp.$$"
+    printf 'sha256\tpath\n' > "$checksums_tmp"
+    for candidate in \
+        "$qualification/p2-control-summary.json" \
+        "$qualification/p2-control-results.jsonl" \
+        "$qualification/p2-control-commands.jsonl" \
+        "$qualification/p2-control-log-tails.txt" \
+        "$qualification/p2-control-resume-check.json" \
+        "$P2_CONTROL_BUNDLE/control_pair_manifest.json" \
+        "$P2_CONTROL_BUNDLE/model_preparation_manifest.json" \
+        "$P2_CONTROL_BUNDLE/processed_models.jsonl" \
+        "$P2_CONTROL_BUNDLE/mr_hypotheses.jsonl" \
+        "$qualification/p2-control-first-pipeline-info/trace.tsv" \
+        "$qualification/p2-control-resume-pipeline-info/trace.tsv"; do
+        checksum="$(sha256sum "$candidate" | awk '{print $1}')"
+        relative="${candidate#"$RUN/"}"
+        printf '%s\t%s\n' "$checksum" "$relative" >> "$checksums_tmp"
+    done
+    mv -f -- "$checksums_tmp" \
+        "$qualification/p2-control-artifact-sha256.tsv"
+    [[ "$separated" == true ]] || return 4
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == \
+        "$(<"$RUN/state/commit")" ]] || return 3
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
+        return 3
+    printf 'p2_control_status=positive_and_unrelated_negative_separated\n'
+}
+
 run_database() {
     local gtd real_aria2 wrapper_bin database_manifest_sha256
     local source_bundle source_bundle_sha256 actual_source_bundle_sha256
@@ -1570,6 +1770,7 @@ case "$PROFILE" in
     p1) run_p1 ;;
     p2) run_p2 ;;
     p2-diverse) run_p2_diverse ;;
+    p2-control) run_p2_control ;;
     database) run_database ;;
 esac
 

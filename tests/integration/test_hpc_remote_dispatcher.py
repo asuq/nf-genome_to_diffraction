@@ -22,6 +22,7 @@ P0_RUN_ID = "gtd-p0-20260802T120000Z-0123456789ab-01234567"
 P1_RUN_ID = "gtd-p1-20260802T120000Z-0123456789ab-01234567"
 P2_RUN_ID = "gtd-p2-20260802T120000Z-0123456789ab-01234567"
 P2_DIVERSE_RUN_ID = "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567"
+P2_CONTROL_RUN_ID = "gtd-p2-control-20260802T120000Z-0123456789ab-01234567"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
 
@@ -115,11 +116,19 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         REPOSITORY / "screen_diverse_first_copy.nf",
         source / "screen_diverse_first_copy.nf",
     )
+    shutil.copy2(
+        REPOSITORY / "screen_first_copy_controls.nf",
+        source / "screen_first_copy_controls.nf",
+    )
     controls = source / "benchmarks" / "public-controls"
     controls.mkdir(parents=True)
     shutil.copy2(
         REPOSITORY / "benchmarks/public-controls/pdb_8oox.yaml",
         controls / "pdb_8oox.yaml",
+    )
+    shutil.copy2(
+        REPOSITORY / "benchmarks/public-controls/pdb_8oox_first_copy_controls.yaml",
+        controls / "pdb_8oox_first_copy_controls.yaml",
     )
     shutil.copy2(
         REPOSITORY / "benchmarks/public-controls/afdb_accessions.tsv",
@@ -134,6 +143,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         "prepare_models.nf",
         "prepare_pdb_models.nf",
         "screen_diverse_first_copy.nf",
+        "screen_first_copy_controls.nf",
         "benchmarks",
     )
     _git(
@@ -226,6 +236,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  *" structure-search afdb-exact "*) mode=afdb ;;\n'
         '  *" structure-search pdb-sequence "*) mode=pdb ;;\n'
         '  *" structure-search register-pdb-coordinates "*) mode=register ;;\n'
+        '  *" benchmark prepare-public-control "*) mode=public_control ;;\n'
         '  *" databases stage-sources "*) mode=database ;;\n'
         "esac\n"
         'for argument in "$@"; do\n'
@@ -280,6 +291,18 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"bundle_id":"dbsrc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
         'aaaaaaaaaaaaaaaa","created_at":"2026-08-09T00:00:00Z",'
         '"resources":[]}\\n\' > "$output"\n'
+        'elif [[ "$mode" == public_control ]]; then\n'
+        '  mkdir -p "$outdir/manifests" "$outdir/derived" "$outdir/models"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/manifests/preparation.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/manifests/catalogues.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/manifests/crystals.json"\n'
+        "  printf 'fake mtz\\n' > "
+        '"$outdir/derived/8OOX-autoproc-deposited.mtz"\n'
+        "  printf 'fake pdb\\n' > "
+        '"$outdir/models/8OOW-chain-A-polymer.pdb"\n'
         "else\n"
         "  exit 9\n"
         "fi\n"
@@ -1944,6 +1967,9 @@ def _install_fake_p1_runtime(run: Path) -> None:
         '  *" structure-search qualify-p1 "*) mode=qualify ;;\n'
         '  *" phenix verify "*) mode=phenix ;;\n'
         '  *" databases prepare "*) mode=databases ;;\n'
+        '  *" diffraction preflight "*) mode=preflight ;;\n'
+        '  *" benchmark build-first-copy-controls "*) mode=control_bundle ;;\n'
+        '  *" contract canonicalise "*) mode=canonicalise ;;\n'
         '  *" contract validate "*) mode=contract ;;\n'
         '  *" review build-mr-seed "*) mode=review ;;\n'
         "esac\n"
@@ -1983,6 +2009,32 @@ def _install_fake_p1_runtime(run: Path) -> None:
         '> "${manifest%.json}.verification.json"\n'
         'elif [[ "$mode" == contract ]]; then\n'
         '  [[ -f "${@: -1}" || -f "${@: -3:1}" ]]\n'
+        'elif [[ "$mode" == canonicalise ]]; then\n'
+        '  cat -- "${@: -3:1}"\n'
+        'elif [[ "$mode" == preflight ]]; then\n'
+        '  mkdir -p "$outdir"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/mtz_preflight.jsonl"\n'
+        'elif [[ "$mode" == control_bundle ]]; then\n'
+        '  mkdir -p "$outdir/hypotheses" "$outdir/models"\n'
+        "  positive=mrhyp_"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+        "  negative=mrhyp_"
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/control_pair_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/model_preparation_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/processed_models.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/mr_hypotheses.jsonl"\n'
+        '  printf \'{"hypothesis_id":"%s","priority_features":'
+        '{"control_role":"known_positive"}}\\n\' "$positive" > '
+        '"$outdir/hypotheses/${positive}.jsonl"\n'
+        '  printf \'{"hypothesis_id":"%s","priority_features":'
+        '{"control_role":"deliberate_unrelated_negative"}}\\n\' "$negative" > '
+        '"$outdir/hypotheses/${negative}.jsonl"\n'
         'elif [[ "$mode" == review ]]; then\n'
         '  [[ -n "$outdir" ]]\n'
         '  mkdir -p "$outdir"\n'
@@ -2019,6 +2071,7 @@ def _install_fake_p1_runtime(run: Path) -> None:
         '  [[ "$argument" != */prepare_pdb_models.nf ]] || mode=p2div-model\n'
         '  [[ "$argument" != */screen_first_copy.nf ]] || mode=p2\n'
         '  [[ "$argument" != */screen_diverse_first_copy.nf ]] || mode=p2div\n'
+        '  [[ "$argument" != */screen_first_copy_controls.nf ]] || mode=p2control\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
         '  [[ "$argument" != -resume ]] || status=CACHED\n'
         '  previous="$argument"\n'
@@ -2048,6 +2101,11 @@ def _install_fake_p1_runtime(run: Path) -> None:
         "  printf '1\\t123\\t%s\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
         "10 MB\\t20 MB\\t30 MB\\t4 MB\\n' "
         '"$process_name" "$status" >> "$outdir/pipeline_info/trace.tsv"\n'
+        'elif [[ "$mode" == p2control ]]; then\n'
+        "  for task in 1 2; do printf '"
+        "%s\\t123\\tP2_CONTROL_TASK\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
+        "10 MB\\t20 MB\\t30 MB\\t4 MB\\n' "
+        '"$task" "$status"; done >> "$outdir/pipeline_info/trace.tsv"\n'
         'elif [[ "$mode" == p2div-model ]]; then\n'
         "  process_name=PREPARE_EXPERIMENTAL_MODELS\n"
         "  printf '1\\t123\\t%s\\t%s\\t0\\t2s\\t1s\\t100%%%%\\t"
@@ -2135,6 +2193,33 @@ def _install_fake_p1_runtime(run: Path) -> None:
         "    printf 'fake diverse Phaser log\\n' > \"$result/PHASER.log\"\n"
         "    printf 'fake diverse capture\\n' > "
         '"$result/phenix.phaser.capture.log"\n'
+        "  done\n"
+        "  exit 0\n"
+        "fi\n"
+        'if [[ "$mode" == p2control ]]; then\n'
+        "  for role in positive negative; do\n"
+        '    if [[ "$role" == positive ]]; then\n'
+        "      hypothesis=mrhyp_"
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+        '      payload=\'{"execution_status":"completed_hit",'
+        '"hypothesis_id":"\'$hypothesis\'",'
+        '"llg":1149.2,"tfz":46.0,"placed_copy_count":1,"packing_summary":'
+        '{"top_solution_packed":true,"score_gate_passed":true}}\'\n'
+        "    else\n"
+        "      hypothesis=mrhyp_"
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+        '      payload=\'{"execution_status":"completed_no_hit",'
+        '"hypothesis_id":"\'$hypothesis\'",'
+        '"llg":null,"tfz":null,"placed_copy_count":0,"packing_summary":'
+        '{"top_solution_packed":false}}\'\n'
+        "    fi\n"
+        '    result="$outdir/first_copy_phaser_${hypothesis}"\n'
+        '    mkdir -p "$result"\n'
+        '    printf \'%s\\n\' "$payload" > "$result/normalised_mr_result.jsonl"\n'
+        '    printf \'%s\\n\' "$payload" > "$result/normalised_mr_result.json"\n'
+        '    printf \'{"arguments":["phenix.phaser"]}\\n\' > '
+        '"$result/phaser_command.json"\n'
+        "    printf 'fake control Phaser log\\n' > \"$result/PHASER.log\"\n"
         "  done\n"
         "  exit 0\n"
         "fi\n"
@@ -2510,6 +2595,90 @@ def test_p2_job_rejects_adapter_failure_as_test_failure(tmp_path: Path) -> None:
     assert not (
         run / "artifacts/qualification/p2-first-copy-resume-check.json"
     ).exists()
+
+
+def test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    _write_p0_paths(remote_root)
+
+    readiness = _decode_protocol(
+        _run(
+            [str(dispatcher), "readiness", "p2-control"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert readiness["profile"] == "p2-control"
+    assert readiness["ready"] == "true"
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                P2_CONTROL_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "p2-control",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert staged["profile"] == "p2-control"
+    run = remote_root / "runs" / P2_CONTROL_RUN_ID
+    assert (run / "state/p2-control-login-stage.sha256").is_file()
+    login_log = (run / "logs/p2-control-login-stage.log").read_text(encoding="utf-8")
+    assert "phase=p2_control_prepare_public_control" in login_log
+    assert (run / "artifacts/p2-control/catalogue/sequence_groups.jsonl").is_file()
+    _install_fake_p1_runtime(run)
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", P2_CONTROL_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert submitted["profile"] == "p2-control"
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "123"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+    _run(
+        [
+            str(_smoke_job),
+            P2_CONTROL_RUN_ID,
+            str(remote_root),
+            "p2-control",
+        ],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
+    job_result = json.loads((run / "state/job-result.json").read_text(encoding="utf-8"))
+    assert job_result["failure_class"] == "success"
+    summary = json.loads(
+        (run / "artifacts/qualification/p2-control-summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert summary["positive_and_negative_separated"] is True
+    assert summary["positive"]["execution_status"] == "completed_hit"
+    assert summary["negative"]["execution_status"] == "completed_no_hit"
+    assert (run / "artifacts/qualification/p2-control-commands.jsonl").is_file()
+    assert (run / "artifacts/qualification/p2-control-artifact-sha256.tsv").is_file()
+    archive = _run(
+        [str(dispatcher), "collect", P2_CONTROL_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    assert "artifacts/qualification/p2-control-summary.json" in names
+    assert "artifacts/qualification/p2-control-commands.jsonl" in names
+    assert "artifacts/qualification/p2-control-artifact-sha256.tsv" in names
 
 
 def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(

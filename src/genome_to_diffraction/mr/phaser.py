@@ -8,6 +8,9 @@ searched. Exact predicted models pass factual 100% sequence identity, while a
 registered experimental homologue passes its verified candidate-to-source
 sequence identity. Phenix-processed model B values retain predicted coordinate
 uncertainty; cleaned PDB models retain their source-coordinate B values.
+A checksum-frozen deliberately unrelated negative control may pass a fixed 1%
+Phaser error-model identity only when both typed model and hypothesis declare
+the same control role. This value is never represented as sequence homology.
 
 Tool failure, malformed output, scientific no-hit, and a preliminary hit remain
 distinct. The user-defined provisional score gate is strict: LLG > 50 or
@@ -300,6 +303,36 @@ def _model_execution_policy(
         return (
             _experimental_model_identity(hypothesis, model),
             "registered PDB homologue identity with native coordinate B values",
+        )
+    if (
+        model.variant_type == "control_unrelated_cleaned_source_chain"
+        and model.processing_tool == "gemmi"
+    ):
+        identity = model.processing_parameters.get("phaser_identity_percent")
+        if (
+            hypothesis.priority_features.get("control_role")
+            != "deliberate_unrelated_negative"
+            or model.processing_parameters.get("control_role")
+            != "deliberate_unrelated_negative"
+            or hypothesis.priority_features.get("structural_source_class")
+            != "deliberate_unrelated_control"
+            or hypothesis.priority_features.get("exact_sequence_mapping") is not False
+            or hypothesis.priority_features.get("identity_interpretation")
+            != "error_model_input_not_sequence_homology"
+            or model.processing_parameters.get("identity_interpretation")
+            != "error_model_input_not_sequence_homology"
+            or isinstance(identity, bool)
+            or not isinstance(identity, (int, float))
+            or float(identity) != 1.0
+            or hypothesis.priority_features.get("phaser_identity_percent") != 1.0
+        ):
+            raise PhaserInputError(
+                "unrelated control does not match the fixed negative-control policy"
+            )
+        return (
+            1.0,
+            "deliberately unrelated negative-control error model; "
+            "not sequence homology",
         )
     raise PhaserInputError("processed model does not match a first-copy policy")
 

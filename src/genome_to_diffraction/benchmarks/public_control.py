@@ -245,8 +245,9 @@ class PublicControlPreparationRequest:
     """Paths and safeguards for preparing one public positive control."""
 
     specification: Path
-    proteome_faa: Path
     output_directory: Path
+    proteome_faa: Path | None = None
+    catalogue_manifest: Path | None = None
     download_missing: bool = True
     progress: bool = True
     storage_limit_bytes: int = 256 * 1024 * 1024
@@ -612,7 +613,38 @@ def prepare_public_control(
             f"{gemmi_version} != {spec.derived_mtz.gemmi_version}"
         )
     output_root = _safe_output_root(request.output_directory)
-    proteome = _verify_regular_file(request.proteome_faa, label="proteome FASTA")
+    if (request.proteome_faa is None) == (request.catalogue_manifest is None):
+        raise PublicControlError(
+            "supply exactly one of proteome_faa or catalogue_manifest"
+        )
+    if request.catalogue_manifest is not None:
+        catalogue_path = _verify_regular_file(
+            request.catalogue_manifest, label="catalogue manifest"
+        )
+        try:
+            catalogue_document = CatalogueManifest.model_validate_json(
+                catalogue_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError) as error:
+            raise PublicControlError(
+                f"invalid catalogue manifest {catalogue_path}: {error}"
+            ) from error
+        matches = [
+            entry
+            for entry in catalogue_document.catalogues
+            if entry.catalogue_id == spec.catalogue_id
+            and entry.assembly_accession == spec.assembly_accession
+        ]
+        if len(matches) != 1:
+            raise PublicControlError(
+                "catalogue manifest does not uniquely bind the public-control "
+                "catalogue and assembly"
+            )
+        proteome_candidate = Path(matches[0].proteome_faa)
+    else:
+        assert request.proteome_faa is not None
+        proteome_candidate = request.proteome_faa
+    proteome = _verify_regular_file(proteome_candidate, label="proteome FASTA")
     _verify_file_identity(
         proteome,
         expected_sha256=spec.expected_proteome_sha256,

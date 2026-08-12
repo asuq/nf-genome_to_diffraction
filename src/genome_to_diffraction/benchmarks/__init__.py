@@ -1,5 +1,11 @@
 """Reproducible public controls for scientific qualification."""
 
+from genome_to_diffraction.benchmarks.mr_controls import (
+    MrControlBundleOutput,
+    MrControlBundleRequest,
+    build_mr_control_bundle,
+    load_first_copy_control_pair,
+)
 from genome_to_diffraction.benchmarks.panel import (
     PublicPanelPreparationRequest,
     PublicPanelPreparationResult,
@@ -13,10 +19,14 @@ from genome_to_diffraction.benchmarks.public_control import (
 )
 
 __all__ = [
+    "MrControlBundleOutput",
+    "MrControlBundleRequest",
     "PublicControlPreparationRequest",
     "PublicControlPreparationResult",
     "PublicPanelPreparationRequest",
     "PublicPanelPreparationResult",
+    "build_mr_control_bundle",
+    "load_first_copy_control_pair",
     "load_public_control_panel",
     "prepare_public_control",
     "prepare_public_control_panel",

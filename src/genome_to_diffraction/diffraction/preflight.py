@@ -58,7 +58,7 @@ class PreflightRequest:
     phenix_manifest: Path | None = None
     skip_xtriage: bool = False
     progress: bool = True
-    xtriage_timeout_seconds: float = 3600.0
+    xtriage_timeout_seconds: float | None = 3600.0
 
 
 @dataclass(frozen=True)
@@ -605,7 +605,7 @@ def _run_xtriage(
     observation: _ObservationCandidate,
     entry: CrystalEntry,
     log_path: Path,
-    timeout_seconds: float,
+    timeout_seconds: float | None,
 ) -> tuple[XtriageAssessment, tuple[str, ...]]:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_model = load_contract(
@@ -675,7 +675,7 @@ def inspect_crystal(
     phenix_manifest: Path | None,
     skip_xtriage: bool,
     progress: bool,
-    xtriage_timeout_seconds: float,
+    xtriage_timeout_seconds: float | None,
 ) -> MtzPreflightRecord:
     """Inspect one MTZ and optionally enrich it with isolated Xtriage output."""
 

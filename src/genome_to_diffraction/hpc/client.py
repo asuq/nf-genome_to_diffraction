@@ -92,11 +92,13 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/p1.log",
         "logs/p2.log",
         "logs/p2-diverse.log",
+        "logs/p2-control.log",
         "logs/database.log",
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2|database)-[0-9]{8}T[0-9]{6}Z-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|database)-"
+    r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
 _SIGNATURE_TIMESTAMP_RE = re.compile(
@@ -296,7 +298,7 @@ class SshTransport:
         elif (
             operation == "stage"
             and len(arguments) == 6
-            and arguments[5] in {"p0", "p1", "p2", "p2-diverse"}
+            and arguments[5] in {"p0", "p1", "p2", "p2-diverse", "p2-control"}
         ):
             operation_timeout = P0_STAGE_TIMEOUT_SECONDS
         try:
@@ -556,9 +558,10 @@ class HpcController:
         """Inspect one fixed profile's remote prerequisites without creating a run."""
 
         validate_profile(profile)
-        if profile not in {"p0", "p1", "p2", "p2-diverse"}:
+        if profile not in {"p0", "p1", "p2", "p2-diverse", "p2-control"}:
             raise ValidationError(
-                "readiness inspection is available only for p0, p1, p2, and p2-diverse"
+                "readiness inspection is available only for p0, p1, p2, "
+                "p2-diverse, and p2-control"
             )
         self.logger.info(
             "inspecting fixed HPC profile readiness",
@@ -828,7 +831,7 @@ class HpcController:
                     if record.profile == "p1"
                     else (
                         P2_EXECUTION_TIMEOUT_SECONDS
-                        if record.profile in {"p2", "p2-diverse"}
+                        if record.profile in {"p2", "p2-diverse", "p2-control"}
                         else self.config.execution_timeout_seconds
                     )
                 )
