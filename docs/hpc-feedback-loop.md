@@ -340,7 +340,9 @@ revalidates the configuration and still must verify real Phenix and databases.
 `deploy-tools` first requires a clean local worktree. It resolves the exact Git
 commit, reads only `bootstrap/nf-gtd-hpc-remote` and
 `bootstrap/nf-gtd-hpc-smoke-job`, and calculates their SHA-256 values without
-accepting a payload or remote path from the caller. The remote side fetches the
+accepting a payload or remote path from the caller. The tracked
+`bootstrap/nf-gtd-hpc-recover-tools` script is also checksum-reviewed locally.
+The remote side fetches the
 private bare mirror, requires the commit to be reachable from `origin/main`,
 extracts only those two fixed paths, rechecks both digests, runs `bash -n`, and
 refuses a dispatcher that would remove `deploy-tools`. It preserves the old
@@ -348,6 +350,18 @@ copies until both mode-`0555` replacements and the atomic
 `_tooling/deployed-tools.json` record have been verified. A failure before that
 point leaves the installed pair unchanged or restores it from the preserved
 copies.
+
+If and only if the installed dispatcher fails before dispatch with the exact
+`environment_failure` message `base64 is unavailable`, the same local
+`deploy-tools` operation streams that committed recovery script over standard
+input. The recovery script accepts only the configured fixed dispatcher path,
+the exact 40-character commit, and the two locally calculated checksums. It
+requires the commit on private-mirror `origin/main`, extracts only the two fixed
+tool paths, validates ownership, checksums and Bash syntax, and performs the
+same preserved-copy rollback. Other failure classes or messages never activate
+the recovery path. This avoids a recurring raw-SSH approval while keeping the
+repair operation checksum- and path-gated; normal upgrades continue through the
+installed dispatcher after recovery.
 
 `stage` refuses a dirty worktree, a non-full revision other than `HEAD`, a commit
 unavailable from the private mirror, a changed Pixi lock, or a submodule mismatch.

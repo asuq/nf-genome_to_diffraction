@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# One-shot checksum-gated recovery for the two fixed Marmic HPC tools.
+
+set -euo pipefail
+umask 077
+
+die() {
+    printf 'recovery failed: %s\n' "$1" >&2
+    exit 1
+}
+
+[[ "$#" -eq 4 ]] || die "expected dispatcher, commit, and two checksums"
+dispatcher="$1"
+commit="$2"
+expected_dispatcher="$3"
+expected_job="$4"
+
+[[ "$dispatcher" =~ ^/[A-Za-z0-9._/-]+/nf-gtd-hpc-remote$ ]] || \
+    die "dispatcher path is invalid"
+[[ "$commit" =~ ^[0-9a-f]{40}$ ]] || die "commit is invalid"
+[[ "$expected_dispatcher" =~ ^[0-9a-f]{64}$ ]] || \
+    die "dispatcher checksum is invalid"
+[[ "$expected_job" =~ ^[0-9a-f]{64}$ ]] || die "job checksum is invalid"
+
+tool_dir="$(dirname "$dispatcher")"
+root="$(dirname "$tool_dir")"
+job="$tool_dir/nf-gtd-hpc-smoke-job"
+mirror="$root/_cache/git/nf-genome_to_diffraction.git"
+locks="$root/_locks"
+
+[[ "$dispatcher" == "$tool_dir/nf-gtd-hpc-remote" ]] || \
+    die "dispatcher target is inconsistent"
+[[ -d "$tool_dir" && ! -L "$tool_dir" && -O "$tool_dir" ]] || \
+    die "tool directory is unsafe"
+[[ -f "$dispatcher" && ! -L "$dispatcher" && -O "$dispatcher" ]] || \
+    die "installed dispatcher is unsafe"
+[[ -f "$job" && ! -L "$job" && -O "$job" ]] || \
+    die "installed job script is unsafe"
+[[ -d "$mirror" ]] || die "bare Git mirror is absent"
+[[ "$(git --git-dir="$mirror" rev-parse --is-bare-repository 2>/dev/null)" == true ]] || \
+    die "configured Git mirror is not bare"
+
+mkdir -p "$locks"
+exec 9>"$locks/deploy-tools.lock"
+flock -x 9
+staging="$(mktemp -d "$tool_dir/.recover-tools.XXXXXXXX")" || \
+    die "cannot create recovery staging directory"
+cleanup() {
+    chmod -R u+w "$staging" 2>/dev/null || true
+    rm -rf -- "$staging"
+}
+trap cleanup EXIT
+
+new_dispatcher="$staging/nf-gtd-hpc-remote"
+new_job="$staging/nf-gtd-hpc-smoke-job"
+previous_dispatcher="$staging/previous-nf-gtd-hpc-remote"
+previous_job="$staging/previous-nf-gtd-hpc-smoke-job"
+record="$staging/deployed-tools.json"
+
+git --git-dir="$mirror" fetch --prune origin >"$staging/git-fetch.log" 2>&1 || \
+    die "Git mirror fetch failed"
+git --git-dir="$mirror" cat-file -e "${commit}^{commit}" 2>/dev/null || \
+    die "commit is unavailable from the private mirror"
+git --git-dir="$mirror" rev-parse --verify refs/heads/main >/dev/null 2>&1 || \
+    die "origin main is absent from the private mirror"
+git --git-dir="$mirror" merge-base --is-ancestor "$commit" refs/heads/main || \
+    die "commit is not reachable from origin main"
+git --git-dir="$mirror" show \
+    "${commit}:bootstrap/nf-gtd-hpc-remote" >"$new_dispatcher" || \
+    die "dispatcher is absent from the commit"
+git --git-dir="$mirror" show \
+    "${commit}:bootstrap/nf-gtd-hpc-smoke-job" >"$new_job" || \
+    die "job script is absent from the commit"
+
+actual_dispatcher="$(sha256sum "$new_dispatcher" | awk '{print $1}')"
+actual_job="$(sha256sum "$new_job" | awk '{print $1}')"
+[[ "$actual_dispatcher" == "$expected_dispatcher" ]] || \
+    die "dispatcher checksum differs from local review"
+[[ "$actual_job" == "$expected_job" ]] || \
+    die "job checksum differs from local review"
+bash -n "$new_dispatcher" "$new_job" || die "new tool syntax is invalid"
+grep -Fq 'deploy-tools) deploy_tools "$@" ;;' "$new_dispatcher" || \
+    die "new dispatcher omits the normal upgrade operation"
+
+cp -p -- "$dispatcher" "$previous_dispatcher" || \
+    die "cannot preserve the previous dispatcher"
+cp -p -- "$job" "$previous_job" || die "cannot preserve the previous job script"
+chmod 0555 "$new_dispatcher" "$new_job"
+cat >"$record" <<EOF
+{
+  "schema_version": "1.0",
+  "commit": "$commit",
+  "dispatcher_sha256": "$actual_dispatcher",
+  "smoke_job_sha256": "$actual_job",
+  "deployed_at": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
+  "recovery_used": true
+}
+EOF
+
+if ! mv -f -- "$new_job" "$job" || ! mv -f -- "$new_dispatcher" "$dispatcher"; then
+    mv -f -- "$previous_job" "$job" 2>/dev/null || true
+    mv -f -- "$previous_dispatcher" "$dispatcher" 2>/dev/null || true
+    die "atomic tool replacement failed"
+fi
+if [[ "$(sha256sum "$dispatcher" | awk '{print $1}')" != "$actual_dispatcher" ]] || \
+    [[ "$(sha256sum "$job" | awk '{print $1}')" != "$actual_job" ]] || \
+    ! mv -f -- "$record" "$tool_dir/deployed-tools.json"; then
+    mv -f -- "$previous_job" "$job" 2>/dev/null || true
+    mv -f -- "$previous_dispatcher" "$dispatcher" 2>/dev/null || true
+    die "installed tool verification failed"
+fi
+
+printf 'deployed\n'

@@ -104,7 +104,11 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     (source / "pixi.lock").write_text("locked test environment\n", encoding="utf-8")
     bootstrap = source / "bootstrap"
     bootstrap.mkdir()
-    for name in ("nf-gtd-hpc-remote", "nf-gtd-hpc-smoke-job"):
+    for name in (
+        "nf-gtd-hpc-remote",
+        "nf-gtd-hpc-smoke-job",
+        "nf-gtd-hpc-recover-tools",
+    ):
         shutil.copy2(REPOSITORY / "bootstrap" / name, bootstrap / name)
         (bootstrap / name).chmod(0o755)
     shutil.copy2(
@@ -574,6 +578,59 @@ def test_remote_dispatcher_rejects_deployment_checksum_mismatch(
     assert hashlib.sha256(dispatcher.read_bytes()).hexdigest() == original_dispatcher
     assert hashlib.sha256(smoke_job.read_bytes()).hexdigest() == original_smoke_job
     assert not (dispatcher.parent / "deployed-tools.json").exists()
+
+
+def test_recovery_script_replaces_only_checksum_verified_tools(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    source_bootstrap = tmp_path / "source-origin" / "bootstrap"
+    recovery = source_bootstrap / "nf-gtd-hpc-recover-tools"
+    dispatcher_digest = hashlib.sha256(
+        (source_bootstrap / dispatcher.name).read_bytes()
+    ).hexdigest()
+    job_digest = hashlib.sha256(
+        (source_bootstrap / smoke_job.name).read_bytes()
+    ).hexdigest()
+    dispatcher.write_text("#!/usr/bin/env bash\nexit 99\n", encoding="utf-8")
+    dispatcher.chmod(0o755)
+
+    recovered = _run(
+        [
+            str(recovery),
+            str(dispatcher),
+            commit,
+            dispatcher_digest,
+            job_digest,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    assert recovered.stdout == b"deployed\n"
+    assert hashlib.sha256(dispatcher.read_bytes()).hexdigest() == dispatcher_digest
+    assert hashlib.sha256(smoke_job.read_bytes()).hexdigest() == job_digest
+    record = json.loads(
+        (dispatcher.parent / "deployed-tools.json").read_text(encoding="utf-8")
+    )
+    assert record["commit"] == commit
+    assert record["recovery_used"] is True
+
+    rejected = _run(
+        [str(recovery), str(dispatcher), commit, "0" * 64, job_digest],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert b"checksum differs from local review" in rejected.stderr
+    assert hashlib.sha256(dispatcher.read_bytes()).hexdigest() == dispatcher_digest
+
+    injected = _run(
+        [str(recovery), f"{dispatcher};touch", commit, dispatcher_digest, job_digest],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert b"dispatcher path is invalid" in injected.stderr
+    assert not (tmp_path / "touch").exists()
 
 
 def _lock_checksum(tmp_path: Path) -> str:

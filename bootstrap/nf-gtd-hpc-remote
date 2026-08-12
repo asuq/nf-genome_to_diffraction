@@ -2185,7 +2185,8 @@ clean_run() {
 }
 
 main() {
-    command -v base64 >/dev/null || fail environment_failure "base64 is unavailable"
+    printf '' | base64 >/dev/null 2>&1 || \
+        fail environment_failure "base64 is unavailable"
     command -v flock >/dev/null || fail environment_failure "flock is unavailable"
     local operation="${1-}"
     [[ -n "$operation" ]] || fail wrapper_failure "operation is required"

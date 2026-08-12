@@ -61,9 +61,12 @@ class FakeTransport:
     status_responses: list[dict[str, str]] = field(default_factory=list)
     calls: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     p0_archive: bytes = b""
+    deploy_error: RemoteOperationError | None = None
 
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         self.calls.append((operation, tuple(arguments)))
+        if operation == "deploy-tools" and self.deploy_error is not None:
+            raise self.deploy_error
         if operation == "status" and self.status_responses:
             return self.status_responses.pop(0)
         if operation == "logs":
@@ -75,6 +78,26 @@ class FakeTransport:
             "run_id": arguments[0] if arguments else "",
             "remote_operation": operation,
         }
+
+    def recover_tools(
+        self,
+        recovery_script: bytes,
+        commit: str,
+        dispatcher_checksum: str,
+        smoke_job_checksum: str,
+    ) -> dict[str, str]:
+        self.calls.append(
+            (
+                "recover-tools",
+                (
+                    hashlib.sha256(recovery_script).hexdigest(),
+                    commit,
+                    dispatcher_checksum,
+                    smoke_job_checksum,
+                ),
+            )
+        )
+        return {"deployed": "true", "recovery_used": "true"}
 
     def collect(self, run_id: str, owner_id: str) -> bytes:
         self.calls.append(("collect", (run_id, owner_id)))
@@ -252,7 +275,11 @@ def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
     (tmp_path / "pixi.lock").write_text("locked\n", encoding="utf-8")
     bootstrap = tmp_path / "bootstrap"
     bootstrap.mkdir(exist_ok=True)
-    for name in ("nf-gtd-hpc-remote", "nf-gtd-hpc-smoke-job"):
+    for name in (
+        "nf-gtd-hpc-remote",
+        "nf-gtd-hpc-smoke-job",
+        "nf-gtd-hpc-recover-tools",
+    ):
         tool = bootstrap / name
         tool.write_text(f"#!/usr/bin/env bash\n# {name}\n", encoding="utf-8")
         tool.chmod(0o755)
@@ -441,6 +468,34 @@ def test_deploy_tools_sends_only_commit_and_verified_checksums(tmp_path: Path) -
     assert arguments[0] == COMMIT
     assert len(arguments) == 3
     assert all(len(value) == 64 for value in arguments[1:])
+
+
+def test_deploy_tools_recovers_only_from_missing_base64(tmp_path: Path) -> None:
+    transport = FakeTransport(
+        deploy_error=RemoteOperationError(
+            "base64 is unavailable",
+            failure_class=FailureClass.ENVIRONMENT_FAILURE,
+        )
+    )
+    controller = _controller(tmp_path, transport)
+
+    result = controller.deploy_tools("HEAD")
+
+    assert result["recovery_used"] == "true"
+    operation, arguments = transport.calls[-1]
+    assert operation == "recover-tools"
+    recovery = tmp_path / "bootstrap" / "nf-gtd-hpc-recover-tools"
+    assert arguments[0] == hashlib.sha256(recovery.read_bytes()).hexdigest()
+    assert arguments[1] == COMMIT
+    assert all(len(value) == 64 for value in arguments[2:])
+
+    transport.deploy_error = RemoteOperationError(
+        "Git mirror fetch failed",
+        failure_class=FailureClass.TRANSFER_FAILURE,
+    )
+    with pytest.raises(RemoteOperationError, match="Git mirror fetch failed"):
+        controller.deploy_tools("HEAD")
+    assert transport.calls[-1][0] == "deploy-tools"
 
 
 def test_deploy_tools_refuses_dirty_or_mismatched_worktree(tmp_path: Path) -> None:

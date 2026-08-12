@@ -72,6 +72,7 @@ _QUEUED_STATES = frozenset(
 _REMOTE_TOOL_PATHS = (
     PurePosixPath("bootstrap/nf-gtd-hpc-remote"),
     PurePosixPath("bootstrap/nf-gtd-hpc-smoke-job"),
+    PurePosixPath("bootstrap/nf-gtd-hpc-recover-tools"),
 )
 SSH_CONNECT_TIMEOUT_SECONDS = 15
 # Marmic login-node commands may block on NFS-cold executables and metadata.
@@ -174,6 +175,15 @@ class TextTransport(Protocol):
 
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         """Run one fixed remote operation and return decoded scalar fields."""
+
+    def recover_tools(
+        self,
+        recovery_script: bytes,
+        commit: str,
+        dispatcher_checksum: str,
+        smoke_job_checksum: str,
+    ) -> dict[str, str]:
+        """Recover only the two fixed tools from one reviewed commit."""
 
     def collect(self, run_id: str, owner_id: str) -> bytes:
         """Return the fixed whitelisted artefact archive for an owned run."""
@@ -350,6 +360,70 @@ class SshTransport:
             )
         return fields
 
+    def recover_tools(
+        self,
+        recovery_script: bytes,
+        commit: str,
+        dispatcher_checksum: str,
+        smoke_job_checksum: str,
+    ) -> dict[str, str]:
+        """Stream the fixed reviewed recovery script after normal deploy breaks."""
+
+        remote_command = shlex.join(
+            [
+                "/usr/bin/env",
+                "-u",
+                "BASH_ENV",
+                "-u",
+                "ENV",
+                f"PATH={_REMOTE_SYSTEM_PATH}",
+                "/bin/bash",
+                "--noprofile",
+                "--norc",
+                "-p",
+                "-s",
+                "--",
+                self._config.remote_dispatcher,
+                commit,
+                dispatcher_checksum,
+                smoke_job_checksum,
+            ]
+        )
+        command = [
+            "ssh",
+            *_SSH_FIXED_OPTIONS,
+            "--",
+            self._config.ssh_alias,
+            remote_command,
+        ]
+        try:
+            result = subprocess.run(
+                command,
+                input=recovery_script,
+                check=False,
+                capture_output=True,
+                timeout=SSH_OPERATION_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote checksum-gated tool recovery exceeded the transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        if result.returncode != 0 or result.stdout != b"deployed\n":
+            detail = result.stderr.decode("utf-8", errors="replace").strip()
+            raise RemoteOperationError(
+                detail or "remote checksum-gated tool recovery failed",
+                failure_class=FailureClass.WRAPPER_FAILURE,
+            )
+        return {
+            "deployed": "true",
+            "deployment_record": str(
+                PurePosixPath(self._config.remote_dispatcher).parent
+                / "deployed-tools.json"
+            ),
+            "recovery_used": "true",
+        }
+
     def collect(self, run_id: str, owner_id: str) -> bytes:
         """Stream the fixed remote archive without scp or arbitrary paths."""
 
@@ -497,24 +571,47 @@ class HpcController:
 
         dispatcher_checksum = checksums["nf-gtd-hpc-remote"]
         smoke_job_checksum = checksums["nf-gtd-hpc-smoke-job"]
+        recovery_checksum = checksums["nf-gtd-hpc-recover-tools"]
         self.logger.warning(
             "deploying checksum-verified remote HPC tools",
             extra={
                 "commit": commit,
                 "dispatcher_sha256": dispatcher_checksum,
                 "smoke_job_sha256": smoke_job_checksum,
+                "recovery_sha256": recovery_checksum,
             },
         )
-        remote = self.transport.run(
-            "deploy-tools",
-            [commit, dispatcher_checksum, smoke_job_checksum],
-        )
+        try:
+            remote = self.transport.run(
+                "deploy-tools",
+                [commit, dispatcher_checksum, smoke_job_checksum],
+            )
+        except RemoteOperationError as error:
+            if not (
+                error.failure_class is FailureClass.ENVIRONMENT_FAILURE
+                and str(error) == "base64 is unavailable"
+            ):
+                raise
+            recovery_script = self.git.read_file_at_commit(
+                commit, PurePosixPath("bootstrap/nf-gtd-hpc-recover-tools")
+            )
+            self.logger.warning(
+                "using checksum-gated remote tool recovery",
+                extra={"commit": commit, "recovery_sha256": recovery_checksum},
+            )
+            remote = self.transport.recover_tools(
+                recovery_script,
+                commit,
+                dispatcher_checksum,
+                smoke_job_checksum,
+            )
         return {
             **remote,
             "operation": "deploy-tools",
             "commit": commit,
             "dispatcher_sha256": dispatcher_checksum,
             "smoke_job_sha256": smoke_job_checksum,
+            "recovery_sha256": recovery_checksum,
         }
 
     def stage(
