@@ -19,11 +19,13 @@ solutions, no solution files, and a fully cached two-process resume. This
 qualifies the bounded route, not a scientific identification or the full P2
 gate.
 
-The next local slice adds registered direct-PDB cleaned source-chain models to
-the same independent first-copy boundary. It deliberately still excludes
-sequence-adapted/domain variants, same-component additional copies, refinement,
-map inspection, sequence-from-map analysis, ranking reports, and reviewer
-approval. Those remain separate gates.
+The registered direct-PDB slice subsequently completed 25 independent Marmic
+searches and produced six marginal TFZ-only review candidates. Their exact
+PDB/MTZ/log/command/result bundles have been collected through a checksum-gated
+operation for inspection. The active slice now adds scheduled positive and
+deliberate incorrect-model controls. It deliberately still excludes
+same-component additional copies, refinement, sequence-from-map analysis, and
+automatic reviewer approval. Those remain separate gates.
 
 ## Exact-model funnel
 
@@ -251,8 +253,13 @@ six also have accepted packing and one placed copy. None passes through LLG.
 The highest TFZ is 5.5, so these remain sensitive screening candidates rather
 than proven structures. Review-package generation also exposed a contract bug
 for no-solution records with no stored `score_gate_passed` field. A corrected
-immutable review package, scheduled controls, and human inspection are required
-before same-component additional-copy search begins.
+current-policy immutable replay then reproduced the same six raw candidates,
+stored the intended classifications, and passed cache/provenance audits. Its six
+checksum-bound PDB/MTZ/log bundles have been collected and mechanically
+validated as readable, one-chain solutions with matching PDB/MTZ space group
+and the expected map-coefficient columns. Scheduled controls and human
+map/packing inspection remain required before same-component additional-copy
+search begins.
 
 ## MR seed review checkpoint
 
@@ -319,6 +326,8 @@ scientific no-hit override, a no-solution result without a stored gate, an
 explicit stored/recomputed gate contradiction, schema-valid empty template,
 stale identifiers, edited review output, result-path traversal, and approval
 provenance. The fake Git/Slurm/Nextflow lifecycle covers package creation,
-fixed summary binding, and bounded collection. A corrected real Marmic replay
-must still produce the review package, and the scheduled positive and negative
-controls remain required.
+fixed summary binding, bounded compact collection, and checksum-gated
+eligible-asset collection. The corrected real Marmic replay produced and bound
+the version-2 package; its six eligible bundles were collected without
+caller-supplied paths or candidate identifiers. Scheduled positive and negative
+controls plus human inspection remain required.

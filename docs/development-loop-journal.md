@@ -1224,3 +1224,69 @@ human inspection. In parallel development order, add the already-planned
 known-positive and deliberate incorrect-model control profiles. Preserve the
 current raw scores and package unchanged; do not rerun P2-diverse merely to
 polish the test case and do not begin M4 before review and controls.
+
+## 2026-08-12 — Six eligible MR review bundles collected securely
+
+### Discoveries
+
+- The retained current-policy run can supply the six eligible review bundles
+  without another P2-diverse execution. A fixed operation can derive its entire
+  allowlist from the collected version-2 manifest, so neither a remote path nor
+  a caller-selected candidate identifier is needed.
+- The six bundles total about 22 MiB. Each contains one normalised result, one
+  resolved Phaser command, the native Phaser log, one solution PDB, and one
+  solution MTZ. All six PDBs and MTZs parse with Gemmi, contain one placed
+  coordinate chain, agree on space group `I 1 2 1`, and each MTZ contains
+  57,222 reflections plus `FC/PHIC`, `FWT/PHWT`, and
+  `DELFWT/PHDELWT` coefficients. This is mechanical integrity evidence, not a
+  map-quality judgement.
+- Recomputed raw results remain unchanged: LLG values 19.726–27.383, TFZ values
+  5.1–5.5, packed top solutions, and exactly one placed copy. All candidates
+  pass only through strict `TFZ > 5`; none is thereby a validated structure.
+
+### Accomplishments and immutable evidence
+
+- Commit `0fc9b30794641deaf401df0784c68f147092d6e6` adds
+  `review-collect`. Both local and remote sides validate the successful terminal
+  run, package identity, adapter/policy metadata, exact eligible count, five
+  fixed asset roles, every SHA-256, strict `LLG > 50` or `TFZ > 5`, final
+  packing, and one placed copy. It permits at most 25 candidates, 128 MiB per
+  file, and 512 MiB total and publishes local evidence atomically.
+- Local `pixi run check` passed with 291 unit, 55 contract, and 41 integration
+  tests plus schema, public-panel, documentation, actionlint, and Nextflow
+  syntax/stub checks. GitHub Actions run `31594142714` passed for the same
+  commit.
+- The installed local wrapper SHA-256 is
+  `3125dda3d2fabf81e10ce6e17161ec3d3ad4de54d586f6d226cf7c6e2eb11a38`.
+  The deployed dispatcher is bound to the same commit with SHA-256
+  `495b5a4a6acb7c303e657dfe4cb0305943200497470de8a374be5860baca6c34`;
+  the unchanged job driver SHA-256 is
+  `ffdcb323878662070f191259313229460802c3f9c9f89a340b8d627f272d6b9f`.
+- The collected package remains
+  `reviewpkg_fe7c36037f3a034d61aa3e335bb8a13f433da09c3c252cd5169a26ae30e9a6da`
+  with manifest SHA-256
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`.
+  Exactly 33 files were published: 30 candidate assets plus the manifest,
+  P2-diverse summary, and outer job result. The retained remote run was not
+  modified or cleaned.
+
+### Unresolved work
+
+- The P2 acceptance gate still needs one scheduled known-positive control and
+  one deliberate incorrect-model/no-solution control through the same adapter.
+  These should calibrate useful separation without retuning the provisional
+  threshold from the CD6 panel.
+- Human map and packing inspection is still required. The presence of readable
+  map coefficients and one packed coordinate chain does not demonstrate that
+  density supports the candidate or that the complete ASU has been explained.
+- The header-only approval file remains unchanged. No candidate is approved,
+  and M4 additional-copy placement remains blocked by design.
+
+### Next exact starting point
+
+Implement the smallest fixed scheduled control profile using the existing
+checksum-frozen public-control specifications. Run a correct-model positive and
+a deliberately unrelated model against the same fixed control diffraction
+data, preserve raw LLG/TFZ/packing/copy evidence, and collect the result through
+the normal wrapper cycle. Do not rerun the 25-model CD6 panel, do not tune its
+threshold, and do not begin M4 until the controls and human review are complete.

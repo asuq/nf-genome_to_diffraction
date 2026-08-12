@@ -63,15 +63,17 @@ overstated:
 | Epic 4, catalogue import | Trusted catalogue normalisation passed the real `GCF_000711905.1` pilot, including compound CDS and repeated-accession loci | Add regression catalogues as new biological edge cases are observed |
 | Epic 5, MTZ preflight | Gemmi and real Xtriage qualification passed for all three pilot MTZ datasets, including `CD6QS2P2G1_5` | Extend only when new MTZ edge cases are observed |
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
-| Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are implemented | Qualify the direct-PDB model/funnel route on Marmic, preserve the positive-control family, and finish provider union |
-| Epic 10 | The first-copy Phaser adapter, strict provisional gate, typed fan-out, cached resume, and fixed P2 lifecycle pass; the real exact-model CD6 route is a reproducible valid no-hit | Run the at-most-25 real diverse smoke set, qualify deliberate controls, and build the review package |
+| Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
+| Epic 10 | The first-copy Phaser adapter, strict provisional gate, typed fan-out, cached resume, and fixed P2 lifecycle pass; the real 25-model CD6 panel completed with six marginal TFZ-only review candidates, and their checksum-bound PDB/MTZ/log bundles are collected | Qualify the scheduled positive and deliberate incorrect-model controls, complete human map/packing review, and validate an explicit decision without promoting marginal candidates automatically |
 | Epics 11–13 | Contracts/reserved package areas exist | Same-component copies, refinement, map/sequence assessment, final ranking, and reporting are not implemented |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
-The accepted real Marmic workflow still terminates at
-`task05_preflight_complete_downstream_deferred`. A separate first-copy route now
-passes local stub acceptance and has run one exact model on Marmic without a
-credible solution; it has not identified the protein in `CD6QS2P2G1_5`. See the
+The accepted main workflow still terminates at
+`task05_preflight_complete_downstream_deferred`. Separate fixed P1, P2, and
+P2-diverse routes now qualify the bounded discovery and first-copy machinery on
+Marmic. The real 25-model CD6 panel produced six automatically eligible but
+marginal TFZ-only review candidates; it has not identified the protein in
+`CD6QS2P2G1_5` and authorises no additional-copy search. See the
 [initial Marmic report](prototype-test-report-2026-08-02.md) for the exact
 baseline evidence and the [M3 first-copy report](m3-first-copy-phaser.md) for
 the active boundary.
@@ -612,23 +614,26 @@ or evidence model. None is part of the 26–44 week baseline estimate.
 
 ## Immediate next goal
 
-M0 passed and the fixed exact-model P2 route is operational. The active bounded
-goal is now **real multi-source first-copy screening**, with the shortest path
-to prototype feedback:
+M0–M2 and the real bounded P2-diverse execution path have passed. The active
+goal is now **close the M3 scientific control and human-review gate**, with the
+shortest path toward same-component placement:
 
-1. take a small provenance-complete set of direct-PDB hits from immutable P1;
-2. register and verify their PDB entry/entity/author-chain coordinates;
-3. prepare the one cleaned source-chain model per selected mapping;
-4. build the diverse funnel and confirm at most 25 CD6 hypotheses before Phaser;
-5. run the immutable Marmic route, collect every normalised result and resume
-   record, and preserve hit/no-hit/tool-failure distinctions; and
-6. qualify the known positive and deliberate incorrect-model controls, then
-   build the bounded review package.
+1. run the existing checksum-frozen public positive through the same scheduled
+   first-copy adapter and demonstrate that its correct model is retained and
+   classified as a hit;
+2. run one deliberately unrelated model against the same fixed diffraction
+   data and demonstrate a parsed scientific no-hit or non-eligible result;
+3. compare the controls with the six CD6 candidates without tuning the
+   provisional `LLG > 50` or `TFZ > 5` gate from this one pilot crystal;
+4. inspect the collected candidate coordinates, coefficients, packing, and raw
+   Phaser warnings, recording an explicit approve/reject decision rather than
+   treating automatic eligibility as validation; and
+5. validate any approval against the immutable version-2 review package before
+   implementing or starting M4 additional-copy placement.
 
-The software for items 1–5 now passes focused tests, parser-v2 stub/resume
-acceptance, and the fake fixed-profile lifecycle. The next evidence must come
-from staging and submitting the real immutable Marmic operation; additional
-synthetic polish should not delay it. The uncapped Foldseek run,
-optional ESM Atlas decision, and provider-aware union remain tracked
-qualification work, not blockers for this bounded run. A PDB model is evidence
-for a supplied catalogue candidate, never a reportable external identity.
+The six eligible PDB/MTZ/log bundles are now locally available through the
+fixed checksum-gated collection operation. The uncapped Foldseek run, optional
+ESM Atlas decision, and provider-aware union remain tracked qualification work,
+not blockers for these controls. Additional synthetic polish and a repeated
+CD6 screen must not delay the control execution. A PDB model is evidence for a
+supplied catalogue candidate, never a reportable external identity.
