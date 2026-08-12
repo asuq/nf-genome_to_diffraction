@@ -280,7 +280,15 @@ class SshTransport:
         return shlex.join(
             [
                 "/usr/bin/env",
+                "-u",
+                "BASH_ENV",
+                "-u",
+                "ENV",
                 f"PATH={_REMOTE_SYSTEM_PATH}",
+                "/bin/bash",
+                "--noprofile",
+                "--norc",
+                "-p",
                 self._config.remote_dispatcher,
                 operation,
                 *arguments,

@@ -420,7 +420,9 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
     assert all("ServerAliveCountMax=2" in command for command in commands)
     assert all(
         command[-1].startswith(
-            "/usr/bin/env PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin "
+            "/usr/bin/env -u BASH_ENV -u ENV "
+            "PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin "
+            "/bin/bash --noprofile --norc -p "
             "/approved/root/_tooling/nf-gtd-hpc-remote "
         )
         for command in commands
