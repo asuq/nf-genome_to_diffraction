@@ -1350,3 +1350,40 @@ the approved small artefacts, verify positive/negative separation and resume
 provenance, and retain the remote run. Do not add more fallback engineering,
 rerun P2-diverse, tune the provisional gate, clean remote evidence, or begin M4
 before the scientific control result and human-review decision are recorded.
+
+## 2026-08-12 — P2-control monitor corrected
+
+### Discoveries
+
+- The first attempt to create a 30-minute monitor was not persisted because a
+  thread heartbeat requires `destination=thread`. Absence of an automation
+  record confirmed that no scheduled check had been active.
+- The next wrapper-only status request at `2026-08-12T20:11:52Z` received
+  `transfer_failure` because the Marmic SSH endpoint refused the connection.
+  This is transport evidence only and says nothing about Slurm job `626388` or
+  the scientific run state.
+
+### Accomplishments and immutable evidence
+
+- Active heartbeat `monitor-marmic-p2-control` is now persisted for this task
+  at a 30-minute interval. It is restricted to wrapper-only status, bounded
+  logs, and collection for retained run
+  `gtd-p2-control-20260812T173905Z-f8b0ea3bbc35-e185cae0`; terminal handling
+  includes the exact positive/negative scientific checks and journal handoff.
+- The remote run was not cancelled, cleaned, modified, or classified from the
+  failed transfer.
+
+### Unresolved work
+
+- Await a successful wrapper connection and terminal scheduler evidence, then
+  collect and validate the two P2 controls exactly as specified in the previous
+  entry.
+
+### Next exact starting point
+
+At the next 30-minute heartbeat, read this entry and issue one wrapper-only
+status request for
+`gtd-p2-control-20260812T173905Z-f8b0ea3bbc35-e185cae0`. If transport still
+fails, leave the run untouched and wait for the next recurrence. If terminal,
+perform bounded log inspection and approved collection before drawing any
+scientific conclusion.
