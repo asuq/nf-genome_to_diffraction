@@ -1138,3 +1138,89 @@ do not use raw SSH, cancel, clean, set a runtime timeout, or infer failure from
 silence. If terminal, inspect bounded logs, collect the approved artefacts, and
 compare the generated current-policy package with the six candidates derived
 from the preceding immutable raw scores before selecting a human-review target.
+
+## 2026-08-12 — Current-policy P2-diverse package qualified
+
+### Discoveries
+
+- Retained run
+  `gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a`, Slurm job
+  `625935`, ran from `2026-08-12T04:57:45Z` to
+  `2026-08-12T06:04:25Z`. It completed with scheduler state `COMPLETED`, exit
+  code `0`, and failure class `success` from source commit
+  `5b5100e8651cae0498ad2d6dd185bf8fb8fbbecb`, nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a`, Pixi `0.74.0`, and lock
+  checksum `ecb7b12f890172eb53180ef5027b360b8187dff7d168a7cd8fc6507f9215fdc5`.
+- All 25 raw results agree with their stored classifications: six
+  `completed_hit` and 19 `completed_no_hit`. The six hits pass only through
+  strict `TFZ > 5`; none passes `LLG > 50`. A result with TFZ exactly `5.0`
+  was correctly rejected, demonstrating that the implemented comparison is
+  strict rather than inclusive.
+- The version-2 package places the six eligible candidates at ranks 1–6. In
+  rank order they are `WP_042686707.1`/6SKF (LLG 27.383, TFZ 5.1),
+  `WP_042684271.1`/9ZNF (25.838, 5.2),
+  `WP_042684304.1`/9O17 (24.822, 5.3),
+  `WP_042684748.1`/9O17 (22.148, 5.1),
+  `WP_042686121.1`/9O17 (20.336, 5.2), and
+  `WP_042685919.1`/9NRI (19.726, 5.5).
+- Every eligible result has an independently parsed packed final solution, one
+  placed copy matching the requested first-copy search increment, coordinate
+  output, and MTZ output. The separate Matthews estimates remain three to seven
+  total copies per ASU; first-copy eligibility does not claim that the full ASU
+  has been placed.
+- Phaser warns that all six TFZ values are below its cutoff of 8 for a definite
+  solution. Rank 4 also retains the advisory that an earlier top FTF did not
+  pack, while the later accepted final solution did pack. These are sensitive
+  review candidates, not identified proteins or validated structures.
+- All 25 Phaser tasks completed. The largest observed task used 317.5% CPU and
+  4.3 GB peak RSS, which remains compatible with the qualified four-CPU/eight-GB
+  task allocation.
+
+### Accomplishments and immutable evidence
+
+- Review package
+  `reviewpkg_fe7c36037f3a034d61aa3e335bb8a13f433da09c3c252cd5169a26ae30e9a6da`
+  uses adapter `mr-seed-review-v2` and records policy
+  `strict_llg_gt_50_or_tfz_gt_5`, operator `or`, thresholds 50 and 5, and the
+  policy-aware ordering. Its manifest SHA-256 is
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`,
+  matching the run summary and collected file.
+- The package contains 25 candidates across 24 sequence groups, a primary
+  shortlist of 10, an extended set of 25, and full remote asset bundles for the
+  first 20. Its TSV and approval-candidate files each contain 25 data rows; the
+  approval template remains header-only, so no human approval was fabricated.
+- All four review-output checksums match the manifest. All 16 rows of the
+  broader bounded artifact inventory also match their collected files. The
+  login and scheduled structural-hit checksum remains
+  `dabf35703d83fb1c8368337a1225025d1c4aee4ddc50db33c3ce10231470db5a`.
+- Row-wise audit found zero mismatches between automatic eligibility and the
+  conjunction of score-gate, final-packing, and requested-copy checks. Model
+  resume cached one of one process; first-copy resume cached all 26 processes,
+  comprising one funnel and 25 Phaser tasks.
+- The compact local collection retains indices, normalised results, logs,
+  manifests, checksums, and review files. Large coordinate/MTZ asset bundles
+  remain bound by checksums in the retained remote package rather than being
+  copied outside the wrapper's approved small-artifact boundary.
+
+### Unresolved work
+
+- Human map and packing review is now the immediate scientific decision point.
+  Add a checksum-gated wrapper operation for bounded review-asset collection so
+  selected PDB/MTZ/log bundles can be inspected without raw SSH or unrestricted
+  transfer.
+- The known-positive control and deliberate incorrect-model control remain
+  necessary to calibrate whether the sensitive TFZ-only gate separates useful
+  candidates from noise. Do not tune the gate further from this single crystal.
+- Do not start M4 or additional-copy placement until at least one seed is
+  explicitly approved from map/packing review and the controls demonstrate
+  useful separation. The current header-only approval file authorises nothing.
+
+### Next exact starting point
+
+Keep the successful run retained and disable its completed monitor. Implement
+and test the smallest checksum-gated review-asset collection operation, then
+collect only the six eligible bundles identified by the version-2 manifest for
+human inspection. In parallel development order, add the already-planned
+known-positive and deliberate incorrect-model control profiles. Preserve the
+current raw scores and package unchanged; do not rerun P2-diverse merely to
+polish the test case and do not begin M4 before review and controls.
