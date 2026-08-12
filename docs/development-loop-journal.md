@@ -1290,3 +1290,63 @@ a deliberately unrelated model against the same fixed control diffraction
 data, preserve raw LLG/TFZ/packing/copy evidence, and collect the result through
 the normal wrapper cycle. Do not rerun the 25-model CD6 panel, do not tune its
 threshold, and do not begin M4 until the controls and human review are complete.
+
+## 2026-08-12 — Scheduled P2 controls launched
+
+### Discoveries
+
+- Marmic's Git executable currently fails before repository operations because
+  it cannot open a required system descriptor. The installed wrapper therefore
+  could neither update its bare mirror nor create an immutable checkout even
+  though GitHub and the stored repository configuration were valid.
+- The first fixed-control staging attempt,
+  `gtd-p2-control-20260812T172729Z-5b1c97806fd3-2f72998b`, then exposed one
+  scientific input-contract mismatch. The 8OOX specification used an obsolete
+  short catalogue identifier, while the accepted P0 manifest binds
+  `GCF_000711905.1` to
+  `methermicoccus_shengliensis_gcf_000711905_1_refseq_2025_11_20`. Its assembly,
+  frozen proteome checksum, target sequence, coordinates, MTZ, and score policy
+  were already consistent.
+- The corrected staging run verified the checksum-frozen public-control
+  preparation, P0 catalogue and crystal manifests, derived 8OOX MTZ, exact
+  8OOW model, and catalogue sequence records before scheduling Phaser.
+
+### Accomplishments and immutable evidence
+
+- Commits `4097d756bab8ce2b4ea2969af86e53ad1f927d8c`,
+  `be9ada90708ae2da41a79eb315de32c0e48a9dc6`,
+  `1e827bda7d559066b289e2c61432258721beb838`, and
+  `5b1c97806fd346be68198f97743d53bad5d2d8a2` added checksum-gated recovery for
+  the reviewed tools and clean, pushed source archive staging when the exact
+  Marmic Git failure occurs. These paths remain bounded, checksum-verified, and
+  restricted to repository-controlled files and an exact immutable commit.
+- Commit `f8b0ea3bbc352c5fe955598133dc3435ada1cf4b` corrects only the frozen 8OOX
+  catalogue binding and adds a focused regression assertion. The public-panel
+  check and all ten public-control unit tests passed locally. GitHub Actions run
+  `31623369146` passed the full repository gate.
+- Run `gtd-p2-control-20260812T173905Z-f8b0ea3bbc35-e185cae0`, Slurm job
+  `626388`, was staged from that exact commit with nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a` and Pixi `0.74.0`. It was running
+  after its fixed input-integrity checks and had begun verifying the installed
+  Phenix runtime. The preceding failed run remains retained as bounded evidence.
+
+### Unresolved work
+
+- Collect the terminal P2-control evidence and require the exact 8OOW model to
+  be a packed `completed_hit` while the unrelated 1UBQ model is a parsed
+  `completed_no_hit` under strict `LLG > 50` or `TFZ > 5`. Preserve raw scores,
+  placed-copy evidence, commands, logs, checksums, and cached-resume results.
+- Compare the control separation with the six marginal TFZ-only CD6 review
+  candidates without retuning the gate from one crystal.
+- Human map and packing review plus an explicit approval or rejection remain
+  the final M3 checkpoint. M4 additional-copy placement remains blocked until
+  that checkpoint is recorded.
+
+### Next exact starting point
+
+Check only run `gtd-p2-control-20260812T173905Z-f8b0ea3bbc35-e185cae0`
+through the installed wrapper. If it is terminal, inspect bounded logs, collect
+the approved small artefacts, verify positive/negative separation and resume
+provenance, and retain the remote run. Do not add more fallback engineering,
+rerun P2-diverse, tune the provisional gate, clean remote evidence, or begin M4
+before the scientific control result and human-review decision are recorded.
