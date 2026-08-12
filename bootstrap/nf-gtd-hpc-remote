@@ -17,6 +17,7 @@ MAX_TOTAL_BYTES=$((100 * 1024 * 1024))
 MAX_REVIEW_FILE_BYTES=$((128 * 1024 * 1024))
 MAX_REVIEW_TOTAL_BYTES=$((512 * 1024 * 1024))
 MAX_P0_INPUT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
+MAX_SOURCE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
 
 TOOL_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 ROOT="$(cd "$TOOL_DIR/.." && pwd -P)"
@@ -750,7 +751,8 @@ EOF
 }
 
 stage_run_common() {
-    [[ "$#" -eq 6 ]] || fail wrapper_failure "stage expects six fixed arguments"
+    [[ "$#" -eq 6 || "$#" -eq 9 ]] || \
+        fail wrapper_failure "stage expects six or nine fixed arguments"
     local run_id="$1"
     local commit="$2"
     local expected_lock="$3"
@@ -771,7 +773,25 @@ stage_run_common() {
     local p2_control_sha256="" p2_control_json="null"
     local p2_control_root p2_control_catalogue p2_control_checksums p2_control_tmp
     local candidate coordinate_count hit_count
+    local source_archive=false source_archive_sha256="" source_archive_size=""
+    local expected_submodule_commit="" source_archive_json="null"
     local -a p0_values=()
+
+    if [[ "$#" -eq 9 ]]; then
+        source_archive=true
+        source_archive_sha256="$7"
+        source_archive_size="$8"
+        expected_submodule_commit="$9"
+        [[ "$source_archive_sha256" =~ $CHECKSUM_RE ]] || \
+            fail wrapper_failure "invalid source archive checksum"
+        [[ "$source_archive_size" =~ $BYTE_COUNT_RE ]] || \
+            fail wrapper_failure "invalid source archive size"
+        (( source_archive_size >= 1 && \
+           source_archive_size <= MAX_SOURCE_ARCHIVE_BYTES )) || \
+            fail wrapper_failure "source archive size is outside the fixed limit"
+        [[ "$expected_submodule_commit" =~ $COMMIT_RE ]] || \
+            fail wrapper_failure "invalid source archive nf-helper commit"
+    fi
 
     validate_run_id "$run_id"
     [[ "$commit" =~ $COMMIT_RE ]] || fail wrapper_failure "invalid commit SHA"
@@ -784,10 +804,12 @@ stage_run_common() {
     (( iteration >= 1 && iteration <= 6 )) || fail wrapper_failure "iteration is outside 1..6"
 
     mkdir -p "$RUNS" "$LOCKS" "$ROOT/_cache/pixi"
-    [[ -d "$MIRROR" ]] || fail filesystem_failure "bare Git mirror is absent"
-    [[ "$(git --git-dir="$MIRROR" rev-parse --is-bare-repository \
-        <"$DISCARD" 2>"$DISCARD")" == true ]] || \
-        fail filesystem_failure "configured Git mirror is not bare"
+    if [[ "$source_archive" == false ]]; then
+        [[ -d "$MIRROR" ]] || fail filesystem_failure "bare Git mirror is absent"
+        [[ "$(git --git-dir="$MIRROR" rev-parse --is-bare-repository \
+            <"$DISCARD" 2>"$DISCARD")" == true ]] || \
+            fail filesystem_failure "configured Git mirror is not bare"
+    fi
 
     RESOLVED_PIXI=""
     resolve_pixi
@@ -816,45 +838,77 @@ stage_run_common() {
     atomic_text "$run/state/profile" "$profile"
     append_event "$run" "stage_started"
 
-    if ! git --git-dir="$MIRROR" fetch --prune origin <"$DISCARD" \
-        >"$run/logs/git-fetch.log" 2>&1; then
-        atomic_text "$run/state/phase" "stage_failed"
-        atomic_text "$run/state/failure-class" "transfer_failure"
-        append_event "$run" "stage_fetch_failed"
-        fail transfer_failure "Git mirror fetch failed"
+    if [[ "$source_archive" == true ]]; then
+        local source_tar="$run/source.tar"
+        head -c "$source_archive_size" >"$source_tar" || \
+            fail transfer_failure "source archive stream failed"
+        [[ "$(wc -c <"$source_tar")" -eq "$source_archive_size" ]] || \
+            fail transfer_failure "source archive is truncated"
+        [[ "$(sha256sum "$source_tar" | awk '{print $1}')" == \
+            "$source_archive_sha256" ]] || \
+            fail transfer_failure "source archive checksum differs from local commit"
+        if ! tar -tf "$source_tar" >"$run/logs/source-archive-members.log" 2>&1; then
+            fail transfer_failure "source archive cannot be listed"
+        fi
+        if awk 'BEGIN {bad=0} /^\// || /(^|\/)\.\.($|\/)/ {bad=1} END {exit bad ? 0 : 1}' \
+            "$run/logs/source-archive-members.log"; then
+            fail wrapper_failure "source archive contains an unsafe member path"
+        fi
+        if ! tar -xf "$source_tar" --no-same-owner --no-same-permissions \
+            -C "$run/source" >"$run/logs/source-archive-extract.log" 2>&1; then
+            fail filesystem_failure "source archive extraction failed"
+        fi
+        rm -f -- "$source_tar"
+        [[ -d "$run/source/.git" && \
+           -f "$run/source/external/nf-helper/.git" ]] || \
+            fail wrapper_failure "source archive omits detached Git provenance"
+        submodule_commit="$expected_submodule_commit"
+        source_archive_json="\"$source_archive_sha256\""
+        atomic_text "$run/state/source-archive-sha256" "$source_archive_sha256"
+        append_event "$run" "stage_source_archive_verified"
+    else
+        if ! git --git-dir="$MIRROR" fetch --prune origin <"$DISCARD" \
+            >"$run/logs/git-fetch.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_fetch_failed"
+            fail transfer_failure "Git mirror fetch failed"
+        fi
+        git --git-dir="$MIRROR" cat-file -e "${commit}^{commit}" \
+            <"$DISCARD" 2>"$DISCARD" || {
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_commit_unavailable"
+            fail transfer_failure "commit is not available from the private Git mirror"
+        }
+        rmdir "$run/source"
+        if ! git clone --no-hardlinks --no-checkout "$MIRROR" "$run/source" \
+            <"$DISCARD" >"$run/logs/git-clone.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "filesystem_failure"
+            append_event "$run" "stage_clone_failed"
+            fail filesystem_failure "isolated Git clone failed"
+        fi
+        if ! git -C "$run/source" checkout --detach "$commit" <"$DISCARD" \
+            >>"$run/logs/git-clone.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_checkout_failed"
+            fail transfer_failure "exact commit checkout failed"
+        fi
+        if ! git -C "$run/source" submodule update --init --recursive <"$DISCARD" \
+            >>"$run/logs/git-clone.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_submodule_failed"
+            fail transfer_failure "submodule checkout failed"
+        fi
+        [[ "$(git -C "$run/source" rev-parse HEAD <"$DISCARD")" == "$commit" ]] || \
+            fail wrapper_failure "staged commit does not match the request"
+        submodule_commit="$(git -C "$run/source" submodule status -- external/nf-helper \
+            <"$DISCARD" | \
+            awk '{sha=$1; sub(/^[-+U]/,"",sha); print sha}')"
     fi
-    git --git-dir="$MIRROR" cat-file -e "${commit}^{commit}" \
-        <"$DISCARD" 2>"$DISCARD" || {
-        atomic_text "$run/state/phase" "stage_failed"
-        atomic_text "$run/state/failure-class" "transfer_failure"
-        append_event "$run" "stage_commit_unavailable"
-        fail transfer_failure "commit is not available from the private Git mirror"
-    }
-    rmdir "$run/source"
-    if ! git clone --no-hardlinks --no-checkout "$MIRROR" "$run/source" \
-        <"$DISCARD" \
-        >"$run/logs/git-clone.log" 2>&1; then
-        atomic_text "$run/state/phase" "stage_failed"
-        atomic_text "$run/state/failure-class" "filesystem_failure"
-        append_event "$run" "stage_clone_failed"
-        fail filesystem_failure "isolated Git clone failed"
-    fi
-    if ! git -C "$run/source" checkout --detach "$commit" <"$DISCARD" \
-        >>"$run/logs/git-clone.log" 2>&1; then
-        atomic_text "$run/state/phase" "stage_failed"
-        atomic_text "$run/state/failure-class" "transfer_failure"
-        append_event "$run" "stage_checkout_failed"
-        fail transfer_failure "exact commit checkout failed"
-    fi
-    if ! git -C "$run/source" submodule update --init --recursive <"$DISCARD" \
-        >>"$run/logs/git-clone.log" 2>&1; then
-        atomic_text "$run/state/phase" "stage_failed"
-        atomic_text "$run/state/failure-class" "transfer_failure"
-        append_event "$run" "stage_submodule_failed"
-        fail transfer_failure "submodule checkout failed"
-    fi
-    [[ "$(git -C "$run/source" rev-parse HEAD <"$DISCARD")" == "$commit" ]] || \
-        fail wrapper_failure "staged commit does not match the request"
     actual_lock="$(sha256sum "$run/source/pixi.lock" | awk '{print $1}')"
     [[ "$actual_lock" == "$expected_lock" ]] || {
         atomic_text "$run/state/phase" "stage_failed"
@@ -862,9 +916,6 @@ stage_run_common() {
         append_event "$run" "stage_lock_mismatch"
         fail transfer_failure "Pixi lock checksum differs from the local commit"
     }
-    submodule_commit="$(git -C "$run/source" submodule status -- external/nf-helper \
-        <"$DISCARD" | \
-        awk '{sha=$1; sub(/^[-+U]/,"",sha); print sha}')"
     [[ "$submodule_commit" =~ $COMMIT_RE ]] || \
         fail transfer_failure "nf-helper submodule commit could not be recorded"
     ln -s "$run/environment/.pixi" "$run/source/.pixi" || \
@@ -1219,6 +1270,7 @@ stage_run_common() {
   "p1_login_prefetch_sha256": $p1_prefetch_json,
   "p2_diverse_login_stage_sha256": $p2_diverse_json,
   "p2_control_login_stage_sha256": $p2_control_json,
+  "source_archive_sha256": $source_archive_json,
   "staged_at": "$(now_utc)",
   "source_snapshot_status": "immutable"
 }
@@ -1238,6 +1290,14 @@ EOF
 
 stage_run() {
     [[ "$#" -eq 6 ]] || fail wrapper_failure "stage expects six fixed arguments"
+    [[ "$6" != database ]] || \
+        fail wrapper_failure "database profile requires database-stage"
+    stage_run_common "$@"
+}
+
+stage_archive_run() {
+    [[ "$#" -eq 9 ]] || \
+        fail wrapper_failure "stage-archive expects nine fixed arguments"
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
     stage_run_common "$@"
@@ -2226,6 +2286,7 @@ main() {
         p0-inputs-stage) p0_inputs_stage "$@" ;;
         database-readiness) database_readiness "$@" ;;
         stage) stage_run "$@" ;;
+        stage-archive) stage_archive_run "$@" ;;
         database-stage) database_stage_run "$@" ;;
         submit) submit_run "$@" ;;
         database-submit) database_submit_run "$@" ;;

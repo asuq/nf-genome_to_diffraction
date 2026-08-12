@@ -386,9 +386,25 @@ dispatcher runs through absolute `/bin/bash --noprofile --norc -p`. Pixi and
 Phenix continue to use separately validated absolute paths rather than PATH.
 
 `stage` refuses a dirty worktree, a non-full revision other than `HEAD`, a commit
-unavailable from the private mirror, a changed Pixi lock, or a submodule mismatch.
-Local ownership records live under `.untracked/hpc-test/RUN_ID/`; another run ID
-cannot be guessed through path syntax or substituted for the recorded Slurm job.
+unavailable from local `origin/main`, a changed Pixi lock, or a submodule
+mismatch. Under normal conditions, the fixed remote dispatcher still fetches
+the private mirror and creates a detached read-only clone. Marmic's current Git
+binary opens `/dev/null` unconditionally at startup, and the site's device is
+not accessible from non-interactive login-node sessions. If and only if normal
+staging returns the exact preflight error `configured Git mirror is not bare`,
+the controller creates a detached local clone from the already clean, pushed
+commit, initialises the recorded `nf-helper` Gitlink, removes temporary local
+repository URLs, and streams the complete checkout through fixed
+`stage-archive`. The tar stream is limited to 64 MiB and bound to exact archive,
+commit, Pixi-lock, and `nf-helper` checksums. The dispatcher rejects unsafe
+member paths, truncation, checksum mismatches, and missing detached Git
+provenance before installing the locked environment. Other stage errors never
+activate this fallback. Compute-node jobs retain their independent Git commit
+and clean-tree checks.
+
+Local ownership records live under `.untracked/hpc-test/RUN_ID/`; another run
+ID cannot be guessed through path syntax or substituted for the recorded Slurm
+job.
 
 For an evidence-backed source fix, commit and push the clean change, then use the
 prior run as the bounded feedback parent:

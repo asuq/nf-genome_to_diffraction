@@ -58,6 +58,14 @@ class FakeGit:
         if commit != COMMIT or not self.reachable:
             raise ValidationError("commit is unavailable from origin/main")
 
+    def create_source_archive(
+        self, commit: str, destination: Path
+    ) -> tuple[str, int, str]:
+        if commit != COMMIT:
+            raise ValidationError("commit")
+        destination.write_bytes(b"source archive")
+        return hashlib.sha256(destination.read_bytes()).hexdigest(), 14, "2" * 40
+
 
 @dataclass
 class FakeTransport:
@@ -67,11 +75,14 @@ class FakeTransport:
     calls: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     p0_archive: bytes = b""
     deploy_error: RemoteOperationError | None = None
+    stage_error: RemoteOperationError | None = None
 
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         self.calls.append((operation, tuple(arguments)))
         if operation == "deploy-tools" and self.deploy_error is not None:
             raise self.deploy_error
+        if operation == "stage" and self.stage_error is not None:
+            raise self.stage_error
         if operation == "status" and self.status_responses:
             return self.status_responses.pop(0)
         if operation == "logs":
@@ -137,6 +148,7 @@ class FakeTransport:
                 ),
             )
         )
+
         self.p0_archive = archive_path.read_bytes()
         destination = f"/approved/root/_p0_inputs/p0i_{source_id}"
         paths = (
@@ -155,6 +167,13 @@ class FakeTransport:
             "p0_config_sha256": hashlib.sha256(paths).hexdigest(),
             "p0_paths_base64": base64.b64encode(paths).decode("ascii"),
         }
+
+    def stage_archive(
+        self, arguments: Sequence[str], archive_path: Path
+    ) -> dict[str, str]:
+        self.calls.append(("stage-archive", tuple(arguments)))
+        assert archive_path.read_bytes() == b"source archive"
+        return {"run_id": arguments[0], "remote_operation": "stage-archive"}
 
 
 def _config(repository: Path) -> HpcConfig:
@@ -585,6 +604,38 @@ def test_scientific_profile_has_a_closed_run_id_and_remote_argument(
     assert controller.submit(profile, run_id)["operation"] == "submit"
     with pytest.raises(ValidationError, match="does not match"):
         controller.submit("smoke", run_id)
+
+
+def test_stage_uses_source_archive_only_for_exact_broken_git_preflight(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport(
+        stage_error=RemoteOperationError(
+            "configured Git mirror is not bare",
+            failure_class=FailureClass.FILESYSTEM_FAILURE,
+        )
+    )
+    controller = _controller(tmp_path, transport)
+
+    staged = controller.stage("p2-control", "HEAD")
+
+    assert staged["remote_operation"] == "stage-archive"
+    assert [call[0] for call in transport.calls] == ["stage", "stage-archive"]
+    arguments = transport.calls[-1][1]
+    assert arguments[1] == COMMIT
+    assert arguments[5] == "p2-control"
+    assert len(arguments[6]) == 64
+    assert arguments[7] == "14"
+    assert arguments[8] == "2" * 40
+
+    transport.calls.clear()
+    transport.stage_error = RemoteOperationError(
+        "bare Git mirror is absent",
+        failure_class=FailureClass.FILESYSTEM_FAILURE,
+    )
+    with pytest.raises(RemoteOperationError, match="bare Git mirror is absent"):
+        controller.stage("p2-control", "HEAD")
+    assert [call[0] for call in transport.calls] == ["stage"]
 
 
 @pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse", "p2-control"])

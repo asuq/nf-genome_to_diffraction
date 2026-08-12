@@ -85,6 +85,7 @@ P0_INPUT_STAGE_TIMEOUT_SECONDS = 15 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
 SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS = 30 * 60
 MAX_P0_PATHS_BYTES = 4096
+MAX_SOURCE_ARCHIVE_BYTES = 64 * 1024 * 1024
 FAILURE_SIGNATURE_LOG_BYTES = 64 * 1024
 _FAILURE_APPLICATION_LOGS = frozenset(
     {
@@ -203,6 +204,13 @@ class TextTransport(Protocol):
     ) -> dict[str, str]:
         """Stream one fixed P0 input archive to the reviewed dispatcher."""
 
+    def stage_archive(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one fixed immutable source checkout archive."""
+
 
 class GitRepository(Protocol):
     """Local immutable-revision checks needed before staging."""
@@ -218,6 +226,13 @@ class GitRepository(Protocol):
 
     def ensure_reachable_from_origin_main(self, commit: str) -> None:
         """Fail unless the exact commit is contained in tracked origin/main."""
+
+    def create_source_archive(
+        self,
+        commit: str,
+        destination: Path,
+    ) -> tuple[str, int, str]:
+        """Create one detached source checkout archive with pinned submodules."""
 
 
 class SubprocessGitRepository:
@@ -289,6 +304,129 @@ class SubprocessGitRepository:
         validate_commit(commit)
         self._run(["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"])
         self._run(["merge-base", "--is-ancestor", commit, "refs/remotes/origin/main"])
+
+    def create_source_archive(
+        self,
+        commit: str,
+        destination: Path,
+    ) -> tuple[str, int, str]:
+        """Archive an exact detached checkout without machine-local Git URLs."""
+
+        validate_commit(commit)
+        origin_url = self._run(["remote", "get-url", "origin"])
+        helper_url = self._run(
+            [
+                "config",
+                "--file",
+                ".gitmodules",
+                "--get",
+                "submodule.external/nf-helper.url",
+            ]
+        )
+        helper_source = self._repository / "external" / "nf-helper"
+        if not helper_source.is_dir():
+            raise ValidationError("checked-out nf-helper submodule is absent")
+
+        with tempfile.TemporaryDirectory(prefix="nf-gtd-source-") as temporary:
+            checkout = Path(temporary) / "source"
+
+            def run(arguments: Sequence[str]) -> str:
+                result = subprocess.run(
+                    ["git", *arguments],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode != 0:
+                    detail = result.stderr.strip() or result.stdout.strip()
+                    raise ValidationError(
+                        f"cannot create immutable source archive: {detail}"
+                    )
+                return result.stdout.strip()
+
+            run(
+                [
+                    "clone",
+                    "--no-hardlinks",
+                    "--no-checkout",
+                    str(self._repository),
+                    str(checkout),
+                ]
+            )
+            run(["-C", str(checkout), "checkout", "--detach", commit])
+            run(["-C", str(checkout), "remote", "set-url", "origin", origin_url])
+            run(
+                [
+                    "-C",
+                    str(checkout),
+                    "config",
+                    "submodule.external/nf-helper.url",
+                    str(helper_source),
+                ]
+            )
+            run(
+                [
+                    "-c",
+                    "protocol.file.allow=always",
+                    "-C",
+                    str(checkout),
+                    "submodule",
+                    "update",
+                    "--init",
+                    "--recursive",
+                ]
+            )
+            helper_commit = validate_commit(
+                run(
+                    [
+                        "-C",
+                        str(checkout / "external" / "nf-helper"),
+                        "rev-parse",
+                        "HEAD",
+                    ]
+                )
+            )
+            run(
+                [
+                    "-C",
+                    str(checkout),
+                    "config",
+                    "--unset",
+                    "submodule.external/nf-helper.url",
+                ]
+            )
+            run(
+                [
+                    "-C",
+                    str(checkout / "external" / "nf-helper"),
+                    "remote",
+                    "set-url",
+                    "origin",
+                    helper_url,
+                ]
+            )
+            if run(["-C", str(checkout), "rev-parse", "HEAD"]) != commit:
+                raise ValidationError("source archive commit verification failed")
+            if run(
+                [
+                    "-C",
+                    str(checkout),
+                    "status",
+                    "--porcelain=v1",
+                    "--untracked-files=all",
+                    "--ignore-submodules=none",
+                ]
+            ):
+                raise ValidationError("source archive checkout is not clean")
+            with tarfile.open(destination, mode="w") as archive:
+                archive.add(checkout, arcname=".", recursive=True)
+
+        size = destination.stat().st_size
+        if size < 1 or size > MAX_SOURCE_ARCHIVE_BYTES:
+            raise ValidationError(
+                f"source archive must contain 1..{MAX_SOURCE_ARCHIVE_BYTES} bytes"
+            )
+        return sha256_file(destination), size, helper_commit
 
 
 class SshTransport:
@@ -550,6 +688,45 @@ class SshTransport:
             )
         return fields
 
+    def stage_archive(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one bounded immutable checkout when login-node Git is broken."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("stage-archive", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote source-archive staging exceeded the fixed transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote source-archive staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote source-archive staging returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
 
 class HpcController:
     """Apply local ownership, iteration, timeout, and collection safeguards."""
@@ -654,6 +831,7 @@ class HpcController:
             )
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
         iteration, parent = self._next_iteration(parent_run_id)
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
         run_id = f"gtd-{profile}-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
@@ -678,10 +856,35 @@ class HpcController:
             parent_run_id=parent,
         )
         local_path = record.write(self.config.local_state_root)
-        remote = self.transport.run(
-            "stage",
-            [run_id, commit, lock_checksum, owner_id, str(iteration), profile],
-        )
+        arguments = [run_id, commit, lock_checksum, owner_id, str(iteration), profile]
+        try:
+            remote = self.transport.run("stage", arguments)
+        except RemoteOperationError as error:
+            if not (
+                error.failure_class is FailureClass.FILESYSTEM_FAILURE
+                and str(error) == "configured Git mirror is not bare"
+            ):
+                raise
+            self.logger.warning(
+                "using checksum-gated source archive staging",
+                extra={"commit": commit, "profile": profile, "run_id": run_id},
+            )
+            with tempfile.TemporaryDirectory(
+                prefix="nf-gtd-stage-", dir="/tmp"
+            ) as temporary:
+                archive_path = Path(temporary) / "source.tar"
+                archive_checksum, archive_size, helper_commit = (
+                    self.git.create_source_archive(commit, archive_path)
+                )
+                remote = self.transport.stage_archive(
+                    [
+                        *arguments,
+                        archive_checksum,
+                        str(archive_size),
+                        helper_commit,
+                    ],
+                    archive_path,
+                )
         return {
             **remote,
             "operation": "stage",

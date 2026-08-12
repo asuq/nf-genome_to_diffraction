@@ -546,6 +546,90 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
     assert not (tmp_path / "remote-root" / "runs" / RUN_ID).exists()
 
 
+def test_remote_dispatcher_stages_checksum_verified_source_archive(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    source = tmp_path / "source-origin"
+    checkout = tmp_path / "archive-checkout"
+    _run(
+        ["git", "clone", "-q", "--no-hardlinks", str(source), str(checkout)],
+        cwd=tmp_path,
+    )
+    _run(
+        [
+            "git",
+            "-c",
+            "protocol.file.allow=always",
+            "-C",
+            str(checkout),
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
+        ],
+        cwd=tmp_path,
+    )
+    helper_commit = _git(checkout / "external/nf-helper", "rev-parse", "HEAD")
+    source_archive = tmp_path / "source.tar"
+    with tarfile.open(source_archive, mode="w") as archive:
+        archive.add(checkout, arcname=".", recursive=True)
+    archive_payload = source_archive.read_bytes()
+    archive_digest = hashlib.sha256(archive_payload).hexdigest()
+    lock_digest = hashlib.sha256((source / "pixi.lock").read_bytes()).hexdigest()
+
+    staged = _run(
+        [
+            str(dispatcher),
+            "stage-archive",
+            SECOND_RUN_ID,
+            commit,
+            lock_digest,
+            OWNER_ID,
+            "1",
+            "smoke",
+            archive_digest,
+            str(len(archive_payload)),
+            helper_commit,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=archive_payload,
+    )
+
+    fields = _decode_protocol(staged.stdout)
+    assert fields["phase"] == "staged"
+    assert fields["commit"] == commit
+    assert fields["nf_helper_commit"] == helper_commit
+    run = tmp_path / "remote-root" / "runs" / SECOND_RUN_ID
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["source_archive_sha256"] == archive_digest
+    assert (run / "state/source-archive-sha256").read_text().strip() == archive_digest
+    assert (run / "source/.git").is_dir()
+    assert (run / "source/external/nf-helper/.git").is_file()
+
+    rejected = _run(
+        [
+            str(dispatcher),
+            "stage-archive",
+            "gtd-smoke-20260802T120002Z-0123456789ab-01234569",
+            commit,
+            lock_digest,
+            OWNER_ID,
+            "1",
+            "smoke",
+            "0" * 64,
+            str(len(archive_payload)),
+            helper_commit,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=archive_payload,
+        success=False,
+    )
+    assert _decode_protocol(rejected.stdout)["failure_class"] == "transfer_failure"
+
+
 def test_remote_dispatcher_rejects_command_injection_before_side_effects(
     tmp_path: Path,
 ) -> None:
