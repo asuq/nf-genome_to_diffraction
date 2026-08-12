@@ -7,7 +7,7 @@ assembly_version: ASM71190v1
 annotation_provider: NCBI RefSeq
 annotation_version: GCF_000711905.1-RS_2025_11_20
 expected_proteome_sha256: f8bbc63da7b0f3cb5f206befd0618264a5582789f46c3400267650777727d416
-catalogue_id: msheng_gcf_000711905_1
+catalogue_id: methermicoccus_shengliensis_gcf_000711905_1_refseq_2025_11_20
 target_protein_id: WP_042685700.1
 target_sequence_length: 442
 target_sequence_sha256: 102e653b2ce68310033502e10e60f54e7cb143dc71acd0e964d0cad47f961964

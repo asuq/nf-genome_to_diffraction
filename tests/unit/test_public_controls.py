@@ -66,6 +66,16 @@ def test_runnable_control_construct_mapping_matches_panel(pdb_id: str) -> None:
     assert control.score_gate.combination == "or"
 
 
+def test_8oox_control_binds_qualified_p0_catalogue() -> None:
+    control = load_public_control_spec(CONTROL_ROOT / "pdb_8oox.yaml")
+
+    assert (
+        control.catalogue_id
+        == "methermicoccus_shengliensis_gcf_000711905_1_refseq_2025_11_20"
+    )
+    assert control.assembly_accession == "GCF_000711905.1"
+
+
 def test_construct_mapping_rejects_off_by_one_span() -> None:
     document = _yaml_document(CONTROL_ROOT / "pdb_6p1f.yaml")
     construct = document["target_construct"]
