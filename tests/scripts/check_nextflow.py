@@ -551,6 +551,19 @@ def check_stubs() -> None:
                 "dag.html",
             },
         )
+        control_trace = control_first_copy_out / "pipeline_info/trace.tsv"
+        control_trace_rows = control_trace.read_text(encoding="utf-8").splitlines()
+        if len(control_trace_rows) != 3:
+            raise RuntimeError(
+                "control first-copy stub did not execute both fixed hypotheses"
+            )
+        control_trace_text = "\n".join(control_trace_rows)
+        for hypothesis_token in ("mrhyp_aaaaaaaa", "mrhyp_bbbbbbbb"):
+            if hypothesis_token not in control_trace_text:
+                raise RuntimeError(
+                    "control first-copy trace omitted fixed hypothesis "
+                    f"{hypothesis_token}"
+                )
         control_first_copy_resumed = _run(
             [*control_first_copy_command, "-resume"], environment=environment
         )

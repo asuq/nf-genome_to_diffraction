@@ -16,10 +16,13 @@ workflow CONTROL_FIRST_COPY_MR_WORKFLOW {
             Path records = bundle.resolve('hypotheses')
             records.list().sort().collect { String name -> records.resolve(name) }
         }
+    prepared_models = control_bundle
+        .map { Path bundle -> bundle }
+        .first()
     first_copy_results = RUN_FIRST_COPY_PHASER(
         hypothesis_records,
         sequence_groups,
-        control_bundle,
+        prepared_models,
         preflight,
         mtz,
         phenix_manifest
