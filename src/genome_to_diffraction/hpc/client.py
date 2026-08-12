@@ -118,6 +118,7 @@ _SSH_FIXED_OPTIONS = (
     "-o",
     "ServerAliveCountMax=2",
 )
+_REMOTE_SYSTEM_PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 _REVIEW_MANIFEST_RELATIVE = PurePosixPath(
     "artifacts/qualification/p2-diverse-review/mr_seed_review_manifest.json"
 )
@@ -276,7 +277,15 @@ class SshTransport:
         self._config = config
 
     def _remote_command(self, operation: str, arguments: Sequence[str]) -> str:
-        return shlex.join([self._config.remote_dispatcher, operation, *arguments])
+        return shlex.join(
+            [
+                "/usr/bin/env",
+                f"PATH={_REMOTE_SYSTEM_PATH}",
+                self._config.remote_dispatcher,
+                operation,
+                *arguments,
+            ]
+        )
 
     def _command(self, operation: str, arguments: Sequence[str]) -> list[str]:
         """Build the fixed non-interactive SSH invocation."""

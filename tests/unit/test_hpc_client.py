@@ -418,6 +418,13 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
     assert all("ConnectionAttempts=1" in command for command in commands)
     assert all("ServerAliveInterval=15" in command for command in commands)
     assert all("ServerAliveCountMax=2" in command for command in commands)
+    assert all(
+        command[-1].startswith(
+            "/usr/bin/env PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin "
+            "/approved/root/_tooling/nf-gtd-hpc-remote "
+        )
+        for command in commands
+    )
 
 
 def test_deploy_tools_sends_only_commit_and_verified_checksums(tmp_path: Path) -> None:
