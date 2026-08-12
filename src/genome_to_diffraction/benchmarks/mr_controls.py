@@ -71,6 +71,15 @@ class MrControlInputError(InputContractError):
     """A frozen control input or relationship failed validation."""
 
 
+def _gemmi_version() -> str:
+    """Return Gemmi's runtime version despite its incomplete type stubs."""
+
+    value = getattr(gemmi, "__version__", None)
+    if not isinstance(value, str) or not value:
+        raise MrControlInputError("Gemmi did not expose a non-empty runtime version")
+    return value
+
+
 class NegativeControlSpec(ContractModel):
     """One independently anchored model expected not to solve the control MTZ."""
 
@@ -397,7 +406,7 @@ def _model_record(
         variant_type=variant,
         residue_ranges=residue_ranges,
         processing_tool="gemmi",
-        processing_version=str(gemmi.__version__),
+        processing_version=_gemmi_version(),
         processing_parameters=parameters,
         model_mass_da=mass.exact_da,
         full_candidate_sequence_group_id=sequence_group_id,
