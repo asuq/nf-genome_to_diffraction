@@ -45,9 +45,12 @@ trap 'rm -f -- "$discard"' EXIT
 if ! { true <&0; } 2>"$discard"; then
     exec 0<"$discard"
 fi
-bare_repository="$(git --git-dir="$mirror" rev-parse --is-bare-repository \
-    <"$discard" 2>&1)" || \
-    die "configured Git mirror cannot be inspected: ${bare_repository:0:256}"
+bare_output="$tool_dir/.bare-repository.$$"
+trap 'rm -f -- "$discard" "$bare_output"' EXIT
+git --git-dir="$mirror" rev-parse --is-bare-repository \
+    <"$discard" >"$bare_output" 2>&1 || \
+    die "configured Git mirror cannot be inspected: $(head -c 256 "$bare_output")"
+bare_repository="$(<"$bare_output")"
 [[ "$bare_repository" == true ]] || \
     die "configured Git mirror is not bare"
 
@@ -60,6 +63,7 @@ cleanup() {
     chmod -R u+w "$staging" >"$staging/cleanup.log" 2>&1 || true
     rm -rf -- "$staging"
     rm -f -- "$discard"
+    rm -f -- "$bare_output"
 }
 trap cleanup EXIT
 
@@ -79,13 +83,15 @@ git --git-dir="$mirror" rev-parse --verify refs/heads/main \
     <"$discard" >"$staging/rev-parse.log" 2>&1 || \
     die "origin main is absent from the private mirror"
 git --git-dir="$mirror" merge-base --is-ancestor "$commit" refs/heads/main \
-    <"$discard" || \
+    <"$discard" >"$staging/merge-base.log" 2>&1 || \
     die "commit is not reachable from origin main"
 git --git-dir="$mirror" show \
-    "${commit}:bootstrap/nf-gtd-hpc-remote" <"$discard" >"$new_dispatcher" || \
+    "${commit}:bootstrap/nf-gtd-hpc-remote" <"$discard" >"$new_dispatcher" \
+    2>"$staging/show-dispatcher.log" || \
     die "dispatcher is absent from the commit"
 git --git-dir="$mirror" show \
-    "${commit}:bootstrap/nf-gtd-hpc-smoke-job" <"$discard" >"$new_job" || \
+    "${commit}:bootstrap/nf-gtd-hpc-smoke-job" <"$discard" >"$new_job" \
+    2>"$staging/show-job.log" || \
     die "job script is absent from the commit"
 
 actual_dispatcher="$(sha256sum "$new_dispatcher" | awk '{print $1}')"
