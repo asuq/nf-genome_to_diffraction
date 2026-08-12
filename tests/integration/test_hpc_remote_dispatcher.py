@@ -7,6 +7,7 @@ import json
 import os
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -631,6 +632,24 @@ def test_recovery_script_replaces_only_checksum_verified_tools(tmp_path: Path) -
     )
     assert b"dispatcher path is invalid" in injected.stderr
     assert not (tmp_path / "touch").exists()
+
+
+def test_remote_tools_do_not_depend_on_dev_null(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    recovery = REPOSITORY / "bootstrap" / "nf-gtd-hpc-recover-tools"
+
+    assert b"/dev/null" not in dispatcher.read_bytes()
+    assert b"/dev/null" not in smoke_job.read_bytes()
+    assert b"/dev/null" not in recovery.read_bytes()
+
+    _run(
+        [str(dispatcher), "readiness", "p2-control"],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    discard = dispatcher.parent / ".discard"
+    assert discard.is_file()
+    assert stat.S_IMODE(discard.stat().st_mode) == 0o600
 
 
 def _lock_checksum(tmp_path: Path) -> str:

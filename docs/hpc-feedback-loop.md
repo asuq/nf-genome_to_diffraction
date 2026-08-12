@@ -363,6 +363,16 @@ the recovery path. This avoids a recurring raw-SSH approval while keeping the
 repair operation checksum- and path-gated; normal upgrades continue through the
 installed dispatcher after recovery.
 
+The remote tools do not redirect to `/dev/null`. Marmic has returned
+`Permission denied` for that device in non-interactive SSH sessions, which can
+turn a successful command into a false preflight failure. The dispatcher instead
+creates and validates an owned mode-`0600` `_tooling/.discard` regular file
+before dispatch and uses it only for intentionally discarded command output.
+Compute-job cleanup diagnostics go to the retained run log directory. The
+discard file is operational state outside Git; removing the whole installed
+`_tooling` directory during the documented local/HPC teardown removes it too,
+and a later dispatcher call recreates it safely.
+
 `stage` refuses a dirty worktree, a non-full revision other than `HEAD`, a commit
 unavailable from the private mirror, a changed Pixi lock, or a submodule mismatch.
 Local ownership records live under `.untracked/hpc-test/RUN_ID/`; another run ID

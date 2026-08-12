@@ -37,7 +37,9 @@ locks="$root/_locks"
 [[ -f "$job" && ! -L "$job" && -O "$job" ]] || \
     die "installed job script is unsafe"
 [[ -d "$mirror" ]] || die "bare Git mirror is absent"
-[[ "$(git --git-dir="$mirror" rev-parse --is-bare-repository 2>/dev/null)" == true ]] || \
+bare_repository="$(git --git-dir="$mirror" rev-parse --is-bare-repository 2>&1)" || \
+    die "configured Git mirror cannot be inspected"
+[[ "$bare_repository" == true ]] || \
     die "configured Git mirror is not bare"
 
 mkdir -p "$locks"
@@ -46,7 +48,7 @@ flock -x 9
 staging="$(mktemp -d "$tool_dir/.recover-tools.XXXXXXXX")" || \
     die "cannot create recovery staging directory"
 cleanup() {
-    chmod -R u+w "$staging" 2>/dev/null || true
+    chmod -R u+w "$staging" >"$staging/cleanup.log" 2>&1 || true
     rm -rf -- "$staging"
 }
 trap cleanup EXIT
@@ -59,9 +61,11 @@ record="$staging/deployed-tools.json"
 
 git --git-dir="$mirror" fetch --prune origin >"$staging/git-fetch.log" 2>&1 || \
     die "Git mirror fetch failed"
-git --git-dir="$mirror" cat-file -e "${commit}^{commit}" 2>/dev/null || \
+git --git-dir="$mirror" cat-file -e "${commit}^{commit}" \
+    >"$staging/cat-file.log" 2>&1 || \
     die "commit is unavailable from the private mirror"
-git --git-dir="$mirror" rev-parse --verify refs/heads/main >/dev/null 2>&1 || \
+git --git-dir="$mirror" rev-parse --verify refs/heads/main \
+    >"$staging/rev-parse.log" 2>&1 || \
     die "origin main is absent from the private mirror"
 git --git-dir="$mirror" merge-base --is-ancestor "$commit" refs/heads/main || \
     die "commit is not reachable from origin main"
@@ -98,15 +102,15 @@ cat >"$record" <<EOF
 EOF
 
 if ! mv -f -- "$new_job" "$job" || ! mv -f -- "$new_dispatcher" "$dispatcher"; then
-    mv -f -- "$previous_job" "$job" 2>/dev/null || true
-    mv -f -- "$previous_dispatcher" "$dispatcher" 2>/dev/null || true
+    mv -f -- "$previous_job" "$job" >"$staging/rollback.log" 2>&1 || true
+    mv -f -- "$previous_dispatcher" "$dispatcher" >>"$staging/rollback.log" 2>&1 || true
     die "atomic tool replacement failed"
 fi
 if [[ "$(sha256sum "$dispatcher" | awk '{print $1}')" != "$actual_dispatcher" ]] || \
     [[ "$(sha256sum "$job" | awk '{print $1}')" != "$actual_job" ]] || \
     ! mv -f -- "$record" "$tool_dir/deployed-tools.json"; then
-    mv -f -- "$previous_job" "$job" 2>/dev/null || true
-    mv -f -- "$previous_dispatcher" "$dispatcher" 2>/dev/null || true
+    mv -f -- "$previous_job" "$job" >"$staging/rollback.log" 2>&1 || true
+    mv -f -- "$previous_dispatcher" "$dispatcher" >>"$staging/rollback.log" 2>&1 || true
     die "installed tool verification failed"
 fi
 

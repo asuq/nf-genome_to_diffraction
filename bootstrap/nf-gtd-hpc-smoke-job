@@ -115,12 +115,13 @@ finalise() {
         fi
     fi
     if [[ -n "$SCRATCH" && -e "$SCRATCH" ]]; then
-        chmod -R u+w "$SCRATCH" 2>/dev/null || true
+        chmod -R u+w "$SCRATCH" 2>>"$RUN/logs/cleanup-diagnostics.log" || true
         rm -rf -- "$SCRATCH"
         [[ ! -e "$SCRATCH" ]] || cleanup_failed=true
     fi
     if [[ -n "$SCRATCH_PARENT_CLEANUP" && -e "$SCRATCH_PARENT_CLEANUP" ]]; then
-        rmdir -- "$SCRATCH_PARENT_CLEANUP" 2>/dev/null || cleanup_failed=true
+        rmdir -- "$SCRATCH_PARENT_CLEANUP" \
+            2>>"$RUN/logs/cleanup-diagnostics.log" || cleanup_failed=true
     fi
     if [[ "$cleanup_failed" == true ]]; then
         printf 'scratch_cleanup_status=failed\n' >&2
