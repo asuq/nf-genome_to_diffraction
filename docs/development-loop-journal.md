@@ -1085,3 +1085,56 @@ submission. Monitor that replay without a runtime timeout. Its purpose is to
 publish the current-policy review package from real data, after which prioritise
 the known-positive and deliberate incorrect-model controls over further
 synthetic-test polishing.
+
+## 2026-08-12 — Current-policy P2-diverse replay submitted
+
+### Discoveries
+
+- Terminal-evidence commit `5b5100e8651cae0498ad2d6dd185bf8fb8fbbecb`
+  passed GitHub Actions run `31564419845`; the foundation check completed in
+  3 minutes 42 seconds. The completed-run monitor was then removed.
+- Marmic reported the fixed `p2-diverse` staging prerequisites ready with Pixi
+  `0.74.0`. The readiness record bound P0 configuration checksum
+  `ac7ad4d2d4f9693683b89c8b492f645eddf026f782d90300b726f6be6d855dbb`.
+- New immutable run
+  `gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a` binds source commit
+  `5b5100e8651cae0498ad2d6dd185bf8fb8fbbecb` and nf-helper commit
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a`. Its current code publishes the
+  strict `LLG > 50` or `TFZ > 5` policy rather than reclassifying the retained
+  version-1 evidence.
+- The collected login-stage evidence retained structural-hit checksum
+  `dabf35703d83fb1c8368337a1225025d1c4aee4ddc50db33c3ce10231470db5a`,
+  identical to the successful preceding run. This controls the real-data input
+  set while testing only the policy-correct review publication path.
+
+### Accomplishments and immutable evidence
+
+- The local tree was clean before staging, and the wrapper recorded the run
+  atomically under ignored `.untracked/hpc-test/` state.
+- Staging and bounded evidence collection completed without arbitrary SSH or
+  remote source changes. The staged search, result, structural-hit, coordinate,
+  mapping, and registration checksums were collected before submission.
+- The fixed wrapper submitted Slurm job `625935`. The first structured status
+  snapshot reported scheduler state `RUNNING`, phase `submitted`, and
+  `terminal=false`; no timeout, cancellation, or cleanup was requested.
+
+### Unresolved work
+
+- Wait for job `625935` to become terminal without inferring failure from
+  silence. On success, collect and verify the version-2 review manifest, TSV,
+  HTML, approval candidates, raw result scores, packing evidence, placed-copy
+  counts, Phaser tails, and resume records.
+- Confirm that current stored classifications and review ordering implement
+  strict `LLG > 50` or `TFZ > 5`. The expected six marginal TFZ-only candidates
+  remain review candidates, not validated structures.
+- Human map/packing review plus known-positive and deliberate incorrect-model
+  controls remain prerequisites for M4.
+
+### Next exact starting point
+
+Check only run `gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a`
+through the installed wrapper at the 30-minute cadence. Leave the run retained;
+do not use raw SSH, cancel, clean, set a runtime timeout, or infer failure from
+silence. If terminal, inspect bounded logs, collect the approved artefacts, and
+compare the generated current-policy package with the six candidates derived
+from the preceding immutable raw scores before selecting a human-review target.
