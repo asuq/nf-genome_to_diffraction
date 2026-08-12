@@ -2199,6 +2199,9 @@ main() {
         printf 'dispatcher discard file is unsafe\n' >&2
         exit 1
     fi
+    if ! { true <&0; } 2>"$DISCARD"; then
+        exec 0<"$DISCARD"
+    fi
     printf '' | base64 >"$DISCARD" 2>&1 || \
         fail environment_failure "base64 is unavailable"
     command -v flock >"$DISCARD" 2>&1 || \

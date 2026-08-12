@@ -27,6 +27,7 @@ root="$(dirname "$tool_dir")"
 job="$tool_dir/nf-gtd-hpc-smoke-job"
 mirror="$root/_cache/git/nf-genome_to_diffraction.git"
 locks="$root/_locks"
+discard="$tool_dir/.discard-recovery.$$"
 
 [[ "$dispatcher" == "$tool_dir/nf-gtd-hpc-remote" ]] || \
     die "dispatcher target is inconsistent"
@@ -37,6 +38,13 @@ locks="$root/_locks"
 [[ -f "$job" && ! -L "$job" && -O "$job" ]] || \
     die "installed job script is unsafe"
 [[ -d "$mirror" ]] || die "bare Git mirror is absent"
+(umask 077; printf '' > "$discard") || die "cannot create recovery discard file"
+[[ -f "$discard" && ! -L "$discard" && -O "$discard" ]] || \
+    die "recovery discard file is unsafe"
+trap 'rm -f -- "$discard"' EXIT
+if ! { true <&0; } 2>"$discard"; then
+    exec 0<"$discard"
+fi
 bare_repository="$(git --git-dir="$mirror" rev-parse --is-bare-repository 2>&1)" || \
     die "configured Git mirror cannot be inspected: ${bare_repository:0:256}"
 [[ "$bare_repository" == true ]] || \
@@ -50,6 +58,7 @@ staging="$(mktemp -d "$tool_dir/.recover-tools.XXXXXXXX")" || \
 cleanup() {
     chmod -R u+w "$staging" >"$staging/cleanup.log" 2>&1 || true
     rm -rf -- "$staging"
+    rm -f -- "$discard"
 }
 trap cleanup EXIT
 

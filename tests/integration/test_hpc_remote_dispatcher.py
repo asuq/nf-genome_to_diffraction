@@ -49,16 +49,27 @@ def _run(
     cwd: Path,
     environment: dict[str, str] | None = None,
     input_data: bytes | None = None,
+    close_stdin: bool = False,
     success: bool = True,
 ) -> subprocess.CompletedProcess[bytes]:
-    result = subprocess.run(
-        command,
-        cwd=cwd,
-        env=environment,
-        input=input_data,
-        check=False,
-        capture_output=True,
-    )
+    if close_stdin:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            check=False,
+            capture_output=True,
+        )
+    else:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            env=environment,
+            input=input_data,
+            check=False,
+            capture_output=True,
+        )
     if success and result.returncode != 0:
         pytest.fail(
             f"command failed ({result.returncode}): {command}\n"
@@ -604,6 +615,7 @@ def test_recovery_script_replaces_only_checksum_verified_tools(tmp_path: Path) -
         ],
         cwd=tmp_path,
         environment=environment,
+        close_stdin=True,
     )
 
     assert recovered.stdout == b"deployed\n"
