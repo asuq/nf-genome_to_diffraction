@@ -2798,3 +2798,43 @@ existing heartbeat to replace cancelled job `10910110` with its successor.
 
 Finish the focused Viper mount-alias regression cycle, then submit one fresh
 right-sized database run and replace job `10910414` in the existing heartbeat.
+
+## 2026-08-14T00:31:00Z - Corrected minimal database run submitted
+
+### Discoveries
+
+- The bounded Viper alias correction passed the complete local gate and both
+  supported Pixi versions in GitHub Actions; no further wrapper fallback was
+  needed.
+
+### Accomplishments
+
+- Deployed green commit `0aac8b16f0dc66bf2ce5e15de7fd7ccaf5f163f6`
+  with dispatcher SHA-256
+  `6de30d69147e9dbbe727d67d7baa73a962a45feb6a9914a188a5626e77c579b0`
+  and job-wrapper SHA-256
+  `d8873923b6aa67981c66016c92ba9ca71e7d0b440e8704b258109416b1f1efe9`.
+- Staged and submitted right-sized database run
+  `gtd-database-20260813T232453Z-0aac8b16f0dc-90fd140f` as Slurm job
+  `10910484`. Its initial state is `PENDING` with 8 CPUs, 32 GB, and 24 hours.
+- Updated the existing 30-minute heartbeat to monitor this successor and the
+  independent Phenix installation while retaining all predecessor evidence.
+
+### Immutable evidence
+
+- GitHub Actions run `31753440627` passed under Pixi 0.74.0 and 0.76.2.
+- The staged run records nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a` and Pixi 0.76.2.
+
+### Unresolved work
+
+- Leave database job `10910484` untouched while non-terminal. On completion,
+  collect full provenance and use MaxRSS to assess the minimal allocation.
+- Continue independent Phenix qualification and launch imported M4 immediately
+  after it succeeds; database completion must not block M4.
+
+### Next exact starting point
+
+Follow heartbeat `monitor-viper-database-build`. Check the database only through
+the fixed wrapper and Phenix only through its bounded scheduler query. Do not
+infer failure from silence or modify either non-terminal job.
