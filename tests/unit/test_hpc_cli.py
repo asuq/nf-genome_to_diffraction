@@ -86,3 +86,28 @@ def test_review_collection_accepts_only_an_owned_run_identifier() -> None:
 
     assert review.operation == "review-collect"
     assert review.run_id == "RUN_ID"
+
+
+def test_m4_copy_uses_explicit_checksum_gated_stage() -> None:
+    parser = _build_parser()
+
+    staged = parser.parse_args(
+        [
+            "m4-copy-stage",
+            "--revision",
+            "HEAD",
+            "--parent-run",
+            "PARENT",
+            "--decisions",
+            "decisions.tsv",
+            "--confirm-decisions-sha256",
+            "0" * 64,
+        ]
+    )
+    submitted = parser.parse_args(["submit", "m4-copy", "--run-id", "RUN_ID"])
+
+    assert staged.operation == "m4-copy-stage"
+    assert staged.parent_run == "PARENT"
+    assert submitted.profile == "m4-copy"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["stage", "m4-copy", "--revision", "HEAD"])

@@ -775,6 +775,43 @@ unrelated model while both remain reviewable. It does not estimate false-positiv
 rates, validate the numeric screen generally, prove a full two-copy ASU, or
 approve any CD6 candidate.
 
+## M4 comparative copy-two profile
+
+`m4-copy` advances every explicitly approved, coordinate-bearing P2-diverse
+solution through one additional same-component Phaser search. It is a
+comparative experiment, not a filter that declares one final protein identity.
+The dedicated stage operation accepts only an owned retained successful
+`p2-diverse` run and a small ASCII decision TSV whose SHA-256 is repeated as an
+explicit confirmation. The remote dispatcher revalidates those decisions
+against the retained review-manifest checksum and resolves the original
+processed search models only by the SHA-256 recorded in each first-copy command.
+It accepts no remote path or Phaser argument from the caller.
+
+The first scheduled increment fixes each approved parent at the origin and
+searches copy two independently for all 11 seeds. All parents and raw metrics
+are retained. Packed copy-two results are ranked downstream; a failed addition
+does not prove that the component or another copy is absent. The run has no
+Phaser command deadline, uses the conservative site scheduler margin, and
+requires an all-cached 11-process resume before qualification succeeds.
+
+```bash
+shasum -a 256 .untracked/hpc-test/PARENT_RUN_ID/review-assets-all/m4_experimental_seed_decisions.tsv
+nf-gtd-hpc-test m4-copy-stage \
+  --revision HEAD \
+  --parent-run PARENT_RUN_ID \
+  --decisions .untracked/hpc-test/PARENT_RUN_ID/review-assets-all/m4_experimental_seed_decisions.tsv \
+  --confirm-decisions-sha256 DECISIONS_SHA256
+nf-gtd-hpc-test submit m4-copy --run-id RUN_ID
+nf-gtd-hpc-test status --run-id RUN_ID
+nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test collect --run-id RUN_ID
+```
+
+The bounded collection includes the staging provenance, all normalised results
+and resolved commands, 200-line Phaser tails, first/resume traces, summary
+counts, and an artefact checksum inventory. Full native output remains in the
+retained run for later supported-child iterations and refinement.
+
 ## Database administration boundary
 
 Full preparation and `verify-only --full-verify` use separate, long-running

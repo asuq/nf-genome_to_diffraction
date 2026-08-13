@@ -1803,3 +1803,59 @@ Commit and push this executable M4 copy-two slice and monitor GitHub Actions.
 Then implement the bounded wrapper profile, deploy the exact commit, and launch
 all 11 approved seeds on Marmic. Do not start refinement until real additional-
 copy parsing and parent-retention semantics have been checked once.
+
+## 2026-08-13 — Comparative M4 Marmic profile ready for publication
+
+### Discoveries
+
+- The retained P2-diverse run contains the complete review package, catalogue
+  sequence groups, preflight and hypotheses, and the original processed model
+  files needed by copy-two screening. The bounded local review handoff does not
+  contain those processed models, so an M4 run must resolve them inside the
+  retained parent by the SHA-256 recorded in each first-copy command.
+- Reusing the generic `stage` interface would not bind the human decision file
+  to the new run. A dedicated checksum-confirmed stage operation is required to
+  preserve the explicit checkpoint without exposing arbitrary remote paths.
+- One aggregate local check encountered a pre-existing pytest `/tmp` base that
+  could not be removed while another process held it. The same integration
+  suite passed 45/45 with an isolated base; this was local test-state
+  interference, not a pipeline regression.
+
+### Accomplishments and immutable evidence
+
+- Added the `m4-copy-stage` wrapper boundary. It accepts only an owned retained
+  successful P2-diverse run, a pushed clean revision, and a bounded ASCII TSV
+  whose SHA-256 must be repeated as confirmation. The remote dispatcher verifies
+  the immutable review-manifest checksum, reruns the approval validator, requires
+  exactly 11 approved seeds, and resolves each original model by recorded hash.
+- Added the fixed `m4-copy` Slurm profile. It runs all 11 parents independently
+  through copy two, repeats the run with `-resume`, requires all 11 tasks to be
+  cached, retains every parent, and records normalised results, commands, bounded
+  Phaser tails, raw support metrics, traces, provenance, and checksums. A failed
+  addition remains non-absence evidence and does not remove the parent.
+- Updated the operational runbook and bounded collector. Focused M4/HPC tests
+  passed, as did 312 unit tests, 55 contract tests, 45 isolated integration
+  tests, Ruff, mypy, schema validation, the ten-structure public panel,
+  actionlint, Nextflow parser checks and stub/resume, documentation links, Bash
+  syntax, and `git diff --check`. The preceding executable M4 commit
+  `f03711b4041cf00e84c56ea284f8e78b436e515b` is green in GitHub Actions run
+  `31702608787`.
+
+### Unresolved work
+
+- Publish this wrapper/profile milestone, deploy its exact reviewed tools, and
+  run the real 11-seed copy-two comparison on Marmic.
+- Inspect raw copy-two support, packing, placement count, LLG/TFZ and LLG delta;
+  then iterate only supported children one copy at a time to each hypothesis's
+  expected copy count while retaining all earlier parent states.
+- Brief refinement, stable maps, sequence-from-map catalogue comparison, the
+  sequence checkpoint, reporting/pilot expansion, and M6 hardening remain.
+
+### Next exact starting point
+
+Commit and push the comparative M4 profile, monitor GitHub Actions, build and
+install the exact local wrapper, deploy the checksum-reviewed remote tools, then
+invoke `m4-copy-stage` for retained P2-diverse run
+`gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a` with the separate 11-row
+decision TSV and submit the returned run ID. Do not drop any candidate or begin
+refinement until the real copy-two evidence has been collected and compared.

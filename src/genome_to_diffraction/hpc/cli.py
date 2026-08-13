@@ -89,7 +89,7 @@ def _build_parser() -> argparse.ArgumentParser:
     submit = actions.add_parser("submit", help="submit the fixed Slurm profile")
     submit.add_argument(
         "profile",
-        choices=("smoke", "p0", "p1", "p2", "p2-diverse", "p2-control"),
+        choices=("smoke", "p0", "p1", "p2", "p2-diverse", "p2-control", "m4-copy"),
     )
     submit.add_argument("--run-id", required=True)
 
@@ -111,6 +111,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="collect checksum-gated assets for all Coot-inspectable MR solutions",
     )
     review_collect.add_argument("--run-id", required=True)
+
+    m4_stage = actions.add_parser(
+        "m4-copy-stage",
+        help="stage all approved retained seeds for comparative copy-two screening",
+    )
+    m4_stage.add_argument("--revision", required=True)
+    m4_stage.add_argument("--parent-run", required=True)
+    m4_stage.add_argument("--decisions", type=Path, required=True)
+    m4_stage.add_argument("--confirm-decisions-sha256", required=True)
 
     clean = actions.add_parser(
         "clean", help="delete one inactive run after external approval"
@@ -142,6 +151,13 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.profile,
             args.revision,
             parent_run_id=args.parent_run,
+        )
+    if args.operation == "m4-copy-stage":
+        return controller.m4_copy_stage(
+            args.revision,
+            args.parent_run,
+            args.decisions,
+            args.confirm_decisions_sha256,
         )
     if args.operation == "submit":
         return controller.submit(args.profile, args.run_id)

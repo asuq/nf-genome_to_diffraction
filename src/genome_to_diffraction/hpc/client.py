@@ -95,11 +95,12 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/p2.log",
         "logs/p2-diverse.log",
         "logs/p2-control.log",
+        "logs/m4-copy.log",
         "logs/database.log",
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -480,7 +481,7 @@ class SshTransport:
             operation == "stage"
             and len(arguments) == 6
             and arguments[5] in {"p0", "p1", "p2", "p2-diverse", "p2-control"}
-        ):
+        ) or operation == "m4-copy-stage":
             operation_timeout = P0_STAGE_TIMEOUT_SECONDS
         try:
             result = subprocess.run(
@@ -907,6 +908,98 @@ class HpcController:
             "local_record": str(local_path),
         }
 
+    def m4_copy_stage(
+        self,
+        revision: str,
+        parent_run_id: str,
+        decisions: Path,
+        confirmation: str,
+    ) -> dict[str, object]:
+        """Stage all explicitly approved retained seeds for copy-two screening."""
+
+        self.git.ensure_clean()
+        parent = self._owned_run(parent_run_id)
+        if parent.profile != "p2-diverse":
+            raise ValidationError("M4 copy staging requires a retained p2-diverse run")
+        decisions_path = decisions.resolve(strict=True)
+        if decisions.is_symlink() or not decisions_path.is_file():
+            raise ValidationError("M4 decisions must be a regular non-symlink file")
+        payload = decisions_path.read_bytes()
+        if not payload or len(payload) > 32 * 1024:
+            raise ValidationError("M4 decisions must contain 1..32768 bytes")
+        try:
+            payload.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise ValidationError("M4 decisions must be ASCII TSV") from error
+        decisions_sha256 = hashlib.sha256(payload).hexdigest()
+        if confirmation != decisions_sha256:
+            raise ValidationError(
+                "M4 decision confirmation must exactly equal its SHA-256"
+            )
+        review_manifest = (
+            self.config.local_state_root
+            / parent_run_id
+            / "review-assets-all/artifacts/qualification/p2-diverse-review/"
+            "mr_seed_review_manifest.json"
+        )
+        if not review_manifest.is_file() or review_manifest.is_symlink():
+            raise ValidationError(
+                "verified retain-all review manifest is absent locally"
+            )
+        review_sha256 = sha256_file(review_manifest)
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        iteration, _ = self._next_iteration(parent_run_id)
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+        run_id = f"gtd-m4-copy-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
+        owner_id = secrets.token_hex(16)
+        validate_run_id(run_id)
+        lock_checksum = sha256_file(self.config.repository / "pixi.lock")
+        record = LocalRunRecord(
+            run_id=run_id,
+            commit=commit,
+            owner_id=owner_id,
+            profile="m4-copy",
+            iteration=iteration,
+            parent_run_id=parent_run_id,
+        )
+        local_path = record.write(self.config.local_state_root)
+        self.logger.info(
+            "staging comparative M4 copy screen",
+            extra={
+                "run_id": run_id,
+                "parent_run_id": parent_run_id,
+                "seed_decisions_sha256": decisions_sha256,
+            },
+        )
+        remote = self.transport.run(
+            "m4-copy-stage",
+            [
+                run_id,
+                commit,
+                lock_checksum,
+                owner_id,
+                str(iteration),
+                parent_run_id,
+                parent.owner_id,
+                decisions_sha256,
+                review_sha256,
+                base64.b64encode(payload).decode("ascii"),
+            ],
+        )
+        return {
+            **remote,
+            "operation": "m4-copy-stage",
+            "run_id": run_id,
+            "commit": commit,
+            "profile": "m4-copy",
+            "iteration": iteration,
+            "parent_run_id": parent_run_id,
+            "decisions_sha256": decisions_sha256,
+            "review_manifest_sha256": review_sha256,
+            "local_record": str(local_path),
+        }
+
     def readiness(self, profile: str) -> dict[str, object]:
         """Inspect one fixed profile's remote prerequisites without creating a run."""
 
@@ -1184,7 +1277,8 @@ class HpcController:
                     if record.profile == "p1"
                     else (
                         P2_EXECUTION_TIMEOUT_SECONDS
-                        if record.profile in {"p2", "p2-diverse", "p2-control"}
+                        if record.profile
+                        in {"p2", "p2-diverse", "p2-control", "m4-copy"}
                         else self.config.execution_timeout_seconds
                     )
                 )

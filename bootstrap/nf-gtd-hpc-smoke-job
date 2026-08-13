@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -148,6 +148,9 @@ finalise() {
     elif [[ "$PROFILE" == p2-control ]]; then
         reports_json='["artifacts/qualification/p2-control-summary.json","artifacts/qualification/p2-control-resume-check.json"]'
         retained_json='["artifacts/p2-control","artifacts/qualification"]'
+    elif [[ "$PROFILE" == m4-copy ]]; then
+        reports_json='["artifacts/qualification/m4-copy-summary.json","artifacts/qualification/m4-copy-resume-check.json"]'
+        retained_json='["artifacts/m4-copy-inputs","artifacts/m4-copy","artifacts/qualification"]'
     elif [[ "$PROFILE" == database ]]; then
         reports_json='["artifacts/database/preflight.json"]'
         retained_json='["artifacts/database"]'
@@ -1584,6 +1587,160 @@ EOF
     printf 'p2_control_status=both_retained_and_positive_outranks_unrelated_negative\n'
 }
 
+run_m4_copy_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/nextflow-m4-copy-${label}.log" \
+        run "$RUN/source/screen_additional_copies.nf" \
+        "$@" \
+        -profile marmic \
+        --seeds "$M4_INPUTS/seeds.tsv" \
+        --review_validation "$M4_INPUTS/validated_mr_seed_decisions.json" \
+        --review_package "$M4_INPUTS/review_package/mr_seed_review_manifest.json" \
+        --hypotheses "$M4_INPUTS/inputs/hypotheses.jsonl" \
+        --sequence_groups "$M4_INPUTS/inputs/sequence_groups.jsonl" \
+        --preflight "$M4_INPUTS/inputs/preflight.jsonl" \
+        --mtz "$M4_INPUTS/inputs/mtz.mtz" \
+        --phenix_manifest "$M4_INPUTS/inputs/phenix_manifest.json" \
+        --outdir "$M4_RESULTS" \
+        --cache_root "$RUN/cache/m4-copy"
+}
+
+run_m4_copy() {
+    local qualification="$RUN/artifacts/qualification"
+    local cache_counts total cached expected result_count
+    local directory result status parent_id child_id packed placed
+    local supported_count=0 no_addition_count=0 failed_count=0
+    local results_tmp commands_tmp tails_tmp checksums_tmp candidate checksum relative
+    local -a directories=()
+
+    load_p0_config
+    M4_INPUTS="$RUN/artifacts/m4-copy-inputs"
+    M4_RESULTS="$RUN/artifacts/m4-copy/copy-two"
+    mkdir -p "$qualification" "$M4_RESULTS" "$RUN/cache/m4-copy" "$RUN/execution"
+    [[ -f "$RUN/state/m4-stage-manifest-sha256" && \
+       "$(sha256sum "$M4_INPUTS/m4_copy_stage_manifest.json" | awk '{print $1}')" == \
+       "$(<"$RUN/state/m4-stage-manifest-sha256")" ]] || {
+        printf 'M4 staged-input manifest changed before execution\n' >&2
+        return 2
+    }
+    [[ -f "$RUN/state/hpc-environment-status" && \
+       "$(<"$RUN/state/hpc-environment-status")" == ready ]] || return 2
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
+
+    PHASE=test
+    printf 'phase=m4_copy_phenix_verify profile=m4-copy\n'
+    "$GTD" --log-format json --no-progress phenix verify \
+        --manifest "$M4_INPUTS/inputs/phenix_manifest.json" \
+        --verification-log "$qualification/m4-copy-phenix-verification.log" \
+        --no-command-timeout
+    sha256sum \
+        "$M4_INPUTS/m4_copy_stage_manifest.json" \
+        "$M4_INPUTS/seeds.tsv" \
+        "$M4_INPUTS/validated_mr_seed_decisions.json" \
+        "$M4_INPUTS/review_package/mr_seed_review_manifest.json" \
+        "$M4_INPUTS/inputs/hypotheses.jsonl" \
+        "$M4_INPUTS/inputs/sequence_groups.jsonl" \
+        "$M4_INPUTS/inputs/preflight.jsonl" \
+        "$M4_INPUTS/inputs/mtz.mtz" \
+        "$M4_INPUTS/inputs/phenix_manifest.json" \
+        > "$qualification/m4-copy-input-checksums.sha256"
+
+    cd "$RUN/execution"
+    printf 'phase=m4_copy_first_run profile=m4-copy candidate_count=11\n'
+    run_m4_copy_nextflow first
+    cp -a "$M4_RESULTS/pipeline_info" \
+        "$qualification/m4-copy-first-pipeline-info"
+    printf 'phase=m4_copy_resume_run profile=m4-copy candidate_count=11\n'
+    run_m4_copy_nextflow resume -resume
+    cp -a "$M4_RESULTS/pipeline_info" \
+        "$qualification/m4-copy-resume-pipeline-info"
+    cache_counts="$(awk -F '\t' '
+        NR == 1 { for (i = 1; i <= NF; i++) if ($i == "status") column = i; next }
+        column > 0 { total++; if ($column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$qualification/m4-copy-resume-pipeline-info/trace.tsv")"
+    read -r total cached <<< "$cache_counts"
+    expected="$(awk 'NR > 1 && NF { count++ } END { print count + 0 }' \
+        "$M4_INPUTS/seeds.tsv")"
+    [[ "$expected" -eq 11 && "$total" -eq "$expected" && \
+       "$cached" -eq "$expected" ]] || return 4
+
+    mapfile -t directories < <(
+        find "$M4_RESULTS" -mindepth 1 -maxdepth 1 -type d \
+            -name 'additional_copy_sol_*' -print | LC_ALL=C sort
+    )
+    result_count="${#directories[@]}"
+    [[ "$result_count" -eq "$expected" ]] || return 4
+    results_tmp="$qualification/m4-copy-results.jsonl.tmp.$$"
+    commands_tmp="$qualification/m4-copy-commands.jsonl.tmp.$$"
+    tails_tmp="$qualification/m4-copy-log-tails.txt.tmp.$$"
+    : > "$results_tmp"
+    : > "$commands_tmp"
+    : > "$tails_tmp"
+    for directory in "${directories[@]}"; do
+        result="$directory/additional_copy_result.json"
+        [[ -s "$result" && ! -L "$result" ]] || return 4
+        status="$(sed -n 's/.*"execution_status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$result")"
+        parent_id="$(sed -n 's/.*"parent_solution_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$result")"
+        child_id="$(sed -n 's/.*"child_solution_id"[[:space:]]*:[[:space:]]*\("[^"]*"\|null\).*/\1/p' "$result")"
+        packed="$(sed -n 's/.*"top_solution_packed"[[:space:]]*:[[:space:]]*\([^,}]*\).*/\1/p' "$result" | tr -d ' ')"
+        placed="$(sed -n 's/.*"phaser_placement_count"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' "$result")"
+        [[ -n "$status" && "$parent_id" == sol_* ]] || return 4
+        if [[ "$status" == completed_hit && "$child_id" != null && \
+              "$packed" == true && "$placed" -ge 2 ]]; then
+            supported_count=$((supported_count + 1))
+        elif [[ "$status" == completed_no_hit ]]; then
+            no_addition_count=$((no_addition_count + 1))
+        else
+            failed_count=$((failed_count + 1))
+        fi
+        cat -- "$directory/additional_copy_result.jsonl" >> "$results_tmp"
+        "$RUN/source/.pixi/envs/hpc/bin/python" -c \
+            'import json,sys; print(json.dumps(json.load(open(sys.argv[1])),sort_keys=True,separators=(",",":")))' \
+            "$directory/phaser_command.json" >> "$commands_tmp"
+        printf 'seed_solution_id=%s tail_lines=200\n' "$parent_id" >> "$tails_tmp"
+        [[ ! -f "$directory/PHASER.log" ]] || \
+            tail -n 200 "$directory/PHASER.log" >> "$tails_tmp"
+    done
+    mv -f -- "$results_tmp" "$qualification/m4-copy-results.jsonl"
+    mv -f -- "$commands_tmp" "$qualification/m4-copy-commands.jsonl"
+    mv -f -- "$tails_tmp" "$qualification/m4-copy-log-tails.txt"
+    cat > "$qualification/m4-copy-resume-check.json" <<EOF
+{"schema_version":"1.0","run_id":"$RUN_ID","profile":"m4-copy","process_count":$total,"cached_process_count":$cached,"all_copy_two_processes_cached":true}
+EOF
+    cat > "$qualification/m4-copy-summary.json" <<EOF
+{"schema_version":"1.0","run_id":"$RUN_ID","profile":"m4-copy","parent_run_id":"$(<"$RUN/state/parent-run-id")","attempted_seed_count":$result_count,"supported_additional_copy_count":$supported_count,"completed_no_addition_count":$no_addition_count,"candidate_failure_count":$failed_count,"all_parents_retained":true,"failed_addition_proves_absence":false,"selection_policy":"retain_all_and_rank_downstream_evidence","all_resume_processes_cached":true}
+EOF
+    checksums_tmp="$qualification/m4-copy-artifact-sha256.tsv.tmp.$$"
+    printf 'sha256\tpath\n' > "$checksums_tmp"
+    for candidate in \
+        "$qualification/m4-copy-summary.json" \
+        "$qualification/m4-copy-results.jsonl" \
+        "$qualification/m4-copy-commands.jsonl" \
+        "$qualification/m4-copy-log-tails.txt" \
+        "$qualification/m4-copy-resume-check.json" \
+        "$qualification/m4-copy-input-checksums.sha256" \
+        "$M4_INPUTS/m4_copy_stage_manifest.json"; do
+        checksum="$(sha256sum "$candidate" | awk '{print $1}')"
+        relative="${candidate#"$RUN/"}"
+        printf '%s\t%s\n' "$checksum" "$relative" >> "$checksums_tmp"
+    done
+    mv -f -- "$checksums_tmp" "$qualification/m4-copy-artifact-sha256.tsv"
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == \
+        "$(<"$RUN/state/commit")" ]] || return 3
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
+        return 3
+    printf 'm4_copy_status=all_approved_seeds_attempted_and_parents_retained\n'
+}
+
 run_database() {
     local gtd real_aria2 wrapper_bin database_manifest_sha256
     local source_bundle source_bundle_sha256 actual_source_bundle_sha256
@@ -1783,6 +1940,7 @@ case "$PROFILE" in
     p2) run_p2 ;;
     p2-diverse) run_p2_diverse ;;
     p2-control) run_p2_control ;;
+    m4-copy) run_m4_copy ;;
     database) run_database ;;
 esac
 

@@ -612,6 +612,38 @@ def test_all_owned_operations_use_the_recorded_capability(tmp_path: Path) -> Non
     assert len(owner_values) == 1
 
 
+def test_m4_copy_stage_sends_only_bound_parent_and_checksummed_decisions(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    parent_run_id = str(controller.stage("p2-diverse", "HEAD")["run_id"])
+    review = (
+        controller.config.local_state_root
+        / parent_run_id
+        / "review-assets-all/artifacts/qualification/p2-diverse-review"
+    )
+    review.mkdir(parents=True)
+    (review / "mr_seed_review_manifest.json").write_text(
+        '{"schema_version":"2.0"}\n', encoding="ascii"
+    )
+    decisions = tmp_path / "decisions.tsv"
+    decisions.write_text("solution_id\tdecision\nsol_a\tapprove\n", encoding="ascii")
+    checksum = hashlib.sha256(decisions.read_bytes()).hexdigest()
+
+    result = controller.m4_copy_stage("HEAD", parent_run_id, decisions, checksum)
+
+    assert result["profile"] == "m4-copy"
+    operation, arguments = transport.calls[-1]
+    assert operation == "m4-copy-stage"
+    assert arguments[5] == parent_run_id
+    assert arguments[7] == checksum
+    assert base64.b64decode(arguments[9], validate=True) == decisions.read_bytes()
+    assert "/" not in arguments[5]
+    with pytest.raises(ValidationError, match="confirmation"):
+        controller.m4_copy_stage("HEAD", parent_run_id, decisions, "0" * 64)
+
+
 @pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse", "p2-control"])
 def test_scientific_profile_has_a_closed_run_id_and_remote_argument(
     tmp_path: Path, profile: str

@@ -73,6 +73,7 @@ def test_run_and_log_identifiers_are_bounded() -> None:
     valid_p2 = "gtd-p2-20260802T120000Z-0123456789ab-01234567"
     valid_p2_diverse = "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567"
     valid_p2_control = "gtd-p2-control-20260802T120000Z-0123456789ab-01234567"
+    valid_m4_copy = "gtd-m4-copy-20260802T120000Z-0123456789ab-01234567"
     valid_database = "gtd-database-20260802T120000Z-0123456789ab-01234567"
     assert validate_run_id(valid) == valid
     assert validate_run_id(valid_p0) == valid_p0
@@ -80,6 +81,7 @@ def test_run_and_log_identifiers_are_bounded() -> None:
     assert validate_run_id(valid_p2) == valid_p2
     assert validate_run_id(valid_p2_diverse) == valid_p2_diverse
     assert validate_run_id(valid_p2_control) == valid_p2_control
+    assert validate_run_id(valid_m4_copy) == valid_m4_copy
     assert validate_run_id(valid_database) == valid_database
     assert validate_profile("smoke") == "smoke"
     assert validate_profile("p0") == "p0"
@@ -87,6 +89,7 @@ def test_run_and_log_identifiers_are_bounded() -> None:
     assert validate_profile("p2") == "p2"
     assert validate_profile("p2-diverse") == "p2-diverse"
     assert validate_profile("p2-control") == "p2-control"
+    assert validate_profile("m4-copy") == "m4-copy"
     assert validate_profile("database") == "database"
     assert validate_log_lines(2_000) == 2_000
     with pytest.raises(ValidationError):

@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -922,7 +922,8 @@ stage_run_common() {
         fail filesystem_failure "cannot attach the per-run Pixi environment"
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
-          "$profile" == p2-diverse || "$profile" == p2-control ]]; then
+          "$profile" == p2-diverse || "$profile" == p2-control || \
+          "$profile" == m4-copy ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
             atomic_text "$run/state/phase" "stage_failed"
@@ -957,6 +958,7 @@ stage_run_common() {
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
+          "$profile" == m4-copy || \
           "$profile" == database ]]; then
         if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
             --manifest-path "$run/source/pixi.toml" \
@@ -977,7 +979,8 @@ stage_run_common() {
             fail environment_failure "locked HPC CLI is unavailable"
         }
         if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
-              "$profile" == p2-diverse || "$profile" == p2-control ]]; then
+              "$profile" == p2-diverse || "$profile" == p2-control || \
+              "$profile" == m4-copy ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
             java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
             mmseqs="$run/source/.pixi/envs/hpc/bin/mmseqs"
@@ -1303,6 +1306,109 @@ stage_archive_run() {
     stage_run_common "$@"
 }
 
+m4_copy_stage_run() {
+    [[ "$#" -eq 10 ]] || \
+        fail wrapper_failure "m4-copy-stage expects ten fixed arguments"
+    local run_id="$1"
+    local commit="$2"
+    local lock_sha256="$3"
+    local owner_id="$4"
+    local iteration="$5"
+    local parent_run_id="$6"
+    local parent_owner_id="$7"
+    local decisions_sha256="$8"
+    local review_sha256="$9"
+    local decisions_base64="${10}"
+    local run parent decisions stage_out gtd mtz_candidate mtz phenix_manifest
+    local staged_manifest seed_count
+    local -a p0_values=()
+
+    validate_run_id "$parent_run_id"
+    [[ "$parent_run_id" == gtd-p2-diverse-* ]] || \
+        fail wrapper_failure "M4 parent must be a retained P2-diverse run"
+    validate_owner "$parent_owner_id"
+    [[ "$decisions_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid M4 decisions checksum"
+    [[ "$review_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid M4 review checksum"
+    require_owned_run "$parent_run_id" "$parent_owner_id"
+    parent="$(run_directory "$parent_run_id")"
+    [[ "$(<"$parent/state/profile")" == p2-diverse && \
+       "$(<"$parent/state/phase")" == completed && \
+       "$(<"$parent/state/failure-class")" == success && \
+       "$(<"$parent/state/exit-code")" == 0 ]] || \
+        fail wrapper_failure "M4 parent is not a retained successful P2-diverse run"
+    [[ -f "$parent/artifacts/qualification/p2-diverse-review/mr_seed_review_manifest.json" && \
+       "$(sha256sum "$parent/artifacts/qualification/p2-diverse-review/mr_seed_review_manifest.json" | awk '{print $1}')" == \
+       "$review_sha256" ]] || \
+        fail transfer_failure "retained M4 review manifest differs from local evidence"
+
+    stage_run_common \
+        "$run_id" "$commit" "$lock_sha256" "$owner_id" "$iteration" m4-copy
+    run="$(run_directory "$run_id")"
+    atomic_text "$run/state/parent-run-id" "$parent_run_id"
+    atomic_text "$run/state/parent-owner-id" "$parent_owner_id"
+    atomic_text "$run/state/m4-decisions-sha256" "$decisions_sha256"
+    atomic_text "$run/state/m4-review-manifest-sha256" "$review_sha256"
+    decisions="$run/artifacts/m4-copy-decisions.tsv"
+    if ! printf '%s' "$decisions_base64" | base64 -d > "$decisions" 2>"$DISCARD"; then
+        atomic_text "$run/state/phase" stage_failed
+        atomic_text "$run/state/failure-class" transfer_failure
+        fail transfer_failure "M4 decisions are not valid base64"
+    fi
+    [[ -s "$decisions" && "$(file_size "$decisions")" -le 32768 && \
+       "$(sha256sum "$decisions" | awk '{print $1}')" == "$decisions_sha256" ]] || {
+        atomic_text "$run/state/phase" stage_failed
+        atomic_text "$run/state/failure-class" transfer_failure
+        fail transfer_failure "M4 decisions payload failed size or checksum validation"
+    }
+    mapfile -t p0_values < "$P0_CONFIG"
+    [[ "${#p0_values[@]}" -eq 7 ]] || \
+        fail wrapper_failure "P0 configuration changed during M4 staging"
+    phenix_manifest="${p0_values[6]}"
+    [[ "$(basename "$(dirname "${p0_values[2]}")")" == manifests ]] || \
+        fail wrapper_failure "M4 requires the checksum-frozen P0 bundle layout"
+    mtz_candidate="$(dirname "$(dirname "${p0_values[2]}")")/inputs/CD6QS2P2G1_5.mtz"
+    mtz="$(realpath -e "$mtz_candidate")" || \
+        fail filesystem_failure "fixed CD6 MTZ cannot be resolved for M4"
+    [[ "$mtz" == "$mtz_candidate" && -f "$mtz" && ! -L "$mtz_candidate" ]] || \
+        fail filesystem_failure "fixed CD6 MTZ is unsafe for M4"
+
+    stage_out="$run/artifacts/m4-copy-inputs"
+    gtd="$run/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    if ! "$gtd" --log-format json --no-progress mr stage-add-copy \
+        --parent-run "$parent" \
+        --decisions "$decisions" \
+        --review-manifest-sha256 "$review_sha256" \
+        --mtz "$mtz" \
+        --phenix-manifest "$phenix_manifest" \
+        --outdir "$stage_out" \
+        --expected-seed-count 11 \
+        > "$run/logs/m4-copy-stage.log" 2>&1; then
+        atomic_text "$run/state/phase" stage_failed
+        atomic_text "$run/state/failure-class" test_failure
+        append_event "$run" m4_copy_input_stage_failed
+        fail test_failure "checksum-bound M4 input staging failed"
+    fi
+    staged_manifest="$stage_out/m4_copy_stage_manifest.json"
+    [[ -f "$staged_manifest" && ! -L "$staged_manifest" ]] || \
+        fail filesystem_failure "M4 stage manifest was not produced"
+    seed_count="$(awk 'NR > 1 && NF { count++ } END { print count + 0 }' \
+        "$stage_out/seeds.tsv")"
+    [[ "$seed_count" -eq 11 ]] || \
+        fail test_failure "M4 stage did not retain exactly 11 approved seeds"
+    atomic_text "$run/state/m4-stage-manifest-sha256" \
+        "$(sha256sum "$staged_manifest" | awk '{print $1}')"
+    append_event "$run" m4_copy_inputs_ready
+    emit operation m4-copy-stage
+    emit run_id "$run_id"
+    emit parent_run_id "$parent_run_id"
+    emit seed_count "$seed_count"
+    emit decisions_sha256 "$decisions_sha256"
+    emit review_manifest_sha256 "$review_sha256"
+    emit phase staged
+}
+
 database_stage_run() {
     [[ "$#" -eq 4 ]] || fail wrapper_failure "database-stage expects four fixed arguments"
     stage_run_common "$1" "$2" "$3" "$4" 1 database
@@ -1331,7 +1437,8 @@ submit_run() {
     memory=8G
     [[ "$profile" != p0 ]] || walltime=24:00:00
     if [[ "$profile" == p1 || "$profile" == p2 || \
-          "$profile" == p2-diverse || "$profile" == p2-control ]]; then
+          "$profile" == p2-diverse || "$profile" == p2-control || \
+          "$profile" == m4-copy ]]; then
         walltime=41-16:00:00
     fi
 
@@ -1801,6 +1908,7 @@ collect_run() {
         logs/p1-login-prefetch.log \
         logs/p2-diverse-login-stage.log \
         logs/p2-control-login-stage.log \
+        logs/m4-copy-stage.log \
         logs/database-source-stage.log \
         logs/sbatch.err \
         logs/smoke.log \
@@ -1809,6 +1917,7 @@ collect_run() {
         logs/p2.log \
         logs/p2-diverse.log \
         logs/p2-control.log \
+        logs/m4-copy.log \
         logs/database.log \
         logs/nextflow-first.log \
         logs/nextflow-resume.log \
@@ -1824,6 +1933,8 @@ collect_run() {
         logs/nextflow-p2-diverse-first-copy-resume.log \
         logs/nextflow-p2-control-first.log \
         logs/nextflow-p2-control-resume.log \
+        logs/nextflow-m4-copy-first.log \
+        logs/nextflow-m4-copy-resume.log \
         artifacts/qualification/input-checksums.sha256 \
         artifacts/qualification/phenix-verification.log \
         artifacts/qualification/database_manifest.p0-revalidated.json \
@@ -1909,6 +2020,25 @@ collect_run() {
         artifacts/qualification/p2-control-resume-pipeline-info/timeline.html \
         artifacts/qualification/p2-control-resume-pipeline-info/trace.tsv \
         artifacts/qualification/p2-control-resume-pipeline-info/dag.html \
+        artifacts/qualification/m4-copy-input-checksums.sha256 \
+        artifacts/qualification/m4-copy-summary.json \
+        artifacts/qualification/m4-copy-results.jsonl \
+        artifacts/qualification/m4-copy-commands.jsonl \
+        artifacts/qualification/m4-copy-log-tails.txt \
+        artifacts/qualification/m4-copy-artifact-sha256.tsv \
+        artifacts/qualification/m4-copy-resume-check.json \
+        artifacts/qualification/m4-copy-phenix-verification.log \
+        artifacts/qualification/m4-copy-first-pipeline-info/report.html \
+        artifacts/qualification/m4-copy-first-pipeline-info/timeline.html \
+        artifacts/qualification/m4-copy-first-pipeline-info/trace.tsv \
+        artifacts/qualification/m4-copy-first-pipeline-info/dag.html \
+        artifacts/qualification/m4-copy-resume-pipeline-info/report.html \
+        artifacts/qualification/m4-copy-resume-pipeline-info/timeline.html \
+        artifacts/qualification/m4-copy-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/m4-copy-resume-pipeline-info/dag.html \
+        artifacts/m4-copy-inputs/m4_copy_stage_manifest.json \
+        artifacts/m4-copy-inputs/validated_mr_seed_decisions.json \
+        artifacts/m4-copy-inputs/seeds.tsv \
         artifacts/qualification/first-pipeline-info/report.html \
         artifacts/qualification/first-pipeline-info/timeline.html \
         artifacts/qualification/first-pipeline-info/trace.tsv \
@@ -2309,6 +2439,7 @@ main() {
         database-readiness) database_readiness "$@" ;;
         stage) stage_run "$@" ;;
         stage-archive) stage_archive_run "$@" ;;
+        m4-copy-stage) m4_copy_stage_run "$@" ;;
         database-stage) database_stage_run "$@" ;;
         submit) submit_run "$@" ;;
         database-submit) database_submit_run "$@" ;;

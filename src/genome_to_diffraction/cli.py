@@ -62,6 +62,10 @@ from genome_to_diffraction.mr import (
     run_additional_copy_phaser,
     run_first_copy_phaser,
 )
+from genome_to_diffraction.mr.stage_add_copy import (
+    AddCopyStageRequest,
+    prepare_add_copy_stage,
+)
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
 from genome_to_diffraction.phenix.recovery import (
@@ -673,6 +677,17 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help="optional explicit Phaser deadline; by default no deadline is imposed",
     )
+    stage_add_copy_parser = mr_actions.add_parser(
+        "stage-add-copy",
+        help="prepare checksum-bound comparative M4 inputs from a retained run",
+    )
+    stage_add_copy_parser.add_argument("--parent-run", type=Path, required=True)
+    stage_add_copy_parser.add_argument("--decisions", type=Path, required=True)
+    stage_add_copy_parser.add_argument("--review-manifest-sha256", required=True)
+    stage_add_copy_parser.add_argument("--mtz", type=Path, required=True)
+    stage_add_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    stage_add_copy_parser.add_argument("--outdir", type=Path, required=True)
+    stage_add_copy_parser.add_argument("--expected-seed-count", type=int, default=11)
 
     review_parser = subparsers.add_parser(
         "review", help="build and validate file-based human checkpoints"
@@ -1304,6 +1319,24 @@ def _run_ranking(args: argparse.Namespace) -> int:
 
 
 def _run_mr(args: argparse.Namespace) -> int:
+    if args.mr_action == "stage-add-copy":
+        staged = prepare_add_copy_stage(
+            AddCopyStageRequest(
+                parent_run=args.parent_run,
+                decisions=args.decisions,
+                expected_review_manifest_sha256=args.review_manifest_sha256,
+                mtz=args.mtz,
+                phenix_manifest=args.phenix_manifest,
+                output_directory=args.outdir,
+                expected_seed_count=args.expected_seed_count,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Prepared {staged.seed_count} comparative M4 seed(s): "
+            f"{staged.stage_manifest}"
+        )
+        return 0
     if args.mr_action == "add-copy":
         add_copy_output = run_additional_copy_phaser(
             AddCopyRunRequest(
