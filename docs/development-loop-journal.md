@@ -2673,3 +2673,48 @@ the approved wrapper and Phenix job `10910267` only through the fixed bounded
 scheduler commands. Leave non-terminal jobs untouched. After Phenix terminal
 success, qualify commands and real CD6 MTZ, then immediately execute the fixed
 M4 import/submit path without waiting for database completion.
+
+## 2026-08-13T23:02:00Z - Phenix create-only log collision cleared
+
+### Discoveries
+
+- Corrected `/ptmp` job `10910267` failed safely after 16 seconds, before any
+  installation, because the installer correctly refused to replace the base
+  install log left by failed predecessor `10910201`. Slurm recorded exit 1 and
+  batch MaxRSS 162,545 KB. The installer checksum passed again.
+- Both the corrected `/ptmp` prefix and create-only manifest remained absent, so
+  no partial runtime or false installation record required recovery.
+
+### Accomplishments
+
+- Preserved the original base install log under a unique predecessor-job name.
+  Resubmitted the unchanged checksum-reviewed `/ptmp` script as job `10910306`;
+  no code, resource, prefix, checksum, or scientific parameter changed.
+- Updated the combined 30-minute heartbeat to monitor job `10910306` and the
+  independent database job while preserving both predecessor failure records.
+
+### Immutable evidence
+
+- Job `10910267`: `FAILED`, exit `1:0`, elapsed 16 seconds, batch MaxRSS
+  162,545 KB, allocated CPUs 8. Bounded log reason: create-only refusal to
+  replace `phenix-2.1-6048.install.log`.
+- Active successor `10910306` uses script SHA-256
+  `df775cbffa848822944221f265147b4ca00b1d545b9a2bdca5a521097a690395`,
+  installer SHA-256
+  `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`,
+  and green source commit `8b888c5686a8325337ad231d0bcdbb0abf8d4db0`.
+
+### Unresolved work
+
+- Await job `10910306` without inferring failure from silence. Qualify all
+  commands and the real CD6 MTZ only after terminal success.
+- Continue the fixed M4 import immediately after Phenix qualification; database
+  job `10910110` remains independent.
+
+### Next exact starting point
+
+Read this entry and follow heartbeat `monitor-viper-database-build`. Check
+Phenix job `10910306` and database run
+`gtd-database-20260813T220325Z-d689a7e7a65e-6e72920c` only through their fixed
+bounded interfaces. Leave non-terminal jobs untouched. On Phenix success,
+qualify the manifest and real CD6 MTZ, then stage/submit all 11 M4 candidates.
