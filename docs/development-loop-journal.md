@@ -1907,3 +1907,74 @@ If it is non-terminal, leave it untouched. If terminal, retrieve bounded logs
 and collect evidence, verify all 11 parents and the fully cached resume, rank
 copy-two support without discarding alternatives, and record the exact next
 sequential-copy development step.
+
+## 2026-08-13 — First M4 comparison exposed status-gated orchestration
+
+### Discoveries
+
+- Immutable run `gtd-m4-copy-20260813T134411Z-8396fefc26d0-54c9157e`
+  became terminal after all 11 approved tasks were submitted, but Nextflow
+  stopped the cohort when seed
+  `sol_979f033dd494dd7b0ddb50b76bf7db346f68a546ea8f3bf66e256fd93b21fb75`
+  failed the add-copy adapter's root-seed check. Its retained parent evidence is
+  scientifically usable for comparative testing: one placed copy, 49 packed
+  solutions, LLG 25.248, and TFZ exactly 5.0. It is stored as
+  `completed_no_hit` only because it does not pass the separate strict ranking
+  annotation `LLG > 50 OR TFZ > 5`.
+- Requiring `completed_hit` at the M4 entry point therefore confuses a ranking
+  policy with the structural precondition for continuing a user-approved
+  candidate. The correct M4 precondition is successful parsed parent execution,
+  exactly one placed copy, a packed parent solution, intact review-package
+  checksums, and explicit approval. The score-derived status must remain
+  provenance, not become a candidate-dropping gate.
+- Because the process exits non-zero for this candidate, Nextflow killed six
+  concurrently running sibling tasks. No comparative result or resume summary
+  exists, so the run provides orchestration evidence rather than scientific
+  copy-two rankings.
+
+### Accomplishments and immutable evidence
+
+- Bounded logs and the approved collection operation captured the retained
+  failure evidence locally. Slurm job `626455` ran on
+  `slurm-001.mpi-bremen.de` from `2026-08-13T13:46:01Z` to
+  `2026-08-13T13:48:15Z`, ended `FAILED` with exit code 1 and failure class
+  `test_failure`, and has failure signature
+  `aff38209096b9728535dff097ef82be38abf67003bfe6d65a3b1c8445559f412`.
+- Staging retained exactly 11 approved seed IDs. The immutable provenance is
+  source `8396fefc26d039964641f821346a35733fdc52b5`, nf-helper
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a`, Pixi 0.74.0, lock SHA-256
+  `ecb7b12f890172eb53180ef5027b360b8187dff7d168a7cd8fc6507f9215fdc5`,
+  decision SHA-256
+  `7bbe539cf3c02b253ee94d829af6cf0b516e8eecedc6c784ab12cd707d012e2c`,
+  review-manifest SHA-256
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`,
+  and MTZ SHA-256
+  `5eb16c3cc3a21e4b7f22cd611834529801c1829fc0a3156a2b6abc2b3de2f20d`.
+- Parent and child runs remain retained. No candidate was removed, no score
+  threshold was changed, and refinement was not started.
+
+### Unresolved work
+
+- Change the add-copy eligibility check so an explicitly approved, packed,
+  exactly-one-copy `completed_no_hit` parent can run while a failed, unparsed,
+  unpacked, or incorrectly placed parent still fails loudly. Add focused tests
+  for both acceptance and rejection.
+- Make comparative process failures candidate-level records rather than a
+  fail-fast cohort abort, so one unsupported addition cannot erase results from
+  the other ten candidates. This is required by the retain-all review strategy,
+  but should remain a small M4 orchestration change rather than a general
+  fallback framework.
+- Re-run the full local checks, commit, push, monitor GitHub Actions, deploy the
+  checksum-reviewed tools, and launch a new immutable 11-way M4 comparison.
+  Only terminal results from that corrected run can decide which candidates
+  proceed to sequential copies toward their expected counts.
+
+### Next exact starting point
+
+Inspect `src/genome_to_diffraction/mr/add_copy.py` and its focused tests. Replace
+the `completed_hit` requirement with an explicit successful-parsed-parent plus
+packed-one-copy requirement, and make the M4 Nextflow module preserve a
+normalised per-candidate failure result instead of aborting siblings. Run the
+development cycle through local Pixi checks, commit, push, GitHub Actions, and a
+new retained Marmic M4 run; compare all 11 outcomes before beginning copy three
+or refinement.
