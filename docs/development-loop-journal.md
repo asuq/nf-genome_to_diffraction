@@ -2246,3 +2246,47 @@ collect that run, deploy tools from the newest green commit, and launch a fresh
 retained M4 run so every one of the 11 candidates receives sequential copy
 placement and a copy-count assessment. Do not begin refinement until that
 real-data evidence is terminal and inspected.
+
+## 2026-08-13T17:09:07Z - T11.4 published; Marmic handoff retained
+
+### Discoveries
+
+- Marmic continued to time out during the post-CI wrapper status attempt. No
+  new remote state is known and the retained run remains untouched.
+
+### Accomplishments
+
+- Published T11.4 revision
+  `57e82853682ce76a8b83d9a3abd0002d88d8c0f4`; GitHub Actions run
+  `31723743653` passed.
+- Refreshed active 30-minute heartbeat
+  `monitor-marmic-corrected-m4-copy`. It now records the green sequential/report
+  revision and requires collection of corrected job `626475` before deploying
+  the newest tools and launching a successor sequential M4 run.
+- The worktree is clean.
+
+### Immutable evidence
+
+- Green publication chain: `a9ca0161a0b5ac5e51effe52daf569f8c64e846c`
+  (`31719834027`), `e72522358e0a4f79c55359012ab3543c5fa68d22`
+  (`31722338506`), and `57e82853682ce76a8b83d9a3abd0002d88d8c0f4`
+  (`31723743653`).
+
+### Unresolved work
+
+- The remote collection/deployment/sequential-run boundary is unchanged because
+  the Marmic login endpoint is unavailable. Real sequential placement and copy
+  reporting remain unqualified until that run completes.
+- Refinement, maps, sequence narrowing, second review, M5, and M6 remain after
+  the real M4 evidence gate.
+
+### Next exact starting point
+
+Read this entry and follow heartbeat
+`monitor-marmic-corrected-m4-copy`. Check only retained corrected run
+`gtd-m4-copy-20260813T150438Z-0d9c3ef5b905-1cc7e54a` through the installed
+wrapper. After terminal collection and evidence review, deploy tools from green
+revision `57e82853682ce76a8b83d9a3abd0002d88d8c0f4`, stage/submit a new immutable
+sequential M4 run using the retained 11-seed decision package, and create its
+successor monitor. Do not begin refinement before that sequential evidence is
+terminal and inspected.
