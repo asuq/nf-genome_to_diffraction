@@ -17,7 +17,7 @@ operator's account outside Git:
 - runs, work, and caches: `/ptmp/USERNAME/nf-genome_to_diffraction/`;
 - databases: `/ptmp/USERNAME/nf-genome_to_diffraction/databases`;
 - Apptainer cache: `/ptmp/USERNAME/apptainer-cache`;
-- Phenix: `/viper/u1/USERNAME/Softwares/phenix_v2.1-6048`;
+- Phenix runtime: `/ptmp/USERNAME/nf-genome_to_diffraction/software/phenix_v2.1-6048`;
 - Phenix manifest: `/viper/u1/USERNAME/Softwares/manifests/phenix-2.1-6048.json`;
 - reviewed tools: `/viper/u1/USERNAME/.local/libexec/nf-gtd/`.
 
@@ -70,7 +70,11 @@ and `core` environments are not production dependencies.
 6. Copy the licensed installer to `/ptmp`, require SHA-256
    `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`,
    and install Phenix through one scheduled 4-CPU/32-GB job. Keep the stable
-   prefix `phenix_v2.1-6048`; do not create `phenix-current`.
+   prefix `software/phenix_v2.1-6048` below the fixed `/ptmp` project root; do
+   not create `phenix-current`. Phenix 2.1-6048 creates more files than Viper's
+   default `/u` file quota allows. Keep its small manifest and logs under `/u`.
+   Because `/ptmp` is unbacked and files may age out after 12 weeks, retain the
+   licensed installer and checksums and refresh access or reinstall when needed.
 7. Qualify all command probes and real `CD6QS2P2G1_5` MTZ execution. Preserve
    installer checksum, command versions, logs, and the installation manifest.
 

@@ -2560,3 +2560,58 @@ both GitHub Actions jobs, then schedule the checksum-pinned installation to
 `phenix_v2.1-6048` with 4 CPUs and 32 GB using `/ptmp` temporary storage. After
 manifest and real-MTZ qualification, run `m4-import-stage`, submit the 11-seed
 sequential M4 profile, and create its successor heartbeat.
+
+## 2026-08-14T00:40:00Z - Viper `/u` file quota blocks Phenix runtime
+
+### Discoveries
+
+- Phenix job `10910201` failed after 49 seconds with exit code 1 while extracting
+  the main Phenix conda package. The controller had already verified the full
+  3,610,320,749-byte installer and its expected SHA-256. Slurm measured only
+  about 0.32 GB MaxRSS, so CPU and memory were not limiting.
+- The official GPFS quota command reports only about 58 GB used against the
+  1-TB `/u` byte quota, but exactly 262,144 files against its 262,144-file hard
+  limit. The preserved partial Phenix tree occupied 9.7 GB and 148,413 entries;
+  existing Miniforge and cache trees account for about 78,760 and 23,101 entries.
+  The generic `quota` command misleadingly reported no quota.
+- Viper's official storage policy applies no quota to `/ptmp`, but `/ptmp` is
+  unbacked and files not accessed for more than 12 weeks may be removed. A Phenix
+  runtime there is suitable for the prototype only with installer/checksum
+  retention and explicit ageing/reinstallation guidance.
+
+### Accomplishments
+
+- Preserved bounded controller and official-installer logs, exact checksums,
+  Slurm accounting, tree size, and file-count evidence for failed job
+  `10910201`. The exact failed partial tree was then removed from `/u` to release
+  its exhausted file quota; that tree is not recoverable, while all diagnostic
+  evidence and the licensed installer remain.
+- Updated the active Viper layout to place the Phenix runtime below the fixed
+  `/ptmp` project root while retaining its small manifest and logs under `/u`.
+  No mutable current link is introduced.
+
+### Immutable evidence
+
+- Failed job `10910201`: state `FAILED`, exit `1:0`, elapsed 49 seconds,
+  allocated CPUs 8 due to the queue allocation granularity, batch MaxRSS
+  308,952 KB. Submitted script SHA-256:
+  `52076dd46daa018132acda20277ddaf4cc68fadc87fcd093244d3820683252d6`.
+- Installer SHA-256 remained
+  `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`.
+  The failure is classified operationally as filesystem quota exhaustion, not
+  installer corruption.
+
+### Unresolved work
+
+- Publish and CI-validate the `/ptmp` runtime location update, then submit one
+  corrected scheduled installation. Verify quota recovery before submission.
+- After successful command and real-MTZ qualification, execute the fixed M4
+  import/submit path. Database job `10910110` remains independently monitored.
+
+### Next exact starting point
+
+Read this entry. Run locked checks, commit and push the Viper Phenix storage
+correction, and require both CI jobs. Verify `/u` file quota is below its hard
+limit. Submit one checksum-pinned installation to
+`/ptmp/USERNAME/nf-genome_to_diffraction/software/phenix_v2.1-6048`, retaining
+manifest/logs under `/u`; then qualify commands and real CD6 MTZ before M4.
