@@ -1346,6 +1346,7 @@ m4_copy_stage_run() {
     stage_run_common \
         "$run_id" "$commit" "$lock_sha256" "$owner_id" "$iteration" m4-copy
     run="$(run_directory "$run_id")"
+    atomic_text "$run/state/phase" m4_input_staging
     atomic_text "$run/state/parent-run-id" "$parent_run_id"
     atomic_text "$run/state/parent-owner-id" "$parent_owner_id"
     atomic_text "$run/state/m4-decisions-sha256" "$decisions_sha256"
@@ -1399,6 +1400,7 @@ m4_copy_stage_run() {
         fail test_failure "M4 stage did not retain exactly 11 approved seeds"
     atomic_text "$run/state/m4-stage-manifest-sha256" \
         "$(sha256sum "$staged_manifest" | awk '{print $1}')"
+    atomic_text "$run/state/phase" staged
     append_event "$run" m4_copy_inputs_ready
     emit operation m4-copy-stage
     emit run_id "$run_id"

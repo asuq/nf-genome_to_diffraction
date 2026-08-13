@@ -111,3 +111,20 @@ def test_m4_copy_uses_explicit_checksum_gated_stage() -> None:
     assert submitted.profile == "m4-copy"
     with pytest.raises(SystemExit):
         parser.parse_args(["stage", "m4-copy", "--revision", "HEAD"])
+
+
+def test_m4_copy_remote_stage_exposes_staged_only_after_inputs_are_bound() -> None:
+    dispatcher = (
+        Path(__file__).resolve().parents[2] / "bootstrap/nf-gtd-hpc-remote"
+    ).read_text(encoding="utf-8")
+    function = dispatcher.split("m4_copy_stage_run() {", 1)[1].split(
+        "\ndatabase_stage_run() {", 1
+    )[0]
+
+    input_staging = function.index('atomic_text "$run/state/phase" m4_input_staging')
+    manifest_checksum = function.index(
+        'atomic_text "$run/state/m4-stage-manifest-sha256"'
+    )
+    final_staged = function.index('atomic_text "$run/state/phase" staged')
+
+    assert input_staging < manifest_checksum < final_staged
