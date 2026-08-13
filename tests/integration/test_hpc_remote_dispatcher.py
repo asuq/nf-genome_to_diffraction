@@ -984,7 +984,6 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     )
     assert _decode_protocol(routine_stage.stdout)["failure_class"] == "wrapper_failure"
     assert not (remote_root / "runs" / DATABASE_RUN_ID).exists()
-
     staged = _run(
         [
             str(dispatcher),
@@ -1123,6 +1122,33 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     assert "artifacts/database/source_bundle.json" in names
     assert "artifacts/database/preflight.json" in names
     assert "artifacts/database/database_manifest.full-verified.json" in names
+
+
+def test_database_readiness_accepts_canonical_site_mount_alias(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    canonical_mount = tmp_path / "canonical-ptmp"
+    canonical_mount.mkdir()
+    mount_alias = tmp_path / "ptmp"
+    mount_alias.symlink_to(canonical_mount, target_is_directory=True)
+    database_config = _write_database_paths(
+        remote_root,
+        allowed_root=mount_alias / "ashima" / "nf-genome_to_diffraction",
+    )
+
+    ready = _run(
+        [str(dispatcher), "database-readiness"],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    fields = _decode_protocol(ready.stdout)
+    assert fields["ready"] == "true", fields
+    assert fields["database_config_status"] == "ready"
+    assert (
+        fields["database_config_sha256"]
+        == hashlib.sha256(database_config.read_bytes()).hexdigest()
+    )
 
 
 def test_database_stage_fails_when_login_environment_install_fails(

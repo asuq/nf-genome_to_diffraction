@@ -2369,3 +2369,77 @@ bootstrap read-only Git and Phenix, then run `m4-import-stage` from the frozen
 11-candidate parent. Submit M4 with the 64-CPU/192-GB ceiling and create a
 30-minute Viper monitor. Start database downloads through `database-stage` on
 the login node without waiting for M4, then submit the fixed compute build.
+
+## 2026-08-13T21:25:00Z - Viper bootstrap found canonical `/ptmp` alias
+
+### Discoveries
+
+- GitHub Actions run `31743495911` completed successfully for cut-over commit
+  `458af18a95ee5950719883ecc03b6444795a8e63` under both Pixi 0.74.0 and
+  0.76.2.
+- On Viper, the reviewed lexical `/ptmp/USERNAME/...` path resolves to the
+  site's canonical `/viper/ptmp1/USERNAME/...` mount. The database guard's
+  former exact-string realpath check therefore rejected a valid site path even
+  though the final components were owned, non-symlinked, and contained below
+  the intended root.
+- Viper's fixed Pixi executable is present and reports 0.76.2. The stable Phenix
+  prefix is not present yet, so Phenix installation and real-MTZ qualification
+  remain a separate prerequisite for imported M4 execution.
+
+### Accomplishments
+
+- Preserved the Marmic controller configuration separately, installed the
+  green immutable local controller, and activated a site-ID-isolated Viper
+  configuration. Client wait bounds remain schema-valid; they do not shorten
+  Viper's 24-hour Slurm job limit or introduce an adapter runtime timeout.
+- Created the fixed Viper `/ptmp` run/cache/database layout and tool directory.
+  Registered a Viper-only read-only GitHub deploy key without exposing its
+  private half, installed GitHub's official Ed25519 host key, verified
+  fingerprint `SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`, and
+  cloned the private bare mirror through the dedicated alias.
+- Installed the reviewed dispatcher, Slurm job script, and recovery tool, then
+  independently verified their SHA-256 values. Installed mode-0600 site, Pixi,
+  and database policies outside Git. Database downloads remain login-local and
+  no `datatransfer` job has been introduced.
+- Updated database readiness to validate the reviewed lexical mount alias and
+  its canonical target independently. It still rejects symlinked final
+  components, non-owned targets, paths outside either boundary, unsafe roots,
+  and configuration drift. Added a regression test that models Viper's
+  canonical mount alias.
+
+### Immutable evidence
+
+- Green bootstrap source commit:
+  `458af18a95ee5950719883ecc03b6444795a8e63`; GitHub Actions run:
+  `31743495911`.
+- Bootstrap tool SHA-256 values: dispatcher
+  `9077e5e7416c07682a145d7e218627249ca75d935693816106428ac62b55063c`,
+  job script
+  `0cf395e1111b1c87935618d9c2b6e54a5af689b222c3591cfe5d5ee5a8d0fe8e`,
+  recovery tool
+  `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`,
+  and local controller
+  `235c5770beb4d9f8a19b80e3d47efcce6fab1e82b66379a3845a86150645353d`.
+- The compatibility increment passed the complete locked gate: 332 unit, 56
+  contract, and 46 integration tests plus formatting, Ruff, strict mypy,
+  schemas, public controls, documentation links, actionlint, Nextflow
+  syntax/stubs, and wrapper syntax.
+
+### Unresolved work
+
+- Commit and publish the canonical-mount compatibility fix, require both Pixi
+  CI jobs to pass, then checksum-deploy the updated dispatcher.
+- Re-run Viper database readiness. Do not begin the large login-node downloads
+  unless the fixed boundary reports ready.
+- Install and qualify Phenix 2.1-6048 on Viper. Then stage the frozen
+  11-candidate M4 import, submit the sequential run, and create its 30-minute
+  monitor. The database track remains concurrent and must not delay M4.
+
+### Next exact starting point
+
+Read this entry. Publish the two-file canonical-mount fix and monitor GitHub
+Actions. After green CI, deploy the exact updated tools through the reviewed
+controller, verify database readiness, and start the fixed login-local database
+stage. In parallel, transfer and scheduled-install the checksum-pinned Phenix
+installer; after real-MTZ qualification, execute `m4-import-stage`, submit M4,
+and create a successor Viper monitor.

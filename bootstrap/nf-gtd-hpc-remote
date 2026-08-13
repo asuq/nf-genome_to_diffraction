@@ -534,7 +534,7 @@ p0_inputs_stage() {
 
 database_config_readiness() {
     local manifest_mode="${1:-output}"
-    local allowed candidate resolved manifest_parent
+    local allowed allowed_configured candidate resolved manifest_parent
     local -a values=()
     DATABASE_CONFIG_STATUS=unknown
     DATABASE_CONFIG_SHA256=""
@@ -575,29 +575,32 @@ database_config_readiness() {
             return 1
         fi
     done
-    if ! allowed="$(realpath -e "${values[0]}" 2>"$DISCARD")" || \
-        [[ "$allowed" != "${values[0]}" || ! -d "$allowed" || -L "${values[0]}" || \
+    allowed_configured="${values[0]}"
+    if ! allowed="$(realpath -e "$allowed_configured" 2>"$DISCARD")" || \
+        [[ ! -d "$allowed" || -L "$allowed_configured" || \
            "$allowed" == / || "$allowed" == "${HOME:-}" ]]; then
         DATABASE_CONFIG_STATUS=allowed_root_invalid
         return 1
     fi
     if ! resolved="$(realpath -e "${values[1]}" 2>"$DISCARD")" || \
-        [[ "$resolved" != "${values[1]}" || ! -d "$resolved" || -L "${values[1]}" || \
+        [[ ! -d "$resolved" || -L "${values[1]}" || \
            ! -O "${values[1]}" ]] || \
+        ! path_within_root "$allowed_configured" "${values[1]}" || \
         ! path_within_root "$allowed" "$resolved"; then
         DATABASE_CONFIG_STATUS=database_root_invalid
         return 1
     fi
     if [[ "$manifest_mode" == output ]]; then
         if [[ -e "${values[2]}" || -L "${values[2]}" ]] || \
-            ! path_within_root "$allowed" "${values[2]}"; then
+            ! path_within_root "$allowed_configured" "${values[2]}"; then
             DATABASE_CONFIG_STATUS=manifest_output_invalid
             return 1
         fi
     elif [[ "$manifest_mode" == runtime ]]; then
         if ! resolved="$(realpath -e "${values[2]}" 2>"$DISCARD")" || \
-            [[ "$resolved" != "${values[2]}" || ! -f "$resolved" || \
+            [[ ! -f "$resolved" || \
                -L "${values[2]}" || ! -O "${values[2]}" ]] || \
+            ! path_within_root "$allowed_configured" "${values[2]}" || \
             ! path_within_root "$allowed" "$resolved"; then
             DATABASE_CONFIG_STATUS=manifest_input_invalid
             return 1
@@ -608,7 +611,7 @@ database_config_readiness() {
     fi
     manifest_parent="$(dirname "${values[2]}")"
     if ! resolved="$(realpath -e "$manifest_parent" 2>"$DISCARD")" || \
-        [[ "$resolved" != "$manifest_parent" || ! -d "$resolved" || \
+        [[ ! -d "$resolved" || \
            -L "$manifest_parent" || ! -O "$manifest_parent" ]]; then
         DATABASE_CONFIG_STATUS=manifest_parent_invalid
         return 1
@@ -619,7 +622,7 @@ database_config_readiness() {
         DATABASE_CONFIG_STATUS=capacity_out_of_bounds
         return 1
     fi
-    DATABASE_ALLOWED_ROOT="$allowed"
+    DATABASE_ALLOWED_ROOT="$allowed_configured"
     DATABASE_ROOT="${values[1]}"
     DATABASE_MANIFEST="${values[2]}"
     STORAGE_LIMIT_BYTES="${values[3]}"
