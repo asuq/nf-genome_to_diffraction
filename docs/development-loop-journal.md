@@ -1521,3 +1521,74 @@ change with regression tests using these frozen scores, then replay only the
 fixed summary/classification path if possible; do not rerun the expensive
 Phaser controls unless the immutable results cannot be safely reclassified.
 Do not clean either retained run, rerun P2-diverse, or start M4.
+
+## 2026-08-13 — Retain-all Coot review policy implemented locally
+
+### Discoveries
+
+- The user clarified the intended M3 boundary: the workflow may rank multiple
+  Phaser solutions, but it must not discard a parsed candidate before human
+  Coot inspection. The `LLG > 50` or `TFZ > 5` rule is therefore a
+  higher-priority annotation, not an acceptance or transfer gate.
+- The current-policy immutable CD6 run contains 25 tested hypotheses and 11
+  parsed one-copy PDB/MTZ solutions. Six pass the numeric screen; five do not.
+  All 11 already have complete PDB, MTZ, command, normalised-result, and log
+  asset inventories bound by SHA-256 in the retained version-2 review manifest.
+  The old collector exposed only the six `automatic_eligibility=true` items,
+  so a Phaser rerun is unnecessary.
+- The unrelated 1UBQ control also produced a parsed packed one-copy solution
+  (LLG 30.089, TFZ 6.8). That does not justify deleting it. Its role is to show
+  that exact 8OOW (LLG 1622.755, TFZ 49.7) overwhelmingly outranks an unrelated
+  model while both raw outcomes remain inspectable.
+
+### Accomplishments and immutable evidence
+
+- Review adapter version 3 replaces `automatic_eligibility` with
+  `inspectable_solution`. Every tested hypothesis remains in TSV/HTML, and
+  every parsed PDB/MTZ solution carries its command, log, result, coordinate,
+  and coefficients into the Coot package regardless of numeric tier. The
+  existing full-artifact cap now applies only to ancillary Phaser `.sol` and
+  rotation files.
+- The first-copy normaliser now uses `completed_hit` for any internally
+  consistent parsed coordinate/MTZ solution and `completed_no_hit` only when
+  Phaser reports no solution. LLG/TFZ, packing, copy agreement, and review
+  advisories remain separate fields. Explicit human approval remains mandatory.
+- The checksum-gated `review-collect` path accepts both version-3 packages and
+  immutable version-2 packages. For version 2 it derives the inspectable set
+  only from complete five-role asset inventories, revalidates every checksum on
+  both sides, and publishes to a new `review-assets-all/` directory. It does
+  not rewrite the old manifest or trust caller-provided candidate IDs.
+- The collected handoff also includes the manifest-bound review TSV, HTML
+  report, approval-candidate TSV, and approval template. Older items with a
+  checksum-bound PDB and MTZ remain directly approvable without an artificial
+  override merely because their original numeric screen was negative.
+- The control profile now requires both parsed controls to remain retained and
+  the exact positive to exceed the unrelated model on both raw LLG and TFZ. It
+  no longer demands that a weak unrelated solution disappear.
+- Focused unit tests pass (67), including below-screen Coot assets, human
+  approval, and version-2 migration without score filtering. The complete fake
+  Git/Slurm/Nextflow lifecycle passes (45 integration tests). Full
+  `pixi run --locked check` passes: Ruff format/lint, strict mypy, 306 unit, 55
+  contract, and 45 integration tests, schemas, public panel, docs, actionlint,
+  Nextflow syntax/stub/resume, and Bash syntax. The rebuilt ignored wrapper has
+  SHA-256 `129ba40b63ec674804f979799038fbadc995717ad7c8011d85ac707db2a43df3`.
+
+### Unresolved work
+
+- Inspect the final tracked diff, commit, push, and require a green GitHub
+  Actions run before installing/deploying the updated wrapper and dispatcher.
+- After tool deployment, run `review-collect` once against retained immutable
+  run `gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a`. It should
+  produce 11 checksum-verified Coot bundles without rerunning Phaser.
+- The reviewer must inspect all 11 solutions in Coot and record explicit
+  decisions. M4 remains blocked until at least one current package decision is
+  validated; no score threshold supplies that decision.
+
+### Next exact starting point
+
+Run `git diff --check`, inspect the complete staged scope, and commit the
+retain-all M3 policy as one coherent milestone. Push it, monitor GitHub Actions,
+then build/install/deploy the exact committed wrapper and dispatcher. Finally
+collect all 11 assets from the retained version-2 run through the approved
+wrapper and prepare the Coot review handoff. Do not rerun P2-diverse or Phaser,
+clean retained runs, retune numeric thresholds, or begin M4.

@@ -64,15 +64,16 @@ overstated:
 | Epic 5, MTZ preflight | Gemmi and real Xtriage qualification passed for all three pilot MTZ datasets, including `CD6QS2P2G1_5` | Extend only when new MTZ edge cases are observed |
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
-| Epic 10 | The first-copy Phaser adapter, strict provisional gate, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel completed with six marginal TFZ-only review candidates | Execute and collect the new control profile on Marmic, complete human map/packing review, and validate an explicit decision without promoting marginal candidates automatically |
+| Epic 10 | The first-copy Phaser adapter, provisional ranking screen, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel produced 11 parsed solutions, six in the higher-priority numeric tier | Publish a version-3 retain-all review package, collect all 11 inspectable solutions, complete human map/packing review, and validate an explicit decision |
 | Epics 11–13 | Contracts/reserved package areas exist | Same-component copies, refinement, map/sequence assessment, final ranking, and reporting are not implemented |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
 The accepted main workflow still terminates at
 `task05_preflight_complete_downstream_deferred`. Separate fixed P1, P2, and
 P2-diverse routes now qualify the bounded discovery and first-copy machinery on
-Marmic. The real 25-model CD6 panel produced six automatically eligible but
-marginal TFZ-only review candidates; it has not identified the protein in
+Marmic. The real 25-model CD6 panel produced 11 parsed solutions, including six
+marginal TFZ-only higher-priority candidates; it has not identified the protein
+in
 `CD6QS2P2G1_5` and authorises no additional-copy search. See the
 [initial Marmic report](prototype-test-report-2026-08-02.md) for the exact
 baseline evidence and the [M3 first-copy report](m3-first-copy-phaser.md) for
@@ -317,10 +318,12 @@ zero accepted solutions and no output files. The adapter incorrectly required
 another zero-count phrase and classified the valid terminal no-solution wording
 as `failed_parse`. The focused parser correction's immutable replay now
 completes as `completed_no_hit` and caches both P2 processes on resume. The
-fixed route is qualified; the hard-capped multi-source route has completed on
-real candidates, while the newly implemented exact-positive/unrelated-negative
-profile still requires its immutable Marmic execution. Human review, approval
-validation, and full P2 acceptance remain open. See the
+fixed route is qualified; the hard-capped multi-source route and the
+exact-positive/unrelated control both completed on Marmic. The latter showed
+why the numeric screen must rank rather than filter: the unrelated model also
+produced a weak parsed solution, while the exact positive overwhelmingly
+outranked it. Version-3 retain-all publication and human review remain open. See
+the
 [M3 first-copy report](m3-first-copy-phaser.md).
 
 ### Work packages
@@ -331,10 +334,11 @@ validation, and full P2 acceptance remain open. See the
 2. **T10.2 — Parser.** Normalise LLG/LLGI, TFZ, packing, placed copies, output
    models/MTZ, and warnings. Distinguish hit, no-hit, malformed output, execution
    failure, and infrastructure failure.
-3. **T10.3 — Preliminary credibility classes.** Use an inspectable rule set that
+3. **T10.3 — Preliminary review classes.** Use an inspectable rule set that
    preserves raw metrics. For the initial prototype, a top Phaser solution
-   passes the user-defined score gate when `LLG > 50` or `TFZ > 5`; both are
-   strict inequalities. Here and in the implementation, the user's
+   enters the higher-priority screen when `LLG > 50` or `TFZ > 5`; both are
+   strict inequalities. The screen ranks and annotates but never removes a
+   parsed solution or grants approval. Here and in the implementation, the user's
    term "TTZ" is interpreted as Phaser's standard `TFZ` output. Treat this gate
    as provisional, do not optimise it against one crystal, and do not present it
    as a universal Phaser-success criterion.
@@ -353,9 +357,9 @@ validation, and full P2 acceptance remain open. See the
 - smoke mode runs no more than 25 first-copy hypotheses per crystal;
 - the positive control's correct-family model is not lost through software
   failure;
-- a solution cannot receive the preliminary score-gate pass unless its top
+- a solution cannot receive the higher-priority screen annotation unless its top
   `LLG > 50` or top `TFZ > 5`, with both raw values retained;
-- passing the score gate does not override packing/clash warnings, an incorrect
+- passing the numeric screen does not override packing/clash warnings, an incorrect
   placed-copy count, map inspection, or downstream refinement evidence;
 - no-hit jobs complete without terminating unrelated hypotheses;
 - all retained assets and review rows point to immutable hypotheses; and
@@ -505,7 +509,7 @@ These are explicit gates, not assumptions made by this roadmap.
 | Three feasibility datasets and positive control | During M0 | Retain `CD6QS2P2G1_5` and add two documented cases including one clear `nA` positive | MTZ/catalogue/ground truth/copy number/quality and redistribution constraints |
 | Phenix release/build | During M0 | Use the available stable licensed build only after exact checksum and command verification | Installer provenance, platform compatibility, real command smoke tests |
 | ESM Atlas sequence-search contract | Before T7.3 | Feature-flagged experimental provider; disabled by default | Official machine interface, terms/licence, rate limits, response fixtures |
-| Preliminary MR credibility classes | During M3 | Apply the user-defined prototype gate `top LLG > 50` or `top TFZ > 5` as strict inequalities, while retaining warnings and treating the sensitive disjunction as provisional rather than universal | Known positive/no-hit fixtures, packing/placed-copy checks, maps/refinement evidence, and all raw Phaser metrics |
+| Preliminary MR review classes | During M3 | Use `top LLG > 50` or `top TFZ > 5` as strict higher-priority annotations, retain every parsed solution, and require explicit human approval | Known positive/unrelated controls, packing/placed-copy checks, Coot/maps/refinement evidence, and all raw Phaser metrics |
 | Final caps and heuristic defaults | During M5 | Keep current smoke/pilot hard limits until measured | Three-case resource/effect measurements, then independent benchmark |
 | Research-release performance criteria | Before M6 benchmark execution | Pre-register inclusion, exact-false-assignment, abstention, and resource outcomes | User/scientific review of intended use and tolerable failure modes |
 
@@ -619,22 +623,24 @@ M0–M2 and the real bounded P2-diverse execution path have passed. The active
 goal is now **close the M3 scientific control and human-review gate**, with the
 shortest path toward same-component placement:
 
-1. run the implemented `p2-control` profile so the checksum-frozen public
-   positive passes through the same scheduled first-copy adapter and its exact
-   model is retained and classified as a hit;
-2. confirm that the paired independently anchored 1UBQ model against the same
-   diffraction data is a parsed scientific no-hit under the current gate;
-3. compare the controls with the six CD6 candidates without tuning the
-   provisional `LLG > 50` or `TFZ > 5` gate from this one pilot crystal;
-4. inspect the collected candidate coordinates, coefficients, packing, and raw
-   Phaser warnings, recording an explicit approve/reject decision rather than
-   treating automatic eligibility as validation; and
-5. validate any approval against the immutable version-2 review package before
-   implementing or starting M4 additional-copy placement.
+1. retain the completed `p2-control` evidence showing that the checksum-frozen
+   exact positive overwhelmingly outranks the unrelated model through the same
+   scheduled adapter;
+2. confirm that the paired independently anchored 1UBQ result remains retained
+   but ranks below the exact positive on the same diffraction data;
+3. compare the controls with all 11 CD6 parsed solutions without tuning the
+   provisional `LLG > 50` or `TFZ > 5` screen from this one pilot crystal;
+4. inspect every retained candidate coordinate, coefficient set, packing result,
+   and raw Phaser warnings, recording an explicit approve/reject decision; and
+5. validate any approval against the immutable version-3 retain-all review
+   package before implementing or starting M4 additional-copy placement.
 
-The six eligible PDB/MTZ/log bundles are now locally available through the
-fixed checksum-gated collection operation. The uncapped Foldseek run, optional
-ESM Atlas decision, and provider-aware union remain tracked qualification work,
+Six higher-priority PDB/MTZ/log bundles from the immutable version-2 package are
+locally available; five additional parsed solutions were preserved remotely but
+were excluded from that old transfer by the numeric screen. Version 3 removes
+that transfer filter so every parsed solution is available for Coot. The
+uncapped Foldseek run, optional ESM Atlas decision, and provider-aware union
+remain tracked qualification work,
 not blockers for these controls. Additional synthetic polish and a repeated
 CD6 screen must not delay the control execution. A PDB model is evidence for a
 supplied catalogue candidate, never a reportable external identity.

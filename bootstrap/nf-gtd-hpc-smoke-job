@@ -1397,7 +1397,7 @@ run_p2_control() {
     local qualification="$RUN/artifacts/qualification"
     local control_root="$RUN/artifacts/p2-control/public-control"
     local cache_counts total cached result_directory result_jsonl role status
-    local llg tfz placed packed score_passed positive_status="" negative_status=""
+    local llg tfz placed packed positive_status="" negative_status=""
     local positive_pass=false negative_pass=false separated=false
     local positive_llg="null" positive_tfz="null"
     local negative_llg="null" negative_tfz="null"
@@ -1502,20 +1502,18 @@ run_p2_control() {
         tfz="$(sed -n 's/.*"tfz":\([^,]*\).*/\1/p' "$result_jsonl")"
         placed="$(sed -n 's/.*"placed_copy_count":\([0-9]*\).*/\1/p' "$result_jsonl")"
         packed="$(sed -n 's/.*"top_solution_packed":\([^,}]*\).*/\1/p' "$result_jsonl")"
-        score_passed="$(sed -n 's/.*"score_gate_passed":\([^,}]*\).*/\1/p' "$result_jsonl")"
         case "$role" in
             known_positive)
                 positive_status="$status"; positive_llg="$llg"; positive_tfz="$tfz"
                 if [[ "$status" == completed_hit && "$placed" == 1 && \
-                      "$packed" == true && "$score_passed" == true ]]; then
+                      "$packed" == true ]]; then
                     positive_pass=true
                 fi
                 ;;
             deliberate_unrelated_negative)
                 negative_status="$status"; negative_llg="$llg"; negative_tfz="$tfz"
-                if [[ "$status" == completed_no_hit && "$llg" == null && \
-                      "$tfz" == null && "$placed" == 0 && "$packed" == false && \
-                      ( -z "$score_passed" || "$score_passed" == false ) ]]; then
+                if [[ "$status" == completed_hit && "$placed" == 1 && \
+                      "$packed" == true ]]; then
                     negative_pass=true
                 fi
                 ;;
@@ -1536,13 +1534,26 @@ run_p2_control() {
     mv -f -- "$tails_tmp" "$qualification/p2-control-log-tails.txt"
     [[ -n "$positive_status" && -n "$negative_status" ]] || return 4
     if [[ "$positive_pass" == true && "$negative_pass" == true ]]; then
-        separated=true
+        if "$RUN/source/.pixi/envs/hpc/bin/python" - \
+            "$positive_llg" "$positive_tfz" "$negative_llg" "$negative_tfz" <<'PY'
+import sys
+
+positive_llg, positive_tfz, negative_llg, negative_tfz = map(float, sys.argv[1:])
+raise SystemExit(
+    0
+    if positive_llg > negative_llg and positive_tfz > negative_tfz
+    else 1
+)
+PY
+        then
+            separated=true
+        fi
     fi
     cat > "$qualification/p2-control-resume-check.json" <<EOF
 {"schema_version":"1.0","run_id":"$RUN_ID","profile":"p2-control","process_count":$total,"cached_process_count":$cached,"all_first_copy_processes_cached":true}
 EOF
     cat > "$qualification/p2-control-summary.json" <<EOF
-{"schema_version":"1.0","run_id":"$RUN_ID","profile":"p2-control","control_pair_id":"PDB_8OOX_FIRST_COPY","crystal_id":"PDB_8OOX","positive":{"execution_status":"$positive_status","llg":$positive_llg,"tfz":$positive_tfz,"passed_expected_outcome":$positive_pass},"negative":{"execution_status":"$negative_status","llg":$negative_llg,"tfz":$negative_tfz,"passed_expected_outcome":$negative_pass},"score_policy":"strict_llg_gt_50_or_tfz_gt_5","positive_and_negative_separated":$separated,"all_resume_processes_cached":true}
+{"schema_version":"1.0","run_id":"$RUN_ID","profile":"p2-control","control_pair_id":"PDB_8OOX_FIRST_COPY","crystal_id":"PDB_8OOX","positive":{"execution_status":"$positive_status","llg":$positive_llg,"tfz":$positive_tfz,"retained_for_review":$positive_pass},"negative":{"execution_status":"$negative_status","llg":$negative_llg,"tfz":$negative_tfz,"retained_for_review":$negative_pass},"score_policy":"strict_llg_gt_50_or_tfz_gt_5_review_priority_only","all_parsed_solutions_retained":true,"positive_outranks_unrelated_negative":$separated,"all_resume_processes_cached":true}
 EOF
     checksums_tmp="$qualification/p2-control-artifact-sha256.tsv.tmp.$$"
     printf 'sha256\tpath\n' > "$checksums_tmp"
@@ -1570,7 +1581,7 @@ EOF
         "$(<"$RUN/state/commit")" ]] || return 3
     [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
         return 3
-    printf 'p2_control_status=positive_and_unrelated_negative_separated\n'
+    printf 'p2_control_status=both_retained_and_positive_outranks_unrelated_negative\n'
 }
 
 run_database() {

@@ -252,18 +252,26 @@ accepting a caller-supplied path or candidate ID:
 nf-gtd-hpc-test review-collect --run-id RUN_ID
 ```
 
-The local wrapper reads the collected version-2 review manifest, verifies its
+The local wrapper reads the collected version-3 review manifest, verifies its
 checksum and the current strict `LLG > 50` **or** `TFZ > 5` policy, and sends
 only the run ID, owner token, and manifest checksum to the dispatcher. The
 dispatcher independently revalidates the terminal job result, manifest,
-summary, automatic eligibility, final packing, and requested placed-copy count.
-For each manifest-eligible solution it returns exactly the normalised result,
-resolved command, Phaser log, PDB, and MTZ named by their recorded SHA-256
-digests. The manifest, run summary, and outer job result accompany those files.
-No other remote files are admitted. Limits are 25 eligible candidates, 128 MiB
+summary, and the complete manifest-derived set of Coot-inspectable solutions.
+For each parsed solution with coordinate and MTZ assets it returns exactly the
+normalised result, resolved command, Phaser log, PDB, and MTZ named by their
+recorded SHA-256 digests. The checksum-bound candidate TSV, HTML report,
+approval-candidate TSV, approval template, manifest, run summary, and outer job
+result accompany those files, making the verified directory a self-contained
+Coot review handoff.
+The numeric screen affects ordering and annotation, not transfer eligibility.
+No other remote files are admitted. Limits are 25 inspectable solutions, 128 MiB
 per file, and 512 MiB total. Local extraction rejects links, unexpected paths,
 duplicates, checksum mismatches, and partial publication, and writes the verified
-bundle atomically below `.untracked/hpc-test/RUN_ID/review-assets/`.
+bundle atomically below `.untracked/hpc-test/RUN_ID/review-assets-all/`.
+For retained version-2 packages, the wrapper derives the inspectable set only
+from complete checksum-bound PDB/MTZ/log/command/result asset inventories. This
+migration exposes below-screen solutions without editing the immutable package
+or rerunning Phaser.
 
 This is an evidence-transfer operation, not an approval operation. Marginal
 TFZ-only candidates remain review candidates. Their raw scores, packing,
@@ -284,8 +292,8 @@ nf-gtd-hpc-test collect --run-id RUN_ID
 
 P2 accepts no new path, crystal identifier, model, score threshold, or Phaser
 argument. It is fixed to the checksum-frozen CD6 MTZ in the approved P0 bundle,
-the exact predicted model produced by P1, and the tracked strict provisional
-gate:
+the exact predicted model produced by P1, and the tracked provisional ranking
+screen:
 
 ```bash
 nf-gtd-hpc-test readiness p2
@@ -696,9 +704,9 @@ jobs even though the underlying pilot configuration permits more. It must
 retain at least one exact predicted and one mapped experimental hypothesis,
 must publish no more than 25 hypotheses, and must produce one validated
 Phaser result for each. Only `completed_hit` and `completed_no_hit` are accepted
-as scientific completions; the strict provisional hit gate is `LLG > 50` or
-`TFZ > 5`. Final packing and the requested placed-copy count remain independent
-requirements.
+as scientific completions. `LLG > 50` or `TFZ > 5` is a strict provisional
+review-priority screen; it does not discard a parsed solution. Final packing
+and the requested placed-copy count remain independent evidence fields.
 
 Full model/result directories and native Phaser logs remain in the retained
 remote run. Collection is bounded to login-stage manifests/mappings, model and
@@ -718,13 +726,13 @@ nf-gtd-hpc-test collect --run-id RUN_ID
 The fake Git/Slurm/Nextflow lifecycle covers login-node registration failure,
 offline checksum hand-off, the 25-job command cap, predicted/experimental
 retention, result cardinality, scientific status validation, both cached
-resumes, and bounded collection. This software route has not yet run against
-the real Marmic direct-PDB candidates; do not treat local acceptance as M2/M3
-scientific qualification.
+resumes, and bounded collection. The route has completed against 25 real Marmic
+direct-PDB/predicted hypotheses; its 11 parsed solutions still require human
+Coot review and are not biological identifications.
 
 ## P2-control same-MTZ separation profile
 
-`p2-control` is the closed M3 calibration run. It accepts no caller-selected
+`p2-control` is the closed M3 ranking-control run. It accepts no caller-selected
 MTZ, model, identity value, score threshold, copy count, path, or Phaser
 argument. Login-node staging resolves the checksum-frozen Methermicoccus
 proteome from the reviewed P0 catalogue manifest, prepares the tracked public
@@ -732,10 +740,10 @@ proteome from the reviewed P0 catalogue manifest, prepares the tracked public
 The scheduled phase uses the same 8OOX MTZ for both hypotheses:
 
 1. the operational positive is exact 8OOW chain A and is expected to produce a
-   packed one-copy `completed_hit`;
+   packed one-copy parsed solution;
 2. the deliberate negative is the independently qualified 1UBQ ubiquitin chain
-   from the shared coordinate cache and is expected to produce
-   `completed_no_hit`;
+   from the shared coordinate cache and is retained when Phaser produces a
+   parsed solution;
 3. the negative's fixed 1% Phaser identity is a conservative control-only error
    model input, not measured sequence homology; typed model and hypothesis roles
    must both declare this interpretation;
@@ -744,9 +752,10 @@ The scheduled phase uses the same 8OOX MTZ for both hypotheses:
    scheduler margin; and
 5. the identical two-process run is resumed and both processes must be cached.
 
-The terminal separation requirement is strict `LLG > 50` **or** `TFZ > 5`, a
-packed positive top solution, exactly one placed positive copy, and no score-gate
-pass for the negative. The run preserves both normalised results, resolved
+The terminal ranking check requires both parsed solutions to be retained, the
+exact positive to have higher raw LLG and TFZ than the unrelated model, and the
+positive to be a packed one-copy placement. The numeric screen is recorded but
+does not exclude either control. The run preserves both normalised results, resolved
 commands, bounded Phaser log tails, preflight, model/hypothesis manifests,
 first/resume traces, input checksums, and a bounded artefact checksum inventory
 even when separation fails. A separation failure is `test_failure`, not an
@@ -761,10 +770,10 @@ nf-gtd-hpc-test logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test collect --run-id RUN_ID
 ```
 
-Passing this pair shows that the current operational positive and one unrelated
-negative separate under one first-copy screen. It does not estimate false
-positive rates, validate the current gate generally, prove a full two-copy ASU,
-or approve any marginal CD6 candidate.
+Passing this pair shows that the exact operational positive outranks one
+unrelated model while both remain reviewable. It does not estimate false-positive
+rates, validate the numeric screen generally, prove a full two-copy ASU, or
+approve any CD6 candidate.
 
 ## Database administration boundary
 

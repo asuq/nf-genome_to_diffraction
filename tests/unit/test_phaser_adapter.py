@@ -368,7 +368,7 @@ def test_adapter_rejects_unrelated_control_identity_drift(tmp_path: Path) -> Non
 
 
 @pytest.mark.parametrize(
-    ("llg", "tfz", "expected_hit"),
+    ("llg", "tfz", "expected_screen_priority"),
     (
         (50.0, 5.0, False),
         (50.0, 5.1, True),
@@ -376,12 +376,12 @@ def test_adapter_rejects_unrelated_control_identity_drift(tmp_path: Path) -> Non
         (49.9, 4.9, False),
     ),
 )
-def test_score_gate_uses_strict_or_semantics(
+def test_score_screen_ranks_without_discarding_parsed_solutions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     llg: float,
     tfz: float,
-    expected_hit: bool,
+    expected_screen_priority: bool,
 ) -> None:
     request = _inputs(tmp_path)
     _fake_runtime(
@@ -394,12 +394,16 @@ def test_score_gate_uses_strict_or_semantics(
 
     result = run_first_copy_phaser(request).result
 
-    assert result.execution_status == (
-        "completed_hit" if expected_hit else "completed_no_hit"
+    assert result.execution_status == "completed_hit"
+    assert result.packing_summary["score_gate_passed"] is expected_screen_priority
+    assert result.preliminary_credibility_class == (
+        "screen_priority"
+        if expected_screen_priority
+        else "screen_retained_below_numeric_threshold"
     )
-    assert result.packing_summary["score_gate_passed"] is expected_hit
-    assert result.rejection_reason == (
-        None if expected_hit else "strict_llg_or_tfz_gate_not_met"
+    assert result.rejection_reason is None
+    assert result.packing_summary["review_advisories"] == (
+        [] if expected_screen_priority else ["provisional_llg_or_tfz_screen_not_met"]
     )
 
 

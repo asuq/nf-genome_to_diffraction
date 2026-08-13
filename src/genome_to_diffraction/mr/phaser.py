@@ -12,10 +12,11 @@ A checksum-frozen deliberately unrelated negative control may pass a fixed 1%
 Phaser error-model identity only when both typed model and hypothesis declare
 the same control role. This value is never represented as sequence homology.
 
-Tool failure, malformed output, scientific no-hit, and a preliminary hit remain
-distinct. The user-defined provisional score gate is strict: LLG > 50 or
-TFZ > 5. Final packing and placed-copy checks are independent requirements and
-all raw metrics and advisories are preserved.
+Tool failure, malformed output, absence of a solution, and a parsed solution
+remain distinct. The user-defined provisional screen is strict: LLG > 50 or
+TFZ > 5. It annotates and ranks parsed solutions but does not discard them or
+approve them. Final packing, placed-copy checks, raw metrics, and advisories are
+preserved independently for human review.
 """
 
 import json
@@ -27,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import cast
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, JsonValue, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
@@ -594,25 +595,20 @@ def _normalised_success(
     score_gate = passes_provisional_score_gate(llg=llg, tfz=tfz)
     top_packed = parsed.packed_solution_count > 0
     placed_expected = placed_count == resolved.hypothesis.copy_number_to_search
-    credible = score_gate and top_packed and placed_expected
-    rejection_reasons: list[str] = []
+    advisories: list[str] = []
     if not score_gate:
-        rejection_reasons.append("strict_llg_or_tfz_gate_not_met")
+        advisories.append("provisional_llg_or_tfz_screen_not_met")
     if not top_packed:
-        rejection_reasons.append("final_packing_not_accepted")
+        advisories.append("final_packing_not_accepted")
     if not placed_expected:
-        rejection_reasons.append("placed_copy_count_mismatch")
+        advisories.append("placed_copy_count_mismatch")
     coordinate_sha256 = sha256_file(coordinate)
     output_mtz_sha256 = sha256_file(output_mtz)
     return NormalisedMrResult(
         schema_version="1.0",
         hypothesis_id=resolved.hypothesis.hypothesis_id,
         tool_version=tool_version,
-        execution_status=(
-            ExecutionStatus.COMPLETED_HIT
-            if credible
-            else ExecutionStatus.COMPLETED_NO_HIT
-        ),
+        execution_status=ExecutionStatus.COMPLETED_HIT,
         llg=llg,
         llgi=parsed.llgi,
         tfz=tfz,
@@ -627,6 +623,7 @@ def _normalised_success(
             "score_gate_tfz_strictly_greater_than": SCORE_GATE_TFZ,
             "score_gate_operator": SCORE_GATE_OPERATOR,
             "score_gate_passed": score_gate,
+            "review_advisories": list[JsonValue](advisories),
         },
         solution_coordinate_path=coordinate.name,
         solution_coordinate_sha256=coordinate_sha256,
@@ -635,11 +632,11 @@ def _normalised_success(
         parser_warnings=parsed.parser_warnings,
         raw_log_pointer=raw_log.name,
         preliminary_credibility_class=(
-            "passes_strict_provisional_score_gate"
+            "screen_priority"
             if score_gate
-            else "does_not_pass_strict_provisional_score_gate"
+            else "screen_retained_below_numeric_threshold"
         ),
-        rejection_reason=(";".join(rejection_reasons) or None),
+        rejection_reason=None,
     )
 
 

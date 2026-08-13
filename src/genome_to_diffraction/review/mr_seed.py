@@ -56,7 +56,7 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.mr_seed")
-_ADAPTER_VERSION = "mr-seed-review-v2"
+_ADAPTER_VERSION = "mr-seed-review-v3"
 _HYPOTHESIS_ID = re.compile(r"^mrhyp_[a-f0-9]{64}$")
 _SOLUTION_ID = re.compile(r"^sol_[a-f0-9]{64}$")
 _TSV_COLUMNS = (
@@ -87,7 +87,7 @@ _TSV_COLUMNS = (
     "score_gate_passed",
     "top_solution_packed",
     "placed_copy_count_matches",
-    "automatic_eligibility",
+    "inspectable_solution",
     "execution_status",
     "preliminary_credibility_class",
     "rejection_reason",
@@ -568,14 +568,12 @@ def _score_gate(result: NormalisedMrResult) -> bool:
     return raw_gate
 
 
-def _automatic_eligibility(candidate: _Candidate) -> bool:
+def _inspectable_solution(candidate: _Candidate) -> bool:
+    """Return whether Coot-reviewable coordinate and MTZ assets are available."""
+
     return (
         candidate.result.execution_status
         in {ExecutionStatus.COMPLETED_HIT, ExecutionStatus.COMPLETED_NO_HIT}
-        and _score_gate(candidate.result)
-        and _boolean_feature(candidate.result, "top_solution_packed")
-        and candidate.result.placed_copy_count
-        == candidate.hypothesis.copy_number_to_search
         and "solution_coordinate" in candidate.bundle.file_paths
         and "output_mtz" in candidate.bundle.file_paths
     )
@@ -591,7 +589,7 @@ def _candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
         ExecutionStatus.COMPLETED_NO_HIT: 1,
     }.get(candidate.result.execution_status, 2)
     return (
-        0 if _automatic_eligibility(candidate) else 1,
+        0 if _inspectable_solution(candidate) else 1,
         status_rank,
         0 if _score_gate(candidate.result) else 1,
         0 if _boolean_feature(candidate.result, "top_solution_packed") else 1,
@@ -660,14 +658,9 @@ def _row(
         warnings.extend(str(item) for item in model_flags)
     if rank > config.retention.max_full_artifact_finalists and any(
         role in candidate.bundle.file_paths
-        for role in (
-            "solution_coordinate",
-            "solution_file",
-            "rotation_file",
-            "output_mtz",
-        )
+        for role in ("solution_file", "rotation_file")
     ):
-        warnings.append("full_assets_not_copied_due_to_retention_cap")
+        warnings.append("ancillary_phaser_assets_not_copied_due_to_retention_cap")
     return {
         "rank": rank,
         "sequence_group_rank": group_rank,
@@ -711,7 +704,7 @@ def _row(
             candidate.result.placed_copy_count
             == candidate.hypothesis.copy_number_to_search
         ),
-        "automatic_eligibility": _automatic_eligibility(candidate),
+        "inspectable_solution": _inspectable_solution(candidate),
         "execution_status": candidate.result.execution_status.value,
         "preliminary_credibility_class": (
             candidate.result.preliminary_credibility_class or ""
@@ -744,7 +737,7 @@ def _write_approval_candidates(
         "rank",
         "sequence_group_rank",
         "shortlist",
-        "automatic_eligibility",
+        "inspectable_solution",
         "preliminary_credibility_class",
         "warnings",
         "override_reason_required_for_approval",
@@ -759,7 +752,7 @@ def _write_approval_candidates(
             {
                 **{column: row[column] for column in columns[:-1]},
                 "override_reason_required_for_approval": not cast(
-                    bool, row["automatic_eligibility"]
+                    bool, row["inspectable_solution"]
                 ),
             }
         )
@@ -790,7 +783,7 @@ def _html_report(
         "llg",
         "tfz",
         "top_solution_packed",
-        "automatic_eligibility",
+        "inspectable_solution",
         "warnings",
         "solution_coordinate",
         "output_mtz",
@@ -832,11 +825,14 @@ code{overflow-wrap:anywhere}.note{max-width:75rem}
 </head><body>
 <h1>First-copy MR seed checkpoint</h1>
 <p><strong>Package:</strong> <code>PACKAGE_ID</code></p>
-<p class="note">Rows use explicit lexicographic evidence: automatic eligibility,
-execution class, the strict provisional LLG &gt; 50 or TFZ &gt; 5 gate, packing,
-placed-copy agreement, raw LLG, raw TFZ, then immutable funnel order.
-This is not a calibrated probability. Human map and packing inspection remains
-required.</p>
+<p class="note">Every tested hypothesis is retained. Every parsed solution with
+coordinate and MTZ assets is available for Coot inspection. Rows use explicit
+lexicographic evidence: inspectable assets, execution class, the provisional
+LLG &gt; 50 or TFZ &gt; 5 screen, packing, placed-copy agreement, raw LLG, raw
+TFZ, then immutable funnel order. The numeric screen ranks and annotates; it
+does not exclude candidates or grant approval.
+This ranking is not a calibrated probability. Human map and packing inspection
+remains required.</p>
 <p>Primary sequence-group limit: PRIMARY. Extended sequence-group limit:
 EXTENDED. Full-result-asset retention limit: RETENTION.</p>
 <table><thead><tr>HEADINGS</tr></thead><tbody>ROWS</tbody></table>
@@ -883,19 +879,21 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
         candidate_assets = output / "assets" / candidate.solution_id
         copied: dict[str, str] = {}
         roles = ["normalised_result", "command"]
-        if config.retention.retain_all_logs or (
-            group_rank <= config.review.extended_shortlist_size
+        if (
+            _inspectable_solution(candidate)
+            or config.retention.retain_all_logs
+            or (group_rank <= config.review.extended_shortlist_size)
         ):
             roles.append("raw_log")
+        roles.extend(
+            role
+            for role in ("solution_coordinate", "output_mtz")
+            if role in candidate.bundle.file_paths
+        )
         if rank <= config.retention.max_full_artifact_finalists:
             roles.extend(
                 role
-                for role in (
-                    "solution_coordinate",
-                    "solution_file",
-                    "rotation_file",
-                    "output_mtz",
-                )
+                for role in ("solution_file", "rotation_file")
                 if role in candidate.bundle.file_paths
             )
         for role in roles:
@@ -918,7 +916,7 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
                 "rank": rank,
                 "sequence_group_rank": group_rank,
                 "shortlist": row["shortlist"],
-                "automatic_eligibility": row["automatic_eligibility"],
+                "inspectable_solution": row["inspectable_solution"],
                 "solution_identity": candidate.solution_identity,
                 "source_bundle": candidate.bundle.directory_name,
                 "source_bundle_sha256": dict(
@@ -971,7 +969,7 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
             "created_at": created_at,
             "checkpoint": "mr_seed",
             "ordering_policy": [
-                "automatic_eligibility",
+                "inspectable_solution",
                 "execution_status",
                 SCORE_GATE_ID,
                 "top_solution_packed",
@@ -981,6 +979,8 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
                 "immutable_funnel_order",
             ],
             "ranking_is_calibrated_probability": False,
+            "numeric_screen_excludes_candidates": False,
+            "approval_requires_explicit_human_decision": True,
             "score_gate": {
                 "policy_id": SCORE_GATE_ID,
                 "llg_strictly_greater_than": SCORE_GATE_LLG,
@@ -988,6 +988,9 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
                 "operator": SCORE_GATE_OPERATOR,
             },
             "candidate_count": len(rows),
+            "inspectable_solution_count": sum(
+                1 for row in rows if row["inspectable_solution"] is True
+            ),
             "sequence_group_count": len(group_ranks),
             "primary_shortlist_size": config.review.primary_shortlist_size,
             "extended_shortlist_size": config.review.extended_shortlist_size,
@@ -1144,14 +1147,22 @@ def validate_mr_seed_approvals(
             raise MrSeedReviewError(
                 f"decision still contains a reviewer placeholder: {decision.item_id}"
             )
-        eligible = item.get("automatic_eligibility") is True
+        inspectable_value = item.get("inspectable_solution")
+        if isinstance(inspectable_value, bool):
+            inspectable = inspectable_value
+        else:
+            copied_assets = item.get("copied_assets")
+            inspectable = isinstance(copied_assets, dict) and {
+                "solution_coordinate",
+                "output_mtz",
+            }.issubset(copied_assets)
         if (
             decision.decision == "approve"
-            and not eligible
+            and not inspectable
             and not (decision.override_reason or "").strip()
         ):
             raise MrSeedReviewError(
-                "approving an automatically ineligible seed requires an "
+                "approving a seed without Coot-inspectable assets requires an "
                 f"override reason: {decision.item_id}"
             )
         if decision.decision == "approve":

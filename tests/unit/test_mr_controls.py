@@ -158,7 +158,7 @@ def _bundle_inputs(tmp_path: Path) -> MrControlBundleRequest:
         "control_pair_id": "CONTROL_PAIR",
         "positive_control_specification": "positive.yaml",
         "positive_model_id": "positive_exact",
-        "positive_expected_outcome": "completed_hit",
+        "positive_expected_outcome": "retained_top_ranked",
         "negative_control": {
             "pdb_id": "1UBQ",
             "seqres_token": "A",
@@ -167,7 +167,7 @@ def _bundle_inputs(tmp_path: Path) -> MrControlBundleRequest:
             "source_sequence_sha256": negative_sequence_sha,
             "source_sequence_length": len(UBIQUITIN),
             "phaser_identity_percent": 1.0,
-            "expected_outcome": "completed_no_hit",
+            "expected_outcome": "retained_below_positive",
             "relationship_to_target": (
                 "deliberately unrelated ubiquitin negative control"
             ),
@@ -324,8 +324,8 @@ def test_build_control_bundle_emits_exact_positive_and_unrelated_negative(
     assert len(tuple(output.hypothesis_directory.glob("mrhyp_*.jsonl"))) == 2
     manifest = json.loads(output.manifest_json.read_text(encoding="utf-8"))
     assert manifest["expected_outcomes"] == {
-        hypotheses[0].hypothesis_id: "completed_hit",
-        hypotheses[1].hypothesis_id: "completed_no_hit",
+        hypotheses[0].hypothesis_id: "retained_top_ranked",
+        hypotheses[1].hypothesis_id: "retained_below_positive",
     }
 
 

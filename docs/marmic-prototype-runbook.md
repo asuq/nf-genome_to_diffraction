@@ -140,12 +140,12 @@ that a one-hypothesis search should normally run that long. Do not cancel on
 elapsed time alone: inspect status and logs first.
 
 A successful command sequence proves reproducible execution, not a biological
-identification. Inspect `normalised_mr_result.json`: `completed_no_hit` is a
-valid scientific outcome, while a provisional hit requires strict `LLG > 50`
-or `TFZ > 5`, final packing, and the requested placed-copy count. Equality does
-not pass either comparison. Broader review, maps, refinement, and expert
-approval remain required because the disjunctive screening rule is deliberately
-sensitive and may retain false positives.
+identification. Inspect `normalised_mr_result.json`: `completed_no_hit` means
+Phaser produced no solution, while `completed_hit` means it produced a parsed
+coordinate/MTZ solution. Strict `LLG > 50` or `TFZ > 5`, final packing, and the
+requested placed-copy count are independent ranking/evidence fields. No numeric
+screen discards a parsed solution or approves it. Inspect every retained solution
+in Coot and record an explicit expert decision before downstream placement.
 
 ## Submit the workflow
 

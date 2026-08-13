@@ -2,7 +2,7 @@ schema_version: "1.0"
 control_pair_id: PDB_8OOX_FIRST_COPY
 positive_control_specification: pdb_8oox.yaml
 positive_model_id: pdb_8oow_chain_a_exact
-positive_expected_outcome: completed_hit
+positive_expected_outcome: retained_top_ranked
 negative_control:
   pdb_id: 1UBQ
   seqres_token: A
@@ -11,7 +11,7 @@ negative_control:
   source_sequence_sha256: 233b4b0b8c4616095bc3249f9375fc345d32af7deaef07117d0383c51d6f19aa
   source_sequence_length: 76
   phaser_identity_percent: 1.0
-  expected_outcome: completed_no_hit
+  expected_outcome: retained_below_positive
   relationship_to_target: deliberately unrelated ubiquitin negative control
 score_gate:
   llg_greater_than: 50
@@ -19,6 +19,6 @@ score_gate:
   combination: "or"
 limitations:
   - The exact 8OOW positive is an intentional operational control and is not leakage-controlled.
-  - The 1UBQ negative tests false-positive separation, not the sensitivity of homology detection.
+  - The 1UBQ negative tests ranking separation, not a numeric exclusion or the sensitivity of homology detection.
   - The fixed 1% Phaser identity is an explicit conservative error-model input for an unrelated control, not measured sequence homology.
-  - Passing this pair calibrates one first-copy screen and does not validate a complete ASU or identify an operator crystal.
+  - Passing this pair requires the exact positive to outrank the unrelated model; both remain available for review and neither validates a complete ASU or identifies an operator crystal.

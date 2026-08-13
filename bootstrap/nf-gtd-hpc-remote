@@ -2046,6 +2046,12 @@ asset_basenames = {
     "raw_log": "phaser.log",
     "solution_coordinate": "solution.pdb",
 }
+output_basenames = {
+    "approval_candidates_tsv": "mr_seed_approval_candidates.tsv",
+    "approval_template_tsv": "approved_mr_seeds.tsv",
+    "review_html": "mr_seed_candidates.html",
+    "review_tsv": "mr_seed_candidates.tsv",
+}
 
 
 def sha256_file(path: Path) -> str:
@@ -2078,35 +2084,19 @@ def load_json(relative: PurePosixPath) -> tuple[Path, dict[str, object]]:
     return path, value
 
 
-def validate_eligible_result(path: Path, label: str) -> None:
+def validate_inspectable_result(path: Path, label: str) -> None:
     lines = path.read_text(encoding="utf-8").splitlines()
     if len(lines) != 1:
-        raise ValueError(f"eligible result must contain one record: {label}")
+        raise ValueError(f"inspectable result must contain one record: {label}")
     result = json.loads(lines[0])
     if not isinstance(result, dict):
-        raise ValueError(f"eligible result is not an object: {label}")
-    llg = result.get("llg")
-    tfz = result.get("tfz")
-    score_passed = (
-        isinstance(llg, (int, float)) and not isinstance(llg, bool) and llg > 50.0
-    ) or (
-        isinstance(tfz, (int, float)) and not isinstance(tfz, bool) and tfz > 5.0
-    )
-    packing = result.get("packing_summary")
+        raise ValueError(f"inspectable result is not an object: {label}")
     if not (
-        result.get("execution_status") == "completed_hit"
-        and score_passed
-        and isinstance(packing, dict)
-        and packing.get("top_solution_packed") is True
-        and packing.get("score_gate_operator") == "or"
-        and packing.get("score_gate_llg_strictly_greater_than") == 50
-        and packing.get("score_gate_tfz_strictly_greater_than") == 5
-        and packing.get("score_gate_passed") is True
-        and result.get("placed_copy_count") == 1
+        result.get("execution_status") in {"completed_hit", "completed_no_hit"}
         and isinstance(result.get("solution_coordinate_path"), str)
         and isinstance(result.get("output_mtz_path"), str)
     ):
-        raise ValueError(f"eligible result fails the fixed first-copy gate: {label}")
+        raise ValueError(f"result is not an inspectable first-copy solution: {label}")
 
 
 manifest_path, manifest = load_json(review_relative)
@@ -2134,8 +2124,9 @@ expected_gate = {
     "policy_id": "strict_llg_gt_50_or_tfz_gt_5",
     "tfz_strictly_greater_than": 5.0,
 }
+adapter_version = manifest.get("adapter_version")
 if not (
-    manifest.get("adapter_version") == "mr-seed-review-v2"
+    adapter_version in {"mr-seed-review-v2", "mr-seed-review-v3"}
     and manifest.get("score_gate") == expected_gate
     and summary.get("run_id") == run.name
     and summary.get("profile") == "p2-diverse"
@@ -2143,26 +2134,57 @@ if not (
     and summary.get("mr_seed_review_manifest_sha256") == manifest_sha256
 ):
     raise ValueError("review evidence identity or policy does not match")
+if adapter_version == "mr-seed-review-v3" and not (
+    manifest.get("numeric_screen_excludes_candidates") is False
+    and manifest.get("approval_requires_explicit_human_decision") is True
+):
+    raise ValueError("review evidence identity or policy does not match")
 items = manifest.get("items")
 if not isinstance(items, list):
     raise ValueError("review manifest items are invalid")
-eligible = [
-    item
-    for item in items
-    if isinstance(item, dict) and item.get("automatic_eligibility") is True
-]
-if not 1 <= len(eligible) <= 25:
-    raise ValueError("review package must have 1..25 eligible seeds")
-if summary.get("completed_hit_count") != len(eligible):
-    raise ValueError("eligible review count differs from the summary")
+if adapter_version == "mr-seed-review-v3":
+    inspectable = [
+        item
+        for item in items
+        if isinstance(item, dict) and item.get("inspectable_solution") is True
+    ]
+else:
+    inspectable = [
+        item
+        for item in items
+        if isinstance(item, dict)
+        and isinstance(item.get("copied_assets"), dict)
+        and set(item["copied_assets"]) == set(asset_basenames)
+    ]
+if not 1 <= len(inspectable) <= 25:
+    raise ValueError("review package must have 1..25 inspectable solutions")
+if adapter_version == "mr-seed-review-v3" and (
+    manifest.get("inspectable_solution_count") != len(inspectable)
+):
+    raise ValueError("inspectable review count differs from the manifest")
 
 expected: dict[PurePosixPath, str] = {
     review_relative: manifest_sha256,
     summary_relative: sha256_file(summary_path),
     job_relative: sha256_file(job_path),
 }
+outputs = manifest.get("outputs")
+if not isinstance(outputs, dict) or set(outputs) != set(output_basenames):
+    raise ValueError("review output inventory is incomplete")
+for key, basename in output_basenames.items():
+    record = outputs.get(key)
+    if not isinstance(record, dict):
+        raise ValueError("review output inventory is invalid")
+    digest = record.get("sha256")
+    if not (
+        record.get("path") == basename
+        and isinstance(digest, str)
+        and digest_pattern.fullmatch(digest)
+    ):
+        raise ValueError("review output identity is invalid")
+    expected[review_relative.parent / basename] = digest
 solution_ids: set[str] = set()
-for item in eligible:
+for item in inspectable:
     solution_id = item.get("solution_id")
     copied_assets = item.get("copied_assets")
     copied_sha256 = item.get("copied_asset_sha256")
@@ -2175,7 +2197,7 @@ for item in eligible:
         and set(copied_assets) == set(asset_basenames)
         and set(copied_sha256) == set(asset_basenames)
     ):
-        raise ValueError("eligible review item identity is invalid")
+        raise ValueError("inspectable review item identity is invalid")
     solution_ids.add(solution_id)
     for key, basename in asset_basenames.items():
         manifest_asset = f"assets/{solution_id}/{basename}"
@@ -2185,10 +2207,10 @@ for item in eligible:
             and isinstance(digest, str)
             and digest_pattern.fullmatch(digest)
         ):
-            raise ValueError("eligible review asset identity is invalid")
+            raise ValueError("inspectable review asset identity is invalid")
         relative = review_relative.parent / manifest_asset
         if relative in expected:
-            raise ValueError("eligible review asset path is duplicated")
+            raise ValueError("inspectable review asset path is duplicated")
         expected[relative] = digest
 
 total = 0
@@ -2204,7 +2226,7 @@ for relative, digest in expected.items():
     if sha256_file(source) != digest:
         raise ValueError(f"review asset checksum mismatch: {relative}")
     if relative.name == "normalised_mr_result.jsonl":
-        validate_eligible_result(source, relative.as_posix())
+        validate_inspectable_result(source, relative.as_posix())
     target = payload.joinpath(*relative.parts)
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, target, follow_symlinks=False)
@@ -2220,7 +2242,7 @@ PY
         fail transfer_failure "review asset validation failed: ${message:-unknown error}"
     fi
     mapfile -t files < "$inventory"
-    ((${#files[@]} >= 8)) || {
+    ((${#files[@]} >= 12)) || {
         rm -rf -- "$temporary"
         fail transfer_failure "review asset inventory is incomplete"
     }

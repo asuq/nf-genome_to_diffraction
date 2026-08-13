@@ -2403,10 +2403,10 @@ def _install_fake_p1_runtime(run: Path) -> None:
         "    else\n"
         "      hypothesis=mrhyp_"
         "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
-        '      payload=\'{"execution_status":"completed_no_hit",'
+        '      payload=\'{"execution_status":"completed_hit",'
         '"hypothesis_id":"\'$hypothesis\'",'
-        '"llg":null,"tfz":null,"placed_copy_count":0,"packing_summary":'
-        '{"top_solution_packed":false}}\'\n'
+        '"llg":30.1,"tfz":6.8,"placed_copy_count":1,"packing_summary":'
+        '{"top_solution_packed":true,"score_gate_passed":true}}\'\n'
         "    fi\n"
         '    result="$outdir/first_copy_phaser_${hypothesis}"\n'
         '    mkdir -p "$result"\n'
@@ -2859,9 +2859,10 @@ def test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile(
             encoding="utf-8"
         )
     )
-    assert summary["positive_and_negative_separated"] is True
+    assert summary["all_parsed_solutions_retained"] is True
+    assert summary["positive_outranks_unrelated_negative"] is True
     assert summary["positive"]["execution_status"] == "completed_hit"
-    assert summary["negative"]["execution_status"] == "completed_no_hit"
+    assert summary["negative"]["execution_status"] == "completed_hit"
     assert (run / "artifacts/qualification/p2-control-commands.jsonl").is_file()
     assert (run / "artifacts/qualification/p2-control-artifact-sha256.tsv").is_file()
     archive = _run(
@@ -3028,10 +3029,19 @@ def _install_review_asset_fixture(run: Path) -> tuple[str, set[str]]:
         "raw_log": ("phaser.log", b"fake Phaser log\n"),
         "solution_coordinate": ("solution.pdb", b"ATOM\n"),
     }
+    review_outputs = {
+        "approval_candidates_tsv": ("mr_seed_approval_candidates.tsv", b"item_id\n"),
+        "approval_template_tsv": ("approved_mr_seeds.tsv", b"checkpoint\n"),
+        "review_html": ("mr_seed_candidates.html", b"<html></html>\n"),
+        "review_tsv": ("mr_seed_candidates.tsv", b"solution_id\n"),
+    }
     manifest = {
         "schema_version": "1.0",
-        "adapter_version": "mr-seed-review-v2",
+        "adapter_version": "mr-seed-review-v3",
         "package_id": package_id,
+        "numeric_screen_excludes_candidates": False,
+        "approval_requires_explicit_human_decision": True,
+        "inspectable_solution_count": 1,
         "score_gate": {
             "llg_strictly_greater_than": 50.0,
             "operator": "or",
@@ -3040,7 +3050,7 @@ def _install_review_asset_fixture(run: Path) -> tuple[str, set[str]]:
         },
         "items": [
             {
-                "automatic_eligibility": True,
+                "inspectable_solution": True,
                 "solution_id": solution_id,
                 "copied_assets": {
                     key: f"assets/{solution_id}/{basename}"
@@ -3052,6 +3062,13 @@ def _install_review_asset_fixture(run: Path) -> tuple[str, set[str]]:
                 },
             }
         ],
+        "outputs": {
+            key: {
+                "path": basename,
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+            for key, (basename, payload) in review_outputs.items()
+        },
     }
     manifest_path = review / "mr_seed_review_manifest.json"
     manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
@@ -3098,10 +3115,14 @@ def _install_review_asset_fixture(run: Path) -> tuple[str, set[str]]:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(payload)
         expected.add(relative)
+    for basename, payload in review_outputs.values():
+        relative = f"artifacts/qualification/p2-diverse-review/{basename}"
+        (run / relative).write_bytes(payload)
+        expected.add(relative)
     return manifest_sha256, expected
 
 
-def test_review_collect_streams_only_manifest_eligible_checksum_assets(
+def test_review_collect_streams_all_manifest_inspectable_checksum_assets(
     tmp_path: Path,
 ) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)

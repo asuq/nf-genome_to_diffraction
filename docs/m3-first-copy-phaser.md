@@ -5,7 +5,7 @@
 The active M3 vertical slice joins the integrity-checked exact-predicted model
 from M2 to physically possible Matthews copy hypotheses, then runs one
 independent Phaser search per immutable hypothesis. The Python adapter, parser,
-strict provisional score gate, and typed Nextflow stub route passed local
+provisional score screen, and typed Nextflow stub route passed local
 acceptance on 11 August 2026. The first immutable CD6 route reached Phaser after
 replaying the real P0 and P1 evidence, but Phaser rejected the processed mmCIF
 before search because it found no scatterers. This is a tool-execution failure,
@@ -20,10 +20,10 @@ qualifies the bounded route, not a scientific identification or the full P2
 gate.
 
 The registered direct-PDB slice subsequently completed 25 independent Marmic
-searches and produced six marginal TFZ-only review candidates. Their exact
-PDB/MTZ/log/command/result bundles have been collected through a checksum-gated
-operation for inspection. The active slice now adds scheduled positive and
-deliberate incorrect-model controls. It deliberately still excludes
+searches and produced 11 parsed PDB/MTZ solutions; six enter the higher-priority
+TFZ-only tier. The old version-2 transfer collected those six, while version 3
+will make all 11 available through the checksum-gated review operation. The
+active slice still excludes
 same-component additional copies, refinement, sequence-from-map analysis, and
 automatic reviewer approval. Those remain separate gates.
 
@@ -117,24 +117,25 @@ when partial solutions exist.
 
 The normalised result preserves LLG, LLGI, TFZ, accepted/packed counts, placed
 copy count, output coordinate and MTZ checksums, warnings, raw-log pointer, and
-the preliminary credibility class. A solution passes the user-defined
-provisional score gate when either strict inequality passes:
+the preliminary review class. A solution enters the user-defined higher-priority
+screening tier when either strict inequality passes:
 
 ```text
 top LLG > 50 or top TFZ > 5
 ```
 
-Equality does not pass either comparison. Passing the score gate is still
-insufficient when the final solution did not pack or the placed-copy count
-differs from the requested one. The sensitive disjunction is a prototype triage
-boundary, not a universal Phaser-success criterion and not a substitute for
-maps, refinement, or expert review.
+Equality does not pass either comparison. The numeric screen ranks and annotates
+results; it never discards a parsed solution, labels one accepted, or grants
+approval. Packing and placed-copy agreement remain separate evidence. The
+sensitive disjunction is a prototype triage boundary, not a universal
+Phaser-success criterion and not a substitute for Coot inspection, refinement,
+or expert review.
 
 Statuses remain distinct:
 
-- `completed_hit`: score, final packing, and placed-copy checks pass;
-- `completed_no_hit`: Phaser completed but reported no solution, or a produced
-  solution failed a scientific gate;
+- `completed_hit`: Phaser completed and produced a parsed coordinate/MTZ
+  solution, irrespective of its numeric review tier;
+- `completed_no_hit`: Phaser completed and reported no solution;
 - `failed_tool_execution`: Phenix returned non-zero;
 - `failed_parse`: a nominally completed output was missing or inconsistent;
 - `failed_infrastructure`: an explicitly configured adapter deadline expired;
@@ -248,7 +249,7 @@ implemented as described below. The first real Marmic P2-diverse panel completed
 all 25 Phaser hypotheses under the superseded `LLG > 100` and `TFZ > 10`
 policy. It independently recorded 11 packed single-copy placements. Recomputing
 the preserved raw scores under the user-approved `LLG > 50` or `TFZ > 5` policy
-classifies six as provisional acceptance candidates through the TFZ branch; all
+classifies six in the higher-priority screen through the TFZ branch; all
 six also have accepted packing and one placed copy. None passes through LLG.
 The highest TFZ is 5.5, so these remain sensitive screening candidates rather
 than proven structures. Review-package generation also exposed a contract bug
@@ -287,17 +288,24 @@ The operation publishes:
   hypothesis, normalised result, funnel, command, log, and result-asset
   checksums.
 
-Ranking is deterministic and inspectable: automatic eligibility,
+Ranking is deterministic and inspectable: Coot-inspectable asset availability,
 completed-hit/no-hit/failure class, the strict raw `LLG > 50` or `TFZ > 5`
-gate, packing, searched-copy agreement, raw LLG, raw TFZ, and immutable funnel
+screen, packing, searched-copy agreement, raw LLG, raw TFZ, and immutable funnel
 order. Primary and extended labels apply to the first 10 and 25 distinct
 sequence-equivalence groups from the resolved configuration. They allocate
 review attention; they are not posterior probabilities or automatic biological
-assignments. Logs and commands follow retention policy, while complete solution
-PDB/MTZ assets are copied only for the configured finalist cap. The retained
-remote P2 publication remains the authoritative full result.
+assignments. Every parsed solution's PDB, MTZ, command, normalised result, and
+log is copied for Coot review. The configured finalist cap applies only to
+ancillary Phaser files such as `.sol` and rotation files. The retained remote
+P2 publication remains the authoritative full result.
 
-The review operation always recomputes the current strict raw score gate from
+The checksum-gated HPC review collector also transfers the candidate TSV, HTML
+report, approval-candidate TSV, and empty approval template recorded by the
+manifest. Consequently, every Coot-inspectable solution and the exact decision
+table that describes it travel together; shortlist labels and the numeric
+screen do not remove files from this handoff.
+
+The review operation always recomputes the current strict raw score screen from
 the normalised LLG and TFZ fields. A missing stored `score_gate_passed` field is
 permitted and evaluates to the recomputed result, which is false for a
 no-solution record with no numeric scores. A result that records the superseded
@@ -305,15 +313,15 @@ no-solution record with no numeric scores. A result that records the superseded
 without altering the source record. Under the current policy, a present stored
 Boolean must agree exactly with the recomputation; an explicit contradiction or
 unknown policy fails loudly. Packing and placed-copy evidence remain separate
-review fields and never substitute for the score gate.
+review fields and never substitute for human judgement.
 
 `genome-to-diffraction review validate-mr-seeds` takes the generated manifest,
 a human-edited review-decision TSV, and an output JSON path. It verifies the
 package and copied-output checksums, content-derived package and `sol_...`
 identities, the `mr_seed` checkpoint, non-duplicate current item IDs, reviewer
-and UTC timestamp, and at least one explicit `approve`. An approval for an item
-that did not satisfy automatic eligibility requires a non-empty
-`override_reason`; this does not rewrite its preliminary score-gate class.
+and UTC timestamp, and at least one explicit `approve`. An approval requires a
+non-empty `override_reason` only when no Coot-inspectable PDB/MTZ solution exists; this
+does not rewrite its preliminary score-screen class.
 Unknown, stale, edited, pre-package, placeholder, empty, or wrong-checkpoint
 decisions fail with an input-contract error before downstream execution. A
 successful validation writes a content-derived `rev_...` record; it does not
@@ -327,7 +335,7 @@ explicit stored/recomputed gate contradiction, schema-valid empty template,
 stale identifiers, edited review output, result-path traversal, and approval
 provenance. The fake Git/Slurm/Nextflow lifecycle covers package creation,
 fixed summary binding, bounded compact collection, and checksum-gated
-eligible-asset collection. The corrected real Marmic replay produced and bound
-the version-2 package; its six eligible bundles were collected without
-caller-supplied paths or candidate identifiers. Scheduled positive and negative
-controls plus human inspection remain required.
+inspectable-asset collection. The corrected real Marmic replay produced and
+bound the version-2 package; its six score-priority bundles were collected
+without caller-supplied paths or candidate identifiers. Version 3 expands the
+same secure transfer to every parsed solution. Human inspection remains required.

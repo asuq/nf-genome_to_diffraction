@@ -136,6 +136,12 @@ _REVIEW_ASSET_BASENAMES = {
     "raw_log": "phaser.log",
     "solution_coordinate": "solution.pdb",
 }
+_REVIEW_OUTPUT_BASENAMES = {
+    "approval_candidates_tsv": "mr_seed_approval_candidates.tsv",
+    "approval_template_tsv": "approved_mr_seeds.tsv",
+    "review_html": "mr_seed_candidates.html",
+    "review_tsv": "mr_seed_candidates.tsv",
+}
 
 
 def _validated_p0_paths_payload(path: Path) -> bytes:
@@ -1280,7 +1286,7 @@ class HpcController:
         }
 
     def review_collect(self, run_id: str) -> dict[str, object]:
-        """Collect only checksum-bound assets for automatically eligible MR seeds."""
+        """Collect checksum-bound assets for every Coot-inspectable MR solution."""
 
         record = self._owned_run(run_id)
         if record.profile != "p2-diverse":
@@ -1294,14 +1300,14 @@ class HpcController:
             extra={
                 "run_id": run_id,
                 "package_id": package_id,
-                "eligible_solution_count": len(solution_ids),
+                "inspectable_solution_count": len(solution_ids),
                 "manifest_sha256": manifest_sha256,
             },
         )
         archive = self.transport.review_collect(
             run_id, record.owner_id, manifest_sha256
         )
-        destination = self.config.local_state_root / run_id / "review-assets"
+        destination = self.config.local_state_root / run_id / "review-assets-all"
         files = _extract_verified_review_archive(
             archive,
             destination,
@@ -1314,7 +1320,7 @@ class HpcController:
             "destination": str(destination),
             "package_id": package_id,
             "manifest_sha256": manifest_sha256,
-            "eligible_solution_count": len(solution_ids),
+            "inspectable_solution_count": len(solution_ids),
             "solution_ids": solution_ids,
             "files": files,
         }
@@ -1521,8 +1527,9 @@ def _review_asset_expectations(
         "policy_id": "strict_llg_gt_50_or_tfz_gt_5",
         "tfz_strictly_greater_than": 5.0,
     }
+    adapter_version = manifest.get("adapter_version")
     if (
-        manifest.get("adapter_version") != "mr-seed-review-v2"
+        adapter_version not in {"mr-seed-review-v2", "mr-seed-review-v3"}
         or manifest.get("score_gate") != expected_gate
         or summary.get("run_id") != record.run_id
         or summary.get("profile") != "p2-diverse"
@@ -1530,27 +1537,61 @@ def _review_asset_expectations(
         or summary.get("mr_seed_review_manifest_sha256") != manifest_sha256
     ):
         raise ValidationError("MR review evidence identity or policy does not match")
+    if adapter_version == "mr-seed-review-v3" and (
+        manifest.get("numeric_screen_excludes_candidates") is not False
+        or manifest.get("approval_requires_explicit_human_decision") is not True
+    ):
+        raise ValidationError("MR review evidence identity or policy does not match")
 
     items = manifest.get("items")
     if not isinstance(items, list):
         raise ValidationError("MR review manifest items must be an array")
-    eligible = [
-        item
-        for item in items
-        if isinstance(item, Mapping) and item.get("automatic_eligibility") is True
-    ]
-    if not 1 <= len(eligible) <= 25:
-        raise ValidationError("MR review package must have 1..25 eligible seeds")
-    if summary.get("completed_hit_count") != len(eligible):
-        raise ValidationError("eligible review count differs from the run summary")
+    if adapter_version == "mr-seed-review-v3":
+        inspectable = [
+            item
+            for item in items
+            if isinstance(item, Mapping) and item.get("inspectable_solution") is True
+        ]
+    else:
+        inspectable = [
+            item
+            for item in items
+            if isinstance(item, Mapping)
+            and isinstance(item.get("copied_assets"), Mapping)
+            and set(item["copied_assets"]) == set(_REVIEW_ASSET_BASENAMES)
+        ]
+    if not 1 <= len(inspectable) <= 25:
+        raise ValidationError("MR review package must have 1..25 inspectable solutions")
+    if adapter_version == "mr-seed-review-v3" and (
+        manifest.get("inspectable_solution_count") != len(inspectable)
+    ):
+        raise ValidationError("inspectable review count differs from the manifest")
 
     expectations = {
         _REVIEW_MANIFEST_RELATIVE.as_posix(): manifest_sha256,
         _REVIEW_SUMMARY_RELATIVE.as_posix(): sha256_file(summary_path),
         _REVIEW_JOB_RESULT_RELATIVE.as_posix(): sha256_file(job_result_path),
     }
+    outputs = manifest.get("outputs")
+    if not isinstance(outputs, Mapping) or set(outputs) != set(
+        _REVIEW_OUTPUT_BASENAMES
+    ):
+        raise ValidationError("MR review output inventory is incomplete")
+    for key, basename in _REVIEW_OUTPUT_BASENAMES.items():
+        record_value = outputs.get(key)
+        if not isinstance(record_value, Mapping):
+            raise ValidationError("MR review output inventory is invalid")
+        digest = record_value.get("sha256")
+        if (
+            record_value.get("path") != basename
+            or not isinstance(digest, str)
+            or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+        ):
+            raise ValidationError("MR review output identity is invalid")
+        archive_relative = (_REVIEW_MANIFEST_RELATIVE.parent / basename).as_posix()
+        expectations[archive_relative] = digest
     solution_ids: list[str] = []
-    for item in eligible:
+    for item in inspectable:
         solution_id = item.get("solution_id")
         copied_assets = item.get("copied_assets")
         copied_sha256 = item.get("copied_asset_sha256")
@@ -1561,11 +1602,11 @@ def _review_asset_expectations(
             or not isinstance(copied_assets, Mapping)
             or not isinstance(copied_sha256, Mapping)
         ):
-            raise ValidationError("eligible MR review item identity is invalid")
+            raise ValidationError("inspectable MR review item identity is invalid")
         if set(copied_assets) != set(_REVIEW_ASSET_BASENAMES) or set(
             copied_sha256
         ) != set(_REVIEW_ASSET_BASENAMES):
-            raise ValidationError("eligible MR review asset set is incomplete")
+            raise ValidationError("inspectable MR review asset set is incomplete")
         solution_ids.append(solution_id)
         for key, basename in _REVIEW_ASSET_BASENAMES.items():
             expected_local = f"assets/{solution_id}/{basename}"
@@ -1575,12 +1616,12 @@ def _review_asset_expectations(
                 or not isinstance(digest, str)
                 or re.fullmatch(r"[0-9a-f]{64}", digest) is None
             ):
-                raise ValidationError("eligible MR review asset identity is invalid")
+                raise ValidationError("inspectable MR review asset identity is invalid")
             archive_relative = (
                 _REVIEW_MANIFEST_RELATIVE.parent / expected_local
             ).as_posix()
             if archive_relative in expectations:
-                raise ValidationError("eligible MR review asset path is duplicated")
+                raise ValidationError("inspectable MR review asset path is duplicated")
             expectations[archive_relative] = digest
     return expectations, package_id, solution_ids, manifest_sha256
 
@@ -1666,7 +1707,7 @@ def _extract_verified_review_archive(
             )
         for name in extracted:
             if name.endswith("/normalised_mr_result.jsonl"):
-                _validate_eligible_review_result(temporary_root / name, name)
+                _validate_inspectable_review_result(temporary_root / name, name)
         if destination.exists() or destination.is_symlink():
             if destination.is_symlink() or not destination.is_dir():
                 raise RemoteOperationError(
@@ -1697,48 +1738,34 @@ def _extract_verified_review_archive(
     return sorted(extracted)
 
 
-def _validate_eligible_review_result(path: Path, label: str) -> None:
-    """Recompute fixed first-copy eligibility from one normalised result."""
+def _validate_inspectable_review_result(path: Path, label: str) -> None:
+    """Verify that one collected result has Coot-inspectable solution assets."""
 
     lines = path.read_text(encoding="utf-8").splitlines()
     if len(lines) != 1:
         raise RemoteOperationError(
-            f"eligible review result must contain one record: {label}",
+            f"inspectable review result must contain one record: {label}",
             failure_class=FailureClass.TRANSFER_FAILURE,
         )
     try:
         result: object = json.loads(lines[0])
     except json.JSONDecodeError as error:
         raise RemoteOperationError(
-            f"eligible review result is invalid JSON: {label}",
+            f"inspectable review result is invalid JSON: {label}",
             failure_class=FailureClass.TRANSFER_FAILURE,
         ) from error
     if not isinstance(result, Mapping):
         raise RemoteOperationError(
-            f"eligible review result is not an object: {label}",
+            f"inspectable review result is not an object: {label}",
             failure_class=FailureClass.TRANSFER_FAILURE,
         )
-    llg = result.get("llg")
-    tfz = result.get("tfz")
-    score_passed = (
-        isinstance(llg, int | float) and not isinstance(llg, bool) and llg > 50.0
-    ) or (isinstance(tfz, int | float) and not isinstance(tfz, bool) and tfz > 5.0)
-    packing = result.get("packing_summary")
     if not (
-        result.get("execution_status") == "completed_hit"
-        and score_passed
-        and isinstance(packing, Mapping)
-        and packing.get("top_solution_packed") is True
-        and packing.get("score_gate_operator") == "or"
-        and packing.get("score_gate_llg_strictly_greater_than") == 50
-        and packing.get("score_gate_tfz_strictly_greater_than") == 5
-        and packing.get("score_gate_passed") is True
-        and result.get("placed_copy_count") == 1
+        result.get("execution_status") in {"completed_hit", "completed_no_hit"}
         and isinstance(result.get("solution_coordinate_path"), str)
         and isinstance(result.get("output_mtz_path"), str)
     ):
         raise RemoteOperationError(
-            f"eligible review result fails the fixed first-copy gate: {label}",
+            f"review result is not an inspectable first-copy solution: {label}",
             failure_class=FailureClass.TRANSFER_FAILURE,
         )
 

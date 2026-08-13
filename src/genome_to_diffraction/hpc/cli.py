@@ -108,7 +108,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     review_collect = actions.add_parser(
         "review-collect",
-        help="collect checksum-gated assets for manifest-eligible MR seeds",
+        help="collect checksum-gated assets for all Coot-inspectable MR solutions",
     )
     review_collect.add_argument("--run-id", required=True)
 

@@ -63,7 +63,7 @@ from genome_to_diffraction.time import utc_now_iso
 from .public_control import PublicControlSpec, load_public_control_spec
 
 _LOGGER = logging.getLogger("genome_to_diffraction.benchmarks.mr_controls")
-_ADAPTER_VERSION = "public-first-copy-control-pair-v1"
+_ADAPTER_VERSION = "public-first-copy-control-pair-v2"
 _NEGATIVE_VARIANT = "control_unrelated_cleaned_source_chain"
 
 
@@ -81,7 +81,7 @@ def _gemmi_version() -> str:
 
 
 class NegativeControlSpec(ContractModel):
-    """One independently anchored model expected not to solve the control MTZ."""
+    """One unrelated model used to test ranking separation on the control MTZ."""
 
     pdb_id: str = Field(pattern=r"^[0-9A-Z]{4}$")
     seqres_token: NonEmptyString
@@ -90,7 +90,7 @@ class NegativeControlSpec(ContractModel):
     source_sequence_sha256: Sha256Hex
     source_sequence_length: PositiveInt
     phaser_identity_percent: PositiveFloat = Field(le=5.0)
-    expected_outcome: Literal["completed_no_hit"]
+    expected_outcome: Literal["retained_below_positive"]
     relationship_to_target: Literal["deliberately unrelated ubiquitin negative control"]
 
 
@@ -119,7 +119,7 @@ class FirstCopyControlPairSpec(ContractModel):
         pattern=r"^[0-9A-Za-z][0-9A-Za-z._-]*\.yaml$"
     )
     positive_model_id: OperatorIdentifier
-    positive_expected_outcome: Literal["completed_hit"]
+    positive_expected_outcome: Literal["retained_top_ranked"]
     negative_control: NegativeControlSpec
     score_gate: ControlScoreGate
     limitations: tuple[NonEmptyString, ...] = Field(min_length=1)

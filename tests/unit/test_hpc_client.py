@@ -233,10 +233,19 @@ def _write_review_evidence(
     copied_sha256 = {
         key: hashlib.sha256(payload).hexdigest() for key, (_, payload) in assets.items()
     }
+    review_outputs = {
+        "approval_candidates_tsv": ("mr_seed_approval_candidates.tsv", b"item_id\n"),
+        "approval_template_tsv": ("approved_mr_seeds.tsv", b"checkpoint\n"),
+        "review_html": ("mr_seed_candidates.html", b"<html></html>\n"),
+        "review_tsv": ("mr_seed_candidates.tsv", b"solution_id\n"),
+    }
     manifest = {
         "schema_version": "1.0",
-        "adapter_version": "mr-seed-review-v2",
+        "adapter_version": "mr-seed-review-v3",
         "package_id": package_id,
+        "numeric_screen_excludes_candidates": False,
+        "approval_requires_explicit_human_decision": True,
+        "inspectable_solution_count": 1,
         "score_gate": score_gate
         or {
             "llg_strictly_greater_than": 50.0,
@@ -246,12 +255,19 @@ def _write_review_evidence(
         },
         "items": [
             {
-                "automatic_eligibility": True,
+                "inspectable_solution": True,
                 "solution_id": solution_id,
                 "copied_assets": copied_assets,
                 "copied_asset_sha256": copied_sha256,
             }
         ],
+        "outputs": {
+            key: {
+                "path": basename,
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            }
+            for key, (basename, payload) in review_outputs.items()
+        },
     }
     manifest_path = review / "mr_seed_review_manifest.json"
     manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
@@ -296,6 +312,8 @@ def _write_review_evidence(
         archive_files[
             f"artifacts/qualification/p2-diverse-review/assets/{solution_id}/{basename}"
         ] = payload
+    for basename, payload in review_outputs.values():
+        archive_files[f"artifacts/qualification/p2-diverse-review/{basename}"] = payload
     return package_id, manifest_sha256, archive_files
 
 
@@ -938,7 +956,7 @@ def test_collection_rejects_symlinked_parent(tmp_path: Path) -> None:
     assert list(outside.iterdir()) == []
 
 
-def test_review_collection_extracts_only_manifest_eligible_checksum_assets(
+def test_review_collection_extracts_all_manifest_inspectable_checksum_assets(
     tmp_path: Path,
 ) -> None:
     transport = FakeTransport()
@@ -951,17 +969,59 @@ def test_review_collection_extracts_only_manifest_eligible_checksum_assets(
 
     assert result["package_id"] == package_id
     assert result["manifest_sha256"] == manifest_sha256
-    assert result["eligible_solution_count"] == 1
+    assert result["inspectable_solution_count"] == 1
     files_result = result["files"]
     assert isinstance(files_result, list)
-    assert len(files_result) == 8
+    assert len(files_result) == 12
     destination = Path(str(result["destination"]))
     assert (destination / "state/job-result.json").is_file()
+    assert next(destination.rglob("mr_seed_candidates.html")).is_file()
+    assert next(destination.rglob("approved_mr_seeds.tsv")).is_file()
     assert next(destination.rglob("solution.pdb")).read_bytes() == b"ATOM\n"
     assert transport.calls[-1] == (
         "review-collect",
         (run_id, controller._owned_run(run_id).owner_id, manifest_sha256),
     )
+
+
+def test_review_collection_migrates_v2_assets_without_score_filter(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("p2-diverse", "HEAD")["run_id"])
+    package_id, _old_manifest_sha256, files = _write_review_evidence(controller, run_id)
+    manifest_name = next(
+        name for name in files if name.endswith("mr_seed_review_manifest.json")
+    )
+    manifest = json.loads(files[manifest_name])
+    manifest["adapter_version"] = "mr-seed-review-v2"
+    manifest.pop("numeric_screen_excludes_candidates")
+    manifest.pop("approval_requires_explicit_human_decision")
+    manifest.pop("inspectable_solution_count")
+    manifest["items"][0]["automatic_eligibility"] = False
+    manifest["items"][0].pop("inspectable_solution")
+    manifest_payload = (json.dumps(manifest) + "\n").encode("utf-8")
+    files[manifest_name] = manifest_payload
+    manifest_sha256 = hashlib.sha256(manifest_payload).hexdigest()
+    summary_name = next(
+        name for name in files if name.endswith("p2-diverse-summary.json")
+    )
+    summary = json.loads(files[summary_name])
+    summary["completed_hit_count"] = 0
+    summary["mr_seed_review_manifest_sha256"] = manifest_sha256
+    files[summary_name] = (json.dumps(summary) + "\n").encode("utf-8")
+    collected = controller.config.local_state_root / run_id / "collected"
+    (collected / manifest_name).write_bytes(manifest_payload)
+    (collected / summary_name).write_bytes(files[summary_name])
+    transport.review_archive = _archive(files)
+
+    result = controller.review_collect(run_id)
+
+    assert result["package_id"] == package_id
+    assert result["manifest_sha256"] == manifest_sha256
+    assert result["inspectable_solution_count"] == 1
+    assert next(Path(str(result["destination"])).rglob("solution.pdb")).is_file()
 
 
 def test_review_collection_rejects_wrong_profile_and_uncollected_run(
@@ -1014,7 +1074,9 @@ def test_review_collection_rejects_checksum_mismatch_atomically(
 
     with pytest.raises(RemoteOperationError, match="checksum mismatch"):
         controller.review_collect(run_id)
-    assert not (controller.config.local_state_root / run_id / "review-assets").exists()
+    assert not (
+        controller.config.local_state_root / run_id / "review-assets-all"
+    ).exists()
 
 
 def test_review_collection_rejects_unexpected_archive_member(tmp_path: Path) -> None:
@@ -1029,7 +1091,7 @@ def test_review_collection_rejects_unexpected_archive_member(tmp_path: Path) -> 
         controller.review_collect(run_id)
 
 
-def test_review_collection_recomputes_first_copy_eligibility(tmp_path: Path) -> None:
+def test_review_collection_does_not_filter_on_numeric_screen(tmp_path: Path) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     run_id = str(controller.stage("p2-diverse", "HEAD")["run_id"])
@@ -1062,8 +1124,10 @@ def test_review_collection_recomputes_first_copy_eligibility(tmp_path: Path) -> 
     (collected / summary_name).write_bytes(files[summary_name])
     transport.review_archive = _archive(files)
 
-    with pytest.raises(RemoteOperationError, match="fails the fixed first-copy gate"):
-        controller.review_collect(run_id)
+    result = controller.review_collect(run_id)
+
+    assert result["inspectable_solution_count"] == 1
+    assert next(Path(str(result["destination"])).rglob("solution.pdb")).is_file()
 
 
 def test_same_failure_twice_stops_the_feedback_chain(tmp_path: Path) -> None:

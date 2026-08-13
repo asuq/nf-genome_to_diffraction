@@ -1,4 +1,4 @@
-"""Versioned provisional acceptance policy for first-copy Phaser results."""
+"""Versioned provisional ranking screen for first-copy Phaser results."""
 
 from typing import Final, Literal
 
@@ -12,7 +12,7 @@ LEGACY_SCORE_GATE_TFZ: Final = 10.0
 
 
 def passes_provisional_score_gate(*, llg: float | None, tfz: float | None) -> bool:
-    """Return whether either raw Phaser metric strictly exceeds its threshold."""
+    """Return whether either raw metric enters the higher-priority review tier."""
 
     return (llg is not None and llg > SCORE_GATE_LLG) or (
         tfz is not None and tfz > SCORE_GATE_TFZ

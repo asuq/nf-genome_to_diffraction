@@ -115,7 +115,11 @@ def _result(*, hit: bool = True, raw_log: str = "PHASER.log") -> NormalisedMrRes
 
 
 def _request(
-    tmp_path: Path, *, hit: bool = True, raw_log: str = "PHASER.log"
+    tmp_path: Path,
+    *,
+    hit: bool = True,
+    raw_log: str = "PHASER.log",
+    keep_solution_assets: bool | None = None,
 ) -> MrSeedReviewRequest:
     hypothesis = _hypothesis()
     result = _result(hit=hit, raw_log=raw_log)
@@ -154,14 +158,18 @@ def _request(
     )
     if raw_log == "PHASER.log":
         (bundle / raw_log).write_text("PHASER test log\n", encoding="utf-8")
-    if hit:
+    if keep_solution_assets is None:
+        keep_solution_assets = hit
+    if keep_solution_assets:
         coordinate = bundle / "PHASER.1.pdb"
         coordinate.write_text("MODEL        1\nEND\n", encoding="utf-8")
         mtz = bundle / "PHASER.1.mtz"
         mtz.write_bytes(b"MTZ test bytes")
         result = result.model_copy(
             update={
+                "solution_coordinate_path": coordinate.name,
                 "solution_coordinate_sha256": sha256_file(coordinate),
+                "output_mtz_path": mtz.name,
                 "output_mtz_sha256": sha256_file(mtz),
             }
         )
@@ -221,7 +229,7 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
         csv.DictReader(output.review_tsv.open(encoding="utf-8"), delimiter="\t")
     )
     assert rows[0]["solution_id"].startswith("sol_")
-    assert rows[0]["automatic_eligibility"] == "True"
+    assert rows[0]["inspectable_solution"] == "True"
     assert rows[0]["llg"] == "111.0"
     assert rows[0]["tfz"] == "11.0"
     assert rows[0]["source_loci"] == "example_archaeon_refseq:stub_protein"
@@ -236,6 +244,9 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
         "tfz_strictly_greater_than": 5.0,
         "operator": "or",
     }
+    assert manifest["numeric_screen_excludes_candidates"] is False
+    assert manifest["approval_requires_explicit_human_decision"] is True
+    assert manifest["inspectable_solution_count"] == 1
     template = load_contract(
         output.approval_template_tsv,
         "review-decisions",
@@ -279,7 +290,9 @@ def test_validates_explicit_approval_and_rejects_stale_identifier(
         )
 
 
-def test_ineligible_approval_requires_explicit_override(tmp_path: Path) -> None:
+def test_approval_without_inspectable_assets_requires_explicit_override(
+    tmp_path: Path,
+) -> None:
     package = build_mr_seed_review(_request(tmp_path, hit=False))
     manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
     solution_id = manifest["items"][0]["solution_id"]
@@ -296,6 +309,64 @@ def test_ineligible_approval_requires_explicit_override(tmp_path: Path) -> None:
 
     _decision(decisions, solution_id, override="expert map evidence")
     assert validate_mr_seed_approvals(request).approved_solution_ids == (solution_id,)
+
+
+def test_below_screen_solution_assets_are_retained_for_coot_and_approval(
+    tmp_path: Path,
+) -> None:
+    package = build_mr_seed_review(
+        _request(tmp_path, hit=False, keep_solution_assets=True)
+    )
+    rows = list(
+        csv.DictReader(package.review_tsv.open(encoding="utf-8"), delimiter="\t")
+    )
+    assert rows[0]["score_gate_passed"] == "False"
+    assert rows[0]["inspectable_solution"] == "True"
+    assert (package.manifest_json.parent / rows[0]["solution_coordinate"]).is_file()
+    assert (package.manifest_json.parent / rows[0]["output_mtz"]).is_file()
+
+    manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
+    solution_id = manifest["items"][0]["solution_id"]
+    decisions = tmp_path / "approved-below-screen.tsv"
+    _decision(decisions, solution_id)
+    validated = validate_mr_seed_approvals(
+        MrSeedApprovalRequest(
+            package_manifest=package.manifest_json,
+            decisions=decisions,
+            output_json=tmp_path / "validated-below-screen.json",
+            progress=False,
+        )
+    )
+    assert validated.approved_solution_ids == (solution_id,)
+
+
+def test_legacy_review_item_with_pdb_and_mtz_is_inspectable_for_approval(
+    tmp_path: Path,
+) -> None:
+    package = build_mr_seed_review(
+        _request(tmp_path, hit=False, keep_solution_assets=True)
+    )
+    manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
+    item = manifest["items"][0]
+    solution_id = item["solution_id"]
+    item.pop("inspectable_solution")
+    package.manifest_json.write_text(
+        json.dumps(manifest) + "\n",
+        encoding="utf-8",
+    )
+    decisions = tmp_path / "approved-legacy.tsv"
+    _decision(decisions, solution_id)
+
+    validated = validate_mr_seed_approvals(
+        MrSeedApprovalRequest(
+            package_manifest=package.manifest_json,
+            decisions=decisions,
+            output_json=tmp_path / "validated-legacy.json",
+            progress=False,
+        )
+    )
+
+    assert validated.approved_solution_ids == (solution_id,)
 
 
 def test_review_recomputes_missing_gate_for_no_solution(tmp_path: Path) -> None:
@@ -324,7 +395,7 @@ def test_review_recomputes_missing_gate_for_no_solution(tmp_path: Path) -> None:
         csv.DictReader(package.review_tsv.open(encoding="utf-8"), delimiter="\t")
     )
     assert rows[0]["score_gate_passed"] == "False"
-    assert rows[0]["automatic_eligibility"] == "False"
+    assert rows[0]["inspectable_solution"] == "False"
 
 
 def test_review_rejects_explicit_score_gate_disagreement(tmp_path: Path) -> None:
@@ -372,7 +443,7 @@ def test_review_reclassifies_legacy_gate_from_preserved_raw_scores(
         csv.DictReader(package.review_tsv.open(encoding="utf-8"), delimiter="\t")
     )
     assert rows[0]["score_gate_passed"] == "True"
-    assert rows[0]["automatic_eligibility"] == "True"
+    assert rows[0]["inspectable_solution"] == "True"
 
 
 def test_rejects_result_bundle_path_traversal(tmp_path: Path) -> None:
