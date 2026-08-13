@@ -2838,3 +2838,52 @@ right-sized database run and replace job `10910414` in the existing heartbeat.
 Follow heartbeat `monitor-viper-database-build`. Check the database only through
 the fixed wrapper and Phenix only through its bounded scheduler query. Do not
 infer failure from silence or modify either non-terminal job.
+
+## 2026-08-14T00:42:00Z - Viper databases built with measured small footprint
+
+### Discoveries
+
+- Database job `10910484` completed the build, functional qualification, and
+  anchored full verification in 2m45s. Slurm measured 3.266 GB maximum memory
+  per node and 1.7% CPU utilisation under an 8-CPU/32-GB request.
+- The final resource set occupies 15,919,134,898 bytes, far below the safety
+  capacity ceiling. Thus the prior 64-CPU/192-GB request was unnecessary, and
+  even 8 CPUs/32 GB retained substantial unused capacity.
+
+### Accomplishments
+
+- Collected the complete approved evidence package. All four resources are
+  ready and smoke-qualified: Foldseek PDB, PDB SEQRES/MMseqs, ProstT5, and the
+  content-addressed coordinate cache. Full verification reused every immutable
+  resource and preserved source, version, inventory, and checksum provenance.
+- Set future fixed database rebuilds to 4 CPUs and 8 GB, retaining the 24-hour
+  shared-I/O margin. No repeat database build is scientifically or operationally
+  necessary; the current verified resources remain authoritative.
+
+### Immutable evidence
+
+- Run `gtd-database-20260813T232453Z-0aac8b16f0dc-90fd140f`, job `10910484`:
+  `COMPLETED`, exit 0, success, 2m45s. Manifest ID is
+  `dbm_af289054ab487b181f9bf10e6468478361af991883b0a762e38a14c69d4d58fa`.
+- Full-verified manifest SHA-256 is
+  `04e138e4b9781490fc6ac2cf08652b5d1a15f51828d828c2b4e42f0bc4d4c1d8`;
+  source-bundle SHA-256 is
+  `62406488ba5a6f1aee68acf35b66fee5a9a06d8e749e9d29b6b40bd4a33be165`.
+- Foldseek 10.941cd33 and MMseqs2 18.8cc5c were recorded. The PDB Foldseek
+  snapshot is 2025-01-01 at provider commit
+  `1815f0d76d7b5807e63b13f9d446dcef43c1f3b1`; PDB SEQRES contains 1,084,311
+  protein records and passed the known ubiquitin search.
+
+### Unresolved work
+
+- Complete checks and CI for the evidence-based future resource reduction; do
+  not rerun the already successful database build solely to test the smaller
+  ceiling.
+- Remove the terminal database run from the heartbeat after its documentation
+  milestone is green. Continue Phenix qualification and launch M4 immediately
+  when Phenix succeeds.
+
+### Next exact starting point
+
+Finish the focused 4-CPU/8-GB policy cycle. Then update the heartbeat to monitor
+only Phenix job `10910306`; the database track is complete and must not block M4.

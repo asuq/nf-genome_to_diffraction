@@ -1033,8 +1033,8 @@ def test_database_administration_uses_separate_fixed_start_boundary(
         (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
     )
     assert "--partition=slurm" not in submitted_arguments
-    assert "--cpus-per-task=8" in submitted_arguments
-    assert "--mem=32G" in submitted_arguments
+    assert "--cpus-per-task=4" in submitted_arguments
+    assert "--mem=8G" in submitted_arguments
     assert "--time=24:00:00" in submitted_arguments
     assert submitted_arguments[-4:] == [
         str(smoke_job),
@@ -1074,7 +1074,7 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     job_environment.update(
         {
             "SLURM_JOB_ID": "123",
-            "SLURM_CPUS_PER_TASK": "8",
+            "SLURM_CPUS_PER_TASK": "4",
             "FAKE_STAT_DISTINCT": "0",
             "FAKE_DATABASE_COMMAND_LOG": str(command_log),
         }
@@ -1106,7 +1106,7 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     assert "databases prepare" in commands
     assert "--source-bundle" in commands
     assert "--full-verify" in commands
-    assert "--threads 8" in commands
+    assert "--threads 4" in commands
     assert str(job_owned_parent / f"nf-gtd-database-123-{DATABASE_RUN_ID}") in commands
     assert list(scratch_parent.iterdir()) == []
 
