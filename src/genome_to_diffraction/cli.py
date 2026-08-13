@@ -58,7 +58,9 @@ from genome_to_diffraction.model_registry import (
 )
 from genome_to_diffraction.mr import (
     AddCopyRunRequest,
+    CopyCountReportRequest,
     PhaserRunRequest,
+    build_copy_count_report,
     run_additional_copy_phaser,
     run_additional_copy_series,
     run_first_copy_phaser,
@@ -704,6 +706,12 @@ def _build_parser() -> argparse.ArgumentParser:
     stage_add_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
     stage_add_copy_parser.add_argument("--outdir", type=Path, required=True)
     stage_add_copy_parser.add_argument("--expected-seed-count", type=int, default=11)
+    copy_report_parser = mr_actions.add_parser(
+        "copy-report",
+        help="compare Matthews-intended and empirically supported copy counts",
+    )
+    copy_report_parser.add_argument("--results", type=Path, required=True)
+    copy_report_parser.add_argument("--outdir", type=Path, required=True)
 
     review_parser = subparsers.add_parser(
         "review", help="build and validate file-based human checkpoints"
@@ -1335,6 +1343,19 @@ def _run_ranking(args: argparse.Namespace) -> int:
 
 
 def _run_mr(args: argparse.Namespace) -> int:
+    if args.mr_action == "copy-report":
+        report = build_copy_count_report(
+            CopyCountReportRequest(
+                results_jsonl=args.results,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Built copy-count report for {len(report.assessments)} candidate(s): "
+            f"{report.manifest_json}"
+        )
+        return 0
     if args.mr_action == "stage-add-copy":
         staged = prepare_add_copy_stage(
             AddCopyStageRequest(

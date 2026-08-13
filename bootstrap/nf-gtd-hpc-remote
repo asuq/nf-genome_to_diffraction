@@ -2026,6 +2026,10 @@ collect_run() {
         artifacts/qualification/m4-copy-summary.json \
         artifacts/qualification/m4-copy-results.jsonl \
         artifacts/qualification/m4-copy-series-summaries.jsonl \
+        artifacts/qualification/m4-copy-count-report/copy_count_assessments.jsonl \
+        artifacts/qualification/m4-copy-count-report/copy_count_assessments.tsv \
+        artifacts/qualification/m4-copy-count-report/copy_count_report.md \
+        artifacts/qualification/m4-copy-count-report/copy_count_report_manifest.json \
         artifacts/qualification/m4-copy-commands.jsonl \
         artifacts/qualification/m4-copy-log-tails.txt \
         artifacts/qualification/m4-copy-artifact-sha256.tsv \

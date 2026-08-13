@@ -117,10 +117,20 @@ MTZ/Phenix hashes, and the generated parameter-file hash.
 Each search-model file is a content-tracked Nextflow input, so no redundant
 model-index channel is required. The adapter and workflow place copy two from
 each first-copy seed and advance an authenticated supported child one copy at a
-time through copy 3..n. A comparative copy-count report, brief refinement, map
-generation, sequence-from-map searching, and the second review checkpoint are
-the next M4 increments. They must build on the typed child state rather than
-overwriting the retained parent.
+time through copy 3..n. Brief refinement, map generation, sequence-from-map
+searching, and the second review checkpoint are the next M4 increments. They
+must build on the typed child state rather than overwriting the retained parent.
+
+## Copy-count report
+
+`genome-to-diffraction mr copy-report --results SERIES.jsonl --outdir REPORT`
+validates every contiguous parent-child series and publishes typed JSONL, TSV,
+Markdown, and a checksum-bound manifest. It compares the Matthews-intended
+count with the best empirically supported count and retains the terminal raw
+LLG, TFZ, LLG delta, packing, placement, and execution evidence. A series that
+stops early is flagged for possible residual content or special-position
+review and explicitly states that copy absence was not proven. The Marmic M4
+profile runs this report automatically for every retained candidate.
 
 ## Test coverage
 

@@ -811,9 +811,9 @@ nf-gtd-hpc-test collect --run-id RUN_ID
 
 The bounded collection includes the staging provenance, every normalised
 copy-transition result, per-candidate series summaries, all resolved commands,
-200-line Phaser tails, first/resume traces, summary counts, and an artefact
-checksum inventory. Full native output remains in the retained run for later
-comparison and refinement.
+the typed expected-versus-supported copy-count report, 200-line Phaser tails,
+first/resume traces, summary counts, and an artefact checksum inventory. Full
+native output remains in the retained run for later comparison and refinement.
 
 ## Database administration boundary
 

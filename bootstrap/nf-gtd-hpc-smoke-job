@@ -1728,6 +1728,9 @@ run_m4_copy() {
     mv -f -- "$summaries_tmp" "$qualification/m4-copy-series-summaries.jsonl"
     mv -f -- "$commands_tmp" "$qualification/m4-copy-commands.jsonl"
     mv -f -- "$tails_tmp" "$qualification/m4-copy-log-tails.txt"
+    "$GTD" --log-format json --no-progress mr copy-report \
+        --results "$qualification/m4-copy-results.jsonl" \
+        --outdir "$qualification/m4-copy-count-report"
     cat > "$qualification/m4-copy-resume-check.json" <<EOF
 {"schema_version":"1.0","run_id":"$RUN_ID","profile":"m4-copy","process_count":$total,"cached_process_count":$cached,"all_candidate_series_cached":true}
 EOF
@@ -1740,6 +1743,10 @@ EOF
         "$qualification/m4-copy-summary.json" \
         "$qualification/m4-copy-results.jsonl" \
         "$qualification/m4-copy-series-summaries.jsonl" \
+        "$qualification/m4-copy-count-report/copy_count_assessments.jsonl" \
+        "$qualification/m4-copy-count-report/copy_count_assessments.tsv" \
+        "$qualification/m4-copy-count-report/copy_count_report.md" \
+        "$qualification/m4-copy-count-report/copy_count_report_manifest.json" \
         "$qualification/m4-copy-commands.jsonl" \
         "$qualification/m4-copy-log-tails.txt" \
         "$qualification/m4-copy-resume-check.json" \

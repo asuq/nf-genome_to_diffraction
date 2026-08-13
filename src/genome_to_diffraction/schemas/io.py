@@ -27,6 +27,7 @@ from genome_to_diffraction.schemas.manifests import (
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
+    CopyCountAssessment,
     FreeRGenerationRecord,
     MatthewsHypothesis,
     MrHypothesis,
@@ -217,6 +218,7 @@ CONTRACTS: dict[str, ContractSpec] = {
     "mtz-preflight": ContractSpec(MtzPreflightRecord),
     "matthews-hypothesis": ContractSpec(MatthewsHypothesis),
     "normalised-mr-result": ContractSpec(NormalisedMrResult),
+    "copy-count-assessment": ContractSpec(CopyCountAssessment),
     "scientific-status": ContractSpec(ScientificStatusRecord),
 }
 

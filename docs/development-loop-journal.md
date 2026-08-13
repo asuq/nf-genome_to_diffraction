@@ -2181,3 +2181,68 @@ green and Marmic is reachable, deploy the checksum-reviewed tools and create a
 new immutable M4 run from the retained parent evidence to qualify sequential
 copy placement. Do not start refinement or discard any candidate before that
 comparison.
+
+## 2026-08-13T17:01:32Z - T11.4 typed copy-count reporting completed locally
+
+### Discoveries
+
+- The expected-versus-supported comparison can be built directly from the
+  aggregate sequential transition JSONL. It must first verify contiguous copy
+  numbers and exact parent-child identities; otherwise a superficially
+  plausible count could hide a broken lineage.
+- Checksum-gated deployment of green revision
+  `e72522358e0a4f79c55359012ab3543c5fa68d22` reached the local wrapper but the
+  Marmic SSH endpoint timed out before remote deployment. No deployed tool or
+  retained-run state changed.
+
+### Accomplishments
+
+- Sequential workflow revision
+  `e72522358e0a4f79c55359012ab3543c5fa68d22` was pushed; GitHub Actions run
+  `31722338506` passed.
+- Added the typed `CopyCountAssessment` contract and `mr copy-report` command.
+  It validates full transition lineage, compares Matthews-intended and best
+  supported counts, retains terminal LLG/TFZ/delta/packing/placement/execution
+  evidence, and distinguishes an early stop from proof of copy absence.
+- The report publishes checksum-bound JSONL, TSV, Markdown, and manifest files.
+  Marmic M4 execution now creates and collects this report for every retained
+  candidate automatically.
+- The complete local gate passed with 327 unit, 56 contract, and 45 integration
+  tests plus formatting, Ruff, strict mypy, schemas, public panel,
+  documentation, actionlint, Nextflow syntax/stub/resume, and wrapper syntax.
+
+### Immutable evidence
+
+- Green sequential workflow: revision
+  `e72522358e0a4f79c55359012ab3543c5fa68d22`, GitHub Actions run
+  `31722338506`.
+- Intended deployment hashes before the transfer failure: dispatcher
+  `f69c0e65e5e72c6338256f25c48c2f00af79dcfb55db8e8138bfb2153c670198`,
+  smoke job
+  `00ae4980e0e2c6fc2ddba7ffa73e9ecfde5f3018598bc7129a0c99619a8ff667`,
+  and recovery tool
+  `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+  These were not installed because the connection timed out.
+- Corrected copy-two run
+  `gtd-m4-copy-20260813T150438Z-0d9c3ef5b905-1cc7e54a`, job `626475`, remains
+  retained with unknown current remote state.
+
+### Unresolved work
+
+- Publish this T11.4 increment and monitor CI. When Marmic returns, collect the
+  preceding corrected run, deploy tools from the newest green revision, and
+  submit a new immutable sequential M4 run.
+- Real evidence must qualify the sequential series and typed copy-count report
+  before the roadmap advances to brief refinement.
+- Brief refinement, maps, sequence-from-map search, the second review
+  checkpoint, M5 reporting/pilot, and M6 validation/hardening remain.
+
+### Next exact starting point
+
+Read this entry, commit and push the T11.4 report increment, and monitor GitHub
+Actions. Retry only the approved wrapper status for corrected run
+`gtd-m4-copy-20260813T150438Z-0d9c3ef5b905-1cc7e54a`. When Marmic is reachable,
+collect that run, deploy tools from the newest green commit, and launch a fresh
+retained M4 run so every one of the 11 candidates receives sequential copy
+placement and a copy-count assessment. Do not begin refinement until that
+real-data evidence is terminal and inspected.

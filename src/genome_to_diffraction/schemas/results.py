@@ -589,6 +589,45 @@ class AdditionalCopyResult(ContractModel):
         return self
 
 
+class CopyCountAssessment(ContractModel):
+    """Matthews-intended and empirically supported count for one retained seed."""
+
+    schema_version: Literal["1.0"]
+    assessment_id: NonEmptyString
+    review_id: NonEmptyString
+    seed_solution_id: NonEmptyString
+    hypothesis_id: NonEmptyString
+    sequence_group_id: NonEmptyString
+    expected_copy_count: PositiveInt
+    best_supported_copy_count: PositiveInt
+    attempted_transition_count: PositiveInt
+    reached_expected_copy_count: bool
+    final_execution_status: ExecutionStatus
+    final_llg: float | None = None
+    final_tfz: float | None = None
+    final_llg_delta_from_parent: float | None = None
+    final_top_solution_packed: bool
+    final_placement_count: int = Field(ge=0)
+    terminal_reason: Literal[
+        "expected_copy_count_reached",
+        "additional_copy_not_supported",
+    ]
+    parent_states_retained: Literal[True] = True
+    failed_addition_proves_absence: Literal[False] = False
+    review_flags: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _validate_count_assessment(self) -> Self:
+        if self.best_supported_copy_count > self.expected_copy_count:
+            raise ValueError("supported count must not exceed expected count")
+        reached = self.best_supported_copy_count == self.expected_copy_count
+        if reached != self.reached_expected_copy_count:
+            raise ValueError("reached-expected flag disagrees with copy counts")
+        if reached != (self.terminal_reason == "expected_copy_count_reached"):
+            raise ValueError("terminal reason disagrees with copy counts")
+        return self
+
+
 class ReviewDecision(ContractModel):
     """One immutable human checkpoint decision."""
 

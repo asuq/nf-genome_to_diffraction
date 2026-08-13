@@ -128,3 +128,15 @@ def test_m4_copy_remote_stage_exposes_staged_only_after_inputs_are_bound() -> No
     final_staged = function.index('atomic_text "$run/state/phase" staged')
 
     assert input_staging < manifest_checksum < final_staged
+
+
+def test_m4_job_builds_and_collects_copy_count_report() -> None:
+    repository = Path(__file__).resolve().parents[2]
+    job = (repository / "bootstrap/nf-gtd-hpc-smoke-job").read_text(encoding="utf-8")
+    dispatcher = (repository / "bootstrap/nf-gtd-hpc-remote").read_text(
+        encoding="utf-8"
+    )
+
+    assert "mr copy-report" in job
+    assert "m4-copy-count-report/copy_count_report_manifest.json" in job
+    assert "m4-copy-count-report/copy_count_report_manifest.json" in dispatcher
