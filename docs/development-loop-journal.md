@@ -1859,3 +1859,51 @@ invoke `m4-copy-stage` for retained P2-diverse run
 `gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a` with the separate 11-row
 decision TSV and submit the returned run ID. Do not drop any candidate or begin
 refinement until the real copy-two evidence has been collected and compared.
+
+## 2026-08-13 — Real 11-seed M4 comparison submitted
+
+### Discoveries
+
+- Checksum-bound staging successfully found and verified the original processed
+  model for every approved seed in the retained P2-diverse evidence. No model,
+  decision, or review asset had to be reconstructed or substituted.
+
+### Accomplishments and immutable evidence
+
+- Comparative M4 profile commit
+  `8396fefc26d039964641f821346a35733fdc52b5` was pushed and passed GitHub
+  Actions run `31705933877`. The installed local wrapper SHA-256 is
+  `cfaf44183a104c71436535f5be20a82b81861d2fd03b7e64b4964707f7780281`;
+  deployed dispatcher and job SHA-256 values are respectively
+  `7809949e8039b609461abdbf07d9b12130e6460a921a1954dcf6eb37ee1e4cc7`
+  and `b84c57052100e6e679bf2414677e292c5ac6a6ea1c3cd48165cdcb9808d77253`.
+- Staged run `gtd-m4-copy-20260813T134411Z-8396fefc26d0-54c9157e`
+  authenticated parent run
+  `gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a`, all 11 decisions,
+  decision checksum
+  `7bbe539cf3c02b253ee94d829af6cf0b516e8eecedc6c784ab12cd707d012e2c`,
+  review-manifest checksum
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`,
+  Pixi 0.74.0, and nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a`.
+- Slurm job `626455` was submitted and its first structured status was
+  `RUNNING`. A 30-minute heartbeat named `monitor-marmic-m4-copy` now checks
+  only through the installed approved wrapper.
+
+### Unresolved work
+
+- Wait for the immutable 11-way copy-two comparison to become terminal without
+  imposing or inferring a runtime timeout. Then collect and compare all raw
+  outcomes and resume evidence.
+- Supported children still require sequential copy-three-to-expected-count
+  testing before refinement. Refinement, maps, sequence-from-map, the second
+  checkpoint, reporting, and hardening remain later roadmap work.
+
+### Next exact starting point
+
+Read this entry, then check only run
+`gtd-m4-copy-20260813T134411Z-8396fefc26d0-54c9157e` with the installed wrapper.
+If it is non-terminal, leave it untouched. If terminal, retrieve bounded logs
+and collect evidence, verify all 11 parents and the fully cached resume, rank
+copy-two support without discarding alternatives, and record the exact next
+sequential-copy development step.
