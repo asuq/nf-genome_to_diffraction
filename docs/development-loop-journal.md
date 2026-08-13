@@ -2114,3 +2114,70 @@ copy-two evidence before choosing which supported child states enter sequential
 copy placement. In parallel-safe local work, wire the tested adapter into the
 smallest bounded copy-three-to-expected-count workflow increment; do not begin
 refinement or drop alternative candidates.
+
+## 2026-08-13T16:44:36Z - Bounded sequential-copy workflow completed locally
+
+### Discoveries
+
+- The existing Nextflow process could remain one isolated task per approved
+  seed: a bounded Python series can perform one authenticated transition at a
+  time, stop at expected `n` or the first unsupported addition, and retain each
+  child directory. No recursive workflow or new candidate-selection layer is
+  needed for this prototype increment.
+- The Marmic status endpoint again timed out before returning remote state.
+  This remains only a wrapper `transfer_failure`; corrected Slurm job `626475`
+  is retained and no scheduler or scientific outcome is inferred.
+- An interrupted earlier pytest invocation left its fixed integration basetemp
+  non-empty. The full integration suite passed with a fresh isolated `/tmp`
+  basetemp, showing this was test-run residue rather than a code regression.
+
+### Accomplishments
+
+- Commit `a9ca0161a0b5ac5e51effe52daf569f8c64e846c` published the authenticated
+  one-step copy-state adapter. GitHub Actions run `31719834027` passed.
+- `mr add-copy --until-expected` now advances each approved seed from copy two
+  through its hypothesis-specific expected count, using only the immediately
+  preceding supported child. It stops on unsupported scientific evidence and
+  never treats that stop as proof of absence.
+- The workflow retains copy-specific results, PDB/MTZ outputs, commands, logs,
+  result checksums, an aggregate JSONL, and a per-seed series summary. The
+  Marmic runner and collector now aggregate every transition and series rather
+  than reporting only the root copy-two record.
+- Local validation passed: 323 unit, 55 contract, and 45 integration tests;
+  formatting, Ruff, strict mypy, schemas, public panel, documentation links,
+  actionlint, Nextflow syntax/stub/resume, wrapper shell syntax, and
+  `git diff --check`.
+
+### Immutable evidence
+
+- Published adapter revision:
+  `a9ca0161a0b5ac5e51effe52daf569f8c64e846c`; GitHub Actions:
+  `31719834027` (`success`).
+- Corrected earlier real-data run remains
+  `gtd-m4-copy-20260813T150438Z-0d9c3ef5b905-1cc7e54a`, source revision
+  `0d9c3ef5b905181548f4bd64ace40c06e9153790`, Slurm job `626475`. The new
+  sequential workflow has not yet been submitted to Marmic.
+- Sequential-series unit evidence covers supported copy two to copy three,
+  exact expected-count stopping, immediate-parent linkage, result/coordinate
+  checksum authentication, aggregate result order, and retained-state summary.
+
+### Unresolved work
+
+- Commit and publish the sequential workflow/collector increment, monitor its
+  GitHub Actions run, build/deploy checksum-reviewed tools, and run it as a new
+  immutable Marmic M4 profile after the preceding corrected run is collected.
+- Compare all candidate series and create the Matthews-intended versus
+  empirically supported copy-count report. Do not remove stopped alternatives.
+- Brief refinement, map generation, sequence-from-map comparison, the second
+  checkpoint, reporting, and prototype hardening remain.
+
+### Next exact starting point
+
+Read this entry. Commit and push the validated sequential workflow increment
+and monitor GitHub Actions. Retry corrected run
+`gtd-m4-copy-20260813T150438Z-0d9c3ef5b905-1cc7e54a` only through the installed
+wrapper; if terminal, collect and compare its 11 copy-two outcomes. After CI is
+green and Marmic is reachable, deploy the checksum-reviewed tools and create a
+new immutable M4 run from the retained parent evidence to qualify sequential
+copy placement. Do not start refinement or discard any candidate before that
+comparison.

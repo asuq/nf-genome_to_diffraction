@@ -2,17 +2,19 @@
 
 ## Status and scientific purpose
 
-The first M4 increment is implemented: for every explicitly approved
-first-copy solution, `phenix.phaser` fixes the approved coordinate model at its
-placed origin and searches exactly one additional copy of the same component.
+The sequential-copy M4 increment is implemented: for every explicitly approved
+first-copy solution, `phenix.phaser` fixes the approved coordinate state at its
+placed origin and searches exactly one additional copy of the same component at
+each step.
 This is comparative evidence for the `ASU = nA` prototype. It does not identify
 the protein, prove a copy absent, or implement heteromeric reconstruction.
 
 All approved seeds remain independent alternatives. A child state advances
 only when Phaser emits coordinate and MTZ files, reports a packed solution, and
-the coordinate output contains at least two ensemble placements. Otherwise the
-parent remains the best supported state. Numeric LLG/TFZ values and their raw
-delta are retained but are not a calibrated acceptance probability.
+the coordinate output contains exactly the next expected placement count.
+Otherwise the parent remains the best supported state. Numeric LLG/TFZ values
+and their raw delta are retained but are not a calibrated acceptance
+probability.
 
 ## Python interface
 
@@ -48,6 +50,14 @@ placement count must match. A failed or unsupported addition cannot become the
 next parent, and an already complete `n`-copy state cannot advance beyond its
 hypothesis.
 
+The workflow uses `--until-expected` to perform this bounded sequence for each
+approved seed. It writes every copy-specific child in a separate directory,
+plus `additional_copy_series_results.jsonl` and
+`additional_copy_series_summary.json`. The series stops at expected `n` or the
+first unsupported addition. All attempted and parent states remain available;
+the stop is not an absence claim and does not remove the candidate from later
+human comparison.
+
 Inputs are authenticated against their prior records:
 
 - the approval must name the current review package and seed;
@@ -70,7 +80,7 @@ sets one.
 
 ## Outputs and failure semantics
 
-Each seed-owned directory contains:
+Each copy-specific attempt directory contains:
 
 - `additional_copy_result.json` and `.jsonl`;
 - `phaser_command.json` and `add_copy.eff`;
@@ -83,8 +93,10 @@ LLG, LLG delta, and TFZ; placement and packing evidence; file hashes; warnings;
 and separate execution status. `parent_retained` is always true and
 `failed_addition_proves_absence` is always false.
 
-- A packed two-placement result is `completed_hit` and supports copy two.
-- A valid zero-solution run is `completed_no_hit` and retains copy one.
+- A packed result with exactly parent count plus one placement is
+  `completed_hit` and supports that child count.
+- A valid zero-solution run is `completed_no_hit` and retains its immediate
+  parent count.
 - Unpacked or incomplete parsed solutions are retained as evidence but do not
   advance the best-supported count.
 - Tool, parse, input-contract, and infrastructure failures remain distinct and
@@ -103,12 +115,12 @@ identity binds the adapter version, review and seed IDs, parent/model/sequence/
 MTZ/Phenix hashes, and the generated parameter-file hash.
 
 Each search-model file is a content-tracked Nextflow input, so no redundant
-model-index channel is required. The adapter places copy two from each
-first-copy seed and can then advance an authenticated supported child one copy
-at a time through copy 3..n. Workflow iteration and copy-count reporting, brief
-refinement, map generation, sequence-from-map searching, and the second review
-checkpoint are the next M4 increments. They must build on the typed child state
-rather than overwriting the retained parent.
+model-index channel is required. The adapter and workflow place copy two from
+each first-copy seed and advance an authenticated supported child one copy at a
+time through copy 3..n. A comparative copy-count report, brief refinement, map
+generation, sequence-from-map searching, and the second review checkpoint are
+the next M4 increments. They must build on the typed child state rather than
+overwriting the retained parent.
 
 ## Test coverage
 

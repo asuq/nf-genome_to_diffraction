@@ -1609,10 +1609,11 @@ run_m4_copy_nextflow() {
 
 run_m4_copy() {
     local qualification="$RUN/artifacts/qualification"
-    local cache_counts total cached expected result_count
-    local directory result status parent_id child_id packed placed
-    local supported_count=0 no_addition_count=0 failed_count=0
-    local results_tmp commands_tmp tails_tmp checksums_tmp candidate checksum relative
+    local cache_counts total cached expected result_count attempt_count=0
+    local directory series series_summary final_result status seed_id attempts
+    local supported_count=0 no_addition_count=0 failed_count=0 complete_count=0
+    local results_tmp summaries_tmp commands_tmp tails_tmp checksums_tmp
+    local candidate checksum relative command log_file series_supported
     local -a directories=()
 
     load_p0_config
@@ -1679,50 +1680,66 @@ run_m4_copy() {
     result_count="${#directories[@]}"
     [[ "$result_count" -eq "$expected" ]] || return 4
     results_tmp="$qualification/m4-copy-results.jsonl.tmp.$$"
+    summaries_tmp="$qualification/m4-copy-series-summaries.jsonl.tmp.$$"
     commands_tmp="$qualification/m4-copy-commands.jsonl.tmp.$$"
     tails_tmp="$qualification/m4-copy-log-tails.txt.tmp.$$"
     : > "$results_tmp"
+    : > "$summaries_tmp"
     : > "$commands_tmp"
     : > "$tails_tmp"
     for directory in "${directories[@]}"; do
-        result="$directory/additional_copy_result.json"
-        [[ -s "$result" && ! -L "$result" ]] || return 4
-        status="$(sed -n 's/.*"execution_status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$result")"
-        parent_id="$(sed -n 's/.*"parent_solution_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$result")"
-        child_id="$(sed -n 's/.*"child_solution_id"[[:space:]]*:[[:space:]]*\("[^"]*"\|null\).*/\1/p' "$result")"
-        packed="$(sed -n 's/.*"top_solution_packed"[[:space:]]*:[[:space:]]*\([^,}]*\).*/\1/p' "$result" | tr -d ' ')"
-        placed="$(sed -n 's/.*"phaser_placement_count"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' "$result")"
-        [[ -n "$status" && "$parent_id" == sol_* ]] || return 4
-        if [[ "$status" == completed_hit && "$child_id" != null && \
-              "$packed" == true && "$placed" -ge 2 ]]; then
-            supported_count=$((supported_count + 1))
+        series="$directory/additional_copy_series_results.jsonl"
+        series_summary="$directory/additional_copy_series_summary.json"
+        [[ -s "$series" && ! -L "$series" && \
+           -s "$series_summary" && ! -L "$series_summary" ]] || return 4
+        attempts="$(awk 'NF { count++ } END { print count + 0 }' "$series")"
+        [[ "$attempts" -ge 1 ]] || return 4
+        attempt_count=$((attempt_count + attempts))
+        series_supported="$(grep -c '"additional_copy_supported":true' "$series" || true)"
+        supported_count=$((supported_count + series_supported))
+        final_result="$(tail -n 1 "$series")"
+        status="$(sed -n 's/.*"execution_status":"\([^"]*\)".*/\1/p' <<< "$final_result")"
+        seed_id="$(sed -n 's/.*"seed_solution_id":"\([^"]*\)".*/\1/p' <<< "$final_result")"
+        [[ -n "$status" && "$seed_id" == sol_* ]] || return 4
+        if grep -Eq '"reached_expected_copy_count"[[:space:]]*:[[:space:]]*true' \
+            "$series_summary"; then
+            complete_count=$((complete_count + 1))
         elif [[ "$status" == completed_no_hit ]]; then
             no_addition_count=$((no_addition_count + 1))
-        else
+        elif [[ "$status" != completed_hit ]]; then
             failed_count=$((failed_count + 1))
         fi
-        cat -- "$directory/additional_copy_result.jsonl" >> "$results_tmp"
+        cat -- "$series" >> "$results_tmp"
         "$RUN/source/.pixi/envs/hpc/bin/python" -c \
             'import json,sys; print(json.dumps(json.load(open(sys.argv[1])),sort_keys=True,separators=(",",":")))' \
-            "$directory/phaser_command.json" >> "$commands_tmp"
-        printf 'seed_solution_id=%s tail_lines=200\n' "$parent_id" >> "$tails_tmp"
-        [[ ! -f "$directory/PHASER.log" ]] || \
-            tail -n 200 "$directory/PHASER.log" >> "$tails_tmp"
+            "$series_summary" >> "$summaries_tmp"
+        while IFS= read -r command; do
+            "$RUN/source/.pixi/envs/hpc/bin/python" -c \
+                'import json,sys; print(json.dumps(json.load(open(sys.argv[1])),sort_keys=True,separators=(",",":")))' \
+                "$command" >> "$commands_tmp"
+        done < <(find "$directory" -type f -name phaser_command.json -print | LC_ALL=C sort)
+        while IFS= read -r log_file; do
+            printf 'seed_solution_id=%s attempt=%s tail_lines=200\n' \
+                "$seed_id" "${log_file#"$directory/"}" >> "$tails_tmp"
+            tail -n 200 "$log_file" >> "$tails_tmp"
+        done < <(find "$directory" -type f -name PHASER.log -print | LC_ALL=C sort)
     done
     mv -f -- "$results_tmp" "$qualification/m4-copy-results.jsonl"
+    mv -f -- "$summaries_tmp" "$qualification/m4-copy-series-summaries.jsonl"
     mv -f -- "$commands_tmp" "$qualification/m4-copy-commands.jsonl"
     mv -f -- "$tails_tmp" "$qualification/m4-copy-log-tails.txt"
     cat > "$qualification/m4-copy-resume-check.json" <<EOF
-{"schema_version":"1.0","run_id":"$RUN_ID","profile":"m4-copy","process_count":$total,"cached_process_count":$cached,"all_copy_two_processes_cached":true}
+{"schema_version":"1.0","run_id":"$RUN_ID","profile":"m4-copy","process_count":$total,"cached_process_count":$cached,"all_candidate_series_cached":true}
 EOF
     cat > "$qualification/m4-copy-summary.json" <<EOF
-{"schema_version":"1.0","run_id":"$RUN_ID","profile":"m4-copy","parent_run_id":"$(<"$RUN/state/parent-run-id")","attempted_seed_count":$result_count,"supported_additional_copy_count":$supported_count,"completed_no_addition_count":$no_addition_count,"candidate_failure_count":$failed_count,"all_parents_retained":true,"failed_addition_proves_absence":false,"selection_policy":"retain_all_and_rank_downstream_evidence","all_resume_processes_cached":true}
+{"schema_version":"1.0","run_id":"$RUN_ID","profile":"m4-copy","parent_run_id":"$(<"$RUN/state/parent-run-id")","attempted_seed_count":$result_count,"attempted_transition_count":$attempt_count,"supported_transition_count":$supported_count,"expected_copy_count_reached_count":$complete_count,"stopped_before_expected_count":$((result_count - complete_count)),"completed_no_addition_count":$no_addition_count,"candidate_failure_count":$failed_count,"all_parents_retained":true,"failed_addition_proves_absence":false,"selection_policy":"retain_all_and_rank_downstream_evidence","all_resume_processes_cached":true}
 EOF
     checksums_tmp="$qualification/m4-copy-artifact-sha256.tsv.tmp.$$"
     printf 'sha256\tpath\n' > "$checksums_tmp"
     for candidate in \
         "$qualification/m4-copy-summary.json" \
         "$qualification/m4-copy-results.jsonl" \
+        "$qualification/m4-copy-series-summaries.jsonl" \
         "$qualification/m4-copy-commands.jsonl" \
         "$qualification/m4-copy-log-tails.txt" \
         "$qualification/m4-copy-resume-check.json" \

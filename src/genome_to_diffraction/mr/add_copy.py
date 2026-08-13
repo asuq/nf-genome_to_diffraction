@@ -17,7 +17,7 @@ import json
 import logging
 import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
 
@@ -86,6 +86,15 @@ class AddCopyRunOutput:
     result_jsonl: Path
     command_json: Path
     parameters_file: Path
+
+
+@dataclass(frozen=True)
+class AddCopySeriesOutput:
+    """Retained one-copy-at-a-time attempts for one approved seed."""
+
+    attempts: tuple[AddCopyRunOutput, ...]
+    results_jsonl: Path
+    summary_json: Path
 
 
 @dataclass(frozen=True)
@@ -600,3 +609,96 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         },
     )
     return _write_output(output, result, command_json, parameters)
+
+
+def run_additional_copy_series(request: AddCopyRunRequest) -> AddCopySeriesOutput:
+    """Advance one seed sequentially until expected count or unsupported addition.
+
+    Every attempt fixes the immediately preceding checksum-authenticated child,
+    searches exactly one further copy, and remains in its own directory. An
+    unsupported attempt ends this candidate's series while retaining all parent
+    states and without claiming that the additional copy is absent.
+    """
+
+    root = request.output_directory.resolve()
+    attempts: list[AddCopyRunOutput] = []
+    current_request = request
+    while True:
+        output = run_additional_copy_phaser(current_request)
+        attempts.append(output)
+        result = output.result
+        if not result.additional_copy_supported:
+            stop_reason = "additional_copy_not_supported"
+            break
+        if result.best_supported_copy_count >= result.expected_copy_count:
+            stop_reason = "expected_copy_count_reached"
+            break
+        if result.output_coordinate_path is None:
+            raise PhaserInputError(
+                "supported additional-copy child lacks its coordinate path"
+            )
+        next_copy = result.best_supported_copy_count + 1
+        _LOGGER.info(
+            "advancing supported additional-copy child",
+            extra={
+                "seed_solution_id": request.seed_solution_id,
+                "parent_solution_id": result.child_solution_id,
+                "parent_copy_count": result.best_supported_copy_count,
+                "attempted_copy_number": next_copy,
+                "expected_copy_count": result.expected_copy_count,
+            },
+        )
+        current_request = replace(
+            request,
+            output_directory=root / f"copy_{next_copy:02d}",
+            parent_result_jsonl=output.result_jsonl,
+            parent_coordinate=output.result_json.parent / result.output_coordinate_path,
+        )
+
+    aggregate = root / "additional_copy_series_results.jsonl"
+    atomic_write_text(
+        aggregate,
+        "".join(f"{canonical_json_text(item.result)}\n" for item in attempts),
+    )
+    summary = root / "additional_copy_series_summary.json"
+    series_identity = {
+        "adapter_version": _ADAPTER_VERSION,
+        "seed_solution_id": request.seed_solution_id,
+        "attempt_ids": [item.result.attempt_id for item in attempts],
+    }
+    final = attempts[-1].result
+    atomic_write_json(
+        summary,
+        {
+            "schema_version": "1.0",
+            "series_id": content_id("copyseries_", series_identity),
+            **series_identity,
+            "expected_copy_count": final.expected_copy_count,
+            "attempt_count": len(attempts),
+            "attempted_copy_numbers": [
+                item.result.attempted_copy_number for item in attempts
+            ],
+            "best_supported_copy_count": final.best_supported_copy_count,
+            "reached_expected_copy_count": (
+                final.best_supported_copy_count == final.expected_copy_count
+            ),
+            "stop_reason": stop_reason,
+            "parent_retained": True,
+            "failed_addition_proves_absence": False,
+            "result_paths": [
+                item.result_jsonl.relative_to(root).as_posix() for item in attempts
+            ],
+            "result_sha256": [sha256_file(item.result_jsonl) for item in attempts],
+        },
+    )
+    _LOGGER.info(
+        "additional-copy series finished",
+        extra={
+            "seed_solution_id": request.seed_solution_id,
+            "attempt_count": len(attempts),
+            "best_supported_copy_count": final.best_supported_copy_count,
+            "expected_copy_count": final.expected_copy_count,
+            "stop_reason": stop_reason,
+        },
+    )
+    return AddCopySeriesOutput(tuple(attempts), aggregate, summary)

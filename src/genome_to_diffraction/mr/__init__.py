@@ -3,7 +3,9 @@
 from genome_to_diffraction.mr.add_copy import (
     AddCopyRunOutput,
     AddCopyRunRequest,
+    AddCopySeriesOutput,
     run_additional_copy_phaser,
+    run_additional_copy_series,
 )
 from genome_to_diffraction.mr.phaser import (
     ParsedPhaserLog,
@@ -18,6 +20,7 @@ from genome_to_diffraction.mr.phaser import (
 __all__ = [
     "AddCopyRunOutput",
     "AddCopyRunRequest",
+    "AddCopySeriesOutput",
     "ParsedPhaserLog",
     "PhaserInputError",
     "PhaserParseError",
@@ -25,5 +28,6 @@ __all__ = [
     "PhaserRunRequest",
     "parse_phaser_log",
     "run_additional_copy_phaser",
+    "run_additional_copy_series",
     "run_first_copy_phaser",
 ]

@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "series_id": "copyseries_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "adapter_version": "phenix-add-copy-mr-v1",
+  "seed_solution_id": "sol_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "attempt_ids": [
+    "addcopy_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "expected_copy_count": 3,
+  "attempt_count": 1,
+  "attempted_copy_numbers": [2],
+  "best_supported_copy_count": 2,
+  "reached_expected_copy_count": false,
+  "stop_reason": "stub_partial_series",
+  "parent_retained": true,
+  "failed_addition_proves_absence": false,
+  "result_paths": ["additional_copy_result.jsonl"],
+  "result_sha256": [
+    "1111111111111111111111111111111111111111111111111111111111111111"
+  ]
+}

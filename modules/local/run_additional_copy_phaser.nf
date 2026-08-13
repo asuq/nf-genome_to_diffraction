@@ -35,6 +35,7 @@ process RUN_ADDITIONAL_COPY_PHASER {
         --search-model '${seed[1]}' \
         --phenix-manifest '${phenix_manifest}' \
         --threads '${task.cpus}' \
+        --until-expected \
         --outdir 'additional_copy_${seed[0]}'
     """
 
@@ -53,5 +54,11 @@ process RUN_ADDITIONAL_COPY_PHASER {
     cp \
         '${projectDir}/tests/fixtures/stubs/add_copy.eff' \
         'additional_copy_${seed[0]}/add_copy.eff'
+    cp \
+        '${projectDir}/tests/fixtures/stubs/additional_copy_series_results.jsonl' \
+        'additional_copy_${seed[0]}/additional_copy_series_results.jsonl'
+    cp \
+        '${projectDir}/tests/fixtures/stubs/additional_copy_series_summary.json' \
+        'additional_copy_${seed[0]}/additional_copy_series_summary.json'
     """
 }

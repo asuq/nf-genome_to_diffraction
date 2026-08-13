@@ -60,6 +60,7 @@ from genome_to_diffraction.mr import (
     AddCopyRunRequest,
     PhaserRunRequest,
     run_additional_copy_phaser,
+    run_additional_copy_series,
     run_first_copy_phaser,
 )
 from genome_to_diffraction.mr.stage_add_copy import (
@@ -680,6 +681,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--parent-coordinate",
         type=Path,
         help="checksum-matched coordinate from --parent-result",
+    )
+    add_copy_parser.add_argument(
+        "--until-expected",
+        action="store_true",
+        help="advance one supported copy at a time to expected n or first stop",
     )
     add_copy_parser.add_argument("--threads", type=int, default=1)
     add_copy_parser.add_argument(
@@ -1348,25 +1354,31 @@ def _run_mr(args: argparse.Namespace) -> int:
         )
         return 0
     if args.mr_action == "add-copy":
-        add_copy_output = run_additional_copy_phaser(
-            AddCopyRunRequest(
-                review_validation_json=args.review_validation,
-                review_package_manifest=args.review_package_manifest,
-                seed_solution_id=args.seed_solution_id,
-                hypotheses_jsonl=args.hypotheses,
-                sequence_groups_jsonl=args.sequence_groups,
-                preflight_jsonl=args.preflight,
-                mtz=args.mtz,
-                search_model=args.search_model,
-                phenix_manifest=args.phenix_manifest,
-                output_directory=args.outdir,
-                parent_result_jsonl=args.parent_result,
-                parent_coordinate=args.parent_coordinate,
-                threads=args.threads,
-                timeout_seconds=args.timeout_seconds,
-                progress=not args.no_progress,
-            )
+        request = AddCopyRunRequest(
+            review_validation_json=args.review_validation,
+            review_package_manifest=args.review_package_manifest,
+            seed_solution_id=args.seed_solution_id,
+            hypotheses_jsonl=args.hypotheses,
+            sequence_groups_jsonl=args.sequence_groups,
+            preflight_jsonl=args.preflight,
+            mtz=args.mtz,
+            search_model=args.search_model,
+            phenix_manifest=args.phenix_manifest,
+            output_directory=args.outdir,
+            parent_result_jsonl=args.parent_result,
+            parent_coordinate=args.parent_coordinate,
+            threads=args.threads,
+            timeout_seconds=args.timeout_seconds,
+            progress=not args.no_progress,
         )
+        if args.until_expected:
+            series = run_additional_copy_series(request)
+            print(
+                f"Additional-copy MR series retained {len(series.attempts)} "
+                f"attempt(s): {series.summary_json}"
+            )
+            return 0
+        add_copy_output = run_additional_copy_phaser(request)
         print(
             "Additional-copy MR "
             f"{add_copy_output.result.execution_status.value}: "

@@ -2025,6 +2025,7 @@ collect_run() {
         artifacts/qualification/m4-copy-input-checksums.sha256 \
         artifacts/qualification/m4-copy-summary.json \
         artifacts/qualification/m4-copy-results.jsonl \
+        artifacts/qualification/m4-copy-series-summaries.jsonl \
         artifacts/qualification/m4-copy-commands.jsonl \
         artifacts/qualification/m4-copy-log-tails.txt \
         artifacts/qualification/m4-copy-artifact-sha256.tsv \

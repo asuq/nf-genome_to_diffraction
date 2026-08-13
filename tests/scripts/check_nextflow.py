@@ -624,6 +624,8 @@ def check_stubs() -> None:
             {
                 "additional_copy_result.json",
                 "additional_copy_result.jsonl",
+                "additional_copy_series_results.jsonl",
+                "additional_copy_series_summary.json",
                 "phaser_command.json",
                 "add_copy.eff",
                 "report.html",

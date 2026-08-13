@@ -13,6 +13,7 @@ from genome_to_diffraction.mr import (
     AddCopyRunRequest,
     PhaserInputError,
     run_additional_copy_phaser,
+    run_additional_copy_series,
 )
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
@@ -193,8 +194,12 @@ def _fake_runtime(
     *,
     log_text: str,
     write_solution: bool,
-    placement_count: int = 2,
+    placement_count: int | tuple[int, ...] = 2,
 ) -> None:
+    placement_counts = iter(
+        (placement_count,) if isinstance(placement_count, int) else placement_count
+    )
+
     def fake_validate(path: Path) -> PhenixInstallManifest:
         del path
         return _manifest()
@@ -217,9 +222,10 @@ def _fake_runtime(
         assert 'hklin = "' in parameters
         (working_directory / "PHASER.log").write_text(log_text, encoding="utf-8")
         if write_solution:
+            current_placement_count = next(placement_counts)
             placements = "".join(
                 f"REMARK ENSEMBLE copy_{index} EULER 0 0 0 FRAC 0 0 0\n"
-                for index in range(1, placement_count + 1)
+                for index in range(1, current_placement_count + 1)
             )
             (working_directory / "PHASER.1.pdb").write_text(
                 placements + "ATOM\n",
@@ -342,6 +348,37 @@ def test_supported_copy_two_advances_to_copy_three(
     assert command["parent_solution_id"] == child_result.child_solution_id
     assert command["parent_copy_count"] == 2
     assert command["parent_result_sha256"] == sha256_file(child_result_path)
+
+
+def test_series_reaches_expected_count_and_retains_each_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _request(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        placement_count=(2, 3),
+    )
+
+    series = run_additional_copy_series(request)
+
+    assert [item.result.attempted_copy_number for item in series.attempts] == [2, 3]
+    assert series.attempts[-1].result.best_supported_copy_count == 3
+    assert series.attempts[0].result_jsonl.is_file()
+    assert series.attempts[1].result_jsonl.parent.name == "copy_03"
+    aggregate = [
+        AdditionalCopyResult.model_validate_json(line)
+        for line in series.results_jsonl.read_text(encoding="utf-8").splitlines()
+    ]
+    assert [item.parent_copy_count for item in aggregate] == [1, 2]
+    summary = json.loads(series.summary_json.read_text(encoding="utf-8"))
+    assert summary["attempt_count"] == 2
+    assert summary["attempted_copy_numbers"] == [2, 3]
+    assert summary["reached_expected_copy_count"] is True
+    assert summary["stop_reason"] == "expected_copy_count_reached"
+    assert summary["parent_retained"] is True
+    assert summary["failed_addition_proves_absence"] is False
 
 
 def test_copy_three_refuses_to_advance_beyond_expected_count(tmp_path: Path) -> None:
@@ -529,3 +566,4 @@ def test_nextflow_finishes_sibling_attempts_after_contract_failure() -> None:
     )
 
     assert "errorStrategy 'finish'" in module
+    assert "--until-expected" in module
