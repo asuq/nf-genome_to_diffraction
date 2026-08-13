@@ -3,6 +3,7 @@ nextflow.enable.types = true
 process RUN_ADDITIONAL_COPY_PHASER {
     tag "add-copy:${seed[0]}"
     label 'process_mr'
+    errorStrategy 'finish'
     publishDir params.outdir, mode: 'copy', overwrite: true
 
     input:

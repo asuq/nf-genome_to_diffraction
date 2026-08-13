@@ -54,7 +54,13 @@ def _manifest() -> PhenixInstallManifest:
     return model
 
 
-def _request(tmp_path: Path) -> AddCopyRunRequest:
+def _request(
+    tmp_path: Path,
+    *,
+    parent_status: ExecutionStatus = ExecutionStatus.COMPLETED_HIT,
+    parent_packed: bool = True,
+    parent_copy_count: int = 1,
+) -> AddCopyRunRequest:
     package = tmp_path / "review package"
     assets = package / "assets" / SEED_ID
     assets.mkdir(parents=True)
@@ -70,11 +76,11 @@ def _request(tmp_path: Path) -> AddCopyRunRequest:
         schema_version="1.0",
         hypothesis_id=HYPOTHESIS_ID,
         tool_version="Phenix 2.1-6048; Phaser 2.8.4",
-        execution_status=ExecutionStatus.COMPLETED_HIT,
+        execution_status=parent_status,
         llg=27.0,
         tfz=5.1,
-        placed_copy_count=1,
-        packing_summary={"top_solution_packed": True},
+        placed_copy_count=parent_copy_count,
+        packing_summary={"top_solution_packed": parent_packed},
         solution_coordinate_path="solution.pdb",
         solution_coordinate_sha256=sha256_file(parent),
         output_mtz_path="solution.mtz",
@@ -243,6 +249,20 @@ def test_packed_additional_copy_advances_child_state(
     assert output.result.child_solution_id is not None
 
 
+def test_approved_packed_no_hit_parent_can_advance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _request(tmp_path, parent_status=ExecutionStatus.COMPLETED_NO_HIT)
+    _fake_runtime(monkeypatch, log_text=POSITIVE_LOG, write_solution=True)
+
+    result = run_additional_copy_phaser(request).result
+
+    assert result.execution_status == "completed_hit"
+    assert result.additional_copy_supported is True
+    assert result.parent_copy_count == 1
+    assert result.best_supported_copy_count == 2
+
+
 def test_no_additional_solution_retains_parent_without_absence_claim(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -291,3 +311,52 @@ def test_changed_parent_result_fails_before_runtime(tmp_path: Path) -> None:
 
     with pytest.raises(PhaserInputError, match="parent result checksum differs"):
         run_additional_copy_phaser(request)
+
+
+@pytest.mark.parametrize(
+    ("parent_status", "parent_packed", "parent_copy_count", "message"),
+    [
+        (
+            ExecutionStatus.FAILED_PARSE,
+            True,
+            1,
+            "successfully parsed parent",
+        ),
+        (
+            ExecutionStatus.COMPLETED_NO_HIT,
+            False,
+            1,
+            "exactly one packed placed copy",
+        ),
+        (
+            ExecutionStatus.COMPLETED_HIT,
+            True,
+            2,
+            "exactly one packed placed copy",
+        ),
+    ],
+)
+def test_unusable_parent_still_fails_before_runtime(
+    tmp_path: Path,
+    parent_status: ExecutionStatus,
+    parent_packed: bool,
+    parent_copy_count: int,
+    message: str,
+) -> None:
+    request = _request(
+        tmp_path,
+        parent_status=parent_status,
+        parent_packed=parent_packed,
+        parent_copy_count=parent_copy_count,
+    )
+
+    with pytest.raises(PhaserInputError, match=message):
+        run_additional_copy_phaser(request)
+
+
+def test_nextflow_finishes_sibling_attempts_after_contract_failure() -> None:
+    module = (REPOSITORY / "modules/local/run_additional_copy_phaser.nf").read_text(
+        encoding="utf-8"
+    )
+
+    assert "errorStrategy 'finish'" in module

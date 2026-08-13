@@ -199,12 +199,21 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     parent_results = _jsonl_records(
         parent_result_path, NormalisedMrResult, label="parent result"
     )
+    if len(parent_results) != 1:
+        raise PhaserInputError("M4 root seed must have exactly one parent result")
+    parent_result = parent_results[0]
+    if parent_result.execution_status not in {
+        ExecutionStatus.COMPLETED_HIT,
+        ExecutionStatus.COMPLETED_NO_HIT,
+    }:
+        raise PhaserInputError("M4 root seed must be a successfully parsed parent")
     if (
-        len(parent_results) != 1
-        or parent_results[0].execution_status is not ExecutionStatus.COMPLETED_HIT
-        or parent_results[0].placed_copy_count != 1
+        parent_result.placed_copy_count != 1
+        or parent_result.packing_summary.get("top_solution_packed") is not True
     ):
-        raise PhaserInputError("M4 root seed must contain exactly one placed copy")
+        raise PhaserInputError(
+            "M4 root seed must contain exactly one packed placed copy"
+        )
     hypothesis_id = item.get("hypothesis_id")
     if not isinstance(hypothesis_id, str):
         raise PhaserInputError("review item lacks a hypothesis ID")
@@ -259,7 +268,7 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         group=group,
         parent_coordinate=parent,
         parent_coordinate_sha256=parent_sha,
-        parent_llg=parent_results[0].llg,
+        parent_llg=parent_result.llg,
         search_model=search_model,
         search_model_sha256=search_model_sha,
         model_identity_fraction=float(identity_percent) / 100.0,

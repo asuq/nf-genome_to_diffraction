@@ -37,7 +37,9 @@ Inputs are authenticated against their prior records:
 
 - the approval must name the current review package and seed;
 - the review manifest and parent coordinate must match their recorded hashes;
-- the parent must be a typed one-copy result;
+- the parent must be a successfully parsed, packed, typed result containing
+  exactly one placed copy; `completed_hit` and score-annotated
+  `completed_no_hit` parents are both eligible after explicit approval;
 - the hypothesis, exact catalogue sequence, observation labels, and MTZ
   preflight must agree;
 - the MTZ hash must match preflight; and
@@ -77,7 +79,11 @@ and separate execution status. `parent_retained` is always true and
 
 `screen_additional_copies.nf` consumes a two-column TSV
 (`seed_solution_id`, `search_model`) and fans out one isolated process per
-approved seed. It supports stub and resume tests. The operation's content
+approved seed. A genuine candidate-specific contract failure makes the run fail
+after other submitted siblings finish; it does not kill the remaining
+comparison immediately. Scientific tool/no-addition outcomes are written as
+normalised records and return successfully. The workflow supports stub and
+resume tests. The operation's content
 identity binds the adapter version, review and seed IDs, parent/model/sequence/
 MTZ/Phenix hashes, and the generated parameter-file hash.
 
@@ -91,8 +97,10 @@ overwriting the retained parent.
 
 ## Test coverage
 
-Unit tests cover packed advancement, scientific no-additional-solution, strict
-parent retention, and search-model checksum drift. The repository stub/resume
-suite exercises the Nextflow entry point under parser v2. Real installed-Phenix
-qualification on Marmic remains required before this increment is accepted as
-integrated.
+Unit tests cover packed advancement from both `completed_hit` and explicitly
+approved `completed_no_hit` parents, rejection of failed/unpacked/wrong-copy
+parents, scientific no-additional-solution, strict parent retention,
+search-model checksum drift, and finish-after-sibling-failure orchestration.
+The repository stub/resume suite exercises the Nextflow entry point under parser
+v2. Real installed-Phenix qualification on Marmic remains required before this
+increment is accepted as integrated.
