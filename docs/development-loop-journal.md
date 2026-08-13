@@ -1701,3 +1701,54 @@ the existing MR-seed decision validator against
 `mr_seed_review_manifest.json`. Do not rerun Phaser, discard below-screen
 solutions, clean the retained run, or start M4 before an explicit validated
 approval.
+
+## 2026-08-13 — All 11 inspectable seeds authorised for comparative M4
+
+### Discoveries
+
+- The user confirmed that several leading solutions look plausible and
+  explicitly requested testing every retained candidate to determine which is
+  best downstream. This authorises all 11 inspectable PDB/MTZ pairs as
+  experimental M4 seeds; it does not validate any protein identity or model.
+- The immutable version-2 review manifest lists 25 hypotheses, including 14
+  rows whose bounded transport inventory contains only command, result, and log
+  metadata. The self-contained handoff correctly transports the 11 complete
+  coordinate/MTZ bundles. The approval validator nevertheless tried to open
+  every listed asset before reading the decisions, so it rejected this valid
+  bounded handoff on an unselected metadata-only row.
+
+### Accomplishments and immutable evidence
+
+- The checksum-bound empty approval template was restored byte-for-byte;
+  SHA-256 remains
+  `6bd5f2070522ca12adb15393df821f0f35c84bab00d25e5cf0687333fa3efad8`.
+  Reviewer decisions are held separately from the immutable package.
+- Approval validation now authenticates package identity and shared outputs,
+  then verifies the complete asset inventory and checksums for every explicitly
+  decided item. It still rejects unknown IDs, unsafe paths, missing or edited
+  decided assets, stale timestamps, and uninspectable approvals without an
+  override. A regression test covers a bounded package where an unselected
+  metadata-only item was not transported.
+- All 11 experimental approvals validated as review
+  `rev_93fca367b3bec6e564a5dc1cb4a4df94a413b4ceec021306d981c1e7aedf59cf`
+  against package
+  `reviewpkg_fe7c36037f3a034d61aa3e335bb8a13f433da09c3c252cd5169a26ae30e9a6da`.
+  The decision comment states that advancement is comparative and experimental,
+  not final identification.
+
+### Unresolved work
+
+- Implement M4 sequential same-component placement for all 11 approved seeds,
+  retaining each parent and independent packing/score evidence. Rank downstream
+  refinement, map, and sequence evidence without discarding alternatives.
+- Brief refinement, stable map generation, sequence-from-map catalogue search,
+  and the second human-review package remain unimplemented.
+
+### Next exact starting point
+
+Ship the bounded-handoff approval-validator correction through the locked local
+gate and GitHub Actions. Then extend the existing Phaser adapter with a
+fixed-solution additional-copy operation and typed parent-child result, wire a
+minimal Nextflow M4 workflow, and run the 11 approved seeds on Marmic. Do not
+interpret experimental approval, a failed added copy, or numeric MR scores as
+final structural identification.

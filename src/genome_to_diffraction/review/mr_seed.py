@@ -1079,29 +1079,32 @@ def _validate_package_manifest(
             raise MrSeedReviewError("MR review solution identifier is stale or edited")
         if solution_id in items:
             raise MrSeedReviewError(f"duplicate review solution ID: {solution_id}")
-        copied = item.get("copied_assets")
-        copied_sha256 = item.get("copied_asset_sha256")
-        if not isinstance(copied, dict) or not isinstance(copied_sha256, dict):
-            raise MrSeedReviewError(
-                f"review item has no asset inventory: {solution_id}"
-            )
-        if set(copied) != set(copied_sha256):
-            raise MrSeedReviewError(
-                f"review item asset inventories differ: {solution_id}"
-            )
-        for role, relative in copied.items():
-            expected = copied_sha256[role]
-            if not isinstance(relative, str) or not isinstance(expected, str):
-                raise MrSeedReviewError(
-                    f"review item asset record is invalid: {solution_id}"
-                )
-            owned = _owned_file(root, relative, label=f"review asset {role}")
-            if sha256_file(owned, progress=progress, logger=_LOGGER) != expected:
-                raise MrSeedReviewError(
-                    f"MR review asset checksum differs: {solution_id}/{role}"
-                )
         items[solution_id] = item
     return document, items
+
+
+def _validate_decided_item_assets(
+    *, root: Path, solution_id: str, item: Mapping[str, object], progress: bool
+) -> None:
+    """Verify the bounded asset bundle for one explicitly decided solution."""
+
+    copied = item.get("copied_assets")
+    copied_sha256 = item.get("copied_asset_sha256")
+    if not isinstance(copied, dict) or not isinstance(copied_sha256, dict):
+        raise MrSeedReviewError(f"review item has no asset inventory: {solution_id}")
+    if set(copied) != set(copied_sha256):
+        raise MrSeedReviewError(f"review item asset inventories differ: {solution_id}")
+    for role, relative in copied.items():
+        expected = copied_sha256[role]
+        if not isinstance(relative, str) or not isinstance(expected, str):
+            raise MrSeedReviewError(
+                f"review item asset record is invalid: {solution_id}"
+            )
+        owned = _owned_file(root, relative, label=f"review asset {role}")
+        if sha256_file(owned, progress=progress, logger=_LOGGER) != expected:
+            raise MrSeedReviewError(
+                f"MR review asset checksum differs: {solution_id}/{role}"
+            )
 
 
 def validate_mr_seed_approvals(
@@ -1129,6 +1132,7 @@ def validate_mr_seed_approvals(
     except ValueError as error:
         raise MrSeedReviewError("MR review manifest timestamp is invalid") from error
     approved: list[str] = []
+    package_root = request.package_manifest.resolve(strict=True).parent
     for decision in decisions_model.decisions:
         if decision.checkpoint != "mr_seed":
             raise MrSeedReviewError(
@@ -1139,6 +1143,12 @@ def validate_mr_seed_approvals(
             raise MrSeedReviewError(
                 f"approval refers to a stale or unknown solution: {decision.item_id}"
             )
+        _validate_decided_item_assets(
+            root=package_root,
+            solution_id=decision.item_id,
+            item=item,
+            progress=request.progress,
+        )
         if decision.reviewed_at < created_at:
             raise MrSeedReviewError(
                 f"decision predates the current review package: {decision.item_id}"

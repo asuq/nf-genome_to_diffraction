@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.checksums import sha256_file
-from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.review import (
     MrSeedApprovalRequest,
     MrSeedReviewError,
@@ -367,6 +367,45 @@ def test_legacy_review_item_with_pdb_and_mtz_is_inspectable_for_approval(
     )
 
     assert validated.approved_solution_ids == (solution_id,)
+
+
+def test_approval_validates_only_assets_for_explicitly_decided_items(
+    tmp_path: Path,
+) -> None:
+    package = build_mr_seed_review(_request(tmp_path))
+    manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
+    approved_solution_id = manifest["items"][0]["solution_id"]
+    missing_identity = {"test_fixture": "unselected transported solution"}
+    missing_solution_id = content_id("sol_", missing_identity)
+    missing_item = json.loads(json.dumps(manifest["items"][0]))
+    missing_item.update(
+        {
+            "solution_id": missing_solution_id,
+            "solution_identity": missing_identity,
+            "inspectable_solution": False,
+            "copied_assets": {
+                "command": f"assets/{missing_solution_id}/missing-command.json"
+            },
+            "copied_asset_sha256": {"command": "0" * 64},
+        }
+    )
+    manifest["items"].append(missing_item)
+    manifest["package_identity"]["solution_ids"].append(missing_solution_id)
+    manifest["package_id"] = content_id("reviewpkg_", manifest["package_identity"])
+    package.manifest_json.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+    decisions = tmp_path / "approved-transported-subset.tsv"
+    _decision(decisions, approved_solution_id)
+
+    validated = validate_mr_seed_approvals(
+        MrSeedApprovalRequest(
+            package_manifest=package.manifest_json,
+            decisions=decisions,
+            output_json=tmp_path / "validated-transported-subset.json",
+            progress=False,
+        )
+    )
+
+    assert validated.approved_solution_ids == (approved_solution_id,)
 
 
 def test_review_recomputes_missing_gate_for_no_solution(tmp_path: Path) -> None:
