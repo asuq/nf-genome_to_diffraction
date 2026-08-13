@@ -2097,6 +2097,7 @@ collect_run() {
         logs/p2-diverse-login-stage.log \
         logs/p2-control-login-stage.log \
         logs/m4-copy-stage.log \
+        logs/m4-import-stage.log \
         logs/database-source-stage.log \
         logs/sbatch.err \
         logs/smoke.log \
