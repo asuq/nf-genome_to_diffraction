@@ -671,6 +671,16 @@ def _build_parser() -> argparse.ArgumentParser:
     add_copy_parser.add_argument("--search-model", type=Path, required=True)
     add_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
     add_copy_parser.add_argument("--outdir", type=Path, required=True)
+    add_copy_parser.add_argument(
+        "--parent-result",
+        type=Path,
+        help="supported prior additional-copy JSONL for copy 3..n",
+    )
+    add_copy_parser.add_argument(
+        "--parent-coordinate",
+        type=Path,
+        help="checksum-matched coordinate from --parent-result",
+    )
     add_copy_parser.add_argument("--threads", type=int, default=1)
     add_copy_parser.add_argument(
         "--timeout-seconds",
@@ -1350,6 +1360,8 @@ def _run_mr(args: argparse.Namespace) -> int:
                 search_model=args.search_model,
                 phenix_manifest=args.phenix_manifest,
                 output_directory=args.outdir,
+                parent_result_jsonl=args.parent_result,
+                parent_coordinate=args.parent_coordinate,
                 threads=args.threads,
                 timeout_seconds=args.timeout_seconds,
                 progress=not args.no_progress,

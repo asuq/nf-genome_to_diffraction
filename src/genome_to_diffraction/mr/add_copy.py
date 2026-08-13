@@ -70,6 +70,8 @@ class AddCopyRunRequest:
     search_model: Path
     phenix_manifest: Path
     output_directory: Path
+    parent_result_jsonl: Path | None = None
+    parent_coordinate: Path | None = None
     threads: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
@@ -93,6 +95,9 @@ class _Resolved:
     group: SequenceGroupRecord
     parent_coordinate: Path
     parent_coordinate_sha256: str
+    parent_solution_id: str
+    parent_copy_count: int
+    parent_result_sha256: str
     parent_llg: float | None
     search_model: Path
     search_model_sha256: str
@@ -187,33 +192,47 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     if not isinstance(copied, dict) or not isinstance(copied_sha, dict):
         raise PhaserInputError("approved seed lacks an asset inventory")
     root = manifest_path.parent
-    parent = _owned(root, copied.get("solution_coordinate"), label="parent coordinate")
-    parent_sha = sha256_file(parent, progress=request.progress, logger=_LOGGER)
-    if parent_sha != copied_sha.get("solution_coordinate"):
-        raise PhaserInputError("parent coordinate checksum differs from review package")
-    parent_result_path = _owned(
+    root_parent = _owned(
+        root, copied.get("solution_coordinate"), label="root parent coordinate"
+    )
+    root_parent_sha = sha256_file(
+        root_parent, progress=request.progress, logger=_LOGGER
+    )
+    if root_parent_sha != copied_sha.get("solution_coordinate"):
+        raise PhaserInputError(
+            "root parent coordinate checksum differs from review package"
+        )
+    root_result_path = _owned(
         root, copied.get("normalised_result"), label="parent normalised result"
     )
-    if sha256_file(parent_result_path) != copied_sha.get("normalised_result"):
-        raise PhaserInputError("parent result checksum differs from review package")
-    parent_results = _jsonl_records(
-        parent_result_path, NormalisedMrResult, label="parent result"
+    if sha256_file(root_result_path) != copied_sha.get("normalised_result"):
+        raise PhaserInputError(
+            "root parent result checksum differs from review package"
+        )
+    root_results = _jsonl_records(
+        root_result_path, NormalisedMrResult, label="root parent result"
     )
-    if len(parent_results) != 1:
+    if len(root_results) != 1:
         raise PhaserInputError("M4 root seed must have exactly one parent result")
-    parent_result = parent_results[0]
-    if parent_result.execution_status not in {
+    root_result = root_results[0]
+    if root_result.execution_status not in {
         ExecutionStatus.COMPLETED_HIT,
         ExecutionStatus.COMPLETED_NO_HIT,
     }:
         raise PhaserInputError("M4 root seed must be a successfully parsed parent")
     if (
-        parent_result.placed_copy_count != 1
-        or parent_result.packing_summary.get("top_solution_packed") is not True
+        root_result.placed_copy_count != 1
+        or root_result.packing_summary.get("top_solution_packed") is not True
     ):
         raise PhaserInputError(
             "M4 root seed must contain exactly one packed placed copy"
         )
+    parent = root_parent
+    parent_sha = root_parent_sha
+    parent_solution_id = request.seed_solution_id
+    parent_copy_count = 1
+    parent_result_sha = sha256_file(root_result_path)
+    parent_llg = root_result.llg
     hypothesis_id = item.get("hypothesis_id")
     if not isinstance(hypothesis_id, str):
         raise PhaserInputError("review item lacks a hypothesis ID")
@@ -221,7 +240,58 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         request.hypotheses_jsonl, MrHypothesis, label="MR hypotheses"
     )
     hypothesis = _one(hypotheses, hypothesis_id, "hypothesis_id", "hypothesis")
-    if hypothesis.copy_count_expected < 2:
+    if (request.parent_result_jsonl is None) != (request.parent_coordinate is None):
+        raise PhaserInputError(
+            "sequential parent result and coordinate must be supplied together"
+        )
+    if request.parent_result_jsonl is not None:
+        if request.parent_result_jsonl.is_symlink():
+            raise PhaserInputError(
+                "sequential parent result must be a regular non-symlink file"
+            )
+        sequential_result_path = request.parent_result_jsonl.resolve(strict=True)
+        if not sequential_result_path.is_file():
+            raise PhaserInputError(
+                "sequential parent result must be a regular non-symlink file"
+            )
+        sequential_results = _jsonl_records(
+            sequential_result_path,
+            AdditionalCopyResult,
+            label="sequential parent result",
+        )
+        if len(sequential_results) != 1:
+            raise PhaserInputError(
+                "sequential parent must have exactly one additional-copy result"
+            )
+        sequential = sequential_results[0]
+        sequential_coordinate = cast(Path, request.parent_coordinate)
+        parent = sequential_coordinate.resolve(strict=True)
+        if sequential_coordinate.is_symlink() or not parent.is_file():
+            raise PhaserInputError(
+                "sequential parent coordinate must be a regular non-symlink file"
+            )
+        parent_sha = sha256_file(parent, progress=request.progress, logger=_LOGGER)
+        if (
+            not sequential.additional_copy_supported
+            or sequential.execution_status is not ExecutionStatus.COMPLETED_HIT
+            or sequential.review_id != review_id
+            or sequential.seed_solution_id != request.seed_solution_id
+            or sequential.hypothesis_id != hypothesis.hypothesis_id
+            or sequential.sequence_group_id != hypothesis.sequence_group_id
+            or sequential.expected_copy_count != hypothesis.copy_count_expected
+            or sequential.child_solution_id is None
+            or sequential.output_coordinate_sha256 != parent_sha
+            or sequential.phaser_placement_count != sequential.attempted_copy_number
+            or sequential.best_supported_copy_count != sequential.attempted_copy_number
+        ):
+            raise PhaserInputError(
+                "sequential parent is not a supported child of the approved seed"
+            )
+        parent_solution_id = sequential.child_solution_id
+        parent_copy_count = sequential.best_supported_copy_count
+        parent_result_sha = sha256_file(sequential_result_path)
+        parent_llg = sequential.llg
+    if hypothesis.copy_count_expected <= parent_copy_count:
         raise PhaserInputError("approved seed has no expected additional copy")
     groups = _jsonl_records(
         request.sequence_groups_jsonl, SequenceGroupRecord, label="sequence groups"
@@ -268,7 +338,10 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         group=group,
         parent_coordinate=parent,
         parent_coordinate_sha256=parent_sha,
-        parent_llg=parent_result.llg,
+        parent_solution_id=parent_solution_id,
+        parent_copy_count=parent_copy_count,
+        parent_result_sha256=parent_result_sha,
+        parent_llg=parent_llg,
         search_model=search_model,
         search_model_sha256=search_model_sha,
         model_identity_fraction=float(identity_percent) / 100.0,
@@ -364,6 +437,9 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         "adapter_version": _ADAPTER_VERSION,
         "review_id": resolved.review_id,
         "seed_solution_id": request.seed_solution_id,
+        "parent_solution_id": resolved.parent_solution_id,
+        "parent_copy_count": resolved.parent_copy_count,
+        "parent_result_sha256": resolved.parent_result_sha256,
         "parent_coordinate_sha256": resolved.parent_coordinate_sha256,
         "search_model_sha256": resolved.search_model_sha256,
         "sequence_sha256": resolved.group.sha256,
@@ -394,7 +470,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         extra={
             "attempt_id": attempt_id,
             "seed_solution_id": request.seed_solution_id,
-            "attempted_copy_number": 2,
+            "attempted_copy_number": resolved.parent_copy_count + 1,
             "expected_copy_count": resolved.hypothesis.copy_count_expected,
             "threads": request.threads,
         },
@@ -469,13 +545,13 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
                     },
                 )
                 status = ExecutionStatus.COMPLETED_HIT
-                supported = packed and placements >= 2
+                supported = packed and placements == resolved.parent_copy_count + 1
                 if not packed:
                     warnings.append("additional_copy_not_packing_supported")
                     rejection_reason = "parsed_additional_solution_did_not_pack"
-                elif placements < 2:
+                elif placements != resolved.parent_copy_count + 1:
                     warnings.append("additional_copy_placement_count_not_observed")
-                    rejection_reason = "parsed_solution_lacks_two_copy_evidence"
+                    rejection_reason = "parsed_solution_lacks_expected_copy_evidence"
         except PhaserParseError as error:
             status = ExecutionStatus.FAILED_PARSE
             rejection_reason = str(error)
@@ -484,12 +560,12 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         attempt_id=attempt_id,
         review_id=resolved.review_id,
         seed_solution_id=request.seed_solution_id,
-        parent_solution_id=request.seed_solution_id,
+        parent_solution_id=resolved.parent_solution_id,
         child_solution_id=child_id,
         hypothesis_id=resolved.hypothesis.hypothesis_id,
         sequence_group_id=resolved.group.sequence_group_id,
-        parent_copy_count=1,
-        attempted_copy_number=2,
+        parent_copy_count=resolved.parent_copy_count,
+        attempted_copy_number=resolved.parent_copy_count + 1,
         expected_copy_count=resolved.hypothesis.copy_count_expected,
         execution_status=status,
         llg=llg,
@@ -502,7 +578,9 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         phaser_placement_count=placements,
         top_solution_packed=packed,
         additional_copy_supported=supported,
-        best_supported_copy_count=2 if supported else 1,
+        best_supported_copy_count=(
+            resolved.parent_copy_count + 1 if supported else resolved.parent_copy_count
+        ),
         output_coordinate_path=coordinate_path,
         output_coordinate_sha256=coordinate_sha,
         output_mtz_path=mtz_path,

@@ -20,6 +20,7 @@ from genome_to_diffraction.schemas.manifests import (
     PrototypeProfile,
 )
 from genome_to_diffraction.schemas.results import (
+    AdditionalCopyResult,
     MrHypothesis,
     MrHypothesisStatus,
     MrSearchStage,
@@ -188,7 +189,11 @@ def _request(
 
 
 def _fake_runtime(
-    monkeypatch: pytest.MonkeyPatch, *, log_text: str, write_solution: bool
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    log_text: str,
+    write_solution: bool,
+    placement_count: int = 2,
 ) -> None:
     def fake_validate(path: Path) -> PhenixInstallManifest:
         del path
@@ -212,10 +217,12 @@ def _fake_runtime(
         assert 'hklin = "' in parameters
         (working_directory / "PHASER.log").write_text(log_text, encoding="utf-8")
         if write_solution:
+            placements = "".join(
+                f"REMARK ENSEMBLE copy_{index} EULER 0 0 0 FRAC 0 0 0\n"
+                for index in range(1, placement_count + 1)
+            )
             (working_directory / "PHASER.1.pdb").write_text(
-                "REMARK ENSEMBLE fixed_parent EULER 0 0 0 FRAC 0 0 0\n"
-                "REMARK ENSEMBLE search_copy EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
-                "ATOM\n",
+                placements + "ATOM\n",
                 encoding="utf-8",
             )
             (working_directory / "PHASER.1.mtz").write_bytes(b"result MTZ")
@@ -261,6 +268,168 @@ def test_approved_packed_no_hit_parent_can_advance(
     assert result.additional_copy_supported is True
     assert result.parent_copy_count == 1
     assert result.best_supported_copy_count == 2
+
+
+def test_supported_copy_two_advances_to_copy_three(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_request = _request(tmp_path)
+    child_directory = tmp_path / "copy two"
+    child_coordinate = child_directory / "PHASER.1.pdb"
+    child_directory.mkdir()
+    child_coordinate.write_text(
+        "REMARK ENSEMBLE copy_1 EULER 0 0 0 FRAC 0 0 0\n"
+        "REMARK ENSEMBLE copy_2 EULER 0 0 0 FRAC 0 0 0\n"
+        "ATOM\n",
+        encoding="utf-8",
+    )
+    child_result = AdditionalCopyResult(
+        schema_version="1.0",
+        attempt_id="addcopy_" + "1" * 64,
+        review_id=REVIEW_ID,
+        seed_solution_id=SEED_ID,
+        parent_solution_id=SEED_ID,
+        child_solution_id="copystate_" + "2" * 64,
+        hypothesis_id=HYPOTHESIS_ID,
+        sequence_group_id=SEQUENCE_GROUP_ID,
+        parent_copy_count=1,
+        attempted_copy_number=2,
+        expected_copy_count=3,
+        execution_status=ExecutionStatus.COMPLETED_HIT,
+        llg=100.0,
+        tfz=8.0,
+        phaser_placement_count=2,
+        top_solution_packed=True,
+        additional_copy_supported=True,
+        best_supported_copy_count=2,
+        output_coordinate_path=child_coordinate.name,
+        output_coordinate_sha256=sha256_file(child_coordinate),
+        output_mtz_path="PHASER.1.mtz",
+        output_mtz_sha256="3" * 64,
+        raw_log_pointer="PHASER.log",
+        command_pointer="phaser_command.json",
+    )
+    child_result_path = child_directory / "additional_copy_result.jsonl"
+    child_result_path.write_text(
+        f"{canonical_json_text(child_result)}\n", encoding="utf-8"
+    )
+    request = AddCopyRunRequest(
+        **{
+            **first_request.__dict__,
+            "output_directory": tmp_path / "copy three",
+            "parent_result_jsonl": child_result_path,
+            "parent_coordinate": child_coordinate,
+        }
+    )
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        placement_count=3,
+    )
+
+    result = run_additional_copy_phaser(request).result
+
+    assert result.parent_solution_id == child_result.child_solution_id
+    assert result.parent_copy_count == 2
+    assert result.attempted_copy_number == 3
+    assert result.best_supported_copy_count == 3
+    assert result.phaser_placement_count == 3
+    assert result.llg_delta_from_parent == pytest.approx(1622.91 - 100.0)
+    command = json.loads(
+        (request.output_directory / "phaser_command.json").read_text(encoding="utf-8")
+    )
+    assert command["parent_solution_id"] == child_result.child_solution_id
+    assert command["parent_copy_count"] == 2
+    assert command["parent_result_sha256"] == sha256_file(child_result_path)
+
+
+def test_copy_three_refuses_to_advance_beyond_expected_count(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    parent_coordinate = tmp_path / "complete-parent.pdb"
+    parent_coordinate.write_text("ATOM\n", encoding="utf-8")
+    parent_result = AdditionalCopyResult(
+        schema_version="1.0",
+        attempt_id="addcopy_" + "4" * 64,
+        review_id=REVIEW_ID,
+        seed_solution_id=SEED_ID,
+        parent_solution_id="copystate_" + "5" * 64,
+        child_solution_id="copystate_" + "6" * 64,
+        hypothesis_id=HYPOTHESIS_ID,
+        sequence_group_id=SEQUENCE_GROUP_ID,
+        parent_copy_count=2,
+        attempted_copy_number=3,
+        expected_copy_count=3,
+        execution_status=ExecutionStatus.COMPLETED_HIT,
+        phaser_placement_count=3,
+        top_solution_packed=True,
+        additional_copy_supported=True,
+        best_supported_copy_count=3,
+        output_coordinate_path=parent_coordinate.name,
+        output_coordinate_sha256=sha256_file(parent_coordinate),
+        output_mtz_path="PHASER.1.mtz",
+        output_mtz_sha256="7" * 64,
+        raw_log_pointer="PHASER.log",
+        command_pointer="phaser_command.json",
+    )
+    parent_result_path = tmp_path / "complete-parent.jsonl"
+    parent_result_path.write_text(
+        f"{canonical_json_text(parent_result)}\n", encoding="utf-8"
+    )
+    sequential_request = AddCopyRunRequest(
+        **{
+            **request.__dict__,
+            "parent_result_jsonl": parent_result_path,
+            "parent_coordinate": parent_coordinate,
+        }
+    )
+
+    with pytest.raises(PhaserInputError, match="no expected additional copy"):
+        run_additional_copy_phaser(sequential_request)
+
+
+def test_sequential_parent_coordinate_checksum_mismatch_fails(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    parent_coordinate = tmp_path / "changed-parent.pdb"
+    parent_coordinate.write_text("ATOM\n", encoding="utf-8")
+    parent_result = AdditionalCopyResult(
+        schema_version="1.0",
+        attempt_id="addcopy_" + "8" * 64,
+        review_id=REVIEW_ID,
+        seed_solution_id=SEED_ID,
+        parent_solution_id=SEED_ID,
+        child_solution_id="copystate_" + "9" * 64,
+        hypothesis_id=HYPOTHESIS_ID,
+        sequence_group_id=SEQUENCE_GROUP_ID,
+        parent_copy_count=1,
+        attempted_copy_number=2,
+        expected_copy_count=3,
+        execution_status=ExecutionStatus.COMPLETED_HIT,
+        phaser_placement_count=2,
+        top_solution_packed=True,
+        additional_copy_supported=True,
+        best_supported_copy_count=2,
+        output_coordinate_path=parent_coordinate.name,
+        output_coordinate_sha256="a" * 64,
+        output_mtz_path="PHASER.1.mtz",
+        output_mtz_sha256="b" * 64,
+        raw_log_pointer="PHASER.log",
+        command_pointer="phaser_command.json",
+    )
+    parent_result_path = tmp_path / "changed-parent.jsonl"
+    parent_result_path.write_text(
+        f"{canonical_json_text(parent_result)}\n", encoding="utf-8"
+    )
+    sequential_request = AddCopyRunRequest(
+        **{
+            **request.__dict__,
+            "parent_result_jsonl": parent_result_path,
+            "parent_coordinate": parent_coordinate,
+        }
+    )
+
+    with pytest.raises(PhaserInputError, match="not a supported child"):
+        run_additional_copy_phaser(sequential_request)
 
 
 def test_no_additional_solution_retains_parent_without_absence_claim(

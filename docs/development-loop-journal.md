@@ -2051,3 +2051,66 @@ cached resume and immutable provenance, and implement the smallest sequential
 copy-three-to-expected-count increment supported by those results. Do not begin
 refinement or discard a candidate merely because an additional-copy attempt is
 unsupported.
+
+## 2026-08-13T16:14:58Z - Sequential additional-copy adapter implemented
+
+### Discoveries
+
+- A read-only wrapper status request for corrected M4 run
+  `gtd-m4-copy-20260813T150438Z-0d9c3ef5b905-1cc7e54a` timed out while opening
+  the Marmic SSH connection. This is a local `transfer_failure`, not scheduler
+  or job evidence; Slurm job `626475` therefore remains retained and untouched.
+- The copy-two adapter could authenticate only the original one-copy review
+  seed. Advancing copy 3..n required explicit lineage from the immediately
+  preceding supported child rather than rediscovering or overwriting the root
+  seed.
+
+### Accomplishments
+
+- `mr add-copy` now accepts an inseparable prior result/coordinate pair for
+  sequential placement. It authenticates the review, seed, hypothesis,
+  sequence group, expected-copy hypothesis, result/coordinate checksums,
+  supported status, packing-derived placement count, and child identity.
+- Attempt identities and command records now bind the immediate parent solution,
+  parent copy count, parent result checksum, and parent coordinate checksum.
+  Successful children advance exactly one copy; unsupported children retain
+  their parent count, and an n-copy parent cannot advance beyond its expected
+  count.
+- Tests cover copy two to copy three, checksum drift, and the expected-copy
+  stopping boundary. The complete locked local gate passed with 322 unit, 55
+  contract, and 45 integration tests, plus formatting, linting, strict typing,
+  schemas, public-panel contracts, documentation, GitHub workflow linting,
+  Nextflow syntax/stub/resume, and shell checks.
+
+### Immutable evidence
+
+- Corrected real-data run remains
+  `gtd-m4-copy-20260813T150438Z-0d9c3ef5b905-1cc7e54a`, source revision
+  `0d9c3ef5b905181548f4bd64ace40c06e9153790`, Slurm job `626475`, parent run
+  `gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a`, decision SHA-256
+  `7bbe539cf3c02b253ee94d829af6cf0b516e8eecedc6c784ab12cd707d012e2c`,
+  and review-manifest SHA-256
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`.
+- The only new remote observation is the structured wrapper
+  `transfer_failure`; no terminal state, log, cancellation, cleanup, or inferred
+  failure was recorded.
+
+### Unresolved work
+
+- Collect and compare the corrected copy-two results when Marmic becomes
+  reachable. All 11 parent candidates remain in scope, including unsupported or
+  failed additions as retained negative evidence.
+- Wire the authenticated one-step adapter into bounded sequential Nextflow
+  orchestration for supported children through each candidate's expected copy
+  count. Brief refinement, map generation, sequence-from-map comparison, the
+  second review checkpoint, reporting, and prototype hardening remain afterward.
+
+### Next exact starting point
+
+Read this entry, retry only the installed wrapper status for corrected M4 run
+`gtd-m4-copy-20260813T150438Z-0d9c3ef5b905-1cc7e54a`, and do not infer job state
+from SSH silence. If terminal, inspect bounded logs and collect the complete
+copy-two evidence before choosing which supported child states enter sequential
+copy placement. In parallel-safe local work, wire the tested adapter into the
+smallest bounded copy-three-to-expected-count workflow increment; do not begin
+refinement or drop alternative candidates.

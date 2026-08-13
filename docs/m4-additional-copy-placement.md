@@ -33,6 +33,21 @@ genome-to-diffraction mr add-copy \
   --outdir additional_copy_sol_SHA256
 ```
 
+For copy 3..n, repeat the command with both arguments pointing to the
+immediately preceding supported child:
+
+```text
+  --parent-result previous/additional_copy_result.jsonl \
+  --parent-coordinate previous/PHASER.1.pdb
+```
+
+These arguments are inseparable. The typed result must be a supported
+`completed_hit` child of the same approved seed, review, hypothesis, sequence
+group, and expected-copy hypothesis; its coordinate checksum and observed
+placement count must match. A failed or unsupported addition cannot become the
+next parent, and an already complete `n`-copy state cannot advance beyond its
+hypothesis.
+
 Inputs are authenticated against their prior records:
 
 - the approval must name the current review package and seed;
@@ -88,19 +103,21 @@ identity binds the adapter version, review and seed IDs, parent/model/sequence/
 MTZ/Phenix hashes, and the generated parameter-file hash.
 
 Each search-model file is a content-tracked Nextflow input, so no redundant
-model-index channel is required. The current executable increment places copy
-two from each first-copy seed.
-Sequential copy 3..n iteration, copy-count reporting, brief refinement, map
-generation, sequence-from-map searching, and the second review checkpoint are
-the next M4 increments. They must build on the typed child state rather than
-overwriting the retained parent.
+model-index channel is required. The adapter places copy two from each
+first-copy seed and can then advance an authenticated supported child one copy
+at a time through copy 3..n. Workflow iteration and copy-count reporting, brief
+refinement, map generation, sequence-from-map searching, and the second review
+checkpoint are the next M4 increments. They must build on the typed child state
+rather than overwriting the retained parent.
 
 ## Test coverage
 
 Unit tests cover packed advancement from both `completed_hit` and explicitly
 approved `completed_no_hit` parents, rejection of failed/unpacked/wrong-copy
 parents, scientific no-additional-solution, strict parent retention,
-search-model checksum drift, and finish-after-sibling-failure orchestration.
+search-model checksum drift, copy-two-to-copy-three lineage and coordinate
+checks, the expected-copy stopping boundary, and finish-after-sibling-failure
+orchestration.
 The repository stub/resume suite exercises the Nextflow entry point under parser
 v2. Real installed-Phenix qualification on Marmic remains required before this
 increment is accepted as integrated.
