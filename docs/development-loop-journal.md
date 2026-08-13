@@ -1592,3 +1592,55 @@ then build/install/deploy the exact committed wrapper and dispatcher. Finally
 collect all 11 assets from the retained version-2 run through the approved
 wrapper and prepare the Coot review handoff. Do not rerun P2-diverse or Phaser,
 clean retained runs, retune numeric thresholds, or begin M4.
+
+## 2026-08-13 — Retain-all milestone shipped; Coot transfer awaiting Marmic
+
+### Discoveries
+
+- The immutable version-2 review manifest contains four checksum-bound
+  reviewer outputs in addition to the per-solution assets: candidate TSV, HTML
+  report, approval-candidate TSV, and empty approval template. These can travel
+  with all 11 parsed PDB/MTZ solutions, so the human handoff does not require a
+  Phaser replay or reconstruction from partial local files.
+- The new collector derived exactly 11 inspectable solution IDs from that
+  retained manifest before contacting Marmic. The first collection attempt did
+  not transfer any payload because the configured login endpoint refused the
+  SSH connection. This is a `transfer_failure`, not missing scientific evidence
+  or a reason to modify the retained run.
+
+### Accomplishments and immutable evidence
+
+- Commit `03f03ce2071f2df518b174cfbee6a5b8aa7d052f` implements the retain-all
+  review boundary. It is pushed to `origin/main`; GitHub Actions run
+  `31686694164` passed in 4 min 10 s.
+- The final locked local gate passed Ruff format/lint, strict mypy, 306 unit,
+  55 contract, and 45 integration tests, schemas, public controls, docs,
+  actionlint, Nextflow syntax/stub/resume, and Bash syntax.
+- The installed local wrapper matches SHA-256
+  `129ba40b63ec674804f979799038fbadc995717ad7c8011d85ac707db2a43df3`.
+  The checksum-gated deployment from the exact commit installed dispatcher
+  SHA-256 `3dec6980509af8c7d263faf2c7d0994e455581b20fc5c984c81090c3fc3e09e9`
+  and job-wrapper SHA-256
+  `7e2ca34cd88f85957787cc7a9d86019a259358e1a0b11d771e3c11cb4595fbbd`.
+- Heartbeat `retry-marmic-retain-all-review-collection` is active on a
+  30-minute interval. It retries only the checksum-gated review collection and
+  leaves the remote run untouched after transfer failures.
+
+### Unresolved work
+
+- Collect and verify the self-contained 11-solution Coot handoff when Marmic
+  SSH accepts connections. Preserve the retained remote run.
+- A reviewer must inspect the coordinate/coefficient pairs and record explicit
+  decisions. The numeric `LLG > 50` or `TFZ > 5` screen is ordering metadata,
+  not a candidate filter or validation decision.
+- M4 additional-copy placement remains blocked until at least one decision from
+  this retain-all package passes the review-decision validator.
+
+### Next exact starting point
+
+Retry only `review-collect` for retained run
+`gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a` through the installed
+wrapper. If transfer succeeds, verify exactly 11 five-role solution bundles and
+the four reviewer outputs against the immutable manifest, then prepare the Coot
+procedure. Do not use raw SSH, rerun Phaser, clean the run, tune thresholds, or
+start M4 before explicit human approval.
