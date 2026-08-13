@@ -1644,3 +1644,60 @@ wrapper. If transfer succeeds, verify exactly 11 five-role solution bundles and
 the four reviewer outputs against the immutable manifest, then prepare the Coot
 procedure. Do not use raw SSH, rerun Phaser, clean the run, tune thresholds, or
 start M4 before explicit human approval.
+
+## 2026-08-13 — Complete retain-all Coot handoff collected
+
+### Discoveries
+
+- No Slurm test was running or required. `review-collect` reads the already
+  completed run from retained NFS evidence and streams only manifest-approved
+  files.
+- After the first tool deployment, two collection attempts still returned the
+  legacy six-solution archive shape even though the deployment record named the
+  new dispatcher checksum. Repeating the same idempotent checksum-gated
+  deployment returned the exact expected dispatcher checksum again; the next
+  fresh dispatcher invocation immediately returned all 11 solutions. This is
+  consistent with delayed visibility or activation of a self-updated executable
+  on the shared filesystem, not a scheduler or scientific-run failure.
+- The version-2 manifest records 25 hypotheses, six old
+  `automatic_eligibility` rows, and 11 complete five-role solution inventories.
+  The retain-all collector correctly uses the latter and ignores the obsolete
+  numeric transfer filter.
+
+### Accomplishments and immutable evidence
+
+- The self-contained handoff was published atomically below the ignored local
+  run evidence. It contains 62 files (42 MiB): 11 directories with PDB, MTZ,
+  command, normalised result, and Phaser log; four reviewer outputs; the review
+  manifest; the P2 summary; and the outer job result.
+- All 59 manifest-bound assets were independently rehashed locally with zero
+  mismatches. The wrapper additionally verified the manifest, summary, and job
+  result before publication. The immutable manifest SHA-256 is
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`;
+  package ID is
+  `reviewpkg_fe7c36037f3a034d61aa3e335bb8a13f433da09c3c252cd5169a26ae30e9a6da`.
+- The collected summary records 25 of 25 scientific completions, six legacy
+  higher-priority hits, 19 legacy no-hit classifications, and a fully cached
+  resume. All 11 parsed coordinate/coefficient pairs remain available for Coot
+  regardless of that old classification.
+- Heartbeat `retry-marmic-retain-all-review-collection` was deleted after the
+  complete handoff passed verification. The remote run remains retained.
+
+### Unresolved work
+
+- The user must inspect all 11 PDB/MTZ pairs in Coot and enter explicit
+  approve/reject decisions in the supplied template. `LLG > 50` or `TFZ > 5`
+  remains ranking metadata only.
+- Validate the edited decisions against the immutable review manifest. M4 is
+  still blocked until at least one Coot-inspected seed is explicitly approved.
+- A later operational hardening change may add an explicit post-deployment
+  dispatcher-version probe; it must not delay the current human review.
+
+### Next exact starting point
+
+Prepare and follow the Coot inspection procedure using the 11 directories in
+the verified `review-assets-all` handoff. Edit `approved_mr_seeds.tsv`, then run
+the existing MR-seed decision validator against
+`mr_seed_review_manifest.json`. Do not rerun Phaser, discard below-screen
+solutions, clean the retained run, or start M4 before an explicit validated
+approval.
