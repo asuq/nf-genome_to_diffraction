@@ -2615,3 +2615,61 @@ correction, and require both CI jobs. Verify `/u` file quota is below its hard
 limit. Submit one checksum-pinned installation to
 `/ptmp/USERNAME/nf-genome_to_diffraction/software/phenix_v2.1-6048`, retaining
 manifest/logs under `/u`; then qualify commands and real CD6 MTZ before M4.
+
+## 2026-08-13T22:44:48Z - Corrected Viper Phenix retry submitted
+
+### Discoveries
+
+- After removal of only the failed partial Phenix tree, the official Viper `/u`
+  quota fell from 262,144 to 113,731 files and from about 58 GB to about 48 GB.
+  The small durable manifest/log area therefore has sufficient headroom again.
+- Viper's small/default queue allocated eight CPUs to the first job despite the
+  four-CPU request; this is queue granularity, not an increase in the requested
+  application parallelism. The corrected job retains the same four-CPU request.
+
+### Accomplishments
+
+- CI run `31750581075` passed under Pixi 0.74.0 and 0.76.2 for the documented
+  `/ptmp` runtime correction at commit
+  `8b888c5686a8325337ad231d0bcdbb0abf8d4db0`.
+- Preserved the first official installer log under failed job ID `10910201`.
+  Created a detached checkout of the green correction and installed its frozen
+  HPC Pixi environment on the login node.
+- Submitted corrected Slurm job `10910267` from checksum-reviewed script
+  `viper-phenix-install-8b888c5.slurm`. It targets
+  `/ptmp/USERNAME/nf-genome_to_diffraction/software/phenix_v2.1-6048`, keeps
+  manifest/logs under `/u`, creates no current link, and has initial state
+  `PENDING`. The combined 30-minute heartbeat now monitors this job and the
+  independent database job.
+
+### Immutable evidence
+
+- Corrected script SHA-256:
+  `df775cbffa848822944221f265147b4ca00b1d545b9a2bdca5a521097a690395`;
+  installer SHA-256:
+  `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`;
+  source commit: `8b888c5686a8325337ad231d0bcdbb0abf8d4db0`.
+- Failed predecessor job `10910201` remains represented by Slurm accounting,
+  bounded controller and installer logs, script/installer checksums, and the
+  recorded 9.7-GB/148,413-entry partial-tree measurements. Only the failed
+  partial tree itself was removed, and it is not recoverable.
+
+### Unresolved work
+
+- Await job `10910267` without timeout inference. On success, verify the
+  manifest and all command probes, then run real CD6 MTZ qualification through
+  that manifest. On failure, preserve its bounded log evidence before deciding
+  any action.
+- Database job `10910110` remains independently monitored. It must not delay
+  Phenix qualification or the subsequent fixed M4 import.
+- After Phenix qualification, stage and submit all 11 retained M4 candidates
+  and update the heartbeat to monitor that sequential run.
+
+### Next exact starting point
+
+Read this entry and follow heartbeat `monitor-viper-database-build`. Check
+database run `gtd-database-20260813T220325Z-d689a7e7a65e-6e72920c` only through
+the approved wrapper and Phenix job `10910267` only through the fixed bounded
+scheduler commands. Leave non-terminal jobs untouched. After Phenix terminal
+success, qualify commands and real CD6 MTZ, then immediately execute the fixed
+M4 import/submit path without waiting for database completion.
