@@ -1978,3 +1978,76 @@ normalised per-candidate failure result instead of aborting siblings. Run the
 development cycle through local Pixi checks, commit, push, GitHub Actions, and a
 new retained Marmic M4 run; compare all 11 outcomes before beginning copy three
 or refinement.
+
+## 2026-08-13 — Corrected retain-all M4 comparison running
+
+### Discoveries
+
+- The previous scientific failure was an entry-condition defect, not a Phaser
+  failure: the adapter required the score-derived `completed_hit` label even
+  when an explicitly approved parent had a successfully parsed, packed,
+  exactly-one-copy solution. Score annotation and structural eligibility are
+  now independent.
+- The first corrected staging attempt exposed a separate state-transition race.
+  The common source stage briefly published `phase=staged` before M4-specific
+  review assets and models were finished. Submission during that interval
+  started Slurm against a changing manifest. The compute guard correctly
+  stopped job `626474` as `environment_failure`; no Phaser task ran.
+
+### Accomplishments and immutable evidence
+
+- Commit `b5d6558e882a07493421a1ddb7c76188d9f536c1` accepts explicitly
+  approved `completed_hit` or `completed_no_hit` parents only when they are
+  successfully parsed, top-solution packed, and contain exactly one placed
+  copy. Failed, unpacked, and wrong-copy parents still fail loudly. Nextflow now
+  uses `errorStrategy 'finish'` for genuine candidate contract failures so
+  submitted siblings are not killed immediately. GitHub Actions run
+  `31711606416` passed.
+- Commit `0d9c3ef5b905181548f4bd64ace40c06e9153790` keeps M4 in
+  `m4_input_staging` until all 11 input bundles and the final stage-manifest
+  checksum exist, then publishes `staged`. GitHub Actions run `31712996408`
+  passed. The full local locked gate passed with 319 unit, 55 contract, and 45
+  integration tests plus schema, public-panel, documentation, actionlint,
+  Nextflow syntax/stub, and shell checks.
+- Failed staging-race run
+  `gtd-m4-copy-20260813T145117Z-b5d6558e882a-b001832e` is retained with
+  Slurm job `626474` and failure signature
+  `8007912e1dbda7de7803698d1983a1f3ae30cd785b37c2e111848646c64abceb`.
+- The reviewed local wrapper SHA-256 is
+  `de3e161ec9eaae5da6a839908b2a5e38587e0a62c8fdbee579b913079b9a35ed`.
+  The deployed dispatcher SHA-256 is
+  `d7d5ba4cc67e1279c23c88a767c8d7f6652439a1028693e6d04ed65c847f72e7`;
+  the unchanged job-runner SHA-256 is
+  `b84c57052100e6e679bf2414677e292c5ac6a6ea1c3cd48165cdcb9808d77253`.
+- Corrected run `gtd-m4-copy-20260813T150438Z-0d9c3ef5b905-1cc7e54a`
+  staged all 11 seeds only after finishing the checksum-bound copy and was
+  submitted as Slurm job `626475`. Its first structured state was `RUNNING`.
+  It retains parent run
+  `gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a`, decision SHA-256
+  `7bbe539cf3c02b253ee94d829af6cf0b516e8eecedc6c784ab12cd707d012e2c`,
+  review-manifest SHA-256
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`,
+  and nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a`.
+
+### Unresolved work
+
+- Leave job `626475` untouched until terminal. Then collect all 11 typed
+  outcomes, commands, bounded logs, first/resume traces, summary, and checksum
+  inventory. Verify parent retention, raw LLG/TFZ/delta, packing, placement,
+  candidate-level failures, and a fully cached resume.
+- Rank support without dropping alternatives. Supported copy-two children must
+  then advance sequentially toward their candidate-specific expected counts.
+  Brief refinement, maps, sequence-from-map catalogue comparison, the second
+  checkpoint, reporting, and hardening remain after that M4 evidence.
+
+### Next exact starting point
+
+Read this entry and check only retained run
+`gtd-m4-copy-20260813T150438Z-0d9c3ef5b905-1cc7e54a` through the installed
+wrapper. If non-terminal, leave it untouched. If terminal, retrieve bounded
+logs, collect the approved evidence set, compare all 11 results, verify the
+cached resume and immutable provenance, and implement the smallest sequential
+copy-three-to-expected-count increment supported by those results. Do not begin
+refinement or discard a candidate merely because an additional-copy attempt is
+unsupported.
