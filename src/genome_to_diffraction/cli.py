@@ -56,7 +56,12 @@ from genome_to_diffraction.model_registry import (
     prepare_experimental_models,
     prepare_predicted_models,
 )
-from genome_to_diffraction.mr import PhaserRunRequest, run_first_copy_phaser
+from genome_to_diffraction.mr import (
+    AddCopyRunRequest,
+    PhaserRunRequest,
+    run_additional_copy_phaser,
+    run_first_copy_phaser,
+)
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
 from genome_to_diffraction.phenix.recovery import (
@@ -644,6 +649,26 @@ def _build_parser() -> argparse.ArgumentParser:
     first_copy_parser.add_argument("--outdir", type=Path, required=True)
     first_copy_parser.add_argument("--threads", type=int, default=1)
     first_copy_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        help="optional explicit Phaser deadline; by default no deadline is imposed",
+    )
+    add_copy_parser = mr_actions.add_parser(
+        "add-copy",
+        help="fix one approved MR seed and search one additional same-component copy",
+    )
+    add_copy_parser.add_argument("--review-validation", type=Path, required=True)
+    add_copy_parser.add_argument("--review-package-manifest", type=Path, required=True)
+    add_copy_parser.add_argument("--seed-solution-id", required=True)
+    add_copy_parser.add_argument("--hypotheses", type=Path, required=True)
+    add_copy_parser.add_argument("--sequence-groups", type=Path, required=True)
+    add_copy_parser.add_argument("--preflight", type=Path, required=True)
+    add_copy_parser.add_argument("--mtz", type=Path, required=True)
+    add_copy_parser.add_argument("--search-model", type=Path, required=True)
+    add_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    add_copy_parser.add_argument("--outdir", type=Path, required=True)
+    add_copy_parser.add_argument("--threads", type=int, default=1)
+    add_copy_parser.add_argument(
         "--timeout-seconds",
         type=float,
         help="optional explicit Phaser deadline; by default no deadline is imposed",
@@ -1279,6 +1304,30 @@ def _run_ranking(args: argparse.Namespace) -> int:
 
 
 def _run_mr(args: argparse.Namespace) -> int:
+    if args.mr_action == "add-copy":
+        add_copy_output = run_additional_copy_phaser(
+            AddCopyRunRequest(
+                review_validation_json=args.review_validation,
+                review_package_manifest=args.review_package_manifest,
+                seed_solution_id=args.seed_solution_id,
+                hypotheses_jsonl=args.hypotheses,
+                sequence_groups_jsonl=args.sequence_groups,
+                preflight_jsonl=args.preflight,
+                mtz=args.mtz,
+                search_model=args.search_model,
+                phenix_manifest=args.phenix_manifest,
+                output_directory=args.outdir,
+                threads=args.threads,
+                timeout_seconds=args.timeout_seconds,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            "Additional-copy MR "
+            f"{add_copy_output.result.execution_status.value}: "
+            f"{add_copy_output.result_json}"
+        )
+        return 0
     if args.mr_action != "first-copy":
         raise AssertionError(f"unhandled MR action: {args.mr_action}")
     output = run_first_copy_phaser(

@@ -529,6 +529,66 @@ class NormalisedMrResult(ContractModel):
     rejection_reason: str | None = None
 
 
+class AdditionalCopyResult(ContractModel):
+    """One fixed-parent Phaser attempt to place one same-component copy."""
+
+    schema_version: Literal["1.0"]
+    attempt_id: NonEmptyString
+    review_id: NonEmptyString
+    seed_solution_id: NonEmptyString
+    parent_solution_id: NonEmptyString
+    child_solution_id: NonEmptyString | None = None
+    hypothesis_id: NonEmptyString
+    sequence_group_id: NonEmptyString
+    parent_copy_count: PositiveInt
+    attempted_copy_number: PositiveInt
+    expected_copy_count: PositiveInt
+    execution_status: ExecutionStatus
+    llg: float | None = None
+    llg_delta_from_parent: float | None = None
+    tfz: float | None = None
+    phaser_placement_count: int = Field(ge=0)
+    top_solution_packed: bool
+    additional_copy_supported: bool
+    best_supported_copy_count: PositiveInt
+    output_coordinate_path: str | None = None
+    output_coordinate_sha256: Sha256Hex | None = None
+    output_mtz_path: str | None = None
+    output_mtz_sha256: Sha256Hex | None = None
+    raw_log_pointer: NonEmptyString
+    command_pointer: NonEmptyString
+    parent_retained: Literal[True] = True
+    failed_addition_proves_absence: Literal[False] = False
+    warnings: tuple[str, ...] = ()
+    rejection_reason: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_copy_transition(self) -> Self:
+        if self.attempted_copy_number != self.parent_copy_count + 1:
+            raise ValueError("attempted copy number must follow the parent count")
+        if self.best_supported_copy_count not in {
+            self.parent_copy_count,
+            self.attempted_copy_number,
+        }:
+            raise ValueError("best supported count must be parent or attempted count")
+        if self.additional_copy_supported:
+            if (
+                self.child_solution_id is None
+                or self.output_coordinate_path is None
+                or self.output_coordinate_sha256 is None
+                or self.output_mtz_path is None
+                or self.output_mtz_sha256 is None
+                or not self.top_solution_packed
+                or self.best_supported_copy_count != self.attempted_copy_number
+            ):
+                raise ValueError(
+                    "supported additional copy lacks packed child evidence"
+                )
+        elif self.best_supported_copy_count != self.parent_copy_count:
+            raise ValueError("unsupported addition must retain the parent count")
+        return self
+
+
 class ReviewDecision(ContractModel):
     """One immutable human checkpoint decision."""
 

@@ -173,6 +173,7 @@ def check_stubs() -> None:
         first_copy_out = temporary_root / "first-copy-results"
         diverse_first_copy_out = temporary_root / "diverse-first-copy-results"
         control_first_copy_out = temporary_root / "control-first-copy-results"
+        additional_copy_out = temporary_root / "additional-copy-results"
         cache_root = temporary_root / "cache"
 
         main_command = [
@@ -576,6 +577,69 @@ def check_stubs() -> None:
         ):
             raise RuntimeError(
                 "resumed control first-copy stub did not report cached work"
+            )
+
+        additional_seeds = temporary_root / "additional-seeds.tsv"
+        stub_search_model = (
+            REPOSITORY
+            / "tests/fixtures/stubs/predicted_model_preparation/models/stub.pdb"
+        )
+        additional_seeds.write_text(
+            "seed_solution_id\tsearch_model\n"
+            "sol_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\t"
+            f"{stub_search_model}\n",
+            encoding="utf-8",
+        )
+        additional_copy_command = [
+            "nextflow",
+            "run",
+            "screen_additional_copies.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "--seeds",
+            str(additional_seeds),
+            "--review_validation",
+            "tests/fixtures/stubs/additional_copy_result.json",
+            "--review_package",
+            "tests/fixtures/stubs/additional_copy_result.json",
+            "--hypotheses",
+            "tests/fixtures/stubs/mr_hypothesis.json",
+            "--sequence_groups",
+            "tests/fixtures/stubs/sequence_groups.jsonl",
+            "--preflight",
+            "tests/fixtures/stubs/mtz_preflight.jsonl",
+            "--mtz",
+            "tests/fixtures/stubs/predicted_model_preparation/models/stub.pdb",
+            "--phenix_manifest",
+            "tests/fixtures/stubs/phenix_install_manifest.json",
+            "--outdir",
+            str(additional_copy_out),
+            "--cache_root",
+            str(cache_root / "additional-copy"),
+        ]
+        _run(additional_copy_command, environment=environment)
+        _assert_files(
+            additional_copy_out,
+            {
+                "additional_copy_result.json",
+                "additional_copy_result.jsonl",
+                "phaser_command.json",
+                "add_copy.eff",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        additional_copy_resumed = _run(
+            [*additional_copy_command, "-resume"], environment=environment
+        )
+        if "cached" not in (
+            f"{additional_copy_resumed.stdout}\n{additional_copy_resumed.stderr}".lower()
+        ):
+            raise RuntimeError(
+                "resumed additional-copy stub did not report cached work"
             )
 
         database_command = [

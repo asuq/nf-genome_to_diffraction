@@ -1752,3 +1752,54 @@ fixed-solution additional-copy operation and typed parent-child result, wire a
 minimal Nextflow M4 workflow, and run the 11 approved seeds on Marmic. Do not
 interpret experimental approval, a failed added copy, or numeric MR scores as
 final structural identification.
+
+## 2026-08-13 — Executable M4 copy-two slice implemented locally
+
+### Discoveries
+
+- Phenix 2.1-6048's installed interface supports the required fixed-parent
+  operation directly: an ensemble with `solution_at_origin = True` is treated
+  as already placed, while a separate search ensemble can be requested once.
+  This avoids reconstructing Euler/translation parameters from PDB remarks.
+- The retained review package intentionally excludes the original search-model
+  files. M4 must therefore stage the checksum-matched processed models from the
+  immutable upstream run; it must not use the placed parent PDB as both fixed
+  content and the search model or infer composition from coordinate residues.
+
+### Accomplishments and immutable evidence
+
+- Added a typed `mr add-copy` adapter and `AdditionalCopyResult`. It authenticates
+  approval/package provenance, parent PDB/result/command hashes, the original
+  search-model hash and identity setting, exact catalogue sequence, MTZ
+  preflight, and the verified Phenix manifest before execution.
+- The generated PHIL fixes the approved parent at the origin, searches one
+  additional same-component copy, and uses the full expected copy count and
+  exact catalogue sequence for composition. A child advances only with packed
+  output and at least two placement records. Every outcome retains the parent;
+  a failed addition explicitly does not prove absence.
+- Added `screen_additional_copies.nf` with parser-v2 typed workflow/module
+  wiring, isolated per-seed fan-out, stub fixtures, and resume coverage. Paths
+  containing spaces are PHIL-quoted.
+- The full locked repository gate passed with 310 unit, 55 contract, and 45
+  integration tests plus schemas, public controls, documentation, Actions
+  lint, Nextflow syntax/stub/resume, and Bash syntax. A final focused adapter
+  replay passed four tests after adding independent parent-result/command hash
+  checks.
+
+### Unresolved work
+
+- Add a checksum-gated Marmic M4 stage/submit/collect profile that imports the
+  11 approved review bundles, their original processed models, hypotheses,
+  catalogue sequence groups, preflight, MTZ, and Phenix manifest from retained
+  immutable evidence.
+- Run the copy-two fan-out against real Phenix and inspect normalised results.
+  Then iterate supported children one copy at a time to each expected count.
+- Copy-count reporting, brief refinement, stable maps, sequence-from-map,
+  sequence checkpoint, M5 reporting/pilot, and M6 hardening remain outstanding.
+
+### Next exact starting point
+
+Commit and push this executable M4 copy-two slice and monitor GitHub Actions.
+Then implement the bounded wrapper profile, deploy the exact commit, and launch
+all 11 approved seeds on Marmic. Do not start refinement until real additional-
+copy parsing and parent-retention semantics have been checked once.
