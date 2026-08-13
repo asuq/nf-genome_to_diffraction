@@ -241,7 +241,6 @@ def _validated_scratch_roots(
     storage_root: Path, scratch_roots: Sequence[Path]
 ) -> tuple[Path, ...]:
     resolved_storage = storage_root.resolve(strict=True)
-    storage_device = _device_id(resolved_storage)
     resolved: list[Path] = []
     for root in scratch_roots:
         if not root.is_absolute() or root.is_symlink():
@@ -261,10 +260,6 @@ def _validated_scratch_roots(
         ):
             raise DatabaseError(
                 f"database command scratch root overlaps storage: {root}"
-            )
-        if _device_id(candidate) == storage_device:
-            raise DatabaseError(
-                f"database command scratch root shares the storage filesystem: {root}"
             )
         if any(
             candidate == existing or candidate.is_relative_to(existing)

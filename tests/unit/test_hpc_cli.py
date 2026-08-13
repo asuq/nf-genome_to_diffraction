@@ -113,6 +113,16 @@ def test_m4_copy_uses_explicit_checksum_gated_stage() -> None:
         parser.parse_args(["stage", "m4-copy", "--revision", "HEAD"])
 
 
+def test_m4_import_has_no_caller_supplied_paths() -> None:
+    parser = _build_parser()
+
+    staged = parser.parse_args(["m4-import-stage", "--revision", "HEAD"])
+
+    assert staged.operation == "m4-import-stage"
+    assert vars(staged)["revision"] == "HEAD"
+    assert not {"source", "destination", "parent_run"} & vars(staged).keys()
+
+
 def test_m4_copy_remote_stage_exposes_staged_only_after_inputs_are_bound() -> None:
     dispatcher = (
         Path(__file__).resolve().parents[2] / "bootstrap/nf-gtd-hpc-remote"

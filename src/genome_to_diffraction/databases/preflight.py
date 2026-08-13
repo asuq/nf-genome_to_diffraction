@@ -282,10 +282,6 @@ def preflight_database_administration(
             )
         database_device = _device_id(database_root)
         scratch_device = _device_id(scratch_root)
-        if database_device == scratch_device:
-            raise DatabaseError(
-                "scratch_root must use a filesystem distinct from database_root"
-            )
 
         used_bytes, free_bytes, available_bytes = _available_capacity(
             database_root,
@@ -358,6 +354,9 @@ def preflight_database_administration(
                 "scratch_root": str(scratch_root),
                 "database_device": database_device,
                 "scratch_device": scratch_device,
+                "scratch_shares_database_filesystem": (
+                    scratch_device == database_device
+                ),
                 "database_used_bytes": used_bytes,
                 "database_filesystem_free_bytes": free_bytes,
                 "database_available_build_bytes": available_bytes,

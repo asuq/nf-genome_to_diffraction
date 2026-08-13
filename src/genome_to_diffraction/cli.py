@@ -706,6 +706,15 @@ def _build_parser() -> argparse.ArgumentParser:
     stage_add_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
     stage_add_copy_parser.add_argument("--outdir", type=Path, required=True)
     stage_add_copy_parser.add_argument("--expected-seed-count", type=int, default=11)
+    stage_add_copy_parser.add_argument(
+        "--use-solution-coordinates-as-models",
+        action="store_true",
+        help=(
+            "cross-site mode: derive search models from rigid-body transformed "
+            "first-copy solution coordinates"
+        ),
+    )
+    stage_add_copy_parser.add_argument("--source-site-id")
     copy_report_parser = mr_actions.add_parser(
         "copy-report",
         help="compare Matthews-intended and empirically supported copy counts",
@@ -1367,6 +1376,10 @@ def _run_mr(args: argparse.Namespace) -> int:
                 output_directory=args.outdir,
                 expected_seed_count=args.expected_seed_count,
                 progress=not args.no_progress,
+                use_solution_coordinates_as_models=(
+                    args.use_solution_coordinates_as_models
+                ),
+                source_site_id=args.source_site_id,
             )
         )
         print(

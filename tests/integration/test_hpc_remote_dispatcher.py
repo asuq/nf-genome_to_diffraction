@@ -1033,10 +1033,10 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     submitted_arguments = (
         (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
     )
-    assert "--partition=slurm" in submitted_arguments
-    assert "--cpus-per-task=100" in submitted_arguments
-    assert "--mem=2000G" in submitted_arguments
-    assert "--time=48:00:00" in submitted_arguments
+    assert "--partition=slurm" not in submitted_arguments
+    assert "--cpus-per-task=64" in submitted_arguments
+    assert "--mem=192G" in submitted_arguments
+    assert "--time=24:00:00" in submitted_arguments
     assert submitted_arguments[-4:] == [
         str(smoke_job),
         DATABASE_RUN_ID,
@@ -1064,40 +1064,31 @@ def test_database_administration_uses_separate_fixed_start_boundary(
         [str(dispatcher), "submit", RUN_ID, OWNER_ID],
         cwd=tmp_path,
         environment=active_environment,
-        success=False,
     )
-    assert _decode_protocol(concurrent.stdout)["failure_class"] == (
-        "scheduler_rejection"
-    )
+    assert _decode_protocol(concurrent.stdout)["scheduler_state"] == "SUBMITTED"
 
     _install_fake_database_runtime(run, tmp_path / "fake-bin")
-    scratch_parent = tmp_path / "db-scratch"
+    scratch_parent = remote_root / "database-staging"
     scratch_parent.mkdir()
     command_log = tmp_path / "database-commands.log"
     job_environment = dict(environment)
     job_environment.update(
         {
             "SLURM_JOB_ID": "123",
-            "SLURM_CPUS_PER_TASK": "100",
-            "FAKE_STAT_DISTINCT": "1",
+            "SLURM_CPUS_PER_TASK": "64",
+            "FAKE_STAT_DISTINCT": "0",
             "FAKE_DATABASE_COMMAND_LOG": str(command_log),
         }
     )
     spooled_job = tmp_path / "database-slurm-script"
     shutil.copy2(smoke_job, spooled_job)
-    job_text = spooled_job.read_text(encoding="utf-8")
-    job_text = job_text.replace(
-        "DATABASE_SCRATCH_ROOT='/dev/shm'",
-        f"DATABASE_SCRATCH_ROOT='{scratch_parent}'",
-    )
-    spooled_job.write_text(job_text, encoding="utf-8")
     _run(
         [str(spooled_job), DATABASE_RUN_ID, str(remote_root), "database"],
         cwd=tmp_path,
         environment=job_environment,
     )
     database_log = (run / "logs" / "database.log").read_text(encoding="utf-8")
-    assert "scratch_parent_source=job_owned_dev_shm" in database_log
+    assert "scratch_parent_source=job_owned_ptmp" in database_log
     job_owned_parent = Path(
         scratch_parent / f"nf-gtd-database-parent-{os.getuid()}-123-{DATABASE_RUN_ID}"
     )
@@ -1113,7 +1104,7 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     assert "databases prepare" in commands
     assert "--source-bundle" in commands
     assert "--full-verify" in commands
-    assert "--threads 100" in commands
+    assert "--threads 64" in commands
     assert str(job_owned_parent / f"nf-gtd-database-123-{DATABASE_RUN_ID}") in commands
     assert list(scratch_parent.iterdir()) == []
 

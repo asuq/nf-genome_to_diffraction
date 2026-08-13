@@ -2290,3 +2290,82 @@ revision `57e82853682ce76a8b83d9a3abd0002d88d8c0f4`, stage/submit a new immutabl
 sequential M4 run using the retained 11-seed decision package, and create its
 successor monitor. Do not begin refinement before that sequential evidence is
 terminal and inspected.
+
+## 2026-08-13T20:55:12Z - Viper cut-over implementation ready for publication
+
+### Discoveries
+
+- The collected retain-all P2 package contains exactly 11 entries with complete
+  coordinate, MTZ, command, result, and log assets. Its historical manifest
+  predates the explicit `inspectable_solution` field, so the fixed importer uses
+  the checksum-bound coordinate-plus-MTZ inventory as the equivalent invariant.
+- The first Viper database draft still inherited two Marmic assumptions: a
+  distinct scratch filesystem and login-stage/database mutual exclusion. Viper
+  needs non-overlapping roots on the same `/ptmp` filesystem for atomic rename,
+  while database downloads and M4 can safely use separate managed locks.
+- The user fixed the active Viper small-queue ceiling at 64 CPUs and 192 GB and
+  explicitly chose login-node database downloads rather than a `datatransfer`
+  Slurm job.
+
+### Accomplishments
+
+- Added site-aware controller and run records. Viper uses schema 1.1 with an
+  explicit site ID; legacy records are Marmic-only and cannot cross the site
+  boundary.
+- Added a fixed `m4-import-stage` operation with no caller-supplied paths. A
+  local dry run produced a 26,018,980-byte archive containing all 11 approved
+  candidates and verified the immutable review, decision, and MTZ anchors.
+- Cross-site M4 staging uses each first-copy solution coordinate as the next-copy
+  rigid-body search model and records its new checksum separately from the
+  original processed-model checksum. It retains all candidates independent of
+  the preliminary numeric annotation.
+- Added the pinned Viper profile and `/ptmp` work/cache/database layout. M4 uses
+  seven concurrent 8-CPU/16-GB tasks; database build and full verification use
+  at most 64 CPUs, 192 GB, and 24 hours. Source downloads remain a fixed,
+  checksum-recorded login-node staging operation.
+- Removed the obsolete distinct-filesystem invariant from database preflight,
+  watchdog validation, and publication. Same-filesystem resource publication
+  now uses atomic rename after complete inventory; cross-filesystem standalone
+  use retains its checksum-verified copy path.
+- Added a Viper runbook, rollback/site examples, Pixi 0.74.0/0.76.2 CI matrix,
+  and historical labels for Marmic documentation. The Marmic monitor was stopped
+  without cancelling or deleting retained remote job `626475`.
+
+### Immutable evidence
+
+- Authoritative migration parent remains P2-diverse run
+  `gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a`, commit
+  `5b5100e8651cae0498ad2d6dd185bf8fb8fbbecb`, job `625935`.
+- Review manifest SHA-256:
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`;
+  decision SHA-256:
+  `7bbe539cf3c02b253ee94d829af6cf0b516e8eecedc6c784ab12cd707d012e2c`;
+  MTZ SHA-256:
+  `5eb16c3cc3a21e4b7f22cd611834529801c1829fc0a3156a2b6abc2b3de2f20d`.
+- The complete locked gate passed with 332 unit, 56 contract, and 45 integration
+  tests plus format, Ruff, strict mypy, schemas, documentation, actionlint,
+  Nextflow syntax/stub/resume, and wrapper syntax. The focused same-filesystem
+  database regression set passed 77 tests.
+
+### Unresolved work
+
+- Commit and push this cut-over increment, require both Pixi CI matrix jobs to
+  pass, then install checksum-reviewed tools and the mode-0600 Viper site config.
+- Establish the Viper read-only Git deploy key and bare mirror without exposing
+  the private key. Install and qualify Phenix 2.1-6048 at the fixed Viper prefix.
+- Stage and submit the immutable 11-candidate sequential M4 run, create its
+  30-minute Viper monitor, and start the independent login-download/database
+  build track. Real Viper results are not yet claimed.
+- After M4 collection and copy-report inspection, proceed directly to T12 brief
+  refinement, maps, and sequence narrowing for scientifically viable retained
+  alternatives; then M5 and M6 remain.
+
+### Next exact starting point
+
+Read this entry. Publish the Viper cut-over commit and monitor both GitHub
+Actions Pixi versions. After green CI, preserve the current Marmic controller
+configuration, install the Viper schema-1.1 configuration and reviewed tools,
+bootstrap read-only Git and Phenix, then run `m4-import-stage` from the frozen
+11-candidate parent. Submit M4 with the 64-CPU/192-GB ceiling and create a
+30-minute Viper monitor. Start database downloads through `database-stage` on
+the login node without waiting for M4, then submit the fixed compute build.

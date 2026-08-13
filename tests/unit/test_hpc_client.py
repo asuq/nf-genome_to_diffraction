@@ -74,6 +74,7 @@ class FakeTransport:
     status_responses: list[dict[str, str]] = field(default_factory=list)
     calls: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     p0_archive: bytes = b""
+    m4_import_archive: bytes = b""
     deploy_error: RemoteOperationError | None = None
     stage_error: RemoteOperationError | None = None
 
@@ -175,11 +176,19 @@ class FakeTransport:
         assert archive_path.read_bytes() == b"source archive"
         return {"run_id": arguments[0], "remote_operation": "stage-archive"}
 
+    def m4_import_stage(
+        self, arguments: Sequence[str], archive_path: Path
+    ) -> dict[str, str]:
+        self.calls.append(("m4-import-stage", tuple(arguments)))
+        self.m4_import_archive = archive_path.read_bytes()
+        return {"run_id": arguments[0], "remote_operation": "m4-import-stage"}
 
-def _config(repository: Path) -> HpcConfig:
+
+def _config(repository: Path, *, site_id: str = "marmic") -> HpcConfig:
     return HpcConfig(
         repository=repository,
-        ssh_alias="marmic",
+        site_id=site_id,
+        ssh_alias=site_id,
         remote_dispatcher="/approved/root/_tooling/nf-gtd-hpc-remote",
         local_state_root=repository / ".untracked" / "hpc-test",
         poll_seconds=1,
@@ -335,6 +344,35 @@ def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
         git=FakeGit(repository=tmp_path),
         progress=False,
     )
+
+
+def test_viper_controller_rejects_legacy_marmic_run_record(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id="viper-cpu")
+    record_root = controller.config.local_state_root / (
+        "gtd-smoke-20260802T120000Z-0123456789ab-01234567"
+    )
+    record_root.mkdir(parents=True)
+    (record_root / "run.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "run_id": record_root.name,
+                "commit": COMMIT,
+                "owner_id": "2" * 32,
+                "profile": "smoke",
+                "iteration": 1,
+                "parent_run_id": None,
+                "failure_signature": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="belongs to site marmic"):
+        controller.status(record_root.name)
+    assert transport.calls == []
 
 
 def _write_fixed_p0_inputs(repository: Path) -> str:

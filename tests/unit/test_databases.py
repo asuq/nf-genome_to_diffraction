@@ -1258,7 +1258,7 @@ def test_pdb_foldseek_rejects_malformed_provider_snapshot(
     assert len(retained) == 1
 
 
-def test_database_resources_build_on_compute_scratch_then_publish_durably(
+def test_database_resources_build_on_same_filesystem_scratch_and_publish_atomically(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     request = _mocked_full_request(tmp_path, monkeypatch)
@@ -1271,12 +1271,12 @@ def test_database_resources_build_on_compute_scratch_then_publish_durably(
     monkeypatch.setattr(
         prepare_module,
         "_device_id",
-        lambda path: 2 if path == scratch else 1,
+        lambda _path: 1,
     )
     monkeypatch.setattr(
         common_module,
         "_device_id",
-        lambda path: 2 if path.is_relative_to(scratch) else 1,
+        lambda _path: 1,
     )
     request = replace(
         request,
@@ -1308,7 +1308,7 @@ def test_failed_copy_back_retains_durable_staging(
     monkeypatch.setattr(
         prepare_module,
         "_device_id",
-        lambda path: 2 if path == scratch else 1,
+        lambda path: 2 if path.is_relative_to(scratch) else 1,
     )
     monkeypatch.setattr(
         common_module,

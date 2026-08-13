@@ -1,5 +1,9 @@
 # Marmic prototype runbook
 
+> **Historical:** Viper-CPU is now the active execution site. Preserve Marmic
+> runs unchanged and use the [Viper-CPU runbook](viper-cpu-runbook.md) for new
+> work.
+
 ## Purpose
 
 This runbook reproduces the implemented Task 05 boundary on Marmic: trusted

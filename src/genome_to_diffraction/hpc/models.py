@@ -1,4 +1,4 @@
-"""Validated configuration and run-state types for fixed Marmic test profiles."""
+"""Validated configuration and run-state types for fixed multi-site HPC tests."""
 
 import json
 import re
@@ -19,6 +19,7 @@ OWNER_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 SSH_ALIAS_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 REMOTE_PATH_PATTERN = re.compile(r"^/[A-Za-z0-9._/-]+$")
 JOB_ID_PATTERN = re.compile(r"^[0-9]+$")
+SITE_ID_PATTERN = re.compile(r"^(marmic|viper-cpu)$")
 
 MAX_LOG_LINES = 2_000
 MAX_ARTIFACT_FILE_BYTES = 20 * 1024 * 1024
@@ -30,9 +31,9 @@ MAX_FEEDBACK_RUNS = 6
 QUEUE_TIMEOUT_SECONDS = 30 * 60
 EXECUTION_TIMEOUT_SECONDS = 45 * 60
 P0_EXECUTION_TIMEOUT_SECONDS = 24 * 60 * 60
-P1_EXECUTION_TIMEOUT_SECONDS = 1000 * 60 * 60
-P2_EXECUTION_TIMEOUT_SECONDS = 1000 * 60 * 60
-DATABASE_EXECUTION_TIMEOUT_SECONDS = 48 * 60 * 60
+P1_EXECUTION_TIMEOUT_SECONDS = 24 * 60 * 60
+P2_EXECUTION_TIMEOUT_SECONDS = 24 * 60 * 60
+DATABASE_EXECUTION_TIMEOUT_SECONDS = 24 * 60 * 60
 POLL_SECONDS = 15
 PROFILES = frozenset(
     {
@@ -96,6 +97,7 @@ class HpcConfig:
     """User-owned configuration for one repository and one HPC endpoint."""
 
     repository: Path
+    site_id: str
     ssh_alias: str
     remote_dispatcher: str
     local_state_root: Path
@@ -121,6 +123,7 @@ class HpcConfig:
         allowed = {
             "schema_version",
             "repository",
+            "site_id",
             "ssh_alias",
             "remote_dispatcher",
             "local_state_root",
@@ -132,8 +135,16 @@ class HpcConfig:
         unknown = sorted(set(raw) - allowed)
         if unknown:
             raise ConfigurationError(f"unknown HPC configuration keys: {unknown}")
-        if raw.get("schema_version") != "1.0":
-            raise ConfigurationError("HPC configuration schema_version must be '1.0'")
+        schema_version = raw.get("schema_version")
+        if schema_version not in {"1.0", "1.1"}:
+            raise ConfigurationError(
+                "HPC configuration schema_version must be '1.0' or '1.1'"
+            )
+        site_id = raw.get("site_id", "marmic")
+        if schema_version == "1.1" and "site_id" not in raw:
+            raise ConfigurationError("schema_version 1.1 requires site_id")
+        if not isinstance(site_id, str) or SITE_ID_PATTERN.fullmatch(site_id) is None:
+            raise ConfigurationError("site_id must be 'marmic' or 'viper-cpu'")
 
         repository = _absolute_local_path(raw.get("repository"), "repository")
         if not repository.is_dir() or not (repository / ".git").exists():
@@ -161,6 +172,7 @@ class HpcConfig:
 
         return cls(
             repository=repository,
+            site_id=site_id,
             ssh_alias=ssh_alias,
             remote_dispatcher=remote_dispatcher,
             local_state_root=local_state_root,
@@ -194,6 +206,7 @@ class LocalRunRecord:
     """Minimum local capability record for an owned remote run."""
 
     run_id: str
+    site_id: str
     commit: str
     owner_id: str
     profile: str
@@ -208,6 +221,8 @@ class LocalRunRecord:
         if not isinstance(value, dict):
             raise ValidationError("local run record must be a JSON object")
         run_id = str(value.get("run_id", ""))
+        # Version 1.0 records pre-date site isolation and are Marmic-only.
+        site_id = str(value.get("site_id", "marmic"))
         commit = str(value.get("commit", ""))
         owner_id = str(value.get("owner_id", ""))
         profile = str(value.get("profile", ""))
@@ -215,6 +230,7 @@ class LocalRunRecord:
         parent = value.get("parent_run_id")
         signature = value.get("failure_signature")
         validate_run_id(run_id)
+        validate_site_id(site_id)
         validate_commit(commit)
         validate_owner_id(owner_id)
         validate_profile(profile)
@@ -230,6 +246,7 @@ class LocalRunRecord:
             raise ValidationError("failure_signature must be a string or null")
         return cls(
             run_id=run_id,
+            site_id=site_id,
             commit=commit,
             owner_id=owner_id,
             profile=profile,
@@ -245,8 +262,9 @@ class LocalRunRecord:
         atomic_write_json(
             path,
             {
-                "schema_version": "1.0",
+                "schema_version": "1.1",
                 "run_id": self.run_id,
+                "site_id": self.site_id,
                 "commit": self.commit,
                 "owner_id": self.owner_id,
                 "profile": self.profile,
@@ -279,6 +297,14 @@ def validate_run_id(value: str) -> str:
 
     if RUN_ID_PATTERN.fullmatch(value) is None:
         raise ValidationError(f"invalid run ID: {value!r}")
+    return value
+
+
+def validate_site_id(value: str) -> str:
+    """Return one explicitly supported immutable execution-site identifier."""
+
+    if SITE_ID_PATTERN.fullmatch(value) is None:
+        raise ValidationError("site_id must be 'marmic' or 'viper-cpu'")
     return value
 
 

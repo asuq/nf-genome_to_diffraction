@@ -82,7 +82,7 @@ def _mock_successful_system(
     )
 
 
-def test_preflight_records_distinct_scratch_capacity_tools_and_routes(
+def test_preflight_records_same_filesystem_scratch_capacity_tools_and_routes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     request = _request(tmp_path)
@@ -93,6 +93,7 @@ def test_preflight_records_distinct_scratch_capacity_tools_and_routes(
     assert report["status"] == "passed"
     assert report["database_device"] == 1
     assert report["scratch_device"] == 2
+    assert report["scratch_shares_database_filesystem"] is False
     assert report["database_available_build_bytes"] == 1_900
     assert report["large_payload_started"] is False
     persisted = json.loads(request.report_path.read_text(encoding="utf-8"))
@@ -165,20 +166,19 @@ def test_preflight_verifies_durable_bundle_without_compute_node_network(
     ]
 
 
-def test_preflight_fails_before_network_when_scratch_shares_filesystem(
+def test_preflight_accepts_nonoverlapping_scratch_on_same_filesystem(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     request = _request(tmp_path)
+    _mock_successful_system(monkeypatch)
     monkeypatch.setattr(
         "genome_to_diffraction.databases.preflight._device_id", lambda _: 1
     )
 
-    with pytest.raises(DatabaseError, match="filesystem distinct"):
-        preflight_database_administration(request)
+    report = preflight_database_administration(request)
 
-    report = json.loads(request.report_path.read_text(encoding="utf-8"))
-    assert report["status"] == "failed"
-    assert report["large_payload_started"] is False
+    assert report["status"] == "passed"
+    assert report["scratch_shares_database_filesystem"] is True
 
 
 def test_preflight_fails_when_explicit_capacity_requirement_is_not_met(

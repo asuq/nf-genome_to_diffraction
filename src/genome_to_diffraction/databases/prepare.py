@@ -804,6 +804,18 @@ def _publish_resource_build(
     if build_staging == durable_staging:
         return inventory
     records, inventory_digest = inventory
+    if _device_id(build_staging) == _device_id(durable_staging):
+        if any(durable_staging.iterdir()):
+            raise DatabaseError(
+                "same-filesystem durable staging must be empty before publication"
+            )
+        durable_staging.rmdir()
+        os.replace(build_staging, durable_staging)
+        _LOGGER.info(
+            "published database resource by same-filesystem atomic rename",
+            extra={"destination": str(durable_staging)},
+        )
+        return records, inventory_digest
     copy_inventoried_resource(
         build_staging,
         durable_staging,
@@ -2207,8 +2219,6 @@ def _validate_scratch_root(
         or database_root.is_relative_to(scratch)
     ):
         raise DatabaseError("scratch_root must not overlap database_root")
-    if _device_id(scratch) == _device_id(database_root):
-        raise DatabaseError("scratch_root must use a distinct filesystem")
     enforce_free_space(scratch, request.minimum_scratch_free_bytes)
     return scratch
 

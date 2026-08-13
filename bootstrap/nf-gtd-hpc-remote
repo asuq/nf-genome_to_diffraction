@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fixed Marmic dispatcher for immutable nf-genome_to_diffraction test profiles.
+# Fixed site-isolated dispatcher for immutable nf-genome_to_diffraction profiles.
 
 set -euo pipefail
 umask 077
@@ -18,9 +18,42 @@ MAX_REVIEW_FILE_BYTES=$((128 * 1024 * 1024))
 MAX_REVIEW_TOTAL_BYTES=$((512 * 1024 * 1024))
 MAX_P0_INPUT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_SOURCE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
+MAX_M4_IMPORT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 
 TOOL_DIR="$(cd "$(dirname "$0")" && pwd -P)"
-ROOT="$(cd "$TOOL_DIR/.." && pwd -P)"
+LEGACY_ROOT="$(cd "$TOOL_DIR/.." && pwd -P)"
+SITE_CONFIG="$TOOL_DIR/site.paths"
+ROOT="$LEGACY_ROOT"
+if [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" ]]; then
+    IFS= read -r site_config_id < "$SITE_CONFIG" || true
+    if [[ "$site_config_id" == viper-cpu ]]; then
+        [[ -O "$SITE_CONFIG" && "$(stat -c '%a' "$SITE_CONFIG")" == 600 ]] || {
+            printf 'unsafe Viper site configuration\n' >&2
+            exit 1
+        }
+        [[ "${USER:-}" =~ ^[A-Za-z0-9._-]+$ ]] || {
+            printf 'unsafe Viper account identity\n' >&2
+            exit 1
+        }
+        mapfile -t startup_site_values < "$SITE_CONFIG"
+        expected_viper_home="/viper/u1/${USER}"
+        expected_viper_root="/ptmp/${USER}/nf-genome_to_diffraction"
+        [[ "${#startup_site_values[@]}" -eq 7 && \
+           "${startup_site_values[0]}" == viper-cpu && \
+           "${startup_site_values[1]}" == "$expected_viper_root" && \
+           "${startup_site_values[2]}" == \
+           "$expected_viper_home/miniforge3/envs/pixi/bin/pixi" && \
+           "${startup_site_values[3]}" == viper-cpu && \
+           "${startup_site_values[4]}" == "/ptmp/${USER}/apptainer-cache" && \
+           "${startup_site_values[5]}" == "$expected_viper_root/databases" && \
+           "${startup_site_values[6]}" == \
+           "$expected_viper_home/Softwares/manifests/phenix-2.1-6048.json" ]] || {
+            printf 'Viper site configuration differs from reviewed fixed paths\n' >&2
+            exit 1
+        }
+        ROOT="$expected_viper_root"
+    fi
+fi
 RUNS="$ROOT/runs"
 MIRROR="$ROOT/_cache/git/nf-genome_to_diffraction.git"
 LOCKS="$ROOT/_locks"
@@ -204,7 +237,7 @@ readiness_p0() {
     fi
     if [[ "$pixi_bin" =~ $SAFE_PATH_RE && -x "$pixi_bin" ]]; then
         if pixi_version="$("$pixi_bin" --version 2>&1)"; then
-            if [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.74\.0$ ]]; then
+            if [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.(74\.0|76\.2)$ ]]; then
                 pixi_status=ready
             else
                 pixi_status=version_mismatch
@@ -607,7 +640,7 @@ database_readiness() {
     fi
     if [[ "$pixi_bin" =~ $SAFE_PATH_RE && -x "$pixi_bin" ]]; then
         if pixi_version="$("$pixi_bin" --version 2>&1)"; then
-            if [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.74\.0$ ]]; then
+            if [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.(74\.0|76\.2)$ ]]; then
                 pixi_status=ready
             else
                 pixi_status=version_mismatch
@@ -816,8 +849,8 @@ stage_run_common() {
     pixi_bin="$RESOLVED_PIXI"
     pixi_version="$("$pixi_bin" --version 2>&1)" || \
         fail environment_failure "Pixi version check failed"
-    [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.74\.0$ ]] || \
-        fail environment_failure "Pixi 0.74.0 is required"
+    [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.(74\.0|76\.2)$ ]] || \
+        fail environment_failure "Pixi 0.74.0 or qualified Viper 0.76.2 is required"
 
     exec 9>"$LOCKS/stage.lock"
     flock -x 9
@@ -836,6 +869,11 @@ stage_run_common() {
     atomic_text "$run/state/commit" "$commit"
     atomic_text "$run/state/pixi-bin" "$pixi_bin"
     atomic_text "$run/state/profile" "$profile"
+    if [[ -f "$SITE_CONFIG" ]] && [[ "$(sed -n '1p' "$SITE_CONFIG")" == viper-cpu ]]; then
+        atomic_text "$run/state/site-id" viper-cpu
+    else
+        atomic_text "$run/state/site-id" marmic
+    fi
     append_event "$run" "stage_started"
 
     if [[ "$source_archive" == true ]]; then
@@ -923,7 +961,7 @@ stage_run_common() {
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
-          "$profile" == m4-copy ]]; then
+          ( "$profile" == m4-copy && "${M4_CROSS_SITE_IMPORT:-false}" != true ) ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
             atomic_text "$run/state/phase" "stage_failed"
@@ -1258,6 +1296,7 @@ stage_run_common() {
 {
   "schema_version": "1.0",
   "run_id": "$run_id",
+  "site_id": "$(<"$run/state/site-id")",
   "project": "nf-genome_to_diffraction",
   "profile": "$profile",
   "iteration": $iteration,
@@ -1284,6 +1323,7 @@ EOF
     append_event "$run" "stage_completed"
     emit operation stage
     emit run_id "$run_id"
+    emit site_id "$(<"$run/state/site-id")"
     emit commit "$commit"
     emit nf_helper_commit "$submodule_commit"
     emit pixi_version "$pixi_version"
@@ -1411,6 +1451,161 @@ m4_copy_stage_run() {
     emit phase staged
 }
 
+m4_import_stage_run() {
+    [[ "$#" -eq 9 ]] || \
+        fail wrapper_failure "m4-import-stage expects nine fixed arguments"
+    local run_id="$1" commit="$2" lock_sha256="$3" owner_id="$4"
+    local archive_sha256="$5" archive_size="$6" review_sha256="$7"
+    local decisions_sha256="$8" mtz_sha256="$9"
+    local run import_archive import_root stage_out gtd phenix_manifest
+    local site_id run_root configured_pixi profile cache_root database_root configured_phenix
+    local expected_home expected_root
+    local staged_manifest seed_count candidate command original_sha staged_sha
+
+    [[ "$archive_sha256" =~ $CHECKSUM_RE && "$review_sha256" =~ $CHECKSUM_RE && \
+       "$decisions_sha256" =~ $CHECKSUM_RE && "$mtz_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid M4 import checksum"
+    [[ "$archive_size" =~ $BYTE_COUNT_RE ]] || \
+        fail wrapper_failure "invalid M4 import size"
+    (( archive_size >= 1 && archive_size <= MAX_M4_IMPORT_ARCHIVE_BYTES )) || \
+        fail wrapper_failure "M4 import size is outside the fixed limit"
+    [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && -O "$SITE_CONFIG" && \
+       "$(stat -c '%a' "$SITE_CONFIG")" == 600 ]] || \
+        fail environment_failure "fixed Viper site configuration is absent or unsafe"
+    local -a site_values=()
+    mapfile -t site_values < "$SITE_CONFIG"
+    [[ "${#site_values[@]}" -eq 7 ]] || \
+        fail environment_failure "fixed Viper site configuration must contain seven lines"
+    site_id="${site_values[0]}"
+    run_root="${site_values[1]}"
+    configured_pixi="${site_values[2]}"
+    profile="${site_values[3]}"
+    cache_root="${site_values[4]}"
+    database_root="${site_values[5]}"
+    configured_phenix="${site_values[6]}"
+    expected_home="/viper/u1/${USER}"
+    expected_root="/ptmp/${USER}/nf-genome_to_diffraction"
+    [[ "$site_id" == viper-cpu && "$run_root" == "$ROOT" && \
+       "$profile" == viper-cpu && "$configured_pixi" == \
+       "$expected_home/miniforge3/envs/pixi/bin/pixi" && \
+       "$cache_root" == "/ptmp/${USER}/apptainer-cache" && \
+       "$database_root" == "$expected_root/databases" && \
+       "$configured_phenix" == \
+       "$expected_home/Softwares/manifests/phenix-2.1-6048.json" ]] || \
+        fail environment_failure "fixed Viper site configuration does not match reviewed paths"
+    [[ -x "$configured_pixi" && -f "$configured_phenix" && \
+       ! -L "$configured_phenix" ]] || \
+        fail environment_failure "fixed Viper Pixi or Phenix manifest is unavailable"
+
+    M4_CROSS_SITE_IMPORT=true stage_run_common \
+        "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 m4-copy
+    run="$(run_directory "$run_id")"
+    atomic_text "$run/state/site-id" viper-cpu
+    atomic_text "$run/state/phase" m4_importing
+    import_archive="$run/m4-import.tar.gz"
+    head -c "$archive_size" > "$import_archive" || \
+        fail transfer_failure "M4 import stream failed"
+    [[ "$(wc -c < "$import_archive")" -eq "$archive_size" && \
+       "$(sha256sum "$import_archive" | awk '{print $1}')" == "$archive_sha256" ]] || \
+        fail transfer_failure "M4 import archive is truncated or changed"
+    import_root="$run/artifacts/m4-import-parent"
+    mkdir -m 0700 "$import_root"
+    if ! "$run/source/.pixi/envs/hpc/bin/python" - \
+        "$import_archive" "$import_root" \
+        > "$run/logs/m4-import-members.log" 2>&1 <<'PY'
+import pathlib, sys, tarfile
+archive_path = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+with tarfile.open(archive_path, "r:gz") as archive:
+    members = archive.getmembers()
+    names = []
+    for member in members:
+        path = pathlib.PurePosixPath(member.name)
+        if path.is_absolute() or ".." in path.parts or not member.isfile():
+            raise SystemExit("unsafe M4 import archive member")
+        names.append(path.as_posix())
+    if len(names) != len(set(names)) or "m4_import_manifest.json" not in names:
+        raise SystemExit("invalid M4 import archive inventory")
+    for name in sorted(names):
+        print(name)
+    archive.extractall(destination, members=members, filter="data")
+PY
+    then
+        fail wrapper_failure "M4 import archive validation or extraction failed"
+    fi
+    rm -f -- "$import_archive"
+    [[ "$(sha256sum "$import_root/review_package/mr_seed_review_manifest.json" | awk '{print $1}')" == \
+       "$review_sha256" && \
+       "$(sha256sum "$import_root/decisions.tsv" | awk '{print $1}')" == \
+       "$decisions_sha256" && \
+       "$(sha256sum "$import_root/inputs/CD6QS2P2G1_5.mtz" | awk '{print $1}')" == \
+       "$mtz_sha256" ]] || \
+        fail transfer_failure "M4 import identity anchors changed"
+    "$run/source/.pixi/envs/hpc/bin/python" - "$import_root" <<'PY'
+import hashlib, json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+manifest = json.loads((root / "m4_import_manifest.json").read_text())
+if manifest.get("adapter_version") != "m4-cross-site-import-v1": raise SystemExit(1)
+if manifest.get("source_site_id") != "marmic": raise SystemExit(1)
+if manifest.get("destination_site_id") != "viper-cpu": raise SystemExit(1)
+if manifest.get("seed_count") != 11: raise SystemExit(1)
+inventory = manifest.get("inventory")
+if not isinstance(inventory, dict): raise SystemExit(1)
+for relative, record in inventory.items():
+    path = root / relative
+    if path.is_symlink() or not path.is_file(): raise SystemExit(1)
+    if hashlib.sha256(path.read_bytes()).hexdigest() != record.get("sha256"):
+        raise SystemExit(1)
+PY
+    atomic_text "$run/state/parent-run-id" \
+        "gtd-p2-diverse-20260812T045236Z-5b5100e8651c-1f2fe41a"
+    atomic_text "$run/state/parent-site-id" marmic
+    atomic_text "$run/state/m4-import-archive-sha256" "$archive_sha256"
+    atomic_text "$run/state/m4-decisions-sha256" "$decisions_sha256"
+    atomic_text "$run/state/m4-review-manifest-sha256" "$review_sha256"
+    atomic_text "$run/state/m4-mtz-sha256" "$mtz_sha256"
+    stage_out="$run/artifacts/m4-copy-inputs"
+    gtd="$run/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    if ! "$gtd" --log-format json --no-progress mr stage-add-copy \
+        --parent-run "$import_root" \
+        --decisions "$import_root/decisions.tsv" \
+        --review-manifest-sha256 "$review_sha256" \
+        --mtz "$import_root/inputs/CD6QS2P2G1_5.mtz" \
+        --phenix-manifest "$configured_phenix" \
+        --outdir "$stage_out" \
+        --expected-seed-count 11 \
+        --use-solution-coordinates-as-models \
+        --source-site-id marmic \
+        > "$run/logs/m4-import-stage.log" 2>&1; then
+        atomic_text "$run/state/phase" stage_failed
+        atomic_text "$run/state/failure-class" test_failure
+        fail test_failure "checksum-bound cross-site M4 staging failed"
+    fi
+    staged_manifest="$stage_out/m4_copy_stage_manifest.json"
+    seed_count="$(awk 'NR > 1 && NF { count++ } END { print count + 0 }' \
+        "$stage_out/seeds.tsv")"
+    [[ "$seed_count" -eq 11 && -f "$staged_manifest" && ! -L "$staged_manifest" ]] || \
+        fail test_failure "cross-site M4 stage did not retain exactly 11 seeds"
+    while IFS=$'\t' read -r candidate _ staged_sha; do
+        [[ "$candidate" == seed_solution_id ]] && continue
+        command="$import_root/review_package/assets/$candidate/phaser_command.json"
+        original_sha="$(sed -n 's/.*"model_sha256"[[:space:]]*:[[:space:]]*"\([0-9a-f]\{64\}\)".*/\1/p' "$command")"
+        [[ "$original_sha" =~ $CHECKSUM_RE && "$staged_sha" =~ $CHECKSUM_RE ]] || \
+            fail test_failure "cross-site model provenance is incomplete"
+    done < "$stage_out/seeds.tsv"
+    atomic_text "$run/state/m4-stage-manifest-sha256" \
+        "$(sha256sum "$staged_manifest" | awk '{print $1}')"
+    atomic_text "$run/state/phase" staged
+    append_event "$run" m4_import_inputs_ready
+    emit operation m4-import-stage
+    emit run_id "$run_id"
+    emit site_id viper-cpu
+    emit source_site_id marmic
+    emit seed_count "$seed_count"
+    emit archive_sha256 "$archive_sha256"
+    emit phase staged
+}
+
 database_stage_run() {
     [[ "$#" -eq 4 ]] || fail wrapper_failure "database-stage expects four fixed arguments"
     stage_run_common "$1" "$2" "$3" "$4" 1 database
@@ -1446,15 +1641,6 @@ submit_run() {
 
     exec 9>"$LOCKS/submit.lock"
     flock -x 9
-    if [[ -f "$LOCKS/active-database" ]]; then
-        read -r active_run active_job < "$LOCKS/active-database" || true
-        if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
-            active_state="$(scheduler_queue_state "$active_job")"
-            [[ -z "$active_state" ]] || \
-                fail scheduler_rejection "a managed database job is still active"
-        fi
-        rm -f -- "$LOCKS/active-database"
-    fi
     if [[ -f "$LOCKS/active-smoke" ]]; then
         read -r active_run active_job < "$LOCKS/active-smoke" || true
         if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
@@ -1496,7 +1682,7 @@ database_submit_run() {
     [[ "$#" -eq 2 ]] || fail wrapper_failure "database-submit expects run ID and owner ID"
     local run_id="$1"
     local owner_id="$2"
-    local run active_lock active_run active_job active_state submission job_id
+    local run active_run active_job active_state submission job_id
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     [[ "$(<"$run/state/phase")" == staged ]] || \
@@ -1508,23 +1694,20 @@ database_submit_run() {
 
     exec 9>"$LOCKS/submit.lock"
     flock -x 9
-    for active_lock in "$LOCKS/active-smoke" "$LOCKS/active-database"; do
-        if [[ -f "$active_lock" ]]; then
-            read -r active_run active_job < "$active_lock" || true
-            if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
-                active_state="$(scheduler_queue_state "$active_job")"
-                [[ -z "$active_state" ]] || \
-                    fail scheduler_rejection "another managed job is still active"
-            fi
-            rm -f -- "$active_lock"
+    if [[ -f "$LOCKS/active-database" ]]; then
+        read -r active_run active_job < "$LOCKS/active-database" || true
+        if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
+            active_state="$(scheduler_queue_state "$active_job")"
+            [[ -z "$active_state" ]] || \
+                fail scheduler_rejection "another managed database job is still active"
         fi
-    done
+        rm -f -- "$LOCKS/active-database"
+    fi
 
     if ! submission="$(sbatch --parsable \
-        --partition=slurm \
-        --cpus-per-task=100 \
-        --mem=2000G \
-        --time=48:00:00 \
+        --cpus-per-task=64 \
+        --mem=192G \
+        --time=24:00:00 \
         --job-name="nfgtd-database-${run_id:13:20}" \
         --output="$run/logs/slurm-%j.out" \
         "$SMOKE_JOB" "$run_id" "$ROOT" database \
@@ -1532,7 +1715,7 @@ database_submit_run() {
         atomic_text "$run/state/phase" "submission_failed"
         atomic_text "$run/state/failure-class" "scheduler_rejection"
         append_event "$run" "database_submission_failed"
-        fail scheduler_rejection "Slurm rejected the fixed database job"
+        fail scheduler_rejection "Slurm rejected the fixed database build job"
     fi
     job_id="${submission%%;*}"
     [[ "$job_id" =~ $INTEGER_RE ]] || \
@@ -2447,6 +2630,7 @@ main() {
         stage) stage_run "$@" ;;
         stage-archive) stage_archive_run "$@" ;;
         m4-copy-stage) m4_copy_stage_run "$@" ;;
+        m4-import-stage) m4_import_stage_run "$@" ;;
         database-stage) database_stage_run "$@" ;;
         submit) submit_run "$@" ;;
         database-submit) database_submit_run "$@" ;;

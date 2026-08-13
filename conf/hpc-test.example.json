@@ -1,11 +1,12 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "repository": "/absolute/path/to/nf-genome_to_diffraction",
-  "ssh_alias": "approved-hpc-alias",
-  "remote_dispatcher": "/approved/hpc/run-root/_tooling/nf-gtd-hpc-remote",
+  "site_id": "viper-cpu",
+  "ssh_alias": "viper-cpu",
+  "remote_dispatcher": "/absolute/user/software/root/nf-gtd/nf-gtd-hpc-remote",
   "local_state_root": "/absolute/path/to/nf-genome_to_diffraction/.untracked/hpc-test",
   "poll_seconds": 15,
   "queue_timeout_seconds": 1800,
   "execution_timeout_seconds": 2700,
-  "database_execution_timeout_seconds": 172800
+  "database_execution_timeout_seconds": 86400
 }

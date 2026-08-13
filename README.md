@@ -118,7 +118,12 @@ in the [structural-search interface](docs/structural-search.md). A PDB hit is
 model/family evidence tied back to a supplied exact-sequence group; it never
 becomes a reportable catalogue identity by itself.
 
-## Immutable Marmic test profiles
+## Immutable Viper-CPU test profiles
+
+Viper-CPU is the active HPC site. Marmic runs and runbooks are retained as
+immutable historical evidence. The active site uses the pinned `nf-helper`
+Viper profile, `/ptmp` work/storage, Pixi 0.76.2 as a launcher for the locked
+project environment, and a hard ceiling of 64 CPUs, 192 GB RAM, and 24 hours.
 
 The repository includes a repository-specific local controller and fixed remote
 dispatcher. The `smoke` profile runs `pixi run check`; the separately bounded
@@ -132,14 +137,19 @@ deterministically sorted real sequences; deferred records are explicitly
 uninterpreted, and the source-corrected adapter must pass before the uncapped
 provider gate. P0
 deliberately does not perform a terabyte-scale full-checksum audit. The
-separately approval-gated `database` profile runs fixed route/capacity
-preflight, `/dev/shm` resource construction, verified shared-storage
-publication, and anchored full verification with 100 CPUs, 2,000 GB, and a
-48-hour limit. All profiles use one
+separately approval-gated `database` profile downloads and checksums its fixed
+sources on the Viper login node, then runs `/ptmp` resource construction,
+same-filesystem publication, and anchored full verification with 64 CPUs,
+192 GB, and a 24-hour limit. All profiles use one
 immutable pushed commit. Neither provides arbitrary SSH/paths, source edits on
 Marmic, automatic cleanup, or downstream protein identification. Machine-readable
 results are written to standard output; diagnostic `logging` and optional
 `tqdm` wait/collection progress use standard error.
+
+The fixed `m4-import-stage` boundary resumes the prototype from the collected
+11-candidate Marmic P2 evidence without repeating P0-P2. It retains every
+candidate and binds review, decision, MTZ, model-derivation, Git, submodule,
+Pixi, lock, Phenix, and site provenance.
 
 The one-time `p0-inputs-stage` boundary packages only the seven frozen pilot
 files named by the private typed manifests, checks them against the frozen
@@ -150,7 +160,7 @@ and produces a private seven-line candidate for separate checksum-confirmed
 
 The controller must be built and installed as a reviewed immutable application
 outside the writable checkout before adding narrow Codex approval rules. See the
-[local-Marmic feedback-loop runbook](docs/hpc-feedback-loop.md) for installation,
+[Viper-CPU runbook](docs/viper-cpu-runbook.md) for installation,
 configuration, operations, failure classes, and the clean approval boundary.
 The current M0 evidence and remaining scientific prerequisites are separated in
 the [M0 qualification dashboard](docs/m0-qualification.md).
@@ -497,18 +507,17 @@ The database CLI thread count is derived from the allocated Nextflow `task.cpus`
 so MMseqs2 indexing and the bounded search operations do not use the old
 independent four-thread default. The internal concurrency of `foldseek databases`
 still needs confirmation against the pinned Linux executable before the real
-site run. The revised Marmic measurement profile requests 100 CPUs, 2,000 GB,
-and 48 hours. The memory request selects the large-memory node and provides
-enough `/dev/shm` capacity for the 800 GB project cap plus temporary overhead;
-requesting the node's full 4 TB would not improve the I/O-bound phases.
+site run. The active Viper profile requests at most 64 CPUs, 192 GB, and 24
+hours in the small queue. Job-owned construction and durable publication both
+use `/ptmp`, avoiding a cross-filesystem copy before atomic publication.
 
 An intended full preparation run is:
 
 ```bash
 pixi install -e hpc --frozen
-pixi run -e hpc nextflow run prepare_databases.nf -profile marmic \
-  --database_root /absolute/shared/nf-genome-to-diffraction/databases \
-  --scratch_root /dev/shm/job-owned-nf-gtd-directory \
+pixi run -e hpc nextflow run prepare_databases.nf -profile viper-cpu \
+  --database_root /ptmp/USERNAME/nf-genome_to_diffraction/databases \
+  --scratch_root /ptmp/USERNAME/nf-genome_to_diffraction/database-staging/JOB_ID \
   --minimum_scratch_free_bytes REVIEWED_SCRATCH_BYTES \
   --outdir /absolute/shared/nf-genome-to-diffraction/database-results \
   --prepare_pdb_foldseek true \
@@ -583,12 +592,12 @@ every 20 seconds. Scratch payload bytes count towards the same project cap as
 durable bytes, and the complete process group is stopped if either filesystem
 loses headroom, the combined cap is crossed, or the scoped watchdog fails. The
 fixed database job creates one unique mode-0700 parent directly below
-compute-node `/dev/shm`, requires it to be on a different filesystem from the
-durable database root, and removes it at finalisation. Source archives and
+the Viper `/ptmp` database staging root, requires it to share the durable
+database filesystem, and removes it at finalisation. Source archives and
 resumable partial-transfer state are downloaded directly below the durable
 source root on the login node. Foldseek and MMseqs2 then construct each resource
-in `/dev/shm`, inventory it there, stream one progress-logged copy into empty
-durable staging, recompute all destination SHA-256 checksums, and only then
+in the job-owned `/ptmp` staging directory, inventory it there, recompute all
+destination SHA-256 checksums, and only then
 atomically publish the resource. A copy failure retains the bounded durable
 staging for explicit archival and leaves no partially published `current`
 resource; cleanup is never automatic.
@@ -625,8 +634,9 @@ genome-to-diffraction --log-format json --no-progress databases preflight \
   --source-bundle /absolute/shared/run/source_bundle.json
 ```
 
-The preflight requires scratch on a different filesystem from the durable
-database root, verifies the pinned Foldseek/MMseqs2 tools, measures both capacity
+The preflight requires non-overlapping scratch and durable database roots. They
+may share one `/ptmp` filesystem, enabling atomic rename publication. It verifies
+the pinned Foldseek/MMseqs2 tools and measures both capacity
 boundaries, requires pinned aria2 1.37.0 for local Foldseek extraction, and
 fully verifies the supplied source bundle. It records each fixed URL, effective
 URL, validator, size, and SHA-256 as `durable_source_verified`; it does not probe
@@ -639,9 +649,9 @@ crystal, sequence, credentials, or licensed data. A generic internet probe is
 never accepted as evidence for the fixed inputs.
 
 ```bash
-pixi run -e hpc nextflow run prepare_databases.nf -profile marmic \
-  --database_root /absolute/shared/nf-genome-to-diffraction/databases \
-  --outdir /absolute/shared/nf-genome-to-diffraction/database-verify \
+pixi run -e hpc nextflow run prepare_databases.nf -profile viper-cpu \
+  --database_root /ptmp/USERNAME/nf-genome_to_diffraction/databases \
+  --outdir /ptmp/USERNAME/nf-genome_to_diffraction/database-verify \
   --prepare_pdb_foldseek true \
   --prepare_pdb_sequences true \
   --prepare_prostt5 true \
@@ -657,9 +667,9 @@ administration operation, not part of the approval-enabled `p0` job. Its
 verification sidecar records either
 `full_checksums_and_functional_smoke` or
 `inventory_metadata_and_functional_smoke` plus an explicit Boolean checksum
-flag. The fixed Marmic administration driver uses `database-stage` and
+flag. The fixed Viper administration driver uses `database-stage` and
 `database-submit`, fingerprinted external configuration, and explicit distinct
-compute scratch. Those start commands remain approval-gated; the routine
+job-owned compute staging. Those start commands remain approval-gated; the routine
 `stage`/`submit` approvals remain limited to `smoke` and bounded `p0`.
 
 ## Repository layout

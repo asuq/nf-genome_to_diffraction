@@ -1,0 +1,7 @@
+viper-cpu
+/ptmp/USERNAME/nf-genome_to_diffraction
+/absolute/user/home/miniforge3/envs/pixi/bin/pixi
+viper-cpu
+/ptmp/USERNAME/apptainer-cache
+/ptmp/USERNAME/nf-genome_to_diffraction/databases
+/absolute/user/home/Softwares/manifests/phenix-2.1-6048.json

@@ -36,6 +36,8 @@ class AddCopyStageRequest:
     output_directory: Path
     expected_seed_count: int = 11
     progress: bool = True
+    use_solution_coordinates_as_models: bool = False
+    source_site_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,7 +155,11 @@ def prepare_add_copy_stage(request: AddCopyStageRequest) -> AddCopyStageOutput:
         raise ValueError(f"M4 stage output already exists: {output}")
     output.mkdir(parents=True)
 
-    source_review = parent / "artifacts/qualification/p2-diverse-review"
+    source_review = (
+        parent / "review_package"
+        if request.use_solution_coordinates_as_models
+        else parent / "artifacts/qualification/p2-diverse-review"
+    )
     review = output / "review_package"
     _copy_review_package(source_review, review)
     review_manifest = review / "mr_seed_review_manifest.json"
@@ -191,7 +197,7 @@ def prepare_add_copy_stage(request: AddCopyStageRequest) -> AddCopyStageOutput:
     model_directory = output / "models"
     model_directory.mkdir()
     rows: list[tuple[str, str, str]] = []
-    model_sources: dict[str, str] = {}
+    model_sources: dict[str, dict[str, str]] = {}
     for solution_id in approval.approved_solution_ids:
         item = items.get(solution_id)
         if item is None:
@@ -208,14 +214,32 @@ def prepare_add_copy_stage(request: AddCopyStageRequest) -> AddCopyStageOutput:
         model_sha = command.get("model_sha256")
         if not isinstance(model_sha, str) or len(model_sha) != 64:
             raise ValueError(f"first-copy command has no model checksum: {solution_id}")
-        source_model = _find_model(parent, model_sha)
-        staged_model = model_directory / f"{model_sha}.pdb"
+        if request.use_solution_coordinates_as_models:
+            coordinate_relative = copied.get("solution_coordinate")
+            if not isinstance(coordinate_relative, str):
+                raise ValueError(f"approved solution has no coordinate: {solution_id}")
+            source_model = _regular_file(
+                review / coordinate_relative, "first-copy solution coordinate"
+            )
+        else:
+            source_model = _find_model(parent, model_sha)
+        staged_sha = sha256_file(source_model)
+        staged_model = model_directory / f"{staged_sha}.pdb"
         if not staged_model.exists():
             shutil.copyfile(source_model, staged_model)
-        if sha256_file(staged_model) != model_sha:
+        if sha256_file(staged_model) != staged_sha:
             raise ValueError(f"staged model checksum failed: {solution_id}")
-        rows.append((solution_id, str(staged_model.resolve()), model_sha))
-        model_sources[model_sha] = str(source_model.relative_to(parent))
+        rows.append((solution_id, str(staged_model.resolve()), staged_sha))
+        model_sources[solution_id] = {
+            "derivation": (
+                "first_copy_solution_coordinate_rigid_body_derived"
+                if request.use_solution_coordinates_as_models
+                else "original_processed_model"
+            ),
+            "original_first_copy_model_sha256": model_sha,
+            "staged_search_model_sha256": staged_sha,
+            "source": str(source_model.relative_to(parent)),
+        }
 
     seeds_tsv = output / "seeds.tsv"
     with seeds_tsv.open("w", encoding="ascii", newline="") as handle:
@@ -223,15 +247,24 @@ def prepare_add_copy_stage(request: AddCopyStageRequest) -> AddCopyStageOutput:
         writer.writerow(("seed_solution_id", "search_model", "search_model_sha256"))
         writer.writerows(rows)
 
-    source_files = {
-        "hypotheses": parent
-        / "artifacts/p2-diverse/first-copy/diverse_first_copy_funnel"
-        / "mr_hypotheses.jsonl",
-        "sequence_groups": parent / "artifacts/p1/catalogue/sequence_groups.jsonl",
-        "preflight": parent / "artifacts/p0/preflight/mtz_preflight.jsonl",
-        "mtz": request.mtz,
-        "phenix_manifest": request.phenix_manifest,
-    }
+    if request.use_solution_coordinates_as_models:
+        source_files = {
+            "hypotheses": parent / "inputs/hypotheses.jsonl",
+            "sequence_groups": parent / "inputs/sequence_groups.jsonl",
+            "preflight": parent / "inputs/preflight.jsonl",
+            "mtz": request.mtz,
+            "phenix_manifest": request.phenix_manifest,
+        }
+    else:
+        source_files = {
+            "hypotheses": parent
+            / "artifacts/p2-diverse/first-copy/diverse_first_copy_funnel"
+            / "mr_hypotheses.jsonl",
+            "sequence_groups": parent / "artifacts/p1/catalogue/sequence_groups.jsonl",
+            "preflight": parent / "artifacts/p0/preflight/mtz_preflight.jsonl",
+            "mtz": request.mtz,
+            "phenix_manifest": request.phenix_manifest,
+        }
     copied_files: dict[str, dict[str, str]] = {}
     for name, source in source_files.items():
         suffix = source.suffix or ".json"
@@ -256,6 +289,8 @@ def prepare_add_copy_stage(request: AddCopyStageRequest) -> AddCopyStageOutput:
             "seed_solution_ids": [row[0] for row in rows],
             "seeds_tsv_sha256": sha256_file(seeds_tsv),
             "model_sources": model_sources,
+            "source_site_id": request.source_site_id,
+            "cross_site_import": request.use_solution_coordinates_as_models,
             "inputs": copied_files,
         },
     )

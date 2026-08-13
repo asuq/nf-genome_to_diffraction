@@ -5,7 +5,7 @@ description = "Foundation for genome-to-diffraction protein candidate identifica
 authors = ["Akito Shima"]
 channels = ["conda-forge", "bioconda"]
 platforms = ["linux-64", "osx-arm64"]
-requires-pixi = "==0.74.0"
+requires-pixi = ">=0.74.0,<0.77.0"
 license = "BSD-3-Clause"
 license-file = "LICENSE"
 readme = "README.md"

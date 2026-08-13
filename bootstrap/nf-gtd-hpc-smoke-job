@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fixed Slurm job body for the reviewed smoke, P0, P1, P2, P2-diverse, and
+# Fixed Slurm job body for the reviewed multi-site profiles, including
 # separately gated database-administration profiles.
 
 set -euo pipefail
@@ -11,7 +11,6 @@ CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
-DATABASE_SCRATCH_ROOT='/dev/shm'
 
 # Slurm executes a spooled copy, so $0 no longer identifies _tooling. The fixed
 # dispatcher derives the trusted run root and passes it explicitly.
@@ -28,9 +27,11 @@ PROFILE="${3-}"
     printf 'missing Slurm job ID\n' >&2
     exit 2
 }
-if [[ "$PROFILE" == database && "${SLURM_CPUS_PER_TASK:-}" != 100 ]]; then
-    printf 'database job requires exactly 100 allocated CPUs\n' >&2
-    exit 2
+if [[ "$PROFILE" == database ]]; then
+    if [[ "${SLURM_CPUS_PER_TASK:-}" != 64 ]]; then
+        printf 'database build job requires exactly 64 allocated CPUs\n' >&2
+        exit 2
+    fi
 fi
 [[ "$ROOT" =~ $SAFE_PATH_RE && -d "$ROOT/runs" && -d "$ROOT/_locks" ]] || {
     printf 'invalid managed run root\n' >&2
@@ -61,7 +62,7 @@ SCRATCH_PARENT_CLEANUP=""
 SCRATCH=""
 SOURCE=""
 if [[ "$PROFILE" != database ]]; then
-    SCRATCH_PARENT="${SLURM_TMPDIR:-/dev/shm}"
+    SCRATCH_PARENT="${ROOT%/}/work"
     [[ "$SCRATCH_PARENT" =~ $SAFE_PATH_RE ]] || {
         printf 'Slurm scratch parent is not a safe absolute path\n' >&2
         exit 2
@@ -412,7 +413,7 @@ run_p0_nextflow() {
         -log "$RUN/logs/nextflow-${label}.log" \
         run "$RUN/source/main.nf" \
         "$@" \
-        -profile marmic \
+        -profile viper-cpu \
         --catalogues "$CATALOGUES" \
         --crystals "$CRYSTALS" \
         --config "$PIPELINE_CONFIG" \
@@ -552,7 +553,7 @@ run_p1_nextflow() {
         -log "$RUN/logs/nextflow-p1-${label}.log" \
         run "$RUN/source/discover_structures.nf" \
         "$@" \
-        -profile marmic \
+        -profile viper-cpu \
         --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
         --source_records "$P1_CATALOGUE_OUT/source_records.jsonl" \
         --database_manifest "$EXPECTED_DATABASE_MANIFEST" \
@@ -568,7 +569,7 @@ run_p1_model_nextflow() {
         -log "$RUN/logs/nextflow-p1-model-${label}.log" \
         run "$RUN/source/prepare_models.nf" \
         "$@" \
-        -profile marmic \
+        -profile viper-cpu \
         --coordinate_sources \
         "$P1_PREFETCH_OUT/coordinate_sources.jsonl" \
         --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
@@ -756,7 +757,7 @@ run_p2_first_copy_nextflow() {
         -log "$RUN/logs/nextflow-p2-first-copy-${label}.log" \
         run "$RUN/source/screen_first_copy.nf" \
         "$@" \
-        -profile marmic \
+        -profile viper-cpu \
         --coordinate_sources "$P1_PREFETCH_OUT/coordinate_sources.jsonl" \
         --prepared_models "$P1_MODEL_OUT/predicted_model_preparation" \
         --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
@@ -945,7 +946,7 @@ run_p2_diverse_model_nextflow() {
         -log "$RUN/logs/nextflow-p2-diverse-model-${label}.log" \
         run "$RUN/source/prepare_pdb_models.nf" \
         "$@" \
-        -profile marmic \
+        -profile viper-cpu \
         --coordinate_sources \
         "$P2_DIVERSE_REGISTRATION_OUT/coordinate_sources.jsonl" \
         --coordinate_hit_mappings \
@@ -962,7 +963,7 @@ run_p2_diverse_first_copy_nextflow() {
         -log "$RUN/logs/nextflow-p2-diverse-first-copy-${label}.log" \
         run "$RUN/source/screen_diverse_first_copy.nf" \
         "$@" \
-        -profile marmic \
+        -profile viper-cpu \
         --predicted_coordinate_sources \
         "$P1_PREFETCH_OUT/coordinate_sources.jsonl" \
         --predicted_prepared_models \
@@ -1386,7 +1387,7 @@ run_p2_control_nextflow() {
         -log "$RUN/logs/nextflow-p2-control-${label}.log" \
         run "$RUN/source/screen_first_copy_controls.nf" \
         "$@" \
-        -profile marmic \
+        -profile viper-cpu \
         --control_bundle "$P2_CONTROL_BUNDLE" \
         --sequence_groups "$P2_CONTROL_CATALOGUE/sequence_groups.jsonl" \
         --preflight "$P2_CONTROL_PREFLIGHT/mtz_preflight.jsonl" \
@@ -1594,7 +1595,7 @@ run_m4_copy_nextflow() {
         -log "$RUN/logs/nextflow-m4-copy-${label}.log" \
         run "$RUN/source/screen_additional_copies.nf" \
         "$@" \
-        -profile marmic \
+        -profile viper-cpu \
         --seeds "$M4_INPUTS/seeds.tsv" \
         --review_validation "$M4_INPUTS/validated_mr_seed_decisions.json" \
         --review_package "$M4_INPUTS/review_package/mr_seed_review_manifest.json" \
@@ -1771,34 +1772,34 @@ run_database() {
     local scratch_base scratch_parent
 
     load_database_config
-    scratch_base="$(realpath -e "$DATABASE_SCRATCH_ROOT")"
-    [[ "$scratch_base" == "$DATABASE_SCRATCH_ROOT" && -d "$scratch_base" && \
-        ! -L "$DATABASE_SCRATCH_ROOT" && -w "$scratch_base" && \
+    scratch_base="$(realpath -e "$ROOT/database-staging")"
+    [[ "$scratch_base" == "$ROOT/database-staging" && -d "$scratch_base" && \
+        ! -L "$ROOT/database-staging" && -w "$scratch_base" && \
         -x "$scratch_base" ]] || {
-        printf 'fixed /dev/shm database root is unavailable or unsafe\n' >&2
+        printf 'fixed /ptmp database staging root is unavailable or unsafe\n' >&2
         return 2
     }
     scratch_parent="${scratch_base%/}/nf-gtd-database-parent-${UID}-${SLURM_JOB_ID}-${RUN_ID}"
     [[ "$scratch_parent" =~ $SAFE_PATH_RE && \
         ! -e "$scratch_parent" && ! -L "$scratch_parent" ]] || {
-        printf 'job-owned /dev/shm directory is unsafe or already exists\n' >&2
+        printf 'job-owned /ptmp directory is unsafe or already exists\n' >&2
         return 2
     }
     mkdir -m 0700 -- "$scratch_parent" || {
-        printf 'cannot create job-owned /dev/shm directory\n' >&2
+        printf 'cannot create job-owned /ptmp directory\n' >&2
         return 2
     }
     SCRATCH_PARENT_CLEANUP="$scratch_parent"
     SCRATCH_PARENT="$(realpath -e "$scratch_parent")"
     [[ "$SCRATCH_PARENT" =~ $SAFE_PATH_RE && -d "$SCRATCH_PARENT" && \
         ! -L "$SCRATCH_PARENT" && -O "$SCRATCH_PARENT" ]] || {
-        printf 'job-owned /dev/shm directory failed validation\n' >&2
+        printf 'job-owned /ptmp directory failed validation\n' >&2
         return 2
     }
-    printf 'scratch_parent_source=job_owned_dev_shm\n'
-    [[ "$(stat -c '%d' "$SCRATCH_PARENT")" != \
+    printf 'scratch_parent_source=job_owned_ptmp\n'
+    [[ "$(stat -c '%d' "$SCRATCH_PARENT")" == \
         "$(stat -c '%d' "$DATABASE_ROOT")" ]] || {
-        printf 'database scratch and durable root share a filesystem\n' >&2
+        printf 'database staging and durable root must share /ptmp filesystem\n' >&2
         return 2
     }
     SCRATCH="${SCRATCH_PARENT%/}/nf-gtd-database-${SLURM_JOB_ID}-${RUN_ID}"

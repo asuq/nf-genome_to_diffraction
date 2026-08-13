@@ -1,4 +1,4 @@
-"""Local controller for the fixed Marmic remote test dispatcher."""
+"""Local controller for the fixed site-isolated remote test dispatcher."""
 
 import base64
 import binascii
@@ -24,6 +24,7 @@ from typing import Protocol
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import atomic_write_text, sha256_file
+from genome_to_diffraction.hpc.m4_import import build_fixed_m4_import_bundle
 from genome_to_diffraction.hpc.models import (
     COMMIT_PATTERN,
     MAX_ARTIFACT_FILE_BYTES,
@@ -217,6 +218,13 @@ class TextTransport(Protocol):
         archive_path: Path,
     ) -> dict[str, str]:
         """Stream one fixed immutable source checkout archive."""
+
+    def m4_import_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream the one fixed checksum-gated cross-site M4 archive."""
 
 
 class GitRepository(Protocol):
@@ -734,6 +742,45 @@ class SshTransport:
             )
         return fields
 
+    def m4_import_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream the fixed local P2 handoff without arbitrary remote paths."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("m4-import-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote M4 import exceeded the fixed transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote M4 import failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote M4 import returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
 
 class HpcController:
     """Apply local ownership, iteration, timeout, and collection safeguards."""
@@ -862,6 +909,7 @@ class HpcController:
         )
         record = LocalRunRecord(
             run_id=run_id,
+            site_id=self.config.site_id,
             commit=commit,
             owner_id=owner_id,
             profile=profile,
@@ -957,6 +1005,7 @@ class HpcController:
         lock_checksum = sha256_file(self.config.repository / "pixi.lock")
         record = LocalRunRecord(
             run_id=run_id,
+            site_id=self.config.site_id,
             commit=commit,
             owner_id=owner_id,
             profile="m4-copy",
@@ -997,6 +1046,75 @@ class HpcController:
             "parent_run_id": parent_run_id,
             "decisions_sha256": decisions_sha256,
             "review_manifest_sha256": review_sha256,
+            "local_record": str(local_path),
+        }
+
+    def m4_import_stage(self, revision: str) -> dict[str, object]:
+        """Create a Viper-owned M4 run from the fixed collected Marmic evidence."""
+
+        if self.config.site_id != "viper-cpu":
+            raise ValidationError("m4-import-stage is available only for viper-cpu")
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+        run_id = f"gtd-m4-copy-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
+        owner_id = secrets.token_hex(16)
+        validate_run_id(run_id)
+        lock_checksum = sha256_file(self.config.repository / "pixi.lock")
+        record = LocalRunRecord(
+            run_id=run_id,
+            site_id=self.config.site_id,
+            commit=commit,
+            owner_id=owner_id,
+            profile="m4-copy",
+            iteration=1,
+            parent_run_id=None,
+        )
+        local_path = record.write(self.config.local_state_root)
+        with tempfile.TemporaryDirectory(
+            prefix="nf-gtd-m4-import-", dir="/tmp"
+        ) as temporary:
+            bundle = build_fixed_m4_import_bundle(
+                self.config.repository,
+                Path(temporary) / "m4-import.tar.gz",
+                progress=self.progress,
+            )
+            self.logger.info(
+                "staging fixed cross-site M4 evidence",
+                extra={
+                    "run_id": run_id,
+                    "archive_sha256": bundle.archive_sha256,
+                    "seed_count": bundle.seed_count,
+                },
+            )
+            remote = self.transport.m4_import_stage(
+                [
+                    run_id,
+                    commit,
+                    lock_checksum,
+                    owner_id,
+                    bundle.archive_sha256,
+                    str(bundle.archive_size_bytes),
+                    bundle.review_manifest_sha256,
+                    bundle.decisions_sha256,
+                    bundle.mtz_sha256,
+                ],
+                bundle.archive,
+            )
+        return {
+            **remote,
+            "operation": "m4-import-stage",
+            "run_id": run_id,
+            "site_id": self.config.site_id,
+            "commit": commit,
+            "profile": "m4-copy",
+            "source_site_id": "marmic",
+            "seed_count": bundle.seed_count,
+            "archive_sha256": bundle.archive_sha256,
+            "review_manifest_sha256": bundle.review_manifest_sha256,
+            "decisions_sha256": bundle.decisions_sha256,
+            "mtz_sha256": bundle.mtz_sha256,
             "local_record": str(local_path),
         }
 
@@ -1160,6 +1278,7 @@ class HpcController:
         lock_checksum = sha256_file(self.config.repository / "pixi.lock")
         record = LocalRunRecord(
             run_id=run_id,
+            site_id=self.config.site_id,
             commit=commit,
             owner_id=owner_id,
             profile="database",
@@ -1441,7 +1560,13 @@ class HpcController:
         }
 
     def _owned_run(self, run_id: str) -> LocalRunRecord:
-        return load_local_run(self.config.local_state_root, validate_run_id(run_id))
+        record = load_local_run(self.config.local_state_root, validate_run_id(run_id))
+        if record.site_id != self.config.site_id:
+            raise ValidationError(
+                f"run {run_id} belongs to site {record.site_id}, not "
+                f"{self.config.site_id}"
+            )
+        return record
 
     def _next_iteration(self, parent_run_id: str | None) -> tuple[int, str | None]:
         if parent_run_id is None:

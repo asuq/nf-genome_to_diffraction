@@ -1,4 +1,8 @@
-# Local-Marmic fixed-profile feedback loop
+# Historical local-Marmic fixed-profile feedback loop
+
+> **Site status:** Marmic is retained as immutable historical evidence. New
+> prototype work uses the [Viper-CPU runbook](viper-cpu-runbook.md). Do not use
+> this historical page to stage new runs.
 
 ## Purpose and boundary
 

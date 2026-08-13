@@ -20,7 +20,7 @@ DEFAULT_CONFIG = Path.home() / ".config" / "nf-gtd-hpc-test" / "config.json"
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="nf-gtd-hpc-test",
-        description="Run one immutable fixed nf-genome_to_diffraction test on Marmic",
+        description="Run one immutable fixed nf-genome_to_diffraction HPC test",
     )
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--log-level", default="INFO")
@@ -121,6 +121,12 @@ def _build_parser() -> argparse.ArgumentParser:
     m4_stage.add_argument("--decisions", type=Path, required=True)
     m4_stage.add_argument("--confirm-decisions-sha256", required=True)
 
+    m4_import = actions.add_parser(
+        "m4-import-stage",
+        help="stage the fixed collected Marmic P2 handoff as a Viper M4 run",
+    )
+    m4_import.add_argument("--revision", required=True)
+
     clean = actions.add_parser(
         "clean", help="delete one inactive run after external approval"
     )
@@ -159,6 +165,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.decisions,
             args.confirm_decisions_sha256,
         )
+    if args.operation == "m4-import-stage":
+        return controller.m4_import_stage(args.revision)
     if args.operation == "submit":
         return controller.submit(args.profile, args.run_id)
     if args.operation == "status":

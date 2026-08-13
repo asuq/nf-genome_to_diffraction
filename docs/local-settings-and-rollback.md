@@ -26,8 +26,10 @@ Pixi being available on `PATH` was an operator installation, not a repository
 setting. Do not remove it as part of this rollback unless that separate
 installation is intentionally being retired.
 
-The controller configuration names the stable SSH alias `marmic`; the selected
-login node remains an operator setting in `~/.ssh/config`. To change login nodes,
+The active controller configuration names the stable SSH alias `viper-cpu` and
+records `site_id=viper-cpu`. Preserve the former Marmic configuration separately;
+legacy records without a site ID are Marmic-only. The selected endpoint remains
+an operator setting in `~/.ssh/config`. To change login nodes,
 preserve the previous `Host marmic` block in the dated rollback directory and
 change only its `HostName`. Do not put the concrete site hostname into the
 tracked controller configuration or grant a second raw-SSH approval. Restore
@@ -112,6 +114,12 @@ persistent approval because it mutates retained remote evidence from a reviewed
 failed or cancelled run.
 
 ## Remote settings are separate
+
+Viper's `/ptmp` run root, user tool/configuration directory, bare mirror,
+databases, caches, and licensed Phenix prefix are remote state. Marmic
+equivalents remain historical remote state. Moving local files does not remove
+either site's evidence. The tracked [Viper runbook](viper-cpu-runbook.md)
+describes how to disable active settings without deleting them.
 
 The Marmic bare mirror, `_tooling`, `_config`, `_cache`, `_locks`, `runs`, large
 database roots, and licensed Linux Phenix prefix are remote state. Moving local

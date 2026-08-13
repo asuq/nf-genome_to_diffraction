@@ -5,8 +5,9 @@
 This roadmap carries `nf-genome_to_diffraction` from its validated Task 05
 boundary to a complete, human-reviewed single-component research pipeline under
 the model `ASU = nA`. It translates the separately retained approved handoff into
-an actionable sequence based on the implementation and Marmic evidence available
-on 2 August 2026.
+an actionable sequence based on the implementation and retained Marmic evidence.
+Viper-CPU is the active execution site from 13 August 2026; the scientific
+milestone ordering is unchanged by the site cut-over.
 
 Completion of this roadmap means:
 
@@ -65,7 +66,7 @@ overstated:
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
 | Epic 10 | The first-copy Phaser adapter, provisional ranking screen, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel produced 11 parsed solutions, six in the higher-priority numeric tier | Publish a version-3 retain-all review package, collect all 11 inspectable solutions, complete human map/packing review, and validate an explicit decision |
-| Epics 11–13 | Contracts/reserved package areas exist | Same-component copies, refinement, map/sequence assessment, final ranking, and reporting are not implemented |
+| Epics 11–13 | Sequential same-component placement and typed copy-count reporting are implemented locally; the 11-candidate Marmic P2 package is frozen for Viper import | Qualify the imported sequential run on Viper, then implement brief refinement, map/sequence assessment, final ranking, and reporting |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
 The accepted main workflow still terminates at
@@ -592,7 +593,7 @@ become a general source-deployment or arbitrary SSH facility.
 | Candidate/model explosion | Unbounded CPU/storage | Precomputed shared searches, source quotas, diversity, hard profile caps, finalist retention |
 | Database/reference drift | Results cannot be reproduced | Immutable release/retrieval IDs, checksums, manifest-keyed caches, update regression |
 | Nextflow cache misuse | Stale scientific results reused | Content-derived keys and targeted invalidation tests |
-| NFS/tape latency or scratch exhaustion | Spurious failures and poor scaling | `/dev/shm`/`SLURM_TMPDIR`, conservative resources, NFS-small durable outputs, I/O metrics |
+| Shared-storage latency or scratch exhaustion | Spurious failures and poor scaling | Viper `/ptmp` staging, conservative resources, small durable outputs, and I/O metrics |
 | Identity/locus corruption | Scientifically wrong report | Exact sequence digests, lossless source mappings, round-trip and duplicate-locus tests |
 | Licence/privacy leakage | Legal or confidentiality incident | Data outside Git, provenance/licence inventory, no credential or raw-response logging |
 

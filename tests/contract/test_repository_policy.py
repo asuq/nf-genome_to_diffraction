@@ -90,7 +90,7 @@ def test_diverse_funnel_stages_coordinate_sources_under_unique_names() -> None:
     assert "--coordinate-sources '${pdb_coordinate_sources}'" in module
 
 
-def test_nf_helper_submodule_exposes_marmic_profile() -> None:
+def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -> None:
     gitmodules = (REPOSITORY / ".gitmodules").read_text(encoding="utf-8")
     assert "path = external/nf-helper" in gitmodules
     assert "url = https://github.com/asuq/nf-helper.git" in gitmodules
@@ -115,6 +115,7 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
 
     nextflow_config = (REPOSITORY / "nextflow.config").read_text(encoding="utf-8")
     assert "includeConfig 'conf/marmic.config'" in nextflow_config
+    assert "includeConfig 'conf/viper-cpu.config'" in nextflow_config
 
     site_profile = (
         REPOSITORY / "external" / "nf-helper" / "conf" / "sites" / "marmic.config"
@@ -124,10 +125,23 @@ def test_nf_helper_submodule_exposes_marmic_profile() -> None:
     assert "clusterOptions = '--export=ALL'" in site_profile
     assert "scratch = \"/scratch/${System.getenv('USER')}\"" in site_profile
 
+    viper_wrapper = (REPOSITORY / "conf" / "viper-cpu.config").read_text(
+        encoding="utf-8"
+    )
+    assert "external/nf-helper/conf/sites/viper-cpu.config" in viper_wrapper
+    assert "max_cpus = 64" in viper_wrapper
+    assert "max_memory = 192000.MB" in viper_wrapper
+    assert "cpus: 64" in viper_wrapper
+    assert "memory: 192000.MB" in viper_wrapper
+    assert "maxForks = 7" in viper_wrapper
+    assert "--partition=datatransfer" not in viper_wrapper
+    assert "workDir = \"/ptmp/${System.getenv('USER')}" in viper_wrapper
+
     database_job = (REPOSITORY / "bootstrap" / "nf-gtd-hpc-smoke-job").read_text(
         encoding="utf-8"
     )
-    assert "DATABASE_SCRATCH_ROOT='/dev/shm'" in database_job
+    assert "scratch_parent_source=job_owned_ptmp" in database_job
+    assert "/dev/shm" not in database_job
 
     phaser_module = (
         REPOSITORY / "modules" / "local" / "run_first_copy_phaser.nf"
@@ -162,16 +176,17 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert "--full-verify" not in p0_body
     assert "--full-verify" in database_body
     assert "SLURM_TMPDIR" not in database_body
-    assert "DATABASE_SCRATCH_ROOT='/dev/shm'" in job
-    assert "scratch_parent_source=job_owned_dev_shm" in database_body
+    assert "scratch_parent_source=job_owned_ptmp" in job
+    assert "/dev/shm" not in job
+    assert "scratch_parent_source=job_owned_ptmp" in database_body
     assert "phase=pixi_verify_offline profile=database" in database_body
     assert "--offline" in database_body
     assert "database resource build uses compute scratch" in (
         REPOSITORY / "src" / "genome_to_diffraction" / "databases" / "prepare.py"
     ).read_text(encoding="utf-8")
     dispatcher_text = dispatcher.read_text(encoding="utf-8")
-    assert "--cpus-per-task=100" in dispatcher_text
-    assert "--mem=2000G" in dispatcher_text
+    assert "--cpus-per-task=64" in dispatcher_text
+    assert "--mem=192G" in dispatcher_text
     assert "stage_hpc_environment_ready" in dispatcher_text
     assert "databases stage-sources" in dispatcher_text
     assert "database-source-stage.log" in dispatcher_text
