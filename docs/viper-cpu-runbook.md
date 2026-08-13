@@ -29,8 +29,11 @@ but reproducible inputs and manifests must remain recoverable elsewhere.
 Use Viper's small compute queue only. The hard project ceiling is **64 CPUs and
 192 GB RAM** with Viper's 24-hour scheduler maximum. M4 uses seven concurrent
 Phaser tasks at 8 CPUs and 16 GB each, for at most 56 CPUs. The database build
-and verification job uses 64 CPUs and 192 GB. Increase neither without a new
-explicit decision supported by measured resource evidence.
+and verification job deliberately uses only 8 CPUs and 32 GB because it unpacks
+prebuilt Foldseek resources and constructs the smaller PDB-SEQRES MMseqs index.
+Its 24-hour request provides margin for shared-filesystem I/O. Increase these
+database resources only when terminal MaxRSS or an observed tool failure
+provides evidence that the smaller allocation is insufficient.
 
 Database downloads are the user-approved exception to the original two-job
 proposal: the fixed `database-stage` operation downloads and checksums sources

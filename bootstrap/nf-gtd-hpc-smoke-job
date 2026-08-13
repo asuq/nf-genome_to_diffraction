@@ -28,8 +28,8 @@ PROFILE="${3-}"
     exit 2
 }
 if [[ "$PROFILE" == database ]]; then
-    if [[ "${SLURM_CPUS_PER_TASK:-}" != 64 ]]; then
-        printf 'database build job requires exactly 64 allocated CPUs\n' >&2
+    if [[ "${SLURM_CPUS_PER_TASK:-}" != 8 ]]; then
+        printf 'database build job requires exactly 8 allocated CPUs\n' >&2
         exit 2
     fi
 fi

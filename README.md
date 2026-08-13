@@ -139,8 +139,8 @@ provider gate. P0
 deliberately does not perform a terabyte-scale full-checksum audit. The
 separately approval-gated `database` profile downloads and checksums its fixed
 sources on the Viper login node, then runs `/ptmp` resource construction,
-same-filesystem publication, and anchored full verification with 64 CPUs,
-192 GB, and a 24-hour limit. All profiles use one
+same-filesystem publication, and anchored full verification with 8 CPUs,
+32 GB, and a 24-hour limit. All profiles use one
 immutable pushed commit. Neither provides arbitrary SSH/paths, source edits on
 Marmic, automatic cleanup, or downstream protein identification. Machine-readable
 results are written to standard output; diagnostic `logging` and optional
@@ -503,13 +503,14 @@ Observed compressed inputs total about 4.62 GB (approximately 2.33 GB PDB100,
 first real build must still measure extracted resources, indices, failed
 staging, and temporary-copy peaks. The reviewed Marmic measurement profile uses
 an 800 GB cap inside the available 1 TB allocation.
-The database CLI thread count is derived from the allocated Nextflow `task.cpus`,
+The database CLI thread count is derived from the allocated job CPUs,
 so MMseqs2 indexing and the bounded search operations do not use the old
-independent four-thread default. The internal concurrency of `foldseek databases`
-still needs confirmation against the pinned Linux executable before the real
-site run. The active Viper profile requests at most 64 CPUs, 192 GB, and 24
-hours in the small queue. Job-owned construction and durable publication both
-use `/ptmp`, avoiding a cross-filesystem copy before atomic publication.
+independent four-thread default. The fixed database administration job requests
+8 CPUs, 32 GB, and 24 hours in the small queue: its large Foldseek inputs are
+prebuilt archives, while its principal constructed index is PDB SEQRES. The
+24-hour bound accommodates shared-filesystem I/O rather than a large CPU claim.
+Job-owned construction and durable publication both use `/ptmp`, avoiding a
+cross-filesystem copy before atomic publication.
 
 An intended full preparation run is:
 

@@ -185,8 +185,8 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
         REPOSITORY / "src" / "genome_to_diffraction" / "databases" / "prepare.py"
     ).read_text(encoding="utf-8")
     dispatcher_text = dispatcher.read_text(encoding="utf-8")
-    assert "--cpus-per-task=64" in dispatcher_text
-    assert "--mem=192G" in dispatcher_text
+    assert "--cpus-per-task=8" in dispatcher_text
+    assert "--mem=32G" in dispatcher_text
     assert "stage_hpc_environment_ready" in dispatcher_text
     assert "databases stage-sources" in dispatcher_text
     assert "database-source-stage.log" in dispatcher_text

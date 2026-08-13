@@ -2718,3 +2718,42 @@ Phenix job `10910306` and database run
 `gtd-database-20260813T220325Z-d689a7e7a65e-6e72920c` only through their fixed
 bounded interfaces. Leave non-terminal jobs untouched. On Phenix success,
 qualify the manifest and real CD6 MTZ, then stage/submit all 11 M4 candidates.
+
+## 2026-08-14T00:05:00Z - Database allocation reduced before execution
+
+### Discoveries
+
+- Database job `10910110` was still pending and had consumed no compute time.
+  Its 64-CPU/192-GB request was an unmeasured ceiling rather than a minimum.
+- The fixed inputs are prebuilt Foldseek PDB and ProstT5 archives. The main
+  constructed search resource is the PDB-SEQRES MMseqs index, so a large-memory
+  allocation is not justified before observing terminal MaxRSS.
+
+### Accomplishments
+
+- Cancelled only pending job `10910110`, preserving its immutable run and staged
+  source bundle. Changed the fixed database job to 8 CPUs, 32 GB, and 24 hours;
+  the long wall-time margin is retained for shared-filesystem I/O.
+- Updated integration/contract assertions and active Viper documentation. M4's
+  separate 64-CPU/192-GB site ceiling and seven concurrent Phaser tasks remain
+  unchanged.
+
+### Immutable evidence
+
+- The approved controller reported `CANCEL_REQUESTED` for job `10910110`.
+- Contract tests passed 56/56, the integration suite passed, documentation links
+  passed, and `git diff --check` was clean before commit.
+
+### Unresolved work
+
+- Commit, push, require green CI, deploy checksum-reviewed tools, and create a
+  fresh database run using 8 CPUs/32 GB. Use its MaxRSS to decide whether even
+  less memory is defensible or a measured increase is necessary.
+- Phenix job `10910306` remains independent and must be left untouched while
+  non-terminal. After qualification, continue M4 without waiting for databases.
+
+### Next exact starting point
+
+Complete the focused resource-right-sizing development cycle. Then stage and
+submit one new immutable database run through the fixed wrapper and update the
+existing heartbeat to replace cancelled job `10910110` with its successor.
