@@ -2757,3 +2757,44 @@ qualify the manifest and real CD6 MTZ, then stage/submit all 11 M4 candidates.
 Complete the focused resource-right-sizing development cycle. Then stage and
 submit one new immutable database run through the fixed wrapper and update the
 existing heartbeat to replace cancelled job `10910110` with its successor.
+
+## 2026-08-14T00:22:00Z - Right-sized database launch exposed mount alias
+
+### Discoveries
+
+- Green resource commit `1d7601fe4b422da7379c714aa5a03dd4b0c2c81e`
+  was deployed and successor job `10910414` reached a compute node, then failed
+  safely in four seconds with exit 2 and negligible memory use.
+- The failure preceded Pixi and database preparation: Viper resolves the
+  documented `/ptmp` alias to a different physical mount path on compute nodes,
+  while the job body still required lexical and physical roots to be identical.
+  The dispatcher already handled this site behaviour.
+
+### Accomplishments
+
+- Preserved the failed run and its bounded log. Extended the job's path guard to
+  accept an alias only for an immutable run explicitly recorded as `viper-cpu`,
+  and only when the resolved path preserves the exact suffix beneath the fixed
+  run root. Arbitrary aliases and non-Viper noncanonical roots remain rejected.
+- Added an integration regression that executes the database job through an
+  aliased run root, plus contract assertions for the site-ID boundary.
+
+### Immutable evidence
+
+- Job `10910414`: `FAILED`, exit `2`, elapsed four seconds; bounded diagnostic
+  was `managed run root is not canonical`. This is wrapper failure evidence,
+  not evidence that 8 CPUs or 32 GB is insufficient.
+- Contract tests passed 56/56, integration tests passed, and the fixed Bash job
+  passed syntax validation after the correction.
+
+### Unresolved work
+
+- Complete checks, commit, push, require both Pixi CI jobs green, deploy the new
+  tool checksums, and stage a fresh 8-CPU/32-GB database run. Preserve jobs
+  `10910110` and `10910414`.
+- Continue independent Phenix monitoring and proceed to M4 on qualification.
+
+### Next exact starting point
+
+Finish the focused Viper mount-alias regression cycle, then submit one fresh
+right-sized database run and replace job `10910414` in the existing heartbeat.

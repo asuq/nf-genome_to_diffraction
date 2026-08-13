@@ -142,6 +142,8 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
     )
     assert "scratch_parent_source=job_owned_ptmp" in database_job
     assert "/dev/shm" not in database_job
+    assert "managed run root is a non-Viper noncanonical path" in database_job
+    assert '"$(<"$RUN/state/site-id")" == viper-cpu' in database_job
 
     phaser_module = (
         REPOSITORY / "modules" / "local" / "run_first_copy_phaser.nf"

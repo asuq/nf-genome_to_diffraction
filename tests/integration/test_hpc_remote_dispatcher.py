@@ -1081,8 +1081,11 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     )
     spooled_job = tmp_path / "database-slurm-script"
     shutil.copy2(smoke_job, spooled_job)
+    run_root_alias = tmp_path / "viper-ptmp-alias"
+    run_root_alias.symlink_to(remote_root, target_is_directory=True)
+    (run / "state" / "site-id").write_text("viper-cpu\n", encoding="ascii")
     _run(
-        [str(spooled_job), DATABASE_RUN_ID, str(remote_root), "database"],
+        [str(spooled_job), DATABASE_RUN_ID, str(run_root_alias), "database"],
         cwd=tmp_path,
         environment=job_environment,
     )

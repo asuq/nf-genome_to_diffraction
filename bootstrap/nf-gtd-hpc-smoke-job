@@ -37,16 +37,22 @@ fi
     printf 'invalid managed run root\n' >&2
     exit 2
 }
-[[ "$(cd "$ROOT" && pwd -P)" == "$ROOT" ]] || {
-    printf 'managed run root is not canonical\n' >&2
-    exit 2
-}
-
 RUN="$ROOT/runs/$RUN_ID"
 [[ -d "$RUN/source" && -d "$RUN/state" && -d "$RUN/logs" ]] || {
     printf 'managed run is incomplete\n' >&2
     exit 2
 }
+RESOLVED_ROOT="$(cd "$ROOT" && pwd -P)"
+if [[ "$RESOLVED_ROOT" != "$ROOT" ]]; then
+    [[ -f "$RUN/state/site-id" && ! -L "$RUN/state/site-id" && \
+        "$(<"$RUN/state/site-id")" == viper-cpu ]] || {
+        printf 'managed run root is a non-Viper noncanonical path\n' >&2
+        exit 2
+    }
+    # Viper presents /ptmp through a site mount alias whose physical backing
+    # path differs on compute nodes. Keep the reviewed lexical root so all
+    # recorded paths remain site-stable; the owned immutable run anchors it.
+fi
 [[ "$(<"$RUN/state/profile")" == "$PROFILE" ]] || {
     printf 'recorded profile does not match the job request\n' >&2
     exit 2
@@ -199,6 +205,21 @@ path_within_root() {
     [[ "$path" == "$root"/* ]]
 }
 
+site_resolved_path() {
+    local candidate="$1"
+    local resolved suffix
+    resolved="$(realpath -e "$candidate")" || return 1
+    if [[ "$resolved" == "$candidate" ]]; then
+        printf '%s\n' "$resolved"
+        return 0
+    fi
+    [[ "$(<"$RUN/state/site-id")" == viper-cpu && \
+        ( "$candidate" == "$ROOT" || "$candidate" == "$ROOT"/* ) ]] || return 1
+    suffix="${candidate#"$ROOT"}"
+    [[ "$resolved" == "$RESOLVED_ROOT$suffix" ]] || return 1
+    printf '%s\n' "$resolved"
+}
+
 load_p0_config() {
     local config="$ROOT/_config/p0.paths"
     local expected actual allowed candidate resolved index
@@ -322,8 +343,12 @@ load_database_config() {
             return 1
         }
     done
-    allowed="$(realpath -e "${values[0]}")"
-    [[ "$allowed" == "${values[0]}" && -d "$allowed" && ! -L "${values[0]}" ]] || {
+    resolved="$(site_resolved_path "${values[0]}")" || {
+        printf 'database allowed root is invalid\n' >&2
+        return 1
+    }
+    allowed="${values[0]}"
+    [[ -d "$resolved" && ! -L "$allowed" ]] || {
         printf 'database allowed root is invalid\n' >&2
         return 1
     }
@@ -331,13 +356,15 @@ load_database_config() {
         printf 'database allowed root is too broad\n' >&2
         return 1
     }
-    resolved="$(realpath -e "${values[1]}")"
-    [[ "$resolved" == "${values[1]}" && -d "$resolved" && \
-        ! -L "${values[1]}" && -O "${values[1]}" ]] || {
+    resolved="$(site_resolved_path "${values[1]}")" || {
         printf 'database root is invalid\n' >&2
         return 1
     }
-    path_within_root "$allowed" "$resolved" || {
+    [[ -d "$resolved" && ! -L "${values[1]}" && -O "${values[1]}" ]] || {
+        printf 'database root is invalid\n' >&2
+        return 1
+    }
+    path_within_root "$allowed" "${values[1]}" || {
         printf 'database root escaped the allowed root\n' >&2
         return 1
     }
@@ -346,9 +373,11 @@ load_database_config() {
         return 1
     }
     manifest_parent="$(dirname "${values[2]}")"
-    resolved="$(realpath -e "$manifest_parent")"
-    [[ "$resolved" == "$manifest_parent" && -d "$resolved" && \
-        ! -L "$manifest_parent" && -O "$manifest_parent" ]] || {
+    resolved="$(site_resolved_path "$manifest_parent")" || {
+        printf 'database manifest parent is invalid\n' >&2
+        return 1
+    }
+    [[ -d "$resolved" && ! -L "$manifest_parent" && -O "$manifest_parent" ]] || {
         printf 'database manifest parent is invalid\n' >&2
         return 1
     }
@@ -1769,13 +1798,16 @@ EOF
 run_database() {
     local gtd real_aria2 wrapper_bin database_manifest_sha256
     local source_bundle source_bundle_sha256 actual_source_bundle_sha256
-    local scratch_base scratch_parent
+    local scratch_base scratch_parent resolved_scratch
 
     load_database_config
-    scratch_base="$(realpath -e "$ROOT/database-staging")"
-    [[ "$scratch_base" == "$ROOT/database-staging" && -d "$scratch_base" && \
-        ! -L "$ROOT/database-staging" && -w "$scratch_base" && \
-        -x "$scratch_base" ]] || {
+    resolved_scratch="$(site_resolved_path "$ROOT/database-staging")" || {
+        printf 'fixed /ptmp database staging root is unavailable or unsafe\n' >&2
+        return 2
+    }
+    scratch_base="$ROOT/database-staging"
+    [[ -d "$resolved_scratch" && ! -L "$scratch_base" && \
+        -w "$resolved_scratch" && -x "$resolved_scratch" ]] || {
         printf 'fixed /ptmp database staging root is unavailable or unsafe\n' >&2
         return 2
     }
