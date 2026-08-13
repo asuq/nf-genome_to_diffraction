@@ -1450,3 +1450,74 @@ collect the approved artefacts, validate both controls and resume provenance,
 and retain both runs. Do not add fallback engineering, retune the score gate,
 rerun P2-diverse, clean remote evidence, or start M4 before this control result
 and the human-review decision are recorded.
+
+## 2026-08-13 — P2 control exposes insufficient screening specificity
+
+### Discoveries
+
+- Corrected retained run
+  `gtd-p2-control-20260812T204719Z-1085b3a088bf-fca7a26c`, Slurm job
+  `626394`, ran from `2026-08-12T20:49:14Z` to
+  `2026-08-13T00:51:18Z`. It reached scheduler state `FAILED`, exit code `4`,
+  and wrapper class `test_failure` because the predeclared positive/negative
+  separation assertion failed; both Phaser processes themselves completed
+  successfully.
+- The exact 8OOW positive is a decisive packed `completed_hit`: LLG 1622.755,
+  TFZ 49.7, two accepted and packed solutions, and one requested placed copy in
+  the expected `P 43 3 2` space group.
+- The deliberately unrelated 1UBQ negative is also classified
+  `completed_hit` under strict `LLG > 50` or `TFZ > 5`: LLG 30.089 does not
+  pass, but TFZ 6.8 does. Its final top solution packed and placed one copy in
+  `P 41 3 2`; Phaser warns that TFZ is below its cutoff of 8 for a definite
+  solution and that an earlier top FTF did not pack. The negative therefore
+  demonstrates a false-positive classification under the current sensitive
+  score gate, not a validated molecular-replacement solution.
+- The six CD6 review candidates have TFZ 5.1–5.5 and LLG below 50, all weaker
+  on these scores than this unrelated negative. Their existing treatment as
+  marginal review candidates remains appropriate, but the current disjunctive
+  gate is not specific enough to serve as an acceptance rule.
+
+### Accomplishments and immutable evidence
+
+- Both fixed hypotheses ran: native jobs `626398` (1UBQ) and `626399` (8OOW)
+  exited zero. The negative used 4 CPUs, 1 GB peak RSS, and 2 h 2 min realtime;
+  the positive used 4 CPUs, 703 MB peak RSS, and 2 min 15 s realtime. The
+  resume trace contains exactly the same two tasks as `CACHED`, and the
+  normalised resume record reports two of two cached.
+- The collected package contains the outer result, summary, raw JSONL results,
+  exact command records, bounded Phaser tails, first and resume traces, control
+  manifest, model records, and artifact checksum inventory. All 11 recomputed
+  SHA-256 values match the inventory. Summary SHA-256 is
+  `66b386a7986694213a966e7b1a164fc5d8aab7a0e4d88ac3c379393b47743ab7`;
+  raw-results SHA-256 is
+  `f7371ea2619b22948897e3fa3b15599b0faaa6ffe4ca16b18d34674d10b03c88`.
+- Immutable provenance is source commit
+  `1085b3a088bfd35a397195a4425ca48bf0d79813`, nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a`, Pixi `0.74.0`, lock checksum
+  `ecb7b12f890172eb53180ef5027b360b8187dff7d168a7cd8fc6507f9215fdc5`,
+  and immutable source-archive checksum
+  `081e6856422ba34fabb799a7431eccc65fe7803b0050fd06db7b499e1ddd6365`.
+  Both this run and the preceding one-sided run remain retained.
+
+### Unresolved work
+
+- The M3 control gate is not accepted. Do not relabel the unrelated negative,
+  silently tighten the threshold, or reinterpret the six marginal CD6 results
+  as validated structures.
+- A scientific-policy decision is required: retain `LLG > 50` or `TFZ > 5`
+  only as a sensitive review-screen rule and define a separate acceptance
+  class, or explicitly revise the acceptance threshold with this negative and
+  further controls as calibration evidence. Phaser's TFZ 8 warning is relevant
+  evidence but is not adopted automatically here.
+- Human map and packing review remains necessary. M4 additional-copy placement
+  remains blocked until the acceptance policy and at least one explicit seed
+  approval are recorded.
+
+### Next exact starting point
+
+Present the immutable positive/negative comparison for the user's scientific
+policy decision. After approval, make the smallest policy-and-classification
+change with regression tests using these frozen scores, then replay only the
+fixed summary/classification path if possible; do not rerun the expensive
+Phaser controls unless the immutable results cannot be safely reclassified.
+Do not clean either retained run, rerun P2-diverse, or start M4.
