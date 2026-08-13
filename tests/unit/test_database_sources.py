@@ -85,6 +85,32 @@ def test_source_bundle_stages_fixed_urls_and_reuses_verified_snapshot(
     assert all(path.stat().st_mode & 0o222 == 0 for path in bundle_root.iterdir())
 
 
+def test_source_bundle_accepts_site_mount_alias_ancestor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    canonical_mount = tmp_path / "canonical-ptmp"
+    canonical_mount.mkdir()
+    mount_alias = tmp_path / "ptmp"
+    mount_alias.symlink_to(canonical_mount, target_is_directory=True)
+    database_root = mount_alias / "ashima" / "databases"
+    database_root.mkdir(parents=True)
+    request = SourceBundleRequest(
+        database_root=database_root,
+        manifest_path=database_root / "source-bundle.json",
+        storage_limit_bytes=100_000_000,
+        minimum_free_bytes=0,
+        progress=False,
+    )
+    monkeypatch.setattr(
+        sources_module, "download_public_resource", _successful_download
+    )
+
+    bundle = stage_source_bundle(request)
+
+    assert bundle.bundle_id.startswith("dbsrc_")
+    assert request.manifest_path.is_file()
+
+
 def test_source_bundle_resumes_completed_and_partial_staging(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

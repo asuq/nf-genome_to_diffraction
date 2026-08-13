@@ -67,8 +67,6 @@ def _canonical_directory(path: Path, label: str) -> Path:
     if path.is_symlink() or not path.is_dir():
         raise DatabaseError(f"{label} must be an existing non-symlink directory")
     resolved = path.resolve(strict=True)
-    if resolved != path:
-        raise DatabaseError(f"{label} must be a canonical path")
     if resolved == Path("/") or resolved == Path.home().resolve():
         raise DatabaseError(f"{label} is too broad")
     if not os.access(resolved, os.R_OK | os.W_OK | os.X_OK):

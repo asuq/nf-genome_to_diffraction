@@ -2443,3 +2443,61 @@ controller, verify database readiness, and start the fixed login-local database
 stage. In parallel, transfer and scheduled-install the checksum-pinned Phenix
 installer; after real-MTZ qualification, execute `m4-import-stage`, submit M4,
 and create a successor Viper monitor.
+
+## 2026-08-13T22:02:00Z - Viper source staging path guard corrected
+
+### Discoveries
+
+- Viper database readiness became green after deployment of commit
+  `dd583bc3d43af5982189d07eb1dd6fcfef75d183`, but the first immutable source
+  stage stopped before downloading with `transfer_failure`. The owned run is
+  `gtd-database-20260813T214925Z-dd583bc3d43a-53b38876`; it is terminal
+  `stage_failed` and has no Slurm job ID.
+- Its bounded structured log reports `database_root must be canonical and
+  narrowly scoped`. The independent Python source/preflight layer still
+  required lexical equality with `Path.resolve()`, so Viper's site-managed
+  `/ptmp` ancestor alias was rejected after the dispatcher itself had been
+  corrected.
+
+### Accomplishments
+
+- Updated the source-stage root and manifest-parent checks, compute preflight
+  root checks, and preparation scratch check to accept a symlink only in an
+  ancestor supplied by the site mount namespace. The configured final database
+  and scratch directories must remain existing non-symlink directories;
+  canonical targets remain the basis for broad-root, overlap, capacity, and
+  ownership safety decisions.
+- Added a unit regression that stages the fixed source set through a `/ptmp`
+  alias to a canonical mount. The broader source/preflight/database unit set
+  passed 72 tests.
+
+### Immutable evidence
+
+- Green dispatcher compatibility commit:
+  `dd583bc3d43af5982189d07eb1dd6fcfef75d183`; GitHub Actions run
+  `31746971702` passed both Pixi 0.74.0 and 0.76.2 jobs.
+- Deployed dispatcher SHA-256:
+  `b0b6767b1f8491622dfddfcc8c0c74f0755850cc58e79df66405607547d47766`.
+- Failed source-stage evidence is retained in run
+  `gtd-database-20260813T214925Z-dd583bc3d43a-53b38876`; structured failure
+  class `transfer_failure`, phase `stage_failed`, scheduler state `FAILED`, and
+  no job ID. No database source download or compute submission occurred.
+- The production-path correction passed the full locked gate: 333 unit, 56
+  contract, and 46 integration tests plus all repository aggregate checks.
+
+### Unresolved work
+
+- Publish the Python path-guard correction and require both CI matrix jobs to
+  pass. Deploy the exact green tools and retry database staging as a new
+  immutable run; retain the failed run untouched.
+- Phenix is still absent from its Viper stable prefix. Transfer the verified
+  installer, install through the fixed scheduled resource profile, qualify the
+  commands and real MTZ, then stage/submit imported M4 and create its monitor.
+
+### Next exact starting point
+
+Read this entry. Commit and push the database Python path-guard correction,
+monitor GitHub Actions, deploy the exact green revision, then retry
+`database-stage` on the login node. If staging completes, submit the separate
+64-CPU/192-GB offline database build. Continue Phenix installation and M4 import
+in parallel without waiting for database completion.

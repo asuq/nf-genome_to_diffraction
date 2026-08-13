@@ -2211,7 +2211,7 @@ def _validate_scratch_root(
             "scratch_root must be an existing absolute non-symlink directory"
         )
     scratch = raw.resolve(strict=True)
-    if scratch != raw or scratch in {Path("/"), Path.home().resolve()}:
+    if scratch in {Path("/"), Path.home().resolve()}:
         raise DatabaseError("scratch_root must be canonical and narrowly scoped")
     if (
         scratch == database_root

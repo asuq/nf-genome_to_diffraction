@@ -168,7 +168,7 @@ def _database_root(path: Path) -> Path:
     if not path.is_absolute() or path.is_symlink() or not path.is_dir():
         raise DatabaseError("database_root must be an existing absolute directory")
     root = path.resolve(strict=True)
-    if root != path or root in {Path("/"), Path.home().resolve()}:
+    if root in {Path("/"), Path.home().resolve()}:
         raise DatabaseError("database_root must be canonical and narrowly scoped")
     return root
 
@@ -548,11 +548,7 @@ def stage_source_bundle(request: SourceBundleRequest) -> DatabaseSourceBundle:
             "database source manifest output must be new and non-symlink"
         )
     parent = request.manifest_path.parent
-    if (
-        parent.is_symlink()
-        or not parent.is_dir()
-        or parent.resolve(strict=True) != parent
-    ):
+    if parent.is_symlink() or not parent.is_dir():
         raise DatabaseError("database source manifest parent is missing or unsafe")
     lock_path = root / "tmp" / "locks" / "database-source-stage.lock"
     with exclusive_lock(lock_path, timeout_seconds=30.0, progress=request.progress):
