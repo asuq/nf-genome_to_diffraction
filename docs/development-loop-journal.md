@@ -2501,3 +2501,62 @@ monitor GitHub Actions, deploy the exact green revision, then retry
 `database-stage` on the login node. If staging completes, submit the separate
 64-CPU/192-GB offline database build. Continue Phenix installation and M4 import
 in parallel without waiting for database completion.
+
+## 2026-08-14T00:18:00Z - Viper database build submitted and Phenix staged
+
+### Discoveries
+
+- The corrected source stage completed the fixed download set successfully.
+  The Foldseek PDB archive was 2,326,827,389 bytes; source logging preserved the
+  requested URL and its resolved Steinegger Lab S3 URL. The Viper filesystem
+  reported approximately 4.79 PB free, so the 1.6-TB required-capacity gate is
+  comfortably satisfied without raising the 2.0-TB project safety ceiling.
+- The user-selected stable Phenix prefix `phenix_v2.1-6048` was documented but
+  the installer guard accepted only the older `phenix-2.1-6048` spelling. This
+  was detected before installation; no alternate tree or symlink was created.
+
+### Accomplishments
+
+- Database source staging completed as immutable run
+  `gtd-database-20260813T220325Z-d689a7e7a65e-6e72920c` at commit
+  `d689a7e7a65ece1d3694b7531f97c452b8675a60` with nf-helper revision
+  `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a` and Pixi 0.76.2. Downloads ran
+  on the Viper login node; no datatransfer job was used.
+- Submitted the independent offline database build as Slurm job `10910110` with
+  the reviewed 64-CPU, 192-GB, 24-hour ceiling. Initial structured state was
+  `PENDING`; the run remains immutable and is covered by a 30-minute heartbeat.
+- Transferred the 3,610,320,749-byte licensed Phenix installer resumably to the
+  fixed Viper `/ptmp` location. Its Viper SHA-256 exactly matches
+  `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`.
+  Installation has not started.
+- Extended the installer prefix guard to accept exactly the established
+  `phenix-<version>` or `phenix_v<version>` versioned forms. The requested
+  stable prefix now passes all 14 focused installer tests.
+
+### Immutable evidence
+
+- Database path-fix commit `d689a7e7a65ece1d3694b7531f97c452b8675a60`
+  passed GitHub Actions run `31747988081` under Pixi 0.74.0 and 0.76.2.
+- Database run `gtd-database-20260813T220325Z-d689a7e7a65e-6e72920c` and job
+  `10910110` retain source, lock, site, Pixi, nf-helper, and commit provenance.
+- The prefix compatibility increment passed the complete locked gate: 334 unit,
+  56 contract, and 46 integration tests plus all aggregate validations.
+
+### Unresolved work
+
+- Publish the Phenix prefix increment and require both CI jobs to pass. Then use
+  its immutable checkout for the scheduled 4-CPU/32-GB Phenix installation and
+  preserve controller, installer, and verification logs.
+- Qualify the installed runtime with all command probes and real CD6 MTZ
+  execution. Only then create the fixed 11-candidate M4 import, submit its
+  sequential run, and create a separate 30-minute monitor.
+- The database job remains independent; handle its terminal evidence through
+  the existing monitor without delaying Phenix or M4.
+
+### Next exact starting point
+
+Read this entry. Commit and push the two-file Phenix prefix increment, monitor
+both GitHub Actions jobs, then schedule the checksum-pinned installation to
+`phenix_v2.1-6048` with 4 CPUs and 32 GB using `/ptmp` temporary storage. After
+manifest and real-MTZ qualification, run `m4-import-stage`, submit the 11-seed
+sequential M4 profile, and create its successor heartbeat.

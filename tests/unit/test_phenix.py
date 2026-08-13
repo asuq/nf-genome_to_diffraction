@@ -161,6 +161,18 @@ def test_unsafe_destination_is_rejected(tmp_path: Path) -> None:
         install_phenix(request)
 
 
+def test_versioned_viper_prefix_is_accepted(tmp_path: Path) -> None:
+    installer = tmp_path / "installer.sh"
+    digest = _write_installer(installer)
+    prefix = tmp_path / "phenix_v2.1-9999"
+    request = _request(tmp_path, installer, digest, prefix=prefix)
+
+    manifest = install_phenix(request)
+
+    assert manifest.status == "verified"
+    assert request.installation_prefix == prefix
+
+
 def test_existing_installation_is_never_overwritten(tmp_path: Path) -> None:
     installer = tmp_path / "installer.sh"
     digest = _write_installer(installer)

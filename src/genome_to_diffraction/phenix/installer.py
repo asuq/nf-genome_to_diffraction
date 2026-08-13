@@ -94,10 +94,14 @@ def _versioned_prefix(request: InstallRequest) -> Path:
         allow_home_root=request.allow_home_root,
     )
     expected_component = request.expected_build or request.expected_release
-    if not prefix.name.startswith(f"phenix-{expected_component}"):
+    allowed_prefixes = (
+        f"phenix-{expected_component}",
+        f"phenix_v{expected_component}",
+    )
+    if not prefix.name.startswith(allowed_prefixes):
         raise UnsafePhenixPathError(
-            "installation prefix must be versioned and begin with "
-            f"phenix-{expected_component!s}"
+            "installation prefix must be versioned and begin with one of "
+            f"{allowed_prefixes!r}"
         )
     return prefix
 
