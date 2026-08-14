@@ -3899,3 +3899,51 @@ Install or approve one checksum-gated Viper Phenix-recovery operation that
 accepts only script SHA-256
 `4eb586147b470353df0e2ea0b1708f99948c113c4d7f364671e261df221836e1`;
 do not submit T12 directly.
+
+## 2026-08-14T23:05:23Z - Viper `/ptmp` ageing explains Phenix runtime loss
+
+### Discoveries
+
+- The user reports that Viper removes `/ptmp` files whose last access is older
+  than approximately one month. This is the leading explanation for the
+  missing Phenix bundled-Python encoding files: the installation was complete
+  and executed real refinements before parts of its unpacked runtime vanished.
+- Extracted software may retain old archive timestamps, while filesystem mount
+  options may not refresh access time on every read. The exact Viper purge
+  criterion (access time versus modification time) remains to be confirmed,
+  but `/ptmp` must not be treated as durable software storage.
+
+### Accomplishments
+
+- Reclassified the incident from an unknown installation defect to an expired
+  disposable runtime cache. No T12 code change or candidate replay is warranted
+  until Phenix is restored.
+- Kept the recovery design create-only and checksum-bound. The durable `/u`
+  area should retain the licensed installer, checksums, manifests, and recovery
+  evidence; the unpacked Phenix tree under `/ptmp` is reproducible cache.
+- Rejected artificial timestamp touching as a maintenance strategy: it could
+  conflict with site policy and create unnecessary metadata load.
+
+### Immutable evidence
+
+- Retained jobs `10917754` and `10917867`, on hosts `vipc2182` and `vipc2232`,
+  have the identical failure signature
+  `427dc127f56053167d5957f90fe4d8977da068d8452dcb35e8232ded30d60241`.
+- The retained installer SHA-256 is
+  `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`;
+  the prepared recovery script SHA-256 is
+  `4eb586147b470353df0e2ea0b1708f99948c113c4d7f364671e261df221836e1`.
+
+### Unresolved work
+
+- Confirm the official Viper purge timestamp semantics when convenient and
+  ensure the installer plus small recovery records are retained below `/u`.
+- Submit the prepared recovery job through a bounded checksum-gated operation,
+  qualify the restored runtime, and run protocol-v2 T12 promptly while the
+  restored cache is available.
+
+### Next exact starting point
+
+Add or approve the fixed checksum-gated Phenix-recovery operation, submit the
+prepared recovery job, and require successful command probes before staging
+exactly one protocol-v2 T12 replay.
