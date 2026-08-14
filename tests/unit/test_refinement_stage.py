@@ -108,5 +108,6 @@ def test_stage_t12_inputs_retains_supported_copy_two_parent(tmp_path: Path) -> N
     fields = output.finalists.read_text(encoding="utf-8").splitlines()[1].split("\t")
     assert Path(fields[5]).read_bytes() == b"original diffraction mtz"
     assert fields[6] == original_mtz_sha
+    assert fields[8] == selected_preflight["selected_observation_labels"]
     assert manifest["parent_mtz_free_flag_status"] == "present"
     assert manifest["candidates"][0]["source_mtz_sha256"] == sha256_file(mtz)

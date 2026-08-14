@@ -7,6 +7,7 @@ import pytest
 from genome_to_diffraction.ids import sequence_digest
 from genome_to_diffraction.refinement.brief import (
     T12InputError,
+    _observation_label_argument,
     _refine_parameters,
     _refinement_metrics,
     _sequence_candidates,
@@ -59,6 +60,12 @@ def test_fixed_refinement_parameters_are_conservative_and_stable() -> None:
     assert "fill_missing_f_obs = False" in text
     assert "scale = sigma" in text
     assert "region = cell" in text
+
+
+def test_observation_labels_are_passed_to_phenix_unambiguously() -> None:
+    assert _observation_label_argument("IMEAN_CD6,SIGIMEAN_CD6") == (
+        "data_manager.miller_array.labels.name=IMEAN_CD6,SIGIMEAN_CD6"
+    )
 
 
 def test_refinement_parser_preserves_initial_and_final_r_values() -> None:

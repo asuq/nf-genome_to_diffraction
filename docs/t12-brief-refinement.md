@@ -23,6 +23,10 @@ used as the refinement observations file. Shared inputs are the complete
 exact-sequence-group catalogue, its source-record/locus crosswalk, and a
 verified Phenix 2.1-6048 manifest.
 
+The MTZ preflight's checksum-bound selected observation labels are passed
+explicitly to `phenix.refine`; files containing both merged and anomalous
+intensity arrays are therefore not resolved by an implicit Phenix choice.
+
 The adapter retains:
 
 - the exact `phenix.refine` and `phenix.sequence_from_map` argument arrays;

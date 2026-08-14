@@ -82,6 +82,7 @@ class T12RunRequest:
     parent_coordinate_sha256: str
     parent_mtz: Path
     parent_mtz_sha256: str
+    observation_labels: str
     sequence_groups_jsonl: Path
     source_records_jsonl: Path
     resolution: float
@@ -192,6 +193,12 @@ output {{
   overwrite = True
 }}
 """
+
+
+def _observation_label_argument(labels: str) -> str:
+    if not labels.strip() or "\n" in labels:
+        raise T12InputError("observation_labels must be one non-empty line")
+    return f"data_manager.miller_array.labels.name={labels}"
 
 
 def _combined_log(completed: subprocess.CompletedProcess[bytes]) -> str:
@@ -316,6 +323,9 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         raise T12InputError("threads must be between 1 and 64")
     if request.resolution <= 0:
         raise T12InputError("resolution must be positive")
+    observation_label_argument = _observation_label_argument(
+        request.observation_labels
+    )
     parent_coordinate = _verified_file(
         request.parent_coordinate,
         request.parent_coordinate_sha256,
@@ -357,6 +367,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
             "input_copy_count": request.input_copy_count,
             "parent_coordinate_sha256": request.parent_coordinate_sha256,
             "parent_mtz_sha256": request.parent_mtz_sha256,
+            "observation_labels": request.observation_labels,
             "catalogue_sha256": sha256_file(request.sequence_groups_jsonl),
             "source_records_sha256": sha256_file(request.source_records_jsonl),
             "phenix_manifest_sha256": sha256_file(manifest_path),
@@ -375,6 +386,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         str(parent_coordinate),
         str(parent_mtz),
         str(params_path),
+        observation_label_argument,
     ]
     command_path = outdir / "t12_command.json"
     command_record: dict[str, object] = {
@@ -386,6 +398,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         "inputs": {
             "parent_coordinate_sha256": request.parent_coordinate_sha256,
             "parent_mtz_sha256": request.parent_mtz_sha256,
+            "observation_labels": request.observation_labels,
             "catalogue_fasta_sha256": sha256_file(catalogue_fasta),
             "phenix_manifest_sha256": sha256_file(manifest_path),
         },

@@ -21,7 +21,8 @@ workflow BRIEF_REFINEMENT_WORKFLOW {
                 row.parent_coordinate_sha256 as String,
                 file(row.parent_mtz as String, checkIfExists: true),
                 row.parent_mtz_sha256 as String,
-                row.resolution as Double
+                row.resolution as Double,
+                row.observation_labels as String
             )
         }
     refinement_results = RUN_BRIEF_REFINEMENT(

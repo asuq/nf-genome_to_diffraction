@@ -651,11 +651,11 @@ def check_stubs() -> None:
         refinement_finalists.write_text(
             "seed_solution_id\tsequence_group_id\tinput_copy_count\t"
             "parent_coordinate\tparent_coordinate_sha256\tparent_mtz\t"
-            "parent_mtz_sha256\tresolution\n"
+            "parent_mtz_sha256\tresolution\tobservation_labels\n"
             "sol_stub\t"
             "seq_2cdbeb9e27633f6c402934df4721e2733a2eb0609549ff23035550640d9f6255\t"
             f"2\t{stub_search_model}\t{parent_digest}\t{stub_search_model}\t"
-            f"{parent_digest}\t2.5\n",
+            f"{parent_digest}\t2.5\tI,SIGI\n",
             encoding="utf-8",
         )
         refinement_command = [

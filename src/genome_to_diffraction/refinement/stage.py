@@ -219,7 +219,7 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
     rows = [
         "seed_solution_id\tsequence_group_id\tinput_copy_count\t"
         "parent_coordinate\tparent_coordinate_sha256\tparent_mtz\t"
-        "parent_mtz_sha256\tresolution"
+        "parent_mtz_sha256\tresolution\tobservation_labels"
     ]
     candidate_manifest: list[dict[str, object]] = []
     iterator = tqdm(
@@ -257,6 +257,7 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
                     str(diffraction_mtz),
                     parent_mtz_sha256,
                     str(selected_preflight.resolution_high_a),
+                    str(selected_preflight.selected_observation_labels),
                 )
             )
         )

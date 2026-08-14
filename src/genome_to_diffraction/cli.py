@@ -745,6 +745,7 @@ def _build_parser() -> argparse.ArgumentParser:
     brief_parser.add_argument("--parent-coordinate-sha256", required=True)
     brief_parser.add_argument("--parent-mtz", type=Path, required=True)
     brief_parser.add_argument("--parent-mtz-sha256", required=True)
+    brief_parser.add_argument("--observation-labels", required=True)
     brief_parser.add_argument("--sequence-groups", type=Path, required=True)
     brief_parser.add_argument("--source-records", type=Path, required=True)
     brief_parser.add_argument("--resolution", type=float, required=True)
@@ -1548,6 +1549,7 @@ def _run_refinement(args: argparse.Namespace) -> int:
             parent_coordinate_sha256=args.parent_coordinate_sha256,
             parent_mtz=args.parent_mtz,
             parent_mtz_sha256=args.parent_mtz_sha256,
+            observation_labels=args.observation_labels,
             sequence_groups_jsonl=args.sequence_groups,
             source_records_jsonl=args.source_records,
             resolution=args.resolution,

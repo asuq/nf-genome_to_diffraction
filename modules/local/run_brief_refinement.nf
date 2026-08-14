@@ -29,6 +29,7 @@ process RUN_BRIEF_REFINEMENT {
         --parent-mtz '${finalist[5]}' \
         --parent-mtz-sha256 '${finalist[6]}' \
         --resolution '${finalist[7]}' \
+        --observation-labels '${finalist[8]}' \
         --sequence-groups '${sequence_groups}' \
         --source-records '${source_records}' \
         --phenix-manifest '${phenix_manifest}' \

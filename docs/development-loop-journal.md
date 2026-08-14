@@ -3606,3 +3606,44 @@ then monitor only that run through the fixed wrapper.
 At the next heartbeat, check only
 `gtd-t12-20260814T151604Z-14e0bca2c429-06d1dce8` through the approved status
 operation. Do not poll completed predecessors or add unrelated polish.
+
+## 2026-08-14T16:37:39Z - T12 exposes ambiguous observation-array selection
+
+### Discoveries
+
+- Retained successor `gtd-t12-20260814T151604Z-14e0bca2c429-06d1dce8`
+  completed as Slurm job `10916791` with exit code 0 and an 11/11 cached resume.
+  All candidates were retained, but all 11 refinements again emitted
+  `failed_tool_execution` and sequence assessment was skipped.
+- Every bounded Phenix log gives the same direct cause: the original CD6 MTZ
+  contains both merged mean intensities and anomalous intensities, so Phenix
+  refuses to choose an observation array implicitly. The preflight already
+  records the intended merged observation labels.
+
+### Accomplishments
+
+- Collected the complete bounded evidence and preserved the run unchanged.
+- T12 now carries the preflight-selected observation labels through the staged
+  finalist row and CLI, includes them in cache/provenance identity, and passes
+  them explicitly as `data_manager.miller_array.labels.name` to Phenix.
+- The focused unit suite passes with the corrected boundary.
+
+### Immutable evidence
+
+- Source commit is `14e0bca2c4296de2d39740b69e0ef26db92fab60`;
+  T12 stage-manifest SHA-256 is
+  `8324f40085a9169ab0e477fcb7dd2e316f9088c58ec29d5814a7483f6bb2e188`;
+  outer scheduler state is `COMPLETED` and outer failure class is `success`.
+- The normalised summary records 11 refinement failures, 11 sequence failures,
+  all candidates retained, and all resume processes cached. Operational success
+  is not being misreported as scientific T12 success.
+
+### Unresolved work
+
+- Run the full locked gate, commit, push, deploy, and submit one corrected T12
+  replay from the same accepted M4 parent. Do not add unrelated fallback work.
+
+### Next exact starting point
+
+Validate the explicit observation-label correction, deploy its immutable green
+commit, and immediately stage and submit the all-11 T12 successor.
