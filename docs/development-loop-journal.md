@@ -2950,3 +2950,49 @@ only Phenix job `10910306`; the database track is complete and must not block M4
 Follow the updated 30-minute heartbeat. Check only
 `gtd-m4-copy-20260814T003459Z-add9a1a2a724-77bef3bf` through the fixed wrapper;
 do not poll databases, use raw SSH, cancel, clean, or retune the candidate gate.
+
+## 2026-08-14T02:58:00Z - Self-contained Viper M4 successor submitted
+
+### Discoveries
+
+- M4 job `10910784` failed before Phenix verification with the bounded message
+  `fixed P0 configuration is absent or unsafe`. The imported M4 stage already
+  carries checksum-bound hypotheses, sequence groups, preflight, MTZ, Phenix
+  manifest, review decisions, and all models, so requiring legacy P0 site paths
+  was an obsolete environment precondition.
+
+### Accomplishments
+
+- Removed only the P0-config loader call from the self-contained M4 job and
+  added a contract assertion preventing its return. Contract tests passed
+  56/56 and the fixed Bash wrapper passed syntax validation.
+- Committed and pushed `001d791649d0ed942ab4b7136f158adaa67b2b57`;
+  GitHub Actions run `31758472426` passed under Pixi 0.74.0 and 0.76.2.
+- Deployed job-wrapper SHA-256
+  `6a36dab597e27cf96f05c675970d44b8754e04138701eda6d6862f8ee70f73ec`,
+  staged all 11 candidates again, and submitted corrected run
+  `gtd-m4-copy-20260814T005058Z-001d791649d0-2fc95156` as Slurm job
+  `10910824`. Its current state is `PENDING`.
+
+### Immutable evidence
+
+- Failed predecessor `gtd-m4-copy-20260814T003459Z-add9a1a2a724-77bef3bf`,
+  job `10910784`, is retained with failure signature
+  `ab0405409dee57422ed5778d97cefe7d4077d4fd643bd97c8296474daa05416d`.
+  It did not execute Phenix and is not scientific failure evidence.
+- Successor import archive SHA-256 is
+  `bb5aaa099730b205ab065fbac799c1e3dea4deaccb46abe14e1c80d5c0ac1b62`;
+  its decision, review-manifest, MTZ, nf-helper, and Pixi provenance match the
+  preceding accepted import.
+
+### Unresolved work
+
+- Leave job `10910824` untouched while non-terminal. Full Phenix qualification
+  still requires its manifest probes and real frozen-CD6 execution to pass.
+- On terminal success, collect all 11 sequential copy series and cached-resume
+  evidence, then begin the smallest T12 refinement/maps/sequence-narrowing step.
+
+### Next exact starting point
+
+Follow the updated 30-minute heartbeat and check only run
+`gtd-m4-copy-20260814T005058Z-001d791649d0-2fc95156` through the fixed wrapper.
