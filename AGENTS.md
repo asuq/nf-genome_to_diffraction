@@ -73,6 +73,7 @@ Use local PDB and ProstT5 resources for the prototype. Use the public ESM Atlas 
 
 ## 7. Engineering policy
 
+- Follow KISS, DRY, YAGNI mindset
 - Use current Nextflow DSL2 with syntax parser v2 and typed workflow interfaces.
 - Use Python 3.14 and modern typing. No backward-compatibility shims are required.
 - Use Pixi and commit `pixi.lock`.
