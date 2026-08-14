@@ -3190,3 +3190,82 @@ Follow the updated 30-minute heartbeat and check only
 `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2` through the fixed wrapper.
 Do not poll databases or predecessors, use raw SSH, cancel, clean, retune, drop
 candidates, or infer timeout from silence.
+
+## 2026-08-14T13:31:18Z - Viper M4 accepted and T12 implementation started
+
+### Discoveries
+
+- Retained Viper run
+  `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2`, Slurm job
+  `10914542`, completed successfully after real Phenix execution against the
+  frozen CD6 MTZ. It produced 22 typed transitions: copy two was supported for
+  every one of the 11 retained seeds and copy three was attempted for every
+  seed.
+- Ten copy-three attempts parsed but retained only two placed copies; one
+  copy-three attempt had no parseable final solution count. All 11 two-copy
+  parents remain valid retained alternatives. An unsupported addition is not
+  evidence that another copy is absent, and none of the 11 candidates is
+  dropped before refinement/map review.
+- Phenix `sequence_from_map` reports one raw score per FASTA entry and preserves
+  FASTA headers, so exact-sequence-group IDs can be carried through a complete
+  catalogue ranking and mapped back to every source record/locus without
+  forcing a paralogue.
+- Nextflow reported non-fatal warnings for legacy executor-scoped Slurm/local
+  keys. They did not prevent real jobs or cached resume and are deferred until
+  after the prototype path rather than delaying T12.
+
+### Accomplishments
+
+- Verified exactly 11 candidate series, 22 raw result/command records, distinct
+  staged-versus-original model checksums for every transition, copy report,
+  stage/decision provenance, all artifact checksums, and 11/11 cached processes
+  on resume. Viper Phenix 2.1-6048 is now qualified by command probes plus real
+  CD6 molecular replacement.
+- Added typed T12 refinement and sequence-map result contracts plus a fixed
+  adapter that performs one conservative refinement macrocycle, generates a
+  sigma-scaled whole-cell `2mFo-DFc` map without filling missing observations,
+  and scores the complete exact-sequence catalogue while retaining source/locus
+  ambiguity.
+- Added the `genome-to-diffraction refinement brief` interface, typed
+  `refine_finalists.nf` workflow, candidate-level failure handling, structured
+  logging, bounded progress, stub fixtures, cached-resume acceptance, and the
+  tracked T12 interface note. Viper T12 resources are bounded to four CPUs and
+  16 GB per task with four simultaneous finalists.
+- Focused T12 unit tests pass 4/4; Ruff, strict mypy, Nextflow syntax, and the
+  standalone T12 stub publication passed. The complete repository gate remains
+  the next local command before this increment is committed.
+
+### Immutable evidence
+
+- M4 source commit is
+  `380cc8e7b14e758c89397ab8127c0906aa57b475`; nf-helper revision is
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`; run archive SHA-256 is
+  `d3d37001405a20a1b030001dfbfbc6065e1511d9c2cbce265195791c1bcacbb3`.
+- Decision SHA-256 is
+  `7bbe539cf3c02b253ee94d829af6cf0b516e8eecedc6c784ab12cd707d012e2c`,
+  review-manifest SHA-256 is
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`,
+  and MTZ SHA-256 is
+  `5eb16c3cc3a21e4b7f22cd611834529801c1829fc0a3156a2b6abc2b3de2f20d`.
+- The result summary records 11 attempted seeds, 22 attempted transitions, 11
+  supported transitions, zero expected-count completions, one candidate-level
+  parse failure, all parents retained, and a fully cached resume. The outer job
+  ended `COMPLETED` with exit code zero.
+
+### Unresolved work
+
+- Run the complete locked repository gate, commit/push this coherent T12
+  adapter increment, and require both Pixi CI versions to pass.
+- Add the smallest fixed Viper T12 stage/submit/collection boundary, deriving
+  one checksum-bound two-copy parent PDB/MTZ per retained seed from the accepted
+  M4 run. Then execute all 11 finalists without score-based filtering and
+  require cached resume.
+- T12.5 top-10/top-25/full rendering, second approval template, M5 reporting,
+  three-dataset pilot, and M6 validation remain after real T12 evidence.
+
+### Next exact starting point
+
+Run `pixi run --locked check`, inspect the focused diff, and commit/push the T12
+scientific adapter increment. Then implement the fixed Viper T12 stage from
+retained run `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2`; do not rerun
+M4, drop candidates, or poll the completed database track.

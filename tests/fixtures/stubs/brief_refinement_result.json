@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "refinement_id": "refine_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "seed_solution_id": "sol_stub",
+  "sequence_group_id": "seq_2cdbeb9e27633f6c402934df4721e2733a2eb0609549ff23035550640d9f6255",
+  "input_copy_count": 2,
+  "tool_version": "2.1-6048",
+  "execution_status": "failed_tool_execution",
+  "map_type": "2mFo-DFc",
+  "map_scale": "sigma",
+  "map_region": "cell",
+  "command_pointer": "t12_command.json",
+  "raw_log_pointer": "phenix.refine.log",
+  "warnings": ["stub_mode_no_scientific_execution"]
+}

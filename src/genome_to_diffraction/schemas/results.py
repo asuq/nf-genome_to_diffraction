@@ -628,6 +628,110 @@ class CopyCountAssessment(ContractModel):
         return self
 
 
+class BriefRefinementResult(ContractModel):
+    """Comparable one-cycle refinement and stable-map result for one finalist."""
+
+    schema_version: Literal["1.0"]
+    refinement_id: NonEmptyString
+    seed_solution_id: NonEmptyString
+    sequence_group_id: NonEmptyString
+    input_copy_count: PositiveInt
+    tool_version: NonEmptyString
+    execution_status: ExecutionStatus
+    initial_r_work: float | None = Field(default=None, ge=0, le=1)
+    initial_r_free: float | None = Field(default=None, ge=0, le=1)
+    final_r_work: float | None = Field(default=None, ge=0, le=1)
+    final_r_free: float | None = Field(default=None, ge=0, le=1)
+    rms_bonds: float | None = Field(default=None, ge=0)
+    rms_angles: float | None = Field(default=None, ge=0)
+    refined_model_path: str | None = None
+    refined_model_sha256: Sha256Hex | None = None
+    refined_mtz_path: str | None = None
+    refined_mtz_sha256: Sha256Hex | None = None
+    map_path: str | None = None
+    map_sha256: Sha256Hex | None = None
+    map_type: Literal["2mFo-DFc"] = "2mFo-DFc"
+    map_scale: Literal["sigma"] = "sigma"
+    map_region: Literal["cell"] = "cell"
+    command_pointer: NonEmptyString
+    raw_log_pointer: NonEmptyString
+    warnings: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _completed_result_has_required_assets(self) -> Self:
+        if self.execution_status in {
+            ExecutionStatus.COMPLETED_SUCCESS,
+            ExecutionStatus.COMPLETED_WARNING,
+        }:
+            required = (
+                self.refined_model_path,
+                self.refined_model_sha256,
+                self.refined_mtz_path,
+                self.refined_mtz_sha256,
+                self.map_path,
+                self.map_sha256,
+            )
+            if any(value is None for value in required):
+                raise ValueError("completed refinement lacks required model/map assets")
+        return self
+
+
+class SequenceMapCandidate(ContractModel):
+    """One exact-sequence catalogue group ranked against a stable density map."""
+
+    schema_version: Literal["1.0"]
+    refinement_id: NonEmptyString
+    rank: PositiveInt
+    sequence_group_id: NonEmptyString
+    sequence_length: PositiveInt
+    raw_score: float
+    score_z: float | None = None
+    source_record_ids: tuple[NonEmptyString, ...] = Field(min_length=1)
+    source_loci: tuple[NonEmptyString, ...] = ()
+    segment_ranges: tuple[str, ...] = ()
+    coverage: float | None = Field(default=None, ge=0, le=1)
+    warnings: tuple[str, ...] = ()
+
+
+class SequenceMapResult(ContractModel):
+    """Full open-set catalogue ranking from one refined finalist map."""
+
+    schema_version: Literal["1.0"]
+    sequence_assessment_id: NonEmptyString
+    refinement_id: NonEmptyString
+    seed_solution_id: NonEmptyString
+    execution_status: ExecutionStatus
+    tool_version: NonEmptyString
+    complete_catalogue_group_count: PositiveInt
+    scored_group_count: int = Field(ge=0)
+    candidates: tuple[SequenceMapCandidate, ...] = ()
+    best_score: float | None = None
+    mean_score: float | None = None
+    score_sd: float | None = Field(default=None, ge=0)
+    best_score_z: float | None = None
+    command_pointer: NonEmptyString
+    raw_log_pointer: NonEmptyString
+    output_model_path: str | None = None
+    output_model_sha256: Sha256Hex | None = None
+    warnings: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _ranking_is_complete_and_ordered(self) -> Self:
+        if self.scored_group_count != len(self.candidates):
+            raise ValueError("scored_group_count does not match candidates")
+        if tuple(candidate.rank for candidate in self.candidates) != tuple(
+            range(1, len(self.candidates) + 1)
+        ):
+            raise ValueError("sequence-map candidates are not consecutively ranked")
+        if len({item.sequence_group_id for item in self.candidates}) != len(
+            self.candidates
+        ):
+            raise ValueError("sequence-map candidates contain duplicate groups")
+        if self.scored_group_count > self.complete_catalogue_group_count:
+            raise ValueError("scored groups exceed complete catalogue size")
+        return self
+
+
 class ReviewDecision(ContractModel):
     """One immutable human checkpoint decision."""
 

@@ -174,6 +174,7 @@ def check_stubs() -> None:
         diverse_first_copy_out = temporary_root / "diverse-first-copy-results"
         control_first_copy_out = temporary_root / "control-first-copy-results"
         additional_copy_out = temporary_root / "additional-copy-results"
+        refinement_out = temporary_root / "refinement-results"
         cache_root = temporary_root / "cache"
 
         main_command = [
@@ -644,6 +645,59 @@ def check_stubs() -> None:
             raise RuntimeError(
                 "resumed additional-copy stub did not report cached work"
             )
+
+        refinement_finalists = temporary_root / "refinement-finalists.tsv"
+        parent_digest = hashlib.sha256(stub_search_model.read_bytes()).hexdigest()
+        refinement_finalists.write_text(
+            "seed_solution_id\tsequence_group_id\tinput_copy_count\t"
+            "parent_coordinate\tparent_coordinate_sha256\tparent_mtz\t"
+            "parent_mtz_sha256\tresolution\n"
+            "sol_stub\t"
+            "seq_2cdbeb9e27633f6c402934df4721e2733a2eb0609549ff23035550640d9f6255\t"
+            f"2\t{stub_search_model}\t{parent_digest}\t{stub_search_model}\t"
+            f"{parent_digest}\t2.5\n",
+            encoding="utf-8",
+        )
+        refinement_command = [
+            "nextflow",
+            "run",
+            "refine_finalists.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "--finalists",
+            str(refinement_finalists),
+            "--sequence_groups",
+            "tests/fixtures/stubs/sequence_groups.jsonl",
+            "--source_records",
+            "tests/fixtures/stubs/source_records.jsonl",
+            "--phenix_manifest",
+            "tests/fixtures/stubs/phenix_install_manifest.json",
+            "--outdir",
+            str(refinement_out),
+            "--cache_root",
+            str(cache_root / "refinement"),
+        ]
+        _run(refinement_command, environment=environment)
+        _assert_files(
+            refinement_out,
+            {
+                "brief_refinement_result.json",
+                "sequence_map_result.json",
+                "t12_command.json",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        refinement_resumed = _run(
+            [*refinement_command, "-resume"], environment=environment
+        )
+        if "cached" not in (
+            f"{refinement_resumed.stdout}\n{refinement_resumed.stderr}".lower()
+        ):
+            raise RuntimeError("resumed refinement stub did not report cached work")
 
         database_command = [
             "nextflow",

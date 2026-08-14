@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "sequence_assessment_id": "seqmap_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "refinement_id": "refine_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "seed_solution_id": "sol_stub",
+  "execution_status": "skipped_ineligible",
+  "tool_version": "2.1-6048",
+  "complete_catalogue_group_count": 1,
+  "scored_group_count": 0,
+  "candidates": [],
+  "command_pointer": "t12_command.json",
+  "raw_log_pointer": "phenix.sequence_from_map.log",
+  "warnings": ["stub_mode_no_scientific_execution"]
+}

@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "protocol_version": "phenix-t12-brief-v1",
+  "refinement_id": "refine_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "refine_arguments": [],
+  "sequence_arguments": null,
+  "inputs": {},
+  "stub_mode": true
+}

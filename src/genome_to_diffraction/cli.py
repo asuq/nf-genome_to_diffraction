@@ -85,6 +85,7 @@ from genome_to_diffraction.ranking import (
     build_diverse_first_copy_funnel,
     build_exact_predicted_funnel,
 )
+from genome_to_diffraction.refinement import T12RunRequest, run_t12_candidate
 from genome_to_diffraction.review import (
     MrSeedApprovalRequest,
     MrSeedReviewRequest,
@@ -722,6 +723,34 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     copy_report_parser.add_argument("--results", type=Path, required=True)
     copy_report_parser.add_argument("--outdir", type=Path, required=True)
+
+    refinement_parser = subparsers.add_parser(
+        "refinement", help="run fixed finalist refinement and sequence assessment"
+    )
+    refinement_actions = refinement_parser.add_subparsers(
+        dest="refinement_action", required=True
+    )
+    brief_parser = refinement_actions.add_parser(
+        "brief", help="run the fixed T12 brief-refinement/map/sequence protocol"
+    )
+    brief_parser.add_argument("--seed-solution-id", required=True)
+    brief_parser.add_argument("--sequence-group-id", required=True)
+    brief_parser.add_argument("--input-copy-count", type=int, required=True)
+    brief_parser.add_argument("--parent-coordinate", type=Path, required=True)
+    brief_parser.add_argument("--parent-coordinate-sha256", required=True)
+    brief_parser.add_argument("--parent-mtz", type=Path, required=True)
+    brief_parser.add_argument("--parent-mtz-sha256", required=True)
+    brief_parser.add_argument("--sequence-groups", type=Path, required=True)
+    brief_parser.add_argument("--source-records", type=Path, required=True)
+    brief_parser.add_argument("--resolution", type=float, required=True)
+    brief_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    brief_parser.add_argument("--outdir", type=Path, required=True)
+    brief_parser.add_argument("--threads", type=int, default=4)
+    brief_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        help="optional explicit deadline; by default no deadline is imposed",
+    )
 
     review_parser = subparsers.add_parser(
         "review", help="build and validate file-based human checkpoints"
@@ -1481,6 +1510,36 @@ def _run_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_refinement(args: argparse.Namespace) -> int:
+    if args.refinement_action != "brief":
+        raise AssertionError(f"unhandled refinement action: {args.refinement_action}")
+    output = run_t12_candidate(
+        T12RunRequest(
+            seed_solution_id=args.seed_solution_id,
+            sequence_group_id=args.sequence_group_id,
+            input_copy_count=args.input_copy_count,
+            parent_coordinate=args.parent_coordinate,
+            parent_coordinate_sha256=args.parent_coordinate_sha256,
+            parent_mtz=args.parent_mtz,
+            parent_mtz_sha256=args.parent_mtz_sha256,
+            sequence_groups_jsonl=args.sequence_groups,
+            source_records_jsonl=args.source_records,
+            resolution=args.resolution,
+            phenix_manifest=args.phenix_manifest,
+            output_directory=args.outdir,
+            threads=args.threads,
+            timeout_seconds=args.timeout_seconds,
+            progress=not args.no_progress,
+        )
+    )
+    print(
+        f"T12 refinement {output.refinement.execution_status.value}; "
+        f"sequence assessment {output.sequence.execution_status.value}: "
+        f"{output.sequence_json}"
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
@@ -1523,6 +1582,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_ranking(args)
         if args.command == "mr":
             return _run_mr(args)
+        if args.command == "refinement":
+            return _run_refinement(args)
         if args.command == "review":
             return _run_review(args)
         if args.command == "structure-search":

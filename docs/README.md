@@ -42,6 +42,9 @@ remain authoritative for scientific policy and interface contracts.
   multi-source funnels, homologue-aware Phaser identity, final-packing parser,
   strict provisional score gate, typed fan-out, cache identity, and open P2
   work.
+- [T12 brief refinement and sequence narrowing](t12-brief-refinement.md): fixed
+  one-cycle refinement, stable map parameters, complete-catalogue scoring,
+  typed failure/cache semantics, and Viper resource policy.
 - [Development loop journal](development-loop-journal.md): the mandatory
   read-first hand-off record of discoveries, accomplishments, immutable
   evidence, unresolved work, and the next exact starting point.
