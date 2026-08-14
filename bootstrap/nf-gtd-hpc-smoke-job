@@ -1663,6 +1663,7 @@ run_m4_copy() {
     [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
+    export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
 
     PHASE=test
     printf 'phase=m4_copy_phenix_verify profile=m4-copy\n'

@@ -197,6 +197,7 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
         "run_database() {", maxsplit=1
     )[0]
     assert "load_p0_config" not in m4_body
+    assert "export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm" in m4_body
     assert "database-source-bundle-sha256" in dispatcher_text
     assert "--source-bundle" in database_body
     assert (REPOSITORY / "conf" / "hpc-database.paths.example").is_file()
