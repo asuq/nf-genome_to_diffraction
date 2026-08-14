@@ -66,12 +66,22 @@ def test_stage_t12_inputs_retains_supported_copy_two_parent(tmp_path: Path) -> N
     (qualification / "m4-copy-resume-check.json").write_text(
         json.dumps({"all_candidate_series_cached": True}), encoding="utf-8"
     )
+    (parent / "artifacts/m4-copy-inputs/m4_copy_stage_manifest.json").write_text(
+        json.dumps({"inputs": {"mtz": {"sha256": "0" * 64}}}),
+        encoding="utf-8",
+    )
     fixtures = Path(__file__).parents[1] / "fixtures/stubs"
     (common / "sequence_groups.jsonl").write_bytes(
         (fixtures / "sequence_groups.jsonl").read_bytes()
     )
-    (common / "preflight.jsonl").write_bytes(
-        (fixtures / "mtz_preflight.jsonl").read_bytes()
+    selected_preflight = json.loads(
+        (fixtures / "mtz_preflight.jsonl").read_text(encoding="utf-8")
+    )
+    other_preflight = {**selected_preflight, "preflight_id": "other_preflight"}
+    other_preflight["mtz_sha256"] = "1" * 64
+    (common / "preflight.jsonl").write_text(
+        json.dumps(selected_preflight) + "\n" + json.dumps(other_preflight) + "\n",
+        encoding="utf-8",
     )
     (common / "phenix_manifest.json").write_text("{}\n", encoding="ascii")
 

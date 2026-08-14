@@ -3448,3 +3448,34 @@ stage or use raw SSH.
 Commit the two-condition fix and focused regression, deploy the reviewed tools,
 then rerun `t12-stage` from the accepted M4 parent and submit immediately if it
 stages exactly 11 candidates.
+
+## 2026-08-14T14:29:34Z - T12 selects the CD6 preflight by MTZ identity
+
+### Discoveries
+
+- Retained failed stage `gtd-t12-20260814T142758Z-12e690c57aad-bac08e6c`
+  installed the locked runtime and reached the stage adapter. It failed because
+  the imported preflight JSONL correctly contains multiple crystal records,
+  while T12 had required one record in the whole file.
+
+### Accomplishments
+
+- T12 now reads the checksum-bound M4 stage manifest and selects exactly the
+  preflight record whose MTZ SHA-256 matches that manifest. The focused test
+  covers one matching and one unrelated preflight record; it and strict mypy
+  pass.
+
+### Immutable evidence
+
+- Both failed stages remain retained and unsubmitted. The second bounded
+  diagnostic was `T12 requires exactly one MTZ preflight record`.
+
+### Unresolved work
+
+- Commit/push/deploy this MTZ-identity selection and retry the real stage. If 11
+  candidates stage, submit T12 without adding unrelated polish.
+
+### Next exact starting point
+
+Commit the focused preflight selection, deploy it, rerun `t12-stage` from the
+accepted M4 parent, and submit the returned T12 run ID.

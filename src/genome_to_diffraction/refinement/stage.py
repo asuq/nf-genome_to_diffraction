@@ -135,6 +135,18 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
     )
     summary = _load_object(summary_path, "M4 summary")
     resume = _load_object(resume_path, "M4 resume record")
+    parent_stage_manifest_path = _regular(
+        parent / "artifacts/m4-copy-inputs/m4_copy_stage_manifest.json",
+        "M4 stage manifest",
+    )
+    parent_stage_manifest = _load_object(
+        parent_stage_manifest_path, "M4 stage manifest"
+    )
+    raw_inputs = parent_stage_manifest.get("inputs")
+    raw_mtz = raw_inputs.get("mtz") if isinstance(raw_inputs, dict) else None
+    parent_mtz_sha256 = raw_mtz.get("sha256") if isinstance(raw_mtz, dict) else None
+    if not isinstance(parent_mtz_sha256, str):
+        raise T12StageError("M4 stage manifest omits the parent MTZ checksum")
     if (
         summary.get("attempted_seed_count") != request.expected_seed_count
         or summary.get("all_parents_retained") is not True
@@ -170,8 +182,14 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
     phenix_source = _regular(common / "phenix_manifest.json", "Phenix manifest")
     groups = _read_jsonl(sequence_groups_source, SequenceGroupRecord, "sequence group")
     preflights = _read_jsonl(preflight_source, MtzPreflightRecord, "MTZ preflight")
-    if len(preflights) != 1:
-        raise T12StageError("T12 requires exactly one MTZ preflight record")
+    matching_preflights = tuple(
+        record for record in preflights if record.mtz_sha256 == parent_mtz_sha256
+    )
+    if len(matching_preflights) != 1:
+        raise T12StageError(
+            "T12 requires exactly one preflight record matching the parent MTZ"
+        )
+    selected_preflight = matching_preflights[0]
     source_records_source = _regular(
         request.source_records_jsonl, "catalogue source-record crosswalk"
     )
@@ -231,7 +249,7 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
                     coordinate_sha,
                     str(mtz_out),
                     mtz_sha,
-                    str(preflights[0].resolution_high_a),
+                    str(selected_preflight.resolution_high_a),
                 )
             )
         )
@@ -265,6 +283,8 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
             "parent_results_sha256": sha256_file(
                 qualification / "m4-copy-results.jsonl"
             ),
+            "parent_stage_manifest_sha256": sha256_file(parent_stage_manifest_path),
+            "parent_mtz_sha256": parent_mtz_sha256,
             "sequence_groups_sha256": sha256_file(inputs / "sequence_groups.jsonl"),
             "source_records_sha256": source_sha,
             "preflight_sha256": sha256_file(inputs / "preflight.jsonl"),
