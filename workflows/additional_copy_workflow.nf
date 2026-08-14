@@ -19,7 +19,8 @@ workflow ADDITIONAL_COPY_WORKFLOW {
         .map { row ->
             tuple(
                 row.seed_solution_id as String,
-                file(row.search_model as String, checkIfExists: true)
+                file(row.search_model as String, checkIfExists: true),
+                row.search_model_sha256 as String
             )
         }
     additional_copy_results = RUN_ADDITIONAL_COPY_PHASER(

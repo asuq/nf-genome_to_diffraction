@@ -585,9 +585,10 @@ def check_stubs() -> None:
             / "tests/fixtures/stubs/predicted_model_preparation/models/stub.pdb"
         )
         additional_seeds.write_text(
-            "seed_solution_id\tsearch_model\n"
+            "seed_solution_id\tsearch_model\tsearch_model_sha256\n"
             "sol_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\t"
-            f"{stub_search_model}\n",
+            f"{stub_search_model}\t"
+            f"{hashlib.sha256(stub_search_model.read_bytes()).hexdigest()}\n",
             encoding="utf-8",
         )
         additional_copy_command = [

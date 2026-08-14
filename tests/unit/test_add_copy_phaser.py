@@ -3,6 +3,7 @@
 import hashlib
 import json
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -260,6 +261,31 @@ def test_packed_additional_copy_advances_child_state(
     assert output.result.failed_addition_proves_absence is False
     assert output.result.llg_delta_from_parent == pytest.approx(1622.91 - 27.0)
     assert output.result.child_solution_id is not None
+
+
+def test_explicit_staged_solution_model_preserves_original_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _request(tmp_path)
+    original_model_sha = sha256_file(request.search_model)
+    staged_solution_model = tmp_path / "staged first-copy solution.pdb"
+    staged_solution_model.write_text(
+        "REMARK rigid-body first-copy solution\nATOM\n", encoding="utf-8"
+    )
+    staged_model_sha = sha256_file(staged_solution_model)
+    request = replace(
+        request,
+        search_model=staged_solution_model,
+        expected_search_model_sha256=staged_model_sha,
+    )
+    _fake_runtime(monkeypatch, log_text=POSITIVE_LOG, write_solution=True)
+
+    output = run_additional_copy_phaser(request)
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+
+    assert command["search_model_sha256"] == staged_model_sha
+    assert command["original_first_copy_model_sha256"] == original_model_sha
+    assert staged_model_sha != original_model_sha
 
 
 def test_approved_packed_no_hit_parent_can_advance(

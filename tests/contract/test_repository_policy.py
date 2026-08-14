@@ -199,6 +199,14 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert "load_p0_config" not in m4_body
     assert "export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm" in m4_body
     assert "export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache" in m4_body
+    additional_copy_workflow = (
+        REPOSITORY / "workflows" / "additional_copy_workflow.nf"
+    ).read_text(encoding="utf-8")
+    additional_copy_module = (
+        REPOSITORY / "modules" / "local" / "run_additional_copy_phaser.nf"
+    ).read_text(encoding="utf-8")
+    assert "row.search_model_sha256 as String" in additional_copy_workflow
+    assert "--expected-search-model-sha256 '${seed[2]}'" in additional_copy_module
     assert "database-source-bundle-sha256" in dispatcher_text
     assert "--source-bundle" in database_body
     assert (REPOSITORY / "conf" / "hpc-database.paths.example").is_file()

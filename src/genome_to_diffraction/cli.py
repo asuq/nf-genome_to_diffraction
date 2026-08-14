@@ -672,6 +672,7 @@ def _build_parser() -> argparse.ArgumentParser:
     add_copy_parser.add_argument("--preflight", type=Path, required=True)
     add_copy_parser.add_argument("--mtz", type=Path, required=True)
     add_copy_parser.add_argument("--search-model", type=Path, required=True)
+    add_copy_parser.add_argument("--expected-search-model-sha256")
     add_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
     add_copy_parser.add_argument("--outdir", type=Path, required=True)
     add_copy_parser.add_argument(
@@ -1397,6 +1398,7 @@ def _run_mr(args: argparse.Namespace) -> int:
             preflight_jsonl=args.preflight,
             mtz=args.mtz,
             search_model=args.search_model,
+            expected_search_model_sha256=args.expected_search_model_sha256,
             phenix_manifest=args.phenix_manifest,
             output_directory=args.outdir,
             parent_result_jsonl=args.parent_result,

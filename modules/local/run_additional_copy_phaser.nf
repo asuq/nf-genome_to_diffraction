@@ -33,6 +33,7 @@ process RUN_ADDITIONAL_COPY_PHASER {
         --preflight '${preflight}' \
         --mtz '${mtz}' \
         --search-model '${seed[1]}' \
+        --expected-search-model-sha256 '${seed[2]}' \
         --phenix-manifest '${phenix_manifest}' \
         --threads '${task.cpus}' \
         --until-expected \

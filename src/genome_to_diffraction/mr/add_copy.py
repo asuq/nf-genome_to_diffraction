@@ -70,6 +70,7 @@ class AddCopyRunRequest:
     search_model: Path
     phenix_manifest: Path
     output_directory: Path
+    expected_search_model_sha256: str | None = None
     parent_result_jsonl: Path | None = None
     parent_coordinate: Path | None = None
     threads: int = 1
@@ -110,6 +111,7 @@ class _Resolved:
     parent_llg: float | None
     search_model: Path
     search_model_sha256: str
+    original_first_copy_model_sha256: str
     model_identity_fraction: float
     mtz: Path
     mtz_sha256: str
@@ -339,8 +341,11 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     search_model_sha = sha256_file(
         search_model, progress=request.progress, logger=_LOGGER
     )
-    if search_model_sha != expected_model_sha:
-        raise PhaserInputError("search model checksum differs from first-copy command")
+    staged_model_sha = request.expected_search_model_sha256 or expected_model_sha
+    if not re.fullmatch(r"[0-9a-f]{64}", staged_model_sha):
+        raise PhaserInputError("expected search model checksum is invalid")
+    if search_model_sha != staged_model_sha:
+        raise PhaserInputError("search model checksum differs from staged seed")
     return _Resolved(
         review_id=review_id,
         hypothesis=hypothesis,
@@ -353,6 +358,7 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         parent_llg=parent_llg,
         search_model=search_model,
         search_model_sha256=search_model_sha,
+        original_first_copy_model_sha256=expected_model_sha,
         model_identity_fraction=float(identity_percent) / 100.0,
         mtz=mtz,
         mtz_sha256=mtz_sha,
@@ -451,6 +457,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         "parent_result_sha256": resolved.parent_result_sha256,
         "parent_coordinate_sha256": resolved.parent_coordinate_sha256,
         "search_model_sha256": resolved.search_model_sha256,
+        "original_first_copy_model_sha256": (resolved.original_first_copy_model_sha256),
         "sequence_sha256": resolved.group.sha256,
         "mtz_sha256": resolved.mtz_sha256,
         "phenix_manifest_sha256": sha256_file(
