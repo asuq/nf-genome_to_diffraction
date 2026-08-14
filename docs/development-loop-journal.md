@@ -3372,3 +3372,44 @@ jobs. After green CI, run `deploy-tools`, `t12-stage` with parent
 `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2`, then `submit t12` as
 separate approved wrapper operations and replace this heartbeat with the
 successor 30-minute T12 monitor.
+
+## 2026-08-14T14:19:50Z - First fixed T12 stage failed safely before submission
+
+### Discoveries
+
+- Commit `3ef995c751eb29c95127a70833509b7e79865a32` passed both Pixi 0.74.0
+  and 0.76.2 jobs in GitHub Actions run `31808432432`; reviewed remote tools
+  were deployed with dispatcher SHA-256
+  `810718d8b0b6e3149a523d41a1d7997af28009ce13e29138c1f0e8f3b585bb32`
+  and job-wrapper SHA-256
+  `99f61b59f8fe637e482e0d3b01818cdc3753e989dcc4f09d44fa83a5d959b851`.
+- Fixed stage run `gtd-t12-20260814T141857Z-3ef995c751eb-5cdd8f2d`
+  preserved a `test_failure` before Slurm submission. The existing bounded
+  `logs` operation did not select `t12-stage.log`, so the scientific staging
+  diagnostic was not observable through the approved interface.
+
+### Accomplishments
+
+- Preserved the failed stage unchanged and did not submit, cancel, clean, or
+  use raw SSH. Added only the missing bounded stage-log selection for T12;
+  Bash syntax remains green.
+
+### Immutable evidence
+
+- The transferred fixed source-record checksum was
+  `abd1bd5c50770726343f2d1c407869d29bb91e0b4d989708bc40fc12dc22bb72`.
+  A local catalogue identity check confirmed 1,621 sequence-group IDs and
+  1,621 source-record group IDs with no difference in either direction.
+
+### Unresolved work
+
+- Commit/push/deploy the bounded-log fix, inspect only the failed run's last
+  200 stage-log lines, and correct the specific staging fault. Retain the
+  failed stage as immutable evidence.
+
+### Next exact starting point
+
+Commit the `t12-stage.log` selection, push and deploy it, then run bounded
+`logs --tail 200` on
+`gtd-t12-20260814T141857Z-3ef995c751eb-5cdd8f2d`; do not submit that failed
+stage or use raw SSH.
