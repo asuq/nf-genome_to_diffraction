@@ -2996,3 +2996,69 @@ do not poll databases, use raw SSH, cancel, clean, or retune the candidate gate.
 
 Follow the updated 30-minute heartbeat and check only run
 `gtd-m4-copy-20260814T005058Z-001d791649d0-2fc95156` through the fixed wrapper.
+
+## 2026-08-14T07:06:00Z - Viper controller guard corrected and M4 relaunched
+
+### Discoveries
+
+- Run `gtd-m4-copy-20260814T005058Z-001d791649d0-2fc95156`, Slurm job
+  `10910824`, ended as `test_failure` before molecular replacement because
+  nf-helper's Viper launch guard recognised only the login hosts and rejected
+  the scheduled Nextflow controller host `vipc2547`.
+- The same bounded evidence verified all seven Phenix command probes against
+  `/viper/ptmp1/ashima/nf-genome_to_diffraction/software/phenix_v2.1-6048`.
+  This proves command-level installation health, but not yet real-CD6
+  molecular-replacement qualification because Nextflow stopped before any
+  scientific process ran.
+
+### Accomplishments
+
+- Kept login-host enforcement as the default and added a narrow managed-compute
+  exception: `vipc[0-9]+` is accepted only with a numeric `SLURM_JOB_ID` and the
+  fixed wrapper's `NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm` marker.
+  Unmanaged compute launches still fail loudly.
+- nf-helper's four Viper profile tests passed through the parent locked
+  environment; direct managed and unmanaged Nextflow evaluations passed, the
+  parent contract suite passed 56/56, and the fixed M4 Bash wrapper passed
+  syntax validation. A fresh standalone nf-helper Pixi installation could not
+  resolve packages under sandbox DNS, so no claim is made for that redundant
+  installation path.
+- Pushed nf-helper commit `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`
+  and parent commit `dc3c545a0cd616ca97b6cb9d5d75b6176370d987`.
+  GitHub Actions run `31778155576` passed under Pixi 0.74.0 and 0.76.2.
+- Deployed dispatcher SHA-256
+  `fe1059bf857a17bec29a50aff25008f36aa43a646f36c956690432a428d27799`,
+  staged all 11 retained candidates, and submitted immutable successor
+  `gtd-m4-copy-20260814T070304Z-dc3c545a0cd6-98156a5d` as Slurm job
+  `10911920`. Its first observed scheduler state was `RUNNING`.
+
+### Immutable evidence
+
+- Failed predecessor job `10910824` is retained with failure signature
+  `d98ef01185f144777408f8dc38aad04f0a3e4861bc8290ba13ce2a914bd48bbf`.
+  It is controller-configuration evidence, not a negative scientific result.
+- Successor import archive SHA-256 is
+  `9735673e9b51b111185881d2086c8f70bbf1982cdfd151b497e6dc0e10d026a0`;
+  decision SHA-256 is
+  `7bbe539cf3c02b253ee94d829af6cf0b516e8eecedc6c784ab12cd707d012e2c`;
+  review-manifest SHA-256 is
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`;
+  frozen MTZ SHA-256 is
+  `5eb16c3cc3a21e4b7f22cd611834529801c1829fc0a3156a2b6abc2b3de2f20d`.
+
+### Unresolved work
+
+- Leave job `10911920` untouched while non-terminal. On terminal state,
+  collect and verify exactly 11 sequential candidate outcomes, raw Phaser
+  evidence, model derivation and complete provenance, plus a fully cached
+  resume pass.
+- Claim full Viper Phenix qualification only after real frozen-CD6 molecular
+  replacement succeeds. Then continue directly to T12 refinement, maps, and
+  sequence narrowing for every scientifically viable retained alternative.
+
+### Next exact starting point
+
+Follow the updated 30-minute heartbeat. Check only
+`gtd-m4-copy-20260814T070304Z-dc3c545a0cd6-98156a5d` through the fixed wrapper;
+do not poll databases, use raw SSH, cancel, clean, drop candidates, or infer a
+timeout from silence.
