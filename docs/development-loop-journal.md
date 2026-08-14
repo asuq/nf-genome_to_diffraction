@@ -2887,3 +2887,66 @@ infer failure from silence or modify either non-terminal job.
 
 Finish the focused 4-CPU/8-GB policy cycle. Then update the heartbeat to monitor
 only Phenix job `10910306`; the database track is complete and must not block M4.
+
+## 2026-08-14T02:40:00Z - Phenix installed and imported M4 submitted on Viper
+
+### Discoveries
+
+- Phenix install job `10910306` completed with exit 0 in 12m24s and used about
+  2.28 GB MaxRSS. The fixed imported-M4 staging path accepted its site manifest,
+  but full qualification remains contingent on the scheduled real-CD6 command
+  verification and molecular-replacement execution.
+- The first imported-M4 stage revealed two operational cut-over defects: its
+  diagnostic log was not collectable, and imported solution-coordinate
+  provenance mixed Viper's lexical `/ptmp` path with its physical
+  `/viper/ptmp1` mount. Neither defect changed candidate data or scientific
+  policy.
+- The first otherwise-valid Viper submission was rejected before execution
+  because the dispatcher still requested Marmic's `41-16:00:00` walltime.
+  Viper requires a runtime no greater than 24 hours.
+
+### Accomplishments
+
+- Added the bounded `m4-import-stage.log` to the approved collection inventory,
+  fixed cross-site model provenance to use a canonical owned staging root, and
+  covered the mount alias with a regression fixture.
+- Replaced the inherited multi-day request for real-data profiles with Viper's
+  `24:00:00` maximum without increasing CPUs or memory. All focused corrections
+  completed the code, locked-Pixi test, commit, push, dual-CI, and
+  checksum-reviewed deployment cycle.
+- Staged exactly 11 retained candidates and submitted immutable run
+  `gtd-m4-copy-20260814T003459Z-add9a1a2a724-77bef3bf` as Slurm job `10910784`.
+  Its current scheduler state is `PENDING`; leave it untouched.
+
+### Immutable evidence
+
+- Active source commit is `add9a1a2a724843454961b1133cefc3e7b422f39`;
+  GitHub Actions run `31757539962` passed under Pixi 0.74.0 and 0.76.2.
+- Import archive SHA-256 is
+  `da0584c2be7c549c8d86d7d248b127e652c174937b14cc0c4273fb94679e6096`;
+  decision SHA-256 is
+  `7bbe539cf3c02b253ee94d829af6cf0b516e8eecedc6c784ab12cd707d012e2c`;
+  review-manifest SHA-256 is
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`.
+- Frozen CD6 MTZ SHA-256 is
+  `5eb16c3cc3a21e4b7f22cd611834529801c1829fc0a3156a2b6abc2b3de2f20d`;
+  nf-helper revision is `ed7b71caccbb8244e6d1f3ff42eaa8680728e43a` and
+  the staged Pixi version is 0.76.2.
+- Retain failed staging runs ending `eb6a8d2e` and `31e90d56`, plus the staged
+  submission-rejection run ending `39fdb7fb`; they delimit the corrected path
+  and scheduler contracts and must not be cleaned automatically.
+
+### Unresolved work
+
+- Wait for job `10910784` without inferring failure from silence. On terminal
+  state, collect the bounded Phenix verification, all 11 candidate series,
+  copy transitions, raw results, checksums, and fully cached resume evidence.
+- Claim Phenix qualification only if its stable manifest command probes and
+  real frozen-CD6 execution pass. Then proceed directly to the smallest T12
+  refinement/maps/sequence-narrowing increment with all viable alternatives.
+
+### Next exact starting point
+
+Follow the updated 30-minute heartbeat. Check only
+`gtd-m4-copy-20260814T003459Z-add9a1a2a724-77bef3bf` through the fixed wrapper;
+do not poll databases, use raw SSH, cancel, clean, or retune the candidate gate.
