@@ -3479,3 +3479,46 @@ stages exactly 11 candidates.
 
 Commit the focused preflight selection, deploy it, rerun `t12-stage` from the
 accepted M4 parent, and submit the returned T12 run ID.
+
+## 2026-08-14T14:32:49Z - Real all-11 Viper T12 run launched
+
+### Discoveries
+
+- The MTZ-identity fix staged all 11 supported copy-two parents successfully;
+  no further fallback or staging work is needed before real refinement.
+
+### Accomplishments
+
+- Staged immutable run
+  `gtd-t12-20260814T143056Z-eb36d617bfea-72723756` from accepted M4 parent
+  `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2` and submitted Slurm job
+  `10916327`. Its first observed scheduler state is `RUNNING`.
+- Replaced the old monitor with a 30-minute T12 heartbeat. It preserves all 11
+  candidates, uses only the approved wrapper, and proceeds to T12.5 after
+  terminal evidence rather than polishing minor cases.
+
+### Immutable evidence
+
+- Source commit is `eb36d617bfea93847f198364773701d8fe177da4`;
+  nf-helper is `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`; source-record
+  SHA-256 is
+  `abd1bd5c50770726343f2d1c407869d29bb91e0b4d989708bc40fc12dc22bb72`;
+  T12 stage-manifest SHA-256 is
+  `8aa4c14369f1512c4d305edf8da7d20e13e38fd76d37570a0879f5019959d5f3`.
+- Failed stage predecessors
+  `gtd-t12-20260814T141857Z-3ef995c751eb-5cdd8f2d` and
+  `gtd-t12-20260814T142758Z-12e690c57aad-bac08e6c` remain retained and
+  unsubmitted.
+
+### Unresolved work
+
+- Leave job `10916327` untouched while non-terminal. On completion, collect and
+  verify exactly 11 typed refinement/sequence outcomes and an 11/11 cached
+  resume, then implement the smallest T12.5 review package.
+
+### Next exact starting point
+
+Follow the 30-minute heartbeat and check only
+`gtd-t12-20260814T143056Z-eb36d617bfea-72723756` through the fixed wrapper. Do
+not poll completed M4/database tracks, use raw SSH, cancel, clean, drop
+candidates, or add unrelated fallback work.
