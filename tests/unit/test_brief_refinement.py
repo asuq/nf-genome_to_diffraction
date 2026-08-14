@@ -55,6 +55,9 @@ def test_fixed_refinement_parameters_are_conservative_and_stable() -> None:
     assert "strategy = individual_sites individual_adp" in text
     assert "simulated_annealing = False" in text
     assert "ordered_solvent = False" in text
+    assert "write_model_cif_file = False" in text
+    assert "write_final_pdb_file = True" in text
+    assert "map_coefficients {" in text
     assert "map_type = 2mFo-DFc" in text
     assert "file_name = stable.ccp4" in text
     assert "fill_missing_f_obs = False" in text

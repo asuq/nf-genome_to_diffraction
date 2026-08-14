@@ -43,7 +43,7 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
-_PROTOCOL_VERSION = "phenix-t12-brief-v1"
+_PROTOCOL_VERSION = "phenix-t12-brief-v2"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -175,8 +175,13 @@ def _refine_parameters(*, threads: int, map_name: str) -> str:
   output {{
     write_map_coefficients = True
     write_maps = True
+    write_model_cif_file = False
+    write_final_pdb_file = True
   }}
   electron_density_maps {{
+    map_coefficients {{
+      map_type = 2mFo-DFc
+    }}
     map {{
       map_type = 2mFo-DFc
       format = ccp4
@@ -373,11 +378,13 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
             "threads": request.threads,
         },
     )
-    map_path = outdir / "brief_refine_2mFo-DFc.ccp4"
+    map_path = outdir / "brief_refine_001_2mFo-DFc.ccp4"
     params_path = outdir / "brief_refine.eff"
     atomic_write_text(
         params_path,
-        _refine_parameters(threads=request.threads, map_name=map_path.name),
+        _refine_parameters(
+            threads=request.threads, map_name="brief_refine_2mFo-DFc.ccp4"
+        ),
     )
     refine_args = [
         "phenix.refine",

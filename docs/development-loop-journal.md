@@ -3687,3 +3687,50 @@ commit, and immediately stage and submit the all-11 T12 successor.
 Update the existing monitor to check only
 `gtd-t12-20260814T165322Z-c04359bb301d-709a1894`, then leave the run untouched
 until its next 30-minute status check.
+
+## 2026-08-14T18:17:52Z - T12 reaches refinement but misses Phenix assets
+
+### Discoveries
+
+- Retained run `gtd-t12-20260814T165322Z-c04359bb301d-709a1894` completed as
+  Slurm job `10917303` with exit code 0 and an 11/11 cached resume. The explicit
+  CD6 observation labels worked: all 11 Phenix refinements ran and produced
+  raw R-work/R-free and geometry metrics.
+- All 11 normalised refinement records remained `failed_parse`. Phenix 2.1-6048
+  wrote a CIF model by default and did not write an MTZ until an explicit
+  `electron_density_maps.map_coefficients` request was present. Its CCP4 map
+  name also includes the output serial (`brief_refine_001_2mFo-DFc.ccp4`).
+
+### Accomplishments
+
+- Collected and preserved the complete bounded run evidence without dropping
+  candidates or misreporting outer success as scientific T12 success.
+- Reproduced the observed output behaviour with local Phenix 2.1-6048 and the
+  checksum-frozen CD6 MTZ. A focused corrected probe wrote the required PDB,
+  map-coefficient MTZ, and cell CCP4 map.
+- Updated the fixed adapter to request PDB output and explicit 2mFo-DFc map
+  coefficients, recognise the serialised CCP4 name, and use protocol identity
+  `phenix-t12-brief-v2` so the corrected work cannot reuse stale cache entries.
+  The complete locked project gate passes (346 unit, 56 contract, and 46
+  integration tests plus all schema, documentation, workflow, stub, and HPC
+  checks).
+
+### Immutable evidence
+
+- The terminal source commit is
+  `c04359bb301d31aa0710e9cc163aba74d18dd740`; the T12 stage-manifest SHA-256 is
+  `41504d96e88cec9fed3a06091f9f043798866e734aec4092dcf9cad027d64bfe`.
+- The result records 11 attempted refinements, 11 typed parse failures, all 11
+  candidates retained, and a fully cached resume. Raw final R-free values range
+  from 0.5294 to 0.5510 and remain evidence, not an approval threshold.
+
+### Unresolved work
+
+- Commit and qualify the minimal asset-output fix, deploy it, and replay the
+  unchanged all-11 T12 boundary. On scientific success, proceed directly to the
+  smallest T12.5 top-10/top-25/full review package.
+
+### Next exact starting point
+
+Commit and push protocol v2, require both Pixi CI variants to pass, then deploy
+and stage one immutable T12 successor from the accepted M4 parent.
