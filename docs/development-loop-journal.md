@@ -3522,3 +3522,48 @@ Follow the 30-minute heartbeat and check only
 `gtd-t12-20260814T143056Z-eb36d617bfea-72723756` through the fixed wrapper. Do
 not poll completed M4/database tracks, use raw SSH, cancel, clean, drop
 candidates, or add unrelated fallback work.
+
+## 2026-08-14T15:09:14Z - T12 identifies and fixes the refinement MTZ boundary
+
+### Discoveries
+
+- Retained run `gtd-t12-20260814T143056Z-eb36d617bfea-72723756` completed
+  operationally as Slurm job `10916327` with exit code 0 and an 11/11 cached
+  resume. All 11 candidates were retained, but every refinement ended as
+  `failed_tool_execution` and every sequence step as `skipped_ineligible`.
+- Every bounded Phenix log reports the same direct cause: the staged Phaser
+  solution MTZ contains no R-free array. The checksum-matched original CD6
+  diffraction MTZ has `free_flag_status=present`; it is the correct refinement
+  observations file.
+
+### Accomplishments
+
+- T12 staging now gives every finalist the shared, checksum-bound original
+  diffraction MTZ and fails loudly if its preflight reports missing FreeR
+  flags. Each candidate's Phaser solution MTZ remains copied and checksum-bound
+  as provenance.
+- Added one focused regression assertion and ran the complete locked project
+  gate successfully. No candidates, scores, or historical runs were changed.
+
+### Immutable evidence
+
+- The terminal T12 run and failed stage predecessors remain untouched. The
+  collected summary records 11 refinement failures, 11 skipped sequence
+  outcomes, all candidates retained, and all resume processes cached.
+- Source commit for the retained run is
+  `eb36d617bfea93847f198364773701d8fe177da4`; parent M4 run is
+  `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2`; original CD6 MTZ
+  SHA-256 is
+  `5eb16c3cc3a21e4b7f22cd611834529801c1829fc0a3156a2b6abc2b3de2f20d`.
+
+### Unresolved work
+
+- Commit, push, deploy, and rerun this single observed-failure correction for
+  all 11 retained candidates. On accepted refinement evidence, proceed directly
+  to the smallest T12.5 review package.
+
+### Next exact starting point
+
+Commit the original-diffraction-MTZ correction, deploy its checksum-reviewed
+tools, stage and submit one successor T12 run from the same accepted M4 parent,
+then monitor only that run through the fixed wrapper.

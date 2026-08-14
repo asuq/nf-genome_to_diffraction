@@ -190,6 +190,11 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
             "T12 requires exactly one preflight record matching the parent MTZ"
         )
     selected_preflight = matching_preflights[0]
+    if selected_preflight.free_flag_status == "missing":
+        raise T12StageError("T12 refinement requires FreeR flags in the parent MTZ")
+    diffraction_mtz_source = _regular(common / "mtz.mtz", "parent diffraction MTZ")
+    if sha256_file(diffraction_mtz_source) != parent_mtz_sha256:
+        raise T12StageError("parent diffraction MTZ checksum mismatch")
     source_records_source = _regular(
         request.source_records_jsonl, "catalogue source-record crosswalk"
     )
@@ -208,6 +213,8 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
     _atomic_copy(preflight_source, inputs / "preflight.jsonl")
     _atomic_copy(phenix_source, inputs / "phenix_manifest.json")
     _atomic_copy(source_records_source, inputs / "source_records.jsonl")
+    diffraction_mtz = inputs / "diffraction.mtz"
+    _atomic_copy(diffraction_mtz_source, diffraction_mtz)
 
     rows = [
         "seed_solution_id\tsequence_group_id\tinput_copy_count\t"
@@ -236,7 +243,7 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
             raise T12StageError(f"copy-two asset checksum mismatch for {seed_id}")
         candidate_out = output / "parents" / seed_id
         coordinate_out = candidate_out / "parent.pdb"
-        mtz_out = candidate_out / "parent.mtz"
+        mtz_out = candidate_out / "phaser_solution.mtz"
         _atomic_copy(coordinate, coordinate_out)
         _atomic_copy(mtz, mtz_out)
         rows.append(
@@ -247,8 +254,8 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
                     "2",
                     str(coordinate_out),
                     coordinate_sha,
-                    str(mtz_out),
-                    mtz_sha,
+                    str(diffraction_mtz),
+                    parent_mtz_sha256,
                     str(selected_preflight.resolution_high_a),
                 )
             )
@@ -263,6 +270,7 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
                 "source_coordinate_sha256": coordinate_sha,
                 "source_mtz": str(mtz.relative_to(parent)),
                 "source_mtz_sha256": mtz_sha,
+                "staged_solution_mtz": str(mtz_out.relative_to(output)),
             }
         )
 
@@ -285,6 +293,7 @@ def stage_t12_inputs(request: T12StageRequest) -> T12StageOutput:
             ),
             "parent_stage_manifest_sha256": sha256_file(parent_stage_manifest_path),
             "parent_mtz_sha256": parent_mtz_sha256,
+            "parent_mtz_free_flag_status": selected_preflight.free_flag_status,
             "sequence_groups_sha256": sha256_file(inputs / "sequence_groups.jsonl"),
             "source_records_sha256": source_sha,
             "preflight_sha256": sha256_file(inputs / "preflight.jsonl"),

@@ -66,8 +66,10 @@ def test_stage_t12_inputs_retains_supported_copy_two_parent(tmp_path: Path) -> N
     (qualification / "m4-copy-resume-check.json").write_text(
         json.dumps({"all_candidate_series_cached": True}), encoding="utf-8"
     )
+    (common / "mtz.mtz").write_bytes(b"original diffraction mtz")
+    original_mtz_sha = sha256_file(common / "mtz.mtz")
     (parent / "artifacts/m4-copy-inputs/m4_copy_stage_manifest.json").write_text(
-        json.dumps({"inputs": {"mtz": {"sha256": "0" * 64}}}),
+        json.dumps({"inputs": {"mtz": {"sha256": original_mtz_sha}}}),
         encoding="utf-8",
     )
     fixtures = Path(__file__).parents[1] / "fixtures/stubs"
@@ -77,6 +79,7 @@ def test_stage_t12_inputs_retains_supported_copy_two_parent(tmp_path: Path) -> N
     selected_preflight = json.loads(
         (fixtures / "mtz_preflight.jsonl").read_text(encoding="utf-8")
     )
+    selected_preflight["mtz_sha256"] = original_mtz_sha
     other_preflight = {**selected_preflight, "preflight_id": "other_preflight"}
     other_preflight["mtz_sha256"] = "1" * 64
     (common / "preflight.jsonl").write_text(
@@ -102,3 +105,8 @@ def test_stage_t12_inputs_retains_supported_copy_two_parent(tmp_path: Path) -> N
     assert manifest["candidates"][0]["source_coordinate_sha256"] == sha256_file(
         coordinate
     )
+    fields = output.finalists.read_text(encoding="utf-8").splitlines()[1].split("\t")
+    assert Path(fields[5]).read_bytes() == b"original diffraction mtz"
+    assert fields[6] == original_mtz_sha
+    assert manifest["parent_mtz_free_flag_status"] == "present"
+    assert manifest["candidates"][0]["source_mtz_sha256"] == sha256_file(mtz)

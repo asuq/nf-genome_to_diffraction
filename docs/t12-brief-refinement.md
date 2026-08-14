@@ -16,9 +16,12 @@ genome-to-diffraction refinement brief ...
 ## Inputs and outputs
 
 Each finalist row supplies its immutable solution ID, exact-sequence group,
-best supported M4 copy count, checksum-bound parent PDB/MTZ, and diffraction
-resolution. Shared inputs are the complete exact-sequence-group catalogue, its
-source-record/locus crosswalk, and a verified Phenix 2.1-6048 manifest.
+best supported M4 copy count, checksum-bound parent PDB, the original
+FreeR-bearing diffraction MTZ, and diffraction resolution. The corresponding
+Phaser solution MTZ remains staged and checksum-bound as provenance but is not
+used as the refinement observations file. Shared inputs are the complete
+exact-sequence-group catalogue, its source-record/locus crosswalk, and a
+verified Phenix 2.1-6048 manifest.
 
 The adapter retains:
 
