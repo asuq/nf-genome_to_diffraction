@@ -1000,7 +1000,7 @@ stage_run_common() {
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
-          "$profile" == m4-copy || \
+          "$profile" == m4-copy || "$profile" == t12 || \
           "$profile" == database ]]; then
         if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
             --manifest-path "$run/source/pixi.toml" \
@@ -1022,7 +1022,7 @@ stage_run_common() {
         }
         if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
               "$profile" == p2-diverse || "$profile" == p2-control || \
-              "$profile" == m4-copy ]]; then
+              "$profile" == m4-copy || "$profile" == t12 ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
             java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
             mmseqs="$run/source/.pixi/envs/hpc/bin/mmseqs"

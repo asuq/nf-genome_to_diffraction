@@ -137,6 +137,14 @@ def test_t12_stage_accepts_only_revision_and_owned_parent() -> None:
     assert submitted.profile == "t12"
 
 
+def test_t12_remote_stage_installs_the_locked_hpc_runtime() -> None:
+    dispatcher = (
+        Path(__file__).resolve().parents[2] / "bootstrap/nf-gtd-hpc-remote"
+    ).read_text(encoding="utf-8")
+
+    assert dispatcher.count('"$profile" == m4-copy || "$profile" == t12') >= 2
+
+
 def test_m4_copy_remote_stage_exposes_staged_only_after_inputs_are_bound() -> None:
     dispatcher = (
         Path(__file__).resolve().parents[2] / "bootstrap/nf-gtd-hpc-remote"

@@ -3413,3 +3413,38 @@ Commit the `t12-stage.log` selection, push and deploy it, then run bounded
 `logs --tail 200` on
 `gtd-t12-20260814T141857Z-3ef995c751eb-5cdd8f2d`; do not submit that failed
 stage or use raw SSH.
+
+## 2026-08-14T14:26:27Z - T12 stage failure reduced to one profile omission
+
+### Discoveries
+
+- Bounded logs from retained failed stage
+  `gtd-t12-20260814T141857Z-3ef995c751eb-5cdd8f2d` showed that the T12
+  adapter executable was absent because `t12` was omitted from the existing
+  locked-HPC-environment installation and scientific-runtime checks. No
+  catalogue, checksum, parent-asset, or Phenix failure had been reached.
+
+### Accomplishments
+
+- Added `t12` to those two existing profile conditions and one focused
+  regression assertion. The 13 focused unit tests and Bash wrapper syntax pass.
+- Committed the user-added repository instruction to follow KISS, DRY, and
+  YAGNI as commit `b9c11a50c757a3283b37c9f41a42663c9a00869f`; future work
+  will favour the next real prototype result over minor polish.
+
+### Immutable evidence
+
+- The failed stage remains untouched. Its complete bounded diagnostic was:
+  `.pixi/envs/hpc/bin/genome-to-diffraction: No such file or directory`.
+
+### Unresolved work
+
+- Commit/push/deploy this exact environment-profile fix and retry fixed T12
+  staging from the same accepted M4 parent. Do not add further synthetic cases
+  unless a distinct observed failure requires one.
+
+### Next exact starting point
+
+Commit the two-condition fix and focused regression, deploy the reviewed tools,
+then rerun `t12-stage` from the accepted M4 parent and submit immediately if it
+stages exactly 11 candidates.
