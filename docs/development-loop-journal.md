@@ -3993,3 +3993,56 @@ exactly one protocol-v2 T12 replay.
 
 At the next 30-minute loop, query only Slurm job `10919789`; do not submit T12
 until the reinstalled runtime passes its qualification boundary.
+
+## 2026-08-14T23:45:55Z - Phenix restored and protocol-v2 T12 replay submitted
+
+### Discoveries
+
+- Clean-reinstall job `10919789` completed successfully in 16m47s with exit
+  code zero and approximately 1.91 GB maximum resident memory for its batch
+  step.
+- The restored bundled Python imports `encodings`; all seven Phenix command
+  probes passed their documented conventions. The new installation manifest
+  SHA-256 is
+  `0410c2b835a8de91061cb727bf5eb007cfac82b787e857cefc5fd549b5c3bad1`.
+- The job completed the authorised one-time access-time normalisation. A
+  representative post-job check showed current access times for the prefix and
+  bundled Python. No periodic timestamp operation exists.
+
+### Accomplishments
+
+- Removed only the fixed stale Phenix runtime, installed a fresh verified
+  Phenix 2.1-6048 runtime from the approved installer, and retained the prior
+  small manifest and logs with the recovery job suffix.
+- Staged all 11 retained candidates from accepted M4 parent
+  `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2` as immutable T12 run
+  `gtd-t12-20260814T234527Z-1e4edc752972-ba0c62c1` and submitted Slurm job
+  `10920074`. This is the single authorised real-CD6 protocol-v2 replay.
+
+### Immutable evidence
+
+- Recovery script SHA-256 is
+  `147d842fce27e1a93ff64efb105724115fae40934f26bded4064b2f9bc82f7db`;
+  installer SHA-256 remains
+  `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`.
+- T12 source commit is
+  `1e4edc752972ada63b421ccf68611ab2ed08cbf2`, nf-helper revision is
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, source-record SHA-256 is
+  `abd1bd5c50770726343f2d1c407869d29bb91e0b4d989708bc40fc12dc22bb72`,
+  and T12 stage-manifest SHA-256 is
+  `f6af2ac40e1e28739e5808b2c3898596f598aad7b64679a695f2211742445cae`.
+
+### Unresolved work
+
+- Leave T12 job `10920074` untouched while non-terminal. This job must provide
+  the restored runtime's real-CD6 qualification; command probes alone are not
+  sufficient.
+- On terminal completion, collect bounded evidence and verify exactly 11 typed
+  outcomes, required refinement/map/sequence assets, all-candidate retention,
+  and fully cached resume before proceeding directly to T12.5.
+
+### Next exact starting point
+
+At the next 30-minute loop, query only retained T12 run
+`gtd-t12-20260814T234527Z-1e4edc752972-ba0c62c1` through the approved status
+operation and do not infer failure from silence.
