@@ -3805,6 +3805,9 @@ operation and do not infer failure from silence.
 - Leave job `10917867` untouched while non-terminal. If the identical Phenix
   runtime failure repeats, stop replaying T12 and repair or reinstall the
   `/ptmp` Phenix runtime before any further scientific run.
+- The Codex automation update service timed out again; the persisted monitor is
+  stale, so every loop must follow this newest journal entry until it can be
+  retargeted.
 
 ### Next exact starting point
 
