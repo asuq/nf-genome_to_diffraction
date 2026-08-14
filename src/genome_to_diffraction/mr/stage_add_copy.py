@@ -146,6 +146,23 @@ def _find_model(parent: Path, expected_sha256: str) -> Path:
     return matches[0]
 
 
+def _model_source_relative_path(
+    source_model: Path,
+    *,
+    parent: Path,
+    output: Path,
+    cross_site_import: bool,
+) -> str:
+    """Return provenance relative to the tree that owns the staged source."""
+
+    anchor = output if cross_site_import else parent
+    try:
+        return str(source_model.relative_to(anchor))
+    except ValueError as error:
+        message = "staged model source is outside its provenance root"
+        raise ValueError(message) from error
+
+
 def prepare_add_copy_stage(request: AddCopyStageRequest) -> AddCopyStageOutput:
     """Create a self-contained M4 input bundle from immutable retained evidence."""
 
@@ -238,7 +255,12 @@ def prepare_add_copy_stage(request: AddCopyStageRequest) -> AddCopyStageOutput:
             ),
             "original_first_copy_model_sha256": model_sha,
             "staged_search_model_sha256": staged_sha,
-            "source": str(source_model.relative_to(parent)),
+            "source": _model_source_relative_path(
+                source_model,
+                parent=parent,
+                output=output,
+                cross_site_import=request.use_solution_coordinates_as_models,
+            ),
         }
 
     seeds_tsv = output / "seeds.tsv"
