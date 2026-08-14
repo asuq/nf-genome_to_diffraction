@@ -323,9 +323,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         raise T12InputError("threads must be between 1 and 64")
     if request.resolution <= 0:
         raise T12InputError("resolution must be positive")
-    observation_label_argument = _observation_label_argument(
-        request.observation_labels
-    )
+    observation_label_argument = _observation_label_argument(request.observation_labels)
     parent_coordinate = _verified_file(
         request.parent_coordinate,
         request.parent_coordinate_sha256,
