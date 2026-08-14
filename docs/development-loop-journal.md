@@ -3567,3 +3567,42 @@ candidates, or add unrelated fallback work.
 Commit the original-diffraction-MTZ correction, deploy its checksum-reviewed
 tools, stage and submit one successor T12 run from the same accepted M4 parent,
 then monitor only that run through the fixed wrapper.
+
+## 2026-08-14T15:17:45Z - Corrected all-11 T12 successor launched
+
+### Discoveries
+
+- The corrected boundary staged all 11 candidates from the accepted M4 parent;
+  the original CD6 diffraction MTZ and every Phaser solution asset passed their
+  checksum gates.
+
+### Accomplishments
+
+- Commit `14e0bca2c4296de2d39740b69e0ef26db92fab60` passed the complete
+  local locked gate and both GitHub Actions Pixi jobs in run `31813198628`.
+- Deployed checksum-reviewed tools, staged immutable run
+  `gtd-t12-20260814T151604Z-14e0bca2c429-06d1dce8`, and submitted Slurm job
+  `10916791`. Its first scheduler state is `PENDING`.
+- Updated the 30-minute heartbeat to monitor only this successor.
+
+### Immutable evidence
+
+- nf-helper revision is `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`;
+  source-record SHA-256 is
+  `abd1bd5c50770726343f2d1c407869d29bb91e0b4d989708bc40fc12dc22bb72`;
+  T12 stage-manifest SHA-256 is
+  `8324f40085a9169ab0e477fcb7dd2e316f9088c58ec29d5814a7483f6bb2e188`.
+- The preceding terminal T12 run and failed stage predecessors remain retained
+  and unchanged.
+
+### Unresolved work
+
+- Leave job `10916791` untouched while non-terminal. On completion, collect and
+  verify all 11 refinement/sequence outcomes and the cached resume, then proceed
+  directly to the smallest T12.5 review package.
+
+### Next exact starting point
+
+At the next heartbeat, check only
+`gtd-t12-20260814T151604Z-14e0bca2c429-06d1dce8` through the approved status
+operation. Do not poll completed predecessors or add unrelated polish.
