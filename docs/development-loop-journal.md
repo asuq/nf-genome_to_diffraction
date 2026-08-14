@@ -3647,3 +3647,43 @@ operation. Do not poll completed predecessors or add unrelated polish.
 
 Validate the explicit observation-label correction, deploy its immutable green
 commit, and immediately stage and submit the all-11 T12 successor.
+
+## 2026-08-14T16:58:34Z - Observation-labelled T12 successor launched
+
+### Discoveries
+
+- The explicit observation-label boundary staged all 11 retained candidates
+  successfully from the unchanged accepted M4 parent.
+
+### Accomplishments
+
+- The complete locked local gate passed. Commit
+  `c04359bb301d31aa0710e9cc163aba74d18dd740` passed both Pixi variants in
+  GitHub Actions run `31821010548` after a formatting-only follow-up.
+- Deployed checksum-reviewed tools, staged immutable run
+  `gtd-t12-20260814T165322Z-c04359bb301d-709a1894`, and submitted Slurm job
+  `10917303`. Its first scheduler state is `PENDING`.
+
+### Immutable evidence
+
+- nf-helper revision is `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`;
+  source-record SHA-256 is
+  `abd1bd5c50770726343f2d1c407869d29bb91e0b4d989708bc40fc12dc22bb72`;
+  T12 stage-manifest SHA-256 is
+  `41504d96e88cec9fed3a06091f9f043798866e734aec4092dcf9cad027d64bfe`.
+- The two terminal all-candidate failure runs remain retained and unchanged.
+
+### Unresolved work
+
+- Leave job `10917303` untouched while non-terminal. On completion, collect and
+  verify all 11 refinement/sequence outcomes and cached resume, then proceed
+  directly to the smallest T12.5 review package.
+- The Codex automation update call timed out twice during this heartbeat; retry
+  updating the existing 30-minute monitor to this successor before any new
+  remote operation.
+
+### Next exact starting point
+
+Update the existing monitor to check only
+`gtd-t12-20260814T165322Z-c04359bb301d-709a1894`, then leave the run untouched
+until its next 30-minute status check.
