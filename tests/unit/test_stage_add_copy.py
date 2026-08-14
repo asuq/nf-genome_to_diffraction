@@ -12,12 +12,15 @@ def test_cross_site_model_source_is_relative_to_stage_output(tmp_path: Path) -> 
     output = tmp_path / "m4-copy-inputs"
     source = output / "review_package/assets/solution/solution.pdb"
 
-    assert _model_source_relative_path(
-        source,
-        parent=parent,
-        output=output,
-        cross_site_import=True,
-    ) == "review_package/assets/solution/solution.pdb"
+    assert (
+        _model_source_relative_path(
+            source,
+            parent=parent,
+            output=output,
+            cross_site_import=True,
+        )
+        == "review_package/assets/solution/solution.pdb"
+    )
 
 
 def test_model_source_outside_selected_provenance_root_fails(tmp_path: Path) -> None:
