@@ -3122,3 +3122,71 @@ Follow the updated 30-minute heartbeat and check only
 `gtd-m4-copy-20260814T071851Z-72bf37746bb3-44f56209` through the fixed wrapper.
 Do not poll databases or predecessors, use raw SSH, cancel, clean, drop
 candidates, or infer timeout from silence.
+
+## 2026-08-14T10:51:00Z - Cross-site staged-model provenance corrected
+
+### Discoveries
+
+- Job `10912594` successfully passed Viper configuration, Phenix command
+  verification, and Nextflow launch, then submitted real candidate processes.
+  The first completed task failed before invoking Phaser because the adapter
+  still required the staged search model to hash-identically to the original
+  first-copy processed model.
+- That equality is invalid for the approved cross-site design: each additional
+  search intentionally uses the first-copy solution coordinate after Phaser's
+  rigid-body placement. The stage already checksum-freezes that derived file
+  and separately records the original processed-model checksum.
+- Nextflow emitted non-fatal warnings for several `executor.$slurm` and
+  `executor.$local` config keys but did submit Slurm tasks. These warnings are
+  retained for later profile cleanup and do not justify delaying the prototype
+  candidate run.
+
+### Accomplishments
+
+- Carried `search_model_sha256` from the immutable seed TSV through the typed
+  workflow and module into the adapter. The adapter now verifies the actual
+  staged coordinate against that checksum while preserving
+  `original_first_copy_model_sha256` independently in every command record.
+  Direct same-site callers retain the original checksum default.
+- Added a regression test proving that a checksum-frozen rigid-body solution
+  coordinate can differ from the original model without losing either
+  provenance value. Focused unit tests passed 14/14, contract tests passed
+  56/56, lint and strict typing passed, and both Nextflow syntax and stub runs
+  passed.
+- Pushed commit `380cc8e7b14e758c89397ab8127c0906aa57b475`;
+  GitHub Actions run `31793470648` passed under Pixi 0.74.0 and 0.76.2.
+  Staged all 11 candidates again and submitted successor
+  `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2` as Slurm job
+  `10914542`. Its first observed scheduler state was `PENDING`.
+
+### Immutable evidence
+
+- Retained run `gtd-m4-copy-20260814T071851Z-72bf37746bb3-44f56209`, job
+  `10912594`, has failure signature
+  `1258d7ebecf18adb4685406b007264c5db78965803d61d1c4d8941e8b5d334dd`.
+  It proves real scheduler wiring but contains no Phaser scientific result
+  because input validation stopped the candidate before runtime.
+- Successor archive SHA-256 is
+  `d3d37001405a20a1b030001dfbfbc6065e1511d9c2cbce265195791c1bcacbb3`;
+  decision SHA-256 is
+  `7bbe539cf3c02b253ee94d829af6cf0b516e8eecedc6c784ab12cd707d012e2c`;
+  review-manifest SHA-256 is
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`;
+  frozen MTZ SHA-256 remains
+  `5eb16c3cc3a21e4b7f22cd611834529801c1829fc0a3156a2b6abc2b3de2f20d`.
+
+### Unresolved work
+
+- Leave job `10914542` untouched while non-terminal. Verify that all 11
+  candidates now reach real Phaser execution and retain candidate-level stop
+  states rather than aborting on the first unsupported addition.
+- Require typed sequential outcomes and a fully cached resume before advancing.
+  Then begin T12 refinement, maps, and sequence narrowing for all scientifically
+  viable alternatives without score-based dropping.
+
+### Next exact starting point
+
+Follow the updated 30-minute heartbeat and check only
+`gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2` through the fixed wrapper.
+Do not poll databases or predecessors, use raw SSH, cancel, clean, retune, drop
+candidates, or infer timeout from silence.
