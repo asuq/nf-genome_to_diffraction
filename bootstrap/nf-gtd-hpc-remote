@@ -1639,7 +1639,7 @@ submit_run() {
     if [[ "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == m4-copy ]]; then
-        walltime=41-16:00:00
+        walltime=24:00:00
     fi
 
     exec 9>"$LOCKS/submit.lock"

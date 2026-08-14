@@ -2525,7 +2525,7 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
     )
     assert "--cpus-per-task=2" in submitted_arguments
     assert "--mem=8G" in submitted_arguments
-    assert "--time=41-16:00:00" in submitted_arguments
+    assert "--time=24:00:00" in submitted_arguments
 
     job_environment = dict(environment)
     job_environment["SLURM_JOB_ID"] = "123"
@@ -2677,7 +2677,7 @@ def test_p2_stage_and_submit_are_fixed_and_reuse_verified_prefetch(
     arguments = (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
     assert "--cpus-per-task=2" in arguments
     assert "--mem=8G" in arguments
-    assert "--time=41-16:00:00" in arguments
+    assert "--time=24:00:00" in arguments
     assert arguments[-4:] == [str(smoke_job), P2_RUN_ID, str(remote_root), "p2"]
 
 
@@ -2948,7 +2948,7 @@ def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(
     )
     assert submitted["profile"] == "p2-diverse"
     arguments = (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
-    assert "--time=41-16:00:00" in arguments
+    assert "--time=24:00:00" in arguments
     assert arguments[-4:] == [
         str(smoke_job),
         P2_DIVERSE_RUN_ID,
