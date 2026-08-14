@@ -3947,3 +3947,49 @@ do not submit T12 directly.
 Add or approve the fixed checksum-gated Phenix-recovery operation, submit the
 prepared recovery job, and require successful command probes before staging
 exactly one protocol-v2 T12 replay.
+
+## 2026-08-14T23:12:58Z - Clean Phenix reinstall submitted
+
+### Discoveries
+
+- The exact Viper Phenix prefix still fails its bundled-Python `encodings`
+  import. The retained 3.61-GB installer remains present and matches approved
+  SHA-256
+  `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`.
+- The user authorised one access-time normalisation immediately after a clean
+  installation, but no periodic timestamp touching. Existing scientific and
+  execution evidence remains retained.
+
+### Accomplishments
+
+- Revised the ignored recovery job to validate the fixed stale prefix, delete
+  only that exact runtime, preserve the preceding small manifest and logs with
+  the Slurm job suffix, reinstall from the verified installer, update access
+  times once, and recheck the bundled-Python encoding import.
+- Transferred the script, verified its remote SHA-256 as
+  `147d842fce27e1a93ff64efb105724115fae40934f26bded4064b2f9bc82f7db`,
+  and submitted Viper Slurm job `10919789` with 4 CPUs, 32 GB, and the existing
+  24-hour scheduler ceiling. Its first observed state is `PENDING`.
+- Created a 30-minute monitor for this one retained recovery job.
+
+### Immutable evidence
+
+- The stale runtime was confirmed before submission; the installer, existing
+  durable manifest, and exact runtime prefix were all present.
+- Remote job script is
+  `/viper/u1/ashima/Softwares/manifests/phenix-recover-147d842f.slurm`;
+  its checksum is recorded above and its only destructive target is the fixed
+  stale Phenix prefix.
+
+### Unresolved work
+
+- Leave job `10919789` untouched while non-terminal. After it leaves the queue,
+  inspect bounded scheduler and controller evidence.
+- On success, verify the new installation manifest, command probes, bundled
+  Python, real CD6 MTZ execution, and one-time timestamp completion. Then stage
+  exactly one protocol-v2 T12 replay.
+
+### Next exact starting point
+
+At the next 30-minute loop, query only Slurm job `10919789`; do not submit T12
+until the reinstalled runtime passes its qualification boundary.
