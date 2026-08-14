@@ -3815,3 +3815,46 @@ At the next 30-minute loop, check only
 `gtd-t12-20260814T183602Z-1e4edc752972-0aaece23` through the approved status
 operation; collect terminal evidence before deciding whether runtime recovery
 is required.
+
+## 2026-08-14T19:06:19Z - Viper Phenix runtime requires recovery
+
+### Discoveries
+
+- Unchanged replay job `10917867` failed before Nextflow on a different compute
+  host with the identical bundled-Python filesystem-encoding error. The
+  `/ptmp` Phenix installation is persistently incomplete or unreadable; this is
+  not a transient node-specific failure and not a T12 scientific result.
+
+### Accomplishments
+
+- Collected and preserved the replay. Its failure signature is again
+  `427dc127f56053167d5957f90fe4d8977da068d8452dcb35e8232ded30d60241`.
+- Stopped T12 replay submission after the repeated signature, as required by
+  the bounded development loop. No candidates, parent evidence, database data,
+  or preceding runs were modified.
+
+### Immutable evidence
+
+- The retained replay is
+  `gtd-t12-20260814T183602Z-1e4edc752972-0aaece23`, source commit
+  `1e4edc752972ada63b421ccf68611ab2ed08cbf2`, Slurm job `10917867`, and T12
+  stage-manifest SHA-256
+  `3aadecc73e8e2b4aba85695e86763ba7a82c37e955f6df125aff7ac605bc2188`.
+- Both failed probes show the same missing bundled-Python encoding library;
+  jobs ran on `vipc2182` and `vipc2232`, respectively.
+
+### Unresolved work
+
+- Recover or reinstall checksum-verified Phenix 2.1-6048 below `/ptmp`, write a
+  new installation manifest under `/u`, and qualify all probes before another
+  T12 submission. Preserve the corrupt prefix and current manifest as evidence;
+  do not overwrite them in place.
+- After runtime qualification, replay protocol-v2 T12 once and proceed directly
+  to T12.5 if all required PDB/MTZ/CCP4 assets and sequence outcomes are valid.
+
+### Next exact starting point
+
+Prepare one create-only scheduled Phenix recovery installation using the
+retained installer SHA-256
+`a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`;
+do not submit another T12 job until its new manifest passes command probes.
