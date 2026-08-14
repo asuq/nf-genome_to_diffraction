@@ -3858,3 +3858,44 @@ Prepare one create-only scheduled Phenix recovery installation using the
 retained installer SHA-256
 `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`;
 do not submit another T12 job until its new manifest passes command probes.
+
+## 2026-08-14T21:06:13Z - Create-only Phenix recovery job prepared locally
+
+### Discoveries
+
+- Recovery can reuse the retained checksum-verified installer and immutable
+  protocol-v2 source checkout. It does not require another download or a T12
+  code change.
+
+### Accomplishments
+
+- Prepared ignored local job script
+  `.untracked/viper-phenix-recover-1e4edc7.slurm`. It first verifies the exact
+  source and installer revisions, refuses to run if bundled Python is healthy,
+  preserves the corrupt prefix plus manifest and logs with the recovery Slurm
+  job suffix, and then performs one create-only scheduled installation at the
+  stable prefix.
+- `bash -n` passes. Script SHA-256 is
+  `4eb586147b470353df0e2ea0b1708f99948c113c4d7f364671e261df221836e1`.
+
+### Immutable evidence
+
+- The recovery binds source commit
+  `1e4edc752972ada63b421ccf68611ab2ed08cbf2` and installer SHA-256
+  `a2455e281f11241debdb25d9788ada8337420b9ff4c92935f97157f0cc9b9795`.
+- The script is deliberately outside Git because it contains user-specific
+  Viper paths; only its checksum and behaviour are recorded here.
+
+### Unresolved work
+
+- Transfer and submit this exact script through a bounded reviewed Viper
+  operation. Raw unrestricted SSH remains outside the approved interface.
+- After terminal success, verify the new manifest and all command probes before
+  staging one protocol-v2 T12 replay.
+
+### Next exact starting point
+
+Install or approve one checksum-gated Viper Phenix-recovery operation that
+accepts only script SHA-256
+`4eb586147b470353df0e2ea0b1708f99948c113c4d7f364671e261df221836e1`;
+do not submit T12 directly.
