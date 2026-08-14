@@ -3734,3 +3734,40 @@ until its next 30-minute status check.
 
 Commit and push protocol v2, require both Pixi CI variants to pass, then deploy
 and stage one immutable T12 successor from the accepted M4 parent.
+
+## 2026-08-14T18:24:44Z - Phenix-output T12 successor launched
+
+### Discoveries
+
+- The checksum-gated T12 boundary staged all 11 candidates unchanged with the
+  new protocol-v2 output contract.
+
+### Accomplishments
+
+- Committed the focused fix as
+  `1e4edc752972ada63b421ccf68611ab2ed08cbf2`; both Pixi variants passed in
+  GitHub Actions run `31828070961`.
+- Deployed checksum-reviewed tools, staged immutable run
+  `gtd-t12-20260814T182413Z-1e4edc752972-b9caf8a2`, and submitted Slurm job
+  `10917754`. Its first observed scheduler state is `RUNNING`.
+
+### Immutable evidence
+
+- nf-helper revision is `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`;
+  source-record SHA-256 is
+  `abd1bd5c50770726343f2d1c407869d29bb91e0b4d989708bc40fc12dc22bb72`;
+  T12 stage-manifest SHA-256 is
+  `8d67e9583ec5ced2708be6fe3bcf7642def3b39f6f08a960f4b02cc8410ba040`.
+- The three preceding terminal T12 runs remain retained and unchanged.
+
+### Unresolved work
+
+- Leave job `10917754` untouched while non-terminal. On completion, collect and
+  verify all 11 refinement and sequence outcomes plus the cached resume. Move
+  directly to T12.5 if the required Phenix assets are present.
+
+### Next exact starting point
+
+At the next 30-minute loop, check only
+`gtd-t12-20260814T182413Z-1e4edc752972-b9caf8a2` through the approved status
+operation and do not infer failure from silence.
