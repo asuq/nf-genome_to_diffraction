@@ -3062,3 +3062,63 @@ Follow the updated 30-minute heartbeat. Check only
 `gtd-m4-copy-20260814T070304Z-dc3c545a0cd6-98156a5d` through the fixed wrapper;
 do not poll databases, use raw SSH, cancel, clean, drop candidates, or infer a
 timeout from silence.
+
+## 2026-08-14T07:20:00Z - Fixed Viper container cache propagated to M4
+
+### Discoveries
+
+- Job `10911920` passed the corrected managed-controller guard and all seven
+  Phenix command probes, then stopped before molecular replacement because the
+  immutable Slurm wrapper had not exported the approved Viper Apptainer cache.
+  nf-helper therefore rejected the profile with the explicit request for
+  `NXF_APPTAINER_CACHEDIR`.
+- The failure signature remained
+  `d98ef01185f144777408f8dc38aad04f0a3e4861bc8290ba13ce2a914bd48bbf`
+  because both failures ended at Nextflow configuration parsing. The bounded
+  causal exception distinguishes this missing cache setting from the preceding
+  host-guard rejection. No Phaser candidate executed in either run.
+
+### Accomplishments
+
+- Exported the fixed site path `/ptmp/ashima/apptainer-cache` immediately before
+  Nextflow profile evaluation in the immutable M4 wrapper and added a contract
+  assertion. Candidate retention, scores, resources, and scientific behaviour
+  are unchanged.
+- The focused contract suite passed 56/56, Bash syntax validation passed, and
+  the complete `pixi run --locked check` suite passed. Parent commit
+  `72bf37746bb3dad70678bf4fa8eaf6ba7471903e` and GitHub Actions run
+  `31779137987` passed under Pixi 0.74.0 and 0.76.2.
+- Deployed fixed job-wrapper SHA-256
+  `4d52581c7b5a830f70efd9fcd295afb77c90f13259be735721b9926183c6c2a0`,
+  imported all 11 candidates again, and submitted successor
+  `gtd-m4-copy-20260814T071851Z-72bf37746bb3-44f56209` as Slurm job
+  `10912594`. Its first observed scheduler state was `PENDING`.
+
+### Immutable evidence
+
+- Retained failed run `gtd-m4-copy-20260814T070304Z-dc3c545a0cd6-98156a5d`,
+  job `10911920`, contains the valid Phenix probe log and bounded Nextflow
+  exception proving that execution stopped before any scientific task.
+- Successor import archive SHA-256 is
+  `51a0724d2ae62f186d15d89d93df13f0719c62c38854a7b51a697b95298c6c6f`;
+  decision SHA-256 is
+  `7bbe539cf3c02b253ee94d829af6cf0b516e8eecedc6c784ab12cd707d012e2c`;
+  review-manifest SHA-256 is
+  `da0604426294602a23f441f6a1aea77ec564e9ef8b091ae588b9b861feef55c4`;
+  frozen MTZ SHA-256 remains
+  `5eb16c3cc3a21e4b7f22cd611834529801c1829fc0a3156a2b6abc2b3de2f20d`.
+
+### Unresolved work
+
+- Leave job `10912594` untouched while non-terminal. It is the first successor
+  carrying both the managed-controller marker and fixed shared container cache.
+- Full Phenix qualification still requires real-CD6 molecular replacement,
+  exactly 11 typed sequential outcomes, and a fully cached resume. After that
+  evidence is collected, continue directly to T12 for all viable alternatives.
+
+### Next exact starting point
+
+Follow the updated 30-minute heartbeat and check only
+`gtd-m4-copy-20260814T071851Z-72bf37746bb3-44f56209` through the fixed wrapper.
+Do not poll databases or predecessors, use raw SSH, cancel, clean, drop
+candidates, or infer timeout from silence.
