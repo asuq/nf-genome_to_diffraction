@@ -3269,3 +3269,49 @@ Run `pixi run --locked check`, inspect the focused diff, and commit/push the T12
 scientific adapter increment. Then implement the fixed Viper T12 stage from
 retained run `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2`; do not rerun
 M4, drop candidates, or poll the completed database track.
+
+## 2026-08-14T13:47:30Z - T12 scientific adapter increment is green
+
+### Discoveries
+
+- The complete local gate needs about six minutes because the integration and
+  all-entry-point Nextflow stub suites are intentionally serial. The new T12
+  workflow itself parsed and published its stub outputs normally; no fallback
+  or additional synthetic case is needed before the real run.
+- The accepted M4 import does not contain the catalogue `source_records.jsonl`.
+  A fixed T12 stage must therefore transfer that small checksum-bound crosswalk
+  while reusing the retained Viper parent PDB/MTZ assets; it must not repeat M4
+  or accept an arbitrary local path.
+
+### Accomplishments
+
+- The complete locked repository gate passed: 341 unit, 56 contract, and 46
+  integration tests; schema, docs, actionlint, public panel, Nextflow syntax,
+  all stub/resume entry points, and Bash wrapper checks also passed.
+- Pushed T12 adapter commit
+  `539e2845be9e7cb537747b82267240e8925dcd66`. GitHub Actions run
+  `31805869956` passed under Pixi 0.74.0 and 0.76.2.
+
+### Immutable evidence
+
+- The committed protocol is `phenix-t12-brief-v1`; the workflow retains every
+  catalogue score and uses four CPUs/16 GB per finalist with four concurrent
+  Viper tasks. The adapter has no per-command timeout.
+- The preceding accepted M4 run and its 11 two-copy parents remain unchanged;
+  no remote job was submitted, cancelled, or cleaned during this increment.
+
+### Unresolved work
+
+- Implement and test the fixed `t12-stage` controller/dispatcher operation that
+  binds the accepted M4 run, all 11 best-supported parents, source crosswalk,
+  Phenix/MTZ/catalogue checksums, and exact source revision.
+- Deploy checksum-reviewed tools, stage/submit all 11 T12 candidates, require a
+  cached resume, collect bounded refinement/map/sequence evidence, then build
+  the T12.5 second review package.
+
+### Next exact starting point
+
+Add `t12` as a site-isolated fixed HPC profile and implement `t12-stage` from
+retained run `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2`. Transfer
+only the fixed 1.1-MB source-record crosswalk, derive all parent PDB/MTZ assets
+inside the retained Viper run, and keep all 11 candidates.
