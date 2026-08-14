@@ -3771,3 +3771,44 @@ and stage one immutable T12 successor from the accepted M4 parent.
 At the next 30-minute loop, check only
 `gtd-t12-20260814T182413Z-1e4edc752972-b9caf8a2` through the approved status
 operation and do not infer failure from silence.
+
+## 2026-08-14T18:36:30Z - T12 blocked by one Phenix runtime outage
+
+### Discoveries
+
+- Retained job `10917754` failed before Nextflow execution. Every Phenix probe
+  reported that its bundled Python could not load the filesystem encoding from
+  the `/ptmp` runtime. This is an explicit environment failure, not a protocol-v2
+  refinement result.
+- The same Phenix prefix had passed all probes and run real refinements in the
+  immediately preceding retained job, so one unchanged replay is the smallest
+  test for a transient shared-filesystem visibility failure.
+
+### Accomplishments
+
+- Collected and preserved the failed run with failure signature
+  `427dc127f56053167d5957f90fe4d8977da068d8452dcb35e8232ded30d60241`.
+- Staged unchanged run `gtd-t12-20260814T183602Z-1e4edc752972-0aaece23`
+  from the same green protocol-v2 commit and submitted Slurm job `10917867`.
+  Its first observed state is `RUNNING`.
+
+### Immutable evidence
+
+- The replay uses source commit
+  `1e4edc752972ada63b421ccf68611ab2ed08cbf2`, nf-helper revision
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, and T12 stage-manifest SHA-256
+  `3aadecc73e8e2b4aba85695e86763ba7a82c37e955f6df125aff7ac605bc2188`.
+- Job `10917754` and all preceding T12 runs remain retained and unchanged.
+
+### Unresolved work
+
+- Leave job `10917867` untouched while non-terminal. If the identical Phenix
+  runtime failure repeats, stop replaying T12 and repair or reinstall the
+  `/ptmp` Phenix runtime before any further scientific run.
+
+### Next exact starting point
+
+At the next 30-minute loop, check only
+`gtd-t12-20260814T183602Z-1e4edc752972-0aaece23` through the approved status
+operation; collect terminal evidence before deciding whether runtime recovery
+is required.
