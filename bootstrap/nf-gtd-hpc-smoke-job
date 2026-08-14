@@ -1646,7 +1646,6 @@ run_m4_copy() {
     local candidate checksum relative command log_file series_supported
     local -a directories=()
 
-    load_p0_config
     M4_INPUTS="$RUN/artifacts/m4-copy-inputs"
     M4_RESULTS="$RUN/artifacts/m4-copy/copy-two"
     mkdir -p "$qualification" "$M4_RESULTS" "$RUN/cache/m4-copy" "$RUN/execution"

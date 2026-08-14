@@ -193,6 +193,10 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert "databases stage-sources" in dispatcher_text
     assert "database-source-stage.log" in dispatcher_text
     assert "logs/m4-import-stage.log" in dispatcher_text
+    m4_body = job.split("run_m4_copy() {", maxsplit=1)[1].split(
+        "run_database() {", maxsplit=1
+    )[0]
+    assert "load_p0_config" not in m4_body
     assert "database-source-bundle-sha256" in dispatcher_text
     assert "--source-bundle" in database_body
     assert (REPOSITORY / "conf" / "hpc-database.paths.example").is_file()
