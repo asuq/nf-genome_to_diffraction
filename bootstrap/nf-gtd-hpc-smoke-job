@@ -1664,6 +1664,7 @@ run_m4_copy() {
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
     export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
+    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
 
     PHASE=test
     printf 'phase=m4_copy_phenix_verify profile=m4-copy\n'
