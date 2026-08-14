@@ -85,7 +85,12 @@ from genome_to_diffraction.ranking import (
     build_diverse_first_copy_funnel,
     build_exact_predicted_funnel,
 )
-from genome_to_diffraction.refinement import T12RunRequest, run_t12_candidate
+from genome_to_diffraction.refinement import (
+    T12RunRequest,
+    T12StageRequest,
+    run_t12_candidate,
+    stage_t12_inputs,
+)
 from genome_to_diffraction.review import (
     MrSeedApprovalRequest,
     MrSeedReviewRequest,
@@ -751,6 +756,13 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help="optional explicit deadline; by default no deadline is imposed",
     )
+    stage_parser = refinement_actions.add_parser(
+        "stage", help="derive the fixed all-candidate T12 boundary from retained M4"
+    )
+    stage_parser.add_argument("--parent-run", type=Path, required=True)
+    stage_parser.add_argument("--source-records", type=Path, required=True)
+    stage_parser.add_argument("--outdir", type=Path, required=True)
+    stage_parser.add_argument("--expected-seed-count", type=int, default=11)
 
     review_parser = subparsers.add_parser(
         "review", help="build and validate file-based human checkpoints"
@@ -1511,9 +1523,23 @@ def _run_review(args: argparse.Namespace) -> int:
 
 
 def _run_refinement(args: argparse.Namespace) -> int:
+    if args.refinement_action == "stage":
+        stage_output = stage_t12_inputs(
+            T12StageRequest(
+                parent_run=args.parent_run,
+                source_records_jsonl=args.source_records,
+                output_directory=args.outdir,
+                expected_seed_count=args.expected_seed_count,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Staged {stage_output.seed_count} T12 finalists: {stage_output.manifest}"
+        )
+        return 0
     if args.refinement_action != "brief":
         raise AssertionError(f"unhandled refinement action: {args.refinement_action}")
-    output = run_t12_candidate(
+    run_output = run_t12_candidate(
         T12RunRequest(
             seed_solution_id=args.seed_solution_id,
             sequence_group_id=args.sequence_group_id,
@@ -1533,9 +1559,9 @@ def _run_refinement(args: argparse.Namespace) -> int:
         )
     )
     print(
-        f"T12 refinement {output.refinement.execution_status.value}; "
-        f"sequence assessment {output.sequence.execution_status.value}: "
-        f"{output.sequence_json}"
+        f"T12 refinement {run_output.refinement.execution_status.value}; "
+        f"sequence assessment {run_output.sequence.execution_status.value}: "
+        f"{run_output.sequence_json}"
     )
     return 0
 

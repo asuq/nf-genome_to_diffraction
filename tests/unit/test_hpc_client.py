@@ -183,6 +183,13 @@ class FakeTransport:
         self.m4_import_archive = archive_path.read_bytes()
         return {"run_id": arguments[0], "remote_operation": "m4-import-stage"}
 
+    def t12_stage(
+        self, arguments: Sequence[str], source_records_path: Path
+    ) -> dict[str, str]:
+        self.calls.append(("t12-stage", tuple(arguments)))
+        assert source_records_path.read_bytes()
+        return {"run_id": arguments[0], "remote_operation": "t12-stage"}
+
 
 def _config(repository: Path, *, site_id: str = "marmic") -> HpcConfig:
     return HpcConfig(
@@ -680,6 +687,31 @@ def test_m4_copy_stage_sends_only_bound_parent_and_checksummed_decisions(
     assert "/" not in arguments[5]
     with pytest.raises(ValidationError, match="confirmation"):
         controller.m4_copy_stage("HEAD", parent_run_id, decisions, "0" * 64)
+
+
+def test_t12_stage_uses_fixed_crosswalk_and_owned_viper_parent(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id="viper-cpu")
+    parent_run_id = str(controller.stage("m4-copy", "HEAD")["run_id"])
+    source_records = (
+        tmp_path
+        / ".untracked/m0-qualification/results/catalogue-reference-637975d"
+        / "source_records.jsonl"
+    )
+    source_records.parent.mkdir(parents=True)
+    source_records.write_text('{"fixed":"crosswalk"}\n', encoding="ascii")
+
+    result = controller.t12_stage("HEAD", parent_run_id)
+
+    assert result["profile"] == "t12"
+    operation, arguments = transport.calls[-1]
+    assert operation == "t12-stage"
+    assert arguments[5] == parent_run_id
+    assert arguments[7] == hashlib.sha256(source_records.read_bytes()).hexdigest()
+    assert all("/" not in argument for argument in arguments)
 
 
 @pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse", "p2-control"])

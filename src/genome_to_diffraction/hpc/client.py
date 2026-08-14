@@ -97,11 +97,12 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/p2-diverse.log",
         "logs/p2-control.log",
         "logs/m4-copy.log",
+        "logs/t12.log",
         "logs/database.log",
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -225,6 +226,13 @@ class TextTransport(Protocol):
         archive_path: Path,
     ) -> dict[str, str]:
         """Stream the one fixed checksum-gated cross-site M4 archive."""
+
+    def t12_stage(
+        self,
+        arguments: Sequence[str],
+        source_records_path: Path,
+    ) -> dict[str, str]:
+        """Stream only the fixed catalogue source-record crosswalk for T12."""
 
 
 class GitRepository(Protocol):
@@ -781,6 +789,45 @@ class SshTransport:
             )
         return fields
 
+    def t12_stage(
+        self,
+        arguments: Sequence[str],
+        source_records_path: Path,
+    ) -> dict[str, str]:
+        """Stream the fixed source-record crosswalk without arbitrary paths."""
+
+        try:
+            with source_records_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("t12-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote T12 staging exceeded the fixed transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote T12 staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote T12 staging returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
 
 class HpcController:
     """Apply local ownership, iteration, timeout, and collection safeguards."""
@@ -1118,6 +1165,81 @@ class HpcController:
             "local_record": str(local_path),
         }
 
+    def t12_stage(self, revision: str, parent_run_id: str) -> dict[str, object]:
+        """Stage all retained copy-two parents plus the fixed source crosswalk."""
+
+        if self.config.site_id != "viper-cpu":
+            raise ValidationError("t12-stage is available only for viper-cpu")
+        self.git.ensure_clean()
+        parent = self._owned_run(parent_run_id)
+        if parent.profile != "m4-copy":
+            raise ValidationError("T12 staging requires a retained M4 parent")
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        source_records = (
+            self.config.repository
+            / ".untracked/m0-qualification/results/catalogue-reference-637975d"
+            / "source_records.jsonl"
+        )
+        source_records_resolved = source_records.resolve(strict=True)
+        if source_records.is_symlink() or not source_records_resolved.is_file():
+            raise ValidationError(
+                "fixed authoritative source-record crosswalk is absent or unsafe"
+            )
+        source_size = source_records_resolved.stat().st_size
+        if source_size < 1 or source_size > 2 * 1024 * 1024:
+            raise ValidationError("fixed source-record crosswalk is outside size limit")
+        source_sha256 = sha256_file(source_records_resolved)
+        iteration, _ = self._next_iteration(parent_run_id)
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+        run_id = f"gtd-t12-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
+        owner_id = secrets.token_hex(16)
+        validate_run_id(run_id)
+        lock_checksum = sha256_file(self.config.repository / "pixi.lock")
+        record = LocalRunRecord(
+            run_id=run_id,
+            site_id=self.config.site_id,
+            commit=commit,
+            owner_id=owner_id,
+            profile="t12",
+            iteration=iteration,
+            parent_run_id=parent_run_id,
+        )
+        local_path = record.write(self.config.local_state_root)
+        self.logger.info(
+            "staging fixed T12 parent boundary",
+            extra={
+                "run_id": run_id,
+                "parent_run_id": parent_run_id,
+                "source_records_sha256": source_sha256,
+            },
+        )
+        remote = self.transport.t12_stage(
+            [
+                run_id,
+                commit,
+                lock_checksum,
+                owner_id,
+                str(iteration),
+                parent_run_id,
+                parent.owner_id,
+                source_sha256,
+                str(source_size),
+            ],
+            source_records_resolved,
+        )
+        return {
+            **remote,
+            "operation": "t12-stage",
+            "run_id": run_id,
+            "site_id": self.config.site_id,
+            "commit": commit,
+            "profile": "t12",
+            "parent_run_id": parent_run_id,
+            "source_records_sha256": source_sha256,
+            "local_record": str(local_path),
+        }
+
     def readiness(self, profile: str) -> dict[str, object]:
         """Inspect one fixed profile's remote prerequisites without creating a run."""
 
@@ -1397,7 +1519,7 @@ class HpcController:
                     else (
                         P2_EXECUTION_TIMEOUT_SECONDS
                         if record.profile
-                        in {"p2", "p2-diverse", "p2-control", "m4-copy"}
+                        in {"p2", "p2-diverse", "p2-control", "m4-copy", "t12"}
                         else self.config.execution_timeout_seconds
                     )
                 )

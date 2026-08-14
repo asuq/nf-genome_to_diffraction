@@ -123,6 +123,20 @@ def test_m4_import_has_no_caller_supplied_paths() -> None:
     assert not {"source", "destination", "parent_run"} & vars(staged).keys()
 
 
+def test_t12_stage_accepts_only_revision_and_owned_parent() -> None:
+    parser = _build_parser()
+
+    staged = parser.parse_args(
+        ["t12-stage", "--revision", "HEAD", "--parent-run", "PARENT"]
+    )
+    submitted = parser.parse_args(["submit", "t12", "--run-id", "RUN_ID"])
+
+    assert staged.operation == "t12-stage"
+    assert staged.parent_run == "PARENT"
+    assert not {"source", "destination", "source_records"} & vars(staged).keys()
+    assert submitted.profile == "t12"
+
+
 def test_m4_copy_remote_stage_exposes_staged_only_after_inputs_are_bound() -> None:
     dispatcher = (
         Path(__file__).resolve().parents[2] / "bootstrap/nf-gtd-hpc-remote"

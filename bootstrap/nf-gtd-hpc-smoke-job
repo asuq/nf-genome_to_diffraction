@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -158,6 +158,9 @@ finalise() {
     elif [[ "$PROFILE" == m4-copy ]]; then
         reports_json='["artifacts/qualification/m4-copy-summary.json","artifacts/qualification/m4-copy-resume-check.json"]'
         retained_json='["artifacts/m4-copy-inputs","artifacts/m4-copy","artifacts/qualification"]'
+    elif [[ "$PROFILE" == t12 ]]; then
+        reports_json='["artifacts/qualification/t12-summary.json","artifacts/qualification/t12-resume-check.json"]'
+        retained_json='["artifacts/t12-inputs","artifacts/t12","artifacts/qualification"]'
     elif [[ "$PROFILE" == database ]]; then
         reports_json='["artifacts/database/preflight.json"]'
         retained_json='["artifacts/database"]'
@@ -1796,6 +1799,157 @@ EOF
     printf 'm4_copy_status=all_approved_seeds_attempted_and_parents_retained\n'
 }
 
+run_t12_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/nextflow-t12-${label}.log" \
+        run "$RUN/source/refine_finalists.nf" \
+        "$@" \
+        -profile viper-cpu \
+        --finalists "$T12_INPUTS/finalists.tsv" \
+        --sequence_groups "$T12_INPUTS/inputs/sequence_groups.jsonl" \
+        --source_records "$T12_INPUTS/inputs/source_records.jsonl" \
+        --phenix_manifest "$T12_INPUTS/inputs/phenix_manifest.json" \
+        --outdir "$T12_RESULTS" \
+        --cache_root "$RUN/cache/t12"
+}
+
+run_t12() {
+    local qualification="$RUN/artifacts/qualification"
+    local cache_counts total cached expected result_count
+    local refinements_tmp sequences_tmp commands_tmp tails_tmp checksums_tmp
+    local directory candidate checksum relative log_file
+    local completed_refinement failed_refinement completed_sequence failed_sequence
+    local -a directories=()
+
+    T12_INPUTS="$RUN/artifacts/t12-inputs"
+    T12_RESULTS="$RUN/artifacts/t12"
+    mkdir -p "$qualification" "$T12_RESULTS" "$RUN/cache/t12" "$RUN/execution"
+    [[ -f "$RUN/state/t12-stage-manifest-sha256" && \
+       "$(sha256sum "$T12_INPUTS/t12_stage_manifest.json" | awk '{print $1}')" == \
+       "$(<"$RUN/state/t12-stage-manifest-sha256")" ]] || {
+        printf 'T12 staged-input manifest changed before execution\n' >&2
+        return 2
+    }
+    [[ -f "$RUN/state/hpc-environment-status" && \
+       "$(<"$RUN/state/hpc-environment-status")" == ready ]] || return 2
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
+    export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
+    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
+
+    PHASE=test
+    printf 'phase=t12_phenix_verify profile=t12\n'
+    "$GTD" --log-format json --no-progress phenix verify \
+        --manifest "$T12_INPUTS/inputs/phenix_manifest.json" \
+        --verification-log "$qualification/t12-phenix-verification.log" \
+        --no-command-timeout
+    sha256sum \
+        "$T12_INPUTS/t12_stage_manifest.json" \
+        "$T12_INPUTS/finalists.tsv" \
+        "$T12_INPUTS/inputs/sequence_groups.jsonl" \
+        "$T12_INPUTS/inputs/source_records.jsonl" \
+        "$T12_INPUTS/inputs/preflight.jsonl" \
+        "$T12_INPUTS/inputs/phenix_manifest.json" \
+        > "$qualification/t12-input-checksums.sha256"
+
+    cd "$RUN/execution"
+    printf 'phase=t12_first_run profile=t12 candidate_count=11\n'
+    run_t12_nextflow first
+    cp -a "$T12_RESULTS/pipeline_info" \
+        "$qualification/t12-first-pipeline-info"
+    printf 'phase=t12_resume_run profile=t12 candidate_count=11\n'
+    run_t12_nextflow resume -resume
+    cp -a "$T12_RESULTS/pipeline_info" \
+        "$qualification/t12-resume-pipeline-info"
+    cache_counts="$(awk -F '\t' '
+        NR == 1 { for (i = 1; i <= NF; i++) if ($i == "status") column = i; next }
+        column > 0 { total++; if ($column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$qualification/t12-resume-pipeline-info/trace.tsv")"
+    read -r total cached <<< "$cache_counts"
+    expected="$(awk 'NR > 1 && NF { count++ } END { print count + 0 }' \
+        "$T12_INPUTS/finalists.tsv")"
+    [[ "$expected" -eq 11 && "$total" -eq "$expected" && \
+       "$cached" -eq "$expected" ]] || return 4
+
+    mapfile -t directories < <(
+        find "$T12_RESULTS" -mindepth 1 -maxdepth 1 -type d \
+            -name 't12_sol_*' -print | LC_ALL=C sort
+    )
+    result_count="${#directories[@]}"
+    [[ "$result_count" -eq "$expected" ]] || return 4
+    refinements_tmp="$qualification/t12-refinement-results.jsonl.tmp.$$"
+    sequences_tmp="$qualification/t12-sequence-results.jsonl.tmp.$$"
+    commands_tmp="$qualification/t12-commands.jsonl.tmp.$$"
+    tails_tmp="$qualification/t12-log-tails.txt.tmp.$$"
+    : > "$refinements_tmp"
+    : > "$sequences_tmp"
+    : > "$commands_tmp"
+    : > "$tails_tmp"
+    for directory in "${directories[@]}"; do
+        [[ -s "$directory/brief_refinement_result.jsonl" && \
+           -s "$directory/sequence_map_result.jsonl" && \
+           -s "$directory/t12_command.json" ]] || return 4
+        cat -- "$directory/brief_refinement_result.jsonl" >> "$refinements_tmp"
+        cat -- "$directory/sequence_map_result.jsonl" >> "$sequences_tmp"
+        "$RUN/source/.pixi/envs/hpc/bin/python" -c \
+            'import json,sys; print(json.dumps(json.load(open(sys.argv[1])),sort_keys=True,separators=(",",":")))' \
+            "$directory/t12_command.json" >> "$commands_tmp"
+        for log_file in \
+            "$directory/phenix.refine.log" \
+            "$directory/phenix.sequence_from_map.log"; do
+            [[ -f "$log_file" ]] || continue
+            printf 'candidate=%s log=%s tail_lines=200\n' \
+                "$(basename "$directory")" "$(basename "$log_file")" >> "$tails_tmp"
+            tail -n 200 "$log_file" >> "$tails_tmp"
+        done
+    done
+    mv -f -- "$refinements_tmp" "$qualification/t12-refinement-results.jsonl"
+    mv -f -- "$sequences_tmp" "$qualification/t12-sequence-results.jsonl"
+    mv -f -- "$commands_tmp" "$qualification/t12-commands.jsonl"
+    mv -f -- "$tails_tmp" "$qualification/t12-log-tails.txt"
+    completed_refinement="$(grep -c '"execution_status":"completed' \
+        "$qualification/t12-refinement-results.jsonl" || true)"
+    failed_refinement=$((result_count - completed_refinement))
+    completed_sequence="$(grep -c '"execution_status":"completed' \
+        "$qualification/t12-sequence-results.jsonl" || true)"
+    failed_sequence=$((result_count - completed_sequence))
+    cat > "$qualification/t12-resume-check.json" <<EOF
+{"schema_version":"1.0","run_id":"$RUN_ID","profile":"t12","process_count":$total,"cached_process_count":$cached,"all_candidate_processes_cached":true}
+EOF
+    cat > "$qualification/t12-summary.json" <<EOF
+{"schema_version":"1.0","run_id":"$RUN_ID","profile":"t12","parent_run_id":"$(<"$RUN/state/parent-run-id")","candidate_count":$result_count,"completed_refinement_count":$completed_refinement,"failed_refinement_count":$failed_refinement,"completed_sequence_count":$completed_sequence,"failed_sequence_count":$failed_sequence,"all_candidates_retained":true,"selection_policy":"retain_all_supported_copy_two_parents","all_resume_processes_cached":true}
+EOF
+    checksums_tmp="$qualification/t12-artifact-sha256.tsv.tmp.$$"
+    printf 'sha256\tpath\n' > "$checksums_tmp"
+    for candidate in \
+        "$qualification/t12-summary.json" \
+        "$qualification/t12-resume-check.json" \
+        "$qualification/t12-refinement-results.jsonl" \
+        "$qualification/t12-sequence-results.jsonl" \
+        "$qualification/t12-commands.jsonl" \
+        "$qualification/t12-log-tails.txt" \
+        "$qualification/t12-input-checksums.sha256" \
+        "$T12_INPUTS/t12_stage_manifest.json"; do
+        checksum="$(sha256sum "$candidate" | awk '{print $1}')"
+        relative="${candidate#"$RUN/"}"
+        printf '%s\t%s\n' "$checksum" "$relative" >> "$checksums_tmp"
+    done
+    mv -f -- "$checksums_tmp" "$qualification/t12-artifact-sha256.tsv"
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == \
+        "$(<"$RUN/state/commit")" ]] || return 3
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
+        return 3
+    printf 't12_status=all_retained_copy_two_parents_refined_and_ranked\n'
+}
+
 run_database() {
     local gtd real_aria2 wrapper_bin database_manifest_sha256
     local source_bundle source_bundle_sha256 actual_source_bundle_sha256
@@ -1999,6 +2153,7 @@ case "$PROFILE" in
     p2-diverse) run_p2_diverse ;;
     p2-control) run_p2_control ;;
     m4-copy) run_m4_copy ;;
+    t12) run_t12 ;;
     database) run_database ;;
 esac
 

@@ -125,6 +125,32 @@ report, and a fully cached resume. A failed addition is not evidence of absence.
 After inspection, proceed directly to T12 brief refinement, maps, and
 sequence-from-map narrowing for all scientifically viable alternatives.
 
+## Fixed T12 continuation
+
+The active T12 boundary binds one retained successful Viper M4 run and accepts
+no caller-supplied input root. It selects the checksum-authenticated supported
+copy-two PDB/MTZ parent for each of the 11 retained seeds inside that run. The
+controller transfers only the fixed authoritative catalogue
+`source_records.jsonl` crosswalk, because the accepted M4 import already holds
+the sequence groups, MTZ preflight, and Phenix manifest.
+
+```bash
+nf-gtd-hpc-test --no-progress deploy-tools --revision HEAD
+nf-gtd-hpc-test --no-progress t12-stage --revision HEAD --parent-run M4_RUN_ID
+nf-gtd-hpc-test --no-progress submit t12 --run-id T12_RUN_ID
+nf-gtd-hpc-test --no-progress status --run-id T12_RUN_ID
+nf-gtd-hpc-test --no-progress logs --run-id T12_RUN_ID --tail 200
+nf-gtd-hpc-test --no-progress collect --run-id T12_RUN_ID
+```
+
+Each candidate receives four CPUs and 16 GB, with at most four concurrent
+refinement tasks and the Viper 24-hour scheduler ceiling. There is no adapter
+timeout. Acceptance requires exactly 11 typed refinement and sequence results,
+all candidates retained, full parent/catalogue/MTZ/Phenix/source/Pixi/lock
+provenance, and an 11/11 cached resume pass. Candidate-level scientific or tool
+failure remains reviewable evidence and does not abort or remove other
+candidates.
+
 ## Database track
 
 ```bash

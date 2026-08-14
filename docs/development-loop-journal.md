@@ -3315,3 +3315,60 @@ Add `t12` as a site-isolated fixed HPC profile and implement `t12-stage` from
 retained run `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2`. Transfer
 only the fixed 1.1-MB source-record crosswalk, derive all parent PDB/MTZ assets
 inside the retained Viper run, and keep all 11 candidates.
+
+## 2026-08-14T14:11:53Z - Fixed Viper T12 boundary implemented and locally green
+
+### Discoveries
+
+- The accepted M4 candidate directory stores the supported copy-two child
+  directly as `PHASER.1.pdb` and `PHASER.1.mtz`; later unsupported copy-three
+  evidence is isolated below `copy_03`. T12 can therefore derive one exact
+  checksum-authenticated two-copy parent per seed without rerunning Phaser or
+  interpreting an unsupported third placement as absence.
+- The retained M4 run already contains sequence groups, preflight, the site
+  Phenix manifest, and full copy results. Only the fixed authoritative
+  `source_records.jsonl` catalogue-to-locus crosswalk is absent and needs to
+  cross the local-to-Viper boundary.
+
+### Accomplishments
+
+- Added `t12-stage`, a Viper-only controller/dispatcher operation that accepts
+  only a pushed revision and an owned retained M4 run ID. It transfers the
+  fixed 1.1-MB source crosswalk, validates its checksum and exact catalogue
+  identity, and stages exactly 11 supported copy-two PDB/MTZ parents with a
+  deterministic manifest and finalists table.
+- Added the fixed `t12` scheduler profile, 24-hour outer job, four CPUs/16 GB
+  per candidate, four concurrent refinements, no adapter timeout, Phenix
+  verification, all-11 first and cached-resume Nextflow runs, typed aggregate
+  refinement/sequence evidence, bounded log tails, checksums, and collection
+  allowlist. Candidate failures remain typed and do not remove alternatives.
+- Added direct stage/controller/CLI tests and the Viper runbook procedure. The
+  complete locked gate passed: 344 unit, 56 contract, and 46 integration tests,
+  plus Ruff, strict mypy, schema/docs/actionlint/public-panel validation,
+  Nextflow syntax and stub/resume checks, and Bash wrapper syntax.
+
+### Immutable evidence
+
+- The T12 stage is bound to retained M4 run
+  `gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2`; that parent remains
+  terminal accepted evidence and was not polled, rerun, cancelled, cleaned, or
+  modified in this increment.
+- The fixed local crosswalk remains
+  `.untracked/m0-qualification/results/catalogue-reference-637975d/source_records.jsonl`;
+  no caller-supplied source or destination path was added to the HPC interface.
+
+### Unresolved work
+
+- Commit and push this coherent T12 boundary, require both Pixi CI versions to
+  pass, deploy the checksum-reviewed tools, then stage and submit the real
+  all-11 T12 run from the accepted M4 parent.
+- Require terminal bounded evidence and an 11/11 cached resume before building
+  the T12.5 top-10/top-25/full sequence review and approval package.
+
+### Next exact starting point
+
+Inspect and commit the focused T12 boundary diff, push it, and monitor both CI
+jobs. After green CI, run `deploy-tools`, `t12-stage` with parent
+`gtd-m4-copy-20260814T105014Z-380cc8e7b14e-0caf3dc2`, then `submit t12` as
+separate approved wrapper operations and replace this heartbeat with the
+successor 30-minute T12 monitor.

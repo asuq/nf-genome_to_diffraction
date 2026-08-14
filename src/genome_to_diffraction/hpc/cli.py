@@ -89,7 +89,16 @@ def _build_parser() -> argparse.ArgumentParser:
     submit = actions.add_parser("submit", help="submit the fixed Slurm profile")
     submit.add_argument(
         "profile",
-        choices=("smoke", "p0", "p1", "p2", "p2-diverse", "p2-control", "m4-copy"),
+        choices=(
+            "smoke",
+            "p0",
+            "p1",
+            "p2",
+            "p2-diverse",
+            "p2-control",
+            "m4-copy",
+            "t12",
+        ),
     )
     submit.add_argument("--run-id", required=True)
 
@@ -126,6 +135,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="stage the fixed collected Marmic P2 handoff as a Viper M4 run",
     )
     m4_import.add_argument("--revision", required=True)
+
+    t12_stage = actions.add_parser(
+        "t12-stage",
+        help="stage all retained M4 copy-two parents for Viper T12",
+    )
+    t12_stage.add_argument("--revision", required=True)
+    t12_stage.add_argument("--parent-run", required=True)
 
     clean = actions.add_parser(
         "clean", help="delete one inactive run after external approval"
@@ -167,6 +183,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         )
     if args.operation == "m4-import-stage":
         return controller.m4_import_stage(args.revision)
+    if args.operation == "t12-stage":
+        return controller.t12_stage(args.revision, args.parent_run)
     if args.operation == "submit":
         return controller.submit(args.profile, args.run_id)
     if args.operation == "status":
