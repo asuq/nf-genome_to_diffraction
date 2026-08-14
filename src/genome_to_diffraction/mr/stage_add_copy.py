@@ -155,7 +155,7 @@ def _model_source_relative_path(
 ) -> str:
     """Return provenance relative to the tree that owns the staged source."""
 
-    anchor = output if cross_site_import else parent
+    anchor = (output if cross_site_import else parent).resolve(strict=True)
     try:
         return str(source_model.relative_to(anchor))
     except ValueError as error:
