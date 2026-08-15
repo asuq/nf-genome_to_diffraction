@@ -15,6 +15,11 @@ from genome_to_diffraction.review.sequence_checkpoint import (
     SequenceCheckpointRequest,
     build_sequence_checkpoint,
 )
+from genome_to_diffraction.review.status_engine import (
+    StatusEngineError,
+    StatusRequest,
+    build_status_record,
+)
 
 __all__ = [
     "MrSeedApprovalOutput",
@@ -25,7 +30,10 @@ __all__ = [
     "SequenceCheckpointError",
     "SequenceCheckpointOutput",
     "SequenceCheckpointRequest",
+    "StatusEngineError",
+    "StatusRequest",
     "build_mr_seed_review",
     "build_sequence_checkpoint",
+    "build_status_record",
     "validate_mr_seed_approvals",
 ]

@@ -66,7 +66,7 @@ overstated:
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
 | Epic 10 | The first-copy Phaser adapter, provisional ranking screen, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel produced 11 parsed solutions, six in the higher-priority numeric tier | Publish a version-3 retain-all review package, collect all 11 inspectable solutions, complete human map/packing review, and validate an explicit decision |
-| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 then produced 11/11 refined PDB/MTZ/map and sequence results with cached resume. The checksum-gated T12.5 top-10/top-25/full checkpoint is implemented | Collect and inspect the self-contained T12.5 package, record human sequence decisions, then implement final statuses and reporting |
+| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 now records execution, scientific, and assumption states independently | Record human sequence decisions while implementing the self-contained report and resource summary |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
 The accepted main workflow still terminates at
@@ -418,6 +418,9 @@ heteromer logic.
 
 1. **T13.1 — Status engine.** Derive terminal scientific and assumption statuses
    from validated evidence while preserving independent execution status.
+   Implemented for accepted T12/T12.5 evidence: empty decisions remain
+   `completed_success` plus `insufficient_evidence`, and scientific promotion
+   requires explicit human approval and an assessed prototype assumption.
 2. **T13.2 — Report.** Produce one self-contained review-focused HTML report per
    crystal plus machine-readable tables/statuses and direct provenance links.
 3. **T13.3 — Resource summary.** Report process counts, retries, cache hits,

@@ -95,8 +95,10 @@ from genome_to_diffraction.review import (
     MrSeedApprovalRequest,
     MrSeedReviewRequest,
     SequenceCheckpointRequest,
+    StatusRequest,
     build_mr_seed_review,
     build_sequence_checkpoint,
+    build_status_record,
     validate_mr_seed_approvals,
 )
 from genome_to_diffraction.schema_check import validate_repository
@@ -808,6 +810,24 @@ def _build_parser() -> argparse.ArgumentParser:
     sequence_checkpoint_parser.add_argument("--job-result", type=Path, required=True)
     sequence_checkpoint_parser.add_argument("--asset-root", type=Path, required=True)
     sequence_checkpoint_parser.add_argument("--outdir", type=Path, required=True)
+    status_parser = review_actions.add_parser(
+        "build-status",
+        help="derive the T13.1 execution, scientific, and assumption status",
+    )
+    status_parser.add_argument("--crystal-id", required=True)
+    status_parser.add_argument("--t12-summary", type=Path, required=True)
+    status_parser.add_argument("--job-result", type=Path, required=True)
+    status_parser.add_argument("--refinement-results", type=Path, required=True)
+    status_parser.add_argument("--checkpoint-manifest", type=Path, required=True)
+    status_parser.add_argument("--approval-candidates", type=Path, required=True)
+    status_parser.add_argument("--decisions", type=Path, required=True)
+    status_parser.add_argument(
+        "--prototype-assumption-status",
+        choices=("consistent", "possibly_violated", "violated", "unknown"),
+        default="unknown",
+    )
+    status_parser.add_argument("--residual-content-suspected", action="store_true")
+    status_parser.add_argument("--out", type=Path, required=True)
 
     search_parser = subparsers.add_parser(
         "structure-search", help="search immutable structural-reference databases"
@@ -1541,6 +1561,30 @@ def _run_review(args: argparse.Namespace) -> int:
         print(
             f"Built T12.5 sequence checkpoint for {sequence_output.finalist_count} "
             f"finalist(s): {sequence_output.manifest_json}"
+        )
+        return 0
+    if args.review_action == "build-status":
+        from genome_to_diffraction.schemas.results import PrototypeAssumptionStatus
+
+        status = build_status_record(
+            StatusRequest(
+                crystal_id=args.crystal_id,
+                t12_summary_json=args.t12_summary,
+                job_result_json=args.job_result,
+                refinement_results_jsonl=args.refinement_results,
+                checkpoint_manifest_json=args.checkpoint_manifest,
+                approval_candidates_tsv=args.approval_candidates,
+                decisions_tsv=args.decisions,
+                output_json=args.out,
+                prototype_assumption_status=PrototypeAssumptionStatus(
+                    args.prototype_assumption_status
+                ),
+                residual_content_suspected=args.residual_content_suspected,
+            )
+        )
+        print(
+            f"Built T13.1 status {status.execution_status.value}/"
+            f"{status.scientific_status.value}: {args.out}"
         )
         return 0
     if args.review_action != "validate-mr-seeds":

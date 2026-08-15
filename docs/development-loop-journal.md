@@ -4201,3 +4201,103 @@ Inspect and commit the focused T12.5 diff, push it, and require GitHub Actions
 to pass. Deploy the reviewed tools and invoke only `t12-review-collect` for
 `gtd-t12-20260815T014459Z-f50e02fe1b1a-4eff44ad`; do not rerun T12 or remove
 any retained candidate.
+
+## 2026-08-15T13:10:44Z - T12.5 review package collected and verified
+
+### Discoveries
+
+- The fixed checksum-gated transfer completed without repeating T12. The
+  resulting package retains 11 finalist directories and exactly four review
+  assets per finalist: refined PDB, refined MTZ, `2mFo-DFc` CCP4 map, and
+  sequence-from-map PDB.
+- The deterministic views contain 110 top-10 rows, 275 top-25 rows, and 16,341
+  full scored rows. The 107 unique primary approval candidates are suggestions
+  for human review only; the approval template contains zero decisions.
+- All 44 asset checksums and all six rendered-output checksums match the
+  package manifest. All 330 HTML asset links resolve locally.
+
+### Accomplishments
+
+- Committed T12.5 as `15afb13e0e13a29932c4fcfa0f9eacc3c9672afa`, pushed it,
+  and verified both Pixi 0.74.0 and 0.76.2 jobs in GitHub Actions run
+  `31884562729`.
+- Deployed the reviewed controller tools, installed the matching local wrapper,
+  and collected the self-contained T12.5 package for retained run
+  `gtd-t12-20260815T014459Z-f50e02fe1b1a-4eff44ad`.
+- No finalist or scored sequence was discarded, and no scientific identity was
+  approved automatically.
+
+### Immutable evidence
+
+- T12.5 package ID is
+  `seqreview_69c4c2705c35a12bc104581c4444076cee91daae13d0a3a354d0a20e8a000c07`.
+- Deployed dispatcher SHA-256 is
+  `ec1577dc7910769040727cbaee9bcb3fc00fc10d22b2cec46f81242931b34f93`;
+  installed local wrapper SHA-256 is
+  `eeae34406c8d3a16e9185e4e0f9c9b9982a3fb10aab04aa67b2efead13eb816f`.
+- The package preserves T12 stage-manifest SHA-256
+  `b52ff6be476d24c3498fe44c41704c9c28b130f7b262200a5db4a5bfdb9d7914`,
+  refinement-results SHA-256
+  `f021fcab3af830cdf3904039857e88e1357b3b93372d4ca4331d6ccf8e6abd07`,
+  and sequence-results SHA-256
+  `7edddb2967b1982d74c3e61897a841bbf710fdf8d4e3a8fb39662ea6229a4f93`.
+
+### Unresolved work
+
+- Human Coot review and explicit sequence decisions remain required. The high
+  preliminary `R_free` values prevent treating any candidate as a validated
+  structure or exact identity.
+- Begin M5 with the smallest T13.1 status engine. It must preserve successful
+  execution independently from scientific insufficiency while the approval
+  template is empty, then consume explicit human decisions without inventing
+  an identity.
+
+### Next exact starting point
+
+Implement and unit-test a deterministic T13.1 status record from the accepted
+T12/T12.5 evidence and explicit approval decisions. Do not begin the
+three-dataset pilot or claim a credible structure before human review.
+
+## 2026-08-15T13:16:12Z - Minimal T13.1 status engine applied to CD6
+
+### Discoveries
+
+- Successful workflow execution is not a scientific solution. With no recorded
+  Coot decision and no assessed single-component assumption, the real CD6
+  evidence correctly resolves to `completed_success`,
+  `insufficient_evidence`, and assumption status `unknown`.
+- All 11 retained finalists have a best-supported copy count of two in the
+  accepted refinement evidence. This count is preserved without selecting a
+  sequence identity.
+
+### Accomplishments
+
+- Implemented a deterministic T13.1 status builder and CLI. It validates the
+  accepted T12 summary/job/refinement records, the checksum-bound T12.5
+  candidate table, and explicit non-conflicting sequence decisions.
+- Added focused tests proving that empty decisions cannot promote a candidate,
+  while an explicit approval plus a reviewed `consistent` assumption can
+  produce the corresponding credible-single-component status.
+- Applied the engine to `CD6QS2P2G1_5`; its current record has no primary or
+  extended sequence groups and retains both pending-review warnings.
+
+### Immutable evidence
+
+- The current untracked CD6 status record SHA-256 is
+  `9fd1910ef2dfa0a572b62a22fe85027092242f00643ead5dc2ea305e577620b0`.
+- It is derived from T12 run
+  `gtd-t12-20260815T014459Z-f50e02fe1b1a-4eff44ad` and T12.5 package
+  `seqreview_69c4c2705c35a12bc104581c4444076cee91daae13d0a3a354d0a20e8a000c07`.
+
+### Unresolved work
+
+- Run the complete locked repository gate, commit and push T13.1, and require
+  both Pixi CI jobs to pass.
+- Implement the smallest T13.2 self-contained report from the status and T12.5
+  package. Human Coot review remains independent and can update the decisions
+  before final scientific interpretation.
+
+### Next exact starting point
+
+Run `pixi run --locked check`, inspect the focused T13.1 diff, then commit and
+push. After green CI, begin T13.2 without starting the three-dataset pilot.

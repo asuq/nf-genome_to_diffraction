@@ -162,6 +162,28 @@ contains `sequence_candidates_top10.tsv`, `sequence_candidates_top25.tsv`,
 manifest, and all finalist assets. The approval template is deliberately empty;
 reviewing in Coot and recording decisions remains a human checkpoint.
 
+After collection, build the T13.1 status locally from the accepted T12 summary,
+job result, refinement records, checkpoint manifest, candidate table, and human
+decision TSV:
+
+```bash
+pixi run --locked genome-to-diffraction --no-progress review build-status \
+  --crystal-id CRYSTAL_ID \
+  --t12-summary T12_SUMMARY_JSON \
+  --job-result JOB_RESULT_JSON \
+  --refinement-results T12_REFINEMENT_RESULTS_JSONL \
+  --checkpoint-manifest SEQUENCE_CHECKPOINT_MANIFEST_JSON \
+  --approval-candidates SEQUENCE_APPROVAL_CANDIDATES_TSV \
+  --decisions APPROVED_SEQUENCE_GROUPS_TSV \
+  --out SCIENTIFIC_STATUS_JSON
+```
+
+The default assumption status is `unknown`. An empty decision file preserves
+`completed_success` execution while reporting `insufficient_evidence`; it never
+promotes a ranked candidate. Set the assumption-status option only after that
+assumption has been reviewed, and use `--residual-content-suspected` only when
+the experimental evidence supports it.
+
 ## Database track
 
 ```bash
