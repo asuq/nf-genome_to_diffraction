@@ -628,28 +628,24 @@ or evidence model. None is part of the 26–44 week baseline estimate.
 
 ## Immediate next goal
 
-M0–M2 and the real bounded P2-diverse execution path have passed. The active
-goal is now **close the M3 scientific control and human-review gate**, with the
-shortest path toward same-component placement:
+M0–M4 and T13.1–T13.3 have passed on the accepted real CD6 evidence. The active
+goal is now **close M5 and the Prototype 0.2 gate** without expanding scope:
 
-1. retain the completed `p2-control` evidence showing that the checksum-frozen
-   exact positive overwhelmingly outranks the unrelated model through the same
-   scheduled adapter;
-2. confirm that the paired independently anchored 1UBQ result remains retained
-   but ranks below the exact positive on the same diffraction data;
-3. compare the controls with all 11 CD6 parsed solutions without tuning the
-   provisional `LLG > 50` or `TFZ > 5` screen from this one pilot crystal;
-4. inspect every retained candidate coordinate, coefficient set, packing result,
-   and raw Phaser warnings, recording an explicit approve/reject decision; and
-5. validate any approval against the immutable version-3 retain-all review
-   package before implementing or starting M4 additional-copy placement.
+1. complete Coot review of all 11 retained CD6 alternatives, record explicit
+   sequence-group decisions, and assess the single-component assumption;
+2. rebuild the scientific status and self-contained report from those human
+   decisions without treating preliminary scores or high `R_free` values as a
+   validated identity;
+3. connect the already qualified P0–P4 components through the normal main
+   workflow while preserving both human checkpoints, all retained alternatives,
+   immutable provenance, and cached resume;
+4. freeze one clean revision and run the three-dataset T13.4 feasibility pilot
+   with ground truth kept blind until review; and
+5. use all three cases for the bounded T13.5 resource and heuristic review,
+   document known failures and unsupported cases, and assess the Prototype 0.2
+   gate. Three crystals are feasibility evidence, not statistical calibration.
 
-Six higher-priority PDB/MTZ/log bundles from the immutable version-2 package are
-locally available; five additional parsed solutions were preserved remotely but
-were excluded from that old transfer by the numeric screen. Version 3 removes
-that transfer filter so every parsed solution is available for Coot. The
-uncapped Foldseek run, optional ESM Atlas decision, and provider-aware union
-remain tracked qualification work,
-not blockers for these controls. Additional synthetic polish and a repeated
-CD6 screen must not delay the control execution. A PDB model is evidence for a
-supplied catalogue candidate, never a reportable external identity.
+After Prototype 0.2, M6 defines an independent leakage-controlled benchmark and
+internal research release. Heteromer reconstruction and the other deferred
+extensions remain outside this single-component roadmap and require separate
+gates.

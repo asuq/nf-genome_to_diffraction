@@ -4449,6 +4449,9 @@ and the smallest end-to-end workflow integration needed for T13.4.
 - Both Pixi 0.74.0 and 0.76.2 jobs passed in GitHub Actions run
   `31889382941`. T13.1 status, T13.2 reporting, and T13.3 resource accounting
   are now closed for the accepted real CD6 evidence.
+- Replaced the roadmap's stale M3 immediate-goal text with the active M5 human
+  checkpoint, main-workflow integration, three-dataset pilot, and calibration
+  sequence.
 
 ### Immutable evidence
 
