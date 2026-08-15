@@ -184,6 +184,20 @@ promotes a ranked candidate. Set the assumption-status option only after that
 assumption has been reviewed, and use `--residual-content-suspected` only when
 the experimental evidence supports it.
 
+Add the T13.2 report to the already verified checkpoint package:
+
+```bash
+pixi run --locked genome-to-diffraction --no-progress review build-report \
+  --status SCIENTIFIC_STATUS_JSON \
+  --checkpoint-dir T12_SEQUENCE_CHECKPOINT_DIRECTORY
+```
+
+The builder first rechecks every manifest-bound table and finalist asset. It
+then writes `crystal_report.html`, `scientific_status.json`, and
+`crystal_report_manifest.json` inside that package, so its links remain
+portable with the review assets. The HTML is a review aid, not a replacement
+for Coot inspection or explicit decisions.
+
 ## Database track
 
 ```bash

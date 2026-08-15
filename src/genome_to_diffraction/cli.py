@@ -92,10 +92,12 @@ from genome_to_diffraction.refinement import (
     stage_t12_inputs,
 )
 from genome_to_diffraction.review import (
+    CrystalReportRequest,
     MrSeedApprovalRequest,
     MrSeedReviewRequest,
     SequenceCheckpointRequest,
     StatusRequest,
+    build_crystal_report,
     build_mr_seed_review,
     build_sequence_checkpoint,
     build_status_record,
@@ -828,6 +830,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     status_parser.add_argument("--residual-content-suspected", action="store_true")
     status_parser.add_argument("--out", type=Path, required=True)
+    report_parser = review_actions.add_parser(
+        "build-report",
+        help="add the T13.2 crystal report to a verified T12.5 package",
+    )
+    report_parser.add_argument("--status", type=Path, required=True)
+    report_parser.add_argument("--checkpoint-dir", type=Path, required=True)
 
     search_parser = subparsers.add_parser(
         "structure-search", help="search immutable structural-reference databases"
@@ -1525,6 +1533,15 @@ def _run_mr(args: argparse.Namespace) -> int:
 
 
 def _run_review(args: argparse.Namespace) -> int:
+    if args.review_action == "build-report":
+        report = build_crystal_report(
+            CrystalReportRequest(
+                status_json=args.status,
+                checkpoint_directory=args.checkpoint_dir,
+            )
+        )
+        print(f"Built T13.2 crystal report {report.report_id}: {report.report_html}")
+        return 0
     if args.review_action == "build-mr-seed":
         output = build_mr_seed_review(
             MrSeedReviewRequest(

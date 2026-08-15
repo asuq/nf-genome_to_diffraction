@@ -4301,3 +4301,45 @@ three-dataset pilot or claim a credible structure before human review.
 
 Run `pixi run --locked check`, inspect the focused T13.1 diff, then commit and
 push. After green CI, begin T13.2 without starting the three-dataset pilot.
+
+## 2026-08-15T13:30:02Z - T13.2 report built from verified CD6 evidence
+
+### Discoveries
+
+- A report can remain portable without duplicating the 44 finalist assets by
+  living inside the verified T12.5 package. All table, decision, PDB, MTZ, map,
+  sequence-model, status, and manifest links then remain local.
+- The current CD6 report exposes 52 direct links and all resolve. It prominently
+  retains `insufficient_evidence`, the pending human approval, and the unknown
+  prototype-assumption state.
+
+### Accomplishments
+
+- T13.1 commit `f0bed24dc05078fbbef479aeb2b51a7ac4aec4ee` passed both
+  Pixi 0.74.0 and 0.76.2 jobs in GitHub Actions run `31887008617`.
+- Implemented the smallest T13.2 builder. It revalidates every checksum-bound
+  T12.5 table and finalist asset before adding the HTML report, machine-readable
+  scientific status, and a content-derived report manifest.
+- Applied it to the accepted CD6 package. No candidate, sequence group, warning,
+  or human-checkpoint requirement was removed.
+
+### Immutable evidence
+
+- Real CD6 report ID is
+  `report_e9b2c1bc4c69dafab5961c1c4bc8bc26b4bdcd8f4da3c4acb74b2ec432a0935a`.
+- Both recorded T13.2 output checksums match and all 52 report links resolve
+  inside T12.5 package
+  `seqreview_69c4c2705c35a12bc104581c4444076cee91daae13d0a3a354d0a20e8a000c07`.
+
+### Unresolved work
+
+- Run the complete locked gate, commit and push T13.2, and require both Pixi CI
+  jobs to pass.
+- Implement T13.3 resource summary from the already collected Nextflow traces,
+  Slurm result, checksums, and storage inventory. Human Coot review can proceed
+  independently; do not start the three-dataset pilot yet.
+
+### Next exact starting point
+
+Run `pixi run --locked check`, inspect and commit the focused T13.2 diff, push,
+and monitor CI. Then begin the smallest deterministic T13.3 resource summary.
