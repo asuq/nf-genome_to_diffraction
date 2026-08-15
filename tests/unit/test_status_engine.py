@@ -1,6 +1,7 @@
 """T13.1 status derivation keeps execution and interpretation separate."""
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from genome_to_diffraction.checksums import sha256_file
@@ -129,11 +130,9 @@ def test_explicit_approval_and_consistent_assumption_enable_credible_status(
         "sequence_candidate\tseq_candidate\tapprove\treviewer\t"
         "2026-08-15T08:00:00Z\tReviewed in Coot\t\n",
     )
-    request = StatusRequest(
-        **{
-            **request.__dict__,
-            "prototype_assumption_status": PrototypeAssumptionStatus.CONSISTENT,
-        }
+    request = replace(
+        request,
+        prototype_assumption_status=PrototypeAssumptionStatus.CONSISTENT,
     )
 
     record = build_status_record(request)

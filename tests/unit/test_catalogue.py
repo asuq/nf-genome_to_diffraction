@@ -217,8 +217,8 @@ def test_gff_and_gbff_adapters_preserve_locus_coordinates(tmp_path: Path) -> Non
     record = SeqRecord(Seq("ATG" * 20), id="contig_2", name="contig_2")
     record.annotations["molecule_type"] = "DNA"
     record.features.append(
-        SeqFeature(  # type: ignore[no-untyped-call]
-            FeatureLocation(3, 33, strand=1),  # type: ignore[no-untyped-call]
+        SeqFeature(
+            FeatureLocation(3, 33, strand=1),
             type="CDS",
             qualifiers={
                 "protein_id": ["protein_2"],

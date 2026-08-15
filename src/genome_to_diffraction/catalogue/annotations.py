@@ -237,7 +237,7 @@ def read_locus_tsv(path: Path) -> LocusMap:
             strand_text = _optional(row.get("strand"))
             if strand_text not in {None, "+", "-", "."}:
                 raise ValueError(f"{path}:{row_number}:strand: expected +, -, or .")
-            strand = cast(Literal["+", "-", "."] | None, strand_text)
+            strand = strand_text
             _append_locus(
                 output,
                 protein_id,
@@ -333,7 +333,7 @@ def read_gbff(path: Path) -> LocusMap:
     """Load CDS locus metadata from GenBank flat-file records."""
 
     output: dict[str, list[LocusMetadata]] = {}
-    for record in SeqIO.parse(path, "genbank"):  # type: ignore[no-untyped-call]
+    for record in SeqIO.parse(path, "genbank"):
         for feature in record.features:
             if feature.type != "CDS":
                 continue

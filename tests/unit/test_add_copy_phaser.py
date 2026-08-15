@@ -345,13 +345,11 @@ def test_supported_copy_two_advances_to_copy_three(
     child_result_path.write_text(
         f"{canonical_json_text(child_result)}\n", encoding="utf-8"
     )
-    request = AddCopyRunRequest(
-        **{
-            **first_request.__dict__,
-            "output_directory": tmp_path / "copy three",
-            "parent_result_jsonl": child_result_path,
-            "parent_coordinate": child_coordinate,
-        }
+    request = replace(
+        first_request,
+        output_directory=tmp_path / "copy three",
+        parent_result_jsonl=child_result_path,
+        parent_coordinate=child_coordinate,
     )
     _fake_runtime(
         monkeypatch,
@@ -439,12 +437,10 @@ def test_copy_three_refuses_to_advance_beyond_expected_count(tmp_path: Path) -> 
     parent_result_path.write_text(
         f"{canonical_json_text(parent_result)}\n", encoding="utf-8"
     )
-    sequential_request = AddCopyRunRequest(
-        **{
-            **request.__dict__,
-            "parent_result_jsonl": parent_result_path,
-            "parent_coordinate": parent_coordinate,
-        }
+    sequential_request = replace(
+        request,
+        parent_result_jsonl=parent_result_path,
+        parent_coordinate=parent_coordinate,
     )
 
     with pytest.raises(PhaserInputError, match="no expected additional copy"):
@@ -483,12 +479,10 @@ def test_sequential_parent_coordinate_checksum_mismatch_fails(tmp_path: Path) ->
     parent_result_path.write_text(
         f"{canonical_json_text(parent_result)}\n", encoding="utf-8"
     )
-    sequential_request = AddCopyRunRequest(
-        **{
-            **request.__dict__,
-            "parent_result_jsonl": parent_result_path,
-            "parent_coordinate": parent_coordinate,
-        }
+    sequential_request = replace(
+        request,
+        parent_result_jsonl=parent_result_path,
+        parent_coordinate=parent_coordinate,
     )
 
     with pytest.raises(PhaserInputError, match="not a supported child"):

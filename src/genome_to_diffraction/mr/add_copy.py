@@ -136,7 +136,9 @@ def _jsonl_records[T](path: Path, model: type[T], *, label: str) -> tuple[T, ...
             if not line.strip():
                 continue
             try:
-                records.append(model.model_validate_json(line))  # type: ignore[attr-defined]
+                records.append(
+                    model.model_validate_json(line)  # ty: ignore[unresolved-attribute]
+                )
             except ValidationError as error:
                 raise PhaserInputError(
                     f"invalid {label} record at line {line_number}: {resolved}"

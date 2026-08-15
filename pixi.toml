@@ -32,7 +32,7 @@ rfc8785 = ">=0.1,<1"
 [feature.dev.dependencies]
 pytest = ">=8.4,<9"
 ruff = ">=0.12,<1"
-mypy = ">=1.17,<2"
+ty = ">=0.0.54,<0.1"
 actionlint = ">=1.7,<2"
 
 [feature.dev.pypi-dependencies]
@@ -57,7 +57,7 @@ hpc = ["dev", "hpc"]
 format = "ruff format src tests"
 format-check = "ruff format --check src tests"
 lint = "ruff check src tests"
-typecheck = "mypy src tests"
+typecheck = "ty check"
 test-unit = "pytest --basetemp=/tmp/nf-gtd-pytest-unit -q tests/unit"
 test-contract = "pytest --basetemp=/tmp/nf-gtd-pytest-contract -q tests/contract"
 test-integration = "pytest --basetemp=/tmp/nf-gtd-pytest-integration -q tests/integration"

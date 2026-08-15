@@ -377,7 +377,7 @@ def _ensure_resource(
 def _fasta_records(path: Path, *, progress: bool) -> Iterable[tuple[str, str, str]]:
     with path.open(encoding="utf-8") as handle:
         iterator = tqdm(
-            SimpleFastaParser(handle),  # type: ignore[no-untyped-call]
+            SimpleFastaParser(handle),
             desc=f"Inspect {path.name}",
             unit="protein",
             disable=not progress,

@@ -365,7 +365,7 @@ def _http_get(
                     ) from error
                 return _HttpResponse(
                     requested_url=url,
-                    url=error.geturl(),
+                    url=error.url,
                     status=404,
                     headers=_selected_headers(error.headers),
                     body=body,

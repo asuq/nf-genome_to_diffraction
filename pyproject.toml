@@ -47,13 +47,13 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
-[tool.mypy]
-python_version = "3.14"
-strict = true
-files = ["src", "tests"]
-warn_unused_configs = true
-exclude = ["tests/fixtures"]
+[tool.ty.environment]
+python-version = "3.14"
 
-[[tool.mypy.overrides]]
-module = "gemmi"
-ignore_missing_imports = true
+[tool.ty.analysis]
+# Gemmi is a compiled extension whose public symbols are not discoverable by ty.
+replace-imports-with-any = ["gemmi"]
+
+[tool.ty.src]
+include = ["src", "tests"]
+exclude = ["tests/fixtures"]

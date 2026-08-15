@@ -68,7 +68,9 @@ def _request(tmp_path: Path, **updates: object) -> DatabasePreparationRequest:
         "progress": False,
     }
     values.update(updates)
-    return DatabasePreparationRequest(**values)  # type: ignore[arg-type]
+    return DatabasePreparationRequest(
+        **values  # ty: ignore[invalid-argument-type]
+    )
 
 
 def test_database_root_lock_serialises_administrative_runs(
@@ -1118,7 +1120,9 @@ def test_mocked_database_prepare_consumes_only_verified_offline_sources(
     aria2c.chmod(0o755)
 
     def reject_network(*_args: object, **_kwargs: object) -> None:
-        pytest.fail("offline database preparation attempted a network download")
+        raise AssertionError(
+            "offline database preparation attempted a network download"
+        )
 
     monkeypatch.setattr(prepare_module, "download_public_resource", reject_network)
     offline_request = replace(request, source_bundle_path=source_manifest)

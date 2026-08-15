@@ -143,9 +143,13 @@ def test_preflight_verifies_durable_bundle_without_compute_node_network(
             bundle_id=f"dbsrc_{'b' * 64}", resources=resources
         ),
     )
+
+    def reject_route(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("offline preflight contacted a route")
+
     monkeypatch.setattr(
         "genome_to_diffraction.databases.preflight._probe_public_routes",
-        lambda *_args, **_kwargs: pytest.fail("offline preflight contacted a route"),
+        reject_route,
     )
 
     report = preflight_database_administration(request)

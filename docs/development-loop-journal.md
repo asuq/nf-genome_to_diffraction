@@ -4799,3 +4799,53 @@ Open the accepted checkpoint report and linked assets. Add explicit `approve`,
 `approved_sequence_groups.tsv`, and provide the assessed prototype-assumption
 status. Then rebuild T13.1/T13.2 and start the clean immutable three-dataset
 T13.4 pilot without changing ranking thresholds from CD6 alone.
+
+## 2026-08-15T19:56:11Z - Fast type checking migrated from mypy to ty
+
+### Discoveries
+
+- Active mypy use was confined to the Pixi development dependency/task,
+  `pyproject.toml` configuration, source suppressions, and its local cache.
+  Historical reports remain unchanged because they accurately record gates that
+  ran mypy at those revisions.
+- `ty` cannot discover Gemmi's compiled-extension symbols. Treating only the
+  `gemmi` import as `Any` preserves the previous checker boundary without
+  suppressing other unresolved attributes or argument errors.
+- The migration exposed a few checker-independent clean-ups: dynamic Pydantic
+  writers now verify `model_dump` is callable, dataclass test variants use
+  `dataclasses.replace`, and the deprecated HTTP error accessor is gone.
+
+### Accomplishments
+
+- Replaced mypy with locked `ty 0.0.71` for both Linux x86-64 and macOS ARM64.
+  The existing `typecheck` interface now runs `ty check` over Python 3.14
+  sources and tests while excluding frozen fixtures.
+- Removed active mypy-specific suppressions, configuration, cache ignore, and
+  the local generated cache. Added only two narrow `ty` suppressions for the
+  generic Pydantic class method that the checker cannot express.
+- Preserved workflow and scientific behaviour; no retained CD6 evidence,
+  candidate decision, threshold, or HPC state changed.
+
+### Immutable evidence
+
+- `pixi run --locked typecheck` passes with no diagnostics.
+- `pixi run --locked check` passes with 371 unit, 57 contract, and 47
+  integration tests plus formatting, Ruff lint, schemas, public controls,
+  documentation, Actions syntax, Nextflow syntax, the complete parser-v2
+  stub/resume matrix, and shell-wrapper validation.
+- The lock contains `ty 0.0.71` artefacts for both supported platforms and no
+  installed mypy package. A remaining `mypy` string is inert optional metadata
+  declared by the third-party `rfc8785` wheel.
+
+### Unresolved work
+
+- Inspect and commit this focused tooling migration, push it, and require both
+  supported Pixi CI jobs to pass.
+- The next scientific gate remains human Coot review and explicit
+  sequence-group decisions for the 11 retained CD6 alternatives before T13.4.
+
+### Next exact starting point
+
+Run `pixi run --locked docs-check` and `git diff --check`, commit and push the
+focused ty migration, and monitor dual-Pixi GitHub Actions. After green CI,
+return directly to the existing CD6 human decision checkpoint.

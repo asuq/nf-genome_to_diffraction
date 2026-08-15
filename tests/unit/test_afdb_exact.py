@@ -206,7 +206,7 @@ def test_afdb_exact_refseq_only_record_is_ineligible_without_network(
     )
 
     def unexpected_request(*_: object, **__: object) -> afdb_module._HttpResponse:
-        pytest.fail("RefSeq-only source triggered an AFDB request")
+        raise AssertionError("RefSeq-only source triggered an AFDB request")
 
     monkeypatch.setattr(afdb_module, "_http_get", unexpected_request)
     output = search_afdb_exact(

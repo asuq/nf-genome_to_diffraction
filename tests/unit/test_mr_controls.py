@@ -33,7 +33,7 @@ UBIQUITIN = (
 
 def _pdb(sequence: str) -> bytes:
     lines = []
-    three_letter = seq3(sequence).upper()  # type: ignore[no-untyped-call]
+    three_letter = seq3(sequence).upper()
     for index in range(len(sequence)):
         residue = three_letter[index * 3 : index * 3 + 3]
         lines.append(

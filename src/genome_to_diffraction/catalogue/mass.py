@@ -43,11 +43,11 @@ def invalid_residues(sequence: str) -> frozenset[str]:
 def _residue_contribution(residue: str) -> float:
     water = cast(
         float,
-        molecular_weight("", seq_type="protein"),  # type: ignore[no-untyped-call]
+        molecular_weight("", seq_type="protein"),
     )
     residue_mass = cast(
         float,
-        molecular_weight(residue, seq_type="protein"),  # type: ignore[no-untyped-call]
+        molecular_weight(residue, seq_type="protein"),
     )
     return residue_mass - water
 
@@ -88,9 +88,7 @@ def assess_mass(sequence: str) -> MassAssessment:
         return MassAssessment(
             exact_da=cast(
                 float,
-                molecular_weight(  # type: ignore[no-untyped-call]
-                    sequence, seq_type="protein"
-                ),
+                molecular_weight(sequence, seq_type="protein"),
             ),
             lower_da=None,
             upper_da=None,
@@ -102,7 +100,7 @@ def assess_mass(sequence: str) -> MassAssessment:
 
     water = cast(
         float,
-        molecular_weight("", seq_type="protein"),  # type: ignore[no-untyped-call]
+        molecular_weight("", seq_type="protein"),
     )
     lower = water
     upper = water

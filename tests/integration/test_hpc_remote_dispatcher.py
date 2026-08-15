@@ -72,12 +72,12 @@ def _run(
             capture_output=True,
         )
     if success and result.returncode != 0:
-        pytest.fail(
+        raise AssertionError(
             f"command failed ({result.returncode}): {command}\n"
             f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
         )
     if not success and result.returncode == 0:
-        pytest.fail(f"command unexpectedly succeeded: {command}")
+        raise AssertionError(f"command unexpectedly succeeded: {command}")
     return result
 
 

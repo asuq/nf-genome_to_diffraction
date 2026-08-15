@@ -146,7 +146,9 @@ def _read_jsonl[T](path: Path, model: type[T], label: str) -> tuple[T, ...]:
             if not line.strip():
                 continue
             try:
-                records.append(model.model_validate_json(line))  # type: ignore[attr-defined]
+                records.append(
+                    model.model_validate_json(line)  # ty: ignore[unresolved-attribute]
+                )
             except PydanticValidationError as error:
                 raise T12StageError(
                     f"invalid {label} at line {line_number}: {path}"

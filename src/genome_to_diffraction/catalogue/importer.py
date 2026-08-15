@@ -119,7 +119,7 @@ def _read_fasta(path: Path, *, progress: bool) -> list[_ParsedProtein]:
     parsed: list[tuple[str, str, str | None, str]] = []
     with path.open(encoding="utf-8") as handle:
         iterator = tqdm(
-            SimpleFastaParser(handle),  # type: ignore[no-untyped-call]
+            SimpleFastaParser(handle),
             desc=f"Read {path.name}",
             unit="protein",
             disable=not progress,
@@ -331,9 +331,10 @@ def _write_tsv(path: Path, records: Sequence[object], columns: Sequence[str]) ->
     )
     writer.writeheader()
     for record in records:
-        if not hasattr(record, "model_dump"):
+        model_dump = getattr(record, "model_dump", None)
+        if not callable(model_dump):
             raise TypeError("TSV records must be Pydantic models")
-        document = record.model_dump(mode="json")
+        document = model_dump(mode="json")
         writer.writerow(
             {column: _tsv_value(document.get(column)) for column in columns}
         )
@@ -343,9 +344,10 @@ def _write_tsv(path: Path, records: Sequence[object], columns: Sequence[str]) ->
 def _write_parquet(path: Path, records: Sequence[object]) -> None:
     documents = []
     for record in records:
-        if not hasattr(record, "model_dump"):
+        model_dump = getattr(record, "model_dump", None)
+        if not callable(model_dump):
             raise TypeError("Parquet records must be Pydantic models")
-        documents.append(record.model_dump(mode="json"))
+        documents.append(model_dump(mode="json"))
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary: Path | None = None
     try:
