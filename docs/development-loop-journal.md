@@ -4759,3 +4759,43 @@ Run `git diff --check`, stage only the normal T12.5 code, tests, and docs,
 commit and push the coherent increment, and monitor dual-Pixi CI. Once green,
 use the existing self-contained CD6 checkpoint for the explicit human decision;
 do not infer an approval from sequence score or refinement statistics.
+
+## 2026-08-15T18:18:15Z - Normal T12.5 milestone closed green
+
+### Discoveries
+
+- The verified CD6 checkpoint contains 11 structural alternatives and 107
+  unique sequence-group candidates in its bounded approval-candidate view. The
+  decision template remains header-only, so no scientific identity or
+  single-component-assumption decision can be inferred from current files.
+
+### Accomplishments
+
+- Committed and pushed the normal T12.5 connection as
+  `f0fdc9f848c6e28d019e396db6fa33747a357a04`.
+- Both Pixi 0.74.0 and 0.76.2 jobs passed in GitHub Actions run
+  `31900398849`. The worktree is clean and the normal workflow now stops at a
+  complete, deterministic second human checkpoint.
+
+### Immutable evidence
+
+- Local locked checks remain green with 371 unit, 57 contract, and 47
+  integration tests plus the complete cached-resume workflow matrix.
+- The accepted real CD6 checkpoint remains
+  `seqreview_69c4c2705c35a12bc104581c4444076cee91daae13d0a3a354d0a20e8a000c07`;
+  this increment changed orchestration, not the retained scientific evidence.
+
+### Unresolved work
+
+- A human must inspect the 11 CD6 PDB/MTZ/map alternatives in Coot, record
+  explicit sequence-group decisions, and assess the `ASU = nA` assumption.
+- T13.4 must not begin until that checkpoint is recorded. T13.5, the Prototype
+  0.2 assessment, and M6 remain downstream.
+
+### Next exact starting point
+
+Open the accepted checkpoint report and linked assets. Add explicit `approve`,
+`reject`, `defer`, or `retain_alternative` rows to its
+`approved_sequence_groups.tsv`, and provide the assessed prototype-assumption
+status. Then rebuild T13.1/T13.2 and start the clean immutable three-dataset
+T13.4 pilot without changing ranking thresholds from CD6 alone.
