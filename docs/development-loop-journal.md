@@ -4586,3 +4586,63 @@ and monitor dual-Pixi GitHub Actions. After green CI, add one explicit
 post-checkpoint stage that consumes `approved_mr_seeds.tsv`, validates it against
 the exact review manifest, and then invokes sequential same-component placement;
 do not bypass or fabricate the decision.
+
+## 2026-08-15T16:39:13Z - Normal workflow crosses the MR-seed checkpoint
+
+### Discoveries
+
+- The retained-run M4 staging operation cannot safely be reused by the normal
+  workflow because it assumes a site-specific parent layout and exactly 11
+  approvals. The normal boundary instead needs only the current review package,
+  explicit decisions, and current hypothesis records.
+- A first-copy solution coordinate is a rigid-body-derived form of its original
+  search model. It can seed the next placement only when the stage records its
+  new checksum separately from the original model checksum.
+- An approved hypothesis whose expected count is one must remain a finalist but
+  must not receive an invalid additional-copy search.
+
+### Accomplishments
+
+- Closed the preceding first-copy checkpoint at commit
+  `bc87d491b0b508a64ce60da7a03c14145ce4c40d`; both Pixi 0.74.0 and 0.76.2
+  jobs passed in GitHub Actions run `31892783735`.
+- Added the `stage-approved-seeds` operation and normal
+  `analysis_stage=additional_copy` boundary. It revalidates the exact human
+  decision/package/assets, stages every approved inspectable coordinate,
+  records original and rigid-body-derived model checksums, applies no numeric
+  score filter, and dispatches only candidates that require another copy.
+- Connected the staged seeds to the existing one-copy-at-a-time Phaser series.
+  The first-copy package remains the immutable checkpoint and no decision is
+  fabricated or inferred.
+
+### Immutable evidence
+
+- `pixi run --locked check` passes with 363 unit, 57 contract, and 47
+  integration tests, plus formatting, lint, strict typing, schemas, public
+  controls, documentation, Actions syntax, Nextflow syntax, the full
+  parser-v2 stub suite, cached resume, and shell-wrapper validation.
+- The integrated stub proves a missing decision file blocks the new stage, the
+  explicit file precedes sequential-copy fan-out, approved one-copy seeds are
+  retained without a Phaser job, and the complete path is cached on `-resume`.
+- This increment adds no new Viper result and does not change the retained CD6
+  candidates or their pending human sequence decisions.
+
+### Unresolved work
+
+- Build the normal live-parent handoff that selects each approved seed's best
+  checksum-authenticated retained state after its bounded copy series. It must
+  cover expected-one, expected-count-reached, unsupported-addition, and
+  candidate-level failure outcomes without interpreting failure as absence.
+- Feed every viable retained parent into the already qualified T12
+  refinement/map/sequence adapter and publish the empty T12.5 sequence decision
+  template with cached resume.
+- Human CD6 Coot/sequence decisions, the three-dataset T13.4 pilot, T13.5 review,
+  and M6 independent validation remain open.
+
+### Next exact starting point
+
+Implement one normal-workflow retained-parent stage from
+`live_m4_stage_manifest.json`, the exact MR review package, and the collected
+additional-copy series. Emit checksum-bound T12 finalist rows for every approved
+seed, using the original diffraction MTZ for FreeR-preserving refinement, then
+connect `BRIEF_REFINEMENT_WORKFLOW`; do not add a new ranking rule.

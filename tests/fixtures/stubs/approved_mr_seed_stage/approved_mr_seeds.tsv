@@ -1,0 +1,2 @@
+checkpoint	item_id	decision	reviewer	reviewed_at	comment	override_reason
+mr_seed	sol_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc	approve	stub-reviewer	2099-01-01T00:00:00Z	stub explicit decision	stub fixture

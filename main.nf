@@ -39,8 +39,19 @@ params {
 
 workflow {
     main:
-    if (!(params.analysis_stage in ['task05', 'discovery', 'first_copy'])) {
+    if (!(params.analysis_stage in [
+        'task05',
+        'discovery',
+        'first_copy',
+        'additional_copy'
+    ])) {
         error "Unsupported analysis_stage: ${params.analysis_stage}"
+    }
+    if (
+        params.analysis_stage == 'additional_copy' &&
+        params.approved_mr_seeds == null
+    ) {
+        error "analysis_stage=additional_copy requires --approved_mr_seeds"
     }
     MAIN_WORKFLOW(
         params.catalogues,
@@ -52,6 +63,7 @@ workflow {
         params.review_mode,
         params.profile_mode,
         params.analysis_stage,
+        params.approved_mr_seeds,
         params.skip_xtriage,
         params.maximum_hits_per_query,
         params.maximum_evalue.toFloat(),

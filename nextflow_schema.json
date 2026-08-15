@@ -24,7 +24,11 @@
       "enum": ["prepare", "continue", "auto_future"],
       "default": "prepare"
     },
-    "approved_mr_seeds": { "type": ["string", "null"] },
+    "approved_mr_seeds": {
+      "type": ["string", "null"],
+      "format": "file-path",
+      "description": "Explicit human MR-seed decisions required only when analysis_stage=additional_copy."
+    },
     "approved_sequence_groups": { "type": ["string", "null"] },
     "profile_mode": {
       "type": "string",
@@ -33,9 +37,9 @@
     },
     "analysis_stage": {
       "type": "string",
-      "enum": ["task05", "discovery", "first_copy"],
+      "enum": ["task05", "discovery", "first_copy", "additional_copy"],
       "default": "task05",
-      "description": "Highest normal-workflow boundary to execute. First-copy derives one crystal/MTZ from its manifest, runs retain-all Phaser screening, and stops at the MR-seed review checkpoint."
+      "description": "Highest normal-workflow boundary to execute. First-copy stops at the retain-all MR-seed checkpoint; additional-copy requires explicit decisions and searches one same-component copy at a time without score filtering."
     },
     "skip_xtriage": {
       "type": "boolean",

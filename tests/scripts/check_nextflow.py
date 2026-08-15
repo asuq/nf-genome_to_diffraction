@@ -166,6 +166,7 @@ def check_stubs() -> None:
         environment = _environment(temporary_root / "nxf-home")
         main_out = temporary_root / "main-results"
         integrated_out = temporary_root / "integrated-first-copy-results"
+        post_checkpoint_out = temporary_root / "integrated-additional-copy-results"
         database_out = temporary_root / "database-results"
         discovery_out = temporary_root / "discovery-results"
         coordinate_out = temporary_root / "coordinate-results"
@@ -298,6 +299,70 @@ def check_stubs() -> None:
             raise RuntimeError(
                 "resumed integrated first-copy stub did not report cached work:\n"
                 + integrated_resumed_output
+            )
+
+        post_checkpoint_command = [
+            "nextflow",
+            "run",
+            "main.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "-params-file",
+            "tests/fixtures/stubs/main_params.yaml",
+            "--analysis_stage",
+            "additional_copy",
+            "--approved_mr_seeds",
+            "examples/approvals/approved_mr_seeds.tsv",
+            "--outdir",
+            str(post_checkpoint_out),
+            "--cache_root",
+            str(temporary_root / "post-checkpoint-cache"),
+        ]
+        _run(post_checkpoint_command, environment=environment)
+        _assert_files(
+            post_checkpoint_out,
+            {
+                "mr_seed_review_manifest.json",
+                "approved_mr_seeds.tsv",
+                "approved_seeds.tsv",
+                "additional_copy_seeds.tsv",
+                "validated_mr_seed_decisions.json",
+                "live_m4_stage_manifest.json",
+                "additional_copy_result.json",
+                "additional_copy_result.jsonl",
+                "additional_copy_series_results.jsonl",
+                "additional_copy_series_summary.json",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        post_scope = json.loads(
+            (post_checkpoint_out / "scope" / "pipeline_scope.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        if post_scope.get("analysis_stage") != "additional_copy":
+            raise RuntimeError("post-checkpoint workflow lost its stage identity")
+        post_stage = json.loads(
+            (
+                post_checkpoint_out
+                / "approved_mr_seed_stage/live_m4_stage_manifest.json"
+            ).read_text(encoding="utf-8")
+        )
+        if (
+            post_stage.get("all_approved_seeds_retained") is not True
+            or post_stage.get("numeric_score_filter_applied") is not False
+        ):
+            raise RuntimeError("post-checkpoint stage filtered an approved seed")
+        post_resumed = _run(
+            [*post_checkpoint_command, "-resume"], environment=environment
+        )
+        if "cached" not in (f"{post_resumed.stdout}\n{post_resumed.stderr}".lower()):
+            raise RuntimeError(
+                "resumed post-checkpoint workflow did not report cached work"
             )
 
         discovery_command = [

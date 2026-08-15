@@ -66,7 +66,7 @@ overstated:
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
 | Epic 10 | The first-copy Phaser adapter, provisional ranking screen, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel produced 11 parsed solutions, six in the higher-priority numeric tier | Publish a version-3 retain-all review package, collect all 11 inspectable solutions, complete human map/packing review, and validate an explicit decision |
-| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 status, T13.2 reporting, and the deterministic T13.3 resource summary are implemented; normal `main.nf` now reaches a manifest-derived per-crystal first-copy MR-seed checkpoint | Record human CD6 decisions, connect validated MR seeds through sequential copies/T12, and execute the three-dataset pilot |
+| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 status, T13.2 reporting, and the deterministic T13.3 resource summary are implemented; normal `main.nf` now validates an explicit MR-seed decision and dispatches sequential same-component placement | Record human CD6 decisions, connect the best retained copy states through T12/T12.5, and execute the three-dataset pilot |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
 The accepted default main-workflow stage still terminates at
@@ -640,10 +640,10 @@ goal is now **close M5 and the Prototype 0.2 gate** without expanding scope:
 2. rebuild the scientific status and self-contained report from those human
    decisions without treating preliminary scores or high `R_free` values as a
    validated identity;
-3. validate a human MR-seed decision, then connect the already qualified
-   sequential-copy and T12 components through the normal main workflow while
-   preserving the second checkpoint, all retained alternatives, immutable
-   provenance, and cached resume;
+3. connect the best retained sequential-copy states through the already
+   qualified T12 components in the normal main workflow while preserving the
+   second checkpoint, all retained alternatives, immutable provenance, and
+   cached resume;
 4. freeze one clean revision and run the three-dataset T13.4 feasibility pilot
    with ground truth kept blind until review; and
 5. use all three cases for the bounded T13.5 resource and heuristic review,

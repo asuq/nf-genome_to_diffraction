@@ -16,6 +16,35 @@ Otherwise the parent remains the best supported state. Numeric LLG/TFZ values
 and their raw delta are retained but are not a calibrated acceptance
 probability.
 
+The normal `main.nf` workflow now reaches this operation through
+`--analysis_stage additional_copy`. It accepts an explicit
+`--approved_mr_seeds` TSV only; it never edits or fills the decision file. The
+stage revalidates the current review package and every decided asset, copies the
+approved first-copy solution coordinate as the next search model, and records
+that rigid-body derivation alongside the distinct original first-copy model
+checksum. A one-copy hypothesis is retained as already complete and does not
+receive an invalid copy-two search.
+
+The staging command used by Nextflow is:
+
+```text
+genome-to-diffraction mr stage-approved-seeds \
+  --review-package mr_seed_review \
+  --decisions approved_mr_seeds.tsv \
+  --hypotheses mr_hypotheses.jsonl \
+  --outdir approved_mr_seed_stage
+```
+
+It writes the copied decision file, `validated_mr_seed_decisions.json`,
+`approved_seeds.tsv`, `additional_copy_seeds.tsv`, checksum-named model files,
+and `live_m4_stage_manifest.json`. Unknown/stale IDs, pre-package timestamps,
+placeholder reviewers, unsafe assets, checksum drift, missing model provenance,
+and an empty approval set fail the checkpoint before Phaser. Its content
+identity binds the review/package, decisions, hypotheses, approved IDs, and both
+model checksums. Unit tests cover runnable and already-complete seeds; the
+integrated parser-v2 stub and `-resume` test prove the file gate precedes the
+sequential-copy fan-out.
+
 ## Python interface
 
 The command is:
@@ -104,9 +133,10 @@ and separate execution status. `parent_retained` is always true and
 
 ## Nextflow and cache identity
 
-`screen_additional_copies.nf` consumes a two-column TSV
-(`seed_solution_id`, `search_model`) and fans out one isolated process per
-approved seed. A genuine candidate-specific contract failure makes the run fail
+`screen_additional_copies.nf` consumes a seed TSV containing
+`seed_solution_id`, `search_model`, and `search_model_sha256` (with optional
+stage metadata columns) and fans out one isolated process per approved seed
+that requires another copy. A genuine candidate-specific contract failure makes the run fail
 after other submitted siblings finish; it does not kill the remaining
 comparison immediately. Scientific tool/no-addition outcomes are written as
 normalised records and return successfully. The workflow supports stub and
@@ -140,6 +170,7 @@ parents, scientific no-additional-solution, strict parent retention,
 search-model checksum drift, copy-two-to-copy-three lineage and coordinate
 checks, the expected-copy stopping boundary, and finish-after-sibling-failure
 orchestration.
-The repository stub/resume suite exercises the Nextflow entry point under parser
-v2. Real installed-Phenix qualification on Marmic remains required before this
-increment is accepted as integrated.
+The repository stub/resume suite exercises both the standalone and normal
+Nextflow entry points under parser v2. The adapter has completed real installed-
+Phenix qualification on retained Viper CD6 evidence; the normal-workflow
+connection still requires a clean real pilot after its T12 handoff is complete.

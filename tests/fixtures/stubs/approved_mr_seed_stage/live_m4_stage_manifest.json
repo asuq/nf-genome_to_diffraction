@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "stage_id": "m4stage_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "stage_kind": "normal_workflow_post_mr_seed",
+  "approved_seed_count": 1,
+  "additional_copy_seed_count": 1,
+  "already_at_expected_copy_count": 0,
+  "all_approved_seeds_retained": true,
+  "numeric_score_filter_applied": false,
+  "execution_status": "completed_success",
+  "stub": true
+}

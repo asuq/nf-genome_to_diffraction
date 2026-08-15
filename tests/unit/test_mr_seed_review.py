@@ -9,6 +9,10 @@ import pytest
 
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.mr.stage_add_copy import (
+    LiveAddCopyStageRequest,
+    prepare_live_add_copy_stage,
+)
 from genome_to_diffraction.review import (
     MrSeedApprovalRequest,
     MrSeedReviewError,
@@ -154,7 +158,15 @@ def _request(
         f"{canonical_json_text(result)}\n", encoding="utf-8"
     )
     (bundle / "phaser_command.json").write_text(
-        '{"arguments":["phenix.phaser"]}\n', encoding="utf-8"
+        json.dumps(
+            {
+                "arguments": ["phenix.phaser"],
+                "model_sha256": "a" * 64,
+                "model_identity_percent": 85.0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
     )
     if raw_log == "PHASER.log":
         (bundle / raw_log).write_text("PHASER test log\n", encoding="utf-8")
@@ -288,6 +300,103 @@ def test_validates_explicit_approval_and_rejects_stale_identifier(
                 )
             )
         )
+
+
+def test_stages_approved_solution_coordinate_for_live_additional_copy(
+    tmp_path: Path,
+) -> None:
+    request = _request(tmp_path)
+    hypothesis = _hypothesis().model_copy(update={"copy_count_expected": 3})
+    request.hypotheses_jsonl.write_text(
+        f"{canonical_json_text(hypothesis)}\n", encoding="utf-8"
+    )
+    matthews = _matthews().model_copy(
+        update={"copy_count": 3, "total_mass_da": 3 * 436.4375}
+    )
+    request.matthews_hypotheses_jsonl.write_text(
+        f"{canonical_json_text(matthews)}\n", encoding="utf-8"
+    )
+    package = build_mr_seed_review(request)
+    manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
+    solution_id = manifest["items"][0]["solution_id"]
+    decisions = tmp_path / "approved-live.tsv"
+    _decision(decisions, solution_id)
+
+    staged = prepare_live_add_copy_stage(
+        LiveAddCopyStageRequest(
+            review_package=package.manifest_json.parent,
+            decisions=decisions,
+            hypotheses_jsonl=request.hypotheses_jsonl,
+            output_directory=tmp_path / "live M4 stage",
+            progress=False,
+        )
+    )
+
+    assert staged.approved_seed_count == 1
+    assert staged.additional_copy_seed_count == 1
+    rows = list(
+        csv.DictReader(
+            staged.additional_copy_seeds_tsv.open(encoding="utf-8"),
+            delimiter="\t",
+        )
+    )
+    assert rows == [
+        {
+            "seed_solution_id": solution_id,
+            "search_model": rows[0]["search_model"],
+            "search_model_sha256": rows[0]["search_model_sha256"],
+            "expected_copy_count": "3",
+            "requires_additional_copy": "true",
+        }
+    ]
+    staged_model = staged.additional_copy_seeds_tsv.parent / rows[0]["search_model"]
+    assert staged_model.is_file()
+    assert sha256_file(staged_model) == rows[0]["search_model_sha256"]
+    stage_manifest = json.loads(staged.stage_manifest.read_text(encoding="utf-8"))
+    source = stage_manifest["model_sources"][solution_id]
+    assert source["derivation"] == ("first_copy_solution_coordinate_rigid_body_derived")
+    assert source["original_first_copy_model_sha256"] == "a" * 64
+    assert source["staged_search_model_sha256"] == rows[0]["search_model_sha256"]
+    assert stage_manifest["numeric_score_filter_applied"] is False
+
+
+def test_live_stage_retains_approved_one_copy_seed_without_phaser_dispatch(
+    tmp_path: Path,
+) -> None:
+    request = _request(tmp_path)
+    package = build_mr_seed_review(request)
+    manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
+    solution_id = manifest["items"][0]["solution_id"]
+    decisions = tmp_path / "approved-one-copy.tsv"
+    _decision(decisions, solution_id)
+
+    staged = prepare_live_add_copy_stage(
+        LiveAddCopyStageRequest(
+            review_package=package.manifest_json.parent,
+            decisions=decisions,
+            hypotheses_jsonl=request.hypotheses_jsonl,
+            output_directory=tmp_path / "one copy M4 stage",
+            progress=False,
+        )
+    )
+
+    approved_rows = list(
+        csv.DictReader(staged.approved_seeds_tsv.open(encoding="utf-8"), delimiter="\t")
+    )
+    additional_rows = list(
+        csv.DictReader(
+            staged.additional_copy_seeds_tsv.open(encoding="utf-8"),
+            delimiter="\t",
+        )
+    )
+    assert approved_rows[0]["seed_solution_id"] == solution_id
+    assert approved_rows[0]["requires_additional_copy"] == "false"
+    assert additional_rows == []
+    stage_manifest = json.loads(staged.stage_manifest.read_text(encoding="utf-8"))
+    assert stage_manifest["approved_seed_count"] == 1
+    assert stage_manifest["additional_copy_seed_count"] == 0
+    assert stage_manifest["already_at_expected_copy_count"] == 1
+    assert stage_manifest["all_approved_seeds_retained"] is True
 
 
 def test_approval_without_inspectable_assets_requires_explicit_override(

@@ -25,7 +25,9 @@ process VALIDATE_TASK05_INPUTS {
             ? 'task05_preflight_complete_downstream_deferred'
             : analysis_stage == 'discovery'
                 ? 'discovery_and_model_preparation_requested'
-                : 'first_copy_mr_and_review_requested'
+                : analysis_stage == 'first_copy'
+                    ? 'first_copy_mr_and_review_requested'
+                    : 'approved_seed_sequential_copy_requested'
     )
     """
     genome-to-diffraction --no-progress contract validate catalogue-manifest '${catalogues}'

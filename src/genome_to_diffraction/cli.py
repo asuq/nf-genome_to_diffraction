@@ -69,7 +69,9 @@ from genome_to_diffraction.mr import (
 )
 from genome_to_diffraction.mr.stage_add_copy import (
     AddCopyStageRequest,
+    LiveAddCopyStageRequest,
     prepare_add_copy_stage,
+    prepare_live_add_copy_stage,
 )
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
@@ -739,6 +741,14 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     stage_add_copy_parser.add_argument("--source-site-id")
+    live_stage_parser = mr_actions.add_parser(
+        "stage-approved-seeds",
+        help=("validate a normal-workflow MR checkpoint and stage every approved seed"),
+    )
+    live_stage_parser.add_argument("--review-package", type=Path, required=True)
+    live_stage_parser.add_argument("--decisions", type=Path, required=True)
+    live_stage_parser.add_argument("--hypotheses", type=Path, required=True)
+    live_stage_parser.add_argument("--outdir", type=Path, required=True)
     copy_report_parser = mr_actions.add_parser(
         "copy-report",
         help="compare Matthews-intended and empirically supported copy counts",
@@ -1510,6 +1520,22 @@ def _run_mr(args: argparse.Namespace) -> int:
         print(
             f"Prepared {staged.seed_count} comparative M4 seed(s): "
             f"{staged.stage_manifest}"
+        )
+        return 0
+    if args.mr_action == "stage-approved-seeds":
+        live_staged = prepare_live_add_copy_stage(
+            LiveAddCopyStageRequest(
+                review_package=args.review_package,
+                decisions=args.decisions,
+                hypotheses_jsonl=args.hypotheses,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Staged {live_staged.approved_seed_count} approved MR seed(s); "
+            f"{live_staged.additional_copy_seed_count} require additional-copy "
+            f"search: {live_staged.stage_manifest}"
         )
         return 0
     if args.mr_action == "add-copy":

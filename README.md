@@ -51,9 +51,13 @@ predicted/experimental model preparation. `--analysis_stage first_copy`
 requires a one-crystal manifest, verifies its manifest-owned MTZ against the
 completed preflight, runs the retain-all diverse Phaser fan-out, and publishes
 an MR-seed review package with an empty approval template. It deliberately
-stops at that file-based human checkpoint. The standalone entry points remain
-available for focused qualification and do not identify a protein by
-themselves.
+stops at that file-based human checkpoint. `--analysis_stage additional_copy`
+requires an explicitly edited `--approved_mr_seeds` file, validates it against
+the exact regenerated package, and advances every approved seed one
+same-component copy at a time to its expected count or first unsupported
+addition. Seeds already expected to contain one copy remain recorded without an
+unnecessary Phaser job. The standalone entry points remain available for
+focused qualification and do not identify a protein by themselves.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -472,6 +476,27 @@ pixi run -e hpc nextflow run main.nf -profile local \
 This writes `mr_seed_review/approved_mr_seeds.tsv` with only its header. A
 reviewer must inspect the retained PDB/MTZ/log evidence and add explicit
 decisions before same-component copy placement can begin.
+
+To cross that checkpoint, retain the same immutable inputs and provide the
+edited decision file:
+
+```bash
+pixi run -e hpc nextflow run main.nf -profile local \
+  --analysis_stage additional_copy \
+  --approved_mr_seeds /absolute/review/approved_mr_seeds.tsv \
+  --maximum_first_copy_jobs 25 \
+  --catalogues /absolute/input/catalogue_manifest.json \
+  --crystals /absolute/input/one_crystal_manifest.json \
+  --config /absolute/input/config.yaml \
+  --database_manifest /absolute/shared/database_manifest.json \
+  --phenix_manifest /absolute/software/manifests/phenix.json \
+  --outdir /absolute/results/additional-copy \
+  --cache_root /absolute/cache/nf-genome-to-diffraction
+```
+
+The validated stage records every approved seed, the original first-copy model
+checksum, the rigid-body-derived staged-model checksum, and whether another
+copy is required. No LLG/TFZ filter is applied at this boundary.
 
 When trusted catalogue metadata does not itself contain a strict UniProt
 accession, supply an optional two-column mapping with
