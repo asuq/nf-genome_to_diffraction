@@ -165,6 +165,7 @@ def check_stubs() -> None:
         temporary_root = Path(temporary)
         environment = _environment(temporary_root / "nxf-home")
         main_out = temporary_root / "main-results"
+        integrated_out = temporary_root / "integrated-discovery-results"
         database_out = temporary_root / "database-results"
         discovery_out = temporary_root / "discovery-results"
         coordinate_out = temporary_root / "coordinate-results"
@@ -219,6 +220,65 @@ def check_stubs() -> None:
         if "cached" not in resumed_output:
             raise RuntimeError(
                 "resumed stub run did not report cached work:\n" + resumed_output
+            )
+
+        integrated_cache_root = temporary_root / "integrated-cache"
+        integrated_command = [
+            "nextflow",
+            "run",
+            "main.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "-params-file",
+            "tests/fixtures/stubs/main_params.yaml",
+            "--analysis_stage",
+            "discovery",
+            "--outdir",
+            str(integrated_out),
+            "--cache_root",
+            str(integrated_cache_root),
+        ]
+        _run(integrated_command, environment=environment)
+        _assert_files(
+            integrated_out,
+            {
+                "pipeline_scope.json",
+                "sequence_groups.jsonl",
+                "source_records.jsonl",
+                "mtz_preflight.jsonl",
+                "matthews_hypotheses.jsonl",
+                "search_results.jsonl",
+                "structural_hits.jsonl",
+                "search_manifest.json",
+                "coordinate_sources.jsonl",
+                "coordinate_hit_mappings.jsonl",
+                "registration_manifest.json",
+                "processed_models.jsonl",
+                "model_preparation_manifest.json",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        integrated_scope = json.loads(
+            (integrated_out / "scope" / "pipeline_scope.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        if integrated_scope.get("analysis_stage") != "discovery":
+            raise RuntimeError("integrated main workflow lost its stage identity")
+        integrated_resumed = _run(
+            [*integrated_command, "-resume"], environment=environment
+        )
+        integrated_resumed_output = (
+            f"{integrated_resumed.stdout}\n{integrated_resumed.stderr}".lower()
+        )
+        if "cached" not in integrated_resumed_output:
+            raise RuntimeError(
+                "resumed integrated-discovery stub did not report cached work:\n"
+                + integrated_resumed_output
             )
 
         discovery_command = [

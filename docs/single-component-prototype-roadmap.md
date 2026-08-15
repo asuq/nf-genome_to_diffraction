@@ -66,17 +66,19 @@ overstated:
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
 | Epic 10 | The first-copy Phaser adapter, provisional ranking screen, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel produced 11 parsed solutions, six in the higher-priority numeric tier | Publish a version-3 retain-all review package, collect all 11 inspectable solutions, complete human map/packing review, and validate an explicit decision |
-| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 status, T13.2 reporting, and the deterministic T13.3 resource summary are implemented | Record human sequence decisions, close the main-workflow integration gap, and execute the three-dataset pilot |
+| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 status, T13.2 reporting, and the deterministic T13.3 resource summary are implemented; normal `main.nf` now connects Task 05 through P1 discovery and M2 model preparation behind an explicit stage | Record human sequence decisions, connect the per-crystal MR/checkpoint stages, and execute the three-dataset pilot |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
-The accepted main workflow still terminates at
-`task05_preflight_complete_downstream_deferred`; the fixed qualification routes
-currently carry the real prototype beyond that boundary. Marmic evidence is
-retained historically, while Viper has qualified database preparation,
-all-candidate same-component copy placement, refinement, map generation, and
-complete-catalogue sequence scoring for `CD6QS2P2G1_5`. The resulting scores
-and high preliminary `R_free` values narrow candidates but do not validate a
-structure or force one identity. See the [initial Marmic
+The accepted default main-workflow stage still terminates at
+`task05_preflight_complete_downstream_deferred`. The explicit `discovery` stage
+now continues through the qualified P1 searches, direct-PDB registration, and
+AFDB/PDB model preparation, but deliberately stops before per-crystal MR and its
+human checkpoint. Fixed qualification routes carry the real prototype beyond
+that boundary. Marmic evidence is retained historically, while Viper has
+qualified database preparation, all-candidate same-component copy placement,
+refinement, map generation, and complete-catalogue sequence scoring for
+`CD6QS2P2G1_5`. The resulting scores and high preliminary `R_free` values narrow
+candidates but do not validate a structure or force one identity. See the [initial Marmic
 report](prototype-test-report-2026-08-02.md), the [M3 first-copy
 report](m3-first-copy-phaser.md), and the [T12 boundary](t12-brief-refinement.md).
 

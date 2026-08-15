@@ -4478,3 +4478,59 @@ PDB/MTZ/map bundles in Coot. Record explicit `approve`, `reject`, `defer`, or
 `retain_alternative` rows in `approved_sequence_groups.tsv`, plus an assessed
 prototype-assumption status. Rebuild T13.1/T13.2 from those decisions, then
 implement the smallest normal-workflow connection required to run T13.4.
+
+## 2026-08-15T14:47:47Z - Normal workflow reaches discovery and model preparation
+
+### Discoveries
+
+- The qualified P1 and M2 processes already compose directly from the Task 05
+  catalogue bundle: exact sequence/source records feed all three discovery
+  branches, direct-PDB hits feed coordinate registration and cleaned
+  experimental models, and verified AFDB coordinates feed predicted-model
+  preparation.
+- ProstT5/Foldseek hits remain independent discovery evidence because the
+  current coordinate-registration contract intentionally accepts selected
+  direct-PDB hits only. This increment does not invent an unqualified provider
+  union.
+- Per-crystal first-copy MR still needs a manifest-derived crystal/MTZ dispatch
+  and the existing file-based MR-seed checkpoint. It must not be crossed by an
+  automatic score decision.
+
+### Accomplishments
+
+- Added the explicit normal-workflow `analysis_stage` boundary. Its default
+  `task05` behaviour is unchanged; `discovery` continues through P1 searches,
+  direct-PDB coordinate registration, and AFDB/PDB model preparation, then
+  stops before first-copy MR.
+- Exposed the existing bounded discovery and registration parameters in the
+  Nextflow parameter schema and recorded the selected stage in the scope
+  output.
+- Added an integrated `main.nf` stub run and fully cached resume assertion in
+  addition to the retained standalone adapter tests.
+
+### Immutable evidence
+
+- `pixi run --locked check` passes with 356 unit, 57 contract, and 47
+  integration tests, plus formatting, lint, strict typing, schemas, public
+  controls, documentation, Actions syntax, Nextflow syntax, both stub/resume
+  paths, and shell-wrapper validation.
+- This is local integration evidence only. No new Viper scientific run was
+  launched, no retained candidate was changed, and no human decision was
+  inferred.
+
+### Unresolved work
+
+- Commit and push this focused integration increment and require both supported
+  Pixi CI jobs to pass.
+- Add the smallest manifest-derived per-crystal dispatch and first-copy MR
+  prepare stage, then publish and validate the MR-seed checkpoint before
+  connecting additional copies or refinement.
+- Human Coot and sequence decisions for the retained CD6 package remain
+  required before scientific promotion or the three-dataset pilot.
+
+### Next exact starting point
+
+Inspect the focused `analysis_stage=discovery` diff, commit and push it, and
+monitor dual-Pixi GitHub Actions. After green CI, derive crystal ID and MTZ paths
+from the validated crystal manifest and connect the diverse first-copy workflow
+without adding an automatic checkpoint bypass.

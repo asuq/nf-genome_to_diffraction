@@ -14,11 +14,17 @@ process VALIDATE_TASK05_INPUTS {
     cache_root: String
     review_mode: String
     profile_mode: String
+    analysis_stage: String
 
     output:
     scope: Path = file('scope')
 
     script:
+    def scopeStatus = (
+        analysis_stage == 'task05'
+            ? 'task05_preflight_complete_downstream_deferred'
+            : 'discovery_and_model_preparation_requested'
+    )
     """
     genome-to-diffraction --no-progress contract validate catalogue-manifest '${catalogues}'
     genome-to-diffraction --no-progress contract validate crystal-manifest '${crystals}'
@@ -32,7 +38,7 @@ process VALIDATE_TASK05_INPUTS {
     cp '${pipeline_config}' scope/pipeline_config.yaml
     cp '${database_manifest}' scope/database_manifest.json
     cp '${phenix_manifest}' scope/phenix_install_manifest.json
-    printf '%s\n' '{"schema_version":"1.0","status":"task05_preflight_complete_downstream_deferred","cache_root":"${cache_root}","review_mode":"${review_mode}","profile_mode":"${profile_mode}"}' > scope/pipeline_scope.json
+    printf '%s\n' '{"schema_version":"1.0","status":"${scopeStatus}","cache_root":"${cache_root}","review_mode":"${review_mode}","profile_mode":"${profile_mode}","analysis_stage":"${analysis_stage}"}' > scope/pipeline_scope.json
     """
 
     stub:
@@ -43,6 +49,6 @@ process VALIDATE_TASK05_INPUTS {
     cp '${pipeline_config}' scope/pipeline_config.yaml
     cp '${database_manifest}' scope/database_manifest.json
     cp '${phenix_manifest}' scope/phenix_install_manifest.json
-    printf '%s\n' '{"schema_version":"1.0","status":"stub_task05_preflight_only"}' > scope/pipeline_scope.json
+    printf '%s\n' '{"schema_version":"1.0","status":"stub_input_contracts_validated","analysis_stage":"${analysis_stage}"}' > scope/pipeline_scope.json
     """
 }

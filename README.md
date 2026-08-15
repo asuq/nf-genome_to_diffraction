@@ -37,16 +37,20 @@ jobs per crystal in smoke mode. These new boundaries pass local unit/stub/resume
 acceptance but are not yet qualified on the real Marmic direct-PDB candidates.
 Domain and sequence-adapted variants and the provider evidence union remain
 incomplete. Optional ESM Atlas remains disabled. First-copy molecular
-replacement is implemented and the fixed exact-model CD6 route completed
-reproducibly as a scientific no-hit. Same-component copy placement, refinement,
-map-based sequence assessment, final ranking, and final identification remain
-unimplemented.
-`main.nf` therefore ends with an explicit
-`task05_preflight_complete_downstream_deferred` scope record; its successful exit
-does not mean that a protein identity was found. The separate
-`discover_structures.nf` entry point runs both local PDB search providers plus
-the accession-only AFDB branch and
-likewise does not identify a protein by itself.
+replacement, all-candidate same-component placement, brief refinement, maps,
+sequence-from-map narrowing, cached resume, and review/status/resource reporting
+have been qualified on the retained real CD6 evidence. These outputs remain
+review candidates: high preliminary `R_free` values and absent human sequence
+decisions prohibit claiming a validated structure or identity.
+
+The default `main.nf` stage remains the accepted Task 05 boundary and writes
+`task05_preflight_complete_downstream_deferred`. Setting
+`--analysis_stage discovery` now connects that boundary to the qualified P1
+PDB/ProstT5/AFDB searches, bounded direct-PDB coordinate registration, and
+predicted/experimental model preparation. It deliberately stops before
+first-copy MR, where a file-based human checkpoint must remain explicit. The
+standalone entry points remain available for focused qualification and do not
+identify a protein by themselves.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -60,8 +64,9 @@ foundation.
 
 The environment pins the conventional GIL build of Python 3.14.6, Nextflow
 26.04.6, and Java 21 LTS.
-Pixi 0.74.0 is required. Phenix is licensed external software and is never
-installed by Pixi or included in this repository.
+Pixi versions from 0.74.0 through 0.76.x are supported and tested. Phenix is
+licensed external software and is never installed by Pixi or included in this
+repository.
 
 ## Setup and checks
 
