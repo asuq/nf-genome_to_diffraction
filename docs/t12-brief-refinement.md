@@ -51,6 +51,11 @@ or other invalid reflection contracts fail loudly instead of generating a new
 comparison set. Map generation uses `2mFo-DFc`, CCP4, sigma scaling, the full
 cell, and no filled missing observations.
 
+The output serial is fixed to zero because Phenix increments that value when
+constructing its first numbered PDB/MTZ names. The CCP4 map uses its explicit
+unnumbered filename. These names are part of the protocol cache identity and
+are checked before sequence analysis begins.
+
 `phenix.sequence_from_map` receives the complete catalogue in one checksum-bound
 multi-FASTA file. Its score is ranking evidence, not a calibrated probability.
 Unscored groups remain distinguishable from low scores, and duplicate sequences

@@ -4046,3 +4046,52 @@ until the reinstalled runtime passes its qualification boundary.
 At the next 30-minute loop, query only retained T12 run
 `gtd-t12-20260814T234527Z-1e4edc752972-ba0c62c1` through the approved status
 operation and do not infer failure from silence.
+
+## 2026-08-15T01:31:44Z - Real-CD6 T12 exposed the final output-name mismatch
+
+### Discoveries
+
+- Retained T12 job `10920074` completed successfully at the outer workflow
+  boundary. All 11 real Phenix refinements ran, all candidates were retained,
+  and the resume pass was 11/11 cached.
+- Every typed refinement result was `failed_parse`, not a scientific failure.
+  Phenix exited zero and reported final R values, but the adapter required
+  assets under the wrong names. With `output.serial = 1`, Phenix wrote serial
+  `002`; its explicitly named CCP4 map is unnumbered. The adapter expected
+  serial `001` plus a numbered map name.
+- Phenix 2.1-6048 defaults confirm that output serial zero is the correct input
+  for first output serial `001`. Sequence-from-map was correctly skipped after
+  the asset-contract failure.
+
+### Accomplishments
+
+- Collected the bounded terminal evidence and preserved all 11 typed failures,
+  raw R values, logs, commands, checksums, and cached-resume evidence.
+- Implemented the minimal protocol-v3 correction: set output serial to zero,
+  expect `brief_refine_001.pdb` and `brief_refine_001.mtz`, and expect the
+  explicit unnumbered `brief_refine_2mFo-DFc.ccp4` map. Added a focused unit
+  assertion for the serial contract.
+
+### Immutable evidence
+
+- Terminal run is
+  `gtd-t12-20260814T234527Z-1e4edc752972-ba0c62c1`, Slurm job `10920074`,
+  source commit `1e4edc752972ada63b421ccf68611ab2ed08cbf2`, and T12 stage-manifest
+  SHA-256
+  `f6af2ac40e1e28739e5808b2c3898596f598aad7b64679a695f2211742445cae`.
+- The summary records 11 failed-parse refinements, 11 skipped sequence
+  analyses, all candidates retained, and a fully cached resume. This run
+  qualifies restored Phenix real-CD6 execution, but not the T12 asset boundary.
+
+### Unresolved work
+
+- Run the locked repository gate, commit and push protocol v3, require green
+  CI, deploy checksum-reviewed tools, and submit one unchanged all-11 T12
+  replay. Do not add unrelated parser fallbacks or drop candidates.
+- On asset-complete success, proceed directly to the smallest T12.5 review and
+  approval package.
+
+### Next exact starting point
+
+Run `pixi run --locked check` for protocol v3, inspect the focused diff, then
+commit and push before deploying and staging one immutable T12 successor.

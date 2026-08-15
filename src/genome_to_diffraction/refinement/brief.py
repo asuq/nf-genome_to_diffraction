@@ -43,7 +43,7 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
-_PROTOCOL_VERSION = "phenix-t12-brief-v2"
+_PROTOCOL_VERSION = "phenix-t12-brief-v3"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -194,10 +194,19 @@ def _refine_parameters(*, threads: int, map_name: str) -> str:
 }}
 output {{
   prefix = brief_refine
-  serial = 1
+  serial = 0
   overwrite = True
 }}
 """
+
+
+def _refinement_output_paths(outdir: Path) -> tuple[Path, Path, Path]:
+    """Return the fixed Phenix serial-001 PDB/MTZ and explicit CCP4 names."""
+    return (
+        outdir / "brief_refine_001.pdb",
+        outdir / "brief_refine_001.mtz",
+        outdir / "brief_refine_2mFo-DFc.ccp4",
+    )
 
 
 def _observation_label_argument(labels: str) -> str:
@@ -378,7 +387,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
             "threads": request.threads,
         },
     )
-    map_path = outdir / "brief_refine_001_2mFo-DFc.ccp4"
+    refined_model, refined_mtz, map_path = _refinement_output_paths(outdir)
     params_path = outdir / "brief_refine.eff"
     atomic_write_text(
         params_path,
@@ -425,8 +434,6 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     refine_log = outdir / "phenix.refine.log"
     refine_text = _combined_log(completed)
     atomic_write_text(refine_log, refine_text)
-    refined_model = outdir / "brief_refine_001.pdb"
-    refined_mtz = outdir / "brief_refine_001.mtz"
     initial_rw, initial_rf, final_rw, final_rf, rms_bonds, rms_angles = (
         _refinement_metrics(refine_text)
     )
