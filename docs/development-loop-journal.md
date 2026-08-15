@@ -4879,3 +4879,42 @@ return directly to the existing CD6 human decision checkpoint.
 Open the retained CD6 checkpoint, review all 11 alternatives, and record the
 sequence-group decisions plus the assessed `ASU = nA` status. Then rebuild
 T13.1/T13.2 and begin the immutable three-dataset pilot.
+
+## 2026-08-16 - CD6 checkpoint scientific caveat and report corrections
+
+### Discoveries
+
+- `CD6QS2P2G1_5` is an experimental crystal/diffraction-dataset identifier,
+  not a known protein, gene, or PDB structure used as a truth-labelled positive
+  control.
+- The crystal contents remain unknown. CD6 may contain a heteromer, contaminant,
+  cleavage product, or another component inconsistent with the prototype's
+  `ASU = nA` single-component assumption. It is therefore a useful realistic
+  challenge case but may not be ideal for validating the prototype by itself.
+- Matthews coefficients can rank physically plausible copy counts using the
+  unit cell, space group, ASU volume, and each candidate sequence mass. They do
+  not prove molecular identity, homomeric composition, or `ASU = nA`.
+- The retained checkpoint exposed three report gaps: it omitted the mFo-DFc
+  difference map, did not carry Matthews/ASU context forward, and did not show
+  the source genome's gene/product annotations or explain that the
+  `sequence_from_map.pdb` file is a map-derived assignment hypothesis rather
+  than an independently refined model.
+
+### Accomplishments
+
+- Began the focused checkpoint correction while preserving all candidates and
+  all duplicate sequence-to-locus mappings. No CD6 identity or prototype
+  assumption has been approved automatically.
+
+### Unresolved work
+
+- Complete and validate the dual-map, Matthews, genome-annotation, and report
+  semantic changes; run the locked checks and real Viper T12 replay before
+  replacing the current human-review package.
+- A separate truth-labelled monomeric/homomeric positive control is still
+  needed alongside CD6 to validate the single-component assumption reliably.
+
+### Next exact starting point
+
+Finish the focused T12/T12.5 implementation and tests, then run
+`pixi run --locked check` before committing the correction milestone.

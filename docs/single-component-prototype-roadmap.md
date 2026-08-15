@@ -66,7 +66,7 @@ overstated:
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
 | Epic 10 | The first-copy Phaser adapter, provisional ranking screen, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel produced 11 parsed solutions, six in the higher-priority numeric tier | Publish a version-3 retain-all review package, collect all 11 inspectable solutions, complete human map/packing review, and validate an explicit decision |
-| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 status, T13.2 reporting, and the deterministic T13.3 resource summary are implemented; normal `main.nf` validates an explicit MR-seed decision, dispatches sequential same-component placement, retains every best-supported copy state, reaches T12 refinement/maps/sequence, and publishes the empty-decision T12.5 package with cached resume | Record human CD6 decisions and execute the three-dataset pilot |
+| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 status, T13.2 reporting, and the deterministic T13.3 resource summary are implemented; normal `main.nf` validates an explicit MR-seed decision, dispatches sequential same-component placement, retains every best-supported copy state, reaches T12 refinement/maps/sequence, and publishes the empty-decision T12.5 package with cached resume | Qualify protocol v4 with both maps plus annotation/Matthews context, then record human CD6 decisions and execute the three-dataset pilot |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
 The accepted default main-workflow stage still terminates at
@@ -82,7 +82,10 @@ retained historically, while Viper has
 qualified database preparation, all-candidate same-component copy placement,
 refinement, map generation, and complete-catalogue sequence scoring for
 `CD6QS2P2G1_5`. The resulting scores and high preliminary `R_free` values narrow
-candidates but do not validate a structure or force one identity. See the [initial Marmic
+candidates but do not validate a structure or force one identity. CD6 is an
+unknown crystal and may be heteromeric or otherwise violate `ASU = nA`; it is
+therefore a realistic challenge case rather than an ideal truth-labelled
+single-component control. See the [initial Marmic
 report](prototype-test-report-2026-08-02.md), the [M3 first-copy
 report](m3-first-copy-phaser.md), and the [T12 boundary](t12-brief-refinement.md).
 
@@ -396,14 +399,18 @@ heteromer logic.
 4. **T12.1 — Brief refinement.** Run one conservative standard protocol on
    finalists only. Preserve initial/final R values, geometry, shifts,
    occupancy/B-factor warnings, command, version, logs, and output checksums.
-5. **T12.2 — Maps.** Generate a stable, labelled map suitable for sequence
-   analysis and preserve map parameters/resolution.
+5. **T12.2 — Maps.** Generate stable, labelled `2mFo-DFc` and `mFo-DFc` maps,
+   preserve map parameters/resolution, and verify both coefficient/phase pairs
+   in the refined MTZ.
 6. **T12.3–T12.4 — Sequence from map.** Search the complete exact-sequence
    catalogue by default, parse score/coverage/segments/discrimination/warnings,
    and map groups back to all source records/loci without forced paralogue or
    locus resolution.
 7. **T12.5 — Sequence checkpoint.** Publish top 10, top 25, full results,
-   finalist assets, and the second approval template.
+   finalist assets, all compatible source-genome annotations, per-sequence
+   Matthews copy-number context, and the second approval template. Label the
+   sequence-from-map PDB as a map-derived assignment hypothesis rather than an
+   independently refined model.
 
 ### P3/P4 gate
 
@@ -637,14 +644,16 @@ or evidence model. None is part of the 26–44 week baseline estimate.
 M0–M4 and T13.1–T13.3 have passed on the accepted real CD6 evidence. The active
 goal is now **close M5 and the Prototype 0.2 gate** without expanding scope:
 
-1. complete Coot review of all 11 retained CD6 alternatives, record explicit
+1. run and collect one corrected all-11 T12 replay that provides both maps,
+   genome annotation, and Matthews/ASU context;
+2. complete Coot review of all 11 retained CD6 alternatives, record explicit
    sequence-group decisions, and assess the single-component assumption;
-2. rebuild the scientific status and self-contained report from those human
+3. rebuild the scientific status and self-contained report from those human
    decisions without treating preliminary scores or high `R_free` values as a
    validated identity;
-3. freeze one clean revision and run the three-dataset T13.4 feasibility pilot
+4. freeze one clean revision and run the three-dataset T13.4 feasibility pilot
    with ground truth kept blind until review; and
-4. use all three cases for the bounded T13.5 resource and heuristic review,
+5. use all three cases for the bounded T13.5 resource and heuristic review,
    document known failures and unsupported cases, and assess the Prototype 0.2
    gate. Three crystals are feasibility evidence, not statistical calibration.
 

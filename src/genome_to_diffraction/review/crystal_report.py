@@ -1,10 +1,11 @@
 """Build the T13.2 review report inside a verified T12.5 package."""
 
+import csv
 import html
 from dataclasses import dataclass
 from pathlib import Path
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from genome_to_diffraction.checksums import (
     atomic_write_json,
@@ -14,6 +15,18 @@ from genome_to_diffraction.checksums import (
 from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.schemas.results import ScientificStatusRecord
 from genome_to_diffraction.status import InputContractError
+
+_REPORT_ASSETS = (
+    ("Refined PDB", "brief_refine_001.pdb"),
+    ("Refined MTZ", "brief_refine_001.mtz"),
+    ("2mFo-DFc map", "brief_refine_2mFo-DFc.ccp4"),
+    ("mFo-DFc map", "brief_refine_mFo-DFc.ccp4"),
+    ("Sequence-assignment hypothesis", "sequence_from_map.pdb"),
+)
+_SCIENTIFIC_CONTEXT_OUTPUTS = {
+    "sequence_gene_annotations.tsv",
+    "sequence_matthews_context.tsv",
+}
 
 
 class CrystalReportError(InputContractError):
@@ -31,6 +44,9 @@ class _CheckpointManifest(BaseModel):
     finalist_count: int
     outputs: dict[str, str]
     identity: _CheckpointIdentity
+    crystal_context: dict[str, object] = Field(default_factory=dict)
+    matthews_policy: dict[str, object] = Field(default_factory=dict)
+    sequence_assignment_model_role: str | None = None
 
 
 @dataclass(frozen=True)
@@ -110,9 +126,19 @@ def _list_items(items: tuple[str, ...], empty_text: str) -> str:
     )
 
 
+def _read_approval_candidates(root: Path) -> list[dict[str, str]]:
+    path = root / "sequence_approval_candidates.tsv"
+    try:
+        with path.open(encoding="utf-8", newline="") as handle:
+            return list(csv.DictReader(handle, delimiter="\t"))
+    except (OSError, UnicodeError) as exc:
+        raise CrystalReportError("sequence approval candidates are unreadable") from exc
+
+
 def _render_report(
     status: ScientificStatusRecord,
     checkpoint: _CheckpointManifest,
+    approval_candidates: list[dict[str, str]],
 ) -> str:
     warning_items = _list_items(status.warnings, "None recorded")
     primary = _list_items(status.primary_sequence_groups, "No primary group approved")
@@ -120,18 +146,12 @@ def _render_report(
         status.extended_sequence_groups, "No alternative group retained"
     )
     rows: list[str] = []
-    asset_names = (
-        ("Refined PDB", "brief_refine_001.pdb"),
-        ("Refined MTZ", "brief_refine_001.mtz"),
-        ("2mFo-DFc map", "brief_refine_2mFo-DFc.ccp4"),
-        ("Sequence model", "sequence_from_map.pdb"),
-    )
     for seed_id, copy_count in sorted(status.best_supported_copy_counts.items()):
         asset_root = f"assets/{seed_id}"
         links = " ".join(
             f'<a href="{html.escape(asset_root + "/" + filename)}">'
             f"{html.escape(label)}</a>"
-            for label, filename in asset_names
+            for label, filename in _REPORT_ASSETS
         )
         rows.append(
             "<tr>"
@@ -139,13 +159,30 @@ def _render_report(
             f"<td>{copy_count}</td><td>{links}</td>"
             "</tr>"
         )
+    annotation_rows = "".join(
+        "<tr>"
+        f"<td><code>{html.escape(row.get('sequence_group_id', ''))}</code></td>"
+        f"<td>{html.escape(row.get('best_candidate_rank', ''))}</td>"
+        f"<td>{html.escape(row.get('original_protein_ids', ''))}</td>"
+        f"<td>{html.escape(row.get('locus_tags', ''))}</td>"
+        f"<td>{html.escape(row.get('gene_names', ''))}</td>"
+        f"<td>{html.escape(row.get('products', ''))}</td>"
+        f"<td>{html.escape(row.get('annotation_providers', ''))}</td>"
+        f"<td>{html.escape(row.get('refined_copy_count', ''))}</td>"
+        f"<td>{html.escape(row.get('matthews_top_copy_counts', ''))}</td>"
+        f"<td>{html.escape(row.get('matthews_status_at_refined_copy', ''))}</td>"
+        "</tr>"
+        for row in approval_candidates
+    )
     provenance = _list_items(status.provenance_pointers, "None recorded")
+    asu_volume = checkpoint.crystal_context.get("asu_volume_a3", "unknown")
+    space_group = checkpoint.crystal_context.get("space_group", "unknown")
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{html.escape(status.crystal_id)} review report</title>
+  <title>{html.escape(status.crystal_id)} diffraction-dataset review report</title>
   <style>
     body {{
       font-family: system-ui, sans-serif; max-width: 1100px;
@@ -167,11 +204,13 @@ def _render_report(
   </style>
 </head>
 <body>
-  <h1>{html.escape(status.crystal_id)} review report</h1>
+  <h1>{html.escape(status.crystal_id)} diffraction-dataset review report</h1>
   <p class="caution">
-    This report preserves ranked evidence and human decisions. It is not a
-    validated structure or exact identity unless the recorded scientific
-    status says so.
+    <code>{html.escape(status.crystal_id)}</code> is the experimental crystal/
+    diffraction dataset identifier. It is not a protein name, gene identifier,
+    or PDB accession. This report preserves ranked evidence and human decisions;
+    it is not a validated structure or exact identity unless the recorded
+    scientific status says so.
   </p>
   <div class="status">
     <div class="card"><strong>Execution</strong><br>
@@ -183,6 +222,13 @@ def _render_report(
     <div class="card"><strong>T12.5 package</strong><br>
       <code>{html.escape(checkpoint.package_id)}</code></div>
   </div>
+  <h2>Crystal and ASU context</h2>
+  <p>Space group: <code>{html.escape(str(space_group))}</code>; asymmetric-unit
+    volume: {html.escape(str(asu_volume))} Å³. Matthews coefficients rank
+    physically plausible copy counts for each candidate sequence. They do not
+    prove that ASU = nA, establish molecular identity, or exclude a heteromer,
+    contaminant, cleavage product, or unmodelled component. The prototype's
+    ASU = nA assumption therefore remains a human-reviewed hypothesis.</p>
   <h2>Warnings</h2>{warning_items}
   <h2>Primary sequence groups</h2>{primary}
   <h2>Retained sequence alternatives</h2>{extended}
@@ -193,8 +239,25 @@ def _render_report(
     <li><a href="sequence_candidates_top25.tsv">Top 25 per finalist</a></li>
     <li><a href="sequence_candidates_full.tsv">All scored groups</a></li>
     <li><a href="sequence_approval_candidates.tsv">Unique approval candidates</a></li>
+    <li><a href="sequence_gene_annotations.tsv">Genome annotations</a></li>
+    <li><a href="sequence_matthews_context.tsv">Matthews copy-number context</a></li>
     <li><a href="approved_sequence_groups.tsv">Human decisions</a></li>
   </ul>
+  <p>The <strong>sequence-assignment hypothesis</strong> PDB is generated by
+    <code>phenix.sequence_from_map</code> from the refined model, the 2mFo-DFc
+    map, and the complete catalogue. It helps inspect residue assignment but is
+    not independently refined and is not a final identity call. Use the
+    2mFo-DFc map for overall model support and the mFo-DFc difference map for
+    positive and negative residual density.</p>
+  <h2>Genome annotation and Matthews context</h2>
+  <p>Every source record compatible with an exact candidate sequence is retained;
+    repeated sequence-to-locus mappings are not collapsed.</p>
+  <table><thead><tr>
+    <th>Sequence group</th><th>best rank</th><th>protein IDs</th>
+    <th>locus tags</th><th>gene names</th><th>products</th>
+    <th>annotation source</th><th>refined copies</th>
+    <th>top Matthews copies</th><th>status at refined copies</th>
+  </tr></thead><tbody>{annotation_rows}</tbody></table>
   <h2>Structural finalists</h2>
   <table><thead><tr>
     <th>Seed solution</th><th>Copy count</th><th>Assets</th>
@@ -217,14 +280,29 @@ def build_crystal_report(request: CrystalReportRequest) -> CrystalReportOutput:
     )
     if len(status.best_supported_copy_counts) != checkpoint.finalist_count:
         raise CrystalReportError("status and checkpoint finalist counts disagree")
+    if not checkpoint.outputs.keys() >= _SCIENTIFIC_CONTEXT_OUTPUTS:
+        raise CrystalReportError(
+            "checkpoint lacks genome-annotation or Matthews context"
+        )
+    for seed_id in status.best_supported_copy_counts:
+        for _label, filename in _REPORT_ASSETS:
+            relative = f"assets/{seed_id}/{filename}"
+            if relative not in checkpoint.identity.assets:
+                raise CrystalReportError(
+                    f"checkpoint lacks required review asset: {relative}"
+                )
+    approval_candidates = _read_approval_candidates(request.checkpoint_directory)
 
     report_html = request.checkpoint_directory / "crystal_report.html"
     status_output = request.checkpoint_directory / "scientific_status.json"
     manifest_output = request.checkpoint_directory / "crystal_report_manifest.json"
     atomic_write_json(status_output, status.model_dump(mode="json"))
-    atomic_write_text(report_html, _render_report(status, checkpoint))
+    atomic_write_text(
+        report_html,
+        _render_report(status, checkpoint, approval_candidates),
+    )
     identity = {
-        "adapter_version": "crystal-report-v1",
+        "adapter_version": "crystal-report-v2",
         "crystal_id": status.crystal_id,
         "checkpoint_package_id": checkpoint.package_id,
         "checkpoint_manifest_sha256": sha256_file(checkpoint_manifest_path),

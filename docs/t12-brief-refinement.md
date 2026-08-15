@@ -54,8 +54,9 @@ The adapter retains:
 - the exact `phenix.refine` and `phenix.sequence_from_map` argument arrays;
 - initial/final `R_work` and `R_free`, available geometry metrics, warnings,
   logs, versions, and input/output checksums;
-- a sigma-scaled whole-cell `2mFo-DFc` CCP4 map with missing observations left
-  unfilled;
+- sigma-scaled whole-cell `2mFo-DFc` and `mFo-DFc` CCP4 maps with missing
+  observations left unfilled, plus both coefficient/phase pairs in the refined
+  MTZ;
 - every exact-sequence group that receives a score, ordered by raw score; and
 - every source record and compatible locus linked to each exact sequence.
 
@@ -74,8 +75,12 @@ fabricating a Slurm job result. Both routes publish:
 - a primary top-10 and extended top-25 view for every retained finalist;
 - the full set of scored catalogue groups, including raw scores and missing
   coverage/segment fields without imputation;
-- refined PDB/MTZ, `2mFo-DFc` CCP4 map, and sequence-from-map PDB assets for
-  every finalist;
+- refined PDB/MTZ, `2mFo-DFc` and `mFo-DFc` CCP4 maps, and the
+  sequence-assignment hypothesis PDB for every finalist;
+- a genome-annotation crosswalk that preserves every compatible protein ID,
+  locus tag, gene name, product, genomic coordinate, and annotation provider;
+- per-sequence Matthews copy-number context for copy counts 1--16, including
+  the coefficient, solvent fraction, physical status, and transparent prior;
 - an HTML review view and unique top-10 sequence-group candidate table; and
 - a header-only second approval template requiring an explicit human decision.
 
@@ -85,6 +90,17 @@ manifest with its stage parent, Phaser MTZ, diffraction MTZ, result records,
 command, and bounded logs even when no scored sequence row exists. The manifest
 records unscored catalogue groups separately through the complete and scored
 counts in the underlying typed results.
+
+`sequence_from_map.pdb` is not a separately refined model or a final identity
+call. Phenix derives it from the refined model, the `2mFo-DFc` map, and the
+complete catalogue; the report therefore labels it as a map-derived
+sequence-assignment hypothesis. The `mFo-DFc` map is provided separately for
+positive and negative residual-density inspection in Coot.
+
+The checkpoint recomputes Matthews context from the checksum-bound MTZ
+preflight geometry and each exact candidate sequence mass. This is a physical
+copy-number prior only. It cannot prove molecular identity, homomeric content,
+or the prototype assumption `ASU = nA`.
 
 ## Normal T12.5 process contract
 
@@ -111,8 +127,10 @@ The comparison uses one macrocycle of individual coordinate and isotropic ADP
 refinement, Phenix random seed `2679941`, no simulated annealing, and no ordered
 solvent addition. It preserves the input free-reflection set; missing free flags
 or other invalid reflection contracts fail loudly instead of generating a new
-comparison set. Map generation uses `2mFo-DFc`, CCP4, sigma scaling, the full
-cell, and no filled missing observations.
+comparison set. Map generation uses both `2mFo-DFc` and `mFo-DFc`, CCP4, sigma
+scaling, the full cell, and no filled missing observations. The refined MTZ
+must contain `2mFo-DFc`/`PH2mFo-DFc` and `mFo-DFc`/`PHmFo-DFc`; missing pairs
+turn the candidate into a typed parse failure.
 
 The output serial is fixed to zero because Phenix increments that value when
 constructing its first numbered PDB/MTZ names. The CCP4 map uses its explicit
@@ -156,7 +174,12 @@ ranking/crosswalk, checksum rejection, and all live copy-state endings.
 `nextflow-check` parses the typed module/workflow, while `nextflow-stub` verifies
 normal-workflow T12 and T12.5 publication plus cached resume without fabricating
 scientific success. All 11 retained CD6 finalists have already completed the
-verified Viper Phenix T12 protocol as retained qualification evidence. T12.5
+preceding single-map Viper Phenix T12 protocol as retained historical evidence;
+a fresh dual-map replay is required for the corrected checkpoint. CD6 is an
+unknown crystal/diffraction dataset, not a truth-labelled protein control. It
+may be heteromeric or otherwise violate `ASU = nA`, so it is useful as a
+realistic challenge case but is not sufficient by itself to validate the
+single-component prototype. T12.5
 additionally tests checksum-gated remote collection, normal live-result
 validation, typed-failure retention, path containment, top-10/top-25/full
 cardinality, empty approval semantics, and package identity.

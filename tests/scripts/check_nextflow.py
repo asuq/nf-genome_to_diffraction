@@ -404,6 +404,8 @@ def check_stubs() -> None:
                 "sequence_candidates.html",
                 "sequence_approval_candidates.tsv",
                 "approved_sequence_groups.tsv",
+                "sequence_gene_annotations.tsv",
+                "sequence_matthews_context.tsv",
                 "report.html",
                 "timeline.html",
                 "trace.tsv",

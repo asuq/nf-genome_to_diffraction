@@ -629,7 +629,7 @@ class CopyCountAssessment(ContractModel):
 
 
 class BriefRefinementResult(ContractModel):
-    """Comparable one-cycle refinement and stable-map result for one finalist."""
+    """Comparable one-cycle refinement and review-map result for one finalist."""
 
     schema_version: Literal["1.0"]
     refinement_id: NonEmptyString
@@ -651,6 +651,9 @@ class BriefRefinementResult(ContractModel):
     map_path: str | None = None
     map_sha256: Sha256Hex | None = None
     map_type: Literal["2mFo-DFc"] = "2mFo-DFc"
+    difference_map_path: str | None = None
+    difference_map_sha256: Sha256Hex | None = None
+    difference_map_type: Literal["mFo-DFc"] = "mFo-DFc"
     map_scale: Literal["sigma"] = "sigma"
     map_region: Literal["cell"] = "cell"
     command_pointer: NonEmptyString
@@ -659,6 +662,8 @@ class BriefRefinementResult(ContractModel):
 
     @model_validator(mode="after")
     def _completed_result_has_required_assets(self) -> Self:
+        if (self.difference_map_path is None) != (self.difference_map_sha256 is None):
+            raise ValueError("difference-map path and checksum must be paired")
         if self.execution_status in {
             ExecutionStatus.COMPLETED_SUCCESS,
             ExecutionStatus.COMPLETED_WARNING,
@@ -713,6 +718,10 @@ class SequenceMapResult(ContractModel):
     raw_log_pointer: NonEmptyString
     output_model_path: str | None = None
     output_model_sha256: Sha256Hex | None = None
+    output_model_role: Literal[
+        "map_derived_sequence_assignment_hypothesis_not_independently_refined"
+    ] = "map_derived_sequence_assignment_hypothesis_not_independently_refined"
+    input_map_type: Literal["2mFo-DFc"] = "2mFo-DFc"
     warnings: tuple[str, ...] = ()
 
     @model_validator(mode="after")

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.ids import sequence_digest
 from genome_to_diffraction.review.sequence_checkpoint import (
     LiveSequenceCheckpointRequest,
     SequenceCheckpointError,
@@ -26,6 +27,52 @@ def _request(tmp_path: Path) -> SequenceCheckpointRequest:
     asset_root = tmp_path / "assets"
     refinement_records: list[dict[str, object]] = []
     sequence_records: list[dict[str, object]] = []
+    sequence_group_records: list[dict[str, object]] = []
+    source_record_records: list[dict[str, object]] = []
+    candidate_groups: list[tuple[str, tuple[str, ...], int]] = []
+    for rank in range(1, 31):
+        sequence_text = "A" * (50 + rank)
+        digest = sequence_digest(sequence_text)
+        group_id = f"seq_{digest}"
+        source_ids = (f"src_{rank:064x}",)
+        if rank == 1:
+            source_ids += ("src_" + "f" * 64,)
+        sequence_group_records.append(
+            {
+                "schema_version": "1.0",
+                "sequence_group_id": group_id,
+                "sha256": digest,
+                "sequence": sequence_text,
+                "length_aa": len(sequence_text),
+                "molecular_mass_da": 10000.0 + rank * 100,
+                "mass_method": "unit-test",
+                "residue_policy": "standard_exact",
+                "source_record_count": len(source_ids),
+                "quality_flags": [],
+            }
+        )
+        for source_index, source_id in enumerate(source_ids, start=1):
+            source_record_records.append(
+                {
+                    "schema_version": "1.0",
+                    "source_record_id": source_id,
+                    "catalogue_id": "test-genome",
+                    "original_protein_id": f"protein-{rank}-{source_index}",
+                    "original_header": f"protein-{rank}-{source_index}",
+                    "description": f"annotated protein {rank}",
+                    "sequence_group_id": group_id,
+                    "locus_tag": f"LOCUS_{rank}_{source_index}",
+                    "contig": "contig-1",
+                    "start": rank * 100 + source_index,
+                    "end": rank * 100 + source_index + 50,
+                    "strand": "+",
+                    "gene_name": f"gene{rank}" if source_index == 1 else None,
+                    "product": f"product {rank}",
+                    "source_annotation_provider": "unit-test annotation",
+                    "quality_flags": [],
+                }
+            )
+        candidate_groups.append((group_id, source_ids, len(sequence_text)))
     for seed_index in range(2):
         seed = f"sol_{seed_index:064x}"
         directory = asset_root / "artifacts" / "t12" / f"t12_{seed}"
@@ -34,6 +81,7 @@ def _request(tmp_path: Path) -> SequenceCheckpointRequest:
             "brief_refine_001.pdb": f"PDB {seed}\n",
             "brief_refine_001.mtz": f"MTZ {seed}\n",
             "brief_refine_2mFo-DFc.ccp4": f"MAP {seed}\n",
+            "brief_refine_mFo-DFc.ccp4": f"DIFF {seed}\n",
             "sequence_from_map.pdb": f"SEQ {seed}\n",
         }
         for name, content in contents.items():
@@ -61,6 +109,11 @@ def _request(tmp_path: Path) -> SequenceCheckpointRequest:
                 "map_path": "brief_refine_2mFo-DFc.ccp4",
                 "map_sha256": sha256_file(directory / "brief_refine_2mFo-DFc.ccp4"),
                 "map_type": "2mFo-DFc",
+                "difference_map_path": "brief_refine_mFo-DFc.ccp4",
+                "difference_map_sha256": sha256_file(
+                    directory / "brief_refine_mFo-DFc.ccp4"
+                ),
+                "difference_map_type": "mFo-DFc",
                 "map_scale": "sigma",
                 "map_region": "cell",
                 "command_pointer": "t12_command.json",
@@ -73,11 +126,11 @@ def _request(tmp_path: Path) -> SequenceCheckpointRequest:
                 "schema_version": "1.0",
                 "refinement_id": refinement_id,
                 "rank": rank,
-                "sequence_group_id": f"seq_{rank:064x}",
-                "sequence_length": 50 + rank,
+                "sequence_group_id": candidate_groups[rank - 1][0],
+                "sequence_length": candidate_groups[rank - 1][2],
                 "raw_score": 100.0 - rank,
                 "score_z": 10.0 - rank / 10,
-                "source_record_ids": [f"src_{rank:064x}"],
+                "source_record_ids": list(candidate_groups[rank - 1][1]),
                 "source_loci": [f"locus_{rank}"],
                 "segment_ranges": [],
                 "coverage": None,
@@ -112,10 +165,51 @@ def _request(tmp_path: Path) -> SequenceCheckpointRequest:
     sequence = tmp_path / "sequence.jsonl"
     stage = tmp_path / "stage.json"
     job = tmp_path / "job.json"
+    sequence_groups = tmp_path / "sequence_groups.jsonl"
+    source_records = tmp_path / "source_records.jsonl"
+    preflight = tmp_path / "preflight.jsonl"
+    diffraction = tmp_path / "diffraction.mtz"
+    diffraction.write_text("DIFFRACTION\n", encoding="ascii")
     _write_jsonl(refinement, refinement_records)
     _write_jsonl(sequence, sequence_records)
+    _write_jsonl(sequence_groups, sequence_group_records)
+    _write_jsonl(source_records, source_record_records)
+    _write_jsonl(
+        preflight,
+        [
+            {
+                "schema_version": "1.0",
+                "preflight_id": "preflight-unit",
+                "crystal_id": "CD6QS2P2G1_5",
+                "mtz_sha256": sha256_file(diffraction),
+                "selected_observation_labels": "F,SIGF",
+                "selected_observation_type": "amplitude",
+                "free_flag_labels": "FreeR_flag",
+                "free_flag_status": "present",
+                "unit_cell": [100.0, 100.0, 100.0, 90.0, 90.0, 90.0],
+                "space_group": "P 1",
+                "general_position_multiplicity": 1,
+                "cell_volume_a3": 1000000.0,
+                "asu_volume_a3": 1000000.0,
+                "resolution_low_a": 50.0,
+                "resolution_high_a": 2.0,
+                "reflection_count": 100,
+                "decision": "pass",
+                "execution_status": "completed_success",
+            }
+        ],
+    )
     stage.write_text(
-        json.dumps({"seed_count": 2, "parent_run_id": "gtd-m4-copy-parent"}),
+        json.dumps(
+            {
+                "seed_count": 2,
+                "parent_run_id": "gtd-m4-copy-parent",
+                "parent_mtz_sha256": sha256_file(diffraction),
+                "sequence_groups_sha256": sha256_file(sequence_groups),
+                "source_records_sha256": sha256_file(source_records),
+                "preflight_sha256": sha256_file(preflight),
+            }
+        ),
         encoding="utf-8",
     )
     job.write_text(
@@ -136,6 +230,9 @@ def _request(tmp_path: Path) -> SequenceCheckpointRequest:
         sequence_results_jsonl=sequence,
         stage_manifest_json=stage,
         job_result_json=job,
+        sequence_groups_jsonl=sequence_groups,
+        source_records_jsonl=source_records,
+        preflight_jsonl=preflight,
         asset_root=asset_root,
         output_directory=tmp_path / "checkpoint",
         progress=False,
@@ -160,6 +257,12 @@ def _live_request(
     ]
     stage = tmp_path / "live_t12_stage"
     (stage / "inputs").mkdir(parents=True)
+    for source_path in (
+        source.sequence_groups_jsonl,
+        source.source_records_jsonl,
+        source.preflight_jsonl,
+    ):
+        (stage / "inputs" / source_path.name).write_bytes(source_path.read_bytes())
     diffraction = stage / "inputs/diffraction.mtz"
     diffraction.write_text("DIFFRACTION\n", encoding="ascii")
     diffraction_sha = sha256_file(diffraction)
@@ -190,6 +293,8 @@ def _live_request(
                     "refined_mtz_sha256": None,
                     "map_path": None,
                     "map_sha256": None,
+                    "difference_map_path": None,
+                    "difference_map_sha256": None,
                 }
             )
             sequence.update(
@@ -262,6 +367,10 @@ def _live_request(
         "all_approved_seeds_retained": True,
         "numeric_score_filter_applied": False,
         "failed_addition_proves_absence": False,
+        "sequence_groups_sha256": sha256_file(stage / "inputs/sequence_groups.jsonl"),
+        "source_records_sha256": sha256_file(stage / "inputs/source_records.jsonl"),
+        "preflight_sha256": sha256_file(stage / "inputs/preflight.jsonl"),
+        "diffraction_mtz_sha256": diffraction_sha,
         "finalists_sha256": sha256_file(finalists),
         "copy_report_tsv_sha256": sha256_file(copy_tsv),
         "copy_report_markdown_sha256": sha256_file(copy_md),
@@ -296,6 +405,43 @@ def test_sequence_checkpoint_publishes_bounded_and_full_views(tmp_path: Path) ->
     assert manifest["top10_row_count"] == 20
     assert manifest["top25_row_count"] == 50
     assert manifest["full_scored_row_count"] == 60
+    assert manifest["crystal_context"]["crystal_id"] == "CD6QS2P2G1_5"
+    assert manifest["matthews_policy"]["is_physical_prior_not_asu_identity_proof"]
+    assert output.gene_annotations_tsv.is_file()
+    assert output.matthews_context_tsv.is_file()
+    annotations = list(
+        csv.DictReader(
+            output.gene_annotations_tsv.open(encoding="utf-8", newline=""),
+            delimiter="\t",
+        )
+    )
+    duplicate_groups = {
+        row["sequence_group_id"]
+        for row in annotations
+        if sum(
+            other["sequence_group_id"] == row["sequence_group_id"]
+            for other in annotations
+        )
+        == 2
+    }
+    assert len(duplicate_groups) == 1
+    first_group = duplicate_groups.pop()
+    assert annotations[0]["product"].startswith("product ")
+    matthews = list(
+        csv.DictReader(
+            output.matthews_context_tsv.open(encoding="utf-8", newline=""),
+            delimiter="\t",
+        )
+    )
+    assert {
+        int(row["copy_count"])
+        for row in matthews
+        if row["sequence_group_id"] == first_group
+    } == set(range(1, 17))
+    checkpoint_html = output.review_html.read_text(encoding="utf-8")
+    assert "mFo-DFc" in checkpoint_html
+    assert "ASU = nA" in checkpoint_html
+    assert "sequence-assignment hypothesis" in checkpoint_html
 
 
 def test_sequence_checkpoint_rejects_tampered_finalist_asset(tmp_path: Path) -> None:

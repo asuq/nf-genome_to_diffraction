@@ -2,9 +2,12 @@
 
 The adapter consumes one retained M4 parent coordinate/MTZ, the complete exact
 sequence catalogue, source-record crosswalk, and verified Phenix manifest. It
-runs a single conservative ``phenix.refine`` macrocycle, writes one sigma-scaled
-cell ``2mFo-DFc`` map, and asks ``phenix.sequence_from_map`` to score every exact
-sequence group. All scores and catalogue-to-locus ambiguity are retained.
+runs a single conservative ``phenix.refine`` macrocycle, writes sigma-scaled
+whole-cell ``2mFo-DFc`` and ``mFo-DFc`` maps, verifies both coefficient pairs in
+the refined MTZ, and asks ``phenix.sequence_from_map`` to score every exact
+sequence group against the ``2mFo-DFc`` map. All scores and catalogue-to-locus
+ambiguity are retained. The generated sequence-assignment PDB is an
+interpretation aid, not an independently refined final model.
 
 Tool failures become typed candidate-level results; they do not discard other
 finalists. The cache identity includes input/checkpoint hashes, the complete
@@ -20,6 +23,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+import gemmi
 from pydantic import BaseModel, ValidationError
 from tqdm import tqdm
 
@@ -43,7 +47,7 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
-_PROTOCOL_VERSION = "phenix-t12-brief-v3"
+_PROTOCOL_VERSION = "phenix-t12-brief-v4"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -160,7 +164,7 @@ def _write_catalogue_fasta(
     atomic_write_text(path, "\n".join(lines) + "\n")
 
 
-def _refine_parameters(*, threads: int, map_name: str) -> str:
+def _refine_parameters(*, threads: int, map_name: str, difference_map_name: str) -> str:
     return f"""refinement {{
   main {{
     number_of_macro_cycles = 1
@@ -182,10 +186,21 @@ def _refine_parameters(*, threads: int, map_name: str) -> str:
     map_coefficients {{
       map_type = 2mFo-DFc
     }}
+    map_coefficients {{
+      map_type = mFo-DFc
+    }}
     map {{
       map_type = 2mFo-DFc
       format = ccp4
       file_name = {map_name}
+      fill_missing_f_obs = False
+      scale = sigma
+      region = cell
+    }}
+    map {{
+      map_type = mFo-DFc
+      format = ccp4
+      file_name = {difference_map_name}
       fill_missing_f_obs = False
       scale = sigma
       region = cell
@@ -200,12 +215,32 @@ output {{
 """
 
 
-def _refinement_output_paths(outdir: Path) -> tuple[Path, Path, Path]:
-    """Return the fixed Phenix serial-001 PDB/MTZ and explicit CCP4 names."""
+def _refinement_output_paths(outdir: Path) -> tuple[Path, Path, Path, Path]:
+    """Return the fixed PDB/MTZ and both explicit review-map names."""
     return (
         outdir / "brief_refine_001.pdb",
         outdir / "brief_refine_001.mtz",
         outdir / "brief_refine_2mFo-DFc.ccp4",
+        outdir / "brief_refine_mFo-DFc.ccp4",
+    )
+
+
+def _has_required_map_coefficients(path: Path) -> bool:
+    """Return whether the refined MTZ contains both review-map coefficient pairs."""
+
+    try:
+        mtz = gemmi.read_mtz_file(str(path))
+    except OSError, RuntimeError, ValueError:
+        return False
+    columns = {column.label: column.type for column in mtz.columns}
+    return all(
+        columns.get(label) == type_code
+        for label, type_code in (
+            ("2mFo-DFc", "F"),
+            ("PH2mFo-DFc", "P"),
+            ("mFo-DFc", "F"),
+            ("PHmFo-DFc", "P"),
+        )
     )
 
 
@@ -387,12 +422,16 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
             "threads": request.threads,
         },
     )
-    refined_model, refined_mtz, map_path = _refinement_output_paths(outdir)
+    refined_model, refined_mtz, map_path, difference_map_path = (
+        _refinement_output_paths(outdir)
+    )
     params_path = outdir / "brief_refine.eff"
     atomic_write_text(
         params_path,
         _refine_parameters(
-            threads=request.threads, map_name="brief_refine_2mFo-DFc.ccp4"
+            threads=request.threads,
+            map_name="brief_refine_2mFo-DFc.ccp4",
+            difference_map_name="brief_refine_mFo-DFc.ccp4",
         ),
     )
     refine_args = [
@@ -437,7 +476,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     initial_rw, initial_rf, final_rw, final_rf, rms_bonds, rms_angles = (
         _refinement_metrics(refine_text)
     )
-    required_assets = (refined_model, refined_mtz, map_path)
+    required_assets = (refined_model, refined_mtz, map_path, difference_map_path)
     refinement_success = completed.returncode == 0 and all(
         path.is_file() for path in required_assets
     )
@@ -451,6 +490,14 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         refinement_warnings.append("r_free_increased_during_brief_refinement")
     if completed.returncode == 0 and not refinement_success:
         refinement_warnings.append("phenix_refine_completed_without_required_assets")
+    coefficients_valid = refinement_success and _has_required_map_coefficients(
+        refined_mtz
+    )
+    if refinement_success and not coefficients_valid:
+        refinement_success = False
+        refinement_warnings.append(
+            "refined_mtz_lacks_required_2mfo_dfc_or_mfo_dfc_coefficients"
+        )
     refinement = BriefRefinementResult(
         schema_version="1.0",
         refinement_id=refinement_id,
@@ -479,6 +526,10 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         refined_mtz_sha256=sha256_file(refined_mtz) if refinement_success else None,
         map_path=map_path.name if refinement_success else None,
         map_sha256=sha256_file(map_path) if refinement_success else None,
+        difference_map_path=difference_map_path.name if refinement_success else None,
+        difference_map_sha256=sha256_file(difference_map_path)
+        if refinement_success
+        else None,
         command_pointer=command_path.name,
         raw_log_pointer=refine_log.name,
         warnings=tuple(refinement_warnings),
@@ -567,6 +618,10 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         output_model_sha256=sha256_file(sequence_output_model)
         if sequence_output_model.is_file()
         else None,
+        output_model_role=(
+            "map_derived_sequence_assignment_hypothesis_not_independently_refined"
+        ),
+        input_map_type="2mFo-DFc",
         warnings=tuple(sequence_warnings),
     )
     sequence_json, sequence_jsonl = _write_result(

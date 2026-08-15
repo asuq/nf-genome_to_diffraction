@@ -3258,6 +3258,7 @@ def _install_t12_review_asset_fixture(
         "brief_refine_001.pdb": b"ATOM\n",
         "brief_refine_001.mtz": b"MTZ\n",
         "brief_refine_2mFo-DFc.ccp4": b"MAP\n",
+        "brief_refine_mFo-DFc.ccp4": b"DIFFERENCE\n",
         "sequence_from_map.pdb": b"MODEL\n",
     }
     digests = {
@@ -3298,6 +3299,8 @@ def _install_t12_review_asset_fixture(
                 "refined_mtz_sha256": digests["brief_refine_001.mtz"],
                 "map_path": "brief_refine_2mFo-DFc.ccp4",
                 "map_sha256": digests["brief_refine_2mFo-DFc.ccp4"],
+                "difference_map_path": "brief_refine_mFo-DFc.ccp4",
+                "difference_map_sha256": digests["brief_refine_mFo-DFc.ccp4"],
             }
         )
         + "\n",
@@ -3337,6 +3340,36 @@ def _install_t12_review_asset_fixture(
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(payload)
         expected.add(relative)
+    context_payloads = {
+        "sequence_groups.jsonl": b'{"sequence_group_id":"seq_test"}\n',
+        "source_records.jsonl": b'{"source_record_id":"src_test"}\n',
+        "preflight.jsonl": b'{"preflight_id":"preflight_test"}\n',
+    }
+    stage_root = run / "artifacts/t12-inputs"
+    context_root = stage_root / "inputs"
+    context_root.mkdir(parents=True, exist_ok=True)
+    for name, payload in context_payloads.items():
+        relative = f"artifacts/t12-inputs/inputs/{name}"
+        (context_root / name).write_bytes(payload)
+        expected.add(relative)
+    (stage_root / "t12_stage_manifest.json").write_text(
+        json.dumps(
+            {
+                "seed_count": 1,
+                "sequence_groups_sha256": hashlib.sha256(
+                    context_payloads["sequence_groups.jsonl"]
+                ).hexdigest(),
+                "source_records_sha256": hashlib.sha256(
+                    context_payloads["source_records.jsonl"]
+                ).hexdigest(),
+                "preflight_sha256": hashlib.sha256(
+                    context_payloads["preflight.jsonl"]
+                ).hexdigest(),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return (
         hashlib.sha256(summary_path.read_bytes()).hexdigest(),
         hashlib.sha256(refinement_path.read_bytes()).hexdigest(),

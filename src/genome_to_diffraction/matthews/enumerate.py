@@ -162,7 +162,7 @@ def assess_sds(group: SequenceGroupRecord, crystal: CrystalEntry) -> SdsAssessme
     )
 
 
-def _physical_status(
+def physical_status(
     lower: float,
     upper: float,
     *,
@@ -179,7 +179,7 @@ def _physical_status(
     return PhysicalStatus.PLAUSIBLE
 
 
-def _prior_score(solvent_midpoint: float, *, minimum: float, maximum: float) -> float:
+def prior_score(solvent_midpoint: float, *, minimum: float, maximum: float) -> float:
     """Return a transparent bounded heuristic, not an empirical probability."""
 
     centre = (minimum + maximum) / 2
@@ -249,10 +249,8 @@ def enumerate_group(
             total_mass = exact_mass * copy_count
             coefficient = preflight.asu_volume_a3 / total_mass
             solvent = 1.0 - 1.23 / coefficient
-            status = _physical_status(
-                solvent, solvent, minimum=minimum, maximum=maximum
-            )
-            prior = _prior_score(solvent, minimum=minimum, maximum=maximum)
+            status = physical_status(solvent, solvent, minimum=minimum, maximum=maximum)
+            prior = prior_score(solvent, minimum=minimum, maximum=maximum)
             row = MatthewsHypothesis.model_validate(
                 {
                     **common,
@@ -273,13 +271,13 @@ def enumerate_group(
             coefficient_upper = preflight.asu_volume_a3 / total_lower
             solvent_lower = 1.0 - 1.23 / coefficient_lower
             solvent_upper = 1.0 - 1.23 / coefficient_upper
-            status = _physical_status(
+            status = physical_status(
                 solvent_lower,
                 solvent_upper,
                 minimum=minimum,
                 maximum=maximum,
             )
-            prior = _prior_score(
+            prior = prior_score(
                 (solvent_lower + solvent_upper) / 2,
                 minimum=minimum,
                 maximum=maximum,

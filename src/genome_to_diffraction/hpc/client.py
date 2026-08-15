@@ -159,10 +159,18 @@ _T12_SEQUENCE_RELATIVE = PurePosixPath(
 _T12_STAGE_MANIFEST_RELATIVE = PurePosixPath(
     "artifacts/t12-inputs/t12_stage_manifest.json"
 )
+_T12_SEQUENCE_GROUPS_RELATIVE = PurePosixPath(
+    "artifacts/t12-inputs/inputs/sequence_groups.jsonl"
+)
+_T12_SOURCE_RECORDS_RELATIVE = PurePosixPath(
+    "artifacts/t12-inputs/inputs/source_records.jsonl"
+)
+_T12_PREFLIGHT_RELATIVE = PurePosixPath("artifacts/t12-inputs/inputs/preflight.jsonl")
 _T12_ASSET_BASENAMES = (
     "brief_refine_001.pdb",
     "brief_refine_001.mtz",
     "brief_refine_2mFo-DFc.ccp4",
+    "brief_refine_mFo-DFc.ccp4",
     "sequence_from_map.pdb",
 )
 
@@ -1774,6 +1782,13 @@ class HpcController:
                     *_T12_STAGE_MANIFEST_RELATIVE.parts
                 ),
                 job_result_json=collected.joinpath(*_REVIEW_JOB_RESULT_RELATIVE.parts),
+                sequence_groups_jsonl=asset_root.joinpath(
+                    *_T12_SEQUENCE_GROUPS_RELATIVE.parts
+                ),
+                source_records_jsonl=asset_root.joinpath(
+                    *_T12_SOURCE_RECORDS_RELATIVE.parts
+                ),
+                preflight_jsonl=asset_root.joinpath(*_T12_PREFLIGHT_RELATIVE.parts),
                 asset_root=asset_root,
                 output_directory=package_root,
                 progress=self.progress,
@@ -2171,6 +2186,7 @@ def _t12_review_asset_expectations(
             or result.get("refined_model_path") != "brief_refine_001.pdb"
             or result.get("refined_mtz_path") != "brief_refine_001.mtz"
             or result.get("map_path") != "brief_refine_2mFo-DFc.ccp4"
+            or result.get("difference_map_path") != "brief_refine_mFo-DFc.ccp4"
         ):
             raise ValidationError("T12 refinement result asset identity is invalid")
         refinement_by_seed[seed] = result
@@ -2195,6 +2211,7 @@ def _t12_review_asset_expectations(
         "brief_refine_001.pdb": "refined_model_sha256",
         "brief_refine_001.mtz": "refined_mtz_sha256",
         "brief_refine_2mFo-DFc.ccp4": "map_sha256",
+        "brief_refine_mFo-DFc.ccp4": "difference_map_sha256",
     }
     for seed in sorted(refinement_by_seed):
         refinement = refinement_by_seed[seed]
@@ -2214,7 +2231,18 @@ def _t12_review_asset_expectations(
         expectations[f"artifacts/t12/t12_{seed}/sequence_from_map.pdb"] = (
             sequence_digest
         )
-    if len(expectations) != len(refinements) * len(_T12_ASSET_BASENAMES):
+    input_digests = {
+        _T12_SEQUENCE_GROUPS_RELATIVE: stage.get("sequence_groups_sha256"),
+        _T12_SOURCE_RECORDS_RELATIVE: stage.get("source_records_sha256"),
+        _T12_PREFLIGHT_RELATIVE: stage.get("preflight_sha256"),
+    }
+    for relative, digest in input_digests.items():
+        if not isinstance(digest, str) or digest_pattern.fullmatch(digest) is None:
+            raise ValidationError("T12 scientific-context checksum is invalid")
+        expectations[relative.as_posix()] = digest
+    if len(expectations) != (
+        len(refinements) * len(_T12_ASSET_BASENAMES) + len(input_digests)
+    ):
         raise ValidationError("T12 review asset inventory is incomplete")
     return (
         expectations,

@@ -2735,6 +2735,14 @@ refinement_relative = PurePosixPath(
 sequence_relative = PurePosixPath(
     "artifacts/qualification/t12-sequence-results.jsonl"
 )
+stage_relative = PurePosixPath("artifacts/t12-inputs/t12_stage_manifest.json")
+sequence_groups_relative = PurePosixPath(
+    "artifacts/t12-inputs/inputs/sequence_groups.jsonl"
+)
+source_records_relative = PurePosixPath(
+    "artifacts/t12-inputs/inputs/source_records.jsonl"
+)
+preflight_relative = PurePosixPath("artifacts/t12-inputs/inputs/preflight.jsonl")
 job_relative = PurePosixPath("state/job-result.json")
 seed_pattern = re.compile(r"sol_[0-9a-f]{64}")
 digest_pattern = re.compile(r"[0-9a-f]{64}")
@@ -2788,6 +2796,7 @@ def load_jsonl(relative: PurePosixPath) -> tuple[Path, list[dict[str, object]]]:
 summary_path, summary = load_object(summary_relative)
 refinement_path, refinements = load_jsonl(refinement_relative)
 sequence_path, sequences = load_jsonl(sequence_relative)
+_, stage = load_object(stage_relative)
 _, job = load_object(job_relative)
 if sha256_file(summary_path) != expected_summary_sha256:
     raise ValueError("T12 summary checksum differs from local evidence")
@@ -2810,6 +2819,7 @@ if not (
     and summary.get("failed_sequence_count") == 0
     and summary.get("all_candidates_retained") is True
     and summary.get("all_resume_processes_cached") is True
+    and stage.get("seed_count") == len(refinements)
     and 1 <= len(refinements) <= 25
     and len(refinements) == len(sequences)
 ):
@@ -2826,6 +2836,7 @@ for result in refinements:
         and result.get("refined_model_path") == "brief_refine_001.pdb"
         and result.get("refined_mtz_path") == "brief_refine_001.mtz"
         and result.get("map_path") == "brief_refine_2mFo-DFc.ccp4"
+        and result.get("difference_map_path") == "brief_refine_mFo-DFc.ccp4"
     ):
         raise ValueError("T12 refinement asset identity is invalid")
     refinement_by_seed[seed] = result
@@ -2850,6 +2861,7 @@ digest_fields = {
     "brief_refine_001.pdb": "refined_model_sha256",
     "brief_refine_001.mtz": "refined_mtz_sha256",
     "brief_refine_2mFo-DFc.ccp4": "map_sha256",
+    "brief_refine_mFo-DFc.ccp4": "difference_map_sha256",
 }
 for seed in sorted(refinement_by_seed):
     refinement = refinement_by_seed[seed]
@@ -2865,6 +2877,16 @@ for seed in sorted(refinement_by_seed):
     expected[
         PurePosixPath("artifacts/t12") / f"t12_{seed}" / "sequence_from_map.pdb"
     ] = digest
+
+for relative, digest_key in (
+    (sequence_groups_relative, "sequence_groups_sha256"),
+    (source_records_relative, "source_records_sha256"),
+    (preflight_relative, "preflight_sha256"),
+):
+    digest = stage.get(digest_key)
+    if not isinstance(digest, str) or not digest_pattern.fullmatch(digest):
+        raise ValueError("T12 scientific-context checksum is invalid")
+    expected[relative] = digest
 
 total = 0
 copied: list[str] = []
@@ -2894,7 +2916,7 @@ PY
             "T12 review asset validation failed: ${message:-unknown error}"
     fi
     mapfile -t files < "$inventory"
-    ((${#files[@]} >= 4)) || {
+    ((${#files[@]} >= 8)) || {
         rm -rf -- "$temporary"
         fail transfer_failure "T12 review asset inventory is incomplete"
     }

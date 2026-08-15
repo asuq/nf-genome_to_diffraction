@@ -20,6 +20,7 @@ def _write_checkpoint(root: Path) -> tuple[Path, Path]:
         "brief_refine_001.pdb",
         "brief_refine_001.mtz",
         "brief_refine_2mFo-DFc.ccp4",
+        "brief_refine_mFo-DFc.ccp4",
         "sequence_from_map.pdb",
     ):
         path = asset_dir / name
@@ -32,12 +33,24 @@ def _write_checkpoint(root: Path) -> tuple[Path, Path]:
         "sequence_candidates_top10.tsv",
         "sequence_candidates_top25.tsv",
         "sequence_candidates_full.tsv",
-        "sequence_approval_candidates.tsv",
         "approved_sequence_groups.tsv",
+        "sequence_gene_annotations.tsv",
+        "sequence_matthews_context.tsv",
     ):
         path = root / name
         path.write_text(name, encoding="utf-8")
         outputs[name] = sha256_file(path)
+    approval_candidates = root / "sequence_approval_candidates.tsv"
+    approval_candidates.write_text(
+        "sequence_group_id\tbest_candidate_rank\toriginal_protein_ids\t"
+        "locus_tags\tgene_names\tproducts\tannotation_providers\t"
+        "refined_copy_count\tmatthews_top_copy_counts\t"
+        "matthews_status_at_refined_copy\n"
+        "seq_test\t1\tWP_000001\tLOCUS_1\tgeneA\tannotated enzyme\t"
+        "NCBI RefSeq PGAP\t2\t2;3;1;4\tplausible\n",
+        encoding="utf-8",
+    )
+    outputs[approval_candidates.name] = sha256_file(approval_candidates)
     (root / "sequence_checkpoint_manifest.json").write_text(
         json.dumps(
             {
@@ -47,6 +60,13 @@ def _write_checkpoint(root: Path) -> tuple[Path, Path]:
                 "finalist_count": 1,
                 "outputs": outputs,
                 "identity": {"assets": assets},
+                "crystal_context": {
+                    "crystal_id": "crystal_test",
+                    "crystal_id_role": "experimental_diffraction_dataset_identifier",
+                    "space_group": "P 1",
+                    "asu_volume_a3": 100000.0,
+                },
+                "matthews_policy": {"is_physical_prior_not_asu_identity_proof": True},
             }
         ),
         encoding="utf-8",
@@ -87,6 +107,12 @@ def test_report_links_to_every_verified_local_asset(tmp_path: Path) -> None:
     assert "completed_success" in report
     assert "insufficient_evidence" in report
     assert "No primary group approved" in report
+    assert "annotated enzyme" in report
+    assert "NCBI RefSeq PGAP" in report
+    assert "mFo-DFc map" in report
+    assert "not a protein name" in report
+    assert "prove that ASU = nA" in report
+    assert "not independently refined" in report
     links = re.findall(r'href="([^"]+)"', report)
     assert links
     assert all((checkpoint / link).is_file() for link in links)

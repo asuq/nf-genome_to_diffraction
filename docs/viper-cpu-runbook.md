@@ -154,13 +154,24 @@ candidates.
 
 Run `t12-review-collect` only after the normal bounded collection is present.
 It accepts only the owned run ID, revalidates the typed terminal summary and
-11/11 cached resume, and transfers only PDB/MTZ/CCP4/sequence-model files whose
-checksums are already recorded in the collected results. The local destination
+11/11 cached resume, and transfers only PDB/MTZ/both CCP4 maps/sequence-
+assignment files plus the checksum-bound catalogue, annotation crosswalk, and
+MTZ preflight whose checksums are already recorded in the collected evidence.
+The local destination
 contains `sequence_candidates_top10.tsv`, `sequence_candidates_top25.tsv`,
 `sequence_candidates_full.tsv`, `sequence_candidates.html`,
-`sequence_approval_candidates.tsv`, `approved_sequence_groups.tsv`, a package
-manifest, and all finalist assets. The approval template is deliberately empty;
+`sequence_approval_candidates.tsv`, `sequence_gene_annotations.tsv`,
+`sequence_matthews_context.tsv`, `approved_sequence_groups.tsv`, a package
+manifest, and all finalist assets. Each finalist includes separate `2mFo-DFc`
+and `mFo-DFc` maps; the sequence-from-map PDB is explicitly a map-derived
+assignment hypothesis, not an independently refined structure. The approval
+template is deliberately empty;
 reviewing in Coot and recording decisions remains a human checkpoint.
+
+For CD6, keep the prototype-assumption status `unknown` unless the maps and
+other evidence justify a stronger call. CD6 is an unknown crystal and may be
+heteromeric or otherwise violate `ASU = nA`; Matthews copy-number context is a
+physical prior and cannot establish single-component composition.
 
 After collection, build the T13.1 status locally from the accepted T12 summary,
 job result, refinement records, checkpoint manifest, candidate table, and human

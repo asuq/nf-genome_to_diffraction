@@ -46,6 +46,7 @@ def _write_checkpoint(root: Path) -> None:
         "brief_refine_001.pdb",
         "brief_refine_001.mtz",
         "brief_refine_2mFo-DFc.ccp4",
+        "brief_refine_mFo-DFc.ccp4",
         "sequence_from_map.pdb",
     ):
         path = asset_dir / name
@@ -59,6 +60,8 @@ def _write_checkpoint(root: Path) -> None:
         "sequence_candidates_full.tsv",
         "sequence_approval_candidates.tsv",
         "approved_sequence_groups.tsv",
+        "sequence_gene_annotations.tsv",
+        "sequence_matthews_context.tsv",
     ):
         path = root / name
         path.write_text(name, encoding="utf-8")

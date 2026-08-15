@@ -851,6 +851,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--stage-manifest", type=Path, required=True
     )
     sequence_checkpoint_parser.add_argument("--job-result", type=Path, required=True)
+    sequence_checkpoint_parser.add_argument(
+        "--sequence-groups", type=Path, required=True
+    )
+    sequence_checkpoint_parser.add_argument(
+        "--source-records", type=Path, required=True
+    )
+    sequence_checkpoint_parser.add_argument("--preflight", type=Path, required=True)
     sequence_checkpoint_parser.add_argument("--asset-root", type=Path, required=True)
     sequence_checkpoint_parser.add_argument("--outdir", type=Path, required=True)
     live_sequence_checkpoint_parser = review_actions.add_parser(
@@ -1694,6 +1701,9 @@ def _run_review(args: argparse.Namespace) -> int:
                 sequence_results_jsonl=args.sequence_results,
                 stage_manifest_json=args.stage_manifest,
                 job_result_json=args.job_result,
+                sequence_groups_jsonl=args.sequence_groups,
+                source_records_jsonl=args.source_records,
+                preflight_jsonl=args.preflight,
                 asset_root=args.asset_root,
                 output_directory=args.outdir,
                 progress=not args.no_progress,

@@ -372,6 +372,7 @@ def _write_t12_review_evidence(
         "brief_refine_001.pdb": b"ATOM\n",
         "brief_refine_001.mtz": b"MTZ\n",
         "brief_refine_2mFo-DFc.ccp4": b"MAP\n",
+        "brief_refine_mFo-DFc.ccp4": b"DIFFERENCE\n",
         "sequence_from_map.pdb": b"MODEL\n",
     }
     asset_digests = {
@@ -399,17 +400,23 @@ def _write_t12_review_evidence(
         "map_path": "brief_refine_2mFo-DFc.ccp4",
         "map_sha256": asset_digests["brief_refine_2mFo-DFc.ccp4"],
         "map_type": "2mFo-DFc",
+        "difference_map_path": "brief_refine_mFo-DFc.ccp4",
+        "difference_map_sha256": asset_digests["brief_refine_mFo-DFc.ccp4"],
+        "difference_map_type": "mFo-DFc",
         "map_scale": "sigma",
         "map_region": "cell",
         "command_pointer": "t12_command.json",
         "raw_log_pointer": "phenix.refine.log",
         "warnings": [],
     }
+    sequence_text = "A" * 100
+    sequence_digest = hashlib.sha256(sequence_text.encode("ascii")).hexdigest()
+    sequence_group_id = f"seq_{sequence_digest}"
     candidate = {
         "schema_version": "1.0",
         "refinement_id": refinement_id,
         "rank": 1,
-        "sequence_group_id": "seq_" + "d" * 64,
+        "sequence_group_id": sequence_group_id,
         "sequence_length": 100,
         "raw_score": 50.0,
         "score_z": 8.0,
@@ -458,6 +465,77 @@ def _write_t12_review_evidence(
         "scheduler_state": "COMPLETED",
         "exit_code": 0,
     }
+    mtz_sha256 = "9" * 64
+    context_payloads = {
+        "sequence_groups.jsonl": (
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "sequence_group_id": sequence_group_id,
+                    "sha256": sequence_digest,
+                    "sequence": sequence_text,
+                    "length_aa": 100,
+                    "molecular_mass_da": 11000.0,
+                    "mass_method": "unit-test",
+                    "residue_policy": "standard_exact",
+                    "source_record_count": 1,
+                    "quality_flags": [],
+                },
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode(),
+        "source_records.jsonl": (
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "source_record_id": "src_" + "e" * 64,
+                    "catalogue_id": "test-genome",
+                    "original_protein_id": "WP_TEST",
+                    "original_header": "WP_TEST annotated enzyme",
+                    "description": "annotated enzyme [test organism]",
+                    "sequence_group_id": sequence_group_id,
+                    "locus_tag": "LOCUS_A",
+                    "contig": "contig-1",
+                    "start": 1,
+                    "end": 300,
+                    "strand": "+",
+                    "gene_name": "geneA",
+                    "product": "annotated enzyme",
+                    "source_annotation_provider": "unit-test annotation",
+                    "quality_flags": [],
+                },
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode(),
+        "preflight.jsonl": (
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "preflight_id": "preflight-unit",
+                    "crystal_id": "CD6QS2P2G1_5",
+                    "mtz_sha256": mtz_sha256,
+                    "selected_observation_labels": "F,SIGF",
+                    "selected_observation_type": "amplitude",
+                    "free_flag_labels": "FreeR_flag",
+                    "free_flag_status": "present",
+                    "unit_cell": [100, 100, 100, 90, 90, 90],
+                    "space_group": "P 1",
+                    "general_position_multiplicity": 1,
+                    "cell_volume_a3": 1000000,
+                    "asu_volume_a3": 1000000,
+                    "resolution_low_a": 50,
+                    "resolution_high_a": 2,
+                    "reflection_count": 100,
+                    "decision": "pass",
+                    "execution_status": "completed_success",
+                },
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode(),
+    }
     (qualification / "t12-summary.json").write_text(
         json.dumps(summary) + "\n", encoding="utf-8"
     )
@@ -468,14 +546,37 @@ def _write_t12_review_evidence(
         json.dumps(sequence) + "\n", encoding="utf-8"
     )
     (inputs / "t12_stage_manifest.json").write_text(
-        json.dumps({"seed_count": 1, "parent_run_id": "gtd-m4-copy-parent"}) + "\n",
+        json.dumps(
+            {
+                "seed_count": 1,
+                "parent_run_id": "gtd-m4-copy-parent",
+                "parent_mtz_sha256": mtz_sha256,
+                "sequence_groups_sha256": hashlib.sha256(
+                    context_payloads["sequence_groups.jsonl"]
+                ).hexdigest(),
+                "source_records_sha256": hashlib.sha256(
+                    context_payloads["source_records.jsonl"]
+                ).hexdigest(),
+                "preflight_sha256": hashlib.sha256(
+                    context_payloads["preflight.jsonl"]
+                ).hexdigest(),
+            }
+        )
+        + "\n",
         encoding="utf-8",
     )
     (state / "job-result.json").write_text(json.dumps(job) + "\n", encoding="utf-8")
-    return {
+    archive_files = {
         f"artifacts/t12/t12_{seed}/{name}": payload
         for name, payload in asset_payloads.items()
     }
+    archive_files.update(
+        {
+            f"artifacts/t12-inputs/inputs/{name}": payload
+            for name, payload in context_payloads.items()
+        }
+    )
+    return archive_files
 
 
 def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:

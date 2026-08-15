@@ -1,12 +1,15 @@
 """Focused contracts for the fixed T12 refinement/sequence adapter."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+import genome_to_diffraction.refinement.brief as brief_module
 from genome_to_diffraction.ids import sequence_digest
 from genome_to_diffraction.refinement.brief import (
     T12InputError,
+    _has_required_map_coefficients,
     _observation_label_argument,
     _refine_parameters,
     _refinement_metrics,
@@ -49,7 +52,11 @@ def _source(group: SequenceGroupRecord) -> SourceProteinRecord:
 
 
 def test_fixed_refinement_parameters_are_conservative_and_stable() -> None:
-    text = _refine_parameters(threads=4, map_name="stable.ccp4")
+    text = _refine_parameters(
+        threads=4,
+        map_name="stable.ccp4",
+        difference_map_name="difference.ccp4",
+    )
 
     assert "number_of_macro_cycles = 1" in text
     assert "nproc = 4" in text
@@ -60,7 +67,9 @@ def test_fixed_refinement_parameters_are_conservative_and_stable() -> None:
     assert "write_final_pdb_file = True" in text
     assert "map_coefficients {" in text
     assert "map_type = 2mFo-DFc" in text
+    assert "map_type = mFo-DFc" in text
     assert "file_name = stable.ccp4" in text
+    assert "file_name = difference.ccp4" in text
     assert "fill_missing_f_obs = False" in text
     assert "scale = sigma" in text
     assert "region = cell" in text
@@ -76,11 +85,46 @@ def test_observation_labels_are_passed_to_phenix_unambiguously() -> None:
 def test_refinement_output_names_match_phenix_serial_convention(
     tmp_path: Path,
 ) -> None:
-    model, mtz, map_path = _refinement_output_paths(tmp_path)
+    model, mtz, map_path, difference_map = _refinement_output_paths(tmp_path)
 
     assert model.name == "brief_refine_001.pdb"
     assert mtz.name == "brief_refine_001.mtz"
     assert map_path.name == "brief_refine_2mFo-DFc.ccp4"
+    assert difference_map.name == "brief_refine_mFo-DFc.ccp4"
+
+
+def test_refined_mtz_requires_both_review_map_coefficient_pairs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "brief_refine_001.mtz"
+    path.write_bytes(b"fixture")
+
+    def columns(*pairs: tuple[str, str]) -> SimpleNamespace:
+        return SimpleNamespace(
+            columns=[
+                SimpleNamespace(label=label, type=type_code)
+                for label, type_code in pairs
+            ]
+        )
+
+    monkeypatch.setattr(
+        brief_module.gemmi,
+        "read_mtz_file",
+        lambda _path: columns(
+            ("2mFo-DFc", "F"),
+            ("PH2mFo-DFc", "P"),
+            ("mFo-DFc", "F"),
+            ("PHmFo-DFc", "P"),
+        ),
+    )
+    assert _has_required_map_coefficients(path)
+
+    monkeypatch.setattr(
+        brief_module.gemmi,
+        "read_mtz_file",
+        lambda _path: columns(("2mFo-DFc", "F"), ("PH2mFo-DFc", "P")),
+    )
+    assert not _has_required_map_coefficients(path)
 
 
 def test_refinement_parser_preserves_initial_and_final_r_values() -> None:
