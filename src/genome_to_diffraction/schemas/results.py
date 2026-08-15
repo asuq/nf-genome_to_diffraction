@@ -784,3 +784,119 @@ class ScientificStatusRecord(ContractModel):
     warnings: tuple[str, ...] = ()
     completed_at: UtcTimestamp
     provenance_pointers: tuple[NonEmptyString, ...] = Field(min_length=1)
+
+
+class ProcessResourceSummary(ContractModel):
+    """Measured and allocated resources for one Nextflow invocation."""
+
+    process_count: int = Field(ge=0)
+    executed_process_count: int = Field(ge=0)
+    cached_process_count: int = Field(ge=0)
+    retry_count: int = Field(ge=0)
+    status_counts: dict[str, int]
+    wall_span_seconds: float | None = Field(default=None, ge=0)
+    process_realtime_seconds_sum: float | None = Field(default=None, ge=0)
+    estimated_cpu_hours: float | None = Field(default=None, ge=0)
+    allocated_cpu_hours: float | None = Field(default=None, ge=0)
+    peak_rss_bytes: int | None = Field(default=None, ge=0)
+    total_rchar_bytes: int | None = Field(default=None, ge=0)
+    total_wchar_bytes: int | None = Field(default=None, ge=0)
+    total_read_bytes: int | None = Field(default=None, ge=0)
+    total_write_bytes: int | None = Field(default=None, ge=0)
+    allocated_cpus_per_process_min: int | None = Field(default=None, ge=1)
+    allocated_cpus_per_process_max: int | None = Field(default=None, ge=1)
+    allocated_memory_bytes_per_process_min: int | None = Field(default=None, ge=1)
+    allocated_memory_bytes_per_process_max: int | None = Field(default=None, ge=1)
+    allocated_time_limit_seconds_per_process_min: float | None = Field(
+        default=None, gt=0
+    )
+    allocated_time_limit_seconds_per_process_max: float | None = Field(
+        default=None, gt=0
+    )
+    observed_max_concurrent_processes: int | None = Field(default=None, ge=1)
+    observed_max_concurrent_allocated_cpus: int | None = Field(default=None, ge=1)
+    observed_max_concurrent_allocated_memory_bytes: int | None = Field(
+        default=None, ge=1
+    )
+    measurement_note: NonEmptyString
+
+    @model_validator(mode="after")
+    def _consistent_counts_and_ranges(self) -> Self:
+        if sum(self.status_counts.values()) != self.process_count:
+            raise ValueError("resource status counts do not match process_count")
+        if (
+            self.executed_process_count + self.cached_process_count
+            != self.process_count
+        ):
+            raise ValueError("executed and cached counts do not match process_count")
+        ranges = (
+            (
+                self.allocated_cpus_per_process_min,
+                self.allocated_cpus_per_process_max,
+            ),
+            (
+                self.allocated_memory_bytes_per_process_min,
+                self.allocated_memory_bytes_per_process_max,
+            ),
+            (
+                self.allocated_time_limit_seconds_per_process_min,
+                self.allocated_time_limit_seconds_per_process_max,
+            ),
+        )
+        for lower, upper in ranges:
+            if (lower is None) != (upper is None):
+                raise ValueError("resource allocation ranges require both bounds")
+            if lower is not None and upper is not None and lower > upper:
+                raise ValueError("resource allocation lower bound exceeds upper bound")
+        return self
+
+
+class OuterJobResourceSummary(ContractModel):
+    """Measurements available from the fixed outer Slurm result contract."""
+
+    job_id: NonEmptyString
+    scheduler_state: NonEmptyString
+    started_at: UtcTimestamp
+    completed_at: UtcTimestamp
+    elapsed_seconds: float = Field(ge=0)
+    allocated_cpus: int | None = Field(default=None, ge=1)
+    allocated_memory_bytes: int | None = Field(default=None, ge=1)
+    peak_rss_bytes: int | None = Field(default=None, ge=0)
+    measurement_note: NonEmptyString
+
+    @model_validator(mode="after")
+    def _ordered_timestamps(self) -> Self:
+        if self.completed_at < self.started_at:
+            raise ValueError("outer job completion precedes its start")
+        return self
+
+
+class PackageResourceInventory(ContractModel):
+    """Logical size of the self-contained review package before this summary."""
+
+    file_count_excluding_summary: int = Field(ge=0)
+    total_bytes_excluding_summary: int = Field(ge=0)
+    inventory_id: str = Field(pattern=r"^inventory_[a-f0-9]{64}$")
+    measurement_note: NonEmptyString
+
+
+class ResourceSummaryRecord(ContractModel):
+    """T13.3 resource evidence kept separate from scientific interpretation."""
+
+    schema_version: Literal["1.0"]
+    summary_id: str = Field(pattern=r"^resources_[a-f0-9]{64}$")
+    run_id: NonEmptyString
+    site_id: NonEmptyString
+    profile: NonEmptyString
+    source_commit: str = Field(pattern=r"^[a-f0-9]{40}$")
+    checkpoint_package_id: NonEmptyString
+    outer_job: OuterJobResourceSummary
+    first_execution: ProcessResourceSummary
+    resume_execution: ProcessResourceSummary
+    package_inventory: PackageResourceInventory
+    database_io_bytes: int | None = Field(default=None, ge=0)
+    database_io_status: Literal["measured", "not_measured", "not_applicable"]
+    remote_request_count: int | None = Field(default=None, ge=0)
+    remote_request_status: Literal["measured", "not_measured", "not_applicable"]
+    io_measurement_semantics: NonEmptyString
+    evidence_sha256: dict[str, Sha256Hex]

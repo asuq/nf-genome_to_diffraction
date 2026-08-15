@@ -95,10 +95,12 @@ from genome_to_diffraction.review import (
     CrystalReportRequest,
     MrSeedApprovalRequest,
     MrSeedReviewRequest,
+    ResourceSummaryRequest,
     SequenceCheckpointRequest,
     StatusRequest,
     build_crystal_report,
     build_mr_seed_review,
+    build_resource_summary,
     build_sequence_checkpoint,
     build_status_record,
     validate_mr_seed_approvals,
@@ -836,6 +838,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     report_parser.add_argument("--status", type=Path, required=True)
     report_parser.add_argument("--checkpoint-dir", type=Path, required=True)
+    resource_parser = review_actions.add_parser(
+        "build-resource-summary",
+        help="add the deterministic T13.3 resource record to a T12.5 package",
+    )
+    resource_parser.add_argument("--run-manifest", type=Path, required=True)
+    resource_parser.add_argument("--job-result", type=Path, required=True)
+    resource_parser.add_argument("--first-trace", type=Path, required=True)
+    resource_parser.add_argument("--resume-trace", type=Path, required=True)
+    resource_parser.add_argument("--first-report", type=Path, required=True)
+    resource_parser.add_argument("--checkpoint-dir", type=Path, required=True)
 
     search_parser = subparsers.add_parser(
         "structure-search", help="search immutable structural-reference databases"
@@ -1533,6 +1545,23 @@ def _run_mr(args: argparse.Namespace) -> int:
 
 
 def _run_review(args: argparse.Namespace) -> int:
+    if args.review_action == "build-resource-summary":
+        resources = build_resource_summary(
+            ResourceSummaryRequest(
+                run_manifest_json=args.run_manifest,
+                job_result_json=args.job_result,
+                first_trace_tsv=args.first_trace,
+                resume_trace_tsv=args.resume_trace,
+                first_report_html=args.first_report,
+                checkpoint_directory=args.checkpoint_dir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Built T13.3 resource summary {resources.summary_id}: "
+            f"{resources.summary_json}"
+        )
+        return 0
     if args.review_action == "build-report":
         report = build_crystal_report(
             CrystalReportRequest(

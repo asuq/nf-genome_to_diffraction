@@ -15,6 +15,12 @@ from genome_to_diffraction.review.mr_seed import (
     build_mr_seed_review,
     validate_mr_seed_approvals,
 )
+from genome_to_diffraction.review.resource_summary import (
+    ResourceSummaryError,
+    ResourceSummaryOutput,
+    ResourceSummaryRequest,
+    build_resource_summary,
+)
 from genome_to_diffraction.review.sequence_checkpoint import (
     SequenceCheckpointError,
     SequenceCheckpointOutput,
@@ -36,6 +42,9 @@ __all__ = [
     "MrSeedReviewError",
     "MrSeedReviewOutput",
     "MrSeedReviewRequest",
+    "ResourceSummaryError",
+    "ResourceSummaryOutput",
+    "ResourceSummaryRequest",
     "SequenceCheckpointError",
     "SequenceCheckpointOutput",
     "SequenceCheckpointRequest",
@@ -43,6 +52,7 @@ __all__ = [
     "StatusRequest",
     "build_crystal_report",
     "build_mr_seed_review",
+    "build_resource_summary",
     "build_sequence_checkpoint",
     "build_status_record",
     "validate_mr_seed_approvals",

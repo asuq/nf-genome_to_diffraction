@@ -92,6 +92,14 @@ def _verify_checkpoint(root: Path, manifest: _CheckpointManifest) -> None:
             )
 
 
+def verify_checkpoint_package(root: Path) -> tuple[_CheckpointManifest, Path]:
+    """Load and checksum-verify one T12.5 package."""
+
+    manifest, manifest_path = _load_checkpoint(root)
+    _verify_checkpoint(root, manifest)
+    return manifest, manifest_path
+
+
 def _list_items(items: tuple[str, ...], empty_text: str) -> str:
     if not items:
         return f"<p>{html.escape(empty_text)}</p>"
@@ -204,10 +212,9 @@ def build_crystal_report(request: CrystalReportRequest) -> CrystalReportOutput:
     """Verify the checkpoint and atomically add the T13.2 report files."""
 
     status = _load_status(request.status_json)
-    checkpoint, checkpoint_manifest_path = _load_checkpoint(
+    checkpoint, checkpoint_manifest_path = verify_checkpoint_package(
         request.checkpoint_directory
     )
-    _verify_checkpoint(request.checkpoint_directory, checkpoint)
     if len(status.best_supported_copy_counts) != checkpoint.finalist_count:
         raise CrystalReportError("status and checkpoint finalist counts disagree")
 

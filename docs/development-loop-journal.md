@@ -4377,3 +4377,60 @@ and monitor CI. Then begin the smallest deterministic T13.3 resource summary.
 Implement T13.3 from the retained first/resume Nextflow traces, outer Slurm job
 result, and package inventory. Preserve allocated and measured resources as
 separate fields and do not infer unavailable database I/O.
+
+## 2026-08-15T14:07:08Z - T13.3 resource summary built for accepted CD6
+
+### Discoveries
+
+- The retained Nextflow report records exact per-task allocation and process
+  counters, while the independent TSV traces prove 11 completed task identities
+  and the same 11 identities on cached resume. Cached rows retain first-run
+  measurements, so counting those values again would double-count resources.
+- The first T12 execution used an estimated `20.492910` CPU-hours against
+  `82.423786` allocated CPU-hours. Peak RSS was `2,194,018,304` bytes against
+  `17,179,869,184` allocated bytes per task. These measurements support revisiting
+  the four-CPU/sixteen-GB T12 default during T13.5, without changing it from one
+  crystal alone.
+- The outer job result records elapsed time but not its allocation or MaxRSS.
+  Nextflow I/O counters are process counters rather than physical database-device
+  traffic. Both unavailable measurements therefore remain null instead of being
+  inferred.
+
+### Accomplishments
+
+- Added the typed `resource-summary` contract and the deterministic
+  `review build-resource-summary` operation.
+- The builder cross-checks first, resume, and report task identities; separates
+  executed and cached resources; reports retries, CPU-hours, wall span, peak RSS,
+  task allocations, concurrency, process I/O counters, and package storage; and
+  binds every retained evidence input by SHA-256.
+- Applied the builder twice to the accepted real CD6 T12/T12.5 evidence. Both
+  builds produced the same identifier and file checksum, confirming deterministic
+  rebuild behaviour without another Viper job.
+
+### Immutable evidence
+
+- Resource summary ID:
+  `resources_af7d9269e8ec0ed38ed291daf436700260254c48dc2a11d5926cba32a9c94c9a`.
+- Resource summary SHA-256:
+  `15152ed7f4e8480cccac0a92d6e78f930fdec05ef529007760cbeaea79549b4a`.
+- The first run has 11 completed processes, zero retries, `20.492910` estimated
+  CPU-hours, `20,760.302` seconds process wall span, and four observed concurrent
+  processes. The outer Slurm job elapsed `20,884` seconds.
+- The resume has 11 cached processes and no newly counted process resources. The
+  self-contained package contains 54 pre-summary files totalling `403,064,672`
+  bytes.
+
+### Unresolved work
+
+- Run the complete locked gate, inspect and commit the focused T13.3 increment,
+  push it, and require both Pixi CI jobs to pass.
+- Human Coot review and explicit sequence/assumption decisions remain required.
+  After this checkpoint, close the normal main-workflow integration gap and run
+  the three-dataset T13.4 pilot; do not tune final defaults from CD6 alone.
+
+### Next exact starting point
+
+Run `pixi run --locked check`, inspect the complete T13.3 diff, then commit,
+push, and monitor GitHub Actions. After green CI, proceed to the human checkpoint
+and the smallest end-to-end workflow integration needed for T13.4.

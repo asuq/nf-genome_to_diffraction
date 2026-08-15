@@ -66,7 +66,7 @@ overstated:
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
 | Epic 10 | The first-copy Phaser adapter, provisional ranking screen, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel produced 11 parsed solutions, six in the higher-priority numeric tier | Publish a version-3 retain-all review package, collect all 11 inspectable solutions, complete human map/packing review, and validate an explicit decision |
-| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 status and the T13.2 self-contained review report are implemented | Record human sequence decisions while implementing the resource summary |
+| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 status, T13.2 reporting, and the deterministic T13.3 resource summary are implemented | Record human sequence decisions, close the main-workflow integration gap, and execute the three-dataset pilot |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
 The accepted main workflow still terminates at
@@ -427,7 +427,10 @@ heteromer logic.
    travel with the report; the page preserves pending-review warnings.
 3. **T13.3 — Resource summary.** Report process counts, retries, cache hits,
    CPU-hours, wall time, peak memory, allocated resources, output/storage bytes,
-   database I/O where measurable, and remote requests.
+   database I/O where measurable, and remote requests. Implemented for the
+   accepted real CD6 T12 evidence with exact first/resume task identities,
+   measured and allocated resources kept separate, and unavailable physical
+   database I/O left explicitly unmeasured.
 4. **T13.4 — Three-dataset pilot.** Execute P0–P4 with explicit human checkpoints
    and a clean immutable revision. Preserve blind ground truth outside
    pipeline-visible inputs until review.

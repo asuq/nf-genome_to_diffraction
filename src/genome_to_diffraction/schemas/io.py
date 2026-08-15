@@ -34,6 +34,7 @@ from genome_to_diffraction.schemas.results import (
     MtzPreflightRecord,
     NormalisedMrResult,
     ProcessedModelRecord,
+    ResourceSummaryRecord,
     ReviewDecisionManifest,
     ScientificStatusRecord,
     SequenceGroupRecord,
@@ -206,6 +207,7 @@ CONTRACTS: dict[str, ContractSpec] = {
     "review-decisions": ContractSpec(
         ReviewDecisionManifest, "review_decision.schema.json", _review_tsv
     ),
+    "resource-summary": ContractSpec(ResourceSummaryRecord),
     "run-manifest": ContractSpec(RunManifest),
     "sequence-group": ContractSpec(SequenceGroupRecord),
     "source-protein": ContractSpec(SourceProteinRecord),
