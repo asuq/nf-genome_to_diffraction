@@ -24,7 +24,7 @@ never edits or pushes source.
 
 The reviewed local application is the routine approval boundary. Persistent
 rules may cover only `deploy-tools`, `readiness`, `stage`, `submit`, `status`,
-`wait`, `logs`, `collect`, `review-collect`, or `cancel`. The distinct `database-stage` and
+`wait`, `logs`, `collect`, `review-collect`, `t12-review-collect`, or `cancel`. The distinct `database-stage` and
 `database-submit` start commands deliberately remain approval-gated. Raw SSH,
 file-transfer tools, scheduler commands, and `clean` must not receive persistent
 automatic approval.
@@ -951,10 +951,11 @@ run ID, resolves the target below the run root, and deletes only that run. Never
 include `clean` in a persistent Codex allow rule.
 
 After installing and checksumming the immutable local application, add allow
-rules only for its absolute path followed by `deploy-tools`, `readiness`, `stage`,
-`submit`, `status`, `wait`, `logs`, `collect`, `review-collect`, or `cancel`. Keep raw SSH, transfer tools,
-Slurm commands, `p0-inputs-stage`, `p0-configure`, and the wrapper's `clean`
-operation approval-gated.
+rules only for its absolute path followed by `deploy-tools`, `readiness`,
+`stage`, `submit`, `status`, `wait`, `logs`, `collect`, `review-collect`,
+`t12-review-collect`, or `cancel`. Keep raw SSH, transfer tools, Slurm commands,
+`p0-inputs-stage`, `p0-configure`, and the wrapper's `clean` operation
+approval-gated.
 
 Resolve the installed path literally; shell variables and `~` are not valid rule
 substitutes. The intended Codex rule shape is:
@@ -963,7 +964,7 @@ substitutes. The intended Codex rule shape is:
 prefix_rule(
     pattern = [
         "/absolute/path/to/installed/nf-gtd-hpc-test",
-        ["deploy-tools", "readiness", "stage", "submit", "status", "wait", "logs", "collect", "review-collect", "cancel"],
+        ["deploy-tools", "readiness", "stage", "submit", "status", "wait", "logs", "collect", "review-collect", "t12-review-collect", "cancel"],
     ],
     decision = "allow",
     justification = "Allow only the reviewed nf-genome_to_diffraction HPC interface.",
@@ -972,6 +973,7 @@ prefix_rule(
         "/absolute/path/to/installed/nf-gtd-hpc-test readiness p0",
         "/absolute/path/to/installed/nf-gtd-hpc-test status --run-id RUN_ID",
         "/absolute/path/to/installed/nf-gtd-hpc-test review-collect --run-id RUN_ID",
+        "/absolute/path/to/installed/nf-gtd-hpc-test t12-review-collect --run-id RUN_ID",
     ],
     not_match = [
         "/absolute/path/to/installed/nf-gtd-hpc-test clean --run-id RUN_ID --confirm RUN_ID",

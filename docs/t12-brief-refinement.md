@@ -39,8 +39,24 @@ The adapter retains:
 
 The stable result files are `brief_refinement_result.json[.l]`,
 `sequence_map_result.json[.l]`, `t12_command.json`, refined PDB/MTZ/map assets,
-and the two bounded raw logs. Top-10 and top-25 rendering and the second approval
-template remain the next T12.5 increment.
+and the two bounded raw logs.
+
+T12.5 is a post-run checkpoint, not another scientific computation. The fixed
+`t12-review-collect` operation verifies the successful terminal run and cached
+resume, derives the only permitted finalist assets from typed result checksums,
+and publishes:
+
+- a primary top-10 and extended top-25 view for every retained finalist;
+- the full set of scored catalogue groups, including raw scores and missing
+  coverage/segment fields without imputation;
+- refined PDB/MTZ, `2mFo-DFc` CCP4 map, and sequence-from-map PDB assets for
+  every finalist;
+- an HTML review view and unique top-10 sequence-group candidate table; and
+- a header-only second approval template requiring an explicit human decision.
+
+No numeric score or refinement statistic removes a finalist or creates an
+approval. The manifest records unscored catalogue groups separately through
+the complete and scored counts in the underlying typed results.
 
 ## Fixed scientific protocol
 
@@ -84,3 +100,5 @@ ranking/crosswalk, and checksum rejection. `nextflow-check` parses the typed
 module/workflow, while `nextflow-stub` verifies publication and cached resume
 without fabricating scientific success. Real acceptance still requires all 11
 retained CD6 finalists to run through the verified Viper Phenix installation.
+T12.5 additionally tests checksum-gated remote collection, path containment,
+top-10/top-25/full cardinality, empty approval semantics, and package identity.

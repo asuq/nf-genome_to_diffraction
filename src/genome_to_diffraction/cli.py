@@ -94,7 +94,9 @@ from genome_to_diffraction.refinement import (
 from genome_to_diffraction.review import (
     MrSeedApprovalRequest,
     MrSeedReviewRequest,
+    SequenceCheckpointRequest,
     build_mr_seed_review,
+    build_sequence_checkpoint,
     validate_mr_seed_approvals,
 )
 from genome_to_diffraction.schema_check import validate_repository
@@ -789,6 +791,23 @@ def _build_parser() -> argparse.ArgumentParser:
     mr_seed_approval_parser.add_argument("--package-manifest", type=Path, required=True)
     mr_seed_approval_parser.add_argument("--decisions", type=Path, required=True)
     mr_seed_approval_parser.add_argument("--out", type=Path, required=True)
+    sequence_checkpoint_parser = review_actions.add_parser(
+        "build-sequence-checkpoint",
+        help="publish the T12.5 top-10, top-25, full, and approval views",
+    )
+    sequence_checkpoint_parser.add_argument("--run-id", required=True)
+    sequence_checkpoint_parser.add_argument(
+        "--refinement-results", type=Path, required=True
+    )
+    sequence_checkpoint_parser.add_argument(
+        "--sequence-results", type=Path, required=True
+    )
+    sequence_checkpoint_parser.add_argument(
+        "--stage-manifest", type=Path, required=True
+    )
+    sequence_checkpoint_parser.add_argument("--job-result", type=Path, required=True)
+    sequence_checkpoint_parser.add_argument("--asset-root", type=Path, required=True)
+    sequence_checkpoint_parser.add_argument("--outdir", type=Path, required=True)
 
     search_parser = subparsers.add_parser(
         "structure-search", help="search immutable structural-reference databases"
@@ -1504,6 +1523,24 @@ def _run_review(args: argparse.Namespace) -> int:
         print(
             f"Built MR seed review package with {output.candidate_count} "
             f"candidate(s): {output.manifest_json}"
+        )
+        return 0
+    if args.review_action == "build-sequence-checkpoint":
+        sequence_output = build_sequence_checkpoint(
+            SequenceCheckpointRequest(
+                run_id=args.run_id,
+                refinement_results_jsonl=args.refinement_results,
+                sequence_results_jsonl=args.sequence_results,
+                stage_manifest_json=args.stage_manifest,
+                job_result_json=args.job_result,
+                asset_root=args.asset_root,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Built T12.5 sequence checkpoint for {sequence_output.finalist_count} "
+            f"finalist(s): {sequence_output.manifest_json}"
         )
         return 0
     if args.review_action != "validate-mr-seeds":

@@ -120,6 +120,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="collect checksum-gated assets for all Coot-inspectable MR solutions",
     )
     review_collect.add_argument("--run-id", required=True)
+    t12_review_collect = actions.add_parser(
+        "t12-review-collect",
+        help="collect finalist assets and publish the T12.5 sequence checkpoint",
+    )
+    t12_review_collect.add_argument("--run-id", required=True)
 
     m4_stage = actions.add_parser(
         "m4-copy-stage",
@@ -197,6 +202,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.collect(args.run_id)
     if args.operation == "review-collect":
         return controller.review_collect(args.run_id)
+    if args.operation == "t12-review-collect":
+        return controller.t12_review_collect(args.run_id)
     if args.operation == "cancel":
         return controller.cancel(args.run_id)
     if args.operation == "clean":

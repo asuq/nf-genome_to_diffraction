@@ -25,6 +25,7 @@ P2_RUN_ID = "gtd-p2-20260802T120000Z-0123456789ab-01234567"
 P2_DIVERSE_RUN_ID = "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567"
 P2_CONTROL_RUN_ID = "gtd-p2-control-20260802T120000Z-0123456789ab-01234567"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
+T12_RUN_ID = "gtd-t12-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
 
 
@@ -3246,6 +3247,146 @@ def test_review_collect_rejects_manifest_checksum_and_asset_tampering(
         success=False,
     )
     assert _decode_protocol(tampered.stdout)["failure_class"] == "transfer_failure"
+
+
+def _install_t12_review_asset_fixture(
+    run: Path,
+) -> tuple[str, str, str, set[str]]:
+    seed = "sol_" + "a" * 64
+    refinement_id = "refine_" + "b" * 64
+    assets = {
+        "brief_refine_001.pdb": b"ATOM\n",
+        "brief_refine_001.mtz": b"MTZ\n",
+        "brief_refine_2mFo-DFc.ccp4": b"MAP\n",
+        "sequence_from_map.pdb": b"MODEL\n",
+    }
+    digests = {
+        name: hashlib.sha256(payload).hexdigest() for name, payload in assets.items()
+    }
+    qualification = run / "artifacts/qualification"
+    state = run / "state"
+    qualification.mkdir(parents=True, exist_ok=True)
+    state.mkdir(parents=True, exist_ok=True)
+    summary_path = qualification / "t12-summary.json"
+    summary_path.write_text(
+        json.dumps(
+            {
+                "run_id": run.name,
+                "profile": "t12",
+                "candidate_count": 1,
+                "completed_refinement_count": 1,
+                "failed_refinement_count": 0,
+                "completed_sequence_count": 1,
+                "failed_sequence_count": 0,
+                "all_candidates_retained": True,
+                "all_resume_processes_cached": True,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    refinement_path = qualification / "t12-refinement-results.jsonl"
+    refinement_path.write_text(
+        json.dumps(
+            {
+                "seed_solution_id": seed,
+                "refinement_id": refinement_id,
+                "execution_status": "completed_success",
+                "refined_model_path": "brief_refine_001.pdb",
+                "refined_model_sha256": digests["brief_refine_001.pdb"],
+                "refined_mtz_path": "brief_refine_001.mtz",
+                "refined_mtz_sha256": digests["brief_refine_001.mtz"],
+                "map_path": "brief_refine_2mFo-DFc.ccp4",
+                "map_sha256": digests["brief_refine_2mFo-DFc.ccp4"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    sequence_path = qualification / "t12-sequence-results.jsonl"
+    sequence_path.write_text(
+        json.dumps(
+            {
+                "seed_solution_id": seed,
+                "refinement_id": refinement_id,
+                "execution_status": "completed_hit",
+                "output_model_path": "sequence_from_map.pdb",
+                "output_model_sha256": digests["sequence_from_map.pdb"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (state / "job-result.json").write_text(
+        json.dumps(
+            {
+                "run_id": run.name,
+                "profile": "t12",
+                "failure_class": "success",
+                "scheduler_state": "COMPLETED",
+                "exit_code": 0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    expected: set[str] = set()
+    for name, payload in assets.items():
+        relative = f"artifacts/t12/t12_{seed}/{name}"
+        path = run / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        expected.add(relative)
+    return (
+        hashlib.sha256(summary_path.read_bytes()).hexdigest(),
+        hashlib.sha256(refinement_path.read_bytes()).hexdigest(),
+        hashlib.sha256(sequence_path.read_bytes()).hexdigest(),
+        expected,
+    )
+
+
+def test_t12_review_collect_streams_only_typed_checksum_assets(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                T12_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "t12",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    run = remote_root / "runs" / T12_RUN_ID
+    summary_sha, refinement_sha, sequence_sha, expected = (
+        _install_t12_review_asset_fixture(run)
+    )
+
+    result = _run(
+        [
+            str(dispatcher),
+            "t12-review-collect",
+            T12_RUN_ID,
+            OWNER_ID,
+            summary_sha,
+            refinement_sha,
+            sequence_sha,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    with tarfile.open(fileobj=io.BytesIO(result.stdout), mode="r:gz") as archive:
+        assert set(archive.getnames()) == expected
 
 
 def test_p2_diverse_stage_classifies_coordinate_registration_failure(

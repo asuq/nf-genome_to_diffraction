@@ -87,6 +87,10 @@ def test_review_collection_accepts_only_an_owned_run_identifier() -> None:
     assert review.operation == "review-collect"
     assert review.run_id == "RUN_ID"
 
+    t12_review = parser.parse_args(["t12-review-collect", "--run-id", "RUN_ID"])
+    assert t12_review.operation == "t12-review-collect"
+    assert t12_review.run_id == "RUN_ID"
+
 
 def test_m4_copy_uses_explicit_checksum_gated_stage() -> None:
     parser = _build_parser()

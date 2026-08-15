@@ -66,19 +66,19 @@ overstated:
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
 | Epic 10 | The first-copy Phaser adapter, provisional ranking screen, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel produced 11 parsed solutions, six in the higher-priority numeric tier | Publish a version-3 retain-all review package, collect all 11 inspectable solutions, complete human map/packing review, and validate an explicit decision |
-| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement, retained two-copy parents for every seed, attempted copy three for every seed, and passed cached resume; the fixed T12 brief-refinement/map/sequence adapter and workflow are implemented locally | Qualify T12 on all 11 retained finalists, publish the second review checkpoint, then implement final ranking and reporting |
+| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 then produced 11/11 refined PDB/MTZ/map and sequence results with cached resume. The checksum-gated T12.5 top-10/top-25/full checkpoint is implemented | Collect and inspect the self-contained T12.5 package, record human sequence decisions, then implement final statuses and reporting |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
 The accepted main workflow still terminates at
-`task05_preflight_complete_downstream_deferred`. Separate fixed P1, P2, and
-P2-diverse routes now qualify the bounded discovery and first-copy machinery on
-Marmic. The real 25-model CD6 panel produced 11 parsed solutions, including six
-marginal TFZ-only higher-priority candidates; it has not identified the protein
-in
-`CD6QS2P2G1_5` and authorises no additional-copy search. See the
-[initial Marmic report](prototype-test-report-2026-08-02.md) for the exact
-baseline evidence and the [M3 first-copy report](m3-first-copy-phaser.md) for
-the active boundary.
+`task05_preflight_complete_downstream_deferred`; the fixed qualification routes
+currently carry the real prototype beyond that boundary. Marmic evidence is
+retained historically, while Viper has qualified database preparation,
+all-candidate same-component copy placement, refinement, map generation, and
+complete-catalogue sequence scoring for `CD6QS2P2G1_5`. The resulting scores
+and high preliminary `R_free` values narrow candidates but do not validate a
+structure or force one identity. See the [initial Marmic
+report](prototype-test-report-2026-08-02.md), the [M3 first-copy
+report](m3-first-copy-phaser.md), and the [T12 boundary](t12-brief-refinement.md).
 
 ## Dependency path
 

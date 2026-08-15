@@ -4139,3 +4139,65 @@ commit and push before deploying and staging one immutable T12 successor.
 At the next 30-minute loop, query only retained T12 run
 `gtd-t12-20260815T014459Z-f50e02fe1b1a-4eff44ad` through the approved status
 operation and do not infer failure from silence.
+
+## 2026-08-15T12:23:36Z - Real T12 accepted and T12.5 implemented
+
+### Discoveries
+
+- Protocol-v3 T12 run
+  `gtd-t12-20260815T014459Z-f50e02fe1b1a-4eff44ad`, Slurm job `10920614`,
+  completed successfully. All 11 two-copy finalists produced typed refinement
+  results, refined PDB/MTZ files, whole-cell sigma-scaled `2mFo-DFc` maps, and
+  sequence-from-map results. All 11 resume processes were cached.
+- Final `R_free` spans 0.5294 to 0.5510. These high values make the outputs
+  narrowing and Coot-review candidates, not validated structures. No candidate
+  was discarded or approved automatically.
+- Each map search completed against 1,621 exact catalogue groups; 1,267 to
+  1,617 groups received scores depending on the finalist. Best raw scores span
+  26.56 to 94.08 and best score z values span 5.05 to 14.48. Unscored groups
+  remain distinct from low-scoring groups.
+
+### Accomplishments
+
+- Collected and verified the bounded terminal evidence for the accepted real
+  run. Implemented the T12.5 second checkpoint: fixed checksum-gated collection
+  of only typed finalist PDB/MTZ/CCP4/sequence-model assets, deterministic
+  top-10/top-25/full sequence views, a Coot-oriented HTML view, unique primary
+  approval candidates, a header-only approval template, and a content-derived
+  package manifest.
+- The checkpoint retains all structural finalists and all scored sequence
+  groups. Numeric scores and refinement metrics are annotations only and never
+  create a decision.
+- The complete locked gate passes: 350 unit, 56 contract, and 47 integration
+  tests, plus formatting, lint, strict typing, schemas, documentation, Actions,
+  Nextflow syntax/stub-resume, and shell validation.
+
+### Immutable evidence
+
+- Source commit for the real run is
+  `f50e02fe1b1ab8ac7e44c9782156d1f032c7eb08`; nf-helper is
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`; T12 stage-manifest SHA-256 is
+  `b52ff6be476d24c3498fe44c41704c9c28b130f7b262200a5db4a5bfdb9d7914`.
+- Collected T12 summary, resume, refinement-result, and sequence-result
+  SHA-256 values are respectively
+  `6a704cae07dfe9b4fb2a5e59c2374c11ebc57d69188eb9c8b62717a146429c6a`,
+  `3531cfbf86d560a0a86daec2eb0e9b52580fb8d80ab6c7b6f269cfca0db89175`,
+  `f021fcab3af830cdf3904039857e88e1357b3b93372d4ca4331d6ccf8e6abd07`,
+  and `7edddb2967b1982d74c3e61897a841bbf710fdf8d4e3a8fb39662ea6229a4f93`.
+
+### Unresolved work
+
+- Commit and push this focused accepted-T12/T12.5 increment, require both Pixi
+  CI jobs to pass, deploy the checksum-reviewed controller and dispatcher, and
+  run `t12-review-collect` for the retained T12 run.
+- Verify exactly 11 self-contained finalist asset bundles, 110 primary rows,
+  275 extended rows, all scored rows, output checksums, HTML links, and the
+  empty approval template. Then begin the smallest M5 status/report increment;
+  human sequence approval can proceed independently in Coot.
+
+### Next exact starting point
+
+Inspect and commit the focused T12.5 diff, push it, and require GitHub Actions
+to pass. Deploy the reviewed tools and invoke only `t12-review-collect` for
+`gtd-t12-20260815T014459Z-f50e02fe1b1a-4eff44ad`; do not rerun T12 or remove
+any retained candidate.

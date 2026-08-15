@@ -141,6 +141,7 @@ nf-gtd-hpc-test --no-progress submit t12 --run-id T12_RUN_ID
 nf-gtd-hpc-test --no-progress status --run-id T12_RUN_ID
 nf-gtd-hpc-test --no-progress logs --run-id T12_RUN_ID --tail 200
 nf-gtd-hpc-test --no-progress collect --run-id T12_RUN_ID
+nf-gtd-hpc-test --no-progress t12-review-collect --run-id T12_RUN_ID
 ```
 
 Each candidate receives four CPUs and 16 GB, with at most four concurrent
@@ -150,6 +151,16 @@ all candidates retained, full parent/catalogue/MTZ/Phenix/source/Pixi/lock
 provenance, and an 11/11 cached resume pass. Candidate-level scientific or tool
 failure remains reviewable evidence and does not abort or remove other
 candidates.
+
+Run `t12-review-collect` only after the normal bounded collection is present.
+It accepts only the owned run ID, revalidates the typed terminal summary and
+11/11 cached resume, and transfers only PDB/MTZ/CCP4/sequence-model files whose
+checksums are already recorded in the collected results. The local destination
+contains `sequence_candidates_top10.tsv`, `sequence_candidates_top25.tsv`,
+`sequence_candidates_full.tsv`, `sequence_candidates.html`,
+`sequence_approval_candidates.tsv`, `approved_sequence_groups.tsv`, a package
+manifest, and all finalist assets. The approval template is deliberately empty;
+reviewing in Coot and recording decisions remains a human checkpoint.
 
 ## Database track
 

@@ -128,6 +128,28 @@ class FakeTransport:
         self.calls.append(("review-collect", (run_id, owner_id, manifest_sha256)))
         return self.review_archive
 
+    def t12_review_collect(
+        self,
+        run_id: str,
+        owner_id: str,
+        summary_sha256: str,
+        refinement_results_sha256: str,
+        sequence_results_sha256: str,
+    ) -> bytes:
+        self.calls.append(
+            (
+                "t12-review-collect",
+                (
+                    run_id,
+                    owner_id,
+                    summary_sha256,
+                    refinement_results_sha256,
+                    sequence_results_sha256,
+                ),
+            )
+        )
+        return self.review_archive
+
     def p0_inputs_stage(
         self,
         source_id: str,
@@ -331,6 +353,129 @@ def _write_review_evidence(
     for basename, payload in review_outputs.values():
         archive_files[f"artifacts/qualification/p2-diverse-review/{basename}"] = payload
     return package_id, manifest_sha256, archive_files
+
+
+def _write_t12_review_evidence(
+    controller: HpcController,
+    run_id: str,
+) -> dict[str, bytes]:
+    collected = controller.config.local_state_root / run_id / "collected"
+    qualification = collected / "artifacts/qualification"
+    inputs = collected / "artifacts/t12-inputs"
+    state = collected / "state"
+    qualification.mkdir(parents=True)
+    inputs.mkdir(parents=True)
+    state.mkdir(parents=True)
+    seed = "sol_" + "a" * 64
+    refinement_id = "refine_" + "b" * 64
+    asset_payloads = {
+        "brief_refine_001.pdb": b"ATOM\n",
+        "brief_refine_001.mtz": b"MTZ\n",
+        "brief_refine_2mFo-DFc.ccp4": b"MAP\n",
+        "sequence_from_map.pdb": b"MODEL\n",
+    }
+    asset_digests = {
+        name: hashlib.sha256(payload).hexdigest()
+        for name, payload in asset_payloads.items()
+    }
+    refinement = {
+        "schema_version": "1.0",
+        "refinement_id": refinement_id,
+        "seed_solution_id": seed,
+        "sequence_group_id": "seq_" + "c" * 64,
+        "input_copy_count": 2,
+        "tool_version": "2.1-6048",
+        "execution_status": "completed_success",
+        "initial_r_work": 0.6,
+        "initial_r_free": 0.61,
+        "final_r_work": 0.54,
+        "final_r_free": 0.55,
+        "rms_bonds": 0.01,
+        "rms_angles": 1.0,
+        "refined_model_path": "brief_refine_001.pdb",
+        "refined_model_sha256": asset_digests["brief_refine_001.pdb"],
+        "refined_mtz_path": "brief_refine_001.mtz",
+        "refined_mtz_sha256": asset_digests["brief_refine_001.mtz"],
+        "map_path": "brief_refine_2mFo-DFc.ccp4",
+        "map_sha256": asset_digests["brief_refine_2mFo-DFc.ccp4"],
+        "map_type": "2mFo-DFc",
+        "map_scale": "sigma",
+        "map_region": "cell",
+        "command_pointer": "t12_command.json",
+        "raw_log_pointer": "phenix.refine.log",
+        "warnings": [],
+    }
+    candidate = {
+        "schema_version": "1.0",
+        "refinement_id": refinement_id,
+        "rank": 1,
+        "sequence_group_id": "seq_" + "d" * 64,
+        "sequence_length": 100,
+        "raw_score": 50.0,
+        "score_z": 8.0,
+        "source_record_ids": ["src_" + "e" * 64],
+        "source_loci": ["locus_a"],
+        "segment_ranges": [],
+        "coverage": None,
+        "warnings": [],
+    }
+    sequence = {
+        "schema_version": "1.0",
+        "sequence_assessment_id": "seqassess_" + "f" * 64,
+        "refinement_id": refinement_id,
+        "seed_solution_id": seed,
+        "execution_status": "completed_hit",
+        "tool_version": "2.1-6048",
+        "complete_catalogue_group_count": 1,
+        "scored_group_count": 1,
+        "candidates": [candidate],
+        "best_score": 50.0,
+        "mean_score": 50.0,
+        "score_sd": 0.0,
+        "best_score_z": 8.0,
+        "command_pointer": "t12_command.json",
+        "raw_log_pointer": "phenix.sequence_from_map.log",
+        "output_model_path": "sequence_from_map.pdb",
+        "output_model_sha256": asset_digests["sequence_from_map.pdb"],
+        "warnings": [],
+    }
+    summary = {
+        "schema_version": "1.0",
+        "run_id": run_id,
+        "profile": "t12",
+        "candidate_count": 1,
+        "completed_refinement_count": 1,
+        "failed_refinement_count": 0,
+        "completed_sequence_count": 1,
+        "failed_sequence_count": 0,
+        "all_candidates_retained": True,
+        "all_resume_processes_cached": True,
+    }
+    job = {
+        "run_id": run_id,
+        "profile": "t12",
+        "failure_class": "success",
+        "scheduler_state": "COMPLETED",
+        "exit_code": 0,
+    }
+    (qualification / "t12-summary.json").write_text(
+        json.dumps(summary) + "\n", encoding="utf-8"
+    )
+    (qualification / "t12-refinement-results.jsonl").write_text(
+        json.dumps(refinement) + "\n", encoding="utf-8"
+    )
+    (qualification / "t12-sequence-results.jsonl").write_text(
+        json.dumps(sequence) + "\n", encoding="utf-8"
+    )
+    (inputs / "t12_stage_manifest.json").write_text(
+        json.dumps({"seed_count": 1, "parent_run_id": "gtd-m4-copy-parent"}) + "\n",
+        encoding="utf-8",
+    )
+    (state / "job-result.json").write_text(json.dumps(job) + "\n", encoding="utf-8")
+    return {
+        f"artifacts/t12/t12_{seed}/{name}": payload
+        for name, payload in asset_payloads.items()
+    }
 
 
 def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
@@ -1084,6 +1229,29 @@ def test_review_collection_extracts_all_manifest_inspectable_checksum_assets(
         "review-collect",
         (run_id, controller._owned_run(run_id).owner_id, manifest_sha256),
     )
+
+
+def test_t12_review_collection_builds_second_checkpoint(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("t12", "HEAD")["run_id"])
+    files = _write_t12_review_evidence(controller, run_id)
+    transport.review_archive = _archive(files)
+
+    result = controller.t12_review_collect(run_id)
+
+    assert result["operation"] == "t12-review-collect"
+    assert result["finalist_count"] == 1
+    assert str(result["package_id"]).startswith("seqreview_")
+    destination = Path(str(result["destination"]))
+    assert (destination / "sequence_candidates_top10.tsv").is_file()
+    assert (destination / "sequence_candidates_top25.tsv").is_file()
+    assert (destination / "sequence_candidates_full.tsv").is_file()
+    assert (destination / "sequence_candidates.html").is_file()
+    assert (destination / "approved_sequence_groups.tsv").is_file()
+    assert (destination / "assets").is_dir()
+    assert transport.calls[-1][0] == "t12-review-collect"
+    assert transport.calls[-1][1][0] == run_id
 
 
 def test_review_collection_migrates_v2_assets_without_score_filter(

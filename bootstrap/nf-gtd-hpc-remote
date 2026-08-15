@@ -2678,6 +2678,233 @@ PY
     rm -rf -- "$temporary"
 }
 
+t12_review_collect_run() {
+    [[ "$#" -eq 5 ]] || \
+        fail wrapper_failure \
+            "t12-review-collect expects run ID, owner ID, and three checksums"
+    local run_id="$1"
+    local owner_id="$2"
+    local expected_summary_sha256="$3"
+    local expected_refinement_sha256="$4"
+    local expected_sequence_sha256="$5"
+    local run python temporary payload inventory diagnostic message
+    local -a files=()
+    require_owned_run "$run_id" "$owner_id"
+    [[ "$run_id" == gtd-t12-* ]] || \
+        fail wrapper_failure "t12-review-collect requires a t12 run"
+    [[ "$expected_summary_sha256" =~ $CHECKSUM_RE && \
+       "$expected_refinement_sha256" =~ $CHECKSUM_RE && \
+       "$expected_sequence_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "T12 review evidence checksum is invalid"
+    run="$(run_directory "$run_id")"
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$python" ]] || \
+        fail environment_failure "locked run Python is unavailable"
+    temporary="$(mktemp -d "$ROOT/.t12-review-collect.XXXXXXXX")" || \
+        fail filesystem_failure "cannot create T12 review collection staging"
+    payload="$temporary/payload"
+    inventory="$temporary/files.txt"
+    diagnostic="$temporary/error.txt"
+    mkdir -p "$payload"
+
+    if ! "$python" - "$run" "$payload" "$inventory" \
+        "$expected_summary_sha256" "$expected_refinement_sha256" \
+        "$expected_sequence_sha256" "$MAX_REVIEW_FILE_BYTES" \
+        "$MAX_REVIEW_TOTAL_BYTES" > "$DISCARD" 2> "$diagnostic" <<'PY'
+import hashlib
+import json
+import os
+import re
+import shutil
+import stat
+import sys
+from pathlib import Path, PurePosixPath
+
+run = Path(sys.argv[1])
+payload = Path(sys.argv[2])
+inventory = Path(sys.argv[3])
+expected_summary_sha256 = sys.argv[4]
+expected_refinement_sha256 = sys.argv[5]
+expected_sequence_sha256 = sys.argv[6]
+maximum_file_bytes = int(sys.argv[7])
+maximum_total_bytes = int(sys.argv[8])
+summary_relative = PurePosixPath("artifacts/qualification/t12-summary.json")
+refinement_relative = PurePosixPath(
+    "artifacts/qualification/t12-refinement-results.jsonl"
+)
+sequence_relative = PurePosixPath(
+    "artifacts/qualification/t12-sequence-results.jsonl"
+)
+job_relative = PurePosixPath("state/job-result.json")
+seed_pattern = re.compile(r"sol_[0-9a-f]{64}")
+digest_pattern = re.compile(r"[0-9a-f]{64}")
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def safe_file(relative: PurePosixPath) -> Path:
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("unsafe T12 review asset path")
+    path = run.joinpath(*relative.parts)
+    metadata = path.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or path.is_symlink():
+        raise ValueError(f"T12 review asset is not a regular file: {relative}")
+    parent = path.parent.resolve(strict=True)
+    root = run.resolve(strict=True)
+    if parent != root and root not in parent.parents:
+        raise ValueError(f"T12 review asset escaped the run root: {relative}")
+    return path
+
+
+def load_object(relative: PurePosixPath) -> tuple[Path, dict[str, object]]:
+    path = safe_file(relative)
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"T12 evidence is not an object: {relative}")
+    return path, value
+
+
+def load_jsonl(relative: PurePosixPath) -> tuple[Path, list[dict[str, object]]]:
+    path = safe_file(relative)
+    records: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        value = json.loads(line)
+        if not isinstance(value, dict):
+            raise ValueError(f"T12 evidence is not an object: {relative}")
+        records.append(value)
+    if not records:
+        raise ValueError(f"T12 evidence is empty: {relative}")
+    return path, records
+
+
+summary_path, summary = load_object(summary_relative)
+refinement_path, refinements = load_jsonl(refinement_relative)
+sequence_path, sequences = load_jsonl(sequence_relative)
+_, job = load_object(job_relative)
+if sha256_file(summary_path) != expected_summary_sha256:
+    raise ValueError("T12 summary checksum differs from local evidence")
+if sha256_file(refinement_path) != expected_refinement_sha256:
+    raise ValueError("T12 refinement checksum differs from local evidence")
+if sha256_file(sequence_path) != expected_sequence_sha256:
+    raise ValueError("T12 sequence checksum differs from local evidence")
+if not (
+    job.get("run_id") == run.name
+    and job.get("profile") == "t12"
+    and job.get("failure_class") == "success"
+    and job.get("scheduler_state") == "COMPLETED"
+    and job.get("exit_code") == 0
+    and summary.get("run_id") == run.name
+    and summary.get("profile") == "t12"
+    and summary.get("candidate_count") == len(refinements)
+    and summary.get("completed_refinement_count") == len(refinements)
+    and summary.get("failed_refinement_count") == 0
+    and summary.get("completed_sequence_count") == len(sequences)
+    and summary.get("failed_sequence_count") == 0
+    and summary.get("all_candidates_retained") is True
+    and summary.get("all_resume_processes_cached") is True
+    and 1 <= len(refinements) <= 25
+    and len(refinements) == len(sequences)
+):
+    raise ValueError("T12 review requires successful complete retained evidence")
+
+refinement_by_seed: dict[str, dict[str, object]] = {}
+for result in refinements:
+    seed = result.get("seed_solution_id")
+    if not (
+        isinstance(seed, str)
+        and seed_pattern.fullmatch(seed)
+        and seed not in refinement_by_seed
+        and result.get("execution_status") in {"completed_success", "completed_warning"}
+        and result.get("refined_model_path") == "brief_refine_001.pdb"
+        and result.get("refined_mtz_path") == "brief_refine_001.mtz"
+        and result.get("map_path") == "brief_refine_2mFo-DFc.ccp4"
+    ):
+        raise ValueError("T12 refinement asset identity is invalid")
+    refinement_by_seed[seed] = result
+
+sequence_by_seed: dict[str, dict[str, object]] = {}
+for result in sequences:
+    seed = result.get("seed_solution_id")
+    if not (
+        isinstance(seed, str)
+        and seed_pattern.fullmatch(seed)
+        and seed not in sequence_by_seed
+        and result.get("execution_status") in {"completed_hit", "completed_warning"}
+        and result.get("output_model_path") == "sequence_from_map.pdb"
+    ):
+        raise ValueError("T12 sequence asset identity is invalid")
+    sequence_by_seed[seed] = result
+if set(refinement_by_seed) != set(sequence_by_seed):
+    raise ValueError("T12 refinement and sequence seed identities differ")
+
+expected: dict[PurePosixPath, str] = {}
+digest_fields = {
+    "brief_refine_001.pdb": "refined_model_sha256",
+    "brief_refine_001.mtz": "refined_mtz_sha256",
+    "brief_refine_2mFo-DFc.ccp4": "map_sha256",
+}
+for seed in sorted(refinement_by_seed):
+    refinement = refinement_by_seed[seed]
+    sequence = sequence_by_seed[seed]
+    for basename, field in digest_fields.items():
+        digest = refinement.get(field)
+        if not isinstance(digest, str) or not digest_pattern.fullmatch(digest):
+            raise ValueError("T12 refinement asset checksum is invalid")
+        expected[PurePosixPath("artifacts/t12") / f"t12_{seed}" / basename] = digest
+    digest = sequence.get("output_model_sha256")
+    if not isinstance(digest, str) or not digest_pattern.fullmatch(digest):
+        raise ValueError("T12 sequence asset checksum is invalid")
+    expected[
+        PurePosixPath("artifacts/t12") / f"t12_{seed}" / "sequence_from_map.pdb"
+    ] = digest
+
+total = 0
+copied: list[str] = []
+for relative, digest in expected.items():
+    source = safe_file(relative)
+    size = source.stat().st_size
+    if size > maximum_file_bytes:
+        raise ValueError(f"T12 review asset exceeds per-file limit: {relative}")
+    total += size
+    if total > maximum_total_bytes:
+        raise ValueError("T12 review assets exceed total collection limit")
+    if sha256_file(source) != digest:
+        raise ValueError(f"T12 review asset checksum mismatch: {relative}")
+    target = payload.joinpath(*relative.parts)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target, follow_symlinks=False)
+    os.chmod(target, 0o400)
+    if sha256_file(target) != digest:
+        raise ValueError(f"staged T12 review asset checksum mismatch: {relative}")
+    copied.append(relative.as_posix())
+inventory.write_text("".join(f"{name}\n" for name in copied), encoding="ascii")
+PY
+    then
+        message="$(tail -n 1 -- "$diagnostic" 2>"$DISCARD" || true)"
+        rm -rf -- "$temporary"
+        fail transfer_failure \
+            "T12 review asset validation failed: ${message:-unknown error}"
+    fi
+    mapfile -t files < "$inventory"
+    ((${#files[@]} >= 4)) || {
+        rm -rf -- "$temporary"
+        fail transfer_failure "T12 review asset inventory is incomplete"
+    }
+    if ! COPYFILE_DISABLE=1 tar -czf - -C "$payload" "${files[@]}"; then
+        rm -rf -- "$temporary"
+        fail transfer_failure "T12 review asset archive could not be streamed"
+    fi
+    rm -rf -- "$temporary"
+}
+
 clean_run() {
     [[ "$#" -eq 3 ]] || fail wrapper_failure "clean expects run ID, owner ID, and confirmation"
     local run_id="$1"
@@ -2745,6 +2972,7 @@ main() {
         logs) logs_run "$@" ;;
         collect) collect_run "$@" ;;
         review-collect) review_collect_run "$@" ;;
+        t12-review-collect) t12_review_collect_run "$@" ;;
         cancel) cancel_run "$@" ;;
         clean) clean_run "$@" ;;
         *) fail wrapper_failure "unsupported remote operation" ;;

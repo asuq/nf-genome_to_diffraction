@@ -52,6 +52,10 @@ from genome_to_diffraction.hpc.p0_inputs import (
     P0_PATHS_FILENAME,
     build_p0_input_bundle,
 )
+from genome_to_diffraction.review import (
+    SequenceCheckpointRequest,
+    build_sequence_checkpoint,
+)
 
 _TERMINAL_STATES = frozenset(
     {
@@ -145,6 +149,22 @@ _REVIEW_OUTPUT_BASENAMES = {
     "review_html": "mr_seed_candidates.html",
     "review_tsv": "mr_seed_candidates.tsv",
 }
+_T12_SUMMARY_RELATIVE = PurePosixPath("artifacts/qualification/t12-summary.json")
+_T12_REFINEMENT_RELATIVE = PurePosixPath(
+    "artifacts/qualification/t12-refinement-results.jsonl"
+)
+_T12_SEQUENCE_RELATIVE = PurePosixPath(
+    "artifacts/qualification/t12-sequence-results.jsonl"
+)
+_T12_STAGE_MANIFEST_RELATIVE = PurePosixPath(
+    "artifacts/t12-inputs/t12_stage_manifest.json"
+)
+_T12_ASSET_BASENAMES = (
+    "brief_refine_001.pdb",
+    "brief_refine_001.mtz",
+    "brief_refine_2mFo-DFc.ccp4",
+    "sequence_from_map.pdb",
+)
 
 
 def _validated_p0_paths_payload(path: Path) -> bytes:
@@ -201,6 +221,16 @@ class TextTransport(Protocol):
 
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
         """Return manifest-selected and checksum-gated MR review assets."""
+
+    def t12_review_collect(
+        self,
+        run_id: str,
+        owner_id: str,
+        summary_sha256: str,
+        refinement_results_sha256: str,
+        sequence_results_sha256: str,
+    ) -> bytes:
+        """Return checksum-gated T12 finalist assets for the second checkpoint."""
 
     def p0_inputs_stage(
         self,
@@ -656,6 +686,48 @@ class SshTransport:
             )
             raise RemoteOperationError(
                 message or "remote review-asset collection failed",
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        return result.stdout
+
+    def t12_review_collect(
+        self,
+        run_id: str,
+        owner_id: str,
+        summary_sha256: str,
+        refinement_results_sha256: str,
+        sequence_results_sha256: str,
+    ) -> bytes:
+        """Stream only T12 assets named and hashed by collected typed results."""
+
+        arguments = [
+            run_id,
+            owner_id,
+            summary_sha256,
+            refinement_results_sha256,
+            sequence_results_sha256,
+        ]
+        try:
+            result = subprocess.run(
+                self._command("t12-review-collect", arguments),
+                check=False,
+                capture_output=True,
+                timeout=SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote T12 review collection exceeded the fixed "
+                f"{SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS}-second transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        if result.returncode != 0:
+            fields = _decode_remote_fields(result.stdout)
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+            )
+            raise RemoteOperationError(
+                message or "remote T12 review collection failed",
                 failure_class=_failure_class(fields.get("failure_class")),
             )
         return result.stdout
@@ -1660,6 +1732,64 @@ class HpcController:
             "files": files,
         }
 
+    def t12_review_collect(self, run_id: str) -> dict[str, object]:
+        """Collect T12 finalist assets and render the second review checkpoint."""
+
+        record = self._owned_run(run_id)
+        if record.profile != "t12":
+            raise ValidationError("t12-review-collect requires a t12 run")
+        collected = self.config.local_state_root / run_id / "collected"
+        expectations, summary_sha, refinement_sha, sequence_sha, seed_ids = (
+            _t12_review_asset_expectations(collected, record)
+        )
+        self.logger.info(
+            "collecting checksum-gated T12 finalist assets",
+            extra={"run_id": run_id, "finalist_count": len(seed_ids)},
+        )
+        archive = self.transport.t12_review_collect(
+            run_id,
+            record.owner_id,
+            summary_sha,
+            refinement_sha,
+            sequence_sha,
+        )
+        asset_root = self.config.local_state_root / run_id / "t12-review-assets"
+        files = _extract_verified_review_archive(
+            archive,
+            asset_root,
+            expectations,
+            progress=self.progress,
+        )
+        package_root = self.config.local_state_root / run_id / "t12-sequence-checkpoint"
+        package = build_sequence_checkpoint(
+            SequenceCheckpointRequest(
+                run_id=run_id,
+                refinement_results_jsonl=collected.joinpath(
+                    *_T12_REFINEMENT_RELATIVE.parts
+                ),
+                sequence_results_jsonl=collected.joinpath(
+                    *_T12_SEQUENCE_RELATIVE.parts
+                ),
+                stage_manifest_json=collected.joinpath(
+                    *_T12_STAGE_MANIFEST_RELATIVE.parts
+                ),
+                job_result_json=collected.joinpath(*_REVIEW_JOB_RESULT_RELATIVE.parts),
+                asset_root=asset_root,
+                output_directory=package_root,
+                progress=self.progress,
+            )
+        )
+        return {
+            "operation": "t12-review-collect",
+            "run_id": run_id,
+            "destination": str(package_root),
+            "package_id": package.package_id,
+            "finalist_count": package.finalist_count,
+            "seed_solution_ids": seed_ids,
+            "asset_files": files,
+            "manifest": str(package.manifest_json),
+        }
+
     def cancel(self, run_id: str) -> dict[str, object]:
         """Cancel only the scheduler job bound to an owned local run record."""
 
@@ -1965,6 +2095,134 @@ def _review_asset_expectations(
                 raise ValidationError("inspectable MR review asset path is duplicated")
             expectations[archive_relative] = digest
     return expectations, package_id, solution_ids, manifest_sha256
+
+
+def _jsonl_mappings(path: Path, label: str) -> list[Mapping[str, object]]:
+    records: list[Mapping[str, object]] = []
+    try:
+        for line_number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if not line.strip():
+                continue
+            value: object = json.loads(line)
+            if not isinstance(value, Mapping):
+                raise ValidationError(
+                    f"{label} record {line_number} must be a JSON object"
+                )
+            records.append(value)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValidationError(f"{label} is not valid JSONL") from error
+    if not records:
+        raise ValidationError(f"{label} contains no records")
+    return records
+
+
+def _t12_review_asset_expectations(
+    collected: Path,
+    record: LocalRunRecord,
+) -> tuple[dict[str, str], str, str, str, list[str]]:
+    """Derive the exact T12 asset set from collected typed result checksums."""
+
+    summary_path = _safe_local_evidence_file(collected, _T12_SUMMARY_RELATIVE)
+    refinement_path = _safe_local_evidence_file(collected, _T12_REFINEMENT_RELATIVE)
+    sequence_path = _safe_local_evidence_file(collected, _T12_SEQUENCE_RELATIVE)
+    job_path = _safe_local_evidence_file(collected, _REVIEW_JOB_RESULT_RELATIVE)
+    stage_path = _safe_local_evidence_file(collected, _T12_STAGE_MANIFEST_RELATIVE)
+    summary = _json_mapping(summary_path, "T12 summary")
+    job = _json_mapping(job_path, "T12 job result")
+    stage = _json_mapping(stage_path, "T12 stage manifest")
+    refinements = _jsonl_mappings(refinement_path, "T12 refinement results")
+    sequences = _jsonl_mappings(sequence_path, "T12 sequence results")
+    if not (
+        job.get("run_id") == record.run_id
+        and job.get("profile") == "t12"
+        and job.get("failure_class") == FailureClass.SUCCESS
+        and job.get("scheduler_state") == "COMPLETED"
+        and job.get("exit_code") == 0
+        and summary.get("run_id") == record.run_id
+        and summary.get("profile") == "t12"
+        and summary.get("candidate_count") == len(refinements)
+        and summary.get("completed_refinement_count") == len(refinements)
+        and summary.get("failed_refinement_count") == 0
+        and summary.get("completed_sequence_count") == len(sequences)
+        and summary.get("failed_sequence_count") == 0
+        and summary.get("all_candidates_retained") is True
+        and summary.get("all_resume_processes_cached") is True
+        and stage.get("seed_count") == len(refinements)
+        and 1 <= len(refinements) <= 25
+        and len(refinements) == len(sequences)
+    ):
+        raise ValidationError(
+            "T12 review assets require complete retained results and cached resume"
+        )
+
+    digest_pattern = re.compile(r"[0-9a-f]{64}")
+    seed_pattern = re.compile(r"sol_[0-9a-f]{64}")
+    refinement_by_seed: dict[str, Mapping[str, object]] = {}
+    for result in refinements:
+        seed = result.get("seed_solution_id")
+        if (
+            not isinstance(seed, str)
+            or seed_pattern.fullmatch(seed) is None
+            or seed in refinement_by_seed
+            or result.get("execution_status")
+            not in {"completed_success", "completed_warning"}
+            or result.get("refined_model_path") != "brief_refine_001.pdb"
+            or result.get("refined_mtz_path") != "brief_refine_001.mtz"
+            or result.get("map_path") != "brief_refine_2mFo-DFc.ccp4"
+        ):
+            raise ValidationError("T12 refinement result asset identity is invalid")
+        refinement_by_seed[seed] = result
+    sequence_by_seed: dict[str, Mapping[str, object]] = {}
+    for result in sequences:
+        seed = result.get("seed_solution_id")
+        if (
+            not isinstance(seed, str)
+            or seed_pattern.fullmatch(seed) is None
+            or seed in sequence_by_seed
+            or result.get("execution_status")
+            not in {"completed_hit", "completed_warning"}
+            or result.get("output_model_path") != "sequence_from_map.pdb"
+        ):
+            raise ValidationError("T12 sequence result asset identity is invalid")
+        sequence_by_seed[seed] = result
+    if set(refinement_by_seed) != set(sequence_by_seed):
+        raise ValidationError("T12 refinement and sequence seed identities differ")
+
+    expectations: dict[str, str] = {}
+    digest_fields = {
+        "brief_refine_001.pdb": "refined_model_sha256",
+        "brief_refine_001.mtz": "refined_mtz_sha256",
+        "brief_refine_2mFo-DFc.ccp4": "map_sha256",
+    }
+    for seed in sorted(refinement_by_seed):
+        refinement = refinement_by_seed[seed]
+        sequence = sequence_by_seed[seed]
+        for basename, field in digest_fields.items():
+            digest = refinement.get(field)
+            if not isinstance(digest, str) or digest_pattern.fullmatch(digest) is None:
+                raise ValidationError("T12 refinement asset checksum is invalid")
+            relative = f"artifacts/t12/t12_{seed}/{basename}"
+            expectations[relative] = digest
+        sequence_digest = sequence.get("output_model_sha256")
+        if (
+            not isinstance(sequence_digest, str)
+            or digest_pattern.fullmatch(sequence_digest) is None
+        ):
+            raise ValidationError("T12 sequence asset checksum is invalid")
+        expectations[f"artifacts/t12/t12_{seed}/sequence_from_map.pdb"] = (
+            sequence_digest
+        )
+    if len(expectations) != len(refinements) * len(_T12_ASSET_BASENAMES):
+        raise ValidationError("T12 review asset inventory is incomplete")
+    return (
+        expectations,
+        sha256_file(summary_path),
+        sha256_file(refinement_path),
+        sha256_file(sequence_path),
+        sorted(refinement_by_seed),
+    )
 
 
 def _extract_verified_review_archive(
