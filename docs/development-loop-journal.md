@@ -4849,3 +4849,33 @@ T13.4 pilot without changing ranking thresholds from CD6 alone.
 Run `pixi run --locked docs-check` and `git diff --check`, commit and push the
 focused ty migration, and monitor dual-Pixi GitHub Actions. After green CI,
 return directly to the existing CD6 human decision checkpoint.
+
+## 2026-08-15T20:03:47Z - ty migration closed green
+
+### Discoveries
+
+- Both supported Pixi releases resolve and execute the same locked `ty 0.0.71`
+  environment; no CI-only typing or platform issue appeared.
+
+### Accomplishments
+
+- Committed and pushed the mypy-to-ty migration as
+  `f833fbaa4b1e4170a6316599c5b82db57eb2f555`.
+- Both Pixi 0.74.0 and 0.76.2 jobs passed in GitHub Actions run
+  `31905368531`. The worktree was clean after the push.
+
+### Immutable evidence
+
+- The complete local locked gate and both remote CI jobs passed against the
+  same source commit and lock file.
+
+### Unresolved work
+
+- The human CD6 Coot and sequence-group decision remains the next scientific
+  gate; T13.4 must not start before that explicit checkpoint is recorded.
+
+### Next exact starting point
+
+Open the retained CD6 checkpoint, review all 11 alternatives, and record the
+sequence-group decisions plus the assessed `ASU = nA` status. Then rebuild
+T13.1/T13.2 and begin the immutable three-dataset pilot.
