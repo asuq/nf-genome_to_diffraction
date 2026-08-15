@@ -6,8 +6,10 @@ import pytest
 
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.review.sequence_checkpoint import (
+    LiveSequenceCheckpointRequest,
     SequenceCheckpointError,
     SequenceCheckpointRequest,
+    build_live_sequence_checkpoint,
     build_sequence_checkpoint,
 )
 
@@ -140,6 +142,142 @@ def _request(tmp_path: Path) -> SequenceCheckpointRequest:
     )
 
 
+def _live_request(
+    tmp_path: Path, *, failed_seed_index: int | None = None
+) -> LiveSequenceCheckpointRequest:
+    source = _request(tmp_path / "source")
+    refinement_records = [
+        json.loads(line)
+        for line in source.refinement_results_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    sequence_records = [
+        json.loads(line)
+        for line in source.sequence_results_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    stage = tmp_path / "live_t12_stage"
+    (stage / "inputs").mkdir(parents=True)
+    diffraction = stage / "inputs/diffraction.mtz"
+    diffraction.write_text("DIFFRACTION\n", encoding="ascii")
+    diffraction_sha = sha256_file(diffraction)
+    result_directories: list[Path] = []
+    stage_candidates: list[dict[str, object]] = []
+    finalist_rows = ["seed_solution_id"]
+    for seed_index, (refinement, sequence) in enumerate(
+        zip(refinement_records, sequence_records, strict=True)
+    ):
+        seed = str(refinement["seed_solution_id"])
+        finalist_rows.append(seed)
+        result_directory = tmp_path / "results" / f"t12_{seed}"
+        result_directory.mkdir(parents=True)
+        source_directory = source.asset_root / "artifacts" / "t12" / f"t12_{seed}"
+        if failed_seed_index == seed_index:
+            refinement.update(
+                {
+                    "execution_status": "failed_tool_execution",
+                    "initial_r_work": None,
+                    "initial_r_free": None,
+                    "final_r_work": None,
+                    "final_r_free": None,
+                    "rms_bonds": None,
+                    "rms_angles": None,
+                    "refined_model_path": None,
+                    "refined_model_sha256": None,
+                    "refined_mtz_path": None,
+                    "refined_mtz_sha256": None,
+                    "map_path": None,
+                    "map_sha256": None,
+                }
+            )
+            sequence.update(
+                {
+                    "execution_status": "skipped_ineligible",
+                    "scored_group_count": 0,
+                    "candidates": [],
+                    "best_score": None,
+                    "mean_score": None,
+                    "score_sd": None,
+                    "best_score_z": None,
+                    "output_model_path": None,
+                    "output_model_sha256": None,
+                }
+            )
+        else:
+            for asset in source_directory.iterdir():
+                (result_directory / asset.name).write_bytes(asset.read_bytes())
+        for basename, record in (
+            ("brief_refinement_result", refinement),
+            ("sequence_map_result", sequence),
+        ):
+            (result_directory / f"{basename}.json").write_text(
+                json.dumps(record, sort_keys=True), encoding="utf-8"
+            )
+            _write_jsonl(result_directory / f"{basename}.jsonl", [record])
+        (result_directory / "t12_command.json").write_text(
+            json.dumps({"schema_version": "1.0", "seed_solution_id": seed}),
+            encoding="utf-8",
+        )
+        (result_directory / "phenix.refine.log").write_text(
+            f"refinement {seed}\n", encoding="ascii"
+        )
+        (result_directory / "phenix.sequence_from_map.log").write_text(
+            f"sequence {seed}\n", encoding="ascii"
+        )
+        result_directories.append(result_directory)
+
+        parent_directory = stage / "parents" / seed
+        parent_directory.mkdir(parents=True)
+        parent = parent_directory / "parent.pdb"
+        solution = parent_directory / "phaser_solution.mtz"
+        parent.write_text(f"PARENT {seed}\n", encoding="ascii")
+        solution.write_text(f"PHASER {seed}\n", encoding="ascii")
+        stage_candidates.append(
+            {
+                "seed_solution_id": seed,
+                "sequence_group_id": refinement["sequence_group_id"],
+                "best_supported_copy_count": refinement["input_copy_count"],
+                "staged_parent_coordinate": parent.relative_to(stage).as_posix(),
+                "source_coordinate_sha256": sha256_file(parent),
+                "staged_solution_mtz": solution.relative_to(stage).as_posix(),
+                "source_solution_mtz_sha256": sha256_file(solution),
+                "refinement_mtz": diffraction.relative_to(stage).as_posix(),
+                "refinement_mtz_sha256": diffraction_sha,
+            }
+        )
+    finalists = stage / "finalists.tsv"
+    finalists.write_text("\n".join(finalist_rows) + "\n", encoding="utf-8")
+    copy_tsv = stage / "copy_count_report.tsv"
+    copy_md = stage / "copy_count_report.md"
+    copy_tsv.write_text("seed_solution_id\n", encoding="utf-8")
+    copy_md.write_text("# Copy report\n", encoding="utf-8")
+    manifest = {
+        "schema_version": "1.0",
+        "stage_id": "t12stage_live_unit",
+        "profile": "normal_workflow",
+        "execution_status": "completed_success",
+        "seed_count": len(stage_candidates),
+        "all_approved_seeds_retained": True,
+        "numeric_score_filter_applied": False,
+        "failed_addition_proves_absence": False,
+        "finalists_sha256": sha256_file(finalists),
+        "copy_report_tsv_sha256": sha256_file(copy_tsv),
+        "copy_report_markdown_sha256": sha256_file(copy_md),
+        "candidates": stage_candidates,
+    }
+    (stage / "t12_stage_manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True), encoding="utf-8"
+    )
+    return LiveSequenceCheckpointRequest(
+        stage_bundle=stage,
+        candidate_result_directories=tuple(result_directories),
+        output_directory=tmp_path / "live_checkpoint",
+        progress=False,
+    )
+
+
 def test_sequence_checkpoint_publishes_bounded_and_full_views(tmp_path: Path) -> None:
     output = build_sequence_checkpoint(_request(tmp_path))
 
@@ -167,3 +305,67 @@ def test_sequence_checkpoint_rejects_tampered_finalist_asset(tmp_path: Path) -> 
 
     with pytest.raises(SequenceCheckpointError, match="checksum differs"):
         build_sequence_checkpoint(request)
+
+
+def test_live_sequence_checkpoint_packages_normal_workflow_results(
+    tmp_path: Path,
+) -> None:
+    output = build_live_sequence_checkpoint(_live_request(tmp_path))
+
+    manifest = json.loads(output.manifest_json.read_text(encoding="utf-8"))
+    assert output.finalist_count == 2
+    assert manifest["execution_mode"] == "normal_workflow"
+    assert manifest["retained_finalist_count"] == 2
+    assert manifest["reviewable_finalist_count"] == 2
+    assert manifest["all_finalists_retained"] is True
+    assert manifest["automatic_approval"] is False
+    assert len(manifest["candidate_outcomes"]) == 2
+    with output.approval_template_tsv.open(encoding="utf-8", newline="") as handle:
+        assert list(csv.DictReader(handle, delimiter="\t")) == []
+    first_seed = manifest["candidate_outcomes"][0]["seed_solution_id"]
+    assert (output.manifest_json.parent / "assets/shared/diffraction.mtz").is_file()
+    assert (
+        output.manifest_json.parent / f"evidence/{first_seed}/t12_command.json"
+    ).is_file()
+    assert (
+        output.manifest_json.parent / f"assets/{first_seed}/staged_parent.pdb"
+    ).is_file()
+
+
+def test_live_sequence_checkpoint_retains_typed_candidate_failure(
+    tmp_path: Path,
+) -> None:
+    output = build_live_sequence_checkpoint(
+        _live_request(tmp_path, failed_seed_index=1)
+    )
+
+    manifest = json.loads(output.manifest_json.read_text(encoding="utf-8"))
+    failed = next(
+        candidate
+        for candidate in manifest["candidate_outcomes"]
+        if candidate["refinement_execution_status"] == "failed_tool_execution"
+    )
+    assert manifest["retained_finalist_count"] == 2
+    assert manifest["reviewable_finalist_count"] == 1
+    assert failed["sequence_execution_status"] == "skipped_ineligible"
+    assert failed["retained"] is True
+    assert len(output.full_tsv.read_text(encoding="utf-8").splitlines()) == 31
+    failed_seed = failed["seed_solution_id"]
+    assert (
+        output.manifest_json.parent
+        / f"evidence/{failed_seed}/brief_refinement_result.json"
+    ).is_file()
+    assert (
+        output.manifest_json.parent / f"assets/{failed_seed}/staged_parent.pdb"
+    ).is_file()
+
+
+def test_live_sequence_checkpoint_rejects_changed_stage_parent(
+    tmp_path: Path,
+) -> None:
+    request = _live_request(tmp_path)
+    parent = next((request.stage_bundle / "parents").rglob("parent.pdb"))
+    parent.write_text("changed\n", encoding="ascii")
+
+    with pytest.raises(SequenceCheckpointError, match="checksum differs"):
+        build_live_sequence_checkpoint(request)

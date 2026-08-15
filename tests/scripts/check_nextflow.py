@@ -397,6 +397,13 @@ def check_stubs() -> None:
                 "brief_refinement_result.json",
                 "sequence_map_result.json",
                 "t12_command.json",
+                "sequence_checkpoint_manifest.json",
+                "sequence_candidates_top10.tsv",
+                "sequence_candidates_top25.tsv",
+                "sequence_candidates_full.tsv",
+                "sequence_candidates.html",
+                "sequence_approval_candidates.tsv",
+                "approved_sequence_groups.tsv",
                 "report.html",
                 "timeline.html",
                 "trace.tsv",
@@ -421,6 +428,24 @@ def check_stubs() -> None:
             or t12_stage.get("failed_addition_proves_absence") is not False
         ):
             raise RuntimeError("integrated T12 stage lost retain-all semantics")
+        t12_checkpoint = json.loads(
+            (
+                integrated_t12_out
+                / "t12_sequence_checkpoint/sequence_checkpoint_manifest.json"
+            ).read_text(encoding="utf-8")
+        )
+        if (
+            t12_checkpoint.get("execution_mode") != "normal_workflow"
+            or t12_checkpoint.get("all_finalists_retained") is not True
+            or t12_checkpoint.get("automatic_approval") is not False
+            or t12_checkpoint.get("retained_finalist_count") != 1
+        ):
+            raise RuntimeError("integrated T12.5 lost retain-all checkpoint semantics")
+        with (
+            integrated_t12_out / "t12_sequence_checkpoint/approved_sequence_groups.tsv"
+        ).open(encoding="utf-8", newline="") as handle:
+            if len(handle.readlines()) != 1:
+                raise RuntimeError("integrated T12.5 fabricated a sequence decision")
         integrated_t12_resumed = _run(
             [*integrated_t12_command, "-resume"], environment=environment
         )

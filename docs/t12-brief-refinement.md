@@ -63,10 +63,13 @@ The stable result files are `brief_refinement_result.json[.l]`,
 `sequence_map_result.json[.l]`, `t12_command.json`, refined PDB/MTZ/map assets,
 and the two bounded raw logs.
 
-T12.5 is a post-run checkpoint, not another scientific computation. The fixed
-`t12-review-collect` operation verifies the successful terminal run and cached
-resume, derives the only permitted finalist assets from typed result checksums,
-and publishes:
+T12.5 is a checkpoint, not another scientific computation. The fixed
+`t12-review-collect` operation remains the checksum-gated route for a retained
+scheduled T12 run. The normal workflow instead invokes
+`review build-live-sequence-checkpoint` after every candidate process has
+finished; it validates the live stage, exact candidate identities, typed JSON
+and JSONL pairs, fixed logs/commands, and every asset checksum without
+fabricating a Slurm job result. Both routes publish:
 
 - a primary top-10 and extended top-25 view for every retained finalist;
 - the full set of scored catalogue groups, including raw scores and missing
@@ -77,8 +80,30 @@ and publishes:
 - a header-only second approval template requiring an explicit human decision.
 
 No numeric score or refinement statistic removes a finalist or creates an
-approval. The manifest records unscored catalogue groups separately through
-the complete and scored counts in the underlying typed results.
+approval. In the normal path, a typed failed/no-hit finalist remains in the
+manifest with its stage parent, Phaser MTZ, diffraction MTZ, result records,
+command, and bounded logs even when no scored sequence row exists. The manifest
+records unscored catalogue groups separately through the complete and scored
+counts in the underlying typed results.
+
+## Normal T12.5 process contract
+
+`BUILD_LIVE_SEQUENCE_CHECKPOINT` consumes one `live_t12_stage` directory and
+the complete collected list of `t12_<solution-id>` result directories. It emits
+one `t12_sequence_checkpoint` directory. It runs only the locked project CLI;
+Phenix is not invoked again. Missing/duplicated candidates, changed stage or
+asset checksums, unsafe paths, inconsistent JSON/JSONL records, or broken
+refinement/sequence identity fail the checkpoint. Typed tool/parse/no-hit
+outcomes remain normal retained evidence and produce no fabricated score row.
+
+The process cache key is Nextflow's content identity over the complete stage
+directory, ordered candidate-result directories, locked command, process
+definition, and project revision. The package identity independently binds the
+stage manifest, every typed result/log/command checksum, and all copied assets.
+The manifest reports every finalist's refinement and sequence status; the only
+decision file produced by the process is header-only. Unit tests cover
+successful packaging, typed-failure retention, and changed-parent rejection;
+the integrated stub test covers publication and fully cached resume.
 
 ## Fixed scientific protocol
 
@@ -129,9 +154,9 @@ itself imposes no runtime timeout.
 Unit tests cover the fixed command policy, R-value parser, complete-catalogue
 ranking/crosswalk, checksum rejection, and all live copy-state endings.
 `nextflow-check` parses the typed module/workflow, while `nextflow-stub` verifies
-normal-workflow T12 publication and cached resume without fabricating scientific
-success. All 11 retained CD6 finalists have already completed the verified
-Viper Phenix T12 protocol as retained qualification evidence. T12.5 additionally
-tests checksum-gated remote collection, path containment, top-10/top-25/full
-cardinality, empty approval semantics, and package identity; connecting that
-checkpoint builder to the normal workflow is the next boundary.
+normal-workflow T12 and T12.5 publication plus cached resume without fabricating
+scientific success. All 11 retained CD6 finalists have already completed the
+verified Viper Phenix T12 protocol as retained qualification evidence. T12.5
+additionally tests checksum-gated remote collection, normal live-result
+validation, typed-failure retention, path containment, top-10/top-25/full
+cardinality, empty approval semantics, and package identity.

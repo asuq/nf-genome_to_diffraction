@@ -35,6 +35,7 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.sequence_checkpoint")
 _ADAPTER_VERSION = "sequence-checkpoint-v1"
+_LIVE_ADAPTER_VERSION = "live-sequence-checkpoint-v1"
 _APPROVAL_COLUMNS = (
     "checkpoint",
     "item_id",
@@ -88,6 +89,16 @@ class SequenceCheckpointRequest:
     stage_manifest_json: Path
     job_result_json: Path
     asset_root: Path
+    output_directory: Path
+    progress: bool = True
+
+
+@dataclass(frozen=True)
+class LiveSequenceCheckpointRequest:
+    """Normal-workflow T12 directories used to render one checkpoint."""
+
+    stage_bundle: Path
+    candidate_result_directories: tuple[Path, ...]
     output_directory: Path
     progress: bool = True
 
@@ -310,7 +321,8 @@ def _html(rows: list[dict[str, object]], package_id: str) -> str:
         "<h1>T12.5 sequence checkpoint</h1>"
         f"<p>Package <code>{html.escape(package_id)}</code>. All structural finalists "
         "are retained. Sequence scores and refinement statistics are review evidence, "
-        "not automatic approval or structure validation.</p>"
+        "not automatic approval or structure validation. Finalists without scored "
+        "sequence rows remain explicit in the manifest and retained evidence.</p>"
         "<h2>Primary top-10 view per finalist</h2><table><thead><tr>"
         "<th>Finalist</th><th>rank</th><th>sequence group</th><th>loci</th>"
         "<th>score</th><th>z</th><th>Rwork</th><th>Rfree</th><th>assets</th>"
@@ -318,38 +330,99 @@ def _html(rows: list[dict[str, object]], package_id: str) -> str:
     )
 
 
-def build_sequence_checkpoint(
-    request: SequenceCheckpointRequest,
-) -> SequenceCheckpointOutput:
-    """Validate real T12 evidence and publish bounded plus full review views."""
+def _safe_relative_file(
+    root: Path,
+    relative: str,
+    *,
+    label: str,
+    digest: str | None = None,
+) -> Path:
+    candidate = Path(relative)
+    if candidate.is_absolute() or ".." in candidate.parts or not candidate.parts:
+        raise SequenceCheckpointError(f"{label} path is unsafe")
+    if root.is_symlink() or not root.is_dir():
+        raise SequenceCheckpointError(f"{label} root is absent or unsafe")
+    root_resolved = root.resolve(strict=True)
+    path = root / candidate
+    if path.is_symlink() or not path.is_file():
+        raise SequenceCheckpointError(f"{label} is absent or unsafe")
+    resolved = path.resolve(strict=True)
+    if root_resolved not in resolved.parents:
+        raise SequenceCheckpointError(f"{label} escaped its root")
+    if digest is not None and sha256_file(path) != digest:
+        raise SequenceCheckpointError(f"{label} checksum differs")
+    return path
 
-    refinements = _read_jsonl(
-        request.refinement_results_jsonl,
-        BriefRefinementResult,
-        label="T12 refinement results",
-    )
-    sequences = _read_jsonl(
-        request.sequence_results_jsonl,
-        SequenceMapResult,
-        label="T12 sequence results",
-    )
-    stage = _load_object(request.stage_manifest_json, "T12 stage manifest")
-    job = _load_object(request.job_result_json, "T12 job result")
-    if not (
-        job.get("run_id") == request.run_id
-        and job.get("profile") == "t12"
-        and job.get("scheduler_state") == "COMPLETED"
-        and job.get("failure_class") == "success"
-        and job.get("exit_code") == 0
-    ):
-        raise SequenceCheckpointError(
-            "sequence checkpoint requires terminal successful T12 evidence"
-        )
+
+def _read_single_result[T: BaseModel](
+    directory: Path,
+    basename: str,
+    model: type[T],
+    *,
+    label: str,
+) -> tuple[T, Path, Path]:
+    json_path = _safe_relative_file(directory, f"{basename}.json", label=label)
+    jsonl_path = _safe_relative_file(directory, f"{basename}.jsonl", label=label)
+    records = _read_jsonl(jsonl_path, model, label=label)
+    if len(records) != 1:
+        raise SequenceCheckpointError(f"{label} must contain exactly one record")
+    try:
+        json_record = model.model_validate_json(json_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValidationError) as error:
+        raise SequenceCheckpointError(f"invalid {label} JSON") from error
+    if json_record.model_dump(mode="json") != records[0].model_dump(mode="json"):
+        raise SequenceCheckpointError(f"{label} JSON and JSONL differ")
+    return records[0], json_path, jsonl_path
+
+
+def _finalist_seed_ids(path: Path) -> tuple[str, ...]:
+    if path.is_symlink() or not path.is_file():
+        raise SequenceCheckpointError("T12 finalists are absent or unsafe")
+    try:
+        with path.open(encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle, delimiter="\t")
+            if reader.fieldnames is None or "seed_solution_id" not in reader.fieldnames:
+                raise SequenceCheckpointError("T12 finalists lack seed_solution_id")
+            seeds = tuple(row["seed_solution_id"] for row in reader)
+    except (OSError, UnicodeError) as error:
+        raise SequenceCheckpointError("T12 finalists are unreadable") from error
+    if not seeds or len(set(seeds)) != len(seeds) or any(not seed for seed in seeds):
+        raise SequenceCheckpointError("T12 finalist identities are empty or duplicated")
+    return seeds
+
+
+def _register_source(
+    sources: dict[str, tuple[Path, str]],
+    destination: Path,
+    source: Path,
+    digest: str,
+) -> None:
+    relative = destination.as_posix()
+    existing = sources.get(relative)
+    if existing is not None and existing != (source, digest):
+        raise SequenceCheckpointError("checkpoint evidence destination is duplicated")
+    sources[relative] = (source, digest)
+
+
+def _publish_sequence_checkpoint(
+    *,
+    run_id: str,
+    refinements: tuple[BriefRefinementResult, ...],
+    sequences: tuple[SequenceMapResult, ...],
+    stage: dict[str, object],
+    identity_base: dict[str, object],
+    asset_sources: dict[str, dict[str, tuple[Path, str]]],
+    retained_sources: dict[str, tuple[Path, str]],
+    output: Path,
+    adapter_version: str,
+    progress: bool,
+    require_all_completed: bool,
+    extra_manifest: dict[str, object] | None = None,
+) -> SequenceCheckpointOutput:
     if stage.get("seed_count") != len(refinements):
         raise SequenceCheckpointError("T12 stage and refinement counts differ")
     if len(refinements) != len(sequences):
         raise SequenceCheckpointError("refinement and sequence result counts differ")
-
     refinement_by_seed = {record.seed_solution_id: record for record in refinements}
     sequence_by_seed = {record.seed_solution_id: record for record in sequences}
     if len(refinement_by_seed) != len(refinements) or set(refinement_by_seed) != set(
@@ -359,70 +432,125 @@ def build_sequence_checkpoint(
             "T12 result seed identities are duplicated or inconsistent"
         )
 
-    output = request.output_directory
     output.mkdir(parents=True, exist_ok=True)
+    retained_inventory: dict[str, str] = {}
+    for relative, (source, digest) in sorted(retained_sources.items()):
+        destination = Path(relative)
+        if destination.is_absolute() or ".." in destination.parts:
+            raise SequenceCheckpointError("checkpoint evidence destination is unsafe")
+        _copy_asset(source, output / destination, digest)
+        retained_inventory[relative] = digest
+
     rows: list[dict[str, object]] = []
     asset_inventory: dict[str, str] = {}
+    candidate_outcomes: list[dict[str, object]] = []
+    reviewable_finalists = 0
+    successful_refinement_statuses = {
+        ExecutionStatus.COMPLETED_SUCCESS,
+        ExecutionStatus.COMPLETED_WARNING,
+    }
+    scored_sequence_statuses = {
+        ExecutionStatus.COMPLETED_HIT,
+        ExecutionStatus.COMPLETED_WARNING,
+    }
     iterator = tqdm(
         sorted(refinement_by_seed),
         desc="Building sequence checkpoint",
         unit="finalist",
-        disable=not request.progress,
+        disable=not progress,
     )
     for seed in iterator:
         refinement = refinement_by_seed[seed]
         sequence = sequence_by_seed[seed]
-        if refinement.execution_status not in {
-            ExecutionStatus.COMPLETED_SUCCESS,
-            ExecutionStatus.COMPLETED_WARNING,
-        } or sequence.execution_status not in {
-            ExecutionStatus.COMPLETED_HIT,
-            ExecutionStatus.COMPLETED_WARNING,
-        }:
+        refinement_completed = (
+            refinement.execution_status in successful_refinement_statuses
+        )
+        sequence_scored = sequence.execution_status in scored_sequence_statuses
+        if require_all_completed and not (refinement_completed and sequence_scored):
             raise SequenceCheckpointError(
                 "T12.5 requires completed refinement and sequence outcomes"
             )
         if refinement.refinement_id != sequence.refinement_id:
             raise SequenceCheckpointError("refinement and sequence identities differ")
+        if not refinement_completed and sequence.execution_status != (
+            ExecutionStatus.SKIPPED_INELIGIBLE
+        ):
+            raise SequenceCheckpointError(
+                "failed refinement must have a skipped sequence outcome"
+            )
+        if sequence.execution_status == ExecutionStatus.COMPLETED_HIT and not (
+            sequence.candidates
+        ):
+            raise SequenceCheckpointError("completed-hit sequence result has no rows")
+        if sequence.candidates and not sequence_scored:
+            raise SequenceCheckpointError(
+                "unscored sequence outcome contains candidate rows"
+            )
+
         digests = {
             "brief_refine_001.pdb": refinement.refined_model_sha256,
             "brief_refine_001.mtz": refinement.refined_mtz_sha256,
             "brief_refine_2mFo-DFc.ccp4": refinement.map_sha256,
             "sequence_from_map.pdb": sequence.output_model_sha256,
         }
-        if any(digest is None for digest in digests.values()):
+        required_names: list[str] = []
+        if refinement_completed:
+            required_names.extend(_ASSET_NAMES[:3])
+        if sequence.output_model_sha256 is not None:
+            required_names.append(_ASSET_NAMES[3])
+        if sequence.candidates and _ASSET_NAMES[3] not in required_names:
+            raise SequenceCheckpointError(
+                "scored sequence result lacks its output-model checksum"
+            )
+        if any(digests[name] is None for name in required_names):
             raise SequenceCheckpointError(
                 "completed T12 result lacks an asset checksum"
             )
-        assets: dict[str, str] = {}
-        for name in _ASSET_NAMES:
+        package_assets: dict[str, str] = {}
+        for name in required_names:
             digest = str(digests[name])
-            source_relative = _safe_asset(request.asset_root, seed, name, digest)
+            try:
+                source, recorded_digest = asset_sources[seed][name]
+            except KeyError as error:
+                raise SequenceCheckpointError(
+                    f"T12 finalist asset is absent: {seed}/{name}"
+                ) from error
+            if recorded_digest != digest:
+                raise SequenceCheckpointError(
+                    f"T12 finalist asset checksum differs: {seed}/{name}"
+                )
             package_relative = Path("assets") / seed / name
-            _copy_asset(
-                request.asset_root / source_relative,
-                output / package_relative,
-                digest,
-            )
-            assets[name] = package_relative.as_posix()
+            _copy_asset(source, output / package_relative, digest)
+            package_assets[name] = package_relative.as_posix()
             asset_inventory[package_relative.as_posix()] = digest
-        rows.extend(
-            _review_row(refinement, sequence, candidate, assets)
-            for candidate in sequence.candidates
+        if sequence.candidates:
+            if set(package_assets) != set(_ASSET_NAMES):
+                raise SequenceCheckpointError(
+                    "scored sequence result lacks complete Coot assets"
+                )
+            reviewable_finalists += 1
+            rows.extend(
+                _review_row(refinement, sequence, candidate, package_assets)
+                for candidate in sequence.candidates
+            )
+        candidate_outcomes.append(
+            {
+                "seed_solution_id": seed,
+                "refinement_id": refinement.refinement_id,
+                "refinement_execution_status": refinement.execution_status.value,
+                "sequence_execution_status": sequence.execution_status.value,
+                "scored_group_count": sequence.scored_group_count,
+                "review_row_count": len(sequence.candidates),
+                "retained": True,
+            }
         )
 
     top10_rows = [row for row in rows if _row_int(row["candidate_rank"]) <= 10]
     top25_rows = [row for row in rows if _row_int(row["candidate_rank"]) <= 25]
     approval_rows = _approval_rows(top10_rows)
-    identity = {
-        "adapter_version": _ADAPTER_VERSION,
-        "run_id": request.run_id,
-        "stage_manifest_sha256": sha256_file(request.stage_manifest_json),
-        "job_result_sha256": sha256_file(request.job_result_json),
-        "refinement_results_sha256": sha256_file(request.refinement_results_jsonl),
-        "sequence_results_sha256": sha256_file(request.sequence_results_jsonl),
-        "assets": asset_inventory,
-    }
+    identity = {**identity_base, "assets": asset_inventory}
+    if retained_inventory:
+        identity["retained_evidence"] = retained_inventory
     package_id = content_id("seqreview_", identity)
 
     top10 = output / "sequence_candidates_top10.tsv"
@@ -458,30 +586,34 @@ def build_sequence_checkpoint(
             approval_template,
         )
     }
-    atomic_write_json(
-        manifest,
-        {
-            "schema_version": "1.0",
-            "adapter_version": _ADAPTER_VERSION,
-            "package_id": package_id,
-            "run_id": request.run_id,
-            "parent_run_id": stage.get("parent_run_id"),
-            "finalist_count": len(refinements),
-            "top10_row_count": len(top10_rows),
-            "top25_row_count": len(top25_rows),
-            "full_scored_row_count": len(rows),
-            "approval_candidate_count": len(approval_rows),
-            "selection_policy": "retain_all_finalists_and_all_scored_sequences",
-            "automatic_approval": False,
-            "identity": identity,
-            "outputs": outputs,
-        },
-    )
+    manifest_document: dict[str, object] = {
+        "schema_version": "1.0",
+        "adapter_version": adapter_version,
+        "package_id": package_id,
+        "run_id": run_id,
+        "parent_run_id": stage.get("parent_run_id"),
+        "finalist_count": len(refinements),
+        "retained_finalist_count": len(refinements),
+        "reviewable_finalist_count": reviewable_finalists,
+        "top10_row_count": len(top10_rows),
+        "top25_row_count": len(top25_rows),
+        "full_scored_row_count": len(rows),
+        "approval_candidate_count": len(approval_rows),
+        "selection_policy": "retain_all_finalists_and_all_scored_sequences",
+        "automatic_approval": False,
+        "candidate_outcomes": candidate_outcomes,
+        "identity": identity,
+        "outputs": outputs,
+    }
+    if extra_manifest is not None:
+        manifest_document.update(extra_manifest)
+    atomic_write_json(manifest, manifest_document)
     _LOGGER.info(
         "sequence checkpoint complete",
         extra={
             "package_id": package_id,
             "finalist_count": len(refinements),
+            "reviewable_finalist_count": reviewable_finalists,
             "full_scored_row_count": len(rows),
         },
     )
@@ -495,4 +627,365 @@ def build_sequence_checkpoint(
         approval_candidates_tsv=approval_candidates,
         approval_template_tsv=approval_template,
         manifest_json=manifest,
+    )
+
+
+def build_sequence_checkpoint(
+    request: SequenceCheckpointRequest,
+) -> SequenceCheckpointOutput:
+    """Validate scheduled T12 evidence and publish bounded plus full views."""
+
+    refinements = _read_jsonl(
+        request.refinement_results_jsonl,
+        BriefRefinementResult,
+        label="T12 refinement results",
+    )
+    sequences = _read_jsonl(
+        request.sequence_results_jsonl,
+        SequenceMapResult,
+        label="T12 sequence results",
+    )
+    stage = _load_object(request.stage_manifest_json, "T12 stage manifest")
+    job = _load_object(request.job_result_json, "T12 job result")
+    if not (
+        job.get("run_id") == request.run_id
+        and job.get("profile") == "t12"
+        and job.get("scheduler_state") == "COMPLETED"
+        and job.get("failure_class") == "success"
+        and job.get("exit_code") == 0
+    ):
+        raise SequenceCheckpointError(
+            "sequence checkpoint requires terminal successful T12 evidence"
+        )
+    asset_sources: dict[str, dict[str, tuple[Path, str]]] = {}
+    sequence_by_seed = {sequence.seed_solution_id: sequence for sequence in sequences}
+    for refinement in refinements:
+        try:
+            sequence = sequence_by_seed[refinement.seed_solution_id]
+        except KeyError as error:
+            raise SequenceCheckpointError(
+                "T12 result seed identities are inconsistent"
+            ) from error
+        digests = {
+            "brief_refine_001.pdb": refinement.refined_model_sha256,
+            "brief_refine_001.mtz": refinement.refined_mtz_sha256,
+            "brief_refine_2mFo-DFc.ccp4": refinement.map_sha256,
+            "sequence_from_map.pdb": sequence.output_model_sha256,
+        }
+        if any(digest is None for digest in digests.values()):
+            raise SequenceCheckpointError(
+                "completed T12 result lacks an asset checksum"
+            )
+        asset_sources[refinement.seed_solution_id] = {
+            name: (
+                request.asset_root
+                / _safe_asset(
+                    request.asset_root,
+                    refinement.seed_solution_id,
+                    name,
+                    str(digest),
+                ),
+                str(digest),
+            )
+            for name, digest in digests.items()
+        }
+    identity: dict[str, object] = {
+        "adapter_version": _ADAPTER_VERSION,
+        "run_id": request.run_id,
+        "stage_manifest_sha256": sha256_file(request.stage_manifest_json),
+        "job_result_sha256": sha256_file(request.job_result_json),
+        "refinement_results_sha256": sha256_file(request.refinement_results_jsonl),
+        "sequence_results_sha256": sha256_file(request.sequence_results_jsonl),
+    }
+    return _publish_sequence_checkpoint(
+        run_id=request.run_id,
+        refinements=refinements,
+        sequences=sequences,
+        stage=stage,
+        identity_base=identity,
+        asset_sources=asset_sources,
+        retained_sources={},
+        output=request.output_directory,
+        adapter_version=_ADAPTER_VERSION,
+        progress=request.progress,
+        require_all_completed=True,
+    )
+
+
+def build_live_sequence_checkpoint(
+    request: LiveSequenceCheckpointRequest,
+) -> SequenceCheckpointOutput:
+    """Build T12.5 directly from checksum-authenticated normal-workflow outputs."""
+
+    stage_root = request.stage_bundle
+    stage_manifest = _safe_relative_file(
+        stage_root,
+        "t12_stage_manifest.json",
+        label="normal T12 stage manifest",
+    )
+    stage = _load_object(stage_manifest, "normal T12 stage manifest")
+    if not (
+        stage.get("profile") == "normal_workflow"
+        and stage.get("execution_status") == ExecutionStatus.COMPLETED_SUCCESS.value
+        and stage.get("all_approved_seeds_retained") is True
+        and stage.get("numeric_score_filter_applied") is False
+        and stage.get("failed_addition_proves_absence") is False
+    ):
+        raise SequenceCheckpointError("normal T12 stage lost retain-all semantics")
+    stage_id = stage.get("stage_id")
+    if not isinstance(stage_id, str) or not stage_id:
+        raise SequenceCheckpointError("normal T12 stage lacks its immutable ID")
+    candidate_documents = stage.get("candidates")
+    if not isinstance(candidate_documents, list) or not all(
+        isinstance(candidate, dict) for candidate in candidate_documents
+    ):
+        raise SequenceCheckpointError("normal T12 stage lacks candidate provenance")
+    stage_candidates = {
+        str(candidate.get("seed_solution_id")): candidate
+        for candidate in candidate_documents
+    }
+    if (
+        len(stage_candidates) != len(candidate_documents)
+        or stage.get("seed_count") != len(stage_candidates)
+        or "None" in stage_candidates
+    ):
+        raise SequenceCheckpointError("normal T12 stage candidate identities differ")
+
+    finalists = _safe_relative_file(
+        stage_root, "finalists.tsv", label="normal T12 finalists"
+    )
+    finalists_digest = stage.get("finalists_sha256")
+    if not isinstance(finalists_digest, str) or sha256_file(finalists) != (
+        finalists_digest
+    ):
+        raise SequenceCheckpointError("normal T12 finalists checksum differs")
+    if set(_finalist_seed_ids(finalists)) != set(stage_candidates):
+        raise SequenceCheckpointError("normal T12 finalists and stage differ")
+
+    retained_sources: dict[str, tuple[Path, str]] = {}
+    provenance_files = (
+        ("t12_stage_manifest.json", "stage_manifest_sha256"),
+        ("finalists.tsv", "finalists_sha256"),
+        ("copy_count_report.tsv", "copy_report_tsv_sha256"),
+        ("copy_count_report.md", "copy_report_markdown_sha256"),
+    )
+    for name, digest_key in provenance_files:
+        source = _safe_relative_file(stage_root, name, label=f"normal T12 {name}")
+        digest = (
+            sha256_file(source)
+            if digest_key == "stage_manifest_sha256"
+            else stage.get(digest_key)
+        )
+        if not isinstance(digest, str) or sha256_file(source) != digest:
+            raise SequenceCheckpointError(f"normal T12 {name} checksum differs")
+        _register_source(retained_sources, Path("provenance") / name, source, digest)
+
+    refinements: list[BriefRefinementResult] = []
+    sequences: list[SequenceMapResult] = []
+    asset_sources: dict[str, dict[str, tuple[Path, str]]] = {}
+    result_identity: dict[str, object] = {}
+    seen_seeds: set[str] = set()
+    shared_diffraction: tuple[str, str] | None = None
+    for directory in request.candidate_result_directories:
+        if directory.is_symlink() or not directory.is_dir():
+            raise SequenceCheckpointError("normal T12 result directory is unsafe")
+        refinement, refinement_json, refinement_jsonl = _read_single_result(
+            directory,
+            "brief_refinement_result",
+            BriefRefinementResult,
+            label="normal T12 refinement result",
+        )
+        sequence, sequence_json, sequence_jsonl = _read_single_result(
+            directory,
+            "sequence_map_result",
+            SequenceMapResult,
+            label="normal T12 sequence result",
+        )
+        seed = refinement.seed_solution_id
+        if (
+            seed in seen_seeds
+            or directory.name != f"t12_{seed}"
+            or sequence.seed_solution_id != seed
+            or refinement.refinement_id != sequence.refinement_id
+        ):
+            raise SequenceCheckpointError(
+                "normal T12 result directory identities are inconsistent"
+            )
+        seen_seeds.add(seed)
+        try:
+            candidate = stage_candidates[seed]
+        except KeyError as error:
+            raise SequenceCheckpointError(
+                "normal T12 result is absent from its stage"
+            ) from error
+        if not (
+            candidate.get("sequence_group_id") == refinement.sequence_group_id
+            and candidate.get("best_supported_copy_count")
+            == refinement.input_copy_count
+        ):
+            raise SequenceCheckpointError(
+                "normal T12 result and staged finalist provenance differ"
+            )
+
+        candidate_assets: dict[str, tuple[Path, str]] = {}
+        result_assets = (
+            (
+                "brief_refine_001.pdb",
+                refinement.refined_model_path,
+                refinement.refined_model_sha256,
+            ),
+            (
+                "brief_refine_001.mtz",
+                refinement.refined_mtz_path,
+                refinement.refined_mtz_sha256,
+            ),
+            (
+                "brief_refine_2mFo-DFc.ccp4",
+                refinement.map_path,
+                refinement.map_sha256,
+            ),
+            (
+                "sequence_from_map.pdb",
+                sequence.output_model_path,
+                sequence.output_model_sha256,
+            ),
+        )
+        for expected_name, relative, digest in result_assets:
+            if relative is None and digest is None:
+                continue
+            if relative != expected_name or not isinstance(digest, str):
+                raise SequenceCheckpointError(
+                    "normal T12 result asset metadata is incomplete"
+                )
+            source = _safe_relative_file(
+                directory,
+                relative,
+                label=f"normal T12 {expected_name}",
+                digest=digest,
+            )
+            candidate_assets[expected_name] = (source, digest)
+        asset_sources[seed] = candidate_assets
+
+        evidence_paths = {
+            "brief_refinement_result.json": refinement_json,
+            "brief_refinement_result.jsonl": refinement_jsonl,
+            "sequence_map_result.json": sequence_json,
+            "sequence_map_result.jsonl": sequence_jsonl,
+        }
+        for pointer, label in (
+            (refinement.command_pointer, "T12 command"),
+            (refinement.raw_log_pointer, "refinement log"),
+            (sequence.raw_log_pointer, "sequence log"),
+        ):
+            source = _safe_relative_file(directory, pointer, label=label)
+            evidence_paths[pointer] = source
+        evidence_identity: dict[str, str] = {}
+        for name, source in sorted(evidence_paths.items()):
+            digest = sha256_file(source)
+            _register_source(
+                retained_sources,
+                Path("evidence") / seed / name,
+                source,
+                digest,
+            )
+            evidence_identity[name] = digest
+
+        parent_relative = candidate.get("staged_parent_coordinate")
+        parent_digest = candidate.get("source_coordinate_sha256")
+        solution_relative = candidate.get("staged_solution_mtz")
+        solution_digest = candidate.get("source_solution_mtz_sha256")
+        diffraction_relative = candidate.get("refinement_mtz")
+        diffraction_digest = candidate.get("refinement_mtz_sha256")
+        if not all(
+            isinstance(value, str)
+            for value in (
+                parent_relative,
+                parent_digest,
+                solution_relative,
+                solution_digest,
+                diffraction_relative,
+                diffraction_digest,
+            )
+        ):
+            raise SequenceCheckpointError("normal T12 staged assets are incomplete")
+        parent = _safe_relative_file(
+            stage_root,
+            str(parent_relative),
+            label="normal T12 staged parent",
+            digest=str(parent_digest),
+        )
+        solution = _safe_relative_file(
+            stage_root,
+            str(solution_relative),
+            label="normal T12 Phaser solution MTZ",
+            digest=str(solution_digest),
+        )
+        diffraction = _safe_relative_file(
+            stage_root,
+            str(diffraction_relative),
+            label="normal T12 diffraction MTZ",
+            digest=str(diffraction_digest),
+        )
+        _register_source(
+            retained_sources,
+            Path("assets") / seed / "staged_parent.pdb",
+            parent,
+            str(parent_digest),
+        )
+        _register_source(
+            retained_sources,
+            Path("assets") / seed / "phaser_solution.mtz",
+            solution,
+            str(solution_digest),
+        )
+        current_diffraction = (str(diffraction_relative), str(diffraction_digest))
+        if shared_diffraction is not None and shared_diffraction != current_diffraction:
+            raise SequenceCheckpointError(
+                "normal T12 candidates use different diffraction inputs"
+            )
+        shared_diffraction = current_diffraction
+        _register_source(
+            retained_sources,
+            Path("assets/shared/diffraction.mtz"),
+            diffraction,
+            str(diffraction_digest),
+        )
+        result_identity[seed] = {
+            "refinement_id": refinement.refinement_id,
+            "refinement_execution_status": refinement.execution_status.value,
+            "sequence_execution_status": sequence.execution_status.value,
+            "evidence": evidence_identity,
+        }
+        refinements.append(refinement)
+        sequences.append(sequence)
+
+    if seen_seeds != set(stage_candidates):
+        raise SequenceCheckpointError(
+            "normal T12 stage and candidate-result identities differ"
+        )
+    identity: dict[str, object] = {
+        "adapter_version": _LIVE_ADAPTER_VERSION,
+        "execution_mode": "normal_workflow",
+        "run_id": stage_id,
+        "stage_manifest_sha256": sha256_file(stage_manifest),
+        "candidate_results": result_identity,
+    }
+    return _publish_sequence_checkpoint(
+        run_id=stage_id,
+        refinements=tuple(refinements),
+        sequences=tuple(sequences),
+        stage=stage,
+        identity_base=identity,
+        asset_sources=asset_sources,
+        retained_sources=retained_sources,
+        output=request.output_directory,
+        adapter_version=_LIVE_ADAPTER_VERSION,
+        progress=request.progress,
+        require_all_completed=False,
+        extra_manifest={
+            "execution_mode": "normal_workflow",
+            "stage_id": stage_id,
+            "all_finalists_retained": True,
+            "typed_failures_are_evidence": True,
+        },
     )

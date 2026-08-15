@@ -99,12 +99,14 @@ from genome_to_diffraction.refinement import (
 )
 from genome_to_diffraction.review import (
     CrystalReportRequest,
+    LiveSequenceCheckpointRequest,
     MrSeedApprovalRequest,
     MrSeedReviewRequest,
     ResourceSummaryRequest,
     SequenceCheckpointRequest,
     StatusRequest,
     build_crystal_report,
+    build_live_sequence_checkpoint,
     build_mr_seed_review,
     build_resource_summary,
     build_sequence_checkpoint,
@@ -851,6 +853,17 @@ def _build_parser() -> argparse.ArgumentParser:
     sequence_checkpoint_parser.add_argument("--job-result", type=Path, required=True)
     sequence_checkpoint_parser.add_argument("--asset-root", type=Path, required=True)
     sequence_checkpoint_parser.add_argument("--outdir", type=Path, required=True)
+    live_sequence_checkpoint_parser = review_actions.add_parser(
+        "build-live-sequence-checkpoint",
+        help="publish T12.5 directly from normal-workflow finalist outputs",
+    )
+    live_sequence_checkpoint_parser.add_argument(
+        "--stage-bundle", type=Path, required=True
+    )
+    live_sequence_checkpoint_parser.add_argument(
+        "--candidate-result", type=Path, action="append", default=[]
+    )
+    live_sequence_checkpoint_parser.add_argument("--outdir", type=Path, required=True)
     status_parser = review_actions.add_parser(
         "build-status",
         help="derive the T13.1 execution, scientific, and assumption status",
@@ -1656,6 +1669,21 @@ def _run_review(args: argparse.Namespace) -> int:
         print(
             f"Built MR seed review package with {output.candidate_count} "
             f"candidate(s): {output.manifest_json}"
+        )
+        return 0
+    if args.review_action == "build-live-sequence-checkpoint":
+        sequence_output = build_live_sequence_checkpoint(
+            LiveSequenceCheckpointRequest(
+                stage_bundle=args.stage_bundle,
+                candidate_result_directories=tuple(args.candidate_result),
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Built normal-workflow T12.5 checkpoint for "
+            f"{sequence_output.finalist_count} finalist(s): "
+            f"{sequence_output.manifest_json}"
         )
         return 0
     if args.review_action == "build-sequence-checkpoint":

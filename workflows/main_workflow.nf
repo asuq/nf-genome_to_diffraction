@@ -1,6 +1,7 @@
 nextflow.enable.types = true
 
 include { BUILD_MR_SEED_REVIEW } from '../modules/local/build_mr_seed_review'
+include { BUILD_LIVE_SEQUENCE_CHECKPOINT } from '../modules/local/build_live_sequence_checkpoint'
 include { ENUMERATE_MATTHEWS } from '../modules/local/enumerate_matthews'
 include { IMPORT_CATALOGUES } from '../modules/local/import_catalogues'
 include { MTZ_PREFLIGHT } from '../modules/local/mtz_preflight'
@@ -226,11 +227,16 @@ workflow MAIN_WORKFLOW {
                     t12_phenix_manifest = live_t12_stage.map { Path bundle ->
                         bundle.resolve('inputs/phenix_manifest.json')
                     }
-                    BRIEF_REFINEMENT_WORKFLOW(
+                    t12 = BRIEF_REFINEMENT_WORKFLOW(
                         t12_finalists,
                         t12_sequence_groups,
                         t12_source_records,
                         t12_phenix_manifest
+                    )
+                    t12_results = t12.collect().ifEmpty([])
+                    BUILD_LIVE_SEQUENCE_CHECKPOINT(
+                        live_t12_stage,
+                        t12_results
                     )
                 }
             }

@@ -4707,3 +4707,55 @@ Run `git diff --check`, inspect the complete focused diff, commit and push it,
 and monitor dual-Pixi GitHub Actions. After green CI, add the smallest normal
 T12 result aggregation and T12.5 checkpoint builder; do not begin the
 three-dataset pilot before the second file-based checkpoint is present.
+
+## 2026-08-15T18:09:10Z - Normal workflow reaches the T12.5 checkpoint
+
+### Discoveries
+
+- The retained-run T12.5 builder cannot be reused by inventing a Slurm result
+  for a normal Nextflow execution. The normal boundary must authenticate the
+  live stage and per-finalist typed directories directly while preserving the
+  existing scheduled-run verification path.
+- A typed refinement, sequence-tool, parse, or no-hit outcome is still a
+  retained finalist outcome. It can produce no sequence-score row, but its
+  stage parent, reflection provenance, result records, command, and logs must
+  remain explicit instead of disappearing from the second checkpoint.
+
+### Accomplishments
+
+- Closed the normal-T12 increment at commit
+  `55438a8fa75af7aa2b6f7279755f8e28c92a4fe6`; both Pixi 0.74.0 and 0.76.2
+  jobs passed in GitHub Actions run `31898375845`.
+- Added the normal `review build-live-sequence-checkpoint` adapter and
+  `BUILD_LIVE_SEQUENCE_CHECKPOINT` process. `analysis_stage=t12` now publishes
+  top-10, top-25, full-score, HTML, Coot-asset, provenance, and per-finalist
+  evidence views after the T12 fan-out.
+- The package retains every staged finalist and typed failure, applies no
+  ranking filter, and writes a header-only `approved_sequence_groups.tsv`.
+  The existing checksum-gated retained-HPC builder remains scheduler-specific.
+
+### Immutable evidence
+
+- `pixi run --locked check` passes with 371 unit, 57 contract, and 47
+  integration tests, plus formatting, lint, strict typing, schemas, public
+  controls, documentation, Actions syntax, Nextflow syntax, the complete stub
+  matrix, normal T12-to-T12.5 publication, fully cached resume, and shell
+  wrapper validation.
+- Focused tests cover successful normal packaging, typed-failure retention,
+  changed-parent rejection, empty approval semantics, and self-contained stage,
+  command, log, reflection, and Coot-asset evidence.
+
+### Unresolved work
+
+- Inspect, commit, and push this focused normal-T12.5 increment and require
+  both supported Pixi CI jobs to pass.
+- Human Coot review and sequence-group decisions for the 11 retained CD6
+  alternatives remain the next scientific gate. The three-dataset T13.4 pilot,
+  T13.5 bounded review, Prototype 0.2 assessment, and M6 remain open.
+
+### Next exact starting point
+
+Run `git diff --check`, stage only the normal T12.5 code, tests, and docs,
+commit and push the coherent increment, and monitor dual-Pixi CI. Once green,
+use the existing self-contained CD6 checkpoint for the explicit human decision;
+do not infer an approval from sequence score or refinement statistics.

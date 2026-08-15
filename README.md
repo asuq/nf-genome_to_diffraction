@@ -61,8 +61,12 @@ selecting each approved seed's last checksum-authenticated supported state and
 running the qualified brief-refinement/map/sequence adapter on every retained
 alternative. It refines against the original FreeR-bearing diffraction MTZ;
 the corresponding Phaser solution MTZ is preserved as provenance only. The
-standalone entry points remain available for focused qualification and do not
-identify a protein by themselves.
+normal path then builds the T12.5 top-10, top-25, full-results, HTML, asset,
+and header-only second-decision package directly from the typed finalist
+outputs. Preliminary ranks never create an approval, and typed failed/no-hit
+outcomes remain retained evidence rather than disappearing from the package
+manifest. The standalone entry points remain available for focused
+qualification and do not identify a protein by themselves.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -510,7 +514,11 @@ output directory. The live T12 stage writes `finalists.tsv`,
 `t12_stage_manifest.json`. Expected-one seeds, candidates that reach expected
 `n`, and candidates ending in a typed unsupported/tool/parse outcome all remain
 present. A missing result bundle is an execution failure rather than evidence
-that another copy is absent.
+that another copy is absent. After all T12 candidate processes finish, the
+workflow publishes `t12_sequence_checkpoint/` with bounded review views, full
+scores, self-contained Coot assets and provenance, per-finalist typed outcomes,
+and an intentionally empty `approved_sequence_groups.tsv`. A `-resume` run
+caches both the candidate work and this deterministic checkpoint.
 
 When trusted catalogue metadata does not itself contain a strict UniProt
 accession, supply an optional two-column mapping with
