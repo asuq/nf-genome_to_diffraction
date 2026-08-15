@@ -33,9 +33,9 @@
     },
     "analysis_stage": {
       "type": "string",
-      "enum": ["task05", "discovery"],
+      "enum": ["task05", "discovery", "first_copy"],
       "default": "task05",
-      "description": "Highest normal-workflow boundary to execute. Discovery includes P1 searches and AFDB/PDB model preparation but stops before first-copy MR."
+      "description": "Highest normal-workflow boundary to execute. First-copy derives one crystal/MTZ from its manifest, runs retain-all Phaser screening, and stops at the MR-seed review checkpoint."
     },
     "skip_xtriage": {
       "type": "boolean",
@@ -56,6 +56,7 @@
     "afdb_request_timeout_seconds": { "type": "number", "exclusiveMinimum": 0, "default": 60 },
     "afdb_retry_count": { "type": "integer", "minimum": 0, "default": 3 },
     "maximum_pdb_hits_per_sequence_group": { "type": "integer", "minimum": 1, "default": 3 },
-    "maximum_pdb_mappings": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 25 }
+    "maximum_pdb_mappings": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 25 },
+    "maximum_first_copy_jobs": { "type": "integer", "minimum": 1, "maximum": 200, "default": 25 }
   }
 }

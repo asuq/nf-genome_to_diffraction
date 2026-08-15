@@ -165,7 +165,7 @@ def check_stubs() -> None:
         temporary_root = Path(temporary)
         environment = _environment(temporary_root / "nxf-home")
         main_out = temporary_root / "main-results"
-        integrated_out = temporary_root / "integrated-discovery-results"
+        integrated_out = temporary_root / "integrated-first-copy-results"
         database_out = temporary_root / "database-results"
         discovery_out = temporary_root / "discovery-results"
         coordinate_out = temporary_root / "coordinate-results"
@@ -233,7 +233,7 @@ def check_stubs() -> None:
             "-params-file",
             "tests/fixtures/stubs/main_params.yaml",
             "--analysis_stage",
-            "discovery",
+            "first_copy",
             "--outdir",
             str(integrated_out),
             "--cache_root",
@@ -256,6 +256,20 @@ def check_stubs() -> None:
                 "registration_manifest.json",
                 "processed_models.jsonl",
                 "model_preparation_manifest.json",
+                "crystal_dispatch.json",
+                "crystal_id.txt",
+                "input.mtz",
+                "funnel_manifest.json",
+                "mr_hypotheses.jsonl",
+                "normalised_mr_result.json",
+                "normalised_mr_result.jsonl",
+                "phaser_command.json",
+                "PHASER.log",
+                "mr_seed_review_manifest.json",
+                "mr_seed_candidates.tsv",
+                "mr_seed_candidates.html",
+                "mr_seed_approval_candidates.tsv",
+                "approved_mr_seeds.tsv",
                 "report.html",
                 "timeline.html",
                 "trace.tsv",
@@ -267,8 +281,13 @@ def check_stubs() -> None:
                 encoding="utf-8"
             )
         )
-        if integrated_scope.get("analysis_stage") != "discovery":
+        if integrated_scope.get("analysis_stage") != "first_copy":
             raise RuntimeError("integrated main workflow lost its stage identity")
+        approval_template = integrated_out / "mr_seed_review/approved_mr_seeds.tsv"
+        if len(approval_template.read_text(encoding="utf-8").splitlines()) != 1:
+            raise RuntimeError(
+                "integrated first-copy workflow fabricated an MR-seed decision"
+            )
         integrated_resumed = _run(
             [*integrated_command, "-resume"], environment=environment
         )
@@ -277,7 +296,7 @@ def check_stubs() -> None:
         )
         if "cached" not in integrated_resumed_output:
             raise RuntimeError(
-                "resumed integrated-discovery stub did not report cached work:\n"
+                "resumed integrated first-copy stub did not report cached work:\n"
                 + integrated_resumed_output
             )
 

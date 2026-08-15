@@ -47,10 +47,13 @@ The default `main.nf` stage remains the accepted Task 05 boundary and writes
 `task05_preflight_complete_downstream_deferred`. Setting
 `--analysis_stage discovery` now connects that boundary to the qualified P1
 PDB/ProstT5/AFDB searches, bounded direct-PDB coordinate registration, and
-predicted/experimental model preparation. It deliberately stops before
-first-copy MR, where a file-based human checkpoint must remain explicit. The
-standalone entry points remain available for focused qualification and do not
-identify a protein by themselves.
+predicted/experimental model preparation. `--analysis_stage first_copy`
+requires a one-crystal manifest, verifies its manifest-owned MTZ against the
+completed preflight, runs the retain-all diverse Phaser fan-out, and publishes
+an MR-seed review package with an empty approval template. It deliberately
+stops at that file-based human checkpoint. The standalone entry points remain
+available for focused qualification and do not identify a protein by
+themselves.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -110,6 +113,7 @@ genome-to-diffraction structure-search qualify-p1 --help
 genome-to-diffraction model prepare-experimental --help
 genome-to-diffraction model prepare-predicted --help
 genome-to-diffraction ranking diverse-first-copy-funnel --help
+genome-to-diffraction diffraction select-single --help
 ```
 
 `schema-check` validates every tracked JSON Schema against Draft 2020-12,
@@ -380,7 +384,9 @@ for debugging; an existing versioned installation is never overwritten.
 ## Nextflow entry points
 
 - `main.nf` exposes catalogue, crystal, configuration, prepared-database,
-  Phenix-manifest, output/cache, review, approval, and execution-profile inputs.
+  Phenix-manifest, output/cache, review, approval, execution-profile, and
+  explicit Task05/discovery/first-copy stage inputs. The first-copy stage accepts
+  exactly one manifest crystal and stops at the MR-seed checkpoint.
 - `prepare_databases.nf` exposes database-root, output, preparation switches,
   coordinate-cache initialisation, and verify-only inputs.
 - `discover_structures.nf` exposes exact sequence groups, source records, the
@@ -417,11 +423,11 @@ pixi run nextflow-stub
 ```
 
 Stub execution publishes schema-valid fixture manifests, catalogue/preflight/
-Matthews records, and standard Nextflow report, timeline, trace, and DAG files
-under a disposable `/tmp/...` directory. A real `main.nf` run executes Tasks 04
-and 05, with Xtriage enabled by default, and publishes `scope/pipeline_scope.json`
-to state that all downstream scientific stages remain deferred. Non-stub database
-preparation is the separate administrative workflow below.
+Matthews records, first-copy/checkpoint fixtures, and standard Nextflow report,
+timeline, trace, and DAG files under a disposable `/tmp/...` directory. A real
+default `main.nf` run executes Tasks 04 and 05, with Xtriage enabled by default;
+later stages run only when selected explicitly. Non-stub database preparation
+is the separate administrative workflow below.
 
 For the implemented partial workflow:
 
@@ -446,6 +452,26 @@ pixi run -e hpc nextflow run discover_structures.nf -profile local \
   --outdir /absolute/results/structural-discovery \
   --cache_root /absolute/cache/nf-genome-to-diffraction
 ```
+
+To run the normal workflow through the first human checkpoint, provide a
+manifest containing exactly one crystal and add:
+
+```bash
+pixi run -e hpc nextflow run main.nf -profile local \
+  --analysis_stage first_copy \
+  --maximum_first_copy_jobs 25 \
+  --catalogues /absolute/input/catalogue_manifest.json \
+  --crystals /absolute/input/one_crystal_manifest.json \
+  --config /absolute/input/config.yaml \
+  --database_manifest /absolute/shared/database_manifest.json \
+  --phenix_manifest /absolute/software/manifests/phenix.json \
+  --outdir /absolute/results/first-copy \
+  --cache_root /absolute/cache/nf-genome-to-diffraction
+```
+
+This writes `mr_seed_review/approved_mr_seeds.tsv` with only its header. A
+reviewer must inspect the retained PDB/MTZ/log evidence and add explicit
+decisions before same-component copy placement can begin.
 
 When trusted catalogue metadata does not itself contain a strict UniProt
 accession, supply an optional two-column mapping with

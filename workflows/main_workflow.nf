@@ -1,12 +1,15 @@
 nextflow.enable.types = true
 
+include { BUILD_MR_SEED_REVIEW } from '../modules/local/build_mr_seed_review'
 include { ENUMERATE_MATTHEWS } from '../modules/local/enumerate_matthews'
 include { IMPORT_CATALOGUES } from '../modules/local/import_catalogues'
 include { MTZ_PREFLIGHT } from '../modules/local/mtz_preflight'
 include { PREPARE_EXPERIMENTAL_MODELS } from '../modules/local/prepare_experimental_models'
 include { PREPARE_PREDICTED_MODELS } from '../modules/local/prepare_predicted_models'
 include { REGISTER_PDB_COORDINATES } from '../modules/local/register_pdb_coordinates'
+include { SELECT_SINGLE_CRYSTAL } from '../modules/local/select_single_crystal'
 include { VALIDATE_TASK05_INPUTS } from '../modules/local/validate_task05_inputs'
+include { DIVERSE_FIRST_COPY_MR_WORKFLOW } from './diverse_first_copy_mr_workflow'
 include { PDB_SEQUENCE_DISCOVERY } from './pdb_sequence_discovery_workflow'
 
 workflow MAIN_WORKFLOW {
@@ -36,6 +39,7 @@ workflow MAIN_WORKFLOW {
     afdb_retry_count: Integer
     maximum_pdb_hits_per_sequence_group: Integer
     maximum_pdb_mappings: Integer
+    maximum_first_copy_jobs: Integer
 
     main:
     validation_scope = VALIDATE_TASK05_INPUTS(
@@ -67,7 +71,7 @@ workflow MAIN_WORKFLOW {
         catalogue_bundle
     )
 
-    if (analysis_stage == 'discovery') {
+    if (analysis_stage in ['discovery', 'first_copy']) {
         sequence_groups = catalogue_bundle.map { Path bundle ->
             bundle.resolve('sequence_groups.jsonl')
         }
@@ -105,7 +109,7 @@ workflow MAIN_WORKFLOW {
         predicted_coordinate_sources = discovery.afdb_exact_search.map {
             Path bundle -> bundle.resolve('coordinate_sources.jsonl')
         }
-        PREPARE_PREDICTED_MODELS(
+        predicted_models = PREPARE_PREDICTED_MODELS(
             predicted_coordinate_sources,
             sequence_groups,
             phenix_manifest
@@ -116,11 +120,50 @@ workflow MAIN_WORKFLOW {
         coordinate_hit_mappings = pdb_registration.map { Path bundle ->
             bundle.resolve('coordinate_hit_mappings.jsonl')
         }
-        PREPARE_EXPERIMENTAL_MODELS(
+        experimental_models = PREPARE_EXPERIMENTAL_MODELS(
             pdb_coordinate_sources,
             coordinate_hit_mappings,
             sequence_groups
         )
+
+        if (analysis_stage == 'first_copy') {
+            crystal_dispatch = SELECT_SINGLE_CRYSTAL(crystals, preflight_bundle)
+            crystal_id = crystal_dispatch.map { Path bundle ->
+                bundle.resolve('crystal_id.txt').toFile().text.trim()
+            }
+            selected_mtz = crystal_dispatch.map { Path bundle ->
+                bundle.resolve('input.mtz')
+            }
+            matthews_jsonl = matthews_bundle.map { Path bundle ->
+                bundle.resolve('matthews_hypotheses.jsonl')
+            }
+            preflight_jsonl = preflight_bundle.map { Path bundle ->
+                bundle.resolve('mtz_preflight.jsonl')
+            }
+            first_copy = DIVERSE_FIRST_COPY_MR_WORKFLOW(
+                predicted_coordinate_sources,
+                predicted_models,
+                pdb_coordinate_sources,
+                coordinate_hit_mappings,
+                experimental_models,
+                sequence_groups,
+                matthews_jsonl,
+                preflight_jsonl,
+                pipeline_config,
+                crystal_id,
+                maximum_first_copy_jobs,
+                selected_mtz,
+                phenix_manifest
+            )
+            BUILD_MR_SEED_REVIEW(
+                first_copy.funnel,
+                first_copy.results.collect(),
+                sequence_groups,
+                source_records,
+                matthews_jsonl,
+                pipeline_config
+            )
+        }
     }
 
     emit:

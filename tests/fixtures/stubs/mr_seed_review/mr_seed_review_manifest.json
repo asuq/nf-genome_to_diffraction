@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "adapter_version": "mr-seed-review-v3",
+  "package_id": "reviewpkg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "review_package_kind": "mr_seed",
+  "checkpoint": "mr_seed",
+  "candidate_count": 1,
+  "stub": true
+}

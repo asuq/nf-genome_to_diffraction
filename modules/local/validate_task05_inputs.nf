@@ -23,7 +23,9 @@ process VALIDATE_TASK05_INPUTS {
     def scopeStatus = (
         analysis_stage == 'task05'
             ? 'task05_preflight_complete_downstream_deferred'
-            : 'discovery_and_model_preparation_requested'
+            : analysis_stage == 'discovery'
+                ? 'discovery_and_model_preparation_requested'
+                : 'first_copy_mr_and_review_requested'
     )
     """
     genome-to-diffraction --no-progress contract validate catalogue-manifest '${catalogues}'

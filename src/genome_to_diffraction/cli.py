@@ -37,10 +37,12 @@ from genome_to_diffraction.databases.sources import (
     stage_source_bundle,
 )
 from genome_to_diffraction.diffraction import (
+    CrystalDispatchRequest,
     FreeRGenerationRequest,
     PreflightRequest,
     generate_free_r,
     preflight_crystals,
+    prepare_crystal_dispatch,
 )
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.logging import configure_logging, parse_log_level
@@ -519,6 +521,13 @@ def _build_parser() -> argparse.ArgumentParser:
     free_r_parser.add_argument("--maximum-free-reflections", type=int, default=2000)
     free_r_parser.add_argument("--random-seed", type=int, default=20260801)
     free_r_parser.add_argument("--timeout-seconds", type=float, default=3600.0)
+    dispatch_parser = diffraction_actions.add_parser(
+        "select-single",
+        help="derive one checksum-verified MR input from a one-crystal manifest",
+    )
+    dispatch_parser.add_argument("--crystals", type=Path, required=True)
+    dispatch_parser.add_argument("--preflight", type=Path, required=True)
+    dispatch_parser.add_argument("--outdir", type=Path, required=True)
 
     matthews_parser = subparsers.add_parser(
         "matthews", help="enumerate candidate-specific ASU copy hypotheses"
@@ -1193,6 +1202,20 @@ def _run_benchmark(args: argparse.Namespace) -> int:
 
 
 def _run_diffraction(args: argparse.Namespace) -> int:
+    if args.diffraction_action == "select-single":
+        dispatch = prepare_crystal_dispatch(
+            CrystalDispatchRequest(
+                crystal_manifest=args.crystals,
+                preflight_jsonl=args.preflight,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Prepared crystal dispatch {dispatch.record.dispatch_id}: "
+            f"{dispatch.dispatch_json}"
+        )
+        return 0
     if args.diffraction_action == "generate-free-r":
         record = generate_free_r(
             FreeRGenerationRequest(

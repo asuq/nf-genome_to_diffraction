@@ -4534,3 +4534,55 @@ Inspect the focused `analysis_stage=discovery` diff, commit and push it, and
 monitor dual-Pixi GitHub Actions. After green CI, derive crystal ID and MTZ paths
 from the validated crystal manifest and connect the diverse first-copy workflow
 without adding an automatic checkpoint bypass.
+
+## 2026-08-15T15:17:23Z - Normal workflow reaches the MR-seed checkpoint
+
+### Discoveries
+
+- One crystal per structural invocation is the smallest safe normal-workflow
+  boundary because both human reviews and all retained scientific outputs are
+  crystal-specific. Multi-crystal manifests now fail before first-copy MR rather
+  than silently selecting one dataset.
+- The existing version-3 retain-all review builder already provides the required
+  immutable PDB/MTZ/log package and empty decision template. Only its result
+  aggregation needed to move from the qualification wrapper into Nextflow.
+
+### Accomplishments
+
+- Closed the preceding discovery integration at commit
+  `1f1eecc7fedd596737954a1a0abf3978cdc5d6a8`; both Pixi 0.74.0 and 0.76.2
+  jobs passed in GitHub Actions run `31890986782`.
+- Added a manifest-derived crystal dispatch that verifies exactly one crystal,
+  resolves relative MTZ paths, checks the completed preflight identity and
+  checksum, and publishes a content-addressed dispatch record plus staged MTZ.
+- Added the explicit normal-workflow `first_copy` stage. It reuses the qualified
+  multi-source funnel and Phaser fan-out, aggregates every candidate result,
+  publishes the version-3 MR-seed package, and stops with a header-only approval
+  file. No candidate is filtered and no human decision is inferred.
+
+### Immutable evidence
+
+- `pixi run --locked check` passes with 360 unit, 57 contract, and 47
+  integration tests, plus formatting, lint, strict typing, schemas, public
+  controls, documentation, Actions syntax, Nextflow syntax, integrated
+  first-copy stub/resume, standalone workflow stubs, and shell-wrapper checks.
+- The integrated stub proves the approval template has exactly one header line
+  and that the complete new boundary is cached on `-resume`.
+- This is local integration evidence only. No new Viper scientific job ran and
+  no retained CD6 candidate or human decision changed.
+
+### Unresolved work
+
+- Inspect, commit, and push this focused first-copy/checkpoint increment, then
+  require both supported Pixi CI jobs to pass.
+- Human Coot review of the retained CD6 alternatives remains required. The next
+  code boundary must validate an explicit MR-seed file before connecting the
+  already qualified sequential-copy and T12 workflows.
+
+### Next exact starting point
+
+Run `git diff --check`, inspect the complete focused diff, commit and push it,
+and monitor dual-Pixi GitHub Actions. After green CI, add one explicit
+post-checkpoint stage that consumes `approved_mr_seeds.tsv`, validates it against
+the exact review manifest, and then invokes sequential same-component placement;
+do not bypass or fabricate the decision.
