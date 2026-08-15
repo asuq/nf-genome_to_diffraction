@@ -27,7 +27,7 @@
     "approved_mr_seeds": {
       "type": ["string", "null"],
       "format": "file-path",
-      "description": "Explicit human MR-seed decisions required only when analysis_stage=additional_copy."
+      "description": "Explicit human MR-seed decisions required when analysis_stage=additional_copy or t12."
     },
     "approved_sequence_groups": { "type": ["string", "null"] },
     "profile_mode": {
@@ -37,9 +37,9 @@
     },
     "analysis_stage": {
       "type": "string",
-      "enum": ["task05", "discovery", "first_copy", "additional_copy"],
+      "enum": ["task05", "discovery", "first_copy", "additional_copy", "t12"],
       "default": "task05",
-      "description": "Highest normal-workflow boundary to execute. First-copy stops at the retain-all MR-seed checkpoint; additional-copy requires explicit decisions and searches one same-component copy at a time without score filtering."
+      "description": "Highest normal-workflow boundary to execute. First-copy stops at the retain-all MR-seed checkpoint; additional-copy requires explicit decisions and searches one same-component copy at a time without score filtering; t12 retains every approved best-supported copy state for refinement, maps, and sequence narrowing."
     },
     "skip_xtriage": {
       "type": "boolean",

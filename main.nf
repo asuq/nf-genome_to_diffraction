@@ -43,15 +43,16 @@ workflow {
         'task05',
         'discovery',
         'first_copy',
-        'additional_copy'
+        'additional_copy',
+        't12'
     ])) {
         error "Unsupported analysis_stage: ${params.analysis_stage}"
     }
     if (
-        params.analysis_stage == 'additional_copy' &&
+        params.analysis_stage in ['additional_copy', 't12'] &&
         params.approved_mr_seeds == null
     ) {
-        error "analysis_stage=additional_copy requires --approved_mr_seeds"
+        error "analysis_stage=${params.analysis_stage} requires --approved_mr_seeds"
     }
     MAIN_WORKFLOW(
         params.catalogues,

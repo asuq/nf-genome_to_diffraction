@@ -9,8 +9,10 @@ include { PREPARE_PREDICTED_MODELS } from '../modules/local/prepare_predicted_mo
 include { REGISTER_PDB_COORDINATES } from '../modules/local/register_pdb_coordinates'
 include { SELECT_SINGLE_CRYSTAL } from '../modules/local/select_single_crystal'
 include { STAGE_APPROVED_MR_SEEDS } from '../modules/local/stage_approved_mr_seeds'
+include { STAGE_LIVE_T12 } from '../modules/local/stage_live_t12'
 include { VALIDATE_TASK05_INPUTS } from '../modules/local/validate_task05_inputs'
 include { ADDITIONAL_COPY_WORKFLOW } from './additional_copy_workflow'
+include { BRIEF_REFINEMENT_WORKFLOW } from './brief_refinement_workflow'
 include { DIVERSE_FIRST_COPY_MR_WORKFLOW } from './diverse_first_copy_mr_workflow'
 include { PDB_SEQUENCE_DISCOVERY } from './pdb_sequence_discovery_workflow'
 
@@ -74,7 +76,7 @@ workflow MAIN_WORKFLOW {
         catalogue_bundle
     )
 
-    if (analysis_stage in ['discovery', 'first_copy', 'additional_copy']) {
+    if (analysis_stage in ['discovery', 'first_copy', 'additional_copy', 't12']) {
         sequence_groups = catalogue_bundle.map { Path bundle ->
             bundle.resolve('sequence_groups.jsonl')
         }
@@ -129,7 +131,7 @@ workflow MAIN_WORKFLOW {
             sequence_groups
         )
 
-        if (analysis_stage in ['first_copy', 'additional_copy']) {
+        if (analysis_stage in ['first_copy', 'additional_copy', 't12']) {
             crystal_dispatch = SELECT_SINGLE_CRYSTAL(crystals, preflight_bundle)
             crystal_id = crystal_dispatch.map { Path bundle ->
                 bundle.resolve('crystal_id.txt').toFile().text.trim()
@@ -166,9 +168,9 @@ workflow MAIN_WORKFLOW {
                 matthews_jsonl,
                 pipeline_config
             )
-            if (analysis_stage == 'additional_copy') {
+            if (analysis_stage in ['additional_copy', 't12']) {
                 if (approved_mr_seeds == null) {
-                    error 'additional_copy stage requires approved MR seeds'
+                    error "${analysis_stage} stage requires approved MR seeds"
                 }
                 first_copy_hypotheses = first_copy.funnel.map { Path bundle ->
                     bundle.resolve('mr_hypotheses.jsonl')
@@ -187,7 +189,7 @@ workflow MAIN_WORKFLOW {
                 review_manifest = mr_seed_review.map { Path bundle ->
                     bundle.resolve('mr_seed_review_manifest.json')
                 }
-                ADDITIONAL_COPY_WORKFLOW(
+                additional_copy = ADDITIONAL_COPY_WORKFLOW(
                     additional_seeds,
                     review_validation,
                     review_manifest,
@@ -197,6 +199,40 @@ workflow MAIN_WORKFLOW {
                     selected_mtz,
                     phenix_manifest
                 )
+                if (analysis_stage == 't12') {
+                    copy_results = additional_copy
+                        .collect()
+                        .ifEmpty([])
+                    live_t12_stage = STAGE_LIVE_T12(
+                        approved_stage,
+                        mr_seed_review,
+                        copy_results,
+                        first_copy_hypotheses,
+                        sequence_groups,
+                        source_records,
+                        preflight_jsonl,
+                        selected_mtz,
+                        phenix_manifest
+                    )
+                    t12_finalists = live_t12_stage.map { Path bundle ->
+                        bundle.resolve('finalists.tsv')
+                    }
+                    t12_sequence_groups = live_t12_stage.map { Path bundle ->
+                        bundle.resolve('inputs/sequence_groups.jsonl')
+                    }
+                    t12_source_records = live_t12_stage.map { Path bundle ->
+                        bundle.resolve('inputs/source_records.jsonl')
+                    }
+                    t12_phenix_manifest = live_t12_stage.map { Path bundle ->
+                        bundle.resolve('inputs/phenix_manifest.json')
+                    }
+                    BRIEF_REFINEMENT_WORKFLOW(
+                        t12_finalists,
+                        t12_sequence_groups,
+                        t12_source_records,
+                        t12_phenix_manifest
+                    )
+                }
             }
         }
     }

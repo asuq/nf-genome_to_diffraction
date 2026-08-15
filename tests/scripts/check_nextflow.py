@@ -167,6 +167,7 @@ def check_stubs() -> None:
         main_out = temporary_root / "main-results"
         integrated_out = temporary_root / "integrated-first-copy-results"
         post_checkpoint_out = temporary_root / "integrated-additional-copy-results"
+        integrated_t12_out = temporary_root / "integrated-t12-results"
         database_out = temporary_root / "database-results"
         discovery_out = temporary_root / "discovery-results"
         coordinate_out = temporary_root / "coordinate-results"
@@ -364,6 +365,69 @@ def check_stubs() -> None:
             raise RuntimeError(
                 "resumed post-checkpoint workflow did not report cached work"
             )
+
+        integrated_t12_command = [
+            "nextflow",
+            "run",
+            "main.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "-params-file",
+            "tests/fixtures/stubs/main_params.yaml",
+            "--analysis_stage",
+            "t12",
+            "--approved_mr_seeds",
+            "examples/approvals/approved_mr_seeds.tsv",
+            "--outdir",
+            str(integrated_t12_out),
+            "--cache_root",
+            str(temporary_root / "integrated-t12-cache"),
+        ]
+        _run(integrated_t12_command, environment=environment)
+        _assert_files(
+            integrated_t12_out,
+            {
+                "live_m4_stage_manifest.json",
+                "additional_copy_series_summary.json",
+                "t12_stage_manifest.json",
+                "finalists.tsv",
+                "copy_count_report.tsv",
+                "copy_count_report.md",
+                "brief_refinement_result.json",
+                "sequence_map_result.json",
+                "t12_command.json",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        t12_scope = json.loads(
+            (integrated_t12_out / "scope" / "pipeline_scope.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        if t12_scope.get("analysis_stage") != "t12":
+            raise RuntimeError("integrated T12 workflow lost its stage identity")
+        t12_stage = json.loads(
+            (integrated_t12_out / "live_t12_stage/t12_stage_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        if (
+            t12_stage.get("all_approved_seeds_retained") is not True
+            or t12_stage.get("numeric_score_filter_applied") is not False
+            or t12_stage.get("failed_addition_proves_absence") is not False
+        ):
+            raise RuntimeError("integrated T12 stage lost retain-all semantics")
+        integrated_t12_resumed = _run(
+            [*integrated_t12_command, "-resume"], environment=environment
+        )
+        if "cached" not in (
+            f"{integrated_t12_resumed.stdout}\n{integrated_t12_resumed.stderr}".lower()
+        ):
+            raise RuntimeError("resumed integrated T12 did not report cached work")
 
         discovery_command = [
             "nextflow",

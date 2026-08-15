@@ -45,6 +45,25 @@ model checksums. Unit tests cover runnable and already-complete seeds; the
 integrated parser-v2 stub and `-resume` test prove the file gate precedes the
 sequential-copy fan-out.
 
+`--analysis_stage t12` adds the normal-workflow retained-parent handoff after
+that fan-out. The `refinement stage-live` adapter authenticates the approved
+stage, exact review package, hypothesis catalogue, every typed copy-series
+record, command/log pointer, parent-child transition, and child PDB/MTZ
+checksum. For each approved seed it retains the last supported child, or the
+first-copy review coordinate when the hypothesis expected one copy or the first
+addition ended in a typed failure. It rejects a missing result bundle as an
+execution failure instead of silently treating it as scientific evidence.
+
+The handoff publishes `finalists.tsv`, `copy_count_report.tsv`,
+`copy_count_report.md`, `t12_stage_manifest.json`, one staged parent PDB, and
+one provenance-only Phaser solution MTZ per seed. The finalist's refinement MTZ
+is always the original checksum/preflight-bound diffraction file with FreeR
+flags. The manifest records all raw attempt metrics and statuses and states
+`parent_retained=true` and `failed_addition_proves_absence=false` for every
+candidate. Its cache identity binds the decisions, live M4 stage, review,
+hypotheses, catalogue crosswalk, preflight, Phenix manifest, diffraction MTZ,
+and selected coordinate/solution-MTZ checksums.
+
 ## Python interface
 
 The command is:
@@ -147,9 +166,10 @@ MTZ/Phenix hashes, and the generated parameter-file hash.
 Each search-model file is a content-tracked Nextflow input, so no redundant
 model-index channel is required. The adapter and workflow place copy two from
 each first-copy seed and advance an authenticated supported child one copy at a
-time through copy 3..n. Brief refinement, map generation, sequence-from-map
-searching, and the second review checkpoint are the next M4 increments. They
-must build on the typed child state rather than overwriting the retained parent.
+time through copy 3..n. The normal workflow now feeds every retained best state
+into brief refinement, map generation, and sequence-from-map searching. The
+remaining normal-workflow M4 boundary is publication of the second review
+checkpoint from those typed T12 results.
 
 ## Copy-count report
 
@@ -172,5 +192,8 @@ checks, the expected-copy stopping boundary, and finish-after-sibling-failure
 orchestration.
 The repository stub/resume suite exercises both the standalone and normal
 Nextflow entry points under parser v2. The adapter has completed real installed-
-Phenix qualification on retained Viper CD6 evidence; the normal-workflow
-connection still requires a clean real pilot after its T12 handoff is complete.
+Phenix qualification on retained Viper CD6 evidence. The live T12 selector has
+focused tests for expected-one, expected-count-reached, unsupported-after-
+supported, typed tool-failure, and changed-child-checksum outcomes. Its normal
+workflow connection passes local parser-v2 stub and fully cached resume; a clean
+real three-dataset pilot remains required.

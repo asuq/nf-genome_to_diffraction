@@ -4646,3 +4646,64 @@ Implement one normal-workflow retained-parent stage from
 additional-copy series. Emit checksum-bound T12 finalist rows for every approved
 seed, using the original diffraction MTZ for FreeR-preserving refinement, then
 connect `BRIEF_REFINEMENT_WORKFLOW`; do not add a new ranking rule.
+
+## 2026-08-15T17:26:21Z - Normal workflow reaches T12
+
+### Discoveries
+
+- A normal retained-parent handoff must represent four distinct outcomes:
+  expected-one with no copy transition, expected count reached, an unsupported
+  later addition, and a typed tool/parse failure. A missing result bundle is an
+  execution failure and must not be converted into evidence that a copy is
+  absent.
+- The best supported Phaser PDB is the coordinate parent for T12, but its
+  solution MTZ is provenance only. Refinement must use the original
+  preflight/checksum-bound diffraction MTZ so the FreeR set is preserved.
+- Expected-one candidates can be reported without changing the existing typed
+  copy-assessment schema; the live stage records a zero-transition terminal
+  state while retaining the candidate.
+
+### Accomplishments
+
+- Closed the checkpoint-crossing increment at commit
+  `0e59593626c05104c342baa76b4083d279ecbf59`; both Pixi 0.74.0 and 0.76.2
+  jobs passed in GitHub Actions run `31896237241`.
+- Added the checksum-bound `refinement stage-live` adapter and normal
+  `analysis_stage=t12` boundary. It authenticates the explicit approval,
+  review assets, hypotheses, contiguous copy series, logs/commands, child
+  assets, catalogue crosswalk, MTZ preflight, and Phenix provenance before
+  retaining every approved best-supported state.
+- Connected those finalists to the existing qualified brief-refinement,
+  map-generation, and complete-catalogue sequence-narrowing workflow. The live
+  copy report preserves raw typed attempts, applies no numeric filter, and
+  states that every parent remains retained and failed addition does not prove
+  absence.
+
+### Immutable evidence
+
+- `pixi run --locked check` passes with 368 unit, 57 contract, and 47
+  integration tests, plus formatting, lint, strict typing, schemas, public
+  controls, documentation, Actions syntax, Nextflow syntax, the complete
+  parser-v2 stub matrix, fully cached normal-T12 resume, and shell-wrapper
+  validation.
+- Focused tests prove expected-one, expected-count-reached,
+  unsupported-after-supported, typed tool-failure, and changed-child-checksum
+  semantics. This is local integration evidence; no new Viper scientific job
+  ran and no retained CD6 decision changed.
+
+### Unresolved work
+
+- Inspect, commit, and push this focused live-T12 increment and require both
+  supported Pixi CI jobs to pass.
+- Aggregate the normal T12 typed outputs into the qualified T12.5 top-10,
+  top-25, full-results, asset, HTML, and header-only second-decision package,
+  then prove cached resume without fabricating a sequence approval.
+- Human CD6 Coot/sequence decisions, the three-dataset T13.4 pilot, bounded
+  T13.5 review, and M6 independent validation remain open.
+
+### Next exact starting point
+
+Run `git diff --check`, inspect the complete focused diff, commit and push it,
+and monitor dual-Pixi GitHub Actions. After green CI, add the smallest normal
+T12 result aggregation and T12.5 checkpoint builder; do not begin the
+three-dataset pilot before the second file-based checkpoint is present.

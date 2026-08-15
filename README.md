@@ -56,8 +56,13 @@ requires an explicitly edited `--approved_mr_seeds` file, validates it against
 the exact regenerated package, and advances every approved seed one
 same-component copy at a time to its expected count or first unsupported
 addition. Seeds already expected to contain one copy remain recorded without an
-unnecessary Phaser job. The standalone entry points remain available for
-focused qualification and do not identify a protein by themselves.
+unnecessary Phaser job. `--analysis_stage t12` extends that exact path by
+selecting each approved seed's last checksum-authenticated supported state and
+running the qualified brief-refinement/map/sequence adapter on every retained
+alternative. It refines against the original FreeR-bearing diffraction MTZ;
+the corresponding Phaser solution MTZ is preserved as provenance only. The
+standalone entry points remain available for focused qualification and do not
+identify a protein by themselves.
 
 The complete scientific and engineering handoff is retained separately and is
 intentionally not tracked here. `AGENTS.md`, the JSON Schemas, and examples
@@ -497,6 +502,15 @@ pixi run -e hpc nextflow run main.nf -profile local \
 The validated stage records every approved seed, the original first-copy model
 checksum, the rigid-body-derived staged-model checksum, and whether another
 copy is required. No LLG/TFZ filter is applied at this boundary.
+
+To continue through refinement, maps, and sequence narrowing, use the same
+command and immutable decisions with `--analysis_stage t12` and a distinct
+output directory. The live T12 stage writes `finalists.tsv`,
+`copy_count_report.tsv`, `copy_count_report.md`, and
+`t12_stage_manifest.json`. Expected-one seeds, candidates that reach expected
+`n`, and candidates ending in a typed unsupported/tool/parse outcome all remain
+present. A missing result bundle is an execution failure rather than evidence
+that another copy is absent.
 
 When trusted catalogue metadata does not itself contain a strict UniProt
 accession, supply an optional two-column mapping with

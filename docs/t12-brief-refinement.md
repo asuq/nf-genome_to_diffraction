@@ -13,6 +13,28 @@ The first increment is exposed by `refine_finalists.nf` and the Python command:
 genome-to-diffraction refinement brief ...
 ```
 
+The normal workflow reaches the same adapter with
+`--analysis_stage t12` after an explicit MR-seed decision. Its staging command
+is fixed by Nextflow:
+
+```text
+genome-to-diffraction refinement stage-live \
+  --approved-stage approved_mr_seed_stage \
+  --review-package mr_seed_review \
+  --additional-copy-result additional_copy_SEED ... \
+  --hypotheses mr_hypotheses.jsonl \
+  --sequence-groups sequence_groups.jsonl \
+  --source-records source_records.jsonl \
+  --preflight mtz_preflight.jsonl \
+  --mtz input.mtz \
+  --phenix-manifest phenix_install_manifest.json \
+  --outdir live_t12_stage
+```
+
+The repeatable result option is omitted when every approved hypothesis already
+expects one copy. The adapter accepts no inferred score decision and retains all
+approved candidates.
+
 ## Inputs and outputs
 
 Each finalist row supplies its immutable solution ID, exact-sequence group,
@@ -89,6 +111,15 @@ The cache identity includes protocol version, solution/group/copy identity,
 parent PDB/MTZ checksums, complete catalogue/crosswalk checksums, Phenix-manifest
 checksum, resolution, and thread count.
 
+Before candidate fan-out, the live stage distinguishes scientific and
+infrastructure endings. A typed no-addition, unpacked solution, tool failure, or
+parse failure retains the last supported parent and remains auditable. An
+absent copy-series bundle, broken lineage, unsafe path, changed asset, or stale
+review/hypothesis/preflight checksum fails the stage loudly. The live stage
+identity binds every checkpoint and input checksum plus the retained PDB and
+Phaser-MTZ checksums; `finalists.tsv` points to the original diffraction MTZ,
+not the Phaser output MTZ.
+
 ## Resources and tests
 
 Viper uses four CPUs and 16 GB per finalist with at most four simultaneous T12
@@ -96,9 +127,11 @@ tasks (16 CPUs total) and the site-wide 24-hour scheduler ceiling. The adapter
 itself imposes no runtime timeout.
 
 Unit tests cover the fixed command policy, R-value parser, complete-catalogue
-ranking/crosswalk, and checksum rejection. `nextflow-check` parses the typed
-module/workflow, while `nextflow-stub` verifies publication and cached resume
-without fabricating scientific success. Real acceptance still requires all 11
-retained CD6 finalists to run through the verified Viper Phenix installation.
-T12.5 additionally tests checksum-gated remote collection, path containment,
-top-10/top-25/full cardinality, empty approval semantics, and package identity.
+ranking/crosswalk, checksum rejection, and all live copy-state endings.
+`nextflow-check` parses the typed module/workflow, while `nextflow-stub` verifies
+normal-workflow T12 publication and cached resume without fabricating scientific
+success. All 11 retained CD6 finalists have already completed the verified
+Viper Phenix T12 protocol as retained qualification evidence. T12.5 additionally
+tests checksum-gated remote collection, path containment, top-10/top-25/full
+cardinality, empty approval semantics, and package identity; connecting that
+checkpoint builder to the normal workflow is the next boundary.

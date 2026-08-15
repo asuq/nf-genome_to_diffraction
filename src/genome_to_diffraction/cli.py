@@ -90,9 +90,11 @@ from genome_to_diffraction.ranking import (
     build_exact_predicted_funnel,
 )
 from genome_to_diffraction.refinement import (
+    LiveT12StageRequest,
     T12RunRequest,
     T12StageRequest,
     run_t12_candidate,
+    stage_live_t12_inputs,
     stage_t12_inputs,
 )
 from genome_to_diffraction.review import (
@@ -791,6 +793,22 @@ def _build_parser() -> argparse.ArgumentParser:
     stage_parser.add_argument("--source-records", type=Path, required=True)
     stage_parser.add_argument("--outdir", type=Path, required=True)
     stage_parser.add_argument("--expected-seed-count", type=int, default=11)
+    live_stage_parser = refinement_actions.add_parser(
+        "stage-live",
+        help="retain every approved normal-workflow copy state for T12",
+    )
+    live_stage_parser.add_argument("--approved-stage", type=Path, required=True)
+    live_stage_parser.add_argument("--review-package", type=Path, required=True)
+    live_stage_parser.add_argument(
+        "--additional-copy-result", type=Path, action="append", default=[]
+    )
+    live_stage_parser.add_argument("--hypotheses", type=Path, required=True)
+    live_stage_parser.add_argument("--sequence-groups", type=Path, required=True)
+    live_stage_parser.add_argument("--source-records", type=Path, required=True)
+    live_stage_parser.add_argument("--preflight", type=Path, required=True)
+    live_stage_parser.add_argument("--mtz", type=Path, required=True)
+    live_stage_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    live_stage_parser.add_argument("--outdir", type=Path, required=True)
 
     review_parser = subparsers.add_parser(
         "review", help="build and validate file-based human checkpoints"
@@ -1700,8 +1718,29 @@ def _run_review(args: argparse.Namespace) -> int:
 
 
 def _run_refinement(args: argparse.Namespace) -> int:
+    if args.refinement_action == "stage-live":
+        live_stage_output = stage_live_t12_inputs(
+            LiveT12StageRequest(
+                approved_stage=args.approved_stage,
+                review_package=args.review_package,
+                additional_copy_results=tuple(args.additional_copy_result),
+                hypotheses_jsonl=args.hypotheses,
+                sequence_groups_jsonl=args.sequence_groups,
+                source_records_jsonl=args.source_records,
+                preflight_jsonl=args.preflight,
+                diffraction_mtz=args.mtz,
+                phenix_manifest=args.phenix_manifest,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Staged {live_stage_output.seed_count} live T12 finalists: "
+            f"{live_stage_output.manifest}"
+        )
+        return 0
     if args.refinement_action == "stage":
-        stage_output = stage_t12_inputs(
+        fixed_stage_output = stage_t12_inputs(
             T12StageRequest(
                 parent_run=args.parent_run,
                 source_records_jsonl=args.source_records,
@@ -1711,7 +1750,8 @@ def _run_refinement(args: argparse.Namespace) -> int:
             )
         )
         print(
-            f"Staged {stage_output.seed_count} T12 finalists: {stage_output.manifest}"
+            f"Staged {fixed_stage_output.seed_count} T12 finalists: "
+            f"{fixed_stage_output.manifest}"
         )
         return 0
     if args.refinement_action != "brief":
