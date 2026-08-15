@@ -4434,3 +4434,44 @@ separate fields and do not infer unavailable database I/O.
 Run `pixi run --locked check`, inspect the complete T13.3 diff, then commit,
 push, and monitor GitHub Actions. After green CI, proceed to the human checkpoint
 and the smallest end-to-end workflow integration needed for T13.4.
+
+## 2026-08-15T14:19:40Z - T13.3 milestone closed green
+
+### Discoveries
+
+- The independent GitHub runners reproduced the complete local result under
+  both supported Pixi versions. No additional T13.3 defect appeared.
+
+### Accomplishments
+
+- Committed and pushed the deterministic resource summary as
+  `676c279ecb942a8cbb850834b11f3811913a5b4c`.
+- Both Pixi 0.74.0 and 0.76.2 jobs passed in GitHub Actions run
+  `31889382941`. T13.1 status, T13.2 reporting, and T13.3 resource accounting
+  are now closed for the accepted real CD6 evidence.
+
+### Immutable evidence
+
+- Resource summary ID remains
+  `resources_af7d9269e8ec0ed38ed291daf436700260254c48dc2a11d5926cba32a9c94c9a`;
+  its JSON SHA-256 remains
+  `15152ed7f4e8480cccac0a92d6e78f930fdec05ef529007760cbeaea79549b4a`.
+- The accepted T12.5 package remains
+  `seqreview_69c4c2705c35a12bc104581c4444076cee91daae13d0a3a354d0a20e8a000c07`.
+
+### Unresolved work
+
+- Human Coot review must record explicit sequence-group decisions and assess
+  whether the single-component assumption is consistent. High preliminary
+  `R_free` values still prohibit claiming a validated structure or identity.
+- The normal main workflow still ends before M4/T12. Close that integration
+  gap, then execute the three-dataset T13.4 pilot and use its measurements for
+  T13.5 calibration. M6 independent validation and internal release follow.
+
+### Next exact starting point
+
+Review `t12-sequence-checkpoint/crystal_report.html` and the linked finalist
+PDB/MTZ/map bundles in Coot. Record explicit `approve`, `reject`, `defer`, or
+`retain_alternative` rows in `approved_sequence_groups.tsv`, plus an assessed
+prototype-assumption status. Rebuild T13.1/T13.2 from those decisions, then
+implement the smallest normal-workflow connection required to run T13.4.
