@@ -4095,3 +4095,47 @@ operation and do not infer failure from silence.
 
 Run `pixi run --locked check` for protocol v3, inspect the focused diff, then
 commit and push before deploying and staging one immutable T12 successor.
+
+## 2026-08-15T01:45:28Z - Protocol-v3 T12 successor launched
+
+### Discoveries
+
+- The complete locked repository gate passed after the focused output-name
+  correction: 346 unit, 56 contract, and 46 integration tests passed together
+  with formatting, lint, strict typing, schemas, docs, Actions, Nextflow syntax,
+  stub/resume, and wrapper checks.
+
+### Accomplishments
+
+- Committed protocol v3 as
+  `f50e02fe1b1ab8ac7e44c9782156d1f032c7eb08`; both Pixi 0.74.0 and 0.76.2
+  jobs passed in GitHub Actions run `31857122152`.
+- Deployed checksum-reviewed tools, staged immutable all-11 run
+  `gtd-t12-20260815T014459Z-f50e02fe1b1a-4eff44ad`, and submitted Viper Slurm
+  job `10920614`. Its first observed scheduler state is `RUNNING`.
+
+### Immutable evidence
+
+- Deployed dispatcher SHA-256 is
+  `809d40d09adbd58fe5a13342f0ad8162faa433085f35321dcc6f970fd0b861ee`;
+  recovery SHA-256 is
+  `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- The successor uses nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, source-record SHA-256
+  `abd1bd5c50770726343f2d1c407869d29bb91e0b4d989708bc40fc12dc22bb72`,
+  and T12 stage-manifest SHA-256
+  `b52ff6be476d24c3498fe44c41704c9c28b130f7b262200a5db4a5bfdb9d7914`.
+
+### Unresolved work
+
+- Leave job `10920614` untouched while non-terminal. On completion, collect
+  bounded evidence and verify exactly 11 asset-complete refinement/sequence
+  outcomes, all-candidate retention, and 11/11 cached resume.
+- Proceed directly to T12.5 after accepted evidence; do not add unrelated
+  fallbacks or repeat the superseded protocol-v2 run.
+
+### Next exact starting point
+
+At the next 30-minute loop, query only retained T12 run
+`gtd-t12-20260815T014459Z-f50e02fe1b1a-4eff44ad` through the approved status
+operation and do not infer failure from silence.
