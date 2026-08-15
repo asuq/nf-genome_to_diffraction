@@ -4343,3 +4343,37 @@ push. After green CI, begin T13.2 without starting the three-dataset pilot.
 
 Run `pixi run --locked check`, inspect and commit the focused T13.2 diff, push,
 and monitor CI. Then begin the smallest deterministic T13.3 resource summary.
+
+## 2026-08-15T13:39:49Z - T13.2 milestone closed green
+
+### Discoveries
+
+- No additional defect appeared in the independent dual-Pixi CI execution.
+  The local and GitHub validation results agree.
+
+### Accomplishments
+
+- Committed and pushed T13.2 as
+  `c035a2359d60e396afa6083bb993d5f5d3cbe650`.
+- Both Pixi 0.74.0 and 0.76.2 jobs passed in GitHub Actions run
+  `31887603131`. The working implementation now covers T13.1 status and T13.2
+  review reporting on the accepted real CD6 evidence.
+
+### Immutable evidence
+
+- The real report remains
+  `report_e9b2c1bc4c69dafab5961c1c4bc8bc26b4bdcd8f4da3c4acb74b2ec432a0935a`
+  within T12.5 package
+  `seqreview_69c4c2705c35a12bc104581c4444076cee91daae13d0a3a354d0a20e8a000c07`.
+
+### Unresolved work
+
+- T13.3 resource summarisation is the next code increment.
+- Coot review and explicit sequence decisions remain required before scientific
+  promotion; the three-dataset pilot must wait for the remaining M5 boundary.
+
+### Next exact starting point
+
+Implement T13.3 from the retained first/resume Nextflow traces, outer Slurm job
+result, and package inventory. Preserve allocated and measured resources as
+separate fields and do not infer unavailable database I/O.
