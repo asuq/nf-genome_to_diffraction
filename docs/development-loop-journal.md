@@ -5373,3 +5373,287 @@ Inspect and stage only this milestone, commit and push once, watch one GitHub
 Actions run, deploy tools from that green commit, run `control-matrix-stage`,
 submit the returned run ID with profile `control-matrix`, and replace the stale
 continuation with a 30-minute monitor for that exact retained Viper run.
+
+## 2026-08-16T11:29:48Z - Complete 23-case Viper matrix submitted
+
+### Discoveries
+
+- The installed local controller again predated the new fixed staging
+  operation. Rebuilding the reviewed zipapp from the green source commit was
+  sufficient; no remote or scientific source change was required.
+- The final tar archive checksum differs from the earlier local dry-run archive
+  checksum because the archive container is rebuilt, while the canonical
+  embedded manifest checksum is unchanged. The staged run record is the
+  authoritative archive identity for this immutable attempt.
+
+### Accomplishments
+
+- Published green source commit
+  `7705252f7ceeaa359514814b6def5b0d4af591d8`; GitHub Actions run
+  `31943979431` passed its single Pixi 0.76.2 job.
+- Deployed the reviewed remote tools and installed a checksum-matched local
+  controller. Staged and submitted the complete fixed 23-case matrix on Viper.
+- Replaced the obsolete six-case continuation with a 30-minute monitor bound
+  only to this retained matrix run. The monitor preserves the complete case
+  distribution, expected ASU counts 1/2/3/4/6, retain-all policy, and the
+  evidence-backed correction loop across future context compactions.
+
+### Immutable evidence
+
+- Active run:
+  `gtd-control-matrix-20260816T112741Z-7705252f7cee-423f9da8`, Slurm job
+  `10930411`, source commit
+  `7705252f7ceeaa359514814b6def5b0d4af591d8`, nf-helper commit
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, suite
+  `prokaryote_homomer_workflow_v1`, 23 cases, 11 positives, and 18 real
+  searches.
+- Staged archive SHA-256 is
+  `745cf9edab377d2327cfb1d25e9dcd90f881e7bd8954461cc0d5f8029e6f9e0d`;
+  canonical embedded-manifest SHA-256 is
+  `97132162e558df1c9087aab1826a32e954eb3477b2b241eb9930b0655cf74b40`.
+- Local controller SHA-256 is
+  `fc1fa0715427cc6da258a68708ac40f4b32471a9465d07cc44131b221df925c9`.
+  Deployed dispatcher, job-wrapper, and recovery SHA-256 values are
+  `cfbf35429714fe084a3abc0a74e374e7997e6f6718d6b7382c4c18162abe73ec`,
+  `c74aa2a65d3fa1b386d9519acb5abc37567ae4ea58cdcd95fe3b1aef7cff289b`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- The reviewed wrapper reported scheduler state `PENDING`, terminal `false`.
+  Queue waiting is not interpreted as failure.
+
+### Unresolved work
+
+- On terminal evidence, inspect bounded logs and collect through the reviewed
+  wrapper. Verify exactly 23 typed cases, 18 first-copy attempts, 11 positives,
+  seven wrong-model searches, five typed boundary cases, positive transitions
+  through expected ASU counts 1/2/3/4/6, all downstream records, checksums,
+  provenance, and candidate-level failures.
+- Fix only demonstrated software failures, then complete one accelerated local
+  gate/commit/push/CI/deploy cycle and reach the next Slurm attempt before
+  returning to monitoring. Do not drop candidates or use LLG/TFZ as an
+  acceptance filter.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-control-matrix-20260816T112741Z-7705252f7cee-423f9da8`. If non-terminal,
+leave the retained run untouched. If terminal, run bounded `logs --tail 200`,
+then `collect`, and classify the complete evidence before changing source.
+
+## 2026-08-16T12:06:36Z - Complete matrix remains queued; heartbeat transferred
+
+### Discoveries
+
+- The reviewed status operation still reports the retained run as scheduler
+  state `PENDING`, phase `submitted`, and terminal `false`; both `exit_code` and
+  `failure_class` remain empty. Queue waiting is not software-failure evidence.
+- Exactly one matching 30-minute heartbeat exists. Its durable prompt already
+  names only the retained 23-case run, but it was paused and still attached to
+  the preceding task.
+
+### Accomplishments
+
+- Left Slurm job `10930411` and its retained run untouched: no logs, collection,
+  cancellation, cleanup, timeout inference, or replacement submission was
+  attempted while the run is non-terminal.
+- Transferred the existing `continue-prokaryotic-control-roadmap` heartbeat to
+  the current task and resumed it at the existing 30-minute cadence. No duplicate
+  monitor was created.
+- Preserved this uncommitted journal update for the next coherent code/evidence
+  milestone; no documentation-only commit or CI run was created.
+
+### Immutable evidence
+
+- Status was checked through the reviewed wrapper for run
+  `gtd-control-matrix-20260816T112741Z-7705252f7cee-423f9da8`: operation
+  `status`, profile `control-matrix`, phase `submitted`, scheduler state
+  `PENDING`, terminal `false`, job `10930411`.
+- The retained source, nf-helper, archive, embedded-manifest, controller, and
+  deployed-tool identities remain those recorded in the preceding entry; no
+  immutable run field changed.
+
+### Unresolved work
+
+- Wait for terminal evidence. On a later terminal status, run only bounded
+  `logs --tail 200`, then `collect`, and verify the complete fixed 23-case
+  evidence boundary before considering any source edit.
+- Retain all candidates and keep LLG/TFZ as ranking annotations only. These
+  operational same-structure controls still cannot establish generalisation.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-control-matrix-20260816T112741Z-7705252f7cee-423f9da8`. If it remains
+non-terminal, leave it untouched. If it is terminal, run bounded
+`logs --tail 200`, then `collect`, and classify the complete evidence before
+editing source.
+
+## 2026-08-16T12:12:29Z - Control-matrix scheduler request is oversized
+
+### Discoveries
+
+- The user's scheduler observation is confirmed by the immutable source:
+  `control-matrix` requests 64 CPUs, 192 GB, and 24 hours. The job wrapper also
+  refuses any CPU allocation other than 64, so this is an intentional fixed
+  profile rather than a scheduler display artefact.
+- The matrix runner executes at most seven Phenix attempts concurrently. Under
+  the current request it assigns nine threads to each attempt and can use at
+  most 63 of 64 CPUs. Earlier real first-copy evidence supports four CPUs and
+  eight GB per concurrent Phaser attempt; therefore 32 CPUs and 64 GB would
+  retain seven-way concurrency with measurable headroom rather than treating
+  the Viper site ceiling as a per-run minimum.
+
+### Accomplishments
+
+- Rechecked the retained run through the reviewed wrapper. Slurm job `10930411`
+  remains `PENDING`, phase `submitted`, terminal `false`, with no exit code or
+  failure class.
+- Classified the resource concern before editing: the narrow correction is the
+  fixed `control-matrix` outer allocation plus its matching job-wrapper guard
+  and one focused regression. No scientific, scoring, retention, or matrix
+  concurrency policy needs to change.
+- Did not cancel or mutate the retained run because the standing instruction
+  forbids cancellation and the user has not yet explicitly overridden it for
+  job `10930411`.
+
+### Immutable evidence
+
+- Source commit remains `7705252f7ceeaa359514814b6def5b0d4af591d8`;
+  only this journal is modified locally.
+- Retained run
+  `gtd-control-matrix-20260816T112741Z-7705252f7cee-423f9da8` still maps to job
+  `10930411`, profile `control-matrix`, scheduler state `PENDING`, and terminal
+  `false`.
+- The source-level request is 64 CPUs, 192 GB, and 24 hours; the recommended
+  evidence-backed replacement is 32 CPUs, 64 GB, and the unchanged 24-hour
+  outer bound.
+
+### Unresolved work
+
+- Explicit approval is required to cancel exactly job `10930411`, overriding
+  the retained-run no-cancellation instruction. After approval, implement the
+  focused 32-CPU/64-GB correction and continue without an intermediate handoff
+  through focused tests, one locked gate, one commit/push/CI watch,
+  checksum-reviewed deployment, staging, and the replacement Slurm attempt.
+- The existing heartbeat remains bound to the current retained run until a
+  replacement run is successfully submitted; do not create another monitor.
+
+### Next exact starting point
+
+Await explicit cancellation approval. If granted, run
+`/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress cancel --run-id
+gtd-control-matrix-20260816T112741Z-7705252f7cee-423f9da8`, then execute the
+focused resource-policy correction continuously through the replacement Slurm
+submission and rebind the existing heartbeat to that immutable run.
+
+## 2026-08-16T12:18:06Z - Resource recommendation corrected to measured boundary
+
+### Discoveries
+
+- The preceding 32-CPU/64-GB recommendation preserved seven-way throughput; it
+  was not a demonstrated correctness requirement. Its CPU estimate multiplied
+  seven workers by the earlier four-useful-CPU observation, and its memory
+  estimate added a twofold margin above seven times the prior 4.3-GB maximum.
+  Neither margin has been measured for this complete matrix.
+- The closer real-runtime precedent is the six-case control slice: it requested
+  8 CPUs and 32 GB, capped execution at four concurrent Phaser attempts, and
+  completed all five real attempts without scheduler or tool failure. The full
+  matrix adds serial work but does not require greater instantaneous
+  concurrency for scientific correctness.
+
+### Accomplishments
+
+- Corrected the proposed minimal policy before any source edit: reuse the
+  measured 8-CPU/32-GB outer allocation and four-worker cap for the full matrix.
+  That gives two threads and an eight-GB memory budget per concurrent attempt.
+- Kept candidate retention, LLG/TFZ ranking-only policy, case inventory, and all
+  scientific transitions unchanged. The trade-off is elapsed time only, which
+  must be observed rather than guessed.
+- Did not cancel or change job `10930411`; explicit cancellation approval is
+  still required.
+
+### Immutable evidence
+
+- The six-case Viper profile used 8 CPUs, 32 GB, four concurrent workers, and
+  five real Phenix attempts. It reached terminal scheduler/tool success; its
+  observed defect was the already-corrected output parser, not resource
+  exhaustion.
+- The current full-matrix job remains the immutable 64-CPU/192-GB request from
+  source commit `7705252f7ceeaa359514814b6def5b0d4af591d8`; no replacement has
+  been staged or submitted.
+
+### Unresolved work
+
+- Obtain explicit approval to cancel exactly job `10930411`. If approved,
+  change the full-matrix allocation and concurrency guard to 8 CPUs, 32 GB, and
+  four concurrent attempts; add the smallest resource-contract regression and
+  complete the single gate/commit/push/CI/deploy/resubmit loop.
+- Use terminal Slurm and application evidence from the replacement to decide
+  whether any later resource adjustment is justified. Do not reserve extra
+  throughput pre-emptively.
+
+### Next exact starting point
+
+Await explicit cancellation approval. If granted, run
+`/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress cancel --run-id
+gtd-control-matrix-20260816T112741Z-7705252f7cee-423f9da8`, then implement the
+8-CPU/32-GB/four-worker correction continuously through the replacement Slurm
+submission and rebind the existing heartbeat.
+
+## 2026-08-16T12:31:08Z - Crowded-cluster matrix correction is locally green
+
+### Discoveries
+
+- Job `10930411` was still `PENDING` immediately before the authorised
+  cancellation, so replacing it discarded no computation. The reviewed wrapper
+  then reported scheduler state `CANCELLED`, terminal `true`.
+- The measured resource boundary must be consistent across three layers: the
+  dispatcher allocation, the compute-job CPU guard, and the Python adapter's
+  worker/default-thread policy. Changing only the Slurm request would either
+  fail the guard or retain avoidable concurrency.
+- The first focused dispatcher regression failed only because its synthetic
+  staged run omitted the required `logs` directory. Adding that fixture
+  directory made the intended resource regression pass; no product fallback
+  was added.
+
+### Accomplishments
+
+- Replaced the complete matrix's 64-CPU/192-GB/seven-worker policy with 8 CPUs,
+  32 GB, and at most four concurrent Phenix attempts. The 24-hour outer
+  scheduler ceiling remains unchanged and no tool-level timeout was added.
+- Updated the CLI default, compute-job guard, and Viper runbook consistently.
+  Added focused unit coverage for the eight-thread/four-worker adapter boundary
+  and integration coverage for the exact Slurm request and job-wrapper guard.
+- The focused unit and integration regressions pass. One complete
+  `pixi run --locked check` passed formatting, Ruff, `ty`, 395 unit tests,
+  57 contract tests, 48 integration tests, schemas, the public panel, docs,
+  Actions lint, Nextflow syntax/stub checks, and HPC wrapper syntax.
+
+### Immutable evidence
+
+- Cancelled retained run
+  `gtd-control-matrix-20260816T112741Z-7705252f7cee-423f9da8`, job `10930411`,
+  moved from `PENDING` to `CANCELLED` with no execution phase reached.
+- The correction is based on the already exercised six-case Viper envelope:
+  8 CPUs, 32 GB, and four concurrent workers. Scientific case inventory,
+  expected counts 1/2/3/4/6, candidate retention, and ranking policy are
+  unchanged.
+- The immutable parent source remains
+  `7705252f7ceeaa359514814b6def5b0d4af591d8`; the replacement commit and run do
+  not yet exist.
+
+### Unresolved work
+
+- Create one coherent commit containing the carried journal and focused
+  resource correction, push once, watch one GitHub Actions run, deploy only the
+  resulting green commit, stage the fixed matrix again, and submit the
+  replacement Viper job.
+- Record new source, archive, embedded-manifest, controller, deployed-tool,
+  Slurm, and monitor identities after submission. Do not create a second
+  heartbeat.
+
+### Next exact starting point
+
+Inspect `git status --short`, the complete diff, and `git diff --check`; stage
+only this correction, create its coherent commit, and continue without a
+handoff through push, one CI watch, checksum-reviewed deployment, matrix
+staging, replacement submission, and heartbeat rebinding.

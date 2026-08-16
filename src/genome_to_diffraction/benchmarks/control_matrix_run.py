@@ -70,6 +70,8 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _ADAPTER_VERSION = "public-homomer-matrix-run-v1"
+_DEFAULT_THREADS = 8
+_MAX_CONCURRENT_PHENIX_ATTEMPTS = 4
 _EXPECTED_CASE_KIND_COUNTS = {
     "positive": 11,
     "wrong_model_negative": 7,
@@ -90,7 +92,7 @@ class ControlMatrixRunRequest:
     import_root: Path
     phenix_manifest: Path
     output_directory: Path
-    threads: int = 64
+    threads: int = _DEFAULT_THREADS
     progress: bool = True
     skip_xtriage: bool = False
 
@@ -384,6 +386,12 @@ def _packed(attempt: PhaserRunOutput) -> bool:
     )
 
 
+def _bounded_worker_count(item_count: int) -> int:
+    """Retain the measured four-attempt Viper concurrency boundary."""
+
+    return min(_MAX_CONCURRENT_PHENIX_ATTEMPTS, max(1, item_count))
+
+
 def run_control_matrix(request: ControlMatrixRunRequest) -> ControlMatrixRunOutput:
     """Execute and retain the complete fixed 23-case benchmark matrix."""
 
@@ -455,7 +463,7 @@ def run_control_matrix(request: ControlMatrixRunRequest) -> ControlMatrixRunOutp
         root, manifest, preflight.records, output / "runtime"
     )
     hypothesis_by_id = {item.hypothesis_id: item for item in runtime.hypotheses}
-    max_workers = min(7, len(runtime.hypotheses))
+    max_workers = _bounded_worker_count(len(runtime.hypotheses))
     threads_per_attempt = max(1, request.threads // max_workers)
 
     def execute_first(hypothesis: MrHypothesis) -> PhaserRunOutput:
@@ -528,7 +536,7 @@ def run_control_matrix(request: ControlMatrixRunRequest) -> ControlMatrixRunOutp
         )
 
     with ThreadPoolExecutor(
-        max_workers=min(7, max(1, len(packed_positive)))
+        max_workers=_bounded_worker_count(len(packed_positive))
     ) as executor:
         series_outputs = tuple(executor.map(execute_series, packed_positive))
     series_by_hypothesis = {
@@ -592,7 +600,7 @@ def run_control_matrix(request: ControlMatrixRunRequest) -> ControlMatrixRunOutp
         )
 
     with ThreadPoolExecutor(
-        max_workers=min(7, max(1, len(packed_positive)))
+        max_workers=_bounded_worker_count(len(packed_positive))
     ) as executor:
         refinements = tuple(executor.map(execute_refinement, packed_positive))
     refinement_results = output / "refinement_results.jsonl"

@@ -2011,8 +2011,8 @@ submit_run() {
         memory=32G
     fi
     if [[ "$profile" == control-matrix ]]; then
-        cpus=64
-        memory=192G
+        cpus=8
+        memory=32G
     fi
     [[ "$profile" != p0 ]] || walltime=24:00:00
     if [[ "$profile" == p1 || "$profile" == p2 || \

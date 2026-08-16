@@ -24,6 +24,7 @@ P1_RUN_ID = "gtd-p1-20260802T120000Z-0123456789ab-01234567"
 P2_RUN_ID = "gtd-p2-20260802T120000Z-0123456789ab-01234567"
 P2_DIVERSE_RUN_ID = "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567"
 P2_CONTROL_RUN_ID = "gtd-p2-control-20260802T120000Z-0123456789ab-01234567"
+CONTROL_MATRIX_RUN_ID = "gtd-control-matrix-20260802T120000Z-0123456789ab-01234567"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 T12_RUN_ID = "gtd-t12-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
@@ -545,6 +546,43 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=environment,
     )
     assert not (tmp_path / "remote-root" / "runs" / RUN_ID).exists()
+
+
+def test_control_matrix_submit_reuses_measured_control_slice_resources(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    run = remote_root / "runs" / CONTROL_MATRIX_RUN_ID
+    state = run / "state"
+    state.mkdir(parents=True)
+    (run / "logs").mkdir()
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="utf-8")
+    (state / "phase").write_text("staged\n", encoding="utf-8")
+    (state / "profile").write_text("control-matrix\n", encoding="utf-8")
+
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", CONTROL_MATRIX_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert submitted["job_id"] == "123"
+    submitted_arguments = (
+        (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    )
+    assert "--cpus-per-task=8" in submitted_arguments
+    assert "--mem=32G" in submitted_arguments
+    assert "--time=24:00:00" in submitted_arguments
+    control_matrix_body = (
+        smoke_job.read_text(encoding="utf-8")
+        .split("run_control_matrix() {", maxsplit=1)[1]
+        .split("run_m4_copy_nextflow() {", maxsplit=1)[0]
+    )
+    assert '[[ "${SLURM_CPUS_PER_TASK:-0}" == 8 ]]' in control_matrix_body
+    assert '--threads "${SLURM_CPUS_PER_TASK:-8}"' in control_matrix_body
 
 
 def test_remote_dispatcher_stages_checksum_verified_source_archive(

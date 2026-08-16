@@ -1707,7 +1707,7 @@ run_control_matrix() {
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     [[ -x "$GTD" ]] || return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
-    [[ "${SLURM_CPUS_PER_TASK:-0}" == 64 ]] || return 2
+    [[ "${SLURM_CPUS_PER_TASK:-0}" == 8 ]] || return 2
 
     PHASE=test
     printf 'phase=control_matrix_phenix_verify profile=control-matrix\n'
@@ -1720,7 +1720,7 @@ run_control_matrix() {
         --import-root "$import_root" \
         --phenix-manifest "$phenix_manifest" \
         --outdir "$output" \
-        --threads "${SLURM_CPUS_PER_TASK:-64}"
+        --threads "${SLURM_CPUS_PER_TASK:-8}"
     cp "$output/control_matrix_summary.json" \
         "$qualification/control-matrix-summary.json"
     cp "$output/control_matrix_case_results.jsonl" \

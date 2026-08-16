@@ -470,7 +470,7 @@ def _build_parser() -> argparse.ArgumentParser:
     control_matrix_parser.add_argument("--import-root", type=Path, required=True)
     control_matrix_parser.add_argument("--phenix-manifest", type=Path, required=True)
     control_matrix_parser.add_argument("--outdir", type=Path, required=True)
-    control_matrix_parser.add_argument("--threads", type=int, default=64)
+    control_matrix_parser.add_argument("--threads", type=int, default=8)
     panel_check_parser = benchmark_actions.add_parser(
         "check-public-panel",
         help="validate the tracked public panel and active control mappings",

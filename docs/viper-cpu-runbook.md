@@ -227,11 +227,14 @@ nf-gtd-hpc-test --no-progress logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test --no-progress collect --run-id RUN_ID
 ```
 
-The scheduled job uses 64 CPUs, 192 GB, and the 24-hour Viper ceiling. It runs
-at most seven concurrent Phaser searches, advances every packed positive
-sequentially to its expected count, and applies T12 to every packed positive.
-The package is an operational same-structure test and makes no leakage-
-controlled generalisation claim.
+The scheduled job initially uses 8 CPUs, 32 GB, and the 24-hour Viper ceiling.
+It runs at most four concurrent Phaser searches, matching the exercised
+six-case control-slice boundary while favouring schedulability on a crowded
+cluster. Increase resources only after terminal CPU, memory, or wall-time
+evidence justifies it. The runner advances every packed positive sequentially
+to its expected count and applies T12 to every packed positive. The package is
+an operational same-structure test and makes no leakage-controlled
+generalisation claim.
 
 ## Database track
 
