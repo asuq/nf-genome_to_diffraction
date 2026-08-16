@@ -12,13 +12,17 @@ remain authoritative for scientific policy and interface contracts.
   internal research platform.
 - [Single-component prototype roadmap](single-component-prototype-roadmap.md):
   detailed current maturity and authorised milestones from real-site
-  qualification through structural discovery, MR, sequence narrowing, pilot
-  calibration, independent validation, and the first internal release.
+  qualification through structural discovery, MR, sequence narrowing,
+  operational-control acceptance, independent validation, and the first
+  internal release.
+- [M6 validation protocol](m6-validation.md): approved 63-case truth-isolated
+  benchmark, leakage boundary, evaluator gates, runner artefacts, failure
+  semantics, resource profile, and test coverage.
 - [Viper-CPU runbook](viper-cpu-runbook.md): active site cut-over, secure
   bootstrap, cross-site M4 continuation, database track, and rollback.
 - [M0 qualification status](m0-qualification.md): gate dashboard, frozen
   biological/MTZ evidence, preparatory Gemmi findings, fixed P0 boundary, and
-  the operator-held evidence still required before structural discovery.
+  the unknown operator-crystal evidence deferred to post-M6 exploration.
 - [Structural-search interface](structural-search.md): active M1 provider
   contract, local PDB and exact AFDB commands and Nextflow entry point, outputs,
   cache identity, statuses, and failure semantics.

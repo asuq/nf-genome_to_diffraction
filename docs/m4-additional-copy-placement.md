@@ -196,4 +196,6 @@ Phenix qualification on retained Viper CD6 evidence. The live T12 selector has
 focused tests for expected-one, expected-count-reached, unsupported-after-
 supported, typed tool-failure, and changed-child-checksum outcomes. Its normal
 workflow connection passes local parser-v2 stub and fully cached resume; a clean
-real three-dataset pilot remains required.
+fixed truth-labelled operational matrix supplies the M5 real-data acceptance
+boundary. The three unknown operator crystals are deferred until after M6 and
+do not gate this adapter.

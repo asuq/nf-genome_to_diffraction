@@ -6514,3 +6514,265 @@ implement only the add-copy-specific terminal classification.
 
 Run `git status --short`, inspect the complete diff and `git diff --check`, then
 stage only the journal, add-copy adapter, and focused unit test.
+
+## 2026-08-16T18:59:47Z - Add-copy-status matrix submitted on Viper
+
+### Discoveries
+
+- The focused Python change leaves the reviewed remote dispatcher, job wrapper,
+  and recovery scripts byte-identical. Deployment reproduced all three prior
+  checksums.
+- Rebuilding the deterministic local controller produced SHA-256
+  `aac4612df6856a357d421c14430e69e3d8378e5bf4208fa05de02c433b4b623a`.
+  The previous installed controller, SHA-256
+  `dd7c6138652766da561866bb5842ccaa56df6e91454f698e03a333fdbf0506c5`,
+  was checksum-verified in the ignored backup directory before replacement.
+
+### Accomplishments
+
+- Created and pushed coherent commit
+  `cbdebdb3e5348d379f8a8c0c8144753d73aa9988` once. The sole Pixi 0.76.2 job
+  in GitHub Actions run `31965835301` passed in 5m40s.
+- Deployed checksum-reviewed tools, installed the matching local controller,
+  staged the unchanged fixed matrix, and submitted Slurm job `10932049` with
+  the retained 8-CPU/32-GB/24-hour profile and at most four concurrent Phenix
+  attempts.
+- Rebound the existing `continue-prokaryotic-control-roadmap` heartbeat in
+  place. No duplicate monitor was created, and unchanged non-terminal checks
+  will not append journal entries.
+
+### Immutable evidence
+
+- Active run:
+  `gtd-control-matrix-20260816T185831Z-cbdebdb3e534-79287e54`, Slurm job
+  `10932049`, source commit
+  `cbdebdb3e5348d379f8a8c0c8144753d73aa9988`, nf-helper commit
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, site `viper-cpu`, profile
+  `control-matrix`, suite `prokaryote_homomer_workflow_v1`, 23 cases, 11
+  positives, and 18 planned first-copy searches.
+- Archive SHA-256 is
+  `9d85504e9605a2ebdcb25b4a6d674104e2e2c96ca6d6dee071c3199f1dd91e21`;
+  embedded-manifest SHA-256 is
+  `97132162e558df1c9087aab1826a32e954eb3477b2b241eb9930b0655cf74b40`;
+  Pixi-lock SHA-256 is
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`.
+- Deployed dispatcher, job-wrapper, and recovery SHA-256 values remain
+  `69e4959eb9ce3bcc3ff287b7e92db67425fd5b76004c9303f3e10b02cc2e0e5d`,
+  `6d679a06a14f80fb68432fac38b16606486ae00d4b83bfe563adedc5de0a50a7`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+  First structured state is `PENDING`, terminal `false`, with no exit code or
+  failure class.
+
+### Unresolved work
+
+- Wait for terminal evidence from only the active run. Do not journal unchanged
+  `PENDING` or `RUNNING` checks.
+- At terminal state, retrieve bounded logs and collect through the reviewed
+  wrapper. Verify that the 7L6G no-extension branch is `completed_no_hit` with
+  best count three and parent retained, while preserving every other typed
+  result, checksum, and retain-all invariant. Do not claim six copies were
+  supported or add a speculative tNCS fallback.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-control-matrix-20260816T185831Z-cbdebdb3e534-79287e54`. If non-terminal,
+leave it untouched and do not append a journal entry. If terminal, run bounded
+`logs --tail 200`, then `collect`, and classify all evidence before editing.
+
+## 2026-08-16T19:37:25Z - Unknown operator crystals deferred until post-M6
+
+### Discoveries
+
+- The user approved a durable gate correction: the three unknown-composition
+  operator crystals cannot distinguish software failure from heteromeric or
+  otherwise out-of-scope biology and therefore cannot validate or calibrate the
+  single-component prototype.
+- M5 now uses the fixed truth-labelled 23-case matrix for operational
+  acceptance and bounded resource review. M6 is the first independent
+  leakage-controlled validation gate; the unknown crystals follow M6 only as
+  exploratory applications.
+
+### Accomplishments
+
+- Reconciled `AGENTS.md`, the single-component and full-program roadmaps, the
+  M0/M4/control-panel status pages, and the documentation index. Historical M0
+  execution evidence remains intact.
+- Updated the existing `continue-prokaryotic-control-roadmap` heartbeat in
+  place. It retains the same 30-minute schedule and active matrix, forbids the
+  unknown-crystal fallback, and stops before unapproved M6 execution. No
+  duplicate task was created and the Viper run was untouched.
+
+### Immutable evidence
+
+- `AD4QS1P4G2_18`, `CD4QS2P2G1_15`, and `CD6QS2P2G1_5` are excluded from M5
+  acceptance, Prototype 0.2 calibration, and M6 validation. No score policy,
+  candidate-retention rule, search strategy, scientific input, or runtime
+  resource request changed.
+
+### Unresolved work
+
+- Collect and classify only the active 23-case matrix, then perform the bounded
+  M5 operational review and present an explicit Prototype 0.2 decision.
+- Define and obtain approval for an independently reviewable M6 benchmark
+  manifest and predeclared criteria before executing M6. Handle the three
+  unknown crystals only after the M6 release gate.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-control-matrix-20260816T185831Z-cbdebdb3e534-79287e54`. If non-terminal,
+leave it untouched. If terminal, run bounded `logs --tail 200`, then `collect`,
+and classify the complete matrix before the M5 operational review.
+
+## 2026-08-16T21:16:33Z - Fixed matrix completes; Prototype 0.2 held
+
+### Discoveries
+
+- The corrected matrix ended successfully and reproduced the guarded 7L6G
+  terminal state as `completed_no_hit`: Phenix supported no extension beyond
+  the checksum-validated three-copy tNCS parent. This closes the demonstrated
+  adapter defect; it does not support the declared six-copy truth.
+- This run demonstrates no new software failure. The remaining 7L6G
+  three-of-six result is a true-copy acceptance shortfall and must not be
+  relabelled, fabricated, or hidden by a speculative fallback.
+- The 8-CPU/32-GB, at-most-four-attempt profile finished in 1:55:59. Slurm
+  reported 11.501212 GB maximum memory. Sixteen GB is therefore the bounded
+  starting recommendation for the next comparable approved run; retain eight
+  requested CPUs and the four-attempt concurrency until CPU accounting is more
+  interpretable. The reported 16 logical CPUs and 0.3% CPU utilisation do not
+  cleanly describe the requested eight CPUs plus child Phenix processes.
+
+### Accomplishments
+
+- Retrieved reviewed logs with `--tail 200` and collected through the reviewed
+  wrapper. Verified exactly 23 typed cases, 18 first-copy attempts, 11
+  positives, seven wrong-model searches, and five typed boundaries.
+- All 18 first-copy records are `completed_hit`; ten add-copy series are
+  `completed_hit`; the sole no-extension series is 7L6G
+  `completed_no_hit`, best count three, parent retained. All 11 refinements are
+  `completed_success`, and all 11 sequence assessments are `completed_hit`.
+  Required output checksums are present.
+- Verified ten positive truth counts at 1, 2, 3, or 4; four
+  `no_reportable_identity` boundaries; one
+  `assumption_violation_abstained` boundary; and all seven wrong models retained
+  for comparison without displacing truth. Every candidate was retained,
+  LLG/TFZ remained ranking annotations, and no generalisation claim was made.
+- Verified 29 native Phaser sections at exactly 200 lines each, all seven
+  Phenix 2.1-6048 qualification probes, and matching local/remote artefact
+  checksums. Updated the roadmap with the bounded resource review and explicit
+  **hold; Prototype 0.2 is not yet accepted** decision. No runtime or score
+  configuration changed.
+- Deleted the existing `continue-prokaryotic-control-roadmap` heartbeat after
+  the retained run became terminal. There is no active run left to poll, and no
+  replacement monitor was created while the roadmap waits at its human gate.
+
+### Immutable evidence
+
+- Run `gtd-control-matrix-20260816T185831Z-cbdebdb3e534-79287e54`, Slurm job
+  `10932049`, ran from 2026-08-16T18:59:06Z to 20:55:03Z and ended
+  `COMPLETED`, exit code 0, failure class `success`. Source commit is
+  `cbdebdb3e5348d379f8a8c0c8144753d73aa9988`; nf-helper commit is
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`; Pixi is 0.76.2; Pixi-lock
+  SHA-256 is
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`.
+- Archive, import-manifest, and Phenix-manifest SHA-256 values are
+  `9d85504e9605a2ebdcb25b4a6d674104e2e2c96ca6d6dee071c3199f1dd91e21`,
+  `97132162e558df1c9087aab1826a32e954eb3477b2b241eb9930b0655cf74b40`,
+  and `0410c2b835a8de91061cb727bf5eb007cfac82b787e857cefc5fd549b5c3bad1`.
+- Summary, case, first-copy, add-copy, refinement, sequence, and bounded-log
+  SHA-256 values are respectively
+  `c781d2914d5d7b6e4bdd7d626eec0bbe25d70fa4d30bd4bb9f9a25e540293d80`,
+  `2521045703b7b051cdc90586bfa652e3d9257b38668a5bf3bc68bf8e13618804`,
+  `b1596ec14b288aa50922898061428bdeb0e9a0b07f2700ea7045060add5e2f0d`,
+  `4b7fd4d920fa02f17ed68f7977a29f04c422c88f1c74963607be97e17b9359c2`,
+  `00d7508b61cc618b720eda5eea7c80b98942ee91f016eb72c80e98b0f2c76681`,
+  `d0f3d3c1028e9d1884bea4a95c93b0ae8aa388d80732dc96f46d8b2e3f4f7276`,
+  and `ea0ea594bf7ff834545e1c8e7798f6fb09d88102b9bf88b79e95a3bb72b33b68`;
+  every collected digest matches the remote inventory.
+
+### Unresolved work
+
+- The user/scientific checkpoint must decide whether to accept Prototype 0.2
+  with the explicit 7L6G limitation or authorise a separately scoped,
+  truth-labelled same-component search-strategy increment. No further matrix
+  rerun or software correction is evidence-backed now.
+- M6 cannot execute until an independently reviewable leakage-controlled
+  manifest and predeclared criteria receive explicit approval. The three
+  unknown operator crystals remain deferred until after the M6 release gate.
+
+### Next exact starting point
+
+No repository command is authorised before the Prototype 0.2 disposition. Once
+the user supplies it, start with `git status --short` and preserve this
+uncommitted roadmap/evidence milestone for the next coherent code or benchmark
+commit; do not create a documentation-only CI cycle.
+
+## 2026-08-16T22:49:10Z - Prototype 0.2 and M6 protocol approved
+
+### Discoveries
+
+- The user accepted Prototype 0.2 with the explicit limitation that 7L6G
+  supports three rather than its declared six copies and directed M6 to
+  proceed. No 7L6G rerun, relabelling, fabricated copy, or new search fallback
+  is authorised.
+- The approved independent set comprises 12 prokaryotic positives in 12
+  distinct RCSB 30% sequence clusters with no overlap to the 11 M5 positive
+  clusters, 12 leakage-controlled replays, 20 open-set negatives, four known
+  heteromeric abstention controls, and 15 typed hardening cases: exactly 63.
+- All 16 public coordinate/structure-factor pairs, 15 versioned RefSeq
+  proteomes, and the RCSB 30%/70% cluster snapshots were independently fetched
+  outside Git and matched their frozen per-file sizes and SHA-256 values. The
+  two cluster snapshot SHA-256 values are
+  `2ffcb403da7de2e365d7c300a7548c6dcbdadac98b6ac5eb923abb71fdbe403d`
+  and
+  `dd4990122e5c1c6b8bb2a4ffbce9cfc3dabe5a52a265dab94757f9a512a699c8`.
+
+### Accomplishments
+
+- Added the truth-facing protocol contract and exact approved manifest, a
+  deterministic content-addressed runner archive builder, a separate
+  truth-side evaluator, and CLI commands to validate, build, and evaluate M6.
+  The archive builder scans every byte for PDB, accession, target-sequence, and
+  cluster truth tokens and emits only opaque `M6Cnnn` case IDs.
+- Encoded the predeclared 100% candidate-retention, zero-false-assignment,
+  4/4-abstention, 2/2-duplicate-ambiguity, typed-edge, reproducibility,
+  provenance, bounded-resource, operational-performance, and
+  leakage-performance gates. LLG/TFZ remain annotations only.
+- Reconciled the preserved M5 evidence/roadmap changes with the accepted
+  limitation and approved M6 plan, and documented module inputs, outputs,
+  versions, failure states, cache identity, resource profile, and tests.
+- Six focused M6 tests pass. One complete `pixi run --locked check` then passed
+  formatting, lint, strict typing, 409 unit tests, 57 contract tests, 48
+  integration tests, schemas, public-panel validation, documentation links,
+  actionlint, Nextflow syntax/stubs, and all reviewed Bash syntax checks.
+
+### Immutable evidence
+
+- Protocol ID is `m6_independent_prokaryote_homomer_v1`; the tracked manifest
+  is `benchmarks/m6/protocol.yaml`. The pinned leakage boundary is MMseqs2
+  18.8cc5c, identity at least 70%, coverage at least 80%, across every model
+  route, with exact deposited coordinates always excluded.
+- The core and assumption NCBI response SHA-256 values are
+  `15d4b76d6e4c3afc1cce0427b0c853b12c0c0b5a22397025696bd8cee329c736`
+  and
+  `60115a0cd4680d81a9aca333f51523e5a9e17e60b95250981afd9793fa428b40`.
+  Exact per-proteome and RCSB file hashes are frozen in the manifest.
+- Approved starting resources are two separately attributable Viper stages,
+  each eight CPUs, 16 GB, at most four concurrent Phenix attempts, and a
+  24-hour scheduler ceiling. This is not a tool timeout.
+
+### Unresolved work
+
+- Implement the trusted source preparer, all-route leakage-policy enforcement,
+  normal-component runner/collector, and reviewed bounded Viper profile. Build
+  the real truth-isolated archive only after those contracts pass.
+- Push and watch exactly one CI run for this first coherent M6 increment, then
+  deploy checksum-reviewed tooling. Do not stage biological truth to the
+  runner, start unknown operator crystals, or implement heteromer
+  reconstruction.
+
+### Next exact starting point
+
+Run `git status --short`, inspect the full diff and `git diff --check`, stage
+only this coherent M5-evidence/M6-contract increment, and create one commit.

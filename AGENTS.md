@@ -120,16 +120,22 @@ do not delay real-data feedback in pursuit of perfect test coverage.
 
 Do not claim a Phenix integration is complete without testing it against a real installed Phenix runtime.
 
-The first three MTZ datasets are feasibility tests, not a general validation set. At least one should be a known positive control consistent with `ASU = nA` if available.
+The three frozen operator MTZ datasets are unknown-composition feasibility
+inputs, not M5 or M6 acceptance data. Defer them until after M6; they must not
+gate Prototype 0.2, calibrate scientific heuristics, or support a validation
+claim. M5 uses the fixed truth-labelled 23-case operational matrix, and M6 uses
+an independently reviewable leakage-controlled benchmark.
 
 ## 10. Development sequencing
 
-M0 real-site qualification is accepted, the first fixed M1 discovery slice has
-passed, and M2-to-M3 model-funnel/first-copy MR integration is active. Follow
-the tracked single-component roadmap and the approved external handoff through
-M6. Do not start heteromer logic, AF3 complex logic, or local ESM Atlas
-deployment before the monomer/domain prototype satisfies its acceptance
-criteria.
+M0–M5 are accepted. Prototype 0.2 was accepted on 2026-08-17 with the explicit
+limitation that 7L6G supports three rather than its declared six copies; do not
+rerun, relabel, fabricate, or hide that limitation. The independently
+reviewable M6 protocol and predeclared criteria in
+`benchmarks/m6/protocol.yaml` are user-approved. Execute M6 through the tracked
+truth-isolated runner/evaluator boundary. Do not start heteromer logic, AF3
+complex logic, local ESM Atlas deployment, or the three unknown operator
+crystals before the monomer/domain internal-release gate is resolved.
 
 At the start of each new development loop, read the newest entry in
 `docs/development-loop-journal.md` before changing code or running a new remote

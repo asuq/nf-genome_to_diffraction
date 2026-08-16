@@ -9,10 +9,15 @@ from typing import cast
 
 from genome_to_diffraction import __version__
 from genome_to_diffraction.benchmarks import (
+    M6EvaluationRequest,
+    M6RunnerBundleRequest,
     MrControlBundleRequest,
     PublicControlPreparationRequest,
     PublicPanelPreparationRequest,
+    build_m6_runner_bundle,
     build_mr_control_bundle,
+    evaluate_m6,
+    load_m6_protocol,
     load_public_control_panel,
     prepare_public_control,
     prepare_public_control_panel,
@@ -489,6 +494,26 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     panel_prepare_parser.add_argument("--storage-limit-mib", type=int, default=1024)
     panel_prepare_parser.add_argument("--minimum-free-mib", type=int, default=128)
+    m6_check_parser = benchmark_actions.add_parser(
+        "check-m6-protocol",
+        help="validate the approved truth-facing M6 protocol",
+    )
+    m6_check_parser.add_argument("--protocol", type=Path, required=True)
+    m6_runner_parser = benchmark_actions.add_parser(
+        "build-m6-runner",
+        help="build a deterministic truth-isolated M6 runner archive",
+    )
+    m6_runner_parser.add_argument("--protocol", type=Path, required=True)
+    m6_runner_parser.add_argument("--preparation-manifest", type=Path, required=True)
+    m6_runner_parser.add_argument("--outdir", type=Path, required=True)
+    m6_runner_parser.add_argument("--archive", type=Path, required=True)
+    m6_evaluate_parser = benchmark_actions.add_parser(
+        "evaluate-m6",
+        help="evaluate collected M6 evidence against the frozen gates",
+    )
+    m6_evaluate_parser.add_argument("--protocol", type=Path, required=True)
+    m6_evaluate_parser.add_argument("--evidence", type=Path, required=True)
+    m6_evaluate_parser.add_argument("--report", type=Path, required=True)
 
     catalogue_parser = subparsers.add_parser(
         "catalogue", help="normalise trusted protein catalogues"
@@ -1301,6 +1326,40 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             f"Prepared public panel {panel_result.panel_id} "
             f"({panel_result.entry_count} entries): "
             f"{panel_result.preparation_manifest}"
+        )
+        return 0
+    if args.benchmark_action == "check-m6-protocol":
+        protocol = load_m6_protocol(args.protocol)
+        print(
+            f"M6 protocol {protocol.protocol_id} is valid: {len(protocol.cases)} cases"
+        )
+        return 0
+    if args.benchmark_action == "build-m6-runner":
+        result = build_m6_runner_bundle(
+            M6RunnerBundleRequest(
+                protocol=args.protocol,
+                preparation_manifest=args.preparation_manifest,
+                output_directory=args.outdir,
+                archive=args.archive,
+            )
+        )
+        print(
+            f"Built truth-isolated M6 runner with {result.case_count} cases and "
+            f"{result.object_count} objects: {result.archive} "
+            f"({result.archive_sha256})"
+        )
+        return 0
+    if args.benchmark_action == "evaluate-m6":
+        result = evaluate_m6(
+            M6EvaluationRequest(
+                protocol=args.protocol,
+                evidence=args.evidence,
+                report=args.report,
+            )
+        )
+        print(
+            f"M6 release decision: {'accept' if result.accepted else 'hold'}; "
+            f"report: {result.report_path}"
         )
         return 0
     raise AssertionError(f"unhandled benchmark action: {args.benchmark_action}")

@@ -9,7 +9,7 @@ this gate passes.
 
 | Work package | Current state | Evidence required to close it |
 | --- | --- | --- |
-| M0.1 Freeze site inputs | In progress | Local genome/annotation and all three MTZ checksums are frozen; operator-held ground truth and SDS/assumption records remain missing |
+| M0.1 Freeze site inputs | **Qualified for M0; interpretation deferred until after M6** | Local genome/annotation and all three MTZ checksums are frozen; operator-held identity, copy-count, SDS, and assumption records remain unknown and do not gate M5 or M6 |
 | M0.2 Positive control | Qualified with the public same-organism 8OOX control | Offline revalidation and real local Task 05 bind the exact RefSeq sequence, known two-copy ASU, deposited model/structure factors, and exact plus homolog MR models; the copy-two hypothesis is retained without changing the ranking heuristic, and this does not identify any blind pilot crystal |
 | M0.3 Qualify Phenix | **Qualified** | Phenix 2.1-6048 passes all seven command probes on macOS arm64 and Marmic Linux x86-64; all three frozen MTZ files completed real Xtriage locally and in scheduled Marmic P0 execution |
 | M0.4 Qualify databases | **Qualified** | Four immutable resources passed inventories, full checksums, metadata checks, MMseqs2/ProstT5/Foldseek functional smokes, PDB sequence/coordinate crosswalking, coordinate-cache reuse, and anchored `verify_only` revalidation in Slurm job `625547` |
@@ -18,7 +18,8 @@ this gate passes.
 | M0.7 Three-crystal P0 | **Qualified** | Slurm job `625569` completed the real first run; all four deterministic processes were cached on `-resume`; bounded provenance, reports, traces, and logs were collected |
 
 This dashboard describes qualification status, not protein-identification
-status. The implemented workflow still ends at Task 05.
+status. The three unknown operator crystals are retained only for a post-M6
+exploratory application track; they are not M5 or M6 acceptance inputs.
 
 ## Frozen biological catalogue
 
@@ -80,7 +81,8 @@ not consume structural-search databases; it is not evidence for M0.4.
 
 This closes the operational-control requirement, not the blind-pilot identity
 requirement. The three operator pilot identities, copy counts, and `ASU = nA`
-statuses remain `unknown` until independent evidence is supplied. The control's
+statuses remain `unknown` until independent evidence is supplied and are
+deferred until after M6. The control's
 deposited target coordinates are used only for evaluation; its exact MR model is
 an intentional non-blind execution control and its homolog model supports the
 later leakage-controlled challenge.

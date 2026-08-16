@@ -89,8 +89,10 @@ must be tested experimentally before they can be estimated responsibly.
 
 Complete `ASU = nA` from real-site qualification through structural discovery,
 model preparation, first-copy Phaser, same-component sequential placement,
-brief refinement/maps, sequence-from-map, final reporting, three-dataset pilot,
-independent validation, and an internal research release.
+brief refinement/maps, sequence-from-map, final reporting, fixed truth-labelled
+operational control acceptance, independent validation, and an internal
+research release. The three frozen unknown-composition operator crystals are a
+post-M6 exploratory application track, not a Phase I acceptance gate.
 
 ### Authority and detailed plan
 
@@ -390,9 +392,11 @@ zero/no-hit, filtered, deferred, and failed states.
 
 ## Immediate programme status
 
-Only Phase I is active. The next bounded goal remains the M0 real-site
-qualification dossier in the
-[single-component roadmap](single-component-prototype-roadmap.md). Phase II
-planning may be refined while Phase I runs, but heteromer schemas, processes, or
-provider integrations must not be implemented before Gate 1 is explicitly
-accepted.
+Only Phase I is active. M0–M5 are complete, and Prototype 0.2 is accepted with
+the explicit limitation that 7L6G supports three rather than its declared six
+copies. The independent 63-case M6 benchmark manifest and criteria were
+approved on 2026-08-17; truth-isolated execution and release hardening are now
+active. The three unknown operator crystals remain post-M6 exploratory
+applications. Phase II planning may be refined while Phase I runs, but
+heteromer schemas, processes, or provider integrations must not be implemented
+before Gate 1 is explicitly accepted.

@@ -65,8 +65,8 @@ overstated:
 | Epic 5, MTZ preflight | Gemmi and real Xtriage qualification passed for all three pilot MTZ datasets, including `CD6QS2P2G1_5` | Extend only when new MTZ edge cases are observed |
 | Epic 6, Matthews/SDS priors | 25,920 hypotheses were generated and validated in the real pilot | Compare selected cases with Phenix/Xtriage and retain the current backend's `uncalibrated` label until justified |
 | Epics 7–9 | Direct PDB and bounded ProstT5/Foldseek discovery pass; exact predicted and cleaned PDB models plus the hard-capped diverse funnel are qualified on Marmic | Preserve the positive-control family during its scheduled control, then finish provider union without delaying the bounded prototype |
-| Epic 10 | The first-copy Phaser adapter, provisional ranking screen, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel produced 11 parsed solutions, six in the higher-priority numeric tier | Publish a version-3 retain-all review package, collect all 11 inspectable solutions, complete human map/packing review, and validate an explicit decision |
-| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 status, T13.2 reporting, and the deterministic T13.3 resource summary are implemented; normal `main.nf` validates an explicit MR-seed decision, dispatches sequential same-component placement, retains every best-supported copy state, reaches T12 refinement/maps/sequence, and publishes the empty-decision T12.5 package with cached resume | Qualify protocol v4 with both maps plus annotation/Matthews context, then record human CD6 decisions and execute the three-dataset pilot |
+| Epic 10 | The first-copy Phaser adapter, provisional ranking screen, typed fan-out, cached resume, fixed P2 lifecycle, secure review collection, and the closed same-MTZ positive/negative control profile are implemented; the real 25-model CD6 panel produced 11 parsed solutions, all were retained and reviewed for the accepted M4 seed boundary | Preserve the retain-all review contract and its historical evidence; no CD6 identity or sequence decision gates M5 or M6 |
+| Epics 11–13 | The all-11 Viper M4 run completed real CD6 Phaser placement and cached resume; protocol-v3 T12 produced 11/11 refined PDB/MTZ/map and sequence results with cached resume; the checksum-gated T12.5 package is collected and verified; T13.1 status, T13.2 reporting, and the deterministic T13.3 resource summary are implemented; the corrected fixed 23-case matrix completed with typed retain-all evidence, ten exact positive copy counts, and an explicit 7L6G three-of-six shortfall | Prototype 0.2 is accepted with that limitation. Execute only the approved truth-isolated M6 protocol. CD6 review and all three unknown operator crystals remain deferred until after M6 |
 | Epic 14 and deferred epics | Not started | Not authorised without their separate gates |
 
 The accepted default main-workflow stage still terminates at
@@ -99,7 +99,7 @@ flowchart LR
     M2 --> M3["M3: first-copy MR"]
     M3 --> G01["Prototype 0.1 gate"]
     G01 --> M4["M4: copies, refinement, maps, sequence"]
-    M4 --> M5["M5: three-dataset pilot and reporting"]
+    M4 --> M5["M5: operational matrix and reporting"]
     M5 --> G02["Prototype 0.2 gate"]
     G02 --> M6["M6: independent validation and release"]
 ```
@@ -123,8 +123,8 @@ complexity.
 | M2 — Coordinate/model registry and bounded funnel | Epics 8–9 | 3–5 weeks | Reviewable MR hypothesis manifest |
 | M3 — First-copy Phaser and seed checkpoint | Epic 10 | 4–6 weeks | P2 and prototype 0.1 accepted |
 | M4 — Sequential copies, refinement, maps, and sequence narrowing | Epics 11–12 | 5–8 weeks | P3/P4 scientific flow accepted |
-| M5 — Final reporting, three-dataset pilot, and calibration | Epic 13 | 3–5 weeks | Prototype 0.2 accepted |
-| M6 — Independent validation and internal research release | Release hardening beyond the three-case handoff | 5–10 weeks | Versioned internal research release |
+| M5 — Operational control acceptance, final reporting, and resource review | Epic 13 | 3–5 weeks | Prototype 0.2 accepted |
+| M6 — Independent validation and internal research release | Leakage-controlled validation and release hardening beyond the operational matrix | 5–10 weeks | Versioned internal research release |
 
 Indicative total: 26–44 active developer-weeks. This is not a calendar promise;
 scientific controls, licences, and HPC resources are on the critical path.
@@ -425,7 +425,7 @@ heteromer logic.
 - full artefacts are retained only for the configured finalist set while logs
   and normalised results remain auditable.
 
-## M5 — Final reporting, three-dataset pilot, and calibration
+## M5 — Operational control acceptance, final reporting, and resource review
 
 ### Work packages
 
@@ -443,32 +443,84 @@ heteromer logic.
    database I/O where measurable, and remote requests. Implemented for the
    accepted real CD6 T12 evidence with exact first/resume task identities,
    measured and allocated resources kept separate, and unavailable physical
-   database I/O left explicitly unmeasured.
-4. **T13.4 — Three-dataset pilot.** Execute P0–P4 with explicit human checkpoints
-   and a clean immutable revision. Preserve blind ground truth outside
-   pipeline-visible inputs until review.
-5. **T13.5 — Calibrate.** Revisit resource labels, concurrency, source quotas,
-   model/copy caps, finalist retention, and descriptive heuristic classes using
-   all three cases. Do not claim statistical calibration from three crystals.
+   database I/O left explicitly unmeasured. This historical implementation
+   evidence does not make CD6 an M5 acceptance or calibration input.
+4. **T13.4 — Fixed operational control matrix.** Execute the checksum-frozen
+   23-case suite with a clean immutable revision and real Phenix: 11 positives,
+   seven wrong-model controls, two target-absent controls, two wrong-catalogue
+   controls, and one `ASU = nA` assumption-violation control. Cover declared
+   positive ASU counts 1, 2, 3, 4, and 6; retain every candidate and every
+   parent/child attempt; and report actual supported copy counts without forcing
+   a transition or identity. LLG/TFZ remain ranking annotations only. Completed
+   on Viper in run
+   `gtd-control-matrix-20260816T185831Z-cbdebdb3e534-79287e54`: all 23 cases
+   produced typed results and retained every candidate. Ten positives reached
+   their declared copy count; 7L6G retained a checksum-validated three-copy
+   parent but did not support extension to its declared six-copy truth.
+5. **T13.5 — Bounded operational review.** Revisit resource labels,
+   concurrency, source quotas, model/copy caps, and finalist retention only from
+   the fixed matrix and other truth-labelled operational evidence. Preserve the
+   score policy and distinguish resource sizing from statistical or scientific
+   calibration. The three unknown operator crystals contribute no M5 evidence.
+   The completed matrix used the validated 8-CPU/32-GB profile with at most four
+   concurrent Phenix attempts and finished in 1:55:59. Slurm reported a
+   11.501212-GB maximum memory high-water mark. Retain eight CPUs and the
+   four-attempt concurrency boundary for reproducibility; review 16 GB as the
+   next comparable profile's starting memory request rather than treating the
+   observed 32-GB allocation as a measured requirement. This is a resource
+   recommendation, not a scientific or score-policy calibration, and requires
+   validation in a separately approved run.
 
 ### Prototype 0.2 gate
 
 - every 0.1 requirement still passes;
 - all approved structural-discovery routes are operational;
-- bounded pilot MR completes across the three feasibility datasets;
+- the complete fixed 23-case matrix produces typed, auditable outcomes across
+  every predeclared control class and declares any true-copy recovery shortfall
+  without relabelling it as success;
 - sequential same-component placement, brief refinement/maps,
   sequence-from-map, and both review checkpoints work;
 - ambiguous and assumption-violating outcomes remain scientifically coherent;
 - resource measurements justify revised default caps; and
 - known failures, unsupported cases, and limitations are documented.
 
+No decision or result from `AD4QS1P4G2_18`, `CD4QS2P2G1_15`, or
+`CD6QS2P2G1_5` is required for Prototype 0.2. These unknown-composition
+operator crystals are explicitly deferred until after M6.
+
+Current acceptance decision: **accepted on 2026-08-17 with the explicit 7L6G
+limitation**. The matrix demonstrates the complete operational boundary and no
+remaining software defect, while 7L6G supports three rather than the declared
+six copies. Do not rerun, relabel, fabricate, or hide this true-copy shortfall.
+It is a release limitation, not a successful six-copy transition. No unknown
+operator crystal substitutes for the truth-labelled evidence.
+
 ## M6 — Independent validation and internal research release
 
-The initial three datasets demonstrate feasibility and resource behaviour only.
-They cannot support a general sensitivity, specificity, or false-assignment
-claim.
+The M5 matrix uses public truth-labelled structures and operational
+same-structure controls. It can establish adapter and workflow behaviour, but
+it cannot support a general sensitivity, specificity, or false-assignment
+claim. The three unknown operator crystals are not M6 validation inputs; they
+remain deferred until after the release gate.
 
 ### Validation programme
+
+The approved truth-facing contract is
+[`benchmarks/m6/protocol.yaml`](../benchmarks/m6/protocol.yaml). It freezes 12
+independent prokaryotic positive structures in distinct RCSB 30% sequence
+clusters with no overlap to the 11 M5 positive clusters, 12 leakage-controlled
+replays, 12 target-absent controls, eight wrong-related-proteome controls, four
+known heteromeric abstention controls, and 15 typed edge/hardening cases. The
+result is exactly 63 cases. The runner receives only opaque case IDs and
+checksum-addressed inputs; truth is joined only after collected output
+checksums are fixed.
+
+The leakage track excludes every model chain with at least 70% target-sequence
+identity and at least 80% coverage across PDB, AFDB, and any other enabled model
+route, and always excludes the exact deposited coordinates. MMseqs2 18.8cc5c
+is the pinned enforcement tool; checksum-frozen RCSB 30% and 70% cluster files
+are independent cross-checks. 8AI1 is the sole predeclared model-scarce case,
+so the leakage correct-family denominator is 11 rather than 12.
 
 1. Define a versioned benchmark manifest with ground truth inaccessible to the
    ranking workflow.
@@ -487,6 +539,20 @@ claim.
    assignment, abstention/violation behaviour, resource use, and failure class.
 7. Freeze a release configuration only after the benchmark protocol and results
    are reviewed.
+
+Predeclared operational minima are top-25 10/12, top-10 8/12, top-5 6/12,
+correct-family model 10/12, credible seed 9/12, and true copy count 8/12.
+Leakage-controlled minima are respectively 8/12, 6/12, 4/12, 7/11 eligible,
+6/12, and 5/12. Correctness additionally requires 100% candidate retention,
+zero exact false assignments across all 20 open-set negatives, 4/4 heteromer
+abstentions, 2/2 duplicate-locus ambiguities, every edge outcome typed, complete
+provenance, deterministic and resume equivalence, cache invalidation, no silent
+partial output, and a bounded interface. These are internal engineering gates,
+not population-level sensitivity or specificity estimates.
+
+Start each Viper stage at eight CPUs, 16 GB, no more than four concurrent Phenix
+attempts, and a 24-hour scheduler ceiling. Split operational/open-set work from
+leakage/hardening work so failures and resource evidence remain attributable.
 
 ### Release hardening
 
@@ -520,6 +586,15 @@ claim.
   final structure; and
 - a named maintainer accepts the release and database/software update policy.
 
+### Post-M6 unknown-sample applications
+
+Only after the M6 internal research release gate may
+`AD4QS1P4G2_18`, `CD4QS2P2G1_15`, and `CD6QS2P2G1_5` enter an exploratory
+unknown-sample application track. They do not retroactively calibrate M5 or
+validate M6. Unless independent identity, ASU composition, and assumption
+evidence later become available, report them only with honest unknown,
+insufficient-evidence, partial-solution, or assumption-uncertain statuses.
+
 ## Decisions required before or during development
 
 These are explicit gates, not assumptions made by this roadmap.
@@ -528,11 +603,11 @@ These are explicit gates, not assumptions made by this roadmap.
 | --- | --- | --- | --- |
 | Direct PDB sequence backend | Before M1/T7.1 | MMseqs2 against the prepared PDB sequence resource, because MMseqs2 is already pinned and the resource contract requires coordinate mapping | Small known-query correctness, parser stability, speed, mapping completeness |
 | Primary Marmic runtime/container pattern | Before M1 real integration | Keep the locked Pixi environment for Python/Nextflow/open-source tools and host-side isolated Phenix; evaluate Apptainer only where it improves open-source portability | Marmic policy, bind/scratch behaviour, cache performance, Phenix licence constraints |
-| Three feasibility datasets and positive control | During M0 | Retain `CD6QS2P2G1_5` and add two documented cases including one clear `nA` positive | MTZ/catalogue/ground truth/copy number/quality and redistribution constraints |
+| Unknown operator-crystal applications | After M6 | Retain the three checksum-frozen MTZs for a separate exploratory track; do not use them for M5/M6 acceptance or calibration | Independent identity, ASU composition, assumption evidence, quality, and data-governance review before any later promotion to validation data |
 | Phenix release/build | During M0 | Use the available stable licensed build only after exact checksum and command verification | Installer provenance, platform compatibility, real command smoke tests |
 | ESM Atlas sequence-search contract | Before T7.3 | Feature-flagged experimental provider; disabled by default | Official machine interface, terms/licence, rate limits, response fixtures |
 | Preliminary MR review classes | During M3 | Use `top LLG > 50` or `top TFZ > 5` as strict higher-priority annotations, retain every parsed solution, and require explicit human approval | Known positive/unrelated controls, packing/placed-copy checks, Coot/maps/refinement evidence, and all raw Phaser metrics |
-| Final caps and heuristic defaults | During M5 | Keep current smoke/pilot hard limits until measured | Three-case resource/effect measurements, then independent benchmark |
+| Final caps and heuristic defaults | During M5 | Keep current bounded hard limits unless the fixed operational matrix justifies a resource change; do not retune score policy | Fixed-matrix resource/effect measurements, then the independent M6 benchmark |
 | Research-release performance criteria | Before M6 benchmark execution | Pre-register inclusion, exact-false-assignment, abstention, and resource outcomes | User/scientific review of intended use and tolerable failure modes |
 
 ## Testing and evidence policy
@@ -557,7 +632,8 @@ These are explicit gates, not assumptions made by this roadmap.
 | Local integration | Every milestone | Mocked external tools, complete manifest flow, no-hit/failure paths, checkpoint resumes | Synthetic or licence-compatible fixtures |
 | Marmic smoke | Every immutable candidate revision | Existing `pixi run check` Slurm profile | No biological inputs |
 | Marmic scientific integration | At milestone gates | Fixed P0/P1/P2/P3/P4 profile, real tools/databases, bounded artefact collection | Site configuration and data stay outside Git |
-| Scientific benchmark | Prototype 0.2 and release candidates | Positive, negative, open-set, leakage-controlled, assumption-violation tests | Ground truth blinded; licences/privacy recorded |
+| Operational control matrix | Prototype 0.2 candidates | Fixed positive, wrong-model, target-absent, wrong-catalogue, and assumption-violation cases | Public checksum-frozen inputs; operational same-structure limitation explicit |
+| Scientific benchmark | M6 release candidates | Independent positive, negative, open-set, leakage-controlled, and assumption-violation tests | Ground truth blinded from the ranking workflow but independently reviewable; licences/privacy recorded |
 
 Do not put licensed Phenix files, private MTZ data, unpublished sequences,
 credentials, large databases, generated results, or machine-specific paths in
@@ -641,24 +717,12 @@ or evidence model. None is part of the 26–44 week baseline estimate.
 
 ## Immediate next goal
 
-M0–M4 and T13.1–T13.3 have passed on real CD6 evidence, but CD6 has unknown
-composition and may violate `ASU = nA`. It must not block truth-labelled
-single-component validation. The active goal is therefore:
+Prototype 0.2 and the M6 protocol are approved. The active goal is to prepare
+the truth-isolated 63-case inputs, execute the two bounded Viper stages, collect
+and evaluate their immutable evidence against the predeclared gates, correct
+only demonstrated software defects, and complete release hardening. Stop at an
+explicit accept/hold decision for the internal research release.
 
-1. execute the fixed 23-case prokaryotic operational matrix: 11 positives,
-   seven wrong-model controls, two target-absent controls, two wrong-catalogue
-   controls, and one assumption-violation control;
-2. require positive coverage across expected ASU counts 1, 2, 3, 4, and 6,
-   retaining every parent/child attempt and candidate-level failure;
-3. collect and correct evidence-backed software failures until the fixed
-   matrix completes, without using LLG/TFZ alone to remove alternatives;
-4. keep CD6 Coot decisions as a separate unknown-sample checkpoint rather than
-   treating them as truth-labelled homomer validation; and
-5. use the matrix and three feasibility datasets for the bounded resource and
-   heuristic review, documenting that the operational same-structure controls
-   do not establish leakage-controlled generalisation.
-
-After Prototype 0.2, M6 defines an independent leakage-controlled benchmark and
-internal research release. Heteromer reconstruction and the other deferred
-extensions remain outside this single-component roadmap and require separate
-gates.
+The three unknown operator crystals remain post-M6 exploratory applications;
+heteromer reconstruction and the other deferred extensions remain outside this
+single-component roadmap and require separate gates.

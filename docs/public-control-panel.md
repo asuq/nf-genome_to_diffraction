@@ -173,8 +173,9 @@ safe interpretation rather than rewarding aggressive candidate deletion.
   should record a supported assumption violation or abstention, never fabricate a
   monomeric success.
 - Deposited reflections do not test autoPROC integration, indexing choices, or raw
-  image quality. Operator pilot MTZs remain the integration-facing feasibility
-  inputs.
+  image quality. The unknown operator MTZs remain useful post-M6 exploratory
+  integration inputs, but they do not gate M5, validate M6, or calibrate scientific
+  heuristics.
 
 ## Evidence sources
 

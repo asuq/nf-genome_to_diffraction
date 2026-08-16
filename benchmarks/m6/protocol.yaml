@@ -1,0 +1,539 @@
+schema_version: "1.0"
+protocol_id: m6_independent_prokaryote_homomer_v1
+frozen_at: "2026-08-17T00:00:00Z"
+intended_use: >-
+  Independent internal engineering validation of the single-component
+  prokaryotic monomer/homomer prototype under truth isolation.
+generalisation_claim: false
+excluded_operator_crystals:
+  - AD4QS1P4G2_18
+  - CD4QS2P2G1_15
+  - CD6QS2P2G1_5
+
+catalogue_bundles:
+  - bundle_id: ncbi-refseq-m6-core-20260816
+    request_url: "https://api.ncbi.nlm.nih.gov/datasets/v2/genome/accession/GCF_000005845.2,GCF_000007565.2,GCF_000009045.1,GCF_000011065.1,GCF_000015005.1,GCF_000162015.1,GCF_000175595.1,GCF_000264555.1,GCF_002216875.1,GCF_002994615.1,GCF_010548435.1/download?include_annotation_type=PROT_FASTA"
+    sha256: 15d4b76d6e4c3afc1cce0427b0c853b12c0c0b5a22397025696bd8cee329c736
+    size_bytes: 12469663
+    assembly_accessions:
+      - GCF_000005845.2
+      - GCF_000007565.2
+      - GCF_000009045.1
+      - GCF_000011065.1
+      - GCF_000015005.1
+      - GCF_000162015.1
+      - GCF_000175595.1
+      - GCF_000264555.1
+      - GCF_002216875.1
+      - GCF_002994615.1
+      - GCF_010548435.1
+  - bundle_id: ncbi-refseq-m6-assumptions-20260817
+    request_url: "https://api.ncbi.nlm.nih.gov/datasets/v2/genome/accession/GCF_000008545.1,GCF_000007305.1,GCF_000021045.1,GCF_000007345.1/download?include_annotation_type=PROT_FASTA"
+    sha256: 60115a0cd4680d81a9aca333f51523e5a9e17e60b95250981afd9793fa428b40
+    size_bytes: 2644025
+    assembly_accessions:
+      - GCF_000008545.1
+      - GCF_000007305.1
+      - GCF_000021045.1
+      - GCF_000007345.1
+
+catalogues:
+  - catalogue_id: cat-ecoli
+    assembly_accession: GCF_000005845.2
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 9b8d21ea8ea5180bd9a96d7895dba9b5789002f43c6f421f2a7cdd1b141aa129
+    protein_fasta_size_bytes: 1750878
+  - catalogue_id: cat-pputida
+    assembly_accession: GCF_000007565.2
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 646e5e9dd7dd19ae7930b727a804e56366110239c113c1d268d9318b0b964ed0
+    protein_fasta_size_bytes: 2235807
+  - catalogue_id: cat-bsubtilis
+    assembly_accession: GCF_000009045.1
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: c0b6f56f434d113c4c71ba619f9916dd24eef1834b77bd972e77edd7ea05eec8
+    protein_fasta_size_bytes: 1678330
+  - catalogue_id: cat-btheta
+    assembly_accession: GCF_000011065.1
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 1e75de82fbff1c56b7f8d816fc7bd87bbc3deaf3e9b0c7fbb5ed4f2e4d5a7ab1
+    protein_fasta_size_bytes: 2212565
+  - catalogue_id: cat-msmegmatis
+    assembly_accession: GCF_000015005.1
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 7705920353188364445c3e7a155ded73f9d40fdd87d32f4f2773efe6dc38aeca
+    protein_fasta_size_bytes: 2611069
+  - catalogue_id: cat-fduncaniae
+    assembly_accession: GCF_000162015.1
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 3e4edc824a5a57846b0665cce7ca78a751344c33e54a226864c82dc123579128
+    protein_fasta_size_bytes: 1108795
+  - catalogue_id: cat-ccarboxidivorans
+    assembly_accession: GCF_000175595.1
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 7021e23b8065615a9eb02b9e87063ab229c17f9186e98fb34fe77fdb20c74450
+    protein_fasta_size_bytes: 1925664
+  - catalogue_id: cat-pchlororaphis
+    assembly_accession: GCF_000264555.1
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 9226c621e8fbde49cc9d768b0865ac52fd4357a19b259d9021267c5484e43afb
+    protein_fasta_size_bytes: 2530823
+  - catalogue_id: cat-shewanella
+    assembly_accession: GCF_002216875.1
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 316c0028fc8c6f47ba475ccf351de19062186675a3894d831fd10d619a8b3cd0
+    protein_fasta_size_bytes: 1753587
+  - catalogue_id: cat-esalina
+    assembly_accession: GCF_002994615.1
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 257a5eefa1a094f1334e594c431845ed5af8980476a22e1c2c63f8aa6100259c
+    protein_fasta_size_bytes: 3148309
+  - catalogue_id: cat-streptomyces
+    assembly_accession: GCF_010548435.1
+    bundle_id: ncbi-refseq-m6-core-20260816
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 9e06a6e4011d44147e76942223b8214cb56b69b6c3539e51139958621f55d5fe
+    protein_fasta_size_bytes: 2936714
+  - catalogue_id: cat-pfuriosus
+    assembly_accession: GCF_000007305.1
+    bundle_id: ncbi-refseq-m6-assumptions-20260817
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: b03e5087d5599defdbd0a80fed847aa96b7d061799d898237b9be7f7d1130d7c
+    protein_fasta_size_bytes: 722138
+  - catalogue_id: cat-macetivorans
+    assembly_accession: GCF_000007345.1
+    bundle_id: ncbi-refseq-m6-assumptions-20260817
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 2eb0af39dece3e0c30bc673d4e10fab5888de221f8b4db6c71b658053062e6a2
+    protein_fasta_size_bytes: 1752636
+  - catalogue_id: cat-tmaritima
+    assembly_accession: GCF_000008545.1
+    bundle_id: ncbi-refseq-m6-assumptions-20260817
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 2b26a553a56e5d030365a6909ba66dce62912a6b598095193349144eb172bfc2
+    protein_fasta_size_bytes: 729424
+  - catalogue_id: cat-avinelandii
+    assembly_accession: GCF_000021045.1
+    bundle_id: ncbi-refseq-m6-assumptions-20260817
+    annotation_provider: NCBI RefSeq
+    protein_fasta_sha256: 7dd1608f83a43609fb2016904bd267befacd700c4c960638f4ee6222f415a2cd
+    protein_fasta_size_bytes: 1894393
+
+positives:
+  - target_key: T01
+    source:
+      pdb_id: 8GKV
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8GKV.cif", sha256: 1bc3a4c5cd172025a5014ce348fc5d6e5058d7d14e9a1671455d46ce2afdde3e, size_bytes: 213784}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8GKV-sf.cif", sha256: 9e0d7c7b5e8589a6b4d1a3a758a53972695cd54b6ed33bd3f505a855648f5330, size_bytes: 346024}
+    organism: Escherichia coli str. K-12 substr. MG1655
+    catalogue_id: cat-ecoli
+    target_protein_id: NP_414916.1
+    target_sequence_length: 86
+    target_sequence_sha256: ef1b88d99961aa80aaf239b12f4260ad60f31ca9b213236aa088d992196f3321
+    construct_sequence_length: 88
+    expected_asu_copy_count: 2
+    resolution_angstrom: 2.351
+    rcsb_30_cluster_line_sha256: cd4fbd65d38a24e77d42a9e2c3cc5134154f57086240d57cd9a99a02f51143d4
+    rcsb_70_cluster_line_sha256: a9f94537d7f3ae11d893074629133051ecbec16b7da58ce80d97a32fa8047758
+    allowed_30_to_70_model_count: 5
+  - target_key: T02
+    source:
+      pdb_id: 8CQT
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8CQT.cif", sha256: 842b6996e68db63e792e18de10986e466475358fe335ad2a3fe5ac4f0b4366c0, size_bytes: 1235196}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8CQT-sf.cif", sha256: 6eb0b4a43caaf747938e487779e89f60248f0451205abd103eee7bd66e686357, size_bytes: 2383007}
+    organism: Bacteroides thetaiotaomicron VPI-5482
+    catalogue_id: cat-btheta
+    target_protein_id: WP_011107707.1
+    target_sequence_length: 178
+    target_sequence_sha256: d2e31c4288a10a539e0096c6a3e23cbd341dff58d54d2f64f816f2fe97273917
+    construct_sequence_length: 180
+    expected_asu_copy_count: 2
+    resolution_angstrom: 2.20
+    rcsb_30_cluster_line_sha256: 58ac28dd6a6314b696675718f4712f03284d6a02c244b54949cbc03433133be0
+    rcsb_70_cluster_line_sha256: 1cf21633746baf2cc25d6b99d67fe70ea2cfee5910d47665bb32eec663413cf0
+    allowed_30_to_70_model_count: 12
+  - target_key: T03
+    source:
+      pdb_id: 8C4L
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8C4L.cif", sha256: e8a45104ec5df84eb5118267699541072550ca6884fe72f402d9b93274d1c608, size_bytes: 1327960}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8C4L-sf.cif", sha256: b7eacc3d38e7847eb5cd074a77ebf5d175b01ebab4284e2bf1b63c05ae028c32, size_bytes: 4866446}
+    organism: Shewanella bicestrii
+    catalogue_id: cat-shewanella
+    target_protein_id: WP_089066638.1
+    target_sequence_length: 250
+    target_sequence_sha256: 62473932cd664acb174817d802bb70b06eef389d530098cefc61a0f2718114d5
+    construct_sequence_length: 251
+    expected_asu_copy_count: 2
+    resolution_angstrom: 1.86
+    rcsb_30_cluster_line_sha256: 708c5d2cf6d13770e6c64deda904ba2d45b97aa068d14013d78d5ec1bc2ed793
+    rcsb_70_cluster_line_sha256: 5f6efa7e514d9ea494f8b4bfd60c840ab233055beb140531c39369004b979f7e
+    allowed_30_to_70_model_count: 14
+  - target_key: T04
+    source:
+      pdb_id: 8EJU
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8EJU.cif", sha256: 3fe292fdefd0533b6aa4d8b35dc4208101593db0b6f90ec9e5c65bec918a7e5b, size_bytes: 926184}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8EJU-sf.cif", sha256: 572a447910b9646c8b09ef2bef196d4ba0eb6f2e77e3764ffaf090503082ca03, size_bytes: 5922681}
+    organism: Pseudomonas putida KT2440
+    catalogue_id: cat-pputida
+    target_protein_id: WP_003251938.1
+    target_sequence_length: 291
+    target_sequence_sha256: 5b3bc3577464939722edfe332f96d3f37c52db701aede4fcc05ab703bdd0129b
+    construct_sequence_length: 291
+    expected_asu_copy_count: 2
+    resolution_angstrom: 1.74
+    rcsb_30_cluster_line_sha256: 9dbe8db70589be645a2571e3c38aa621071fb14484661e85c52f8abe8537a680
+    rcsb_70_cluster_line_sha256: 4d7676d1b5576ab0042d4a8dd8752c0dbe09d689e187186c0314b10378b5ec69
+    allowed_30_to_70_model_count: 10
+  - target_key: T05
+    source:
+      pdb_id: 8CLQ
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8CLQ.cif", sha256: d9f26dda4c638f82a63b983f012c249ed05af0411470c8fcb470ededeb30d121, size_bytes: 1923117}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8CLQ-sf.cif", sha256: fce658cddcb9a3cb0eebfcf0bb9c426d799521b3a3771583329be2d841d15100, size_bytes: 6090822}
+    organism: Streptomyces coelicoflavus
+    catalogue_id: cat-streptomyces
+    target_protein_id: WP_164138176.1
+    target_sequence_length: 309
+    target_sequence_sha256: f450c1b8f15baf2cd0363b6c40ed2d875f3e193b95b31b60112dbb1ebbcaa97e
+    construct_sequence_length: 315
+    expected_asu_copy_count: 4
+    resolution_angstrom: 1.53
+    rcsb_30_cluster_line_sha256: 61571acf19c329b1f09037d80e59ef7fc426abb42b6f692a38e1494abf95e04e
+    rcsb_70_cluster_line_sha256: 92665df7ea4c55ff9e5c059f2915db4a2e340e61546e7162ebb501e3db860d73
+    allowed_30_to_70_model_count: 1
+  - target_key: T06
+    source:
+      pdb_id: 8AI1
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8AI1.cif", sha256: 571681e9fbf66cdabb229a0fe31356244c272690604e93ad4d006948fc41ca72, size_bytes: 1197239}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8AI1-sf.cif", sha256: a3739384fee30f816039550f635721dfaaeac46749395d10a29139cf970b5577, size_bytes: 7317387}
+    organism: Bacillus subtilis subsp. subtilis str. 168
+    catalogue_id: cat-bsubtilis
+    target_protein_id: NP_391897.1
+    target_sequence_length: 319
+    target_sequence_sha256: 0bec8493935d168c775e600da60e8bcc01d1137b3c5b3d110c1d8fa6f4186ca5
+    construct_sequence_length: 344
+    expected_asu_copy_count: 2
+    resolution_angstrom: 2.40
+    rcsb_30_cluster_line_sha256: 86f387f1b7545da7f96fc6948c214059755b2d270add211e1e7ceec7bc153e69
+    rcsb_70_cluster_line_sha256: 86f387f1b7545da7f96fc6948c214059755b2d270add211e1e7ceec7bc153e69
+    allowed_30_to_70_model_count: 0
+    correct_family_model_eligible: false
+  - target_key: T07
+    source:
+      pdb_id: 8ASZ
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8ASZ.cif", sha256: 50a98aeedcb9b4a4c7c03e3993e11c4ade6c18f00e3948d2e87d0a1d7fa28a88, size_bytes: 1023791}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8ASZ-sf.cif", sha256: 5f11171fdb24a134c52a4bd89a2b3e4d8dc75fe7cf316d357207ccfef40541e1, size_bytes: 9509285}
+    organism: Escherichia coli str. K-12 substr. MG1655
+    catalogue_id: cat-ecoli
+    target_protein_id: NP_415375.1
+    target_sequence_length: 370
+    target_sequence_sha256: 0316951863ec72e37ea740dbd34fabec252864e8c5eb2a8dbac147a0b713c373
+    construct_sequence_length: 352
+    expected_asu_copy_count: 1
+    resolution_angstrom: 1.28
+    rcsb_30_cluster_line_sha256: 8bb0eca51f042120ed59de5deb21c1462453ec83edeadf037950bfcf750effa6
+    rcsb_70_cluster_line_sha256: 62a33b94d3028b2378538e2c721143e74203a1de702864a60a641c34604cc110
+    allowed_30_to_70_model_count: 36
+  - target_key: T08
+    source:
+      pdb_id: 8EFZ
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8EFZ.cif", sha256: 496f65f93529ca6a7fddead9428ee563aac737d8d9c8e71a1ee2b43452240e83, size_bytes: 1648624}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8EFZ-sf.cif", sha256: df973219e742edebaa2e1c42d91afd341c0db7f34d3b9a179101b1dda42f2590, size_bytes: 1371729}
+    organism: Clostridium carboxidivorans P7
+    catalogue_id: cat-ccarboxidivorans
+    target_protein_id: WP_007060278.1
+    target_sequence_length: 526
+    target_sequence_sha256: df43a8b05457026d087c5538b9fcd10b48f085dbc3667aa443cb4a5365f29514
+    construct_sequence_length: 497
+    expected_asu_copy_count: 2
+    resolution_angstrom: 2.38
+    rcsb_30_cluster_line_sha256: fa4019aea575f3a8ca9e6353d9c84c63b678af1ae854f4fff6b0c3a6551c6e80
+    rcsb_70_cluster_line_sha256: c893f80c255df5fac267991f83192bf52b5b59f9a251e117b59da815fe15c142
+    allowed_30_to_70_model_count: 6
+  - target_key: T09
+    source:
+      pdb_id: 21JH
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/21JH.cif", sha256: 4180bee38364a07a592f47418b145431014f1bed02f84b90e33834778b652376, size_bytes: 615068}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/21JH-sf.cif", sha256: 62eba918f6aa4b80c30462cc50101e940c1522ed4c18e6c91ac77ccf94ecf44b, size_bytes: 8895543}
+    organism: Faecalibacterium duncaniae
+    catalogue_id: cat-fduncaniae
+    target_protein_id: WP_005933102.1
+    target_sequence_length: 647
+    target_sequence_sha256: 4bc5aaebd35c4913a244704abff3f57d30b00bf3bbf07486099cced7cdefa139
+    construct_sequence_length: 637
+    expected_asu_copy_count: 1
+    resolution_angstrom: 1.70
+    rcsb_30_cluster_line_sha256: affb68c493801f8d2839da2f645300f27b04fef4be1d4caa06bbf0dbb3a77110
+    rcsb_70_cluster_line_sha256: 8ce7606e433427799b6336eb6151d6c554ed81af95116cac0fdd6becd8446e58
+    allowed_30_to_70_model_count: 375
+  - target_key: T10
+    source:
+      pdb_id: 8BYR
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8BYR.cif", sha256: 88db43b865686089b698cfc1896539f67dac0627ed7f996b49d264294fec570c, size_bytes: 711451}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8BYR-sf.cif", sha256: f1d3602c0e79c3ddaf0acf31465956cc108046b186345c26a8897247dbe9a942, size_bytes: 4071243}
+    organism: Mycolicibacterium smegmatis MC2 155
+    catalogue_id: cat-msmegmatis
+    target_protein_id: WP_371746439.1
+    target_sequence_length: 180
+    target_sequence_sha256: 340b8c765d56a680fdf882fcbb9104727e0927df0aa56c55d88b7379caf9cd95
+    construct_sequence_length: 172
+    expected_asu_copy_count: 6
+    resolution_angstrom: 2.53
+    rcsb_30_cluster_line_sha256: 026fd0065e8c5015bee7a7b964bb6f2fb7ca46120be532e24bf01084b253e580
+    rcsb_70_cluster_line_sha256: 0589560f06f02967a792cb3e364fe518ee2c659eb7b656245bb4b311962ad2c4
+    allowed_30_to_70_model_count: 1
+  - target_key: T11
+    source:
+      pdb_id: 8CBB
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8CBB.cif", sha256: 420dcbf74c33d95b166ebaf187c981b5f4a986c6cca3542cb42e7eae8d6c9274, size_bytes: 1178629}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8CBB-sf.cif", sha256: 465d79465c5db7761eed524d5bfaacb38e1c69f21616722c075518d8e11408c3, size_bytes: 3259613}
+    organism: Enhygromyxa salina
+    catalogue_id: cat-esalina
+    target_protein_id: WP_106392368.1
+    target_sequence_length: 363
+    target_sequence_sha256: 676429c4e766b11eddc39863560ed5deb099eabf0e054fb8c4aa37e229dfd14f
+    construct_sequence_length: 371
+    expected_asu_copy_count: 4
+    resolution_angstrom: 2.71
+    rcsb_30_cluster_line_sha256: 8cc9e3087f8c87038265f0accc4cfb423ae4aad492f1f12d5c5b39008eb1a66b
+    rcsb_70_cluster_line_sha256: 969b0b478052bf76c52288880359877cb88b73a2b38c20c47ae60c4275065155
+    allowed_30_to_70_model_count: 14
+  - target_key: T12
+    source:
+      pdb_id: 9SM5
+      pdb_entity_ids: [1]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/9SM5.cif", sha256: 11a3455dfbe8db4ef366d7b7bf7d5796347766e53a3031bd16bfe26c94780413, size_bytes: 1391419}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/9SM5-sf.cif", sha256: 6f5b3438572a8bb20117f3e3e75e8e77aa09419005413cb42ff7ddc1d16161a5, size_bytes: 3709377}
+    organism: Pseudomonas chlororaphis O6
+    catalogue_id: cat-pchlororaphis
+    target_protein_id: WP_009051469.1
+    target_sequence_length: 305
+    target_sequence_sha256: d778a7a79154fa9e26339a2f2b38db2ae4ff0153d430b3edbf5e1d9c263f55d6
+    construct_sequence_length: 305
+    expected_asu_copy_count: 3
+    resolution_angstrom: 2.60
+    rcsb_30_cluster_line_sha256: bbb201052244277dbd8d361680cb174b6b84172e9feae79b069546dd9765034b
+    rcsb_70_cluster_line_sha256: 30a16466649159cd950319124fc1326c8286d67ba83c47f3e9c71bdf85c323a7
+    allowed_30_to_70_model_count: 6
+
+assumption_controls:
+  - target_key: A01
+    source:
+      pdb_id: 6RTZ
+      pdb_entity_ids: [1, 2]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/6RTZ.cif", sha256: af2f388b5dee3bb5ad9046c7950ff134f509f9143733b66103ac8169146dfba2, size_bytes: 420738}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/6RTZ-sf.cif", sha256: 474930b7efa0a9024d12d4efd1f74da0de979dd334b9f097a97086e453eb2d7d, size_bytes: 1689379}
+    organism: Thermotoga maritima MSB8
+    molecular_system: HisF/HisH
+    catalogue_id: cat-tmaritima
+    proteins:
+      - {protein_id: WP_004080486.1, sequence_length: 253, sequence_sha256: c194a0417837fabca3ac1762889ba85d734aa929a0072585298dbc7bdcaa3a50}
+      - {protein_id: WP_004080484.1, sequence_length: 201, sequence_sha256: 259f42c3e05e57e373d144c10a31d137368f61964f7e9b9c0b96fc25a7b5439f}
+    asu_distinct_protein_species: 2
+    asu_protein_copy_count: 2
+    resolution_angstrom: 2.87
+  - target_key: A02
+    source:
+      pdb_id: 5E0K
+      pdb_entity_ids: [1, 2]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/5E0K.cif", sha256: 999a6077ab99a54e481668f088cf57bc758d31959ac38b41baf5a1e49dcf1bb6, size_bytes: 5684432}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/5E0K-sf.cif", sha256: f93358af94e33011ac5bd1a9b412e508e11df5e2647de6be774e2d1e21a77c59, size_bytes: 8641677}
+    organism: Pyrococcus furiosus DSM 3638
+    molecular_system: TrpA/TrpB
+    catalogue_id: cat-pfuriosus
+    proteins:
+      - {protein_id: WP_011012851.1, sequence_length: 248, sequence_sha256: 66ae9898397ec6c14e2f7c3de63e0dee55c1078a5b4fadc5e38779d12fa044d8}
+      - {protein_id: WP_011012852.1, sequence_length: 388, sequence_sha256: 46a8409790d80b1ca0b96452bd43be2fb4b89227df428d7a6c5fe073c7e937a2}
+    asu_distinct_protein_species: 2
+    asu_protein_copy_count: 12
+    resolution_angstrom: 2.76
+  - target_key: A03
+    source:
+      pdb_id: 3U7Q
+      pdb_entity_ids: [1, 2]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/3U7Q.cif", sha256: 4021acb1765da9070528f0013f09d598d962c025d6d0b96ec8aa62143ea8bfb2, size_bytes: 3840467}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/3U7Q-sf.cif", sha256: b25518663a98bbe7491c9a899def648c952ab63c8b6ef491b19410f7b23ecc5c, size_bytes: 72283611}
+    organism: Azotobacter vinelandii DJ
+    molecular_system: NifD/NifK
+    catalogue_id: cat-avinelandii
+    proteins:
+      - {protein_id: WP_012698832.1, sequence_length: 492, sequence_sha256: 672912f544981102c24919f58c516f16bb5041af15d5d933a9be9618dd57939b}
+      - {protein_id: WP_012698833.1, sequence_length: 523, sequence_sha256: 90d14f01041688fc46b92288b9762c0ede104bcf2ea9d941449a64cff1ac80df}
+    asu_distinct_protein_species: 2
+    asu_protein_copy_count: 4
+    resolution_angstrom: 1.0
+  - target_key: A04
+    source:
+      pdb_id: 9ECN
+      pdb_entity_ids: [1, 2, 3]
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/9ECN.cif", sha256: 75beb77879508fc3158cd7045d27076997ef976453c45e0b9fe77764ef6f90b3, size_bytes: 2265293}
+      structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/9ECN-sf.cif", sha256: 3eecec037ca00c3f5ebdb3c3adf8b53932b169538bfa4c2b299f942b05d871c7, size_bytes: 4865841}
+    organism: Methanosarcina acetivorans C2A
+    molecular_system: McrA/McrB/McrG
+    catalogue_id: cat-macetivorans
+    proteins:
+      - {protein_id: WP_011024419.1, sequence_length: 570, sequence_sha256: 27438f9876780ea352d8bbe2235141f5d3898f828adf733097c755dd6bdc33fe}
+      - {protein_id: WP_011024423.1, sequence_length: 434, sequence_sha256: fb98d50fd31b4abf5baf629e3f64e7c075964fd6f07a629ff867965f43394796}
+      - {protein_id: WP_011024420.1, sequence_length: 248, sequence_sha256: 8024d69c0d79c8508419cf21d9fe4543f6f2e00936fd8eaa08dda2ff955d34d1}
+    asu_distinct_protein_species: 3
+    asu_protein_copy_count: 6
+    resolution_angstrom: 2.0
+
+wrong_catalogue_pairs:
+  - {target_key: T01, wrong_catalogue_id: cat-shewanella, exact_target_sequence_absent: true}
+  - {target_key: T03, wrong_catalogue_id: cat-ecoli, exact_target_sequence_absent: true}
+  - {target_key: T04, wrong_catalogue_id: cat-pchlororaphis, exact_target_sequence_absent: true}
+  - {target_key: T12, wrong_catalogue_id: cat-pputida, exact_target_sequence_absent: true}
+  - {target_key: T05, wrong_catalogue_id: cat-msmegmatis, exact_target_sequence_absent: true}
+  - {target_key: T10, wrong_catalogue_id: cat-streptomyces, exact_target_sequence_absent: true}
+  - {target_key: T06, wrong_catalogue_id: cat-ccarboxidivorans, exact_target_sequence_absent: true}
+  - {target_key: T08, wrong_catalogue_id: cat-bsubtilis, exact_target_sequence_absent: true}
+
+leakage_policy:
+  sequence_tool: MMseqs2
+  sequence_tool_version: 18.8cc5c
+  maximum_allowed_identity_fraction: 0.7
+  minimum_exclusion_coverage_fraction: 0.8
+  exact_deposited_coordinates_excluded: true
+  applies_to_all_model_routes: true
+  rcsb_30_snapshot:
+    role: cluster_snapshot
+    url: "https://cdn.rcsb.org/resources/sequence/clusters/clusters-by-entity-30.txt"
+    sha256: 2ffcb403da7de2e365d7c300a7548c6dcbdadac98b6ac5eb923abb71fdbe403d
+    size_bytes: 22498096
+  rcsb_70_snapshot:
+    role: cluster_snapshot
+    url: "https://cdn.rcsb.org/resources/sequence/clusters/clusters-by-entity-70.txt"
+    sha256: dd4990122e5c1c6b8bb2a4ffbce9cfc3dabe5a52a265dab94757f9a512a699c8
+    size_bytes: 22498096
+  m5_positive_30_cluster_line_sha256:
+    - f48d1fd4ffe5bbc8a7f3d6ec54939783b1e00d3ec4d919d6b6c84e1a25da3854
+    - 99b04fc33cd081a47a3f22ea7578d4f618aa6107bc9f14c00fb2f5fba9b48382
+    - 1480d13a0c580090e67b16d632e166de601b7f2ae1d79a0783f55fa0054922a7
+    - 5fde6ea3ba5d50a464584483534626df18cf54f639deb62758131133a35b6a4b
+    - 43b370e7de1c88e2688f622fdd8850f70fcb3070e223aa95f73567fbf3939fcc
+    - 3e8014def813c3834adbaf62238da52f2c2f5bae532606681ae66e2963de855c
+    - 62e026fd317e773ec7f451e4f398c2f47bddf9339ca6c791f3da468762580a68
+    - 758422e55694802b9c0945a8957080ee6d8bc37b74881a121b960bfb0f70df18
+    - 7d74fba46442bfaf30c76c2f3d626e4dce2797bf6622efbf2e13d9c10eafc96e
+    - 5e1e48f6f5474752ce9c7b9d6690883b38c1d7e2841a41aa0fa22438f7d87b88
+    - acda9a4f4234f9996d3e882d55788cd99b5a9075ab6f6e5139ce9a7a3c4bb347
+
+cases:
+  - {case_id: M6C001, case_kind: operational_positive, target_key: T01, expected_outcome: target_recovery, variation: ordinary operational search}
+  - {case_id: M6C002, case_kind: operational_positive, target_key: T02, expected_outcome: target_recovery, variation: ordinary operational search}
+  - {case_id: M6C003, case_kind: operational_positive, target_key: T03, expected_outcome: target_recovery, variation: ordinary operational search}
+  - {case_id: M6C004, case_kind: operational_positive, target_key: T04, expected_outcome: target_recovery, variation: ordinary operational search}
+  - {case_id: M6C005, case_kind: operational_positive, target_key: T05, expected_outcome: target_recovery, variation: ordinary operational search}
+  - {case_id: M6C006, case_kind: operational_positive, target_key: T06, expected_outcome: target_recovery, variation: model-scarce operational search}
+  - {case_id: M6C007, case_kind: operational_positive, target_key: T07, expected_outcome: target_recovery, variation: construct truncation operational search}
+  - {case_id: M6C008, case_kind: operational_positive, target_key: T08, expected_outcome: target_recovery, variation: construct truncation operational search}
+  - {case_id: M6C009, case_kind: operational_positive, target_key: T09, expected_outcome: target_recovery, variation: large-protein operational search}
+  - {case_id: M6C010, case_kind: operational_positive, target_key: T10, expected_outcome: target_recovery, variation: six-copy operational search}
+  - {case_id: M6C011, case_kind: operational_positive, target_key: T11, expected_outcome: target_recovery, variation: four-copy operational search}
+  - {case_id: M6C012, case_kind: operational_positive, target_key: T12, expected_outcome: target_recovery, variation: three-copy operational search}
+  - {case_id: M6C013, case_kind: leakage_positive, target_key: T01, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C014, case_kind: leakage_positive, target_key: T02, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C015, case_kind: leakage_positive, target_key: T03, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C016, case_kind: leakage_positive, target_key: T04, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C017, case_kind: leakage_positive, target_key: T05, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C018, case_kind: leakage_positive, target_key: T06, expected_outcome: target_recovery, variation: predeclared model-scarce leakage case}
+  - {case_id: M6C019, case_kind: leakage_positive, target_key: T07, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C020, case_kind: leakage_positive, target_key: T08, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C021, case_kind: leakage_positive, target_key: T09, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C022, case_kind: leakage_positive, target_key: T10, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C023, case_kind: leakage_positive, target_key: T11, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C024, case_kind: leakage_positive, target_key: T12, expected_outcome: target_recovery, variation: all model routes filtered at 70 percent identity and 80 percent coverage}
+  - {case_id: M6C025, case_kind: target_absent, target_key: T01, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C026, case_kind: target_absent, target_key: T02, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C027, case_kind: target_absent, target_key: T03, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C028, case_kind: target_absent, target_key: T04, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C029, case_kind: target_absent, target_key: T05, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C030, case_kind: target_absent, target_key: T06, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C031, case_kind: target_absent, target_key: T07, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C032, case_kind: target_absent, target_key: T08, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C033, case_kind: target_absent, target_key: T09, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C034, case_kind: target_absent, target_key: T10, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C035, case_kind: target_absent, target_key: T11, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C036, case_kind: target_absent, target_key: T12, expected_outcome: no_exact_assignment, variation: exact target sequence removed from its correct catalogue}
+  - {case_id: M6C037, case_kind: wrong_related_catalogue, target_key: T01, wrong_catalogue_id: cat-shewanella, expected_outcome: no_exact_assignment, variation: related prokaryotic proteome without the exact target}
+  - {case_id: M6C038, case_kind: wrong_related_catalogue, target_key: T03, wrong_catalogue_id: cat-ecoli, expected_outcome: no_exact_assignment, variation: related prokaryotic proteome without the exact target}
+  - {case_id: M6C039, case_kind: wrong_related_catalogue, target_key: T04, wrong_catalogue_id: cat-pchlororaphis, expected_outcome: no_exact_assignment, variation: congeneric proteome without the exact target}
+  - {case_id: M6C040, case_kind: wrong_related_catalogue, target_key: T12, wrong_catalogue_id: cat-pputida, expected_outcome: no_exact_assignment, variation: congeneric proteome without the exact target}
+  - {case_id: M6C041, case_kind: wrong_related_catalogue, target_key: T05, wrong_catalogue_id: cat-msmegmatis, expected_outcome: no_exact_assignment, variation: related actinobacterial proteome without the exact target}
+  - {case_id: M6C042, case_kind: wrong_related_catalogue, target_key: T10, wrong_catalogue_id: cat-streptomyces, expected_outcome: no_exact_assignment, variation: related actinobacterial proteome without the exact target}
+  - {case_id: M6C043, case_kind: wrong_related_catalogue, target_key: T06, wrong_catalogue_id: cat-ccarboxidivorans, expected_outcome: no_exact_assignment, variation: related firmicute proteome without the exact target}
+  - {case_id: M6C044, case_kind: wrong_related_catalogue, target_key: T08, wrong_catalogue_id: cat-bsubtilis, expected_outcome: no_exact_assignment, variation: related firmicute proteome without the exact target}
+  - {case_id: M6C045, case_kind: assumption_violation, target_key: A01, expected_outcome: assumption_violation_or_abstention, variation: known HisF-HisH heteromer; no reconstruction}
+  - {case_id: M6C046, case_kind: assumption_violation, target_key: A02, expected_outcome: assumption_violation_or_abstention, variation: known TrpA-TrpB heteromer; no reconstruction}
+  - {case_id: M6C047, case_kind: assumption_violation, target_key: A03, expected_outcome: assumption_violation_or_abstention, variation: known NifD-NifK heteromer; no reconstruction}
+  - {case_id: M6C048, case_kind: assumption_violation, target_key: A04, expected_outcome: assumption_violation_or_abstention, variation: known McrA-McrB-McrG heteromer; no reconstruction}
+  - {case_id: M6C049, case_kind: duplicate_locus, target_key: T01, expected_outcome: duplicate_locus_ambiguity, variation: exact target sequence represented by two catalogue loci}
+  - {case_id: M6C050, case_kind: duplicate_locus, target_key: T02, expected_outcome: duplicate_locus_ambiguity, variation: exact target sequence represented by two catalogue loci}
+  - {case_id: M6C051, case_kind: missing_pdb_model, target_key: T06, expected_outcome: typed_completed_or_abstained, variation: PDB coordinate route deliberately yields no model}
+  - {case_id: M6C052, case_kind: missing_pdb_model, target_key: T05, expected_outcome: typed_completed_or_abstained, variation: PDB coordinate route deliberately yields no model}
+  - {case_id: M6C053, case_kind: wrong_sds_mass, target_key: T07, expected_outcome: typed_completed_or_abstained, variation: deliberately low apparent monomer mass prior}
+  - {case_id: M6C054, case_kind: wrong_sds_mass, target_key: T09, expected_outcome: typed_completed_or_abstained, variation: deliberately high apparent monomer mass prior}
+  - {case_id: M6C055, case_kind: non_top_matthews, target_key: T10, expected_outcome: typed_completed_or_abstained, variation: true copy count is not the top Matthews prior}
+  - {case_id: M6C056, case_kind: non_top_matthews, target_key: T12, expected_outcome: typed_completed_or_abstained, variation: true copy count is not the top Matthews prior}
+  - {case_id: M6C057, case_kind: map_only_mtz, target_key: T03, expected_outcome: typed_completed_or_abstained, variation: MTZ contains map coefficients without raw observations}
+  - {case_id: M6C058, case_kind: map_only_mtz, target_key: T04, expected_outcome: typed_completed_or_abstained, variation: MTZ contains map coefficients without raw observations}
+  - {case_id: M6C059, case_kind: ambiguous_columns_equivalent, target_key: T05, expected_outcome: typed_completed_or_abstained, variation: equivalent duplicate observation columns require deterministic selection}
+  - {case_id: M6C060, case_kind: ambiguous_columns_conflicting, target_key: T11, expected_outcome: typed_completed_or_abstained, variation: conflicting observation columns require abstention}
+  - {case_id: M6C061, case_kind: remote_disabled, target_key: T08, expected_outcome: typed_completed_or_abstained, variation: optional remote provider is disabled}
+  - {case_id: M6C062, case_kind: remote_rate_limited, target_key: T09, expected_outcome: typed_completed_or_abstained, variation: optional remote provider returns a rate-limit state}
+  - {case_id: M6C063, case_kind: missing_phenix, target_key: T06, expected_outcome: typed_infrastructure_failure, variation: verified Phenix manifest is deliberately unavailable}
+
+criteria:
+  candidate_retention_fraction: 1.0
+  maximum_exact_false_assignments: 0
+  open_set_case_count: 20
+  required_assumption_abstentions: 4
+  assumption_case_count: 4
+  required_duplicate_locus_ambiguities: 2
+  duplicate_locus_case_count: 2
+  operational:
+    positive_case_count: 12
+    minimum_top_25: 10
+    minimum_top_10: 8
+    minimum_top_5: 6
+    correct_family_denominator: 12
+    minimum_correct_family_model: 10
+    minimum_credible_seed: 9
+    minimum_true_copy: 8
+  leakage_controlled:
+    positive_case_count: 12
+    minimum_top_25: 8
+    minimum_top_10: 6
+    minimum_top_5: 4
+    correct_family_denominator: 11
+    minimum_correct_family_model: 7
+    minimum_credible_seed: 6
+    minimum_true_copy: 5
+
+interpretation_policy:
+  - Retain every candidate and every parent-child attempt.
+  - LLG and TFZ are ranking annotations only and never candidate-deletion gates.
+  - Exact target coordinates are excluded from both positive tracks; all model routes receive the leakage policy in the leakage-controlled track.
+  - Truth is inaccessible to the runner and joined only after collected result checksums are fixed.
+  - These are internal engineering thresholds and do not establish population-level sensitivity, specificity, or generalisation.
