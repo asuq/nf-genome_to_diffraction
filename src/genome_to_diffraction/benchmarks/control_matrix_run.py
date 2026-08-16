@@ -69,7 +69,7 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
-_ADAPTER_VERSION = "public-homomer-matrix-run-v1"
+_ADAPTER_VERSION = "public-homomer-matrix-run-v2"
 _DEFAULT_THREADS = 8
 _MAX_CONCURRENT_PHENIX_ATTEMPTS = 4
 _EXPECTED_CASE_KIND_COUNTS = {
@@ -378,13 +378,18 @@ def sha256_file_bytes(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _packed(attempt: PhaserRunOutput) -> bool:
-    return (
+def _supported_first_copy_count(
+    attempt: PhaserRunOutput, *, expected_copy_count: int
+) -> int:
+    result = attempt.result
+    if (
         attempt.result.execution_status is ExecutionStatus.COMPLETED_HIT
-        and attempt.result.placed_copy_count == 1
-        and attempt.result.packing_summary.get("top_solution_packed") is True
-        and attempt.result.solution_coordinate_path is not None
-    )
+        and 1 <= result.placed_copy_count <= expected_copy_count
+        and result.packing_summary.get("top_solution_packed") is True
+        and result.solution_coordinate_path is not None
+    ):
+        return result.placed_copy_count
+    return 0
 
 
 def _bounded_worker_count(item_count: int) -> int:
@@ -500,9 +505,13 @@ def run_control_matrix(request: ControlMatrixRunRequest) -> ControlMatrixRunOutp
     ] = []
     for attempt in attempts:
         hypothesis = hypothesis_by_id[attempt.result.hypothesis_id]
-        if hypothesis.priority_features.get(
-            "control_role"
-        ) != "known_positive" or not _packed(attempt):
+        first_copy_count = _supported_first_copy_count(
+            attempt, expected_copy_count=hypothesis.copy_count_expected
+        )
+        if (
+            hypothesis.priority_features.get("control_role") != "known_positive"
+            or first_copy_count == 0
+        ):
             continue
         solution_id, validation, review_manifest, coordinate = _review_seed(
             output, attempt
@@ -514,8 +523,11 @@ def run_control_matrix(request: ControlMatrixRunRequest) -> ControlMatrixRunOutp
     def execute_series(
         item: tuple[PhaserRunOutput, MrHypothesis, str, Path, Path, Path],
     ) -> AddCopySeriesOutput | None:
-        _, hypothesis, solution_id, validation, review_manifest, coordinate = item
-        if hypothesis.copy_count_expected == 1:
+        attempt, hypothesis, solution_id, validation, review_manifest, coordinate = item
+        first_copy_count = _supported_first_copy_count(
+            attempt, expected_copy_count=hypothesis.copy_count_expected
+        )
+        if hypothesis.copy_count_expected == first_copy_count:
             return None
         return run_additional_copy_series(
             AddCopyRunRequest(
@@ -560,9 +572,11 @@ def run_control_matrix(request: ControlMatrixRunRequest) -> ControlMatrixRunOutp
     def execute_refinement(
         item: tuple[PhaserRunOutput, MrHypothesis, str, Path, Path, Path],
     ) -> T12RunOutput:
-        _, hypothesis, solution_id, _, _, first_coordinate = item
+        attempt, hypothesis, solution_id, _, _, first_coordinate = item
         parent_coordinate = first_coordinate
-        input_copy_count = 1
+        input_copy_count = _supported_first_copy_count(
+            attempt, expected_copy_count=hypothesis.copy_count_expected
+        )
         series = series_by_hypothesis.get(hypothesis.hypothesis_id)
         if series is not None:
             supported = [
@@ -631,7 +645,9 @@ def run_control_matrix(request: ControlMatrixRunRequest) -> ControlMatrixRunOutp
         best_copy_by_hypothesis[hypothesis.hypothesis_id] = (
             series.attempts[-1].result.best_supported_copy_count
             if series is not None
-            else 1
+            else _supported_first_copy_count(
+                item[0], expected_copy_count=hypothesis.copy_count_expected
+            )
         )
 
     case_records: list[dict[str, object]] = []
@@ -641,7 +657,13 @@ def run_control_matrix(request: ControlMatrixRunRequest) -> ControlMatrixRunOutp
             attempt = attempts_by_case[case_id]
             hypothesis = hypothesis_by_id[attempt.result.hypothesis_id]
             best = best_copy_by_hypothesis.get(hypothesis.hypothesis_id, 0)
-            retained = _packed(attempt) and best == hypothesis.copy_count_expected
+            retained = (
+                _supported_first_copy_count(
+                    attempt, expected_copy_count=hypothesis.copy_count_expected
+                )
+                > 0
+                and best == hypothesis.copy_count_expected
+            )
             outcome = (
                 "ground_truth_retained" if retained else "ground_truth_not_retained"
             )

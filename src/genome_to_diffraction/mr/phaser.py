@@ -65,7 +65,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
-_ADAPTER_VERSION = "phenix-first-copy-mr-v4"
+_ADAPTER_VERSION = "phenix-first-copy-mr-v5"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -440,26 +440,34 @@ def parse_phaser_log(text: str) -> ParsedPhaserLog:
     """Parse final Phaser metrics without treating early advisories as terminal."""
 
     terminal_markers = [
-        (match.start(), int(match.group(1))) for match in _SOLUTION_COUNT.finditer(text)
+        (match.start(), int(match.group(1)), False)
+        for match in _SOLUTION_COUNT.finditer(text)
     ]
     terminal_markers.extend(
-        (match.start(), 1) for match in _SINGLE_SOLUTION.finditer(text)
+        (match.start(), 1, True) for match in _SINGLE_SOLUTION.finditer(text)
     )
-    terminal_markers.extend((match.start(), 0) for match in _NO_SOLUTION.finditer(text))
+    terminal_markers.extend(
+        (match.start(), 0, False) for match in _NO_SOLUTION.finditer(text)
+    )
     if not terminal_markers:
         raise PhaserParseError("Phaser log lacks a final solution count")
-    _, solution_count = max(terminal_markers, key=lambda marker: marker[0])
+    _, solution_count, single_solution = max(
+        terminal_markers, key=lambda marker: marker[0]
+    )
     packing_rows = [
         tuple(int(value) for value in row) for row in _PACKING.findall(text)
     ]
+    warnings: list[str] = []
     accepted = packed = 0
     if packing_rows:
         accepted, total, packed, accepted_again = packing_rows[-1]
         if total < accepted or accepted_again != accepted or packed > accepted:
             raise PhaserParseError("Phaser final packing counts are inconsistent")
+    elif single_solution and _TOP_LLG.search(text):
+        accepted = packed = 1
+        warnings.append("single_solution_packing_inferred_from_top_llg")
     elif solution_count > 0:
         raise PhaserParseError("Phaser solution lacks final packing evidence")
-    warnings: list[str] = []
     if "The top solution from a FTF did not pack" in text:
         warnings.append("phaser_advisory_top_ftf_did_not_pack")
     if "EXIT STATUS: SUCCESS" not in text:

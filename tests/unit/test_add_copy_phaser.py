@@ -64,14 +64,19 @@ def _request(
     parent_status: ExecutionStatus = ExecutionStatus.COMPLETED_HIT,
     parent_packed: bool = True,
     parent_copy_count: int = 1,
+    expected_copy_count: int = 3,
 ) -> AddCopyRunRequest:
     package = tmp_path / "review package"
     assets = package / "assets" / SEED_ID
     assets.mkdir(parents=True)
     parent = assets / "solution.pdb"
+    parent_placements = "".join(
+        f"REMARK ENSEMBLE parent_{index} EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
+        for index in range(1, parent_copy_count + 1)
+    )
     parent.write_text(
         "REMARK Log-Likelihood Gain: 27.0\n"
-        "REMARK ENSEMBLE ense_1 EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
+        f"{parent_placements}"
         "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  "
         "1.00 20.00           C\n",
         encoding="utf-8",
@@ -154,7 +159,7 @@ def _request(
         crystal_id="test_crystal_01",
         sequence_group_id=SEQUENCE_GROUP_ID,
         model_id="model_" + "d" * 64,
-        copy_count_expected=3,
+        copy_count_expected=expected_copy_count,
         copy_number_to_search=1,
         fixed_solution_id=None,
         space_group="P 21 21 21",
@@ -272,6 +277,24 @@ def test_fixed_parent_ensemble_retains_known_parent_copy_count() -> None:
     )
 
     assert _phaser_placement_count(coordinate, parent_copy_count=2) == 3
+
+
+def test_series_advances_from_packed_three_copy_tncs_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _request(tmp_path, parent_copy_count=3, expected_copy_count=6)
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        placement_count=(4, 5, 6),
+    )
+
+    series = run_additional_copy_series(request)
+
+    assert [item.result.parent_copy_count for item in series.attempts] == [3, 4, 5]
+    assert [item.result.attempted_copy_number for item in series.attempts] == [4, 5, 6]
+    assert series.attempts[-1].result.best_supported_copy_count == 6
 
 
 def test_explicit_staged_solution_model_preserves_original_provenance(
@@ -563,13 +586,13 @@ def test_changed_parent_result_fails_before_runtime(tmp_path: Path) -> None:
             ExecutionStatus.COMPLETED_NO_HIT,
             False,
             1,
-            "exactly one packed placed copy",
+            "at least one packed placed copy",
         ),
         (
             ExecutionStatus.COMPLETED_HIT,
             True,
-            2,
-            "exactly one packed placed copy",
+            0,
+            "at least one packed placed copy",
         ),
     ],
 )

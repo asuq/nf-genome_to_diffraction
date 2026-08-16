@@ -51,7 +51,7 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.add_copy")
-_ADAPTER_VERSION = "phenix-add-copy-mr-v2"
+_ADAPTER_VERSION = "phenix-add-copy-mr-v3"
 _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
@@ -244,16 +244,16 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     }:
         raise PhaserInputError("M4 root seed must be a successfully parsed parent")
     if (
-        root_result.placed_copy_count != 1
+        root_result.placed_copy_count < 1
         or root_result.packing_summary.get("top_solution_packed") is not True
     ):
         raise PhaserInputError(
-            "M4 root seed must contain exactly one packed placed copy"
+            "M4 root seed must contain at least one packed placed copy"
         )
     parent = root_parent
     parent_sha = root_parent_sha
     parent_solution_id = request.seed_solution_id
-    parent_copy_count = 1
+    parent_copy_count = root_result.placed_copy_count
     parent_result_sha = sha256_file(root_result_path)
     parent_llg = root_result.llg
     hypothesis_id = item.get("hypothesis_id")

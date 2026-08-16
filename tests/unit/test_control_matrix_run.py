@@ -4,11 +4,16 @@ import hashlib
 from pathlib import Path
 
 from genome_to_diffraction.benchmarks.control_matrix_run import (
+    _supported_first_copy_count,
     _write_runtime_inputs,
 )
-from genome_to_diffraction.mr.phaser import _experimental_model_identity
+from genome_to_diffraction.mr.phaser import (
+    PhaserRunOutput,
+    _experimental_model_identity,
+)
 from genome_to_diffraction.schemas.results import (
     MtzPreflightRecord,
+    NormalisedMrResult,
     PreflightDecision,
     ProcessedModelRecord,
 )
@@ -36,6 +41,32 @@ def _preflight(crystal_id: str) -> MtzPreflightRecord:
         decision=PreflightDecision.PASS,
         execution_status=ExecutionStatus.COMPLETED_SUCCESS,
     )
+
+
+def test_packed_tncs_first_solution_preserves_three_copy_parent(
+    tmp_path: Path,
+) -> None:
+    result = NormalisedMrResult(
+        schema_version="1.0",
+        hypothesis_id="mrhyp_" + "a" * 64,
+        tool_version="Phenix 2.1-6048; Phaser 2.8.4",
+        execution_status=ExecutionStatus.COMPLETED_HIT,
+        llg=1601.02,
+        tfz=14.2,
+        placed_copy_count=3,
+        packing_summary={"top_solution_packed": True},
+        solution_coordinate_path="PHASER.1.pdb",
+        raw_log_pointer="PHASER.log",
+    )
+    attempt = PhaserRunOutput(
+        result=result,
+        result_json=tmp_path / "result.json",
+        result_jsonl=tmp_path / "result.jsonl",
+        command_json=tmp_path / "command.json",
+    )
+
+    assert _supported_first_copy_count(attempt, expected_copy_count=6) == 3
+    assert _supported_first_copy_count(attempt, expected_copy_count=2) == 0
 
 
 def test_positive_hypothesis_retains_its_experimental_mapping_id(

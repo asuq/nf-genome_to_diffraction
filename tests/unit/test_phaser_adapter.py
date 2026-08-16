@@ -248,9 +248,11 @@ def test_real_format_parser_uses_final_packing_and_retains_advisory() -> None:
 
 def test_parser_accepts_phenix_single_solution_summary() -> None:
     log = (
-        POSITIVE_LOG.replace("2 accepted of 2 solutions", "1 accepted of 1 solutions")
-        .replace("2 pack of 2 accepted solutions", "1 pack of 1 accepted solutions")
+        POSITIVE_LOG.replace(
+            "2 accepted of 2 solutions\n2 pack of 2 accepted solutions\n", ""
+        )
         .replace("** There were 2 solutions", "** SINGLE solution")
+        .replace("\nADVISORY\nThe top solution from a FTF did not pack\n", "")
     )
 
     parsed = parse_phaser_log(log)
@@ -258,6 +260,7 @@ def test_parser_accepts_phenix_single_solution_summary() -> None:
     assert parsed.solution_count == 1
     assert parsed.accepted_solution_count == 1
     assert parsed.packed_solution_count == 1
+    assert parsed.parser_warnings == ("single_solution_packing_inferred_from_top_llg",)
 
 
 def test_parser_retains_top_solution_tfz_when_tncs_omits_refined_value() -> None:
