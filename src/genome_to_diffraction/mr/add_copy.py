@@ -51,11 +51,19 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.add_copy")
-_ADAPTER_VERSION = "phenix-add-copy-mr-v3"
+_ADAPTER_VERSION = "phenix-add-copy-mr-v4"
 _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
 _SEARCH_COPY_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+search_copy(?:\s|$)", re.M)
+_NO_COMPLETE_COMPONENT_SOLUTION = re.compile(
+    r"^\s*\*\*\s+Sorry\s+-\s+No solution with all components\s*$", re.I | re.M
+)
+_INPUT_SOLUTION_NOT_EXTENDED = re.compile(
+    r"^\s*\*\*\s+Search did not extend input solution with new components\s*$",
+    re.I | re.M,
+)
+_SUCCESSFUL_EXIT = re.compile(r"^\s*EXIT STATUS:\s+SUCCESS\s*$", re.I | re.M)
 
 
 def _phaser_placement_count(text: str, *, parent_copy_count: int) -> int:
@@ -64,6 +72,14 @@ def _phaser_placement_count(text: str, *, parent_copy_count: int) -> int:
     if fixed_parent_count == 1 and search_copy_count >= 1:
         return parent_copy_count + search_copy_count
     return len(_PLACEMENT.findall(text))
+
+
+def _reported_no_additional_solution(text: str) -> bool:
+    return (
+        _NO_COMPLETE_COMPONENT_SOLUTION.search(text) is not None
+        and _INPUT_SOLUTION_NOT_EXTENDED.search(text) is not None
+        and _SUCCESSFUL_EXIT.search(text) is not None
+    )
 
 
 @dataclass(frozen=True)
@@ -542,46 +558,53 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         )
     else:
         try:
-            parsed = parse_phaser_log(
-                raw_log.read_text(encoding="utf-8", errors="replace")
-            )
-            llg, tfz = parsed.llg, parsed.tfz
-            packed = parsed.packed_solution_count > 0
-            warnings.extend(parsed.parser_warnings)
-            if parsed.solution_count == 0:
+            raw_log_text = raw_log.read_text(encoding="utf-8", errors="replace")
+            if _reported_no_additional_solution(raw_log_text):
                 status = ExecutionStatus.COMPLETED_NO_HIT
                 rejection_reason = "phaser_reported_no_additional_solution"
             else:
-                coordinate = output / f"{_ROOT}.1.pdb"
-                result_mtz = output / f"{_ROOT}.1.mtz"
-                if not coordinate.is_file() or not result_mtz.is_file():
-                    raise PhaserParseError("additional-copy solution lacks PDB or MTZ")
-                coordinate_text = coordinate.read_text(
-                    encoding="utf-8", errors="replace"
-                )
-                placements = _phaser_placement_count(
-                    coordinate_text, parent_copy_count=resolved.parent_copy_count
-                )
-                coordinate_path = coordinate.name
-                mtz_path = result_mtz.name
-                coordinate_sha = sha256_file(coordinate)
-                mtz_sha = sha256_file(result_mtz)
-                child_id = content_id(
-                    "copystate_",
-                    {
-                        "attempt_id": attempt_id,
-                        "coordinate_sha256": coordinate_sha,
-                        "mtz_sha256": mtz_sha,
-                    },
-                )
-                status = ExecutionStatus.COMPLETED_HIT
-                supported = packed and placements == resolved.parent_copy_count + 1
-                if not packed:
-                    warnings.append("additional_copy_not_packing_supported")
-                    rejection_reason = "parsed_additional_solution_did_not_pack"
-                elif placements != resolved.parent_copy_count + 1:
-                    warnings.append("additional_copy_placement_count_not_observed")
-                    rejection_reason = "parsed_solution_lacks_expected_copy_evidence"
+                parsed = parse_phaser_log(raw_log_text)
+                llg, tfz = parsed.llg, parsed.tfz
+                packed = parsed.packed_solution_count > 0
+                warnings.extend(parsed.parser_warnings)
+                if parsed.solution_count == 0:
+                    status = ExecutionStatus.COMPLETED_NO_HIT
+                    rejection_reason = "phaser_reported_no_additional_solution"
+                else:
+                    coordinate = output / f"{_ROOT}.1.pdb"
+                    result_mtz = output / f"{_ROOT}.1.mtz"
+                    if not coordinate.is_file() or not result_mtz.is_file():
+                        raise PhaserParseError(
+                            "additional-copy solution lacks PDB or MTZ"
+                        )
+                    coordinate_text = coordinate.read_text(
+                        encoding="utf-8", errors="replace"
+                    )
+                    placements = _phaser_placement_count(
+                        coordinate_text, parent_copy_count=resolved.parent_copy_count
+                    )
+                    coordinate_path = coordinate.name
+                    mtz_path = result_mtz.name
+                    coordinate_sha = sha256_file(coordinate)
+                    mtz_sha = sha256_file(result_mtz)
+                    child_id = content_id(
+                        "copystate_",
+                        {
+                            "attempt_id": attempt_id,
+                            "coordinate_sha256": coordinate_sha,
+                            "mtz_sha256": mtz_sha,
+                        },
+                    )
+                    status = ExecutionStatus.COMPLETED_HIT
+                    supported = packed and placements == resolved.parent_copy_count + 1
+                    if not packed:
+                        warnings.append("additional_copy_not_packing_supported")
+                        rejection_reason = "parsed_additional_solution_did_not_pack"
+                    elif placements != resolved.parent_copy_count + 1:
+                        warnings.append("additional_copy_placement_count_not_observed")
+                        rejection_reason = (
+                            "parsed_solution_lacks_expected_copy_evidence"
+                        )
         except PhaserParseError as error:
             status = ExecutionStatus.FAILED_PARSE
             rejection_reason = str(error)

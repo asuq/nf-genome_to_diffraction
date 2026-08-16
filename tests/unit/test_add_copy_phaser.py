@@ -46,6 +46,15 @@ POSITIVE_LOG = (PHASER_FIXTURES / "phenix_2_1_positive.log").read_text(encoding=
 NO_SOLUTION_LOG = (PHASER_FIXTURES / "phenix_2_1_no_solution_packing.log").read_text(
     encoding="utf-8"
 )
+NO_EXTENSION_LOG = (
+    "PHENIX: Phaser 2.8.4\n"
+    "Top LLG (packs) = 1499.13\n"
+    "** Sorry - No solution with all components\n"
+    "** Search did not extend input solution with new components\n"
+    "** Pdb and/or Mtz files have been written with results for 1 of these "
+    "solutions\n"
+    "EXIT STATUS: SUCCESS\n"
+)
 
 
 def _manifest() -> PhenixInstallManifest:
@@ -536,6 +545,29 @@ def test_no_additional_solution_retains_parent_without_absence_claim(
     assert result.best_supported_copy_count == 1
     assert result.parent_solution_id == SEED_ID
     assert result.failed_addition_proves_absence is False
+    assert result.rejection_reason == "phaser_reported_no_additional_solution"
+
+
+def test_no_extension_partial_parent_output_is_not_a_supported_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _request(tmp_path, parent_copy_count=3, expected_copy_count=6)
+    _fake_runtime(
+        monkeypatch,
+        log_text=NO_EXTENSION_LOG,
+        write_solution=True,
+        placement_count=3,
+    )
+
+    result = run_additional_copy_phaser(request).result
+
+    assert result.execution_status == "completed_no_hit"
+    assert result.additional_copy_supported is False
+    assert result.best_supported_copy_count == 3
+    assert result.parent_retained is True
+    assert result.child_solution_id is None
+    assert result.output_coordinate_path is None
+    assert result.output_mtz_path is None
     assert result.rejection_reason == "phaser_reported_no_additional_solution"
 
 
