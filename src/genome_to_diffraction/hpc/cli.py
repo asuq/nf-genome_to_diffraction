@@ -98,6 +98,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "p2-control",
             "control-slice",
             "control-matrix",
+            "m6-inputs",
             "m4-copy",
             "t12",
         ),
@@ -155,6 +156,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     control_matrix_stage.add_argument("--revision", required=True)
 
+    m6_inputs_stage = actions.add_parser(
+        "m6-inputs-stage",
+        help="stage one confirmed truth-isolated M6 runner archive",
+    )
+    m6_inputs_stage.add_argument("--revision", required=True)
+    m6_inputs_stage.add_argument("--archive", type=Path, required=True)
+    m6_inputs_stage.add_argument("--confirm-archive-sha256", required=True)
+
     t12_stage = actions.add_parser(
         "t12-stage",
         help="stage all retained M4 copy-two parents for Viper T12",
@@ -206,6 +215,12 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.control_slice_stage(args.revision)
     if args.operation == "control-matrix-stage":
         return controller.control_matrix_stage(args.revision)
+    if args.operation == "m6-inputs-stage":
+        return controller.m6_inputs_stage(
+            args.revision,
+            args.archive,
+            args.confirm_archive_sha256,
+        )
     if args.operation == "t12-stage":
         return controller.t12_stage(args.revision, args.parent_run)
     if args.operation == "submit":

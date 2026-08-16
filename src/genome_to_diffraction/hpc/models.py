@@ -10,7 +10,7 @@ from typing import Any
 from genome_to_diffraction.checksums import atomic_write_json
 
 RUN_ID_PATTERN = re.compile(
-    r"^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m4-copy|t12|database)-"
+    r"^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}$"
 )
@@ -45,6 +45,7 @@ PROFILES = frozenset(
         "p2-control",
         "control-slice",
         "control-matrix",
+        "m6-inputs",
         "m4-copy",
         "t12",
         "database",
@@ -333,7 +334,7 @@ def validate_profile(value: str) -> str:
     if value not in PROFILES:
         raise ValidationError(
             "profile must be one of: control-matrix, control-slice, database, "
-            "p0, p1, p2, "
+            "m6-inputs, p0, p1, p2, "
             "p2-control, p2-diverse, smoke"
         )
     return value

@@ -10,7 +10,9 @@ from typing import cast
 from genome_to_diffraction import __version__
 from genome_to_diffraction.benchmarks import (
     M6EvaluationRequest,
+    M6InputPreparationRequest,
     M6RunnerBundleRequest,
+    M6RunnerVerificationRequest,
     MrControlBundleRequest,
     PublicControlPreparationRequest,
     PublicPanelPreparationRequest,
@@ -19,8 +21,10 @@ from genome_to_diffraction.benchmarks import (
     evaluate_m6,
     load_m6_protocol,
     load_public_control_panel,
+    prepare_m6_inputs,
     prepare_public_control,
     prepare_public_control_panel,
+    verify_m6_runner_bundle,
 )
 from genome_to_diffraction.benchmarks.control_matrix_run import (
     ControlMatrixRunRequest,
@@ -499,6 +503,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="validate the approved truth-facing M6 protocol",
     )
     m6_check_parser.add_argument("--protocol", type=Path, required=True)
+    m6_prepare_parser = benchmark_actions.add_parser(
+        "prepare-m6-inputs",
+        help="verify frozen sources and prepare sanitised M6 runner inputs",
+    )
+    m6_prepare_parser.add_argument("--protocol", type=Path, required=True)
+    m6_prepare_parser.add_argument("--rcsb-root", type=Path, required=True)
+    m6_prepare_parser.add_argument(
+        "--catalogue-root",
+        type=Path,
+        action="append",
+        required=True,
+        help="repeatable NCBI Datasets extraction root",
+    )
+    m6_prepare_parser.add_argument("--outdir", type=Path, required=True)
     m6_runner_parser = benchmark_actions.add_parser(
         "build-m6-runner",
         help="build a deterministic truth-isolated M6 runner archive",
@@ -507,6 +525,12 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_runner_parser.add_argument("--preparation-manifest", type=Path, required=True)
     m6_runner_parser.add_argument("--outdir", type=Path, required=True)
     m6_runner_parser.add_argument("--archive", type=Path, required=True)
+    m6_verify_parser = benchmark_actions.add_parser(
+        "verify-m6-runner",
+        help="verify an extracted truth-isolated M6 runner bundle",
+    )
+    m6_verify_parser.add_argument("--runner-root", type=Path, required=True)
+    m6_verify_parser.add_argument("--report", type=Path, required=True)
     m6_evaluate_parser = benchmark_actions.add_parser(
         "evaluate-m6",
         help="evaluate collected M6 evidence against the frozen gates",
@@ -1334,6 +1358,20 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             f"M6 protocol {protocol.protocol_id} is valid: {len(protocol.cases)} cases"
         )
         return 0
+    if args.benchmark_action == "prepare-m6-inputs":
+        result = prepare_m6_inputs(
+            M6InputPreparationRequest(
+                protocol=args.protocol,
+                rcsb_directory=args.rcsb_root,
+                catalogue_directories=tuple(args.catalogue_root),
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            f"Prepared {result.case_count} sanitised M6 inputs: "
+            f"{result.preparation_manifest}"
+        )
+        return 0
     if args.benchmark_action == "build-m6-runner":
         result = build_m6_runner_bundle(
             M6RunnerBundleRequest(
@@ -1347,6 +1385,18 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             f"Built truth-isolated M6 runner with {result.case_count} cases and "
             f"{result.object_count} objects: {result.archive} "
             f"({result.archive_sha256})"
+        )
+        return 0
+    if args.benchmark_action == "verify-m6-runner":
+        result = verify_m6_runner_bundle(
+            M6RunnerVerificationRequest(
+                runner_root=args.runner_root,
+                output=args.report,
+            )
+        )
+        print(
+            f"Verified truth-isolated M6 runner with {result.case_count} cases "
+            f"and {result.object_count} objects: {result.qualification}"
         )
         return 0
     if args.benchmark_action == "evaluate-m6":

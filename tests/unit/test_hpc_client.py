@@ -77,6 +77,7 @@ class FakeTransport:
     m4_import_archive: bytes = b""
     control_slice_archive: bytes = b""
     control_matrix_archive: bytes = b""
+    m6_inputs_archive: bytes = b""
     deploy_error: RemoteOperationError | None = None
     stage_error: RemoteOperationError | None = None
 
@@ -225,6 +226,16 @@ class FakeTransport:
         return {
             "run_id": arguments[0],
             "remote_operation": "control-matrix-stage",
+        }
+
+    def m6_inputs_stage(
+        self, arguments: Sequence[str], archive_path: Path
+    ) -> dict[str, str]:
+        self.calls.append(("m6-inputs-stage", tuple(arguments)))
+        self.m6_inputs_archive = archive_path.read_bytes()
+        return {
+            "run_id": arguments[0],
+            "remote_operation": "m6-inputs-stage",
         }
 
     def t12_stage(
@@ -1071,6 +1082,51 @@ def test_control_matrix_stage_streams_only_fixed_viper_archive(
     assert arguments[5] == str(len(payload))
     assert arguments[6] == "8" * 64
     assert arguments[7] == "23"
+    assert all("/" not in argument for argument in arguments)
+
+
+def test_m6_inputs_stage_streams_confirmed_truth_isolated_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    archive = tmp_path / ".untracked" / "m6-runner.tar"
+    archive.parent.mkdir()
+    archive.write_bytes(b"confirmed M6 archive")
+    archive_sha256 = hashlib.sha256(archive.read_bytes()).hexdigest()
+
+    def inspect(
+        candidate: Path,
+        *,
+        protocol: Path,
+        expected_sha256: str,
+    ) -> tuple[Path, str, int, str, int, int]:
+        assert candidate == archive
+        assert protocol == tmp_path / "benchmarks/m6/protocol.yaml"
+        assert expected_sha256 == archive_sha256
+        return candidate, archive_sha256, candidate.stat().st_size, "9" * 64, 63, 64
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client._inspect_m6_runner_archive",
+        inspect,
+    )
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id="viper-cpu")
+
+    result = controller.m6_inputs_stage("HEAD", archive, archive_sha256)
+
+    assert result["profile"] == "m6-inputs"
+    assert result["case_count"] == 63
+    assert result["object_count"] == 64
+    assert transport.m6_inputs_archive == archive.read_bytes()
+    operation, arguments = transport.calls[-1]
+    assert operation == "m6-inputs-stage"
+    assert arguments[4:] == (
+        archive_sha256,
+        str(archive.stat().st_size),
+        "9" * 64,
+        "63",
+        "64",
+    )
     assert all("/" not in argument for argument in arguments)
 
 

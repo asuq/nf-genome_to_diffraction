@@ -6,6 +6,11 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
     evaluate_m6,
     load_m6_evidence,
 )
+from genome_to_diffraction.benchmarks.m6_prepare import (
+    M6InputPreparationRequest,
+    M6InputPreparationResult,
+    prepare_m6_inputs,
+)
 from genome_to_diffraction.benchmarks.m6_protocol import (
     M6BenchmarkProtocol,
     load_m6_protocol,
@@ -15,6 +20,11 @@ from genome_to_diffraction.benchmarks.m6_runner import (
     M6RunnerBundleResult,
     build_m6_runner_bundle,
     load_m6_preparation_manifest,
+)
+from genome_to_diffraction.benchmarks.m6_verification import (
+    M6RunnerVerificationRequest,
+    M6RunnerVerificationResult,
+    verify_m6_runner_bundle,
 )
 from genome_to_diffraction.benchmarks.mr_controls import (
     MrControlBundleOutput,
@@ -38,8 +48,12 @@ __all__ = [
     "M6BenchmarkProtocol",
     "M6EvaluationRequest",
     "M6EvaluationResult",
+    "M6InputPreparationRequest",
+    "M6InputPreparationResult",
     "M6RunnerBundleRequest",
     "M6RunnerBundleResult",
+    "M6RunnerVerificationRequest",
+    "M6RunnerVerificationResult",
     "MrControlBundleOutput",
     "MrControlBundleRequest",
     "PublicControlPreparationRequest",
@@ -54,6 +68,8 @@ __all__ = [
     "load_m6_preparation_manifest",
     "load_m6_protocol",
     "load_public_control_panel",
+    "prepare_m6_inputs",
     "prepare_public_control",
     "prepare_public_control_panel",
+    "verify_m6_runner_bundle",
 ]

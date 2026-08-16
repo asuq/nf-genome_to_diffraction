@@ -131,7 +131,6 @@ def _truth_tokens(protocol: M6BenchmarkProtocol) -> tuple[bytes, ...]:
     for target in protocol.positives:
         tokens.update(
             {
-                target.target_key,
                 target.source.pdb_id,
                 target.catalogue_id,
                 target.target_protein_id,
@@ -143,7 +142,6 @@ def _truth_tokens(protocol: M6BenchmarkProtocol) -> tuple[bytes, ...]:
     for control in protocol.assumption_controls:
         tokens.update(
             {
-                control.target_key,
                 control.source.pdb_id,
                 control.catalogue_id,
             }
@@ -194,6 +192,13 @@ def _scan_truth_tokens(root: Path, tokens: tuple[bytes, ...]) -> None:
     }
     if any("expected" in key or "truth" in key for key in serialised_keys):
         raise PublicControlError("runner manifest exposes a truth-bearing field")
+
+
+def verify_m6_runner_truth_isolation(protocol_path: Path, runner_root: Path) -> None:
+    """Re-run the frozen protocol's byte-level truth scan on an extracted bundle."""
+
+    protocol = load_m6_protocol(protocol_path.resolve(strict=True))
+    _scan_truth_tokens(runner_root.resolve(strict=True), _truth_tokens(protocol))
 
 
 def _write_deterministic_tar(root: Path, archive: Path) -> None:

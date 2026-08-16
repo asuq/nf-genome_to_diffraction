@@ -3,8 +3,12 @@
 import json
 from pathlib import Path
 
+import gemmi
+import numpy as np
 import pytest
 import yaml
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 from genome_to_diffraction.benchmarks.m6_evaluation import (
     M6CaseAssessment,
@@ -12,6 +16,12 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
     M6EvaluationRequest,
     M6SoftwareProvenance,
     evaluate_m6,
+)
+from genome_to_diffraction.benchmarks.m6_prepare import (
+    M6MtzVariation,
+    _write_opaque_catalogue,
+    anonymise_m6_catalogue,
+    write_m6_mtz_variant,
 )
 from genome_to_diffraction.benchmarks.m6_protocol import (
     M6BenchmarkProtocol,
@@ -21,8 +31,14 @@ from genome_to_diffraction.benchmarks.m6_runner import (
     M6RunnerBundleRequest,
     build_m6_runner_bundle,
 )
+from genome_to_diffraction.benchmarks.m6_verification import (
+    M6RunnerVerificationRequest,
+    verify_m6_runner_bundle,
+)
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.diffraction.preflight import select_observations
+from genome_to_diffraction.ids import sequence_digest
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "benchmarks" / "m6" / "protocol.yaml"
@@ -219,18 +235,89 @@ def test_m6_evaluator_holds_on_false_assignment_and_candidate_loss(
     assert "exact_false_assignments" in result.failed_gates
 
 
-def _prepared_manifest(tmp_path: Path, protocol: M6BenchmarkProtocol) -> Path:
+def _prepared_manifest(
+    tmp_path: Path,
+    protocol: M6BenchmarkProtocol,
+    *,
+    candidate_policy: str = "retain_all",
+) -> Path:
     catalogue = tmp_path / "catalogue.fa"
     reflections = tmp_path / "reflections.mtz"
     config = tmp_path / "config.json"
-    catalogue.write_text(">seq_opaque\nACDEFGHIK\n", encoding="ascii")
-    reflections.write_bytes(b"MTZ synthetic opaque fixture\n")
-    config.write_text('{"mode":"analysis"}\n', encoding="ascii")
+    policy = tmp_path / "policy.json"
+    catalogue.write_text(f">loc_{'a' * 64}\nACDEFGHIK\n", encoding="ascii")
+    write_m6_mtz_variant(
+        _m6_source_mtz(),
+        reflections,
+        opaque_id="M6C001",
+        variation="ordinary",
+    )
+    _write_json(
+        config,
+        {
+            "schema_version": "1.0",
+            "prototype": {
+                "asu_model": "single_protein_species_multi_copy",
+                "profile": "pilot",
+            },
+            "catalogue": {
+                "min_length_aa": 30,
+                "ambiguous_residue_policy": "warn",
+                "remove_terminal_stop": True,
+            },
+            "providers": {
+                "pdb_sequence": {"enabled": True, "max_hits": 3},
+                "foldseek_prostt5_pdb": {"enabled": True, "max_hits": 3},
+                "esm_atlas": {
+                    "enabled": False,
+                    "max_hits": 2,
+                    "requests_per_minute": 10,
+                    "max_sequence_length": 1500,
+                },
+                "afdb_exact": {"enabled": False, "max_hits": 1},
+            },
+            "matthews": {
+                "min_copy_count": 1,
+                "max_copy_count": 16,
+                "max_hypotheses_per_candidate": 4,
+                "min_solvent_fraction": 0.1,
+                "max_solvent_fraction": 0.9,
+                "reference_backend": "phenix_xtriage",
+            },
+            "search_limits": {
+                "max_structural_hypotheses": 100,
+                "max_first_copy_jobs": 25,
+                "max_refinement_finalists": 10,
+                "max_sequence_map_finalists": 5,
+                "max_concurrent_mr_jobs": 4,
+            },
+            "review": {
+                "primary_shortlist_size": 10,
+                "extended_shortlist_size": 25,
+                "require_mr_seed_checkpoint": True,
+                "require_sequence_checkpoint": True,
+            },
+            "retention": {
+                "max_full_artifact_finalists": 25,
+                "retain_all_logs": True,
+                "retain_all_normalised_results": True,
+            },
+        },
+    )
+    _write_json(
+        policy,
+        {
+            "mode": "operational",
+            "candidate_policy": candidate_policy,
+            "score_policy": "llg_tfz_annotations_only",
+        },
+    )
     objects = []
     for role, path, media_type in (
         ("catalogue", catalogue, "text/x-fasta"),
         ("reflections", reflections, "application/x-mtz"),
         ("analysis_config", config, "application/json"),
+        ("model_policy", policy, "application/json"),
     ):
         objects.append(
             {
@@ -280,12 +367,92 @@ def test_m6_runner_bundle_is_truth_isolated_and_deterministic(
     )
 
     assert first.case_count == 63
-    assert first.object_count == 3
+    assert first.object_count == 4
     assert first.archive_sha256 == second.archive_sha256
     manifest_text = first.runner_manifest.read_text(encoding="utf-8")
     assert "8GKV" not in manifest_text
     assert "NP_414916.1" not in manifest_text
     assert "expected_asu_copy_count" not in manifest_text
+
+
+def test_m6_runner_verifier_checks_opaque_media_and_policy(tmp_path: Path) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    preparation = _prepared_manifest(tmp_path, protocol)
+    bundle = build_m6_runner_bundle(
+        M6RunnerBundleRequest(
+            protocol=PROTOCOL,
+            preparation_manifest=preparation,
+            output_directory=tmp_path / "runner",
+            archive=tmp_path / "runner.tar",
+        )
+    )
+
+    result = verify_m6_runner_bundle(
+        M6RunnerVerificationRequest(
+            runner_root=bundle.runner_manifest.parent,
+            output=tmp_path / "qualification.json",
+        )
+    )
+
+    report = json.loads(result.qualification.read_text(encoding="utf-8"))
+    assert result.case_count == 63
+    assert result.object_count == 4
+    assert report["all_candidates_retained"] is True
+    assert report["case_records"][0]["selected_observation_labels"] == "FP,SIGFP"
+
+
+def test_m6_runner_verifier_rejects_changed_object(tmp_path: Path) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    preparation = _prepared_manifest(tmp_path, protocol)
+    bundle = build_m6_runner_bundle(
+        M6RunnerBundleRequest(
+            protocol=PROTOCOL,
+            preparation_manifest=preparation,
+            output_directory=tmp_path / "runner",
+            archive=tmp_path / "runner.tar",
+        )
+    )
+    manifest = json.loads(bundle.runner_manifest.read_text(encoding="utf-8"))
+    object_path = (
+        bundle.runner_manifest.parent / "objects" / next(iter(manifest["objects"]))
+    )
+    object_path.chmod(0o644)
+    object_path.write_bytes(object_path.read_bytes() + b"changed")
+
+    with pytest.raises(PublicControlError, match="size changed"):
+        verify_m6_runner_bundle(
+            M6RunnerVerificationRequest(
+                runner_root=bundle.runner_manifest.parent,
+                output=tmp_path / "qualification.json",
+            )
+        )
+
+
+def test_m6_runner_verifier_rejects_candidate_deletion_policy(
+    tmp_path: Path,
+) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    preparation = _prepared_manifest(
+        tmp_path,
+        protocol,
+        candidate_policy="delete_low_score",
+    )
+    bundle = build_m6_runner_bundle(
+        M6RunnerBundleRequest(
+            protocol=PROTOCOL,
+            preparation_manifest=preparation,
+            output_directory=tmp_path / "runner",
+            archive=tmp_path / "runner.tar",
+        )
+    )
+
+    with pytest.raises(PublicControlError, match="retain every candidate"):
+        verify_m6_runner_bundle(
+            M6RunnerVerificationRequest(
+                runner_root=bundle.runner_manifest.parent,
+                output=tmp_path / "qualification.json",
+            )
+        )
 
 
 def test_m6_runner_bundle_rejects_truth_bearing_input(tmp_path: Path) -> None:
@@ -317,3 +484,96 @@ def test_m6_runner_bundle_rejects_truth_bearing_input(tmp_path: Path) -> None:
                 archive=tmp_path / "runner.tar",
             )
         )
+
+
+def test_m6_catalogue_anonymisation_removes_and_duplicates_exact_sequence(
+    tmp_path: Path,
+) -> None:
+    target_sequence = "ACDEFGHIK"
+    target_digest = sequence_digest(target_sequence)
+    records = (
+        SeqRecord(
+            Seq(target_sequence),
+            id="NP_414916.1",
+            description="NP_414916.1 truth-bearing source header",
+        ),
+        SeqRecord(Seq("LMNPQRSTV"), id="WP_000000001.1", description="other"),
+    )
+
+    absent, _ = anonymise_m6_catalogue(records, remove_sequence_sha256=target_digest)
+    duplicated, _ = anonymise_m6_catalogue(
+        records,
+        duplicate_sequence_sha256=target_digest,
+        duplicate_case_id="M6C049",
+    )
+    output = tmp_path / "catalogue.faa"
+    _write_opaque_catalogue(output, duplicated)
+
+    assert all(record.sequence_sha256 != target_digest for record in absent)
+    assert sum(record.sequence_sha256 == target_digest for record in duplicated) == 2
+    assert "NP_414916.1" not in output.read_text(encoding="ascii")
+    assert all(record.opaque_id.startswith("loc_") for record in duplicated)
+
+
+def _m6_source_mtz() -> gemmi.Mtz:
+    mtz = gemmi.Mtz(with_base=True)
+    mtz.spacegroup = gemmi.find_spacegroup_by_name("P 21 21 21")
+    mtz.set_cell_for_all(gemmi.UnitCell(50, 60, 70, 90, 90, 90))
+    mtz.add_dataset("8GKV truth-bearing dataset")
+    for label, column_type in (
+        ("FreeR_flag", "I"),
+        ("FP", "F"),
+        ("SIGFP", "Q"),
+        ("FWT", "F"),
+        ("PHWT", "P"),
+    ):
+        mtz.add_column(label, column_type)
+    rows = np.asarray(
+        [
+            [index, 1, 1, 0, index * 10, index, index * 8, index * 5]
+            for index in range(1, 11)
+        ],
+        dtype=np.float32,
+    )
+    mtz.set_data(rows)
+    mtz.update_reso()
+    return mtz
+
+
+@pytest.mark.parametrize(
+    ("variation", "expected_labels", "warning"),
+    (
+        ("ordinary", "FP,SIGFP", None),
+        ("map_only", None, "no_observed_data"),
+        (
+            "equivalent_observation_arrays",
+            "FX,SIGFX",
+            "equivalent_observation_arrays",
+        ),
+        (
+            "conflicting_observation_arrays",
+            None,
+            "ambiguous_observation_arrays",
+        ),
+    ),
+)
+def test_m6_mtz_variants_are_sanitised_and_typed(
+    tmp_path: Path,
+    variation: M6MtzVariation,
+    expected_labels: str | None,
+    warning: str | None,
+) -> None:
+    output = tmp_path / f"{variation}.mtz"
+    write_m6_mtz_variant(
+        _m6_source_mtz(),
+        output,
+        opaque_id="M6C057",
+        variation=variation,
+    )
+
+    mtz = gemmi.read_mtz_file(str(output))
+    selected, _, warnings = select_observations(mtz, None)
+    assert (None if selected is None else selected.rendered) == expected_labels
+    assert warning is None or warning in warnings
+    assert "8GKV" not in mtz.title
+    assert all("8GKV" not in item.dataset_name for item in mtz.datasets)

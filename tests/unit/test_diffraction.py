@@ -195,6 +195,37 @@ def test_equal_priority_observation_arrays_fail_as_ambiguous(tmp_path: Path) -> 
     assert "ambiguous_observation_arrays" in record.warning_codes
 
 
+def test_equal_priority_equivalent_observation_arrays_are_deterministic(
+    tmp_path: Path,
+) -> None:
+    mtz_path = tmp_path / "equivalent.mtz"
+    _write_mtz(
+        mtz_path,
+        (("I1", "J"), ("SIGI1", "Q"), ("I2", "J"), ("SIGI2", "Q")),
+    )
+    mtz = gemmi.read_mtz_file(str(mtz_path))
+    data = np.array(mtz, copy=True)
+    data[:, 5] = data[:, 3]
+    data[:, 6] = data[:, 4]
+    mtz.set_data(data)
+    mtz.write_to_file(str(mtz_path))
+
+    record = inspect_crystal(
+        _crystal(mtz_path),
+        manifest_path=tmp_path / "crystals.json",
+        output_directory=tmp_path / "output",
+        phenix_manifest=None,
+        skip_xtriage=True,
+        progress=False,
+        xtriage_timeout_seconds=30,
+    )
+
+    assert record.decision is PreflightDecision.PASS_WITH_REVIEW
+    assert record.selected_observation_labels == "I1,SIGI1"
+    assert "equivalent_observation_arrays" in record.warning_codes
+    assert "ambiguous_observation_arrays" not in record.warning_codes
+
+
 def test_explicit_observation_override_resolves_ambiguity(tmp_path: Path) -> None:
     mtz_path = tmp_path / "explicit.mtz"
     _write_mtz(

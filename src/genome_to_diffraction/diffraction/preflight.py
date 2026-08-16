@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Literal, cast
 
 import gemmi
+import numpy as np
 from pydantic import JsonValue
 from tqdm import tqdm
 
@@ -277,6 +278,31 @@ def select_observations(
         best = [candidate for candidate in matching if candidate.rank == best_rank]
         if len(best) == 1:
             return best[0], rendered, ("observation_selection_deterministic",)
+        reference = tuple(
+            np.asarray(mtz.column_with_label(label).array) for label in best[0].labels
+        )
+        equivalent = all(
+            all(
+                np.array_equal(
+                    reference_values,
+                    np.asarray(mtz.column_with_label(label).array),
+                    equal_nan=True,
+                )
+                for reference_values, label in zip(
+                    reference, candidate.labels, strict=True
+                )
+            )
+            for candidate in best[1:]
+        )
+        if equivalent:
+            return (
+                best[0],
+                rendered,
+                (
+                    "equivalent_observation_arrays",
+                    "observation_selection_deterministic",
+                ),
+            )
         return None, rendered, ("ambiguous_observation_arrays",)
     return None, rendered, ("no_observed_data",)
 

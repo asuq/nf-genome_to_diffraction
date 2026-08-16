@@ -23,6 +23,15 @@ from typing import Protocol
 
 from tqdm import tqdm
 
+from genome_to_diffraction.benchmarks.m6_runner import (
+    verify_m6_runner_truth_isolation,
+)
+from genome_to_diffraction.benchmarks.m6_verification import (
+    M6RunnerInventorySpec,
+    M6RunnerVerificationRequest,
+    verify_m6_runner_bundle,
+)
+from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_text, sha256_file
 from genome_to_diffraction.hpc.control_matrix import build_fixed_control_matrix_bundle
 from genome_to_diffraction.hpc.control_slice import build_fixed_control_slice_bundle
@@ -94,6 +103,7 @@ SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS = 30 * 60
 MAX_P0_PATHS_BYTES = 4096
 MAX_SOURCE_ARCHIVE_BYTES = 64 * 1024 * 1024
 FAILURE_SIGNATURE_LOG_BYTES = 64 * 1024
+MAX_M6_RUNNER_ARCHIVE_BYTES = 256 * 1024 * 1024
 _FAILURE_APPLICATION_LOGS = frozenset(
     {
         "logs/smoke.log",
@@ -104,13 +114,14 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/p2-control.log",
         "logs/control-slice.log",
         "logs/control-matrix.log",
+        "logs/m6-inputs.log",
         "logs/m4-copy.log",
         "logs/t12.log",
         "logs/database.log",
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -211,6 +222,93 @@ def _validated_p0_paths_payload(path: Path) -> bytes:
     return payload
 
 
+def _inspect_m6_runner_archive(
+    archive: Path,
+    *,
+    protocol: Path,
+    expected_sha256: str,
+) -> tuple[Path, str, int, str, int, int]:
+    """Validate one explicitly confirmed M6 archive before remote transfer."""
+
+    if re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None:
+        raise ValidationError("confirmed M6 archive SHA-256 is invalid")
+    if archive.is_symlink():
+        raise ValidationError("M6 runner archive must not be a symlink")
+    try:
+        resolved = archive.resolve(strict=True)
+    except OSError as error:
+        raise ValidationError(f"M6 runner archive is missing: {archive}") from error
+    if not resolved.is_file():
+        raise ValidationError("M6 runner archive must be a regular file")
+    size = resolved.stat().st_size
+    if not 1 <= size <= MAX_M6_RUNNER_ARCHIVE_BYTES:
+        raise ValidationError("M6 runner archive is outside the reviewed size bound")
+    actual_sha256 = sha256_file(resolved)
+    if actual_sha256 != expected_sha256:
+        raise ValidationError("M6 runner archive differs from the confirmed SHA-256")
+
+    with tempfile.TemporaryDirectory(prefix="nf-gtd-m6-inspect-", dir="/tmp") as temp:
+        root = Path(temp) / "runner"
+        root.mkdir()
+        try:
+            with tarfile.open(resolved, mode="r:") as handle:
+                members = handle.getmembers()
+                names: list[str] = []
+                total_size = 0
+                for member in members:
+                    relative = PurePosixPath(member.name)
+                    if (
+                        relative.is_absolute()
+                        or not relative.parts
+                        or ".." in relative.parts
+                        or not member.isfile()
+                    ):
+                        raise ValidationError("M6 runner archive has an unsafe member")
+                    names.append(relative.as_posix())
+                    total_size += member.size
+                if len(names) != len(set(names)):
+                    raise ValidationError("M6 runner archive has duplicate members")
+                if total_size > MAX_M6_RUNNER_ARCHIVE_BYTES:
+                    raise ValidationError("M6 runner extraction exceeds its size bound")
+                manifest_member = handle.getmember("runner_manifest.json")
+                manifest_handle = handle.extractfile(manifest_member)
+                if manifest_handle is None:
+                    raise ValidationError("M6 runner manifest cannot be read")
+                manifest_bytes = manifest_handle.read()
+                manifest = M6RunnerInventorySpec.model_validate_json(manifest_bytes)
+                expected_names = {
+                    "runner_manifest.json",
+                    *(f"objects/{digest}" for digest in manifest.objects),
+                }
+                if set(names) != expected_names:
+                    raise ValidationError("M6 runner archive inventory differs")
+                handle.extractall(root, members=members, filter="data")
+        except (KeyError, tarfile.TarError, ValueError) as error:
+            raise ValidationError(f"invalid M6 runner archive: {error}") from error
+
+        try:
+            verify_m6_runner_truth_isolation(protocol, root)
+            qualification = verify_m6_runner_bundle(
+                M6RunnerVerificationRequest(
+                    runner_root=root,
+                    output=Path(temp) / "qualification.json",
+                )
+            )
+        except PublicControlError as error:
+            raise ValidationError(f"M6 runner qualification failed: {error}") from error
+        manifest_sha256 = qualification.runner_manifest_sha256
+        case_count = qualification.case_count
+        object_count = qualification.object_count
+    return (
+        resolved,
+        actual_sha256,
+        size,
+        manifest_sha256,
+        case_count,
+        object_count,
+    )
+
+
 class TextTransport(Protocol):
     """Transport contract used by the controller and deterministic fakes."""
 
@@ -282,6 +380,13 @@ class TextTransport(Protocol):
         archive_path: Path,
     ) -> dict[str, str]:
         """Stream the fixed 23-case prokaryotic control archive."""
+
+    def m6_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one confirmed truth-isolated M6 runner archive."""
 
     def t12_stage(
         self,
@@ -965,6 +1070,45 @@ class SshTransport:
             )
         return fields
 
+    def m6_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one confirmed truth-isolated M6 runner archive to Viper."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("m6-inputs-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote M6 input staging exceeded the fixed transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote M6 input staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote M6 input staging returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
     def t12_stage(
         self,
         arguments: Sequence[str],
@@ -1474,6 +1618,91 @@ class HpcController:
             "real_search_count": bundle.real_search_count,
             "archive_sha256": bundle.archive_sha256,
             "manifest_sha256": bundle.manifest_sha256,
+            "local_record": str(local_path),
+        }
+
+    def m6_inputs_stage(
+        self,
+        revision: str,
+        archive: Path,
+        expected_archive_sha256: str,
+    ) -> dict[str, object]:
+        """Stage one explicitly confirmed truth-isolated 63-case M6 archive."""
+
+        if self.config.site_id != "viper-cpu":
+            raise ValidationError("m6-inputs-stage is available only for viper-cpu")
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        untracked_root = (self.config.repository / ".untracked").resolve(strict=True)
+        try:
+            archive.resolve(strict=True).relative_to(untracked_root)
+        except (OSError, ValueError) as error:
+            raise ValidationError(
+                "M6 runner archive must be below the repository .untracked directory"
+            ) from error
+        (
+            archive_path,
+            archive_sha256,
+            archive_size,
+            manifest_sha256,
+            case_count,
+            object_count,
+        ) = _inspect_m6_runner_archive(
+            archive,
+            protocol=self.config.repository / "benchmarks/m6/protocol.yaml",
+            expected_sha256=expected_archive_sha256,
+        )
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+        run_id = f"gtd-m6-inputs-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
+        owner_id = secrets.token_hex(16)
+        validate_run_id(run_id)
+        lock_checksum = sha256_file(self.config.repository / "pixi.lock")
+        record = LocalRunRecord(
+            run_id=run_id,
+            site_id=self.config.site_id,
+            commit=commit,
+            owner_id=owner_id,
+            profile="m6-inputs",
+            iteration=1,
+            parent_run_id=None,
+        )
+        local_path = record.write(self.config.local_state_root)
+        self.logger.info(
+            "staging truth-isolated M6 runner inputs",
+            extra={
+                "run_id": run_id,
+                "archive_sha256": archive_sha256,
+                "case_count": case_count,
+                "object_count": object_count,
+            },
+        )
+        remote = self.transport.m6_inputs_stage(
+            [
+                run_id,
+                commit,
+                lock_checksum,
+                owner_id,
+                archive_sha256,
+                str(archive_size),
+                manifest_sha256,
+                str(case_count),
+                str(object_count),
+            ],
+            archive_path,
+        )
+        return {
+            **remote,
+            "operation": "m6-inputs-stage",
+            "run_id": run_id,
+            "site_id": self.config.site_id,
+            "commit": commit,
+            "profile": "m6-inputs",
+            "protocol_id": "m6_independent_prokaryote_homomer_v1",
+            "case_count": case_count,
+            "object_count": object_count,
+            "archive_sha256": archive_sha256,
+            "manifest_sha256": manifest_sha256,
             "local_record": str(local_path),
         }
 

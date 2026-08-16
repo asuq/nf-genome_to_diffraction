@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -21,6 +21,7 @@ MAX_SOURCE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
 MAX_M4_IMPORT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_CONTROL_SLICE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
 MAX_CONTROL_MATRIX_ARCHIVE_BYTES=$((128 * 1024 * 1024))
+MAX_M6_RUNNER_ARCHIVE_BYTES=$((256 * 1024 * 1024))
 MAX_T12_SOURCE_RECORD_BYTES=$((2 * 1024 * 1024))
 
 TOOL_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -1003,6 +1004,7 @@ stage_run_common() {
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == control-slice || "$profile" == control-matrix || \
+          "$profile" == m6-inputs || \
           "$profile" == m4-copy || \
           "$profile" == t12 || \
           "$profile" == database ]]; then
@@ -1825,6 +1827,150 @@ PY
     emit phase staged
 }
 
+m6_inputs_stage_run() {
+    [[ "$#" -eq 9 ]] || \
+        fail wrapper_failure "m6-inputs-stage expects nine fixed arguments"
+    local run_id="$1" commit="$2" lock_sha256="$3" owner_id="$4"
+    local archive_sha256="$5" archive_size="$6" manifest_sha256="$7"
+    local case_count="$8" object_count="$9" run import_archive import_root python
+
+    [[ "$archive_sha256" =~ $CHECKSUM_RE && \
+       "$manifest_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid M6 runner checksum"
+    [[ "$archive_size" =~ $BYTE_COUNT_RE && "$case_count" =~ $INTEGER_RE && \
+       "$object_count" =~ $INTEGER_RE ]] || \
+        fail wrapper_failure "invalid M6 runner size or count"
+    (( archive_size >= 1 && archive_size <= MAX_M6_RUNNER_ARCHIVE_BYTES )) || \
+        fail wrapper_failure "M6 runner archive is outside the fixed limit"
+    [[ "$case_count" -eq 63 && "$object_count" -ge 1 ]] || \
+        fail wrapper_failure "M6 runner inventory is outside the fixed boundary"
+    [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && \
+       "$(head -n 1 "$SITE_CONFIG")" == viper-cpu ]] || \
+        fail environment_failure "m6-inputs-stage requires the fixed Viper site"
+
+    stage_run_common \
+        "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 m6-inputs
+    run="$(run_directory "$run_id")"
+    atomic_text "$run/state/phase" m6_inputs_importing
+    import_archive="$run/m6-runner.tar"
+    head -c "$archive_size" > "$import_archive" || \
+        fail transfer_failure "M6 runner archive transfer failed"
+    [[ "$(file_size "$import_archive")" -eq "$archive_size" && \
+       "$(sha256sum "$import_archive" | awk '{print $1}')" == \
+       "$archive_sha256" ]] || \
+        fail transfer_failure "M6 runner archive changed during transfer"
+
+    import_root="$run/artifacts/m6-runner-inputs"
+    mkdir -m 0700 "$import_root"
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    if ! "$python" - "$import_archive" "$import_root" "$manifest_sha256" \
+        "$case_count" "$object_count" "$MAX_M6_RUNNER_ARCHIVE_BYTES" \
+        > "$run/logs/m6-inputs-stage.log" 2>&1 <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+import tarfile
+
+archive_path = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+expected_manifest_sha256 = sys.argv[3]
+expected_case_count = int(sys.argv[4])
+expected_object_count = int(sys.argv[5])
+maximum_bytes = int(sys.argv[6])
+with tarfile.open(archive_path, "r:") as archive:
+    members = archive.getmembers()
+    names = []
+    total_bytes = 0
+    for member in members:
+        path = pathlib.PurePosixPath(member.name)
+        if path.is_absolute() or ".." in path.parts or not member.isfile():
+            raise SystemExit("unsafe M6 runner archive member")
+        names.append(path.as_posix())
+        total_bytes += member.size
+    if len(names) != len(set(names)):
+        raise SystemExit("duplicate M6 runner archive member")
+    if total_bytes > maximum_bytes:
+        raise SystemExit("M6 runner extraction exceeds the fixed limit")
+    try:
+        manifest_member = archive.getmember("runner_manifest.json")
+    except KeyError as error:
+        raise SystemExit("M6 runner manifest is absent") from error
+    stream = archive.extractfile(manifest_member)
+    if stream is None:
+        raise SystemExit("M6 runner manifest cannot be read")
+    manifest_bytes = stream.read()
+    if hashlib.sha256(manifest_bytes).hexdigest() != expected_manifest_sha256:
+        raise SystemExit("M6 runner manifest checksum changed")
+    manifest = json.loads(manifest_bytes)
+    if manifest.get("schema_version") != "1.0":
+        raise SystemExit("M6 runner manifest schema is invalid")
+    if manifest.get("protocol_id") != "m6_independent_prokaryote_homomer_v1":
+        raise SystemExit("M6 runner protocol identity is invalid")
+    if manifest.get("case_count") != expected_case_count:
+        raise SystemExit("M6 runner case count changed")
+    if manifest.get("object_count") != expected_object_count:
+        raise SystemExit("M6 runner object count changed")
+    cases = manifest.get("cases")
+    objects = manifest.get("objects")
+    if not isinstance(cases, list) or [case.get("case_id") for case in cases] != [
+        f"M6C{index:03d}" for index in range(1, 64)
+    ]:
+        raise SystemExit("M6 runner case matrix is invalid")
+    if not isinstance(objects, dict) or len(objects) != expected_object_count:
+        raise SystemExit("M6 runner object inventory is invalid")
+    expected_names = {"runner_manifest.json"} | {
+        f"objects/{digest}" for digest in objects
+    }
+    if set(names) != expected_names:
+        raise SystemExit("M6 runner archive inventory differs")
+    for digest, record in objects.items():
+        if (
+            not isinstance(record, dict)
+            or record.get("sha256") != digest
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise SystemExit("M6 runner object record is invalid")
+        member = archive.getmember(f"objects/{digest}")
+        stream = archive.extractfile(member)
+        if stream is None:
+            raise SystemExit("M6 runner object cannot be read")
+        payload = stream.read()
+        if len(payload) != record.get("size_bytes"):
+            raise SystemExit("M6 runner object size changed")
+        if hashlib.sha256(payload).hexdigest() != digest:
+            raise SystemExit("M6 runner object checksum changed")
+    archive.extractall(destination, members=members, filter="data")
+
+for path in destination.rglob("*"):
+    if path.is_symlink():
+        raise SystemExit("extracted M6 runner contains a symlink")
+PY
+    then
+        atomic_text "$run/state/phase" stage_failed
+        atomic_text "$run/state/failure-class" wrapper_failure
+        append_event "$run" m6_inputs_import_failed
+        fail wrapper_failure "M6 runner validation or extraction failed"
+    fi
+    rm -f -- "$import_archive"
+    atomic_text "$run/state/m6-runner-archive-sha256" "$archive_sha256"
+    atomic_text "$run/state/m6-runner-manifest-sha256" "$manifest_sha256"
+    atomic_text "$run/state/m6-runner-case-count" "$case_count"
+    atomic_text "$run/state/m6-runner-object-count" "$object_count"
+    atomic_text "$run/state/phase" staged
+    append_event "$run" m6_inputs_ready
+    emit operation m6-inputs-stage
+    emit run_id "$run_id"
+    emit site_id viper-cpu
+    emit protocol_id m6_independent_prokaryote_homomer_v1
+    emit case_count "$case_count"
+    emit object_count "$object_count"
+    emit archive_sha256 "$archive_sha256"
+    emit manifest_sha256 "$manifest_sha256"
+    emit phase staged
+}
+
 m4_import_stage_run() {
     [[ "$#" -eq 9 ]] || \
         fail wrapper_failure "m4-import-stage expects nine fixed arguments"
@@ -2013,6 +2159,10 @@ submit_run() {
     if [[ "$profile" == control-matrix ]]; then
         cpus=8
         memory=32G
+    fi
+    if [[ "$profile" == m6-inputs ]]; then
+        cpus=1
+        memory=4G
     fi
     [[ "$profile" != p0 ]] || walltime=24:00:00
     if [[ "$profile" == p1 || "$profile" == p2 || \
@@ -2478,6 +2628,10 @@ collect_run() {
         state/control-matrix-archive-sha256 \
         state/control-matrix-manifest-sha256 \
         state/control-matrix-case-count \
+        state/m6-runner-archive-sha256 \
+        state/m6-runner-manifest-sha256 \
+        state/m6-runner-case-count \
+        state/m6-runner-object-count \
         state/failure-class \
         state/exit-code \
         logs/git-fetch.log \
@@ -2492,6 +2646,8 @@ collect_run() {
         logs/control-slice.log \
         logs/control-matrix-stage.log \
         logs/control-matrix.log \
+        logs/m6-inputs-stage.log \
+        logs/m6-inputs.log \
         logs/database-source-stage.log \
         logs/sbatch.err \
         logs/smoke.log \
@@ -2614,6 +2770,8 @@ collect_run() {
         artifacts/qualification/control-matrix-checksums.sha256 \
         artifacts/qualification/control-matrix-phenix-verification.log \
         artifacts/qualification/control-matrix-log-tails.txt \
+        artifacts/qualification/m6-input-qualification.json \
+        artifacts/qualification/m6-input-checksums.sha256 \
         artifacts/qualification/p2-control-first-pipeline-info/report.html \
         artifacts/qualification/p2-control-first-pipeline-info/timeline.html \
         artifacts/qualification/p2-control-first-pipeline-info/trace.tsv \
@@ -2625,6 +2783,7 @@ collect_run() {
         artifacts/qualification/m4-copy-input-checksums.sha256 \
         artifacts/control-slice-inputs/control_slice_import_manifest.json \
         artifacts/control-matrix-inputs/control_matrix_import_manifest.json \
+        artifacts/m6-runner-inputs/runner_manifest.json \
         artifacts/qualification/m4-copy-summary.json \
         artifacts/qualification/m4-copy-results.jsonl \
         artifacts/qualification/m4-copy-series-summaries.jsonl \
@@ -3320,6 +3479,7 @@ main() {
         m4-import-stage) m4_import_stage_run "$@" ;;
         control-slice-stage) control_slice_stage_run "$@" ;;
         control-matrix-stage) control_matrix_stage_run "$@" ;;
+        m6-inputs-stage) m6_inputs_stage_run "$@" ;;
         t12-stage) t12_stage_run "$@" ;;
         database-stage) database_stage_run "$@" ;;
         submit) submit_run "$@" ;;

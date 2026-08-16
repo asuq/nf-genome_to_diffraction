@@ -71,6 +71,19 @@ pixi run --locked genome-to-diffraction benchmark check-m6-protocol \
   --protocol benchmarks/m6/protocol.yaml
 ```
 
+Trusted source preparation verifies the frozen RCSB and RefSeq files, strips
+coordinate and catalogue identifiers from runner-visible inputs, and keeps the
+private truth map outside the runner bundle:
+
+```bash
+pixi run --locked genome-to-diffraction benchmark prepare-m6-inputs \
+  --protocol benchmarks/m6/protocol.yaml \
+  --rcsb-root .untracked/m6/public-rcsb \
+  --catalogue-root .untracked/m6/refseq-core \
+  --catalogue-root .untracked/m6/refseq-assumptions \
+  --outdir .untracked/m6/prepared
+```
+
 Runner construction requires a local preparation manifest whose 63 cases each
 provide a checksum-fixed catalogue, MTZ, and analysis configuration. Optional
 model-policy or fault-control objects carry only runner-visible behaviour:
@@ -87,6 +100,35 @@ The output is `runner_manifest.json`, a content-addressed `objects/` directory,
 and a deterministic archive. The runner-archive SHA-256 is its cache key.
 Changed protocol bytes, input bytes, model policy, Phenix manifest, database
 manifest, or parameters must invalidate the applicable cache identity.
+
+Runner-side qualification has no truth input. It validates all 63 opaque
+cases, every content-addressed object, FASTA/MTZ/JSON media contract,
+observation-column states, and the retain-all/annotation-only policy:
+
+```bash
+pixi run --locked genome-to-diffraction benchmark verify-m6-runner \
+  --runner-root .untracked/m6/runner \
+  --report .untracked/m6/input-qualification.json
+```
+
+The reviewed Viper qualification profile streams only an explicitly confirmed
+archive below `.untracked/`, revalidates it on both sides of the transfer, and
+requests one CPU and 4 GB because it performs no search or Phenix work:
+
+```bash
+nf-gtd-hpc-test --no-progress m6-inputs-stage \
+  --revision HEAD \
+  --archive .untracked/m6/runner.tar \
+  --confirm-archive-sha256 ARCHIVE_SHA256
+nf-gtd-hpc-test --no-progress submit m6-inputs --run-id RUN_ID
+```
+
+This qualification run is pre-execution evidence and is not one of the two
+scientific run IDs in the final M6 evidence contract. The opaque catalogues do
+not expose RefSeq accessions, so AFDB accession lookup is disabled in this
+benchmark bundle; PDB-sequence and local ProstT5/Foldseek discovery remain the
+enabled model routes, and the leakage transition applies to every enabled
+route.
 
 Truth-side evaluation:
 

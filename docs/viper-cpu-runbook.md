@@ -236,6 +236,31 @@ to its expected count and applies T12 to every packed positive. The package is
 an operational same-structure test and makes no leakage-controlled
 generalisation claim.
 
+## M6 truth-isolated input qualification
+
+Before either approved M6 scientific stage, transfer and revalidate the
+checksum-fixed opaque runner archive through the dedicated profile. The archive
+must be below the repository's ignored `.untracked/` directory, and the caller
+must repeat its SHA-256 explicitly:
+
+```bash
+nf-gtd-hpc-test --no-progress deploy-tools --revision HEAD
+nf-gtd-hpc-test --no-progress m6-inputs-stage \
+  --revision HEAD \
+  --archive .untracked/m6-runner-candidate.tar \
+  --confirm-archive-sha256 ARCHIVE_SHA256
+nf-gtd-hpc-test --no-progress submit m6-inputs --run-id RUN_ID
+nf-gtd-hpc-test --no-progress status --run-id RUN_ID
+nf-gtd-hpc-test --no-progress logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test --no-progress collect --run-id RUN_ID
+```
+
+This input-only job uses one CPU, 4 GB, and the default 45-minute scheduler
+ceiling. It parses the complete 63-case FASTA/MTZ/JSON bundle but does not run
+Phenix, search databases, evaluate truth, or count as either final M6
+scientific run. The later scientific profiles retain the approved 8-CPU,
+16-GB, at-most-four-Phenix-attempt, 24-hour boundaries.
+
 ## Database track
 
 ```bash

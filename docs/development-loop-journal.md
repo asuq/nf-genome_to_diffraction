@@ -6776,3 +6776,79 @@ commit; do not create a documentation-only CI cycle.
 
 Run `git status --short`, inspect the full diff and `git diff --check`, stage
 only this coherent M5-evidence/M6-contract increment, and create one commit.
+
+## 2026-08-16T23:39:01Z - Real M6 inputs and runner qualification ready
+
+### Discoveries
+
+- The frozen 8AI1 structure-factor file contains two reflection blocks but
+  exactly one block with usable observations. The trusted preparer now accepts
+  only that guarded form and still fails unless exactly one observed-data block
+  resolves.
+- Several public files expose equal-priority observation pairs with identical
+  value/sigma arrays. The preflight now selects the deterministic first pair,
+  records `equivalent_observation_arrays`, and preserves review status; unequal
+  pairs remain the existing fail-closed `ambiguous_observation_arrays` state.
+- RefSeq accessions cannot remain in the runner without breaking truth
+  isolation. The benchmark therefore disables accession-keyed AFDB exact
+  lookup, while retaining PDB-sequence and local ProstT5/Foldseek as its
+  enabled discovery routes. This makes operational recovery stricter and does
+  not weaken the all-enabled-route leakage boundary.
+
+### Accomplishments
+
+- Added the offline trusted M6 preparer. It verifies every frozen source size
+  and checksum, sanitises MTZ metadata, replaces catalogue identifiers with
+  opaque locus hashes, creates all predeclared catalogue/MTZ/fault variants,
+  and keeps `private_truth_map.json` outside the runner archive.
+- Added a truthless runner verifier for exactly 63 opaque cases. It rechecks
+  the content-addressed inventory, FASTA/MTZ/JSON contracts, typed observation
+  states, and the retain-all/LLG-TFZ-annotation-only policy.
+- Added the reviewed Viper `m6-inputs` staging and qualification profile. It
+  accepts only an explicitly SHA-confirmed archive below `.untracked`, repeats
+  local and remote checksum/media validation, and requests only one CPU and
+  4 GB because it performs no search or Phenix execution.
+- The preceding protocol commit
+  `a4e811508141e7b6f154b92e08a787c0b16f49e1` passed GitHub Actions run
+  `31977442031` with Pixi 0.76.2. The deployed dispatcher, job-wrapper, and
+  recovery SHA-256 values were respectively
+  `69e4959eb9ce3bcc3ff287b7e92db67425fd5b76004c9303f3e10b02cc2e0e5d`,
+  `6d679a06a14f80fb68432fac38b16606486ae00d4b83bfe563adedc5de0a50a7`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- Focused parser/M6/HPC/dispatcher coverage passed 156 tests. One complete
+  `pixi run --locked check` then passed formatting, lint, strict typing, 419
+  unit tests, 57 contract tests, 49 integration tests, schemas, public-panel
+  validation, documentation links, actionlint, Nextflow syntax/stubs, and all
+  reviewed Bash syntax checks.
+
+### Immutable evidence
+
+- The real truth-isolated candidate archive contains exactly 63 cases and 64
+  unique objects. Its size is 146,780,160 bytes; archive SHA-256 is
+  `91ea40f332e6d188567d0a437115c95547ebfb59b43f63bc95cd02ebb0b22f7c`;
+  runner-manifest SHA-256 is
+  `19b52d32cab618e04a504760b252371df62c8f58a8a233a0c23eebbd13ae9e38`.
+- Local qualification verified all 64 objects and 100% retain-all policy. It
+  observed 60 cases with selected observations and three deliberately typed
+  no-selection cases: the two map-only controls and one conflicting-column
+  control. No private truth map or public accession/PDB truth token entered the
+  archive.
+
+### Unresolved work
+
+- Commit and deploy this coherent preparer/verifier/profile milestone, then run
+  the small Viper input qualification. It is pre-execution evidence and must
+  not be counted as either final M6 scientific run ID.
+- Implement and execute the two approved 8-CPU/16-GB scientific stages with a
+  trusted all-route model-exclusion transition and truthless downstream
+  runner. Collect both immutable results, join truth only after checksums are
+  fixed, evaluate every predeclared gate, and issue an explicit accept/hold
+  internal-release decision. Do not substitute unknown operator crystals or
+  revisit 7L6G.
+
+### Next exact starting point
+
+Run `git status --short`, inspect `git diff --check` and the complete diff,
+stage only this M6 real-input/qualification milestone, and create one coherent
+commit. Push once, watch one GitHub Actions run, deploy the reviewed tools, and
+stage the confirmed archive with `m6-inputs-stage`.
