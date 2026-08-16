@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -19,6 +19,7 @@ MAX_REVIEW_TOTAL_BYTES=$((512 * 1024 * 1024))
 MAX_P0_INPUT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_SOURCE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
 MAX_M4_IMPORT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
+MAX_CONTROL_SLICE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
 MAX_T12_SOURCE_RECORD_BYTES=$((2 * 1024 * 1024))
 
 TOOL_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -1000,7 +1001,8 @@ stage_run_common() {
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
-          "$profile" == m4-copy || "$profile" == t12 || \
+          "$profile" == control-slice || "$profile" == m4-copy || \
+          "$profile" == t12 || \
           "$profile" == database ]]; then
         if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
             --manifest-path "$run/source/pixi.toml" \
@@ -1022,7 +1024,8 @@ stage_run_common() {
         }
         if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
               "$profile" == p2-diverse || "$profile" == p2-control || \
-              "$profile" == m4-copy || "$profile" == t12 ]]; then
+              "$profile" == control-slice || "$profile" == m4-copy || \
+              "$profile" == t12 ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
             java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
             mmseqs="$run/source/.pixi/envs/hpc/bin/mmseqs"
@@ -1531,6 +1534,145 @@ t12_stage_run() {
     emit phase staged
 }
 
+control_slice_stage_run() {
+    [[ "$#" -eq 8 ]] || \
+        fail wrapper_failure "control-slice-stage expects eight fixed arguments"
+    local run_id="$1" commit="$2" lock_sha256="$3" owner_id="$4"
+    local archive_sha256="$5" archive_size="$6" manifest_sha256="$7"
+    local case_count="$8" run import_archive import_root python phenix_manifest
+
+    [[ "$archive_sha256" =~ $CHECKSUM_RE && \
+       "$manifest_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid control-slice checksum"
+    [[ "$archive_size" =~ $BYTE_COUNT_RE && "$case_count" =~ $INTEGER_RE ]] || \
+        fail wrapper_failure "invalid control-slice size or case count"
+    (( archive_size >= 1 && archive_size <= MAX_CONTROL_SLICE_ARCHIVE_BYTES )) || \
+        fail wrapper_failure "control-slice archive is outside the fixed limit"
+    [[ "$case_count" -eq 6 ]] || \
+        fail wrapper_failure "control-slice must contain exactly six cases"
+    [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && \
+       "$(head -n 1 "$SITE_CONFIG")" == viper-cpu ]] || \
+        fail environment_failure "control-slice-stage requires the fixed Viper site"
+    phenix_manifest="$(sed -n '7p' "$SITE_CONFIG")"
+    [[ "$phenix_manifest" =~ $SAFE_PATH_RE && -f "$phenix_manifest" && \
+       ! -L "$phenix_manifest" ]] || \
+        fail environment_failure "fixed Viper Phenix manifest is unavailable"
+
+    stage_run_common \
+        "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 control-slice
+    run="$(run_directory "$run_id")"
+    atomic_text "$run/state/phase" control_slice_importing
+    import_archive="$run/control-slice.tar.gz"
+    head -c "$archive_size" > "$import_archive" || \
+        fail transfer_failure "control-slice archive transfer failed"
+    [[ "$(file_size "$import_archive")" -eq "$archive_size" && \
+       "$(sha256sum "$import_archive" | awk '{print $1}')" == \
+       "$archive_sha256" ]] || \
+        fail transfer_failure "control-slice archive changed during transfer"
+
+    import_root="$run/artifacts/control-slice-inputs"
+    mkdir -m 0700 "$import_root"
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    if ! "$python" - "$import_archive" "$import_root" "$manifest_sha256" \
+        > "$run/logs/control-slice-stage.log" 2>&1 <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+import tarfile
+
+archive_path = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+expected_manifest_sha256 = sys.argv[3]
+expected_cases = [
+    "POS_1JCF",
+    "POS_3W45",
+    "NEG_MODEL_3W45_6HF7",
+    "NEG_ABSENT_3W45",
+    "NEG_CATALOGUE_3W45_1JCF",
+    "NEG_ASSUMPTION_6CXH",
+]
+expected_assets = {
+    "controls/NEG_MODEL_3W45_6HF7/model.pdb",
+    "controls/PDB_1JCF/input.mtz",
+    "controls/PDB_1JCF/models/pdb_1jce_chain_a_exact.pdb",
+    "controls/PDB_1JCF/models/pdb_8azg_chain_m_homolog.pdb",
+    "controls/PDB_1JCF/proteome.faa",
+    "controls/PDB_3W45/input.mtz",
+    "controls/PDB_3W45/models/pdb_3t91_chain_a_homolog.pdb",
+    "controls/PDB_3W45/models/pdb_3w43_chain_a_exact.pdb",
+    "controls/PDB_3W45/proteome.faa",
+}
+with tarfile.open(archive_path, "r:gz") as archive:
+    members = archive.getmembers()
+    names = []
+    for member in members:
+        path = pathlib.PurePosixPath(member.name)
+        if path.is_absolute() or ".." in path.parts or not member.isfile():
+            raise SystemExit("unsafe control-slice archive member")
+        names.append(path.as_posix())
+    if len(names) != len(set(names)):
+        raise SystemExit("duplicate control-slice archive member")
+    expected_names = expected_assets | {"control_slice_import_manifest.json"}
+    if set(names) != expected_names:
+        raise SystemExit("control-slice archive inventory differs from fixed slice")
+    archive.extractall(destination, members=members, filter="data")
+
+manifest_path = destination / "control_slice_import_manifest.json"
+manifest_bytes = manifest_path.read_bytes()
+if hashlib.sha256(manifest_bytes).hexdigest() != expected_manifest_sha256:
+    raise SystemExit("control-slice manifest checksum changed")
+manifest = json.loads(manifest_bytes)
+if manifest.get("schema_version") != "1.0":
+    raise SystemExit("control-slice manifest schema is invalid")
+if manifest.get("adapter_version") != "public-homomer-smoke-import-v1":
+    raise SystemExit("control-slice adapter version is invalid")
+if manifest.get("site_id") != "viper-cpu":
+    raise SystemExit("control-slice site is invalid")
+if manifest.get("slice_id") != "prokaryote_homomer_smoke_v1":
+    raise SystemExit("control-slice identity is invalid")
+if manifest.get("case_ids") != expected_cases:
+    raise SystemExit("control-slice case order is invalid")
+if manifest.get("all_candidates_retained") is not True:
+    raise SystemExit("control-slice retention policy is invalid")
+inventory = manifest.get("inventory")
+if not isinstance(inventory, dict) or set(inventory) != expected_assets:
+    raise SystemExit("control-slice checksum inventory is invalid")
+for relative, record in inventory.items():
+    path = destination / relative
+    if path.is_symlink() or not path.is_file() or not isinstance(record, dict):
+        raise SystemExit("control-slice asset is absent or unsafe")
+    payload = path.read_bytes()
+    if hashlib.sha256(payload).hexdigest() != record.get("sha256"):
+        raise SystemExit("control-slice asset checksum changed")
+    if len(payload) != record.get("size_bytes"):
+        raise SystemExit("control-slice asset size changed")
+PY
+    then
+        atomic_text "$run/state/phase" stage_failed
+        atomic_text "$run/state/failure-class" wrapper_failure
+        append_event "$run" control_slice_import_failed
+        fail wrapper_failure "control-slice validation or extraction failed"
+    fi
+    rm -f -- "$import_archive"
+    atomic_text "$run/state/control-slice-archive-sha256" "$archive_sha256"
+    atomic_text "$run/state/control-slice-manifest-sha256" "$manifest_sha256"
+    atomic_text "$run/state/control-slice-case-count" "$case_count"
+    atomic_text "$run/state/phenix-manifest" "$phenix_manifest"
+    atomic_text "$run/state/phenix-manifest-sha256" \
+        "$(sha256sum "$phenix_manifest" | awk '{print $1}')"
+    atomic_text "$run/state/phase" staged
+    append_event "$run" control_slice_inputs_ready
+    emit operation control-slice-stage
+    emit run_id "$run_id"
+    emit site_id viper-cpu
+    emit slice_id prokaryote_homomer_smoke_v1
+    emit case_count "$case_count"
+    emit archive_sha256 "$archive_sha256"
+    emit manifest_sha256 "$manifest_sha256"
+    emit phase staged
+}
+
 m4_import_stage_run() {
     [[ "$#" -eq 9 ]] || \
         fail wrapper_failure "m4-import-stage expects nine fixed arguments"
@@ -1712,10 +1854,15 @@ submit_run() {
     walltime=00:45:00
     cpus=2
     memory=8G
+    if [[ "$profile" == control-slice ]]; then
+        cpus=8
+        memory=32G
+    fi
     [[ "$profile" != p0 ]] || walltime=24:00:00
     if [[ "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
-          "$profile" == m4-copy || "$profile" == t12 ]]; then
+          "$profile" == control-slice || "$profile" == m4-copy || \
+          "$profile" == t12 ]]; then
         walltime=24:00:00
     fi
 
@@ -2168,6 +2315,9 @@ collect_run() {
         state/p1-login-prefetch.sha256 \
         state/p2-diverse-login-stage.sha256 \
         state/p2-control-login-stage.sha256 \
+        state/control-slice-archive-sha256 \
+        state/control-slice-manifest-sha256 \
+        state/control-slice-case-count \
         state/failure-class \
         state/exit-code \
         logs/git-fetch.log \
@@ -2178,6 +2328,8 @@ collect_run() {
         logs/p2-control-login-stage.log \
         logs/m4-copy-stage.log \
         logs/m4-import-stage.log \
+        logs/control-slice-stage.log \
+        logs/control-slice.log \
         logs/database-source-stage.log \
         logs/sbatch.err \
         logs/smoke.log \
@@ -2283,6 +2435,14 @@ collect_run() {
         artifacts/qualification/p2-control-log-tails.txt \
         artifacts/qualification/p2-control-resume-check.json \
         artifacts/qualification/p2-control-phenix-verification.log \
+        artifacts/qualification/control-slice-summary.json \
+        artifacts/qualification/control-slice-case-results.jsonl \
+        artifacts/qualification/control-slice-first-copy-results.jsonl \
+        artifacts/qualification/control-slice-copy-two-results.jsonl \
+        artifacts/qualification/control-slice-refinement-results.jsonl \
+        artifacts/qualification/control-slice-sequence-results.jsonl \
+        artifacts/qualification/control-slice-checksums.sha256 \
+        artifacts/qualification/control-slice-phenix-verification.log \
         artifacts/qualification/p2-control-first-pipeline-info/report.html \
         artifacts/qualification/p2-control-first-pipeline-info/timeline.html \
         artifacts/qualification/p2-control-first-pipeline-info/trace.tsv \
@@ -2292,6 +2452,7 @@ collect_run() {
         artifacts/qualification/p2-control-resume-pipeline-info/trace.tsv \
         artifacts/qualification/p2-control-resume-pipeline-info/dag.html \
         artifacts/qualification/m4-copy-input-checksums.sha256 \
+        artifacts/control-slice-inputs/control_slice_import_manifest.json \
         artifacts/qualification/m4-copy-summary.json \
         artifacts/qualification/m4-copy-results.jsonl \
         artifacts/qualification/m4-copy-series-summaries.jsonl \
@@ -2985,6 +3146,7 @@ main() {
         stage-archive) stage_archive_run "$@" ;;
         m4-copy-stage) m4_copy_stage_run "$@" ;;
         m4-import-stage) m4_import_stage_run "$@" ;;
+        control-slice-stage) control_slice_stage_run "$@" ;;
         t12-stage) t12_stage_run "$@" ;;
         database-stage) database_stage_run "$@" ;;
         submit) submit_run "$@" ;;

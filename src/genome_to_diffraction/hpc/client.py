@@ -24,6 +24,7 @@ from typing import Protocol
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import atomic_write_text, sha256_file
+from genome_to_diffraction.hpc.control_slice import build_fixed_control_slice_bundle
 from genome_to_diffraction.hpc.m4_import import build_fixed_m4_import_bundle
 from genome_to_diffraction.hpc.models import (
     COMMIT_PATTERN,
@@ -100,13 +101,14 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/p2.log",
         "logs/p2-diverse.log",
         "logs/p2-control.log",
+        "logs/control-slice.log",
         "logs/m4-copy.log",
         "logs/t12.log",
         "logs/database.log",
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -264,6 +266,13 @@ class TextTransport(Protocol):
         archive_path: Path,
     ) -> dict[str, str]:
         """Stream the one fixed checksum-gated cross-site M4 archive."""
+
+    def control_slice_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream the fixed six-case prokaryotic control archive."""
 
     def t12_stage(
         self,
@@ -869,6 +878,45 @@ class SshTransport:
             )
         return fields
 
+    def control_slice_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream the bounded six-case control archive to Viper."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("control-slice-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote control-slice staging exceeded the fixed transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote control-slice staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote control-slice staging returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
     def t12_stage(
         self,
         arguments: Sequence[str],
@@ -1245,6 +1293,72 @@ class HpcController:
             "local_record": str(local_path),
         }
 
+    def control_slice_stage(self, revision: str) -> dict[str, object]:
+        """Stage the fixed six-case truth-labelled control slice on Viper."""
+
+        if self.config.site_id != "viper-cpu":
+            raise ValidationError("control-slice-stage is available only for viper-cpu")
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+        run_id = f"gtd-control-slice-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
+        owner_id = secrets.token_hex(16)
+        validate_run_id(run_id)
+        lock_checksum = sha256_file(self.config.repository / "pixi.lock")
+        record = LocalRunRecord(
+            run_id=run_id,
+            site_id=self.config.site_id,
+            commit=commit,
+            owner_id=owner_id,
+            profile="control-slice",
+            iteration=1,
+            parent_run_id=None,
+        )
+        local_path = record.write(self.config.local_state_root)
+        with tempfile.TemporaryDirectory(
+            prefix="nf-gtd-control-slice-", dir="/tmp"
+        ) as temporary:
+            bundle = build_fixed_control_slice_bundle(
+                self.config.repository,
+                Path(temporary) / "control-slice.tar.gz",
+                progress=self.progress,
+            )
+            self.logger.info(
+                "staging fixed prokaryotic control slice",
+                extra={
+                    "run_id": run_id,
+                    "archive_sha256": bundle.archive_sha256,
+                    "case_count": bundle.case_count,
+                },
+            )
+            remote = self.transport.control_slice_stage(
+                [
+                    run_id,
+                    commit,
+                    lock_checksum,
+                    owner_id,
+                    bundle.archive_sha256,
+                    str(bundle.archive_size_bytes),
+                    bundle.manifest_sha256,
+                    str(bundle.case_count),
+                ],
+                bundle.archive,
+            )
+        return {
+            **remote,
+            "operation": "control-slice-stage",
+            "run_id": run_id,
+            "site_id": self.config.site_id,
+            "commit": commit,
+            "profile": "control-slice",
+            "slice_id": "prokaryote_homomer_smoke_v1",
+            "case_count": bundle.case_count,
+            "archive_sha256": bundle.archive_sha256,
+            "manifest_sha256": bundle.manifest_sha256,
+            "local_record": str(local_path),
+        }
+
     def t12_stage(self, revision: str, parent_run_id: str) -> dict[str, object]:
         """Stage all retained copy-two parents plus the fixed source crosswalk."""
 
@@ -1599,7 +1713,14 @@ class HpcController:
                     else (
                         P2_EXECUTION_TIMEOUT_SECONDS
                         if record.profile
-                        in {"p2", "p2-diverse", "p2-control", "m4-copy", "t12"}
+                        in {
+                            "p2",
+                            "p2-diverse",
+                            "p2-control",
+                            "control-slice",
+                            "m4-copy",
+                            "t12",
+                        }
                         else self.config.execution_timeout_seconds
                     )
                 )

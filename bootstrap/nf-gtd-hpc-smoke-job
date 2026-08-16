@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -155,6 +155,9 @@ finalise() {
     elif [[ "$PROFILE" == p2-control ]]; then
         reports_json='["artifacts/qualification/p2-control-summary.json","artifacts/qualification/p2-control-resume-check.json"]'
         retained_json='["artifacts/p2-control","artifacts/qualification"]'
+    elif [[ "$PROFILE" == control-slice ]]; then
+        reports_json='["artifacts/qualification/control-slice-summary.json","artifacts/qualification/control-slice-case-results.jsonl","artifacts/qualification/control-slice-first-copy-results.jsonl","artifacts/qualification/control-slice-copy-two-results.jsonl","artifacts/qualification/control-slice-refinement-results.jsonl","artifacts/qualification/control-slice-sequence-results.jsonl"]'
+        retained_json='["artifacts/control-slice-inputs","artifacts/control-slice","artifacts/qualification"]'
     elif [[ "$PROFILE" == m4-copy ]]; then
         reports_json='["artifacts/qualification/m4-copy-summary.json","artifacts/qualification/m4-copy-resume-check.json"]'
         retained_json='["artifacts/m4-copy-inputs","artifacts/m4-copy","artifacts/qualification"]'
@@ -1620,6 +1623,66 @@ EOF
     printf 'p2_control_status=both_retained_and_positive_outranks_unrelated_negative\n'
 }
 
+run_control_slice() {
+    local qualification="$RUN/artifacts/qualification"
+    local import_root="$RUN/artifacts/control-slice-inputs"
+    local output="$RUN/artifacts/control-slice"
+    local phenix_manifest expected_phenix_sha
+
+    mkdir -p "$qualification" "$output"
+    cd "$RUN/source"
+    [[ -f "$RUN/state/hpc-environment-status" && \
+        "$(<"$RUN/state/hpc-environment-status")" == ready ]] || return 2
+    [[ -f "$RUN/state/phenix-manifest" && \
+       -f "$RUN/state/phenix-manifest-sha256" ]] || return 2
+    phenix_manifest="$(<"$RUN/state/phenix-manifest")"
+    expected_phenix_sha="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$phenix_manifest" =~ $SAFE_PATH_RE && -f "$phenix_manifest" && \
+       ! -L "$phenix_manifest" && "$expected_phenix_sha" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$phenix_manifest" | awk '{print $1}')" == \
+       "$expected_phenix_sha" ]] || return 2
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    [[ -x "$GTD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    [[ "${SLURM_CPUS_PER_TASK:-0}" == 8 ]] || return 2
+
+    PHASE=test
+    printf 'phase=control_slice_phenix_verify profile=control-slice\n'
+    "$GTD" --log-format json --no-progress phenix verify \
+        --manifest "$phenix_manifest" \
+        --verification-log "$qualification/control-slice-phenix-verification.log" \
+        --no-command-timeout
+    printf 'phase=control_slice_real_run profile=control-slice case_count=6\n'
+    "$GTD" --log-format json --no-progress benchmark run-control-slice \
+        --import-root "$import_root" \
+        --phenix-manifest "$phenix_manifest" \
+        --outdir "$output" \
+        --threads "${SLURM_CPUS_PER_TASK:-8}"
+    cp "$output/control_slice_summary.json" \
+        "$qualification/control-slice-summary.json"
+    cp "$output/control_slice_case_results.jsonl" \
+        "$qualification/control-slice-case-results.jsonl"
+    cp "$output/first_copy_results.jsonl" \
+        "$qualification/control-slice-first-copy-results.jsonl"
+    cp "$output/copy_two_results.jsonl" \
+        "$qualification/control-slice-copy-two-results.jsonl"
+    cp "$output/refinement_results.jsonl" \
+        "$qualification/control-slice-refinement-results.jsonl"
+    cp "$output/sequence_results.jsonl" \
+        "$qualification/control-slice-sequence-results.jsonl"
+    sha256sum \
+        "$qualification/control-slice-summary.json" \
+        "$qualification/control-slice-case-results.jsonl" \
+        "$qualification/control-slice-first-copy-results.jsonl" \
+        "$qualification/control-slice-copy-two-results.jsonl" \
+        "$qualification/control-slice-refinement-results.jsonl" \
+        "$qualification/control-slice-sequence-results.jsonl" \
+        "$phenix_manifest" \
+        "$import_root/control_slice_import_manifest.json" \
+        > "$qualification/control-slice-checksums.sha256"
+    printf 'control_slice_status=real_phenix_attempt_complete\n'
+}
+
 run_m4_copy_nextflow() {
     local label="$1"
     shift
@@ -2152,6 +2215,7 @@ case "$PROFILE" in
     p2) run_p2 ;;
     p2-diverse) run_p2_diverse ;;
     p2-control) run_p2_control ;;
+    control-slice) run_control_slice ;;
     m4-copy) run_m4_copy ;;
     t12) run_t12 ;;
     database) run_database ;;

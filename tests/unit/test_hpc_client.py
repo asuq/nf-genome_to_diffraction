@@ -75,6 +75,7 @@ class FakeTransport:
     calls: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     p0_archive: bytes = b""
     m4_import_archive: bytes = b""
+    control_slice_archive: bytes = b""
     deploy_error: RemoteOperationError | None = None
     stage_error: RemoteOperationError | None = None
 
@@ -204,6 +205,16 @@ class FakeTransport:
         self.calls.append(("m4-import-stage", tuple(arguments)))
         self.m4_import_archive = archive_path.read_bytes()
         return {"run_id": arguments[0], "remote_operation": "m4-import-stage"}
+
+    def control_slice_stage(
+        self, arguments: Sequence[str], archive_path: Path
+    ) -> dict[str, str]:
+        self.calls.append(("control-slice-stage", tuple(arguments)))
+        self.control_slice_archive = archive_path.read_bytes()
+        return {
+            "run_id": arguments[0],
+            "remote_operation": "control-slice-stage",
+        }
 
     def t12_stage(
         self, arguments: Sequence[str], source_records_path: Path
@@ -957,6 +968,50 @@ def test_t12_stage_uses_fixed_crosswalk_and_owned_viper_parent(
     assert operation == "t12-stage"
     assert arguments[5] == parent_run_id
     assert arguments[7] == hashlib.sha256(source_records.read_bytes()).hexdigest()
+    assert all("/" not in argument for argument in arguments)
+
+
+def test_control_slice_stage_streams_only_fixed_viper_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from genome_to_diffraction.hpc.control_slice import ControlSliceBundle
+
+    payload = b"fixed six-case archive"
+
+    def build_bundle(
+        repository: Path, destination: Path, *, progress: bool
+    ) -> ControlSliceBundle:
+        assert repository == tmp_path
+        assert progress is False
+        destination.write_bytes(payload)
+        return ControlSliceBundle(
+            archive=destination,
+            archive_sha256=hashlib.sha256(payload).hexdigest(),
+            archive_size_bytes=len(payload),
+            manifest_sha256="7" * 64,
+            case_count=6,
+        )
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client.build_fixed_control_slice_bundle",
+        build_bundle,
+    )
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id="viper-cpu")
+
+    result = controller.control_slice_stage("HEAD")
+
+    assert result["profile"] == "control-slice"
+    assert result["slice_id"] == "prokaryote_homomer_smoke_v1"
+    assert result["case_count"] == 6
+    assert transport.control_slice_archive == payload
+    operation, arguments = transport.calls[-1]
+    assert operation == "control-slice-stage"
+    assert arguments[4] == hashlib.sha256(payload).hexdigest()
+    assert arguments[5] == str(len(payload))
+    assert arguments[6] == "7" * 64
+    assert arguments[7] == "6"
     assert all("/" not in argument for argument in arguments)
 
 

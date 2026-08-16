@@ -96,6 +96,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "p2",
             "p2-diverse",
             "p2-control",
+            "control-slice",
             "m4-copy",
             "t12",
         ),
@@ -140,6 +141,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="stage the fixed collected Marmic P2 handoff as a Viper M4 run",
     )
     m4_import.add_argument("--revision", required=True)
+
+    control_slice_stage = actions.add_parser(
+        "control-slice-stage",
+        help="stage the fixed six-case prokaryotic Viper control slice",
+    )
+    control_slice_stage.add_argument("--revision", required=True)
 
     t12_stage = actions.add_parser(
         "t12-stage",
@@ -188,6 +195,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         )
     if args.operation == "m4-import-stage":
         return controller.m4_import_stage(args.revision)
+    if args.operation == "control-slice-stage":
+        return controller.control_slice_stage(args.revision)
     if args.operation == "t12-stage":
         return controller.t12_stage(args.revision, args.parent_run)
     if args.operation == "submit":

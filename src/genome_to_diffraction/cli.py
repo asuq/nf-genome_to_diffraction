@@ -17,6 +17,10 @@ from genome_to_diffraction.benchmarks import (
     prepare_public_control,
     prepare_public_control_panel,
 )
+from genome_to_diffraction.benchmarks.control_slice_run import (
+    ControlSliceRunRequest,
+    run_control_slice,
+)
 from genome_to_diffraction.catalogue import CatalogueImportRequest, import_catalogues
 from genome_to_diffraction.checksums import atomic_write_text
 from genome_to_diffraction.databases.preflight import (
@@ -447,6 +451,14 @@ def _build_parser() -> argparse.ArgumentParser:
     control_bundle_parser.add_argument("--sequence-groups", type=Path, required=True)
     control_bundle_parser.add_argument("--preflight", type=Path, required=True)
     control_bundle_parser.add_argument("--outdir", type=Path, required=True)
+    control_slice_parser = benchmark_actions.add_parser(
+        "run-control-slice",
+        help="execute the fixed six-case Viper Phenix control slice",
+    )
+    control_slice_parser.add_argument("--import-root", type=Path, required=True)
+    control_slice_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    control_slice_parser.add_argument("--outdir", type=Path, required=True)
+    control_slice_parser.add_argument("--threads", type=int, default=8)
     panel_check_parser = benchmark_actions.add_parser(
         "check-public-panel",
         help="validate the tracked public panel and active control mappings",
@@ -1223,6 +1235,22 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         print(
             f"Prepared first-copy controls {control_bundle.control_pair_id}: "
             f"{control_bundle.manifest_json}"
+        )
+        return 0
+    if args.benchmark_action == "run-control-slice":
+        result = run_control_slice(
+            ControlSliceRunRequest(
+                import_root=args.import_root,
+                phenix_manifest=args.phenix_manifest,
+                output_directory=args.outdir,
+                threads=args.threads,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Executed six-case control slice with "
+            f"{result.first_copy_attempt_count} first-copy attempts: "
+            f"{result.summary_json}"
         )
         return 0
     if args.benchmark_action == "check-public-panel":

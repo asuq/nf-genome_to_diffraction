@@ -194,6 +194,9 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert "databases stage-sources" in dispatcher_text
     assert "database-source-stage.log" in dispatcher_text
     assert "logs/m4-import-stage.log" in dispatcher_text
+    assert "logs/control-slice-stage.log" in dispatcher_text
+    assert "control_slice_import_manifest.json" in dispatcher_text
+    assert "control-slice-stage requires the fixed Viper site" in dispatcher_text
     m4_body = job.split("run_m4_copy() {", maxsplit=1)[1].split(
         "run_database() {", maxsplit=1
     )[0]

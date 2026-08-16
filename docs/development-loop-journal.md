@@ -5077,3 +5077,193 @@ Implement the fixed local evidence archive and site-isolated Viper stage for
 first-copy, sequential-copy, and brief-refinement adapters. Accept no arbitrary
 case list or data root, retain every model outcome, and keep 6CXH as a typed
 `ASU = nA` abstention rather than a reconstruction target.
+
+## 2026-08-16T09:48:25Z - Fixed six-case import archive implemented
+
+### Discoveries
+
+- The six-case execution boundary needs only the two frozen positive-control
+  proteomes and MTZ files, their exact and homolog models, and one unrelated
+  6HF7 chain-A model. The target-absent, wrong-catalogue, and 6CXH abstention
+  cases can be derived from this fixed inventory without transferring a general
+  catalogue or exposing caller-selected paths.
+- The independently cleaned 6HF7 chain-A polymer contains 191 observed
+  residues and 1,498 atoms. Its deterministic model SHA-256 is
+  `2ef5d135307a6a54d7dfce07abe63c9cf20d04cb648fd09b12d19fb4f34e98de`.
+- GitHub Actions run `31939333747` closed the preceding runnable-control
+  milestone successfully under both supported Pixi releases. This closure is
+  carried here rather than creating a documentation-only follow-up commit.
+
+### Accomplishments
+
+- Added a fixed, regular-file-only, checksum-inventoried control-slice archive
+  builder. It accepts no case list or evidence root, validates the tracked
+  panel/suite/slice identity, verifies every frozen input checksum, and records
+  the derivation semantics for all six cases.
+- Added focused tests for the archive inventory, unsafe member paths, and
+  symlink rejection. The focused control tests pass 19/19 and project `ty`
+  type checking passes.
+- Built the real local archive from the frozen evidence cache. The 2,177,558
+  byte archive contains six cases and has SHA-256
+  `2cf8dea23e3c825bb6f7bf590058b7ffbdce291ba80b508418448c38e2f027b7`;
+  its embedded import-manifest SHA-256 is
+  `d974536ed6b8168ada0498662575522119ba7924258f0f7d9e92516f87b7b46b`.
+
+### Immutable evidence
+
+- The builder revalidated the 1JCF and 3W45 proteomes, MTZ files, and all four
+  exact/homolog model checksums before creating the archive.
+- The unrelated-model derivation is anchored to 6HF7 coordinate SHA-256
+  `14abeb9760258361183bee3505693ef5d69c366506cc08f77d2ae55ca405e109`
+  and observed-sequence SHA-256
+  `01647f27a2bdd08feff355166b37a6789aadbd556e82c3e4825bad39bfdab7a7`.
+
+### Unresolved work
+
+- Add the Viper controller and remote-dispatcher operation that accepts this
+  fixed bounded archive, validates and stages it under one immutable run, and
+  exposes no arbitrary source or destination paths.
+- Add the smallest six-case scheduled execution/report boundary, then run one
+  complete locked gate, one commit/push, one CI watch, and one real Viper run.
+  Do not expand to the 23-case matrix before this slice is accepted.
+
+### Next exact starting point
+
+Add `control-slice-stage` to the reviewed local controller and Viper remote
+dispatcher, streaming only the fixed archive produced by
+`build_fixed_control_slice_bundle`; validate its six case IDs and complete
+checksum inventory before marking the immutable run staged.
+
+## 2026-08-16T10:03:01Z - Viper six-case stage boundary closed locally
+
+### Discoveries
+
+- The normal scientific `stage` operation is the wrong interface for the
+  control slice because it would expose a profile without binding its evidence.
+  A dedicated operation can instead create the immutable source checkout and
+  accept exactly one bounded archive on standard input.
+- The nine transferred scientific assets are sufficient for the five real
+  first-copy Phaser attempts: exact and homolog models for both positives plus
+  the unrelated 6HF7 model against 3W45. Target-absent, wrong-catalogue, and
+  assumption-violation outcomes remain fixed derivations rather than redundant
+  structure searches.
+
+### Accomplishments
+
+- Added `control-slice-stage` to the controller and CLI with no case, evidence
+  root, source, or destination arguments. It is Viper-only and creates a
+  site-tagged `gtd-control-slice-*` run record.
+- Added the remote import boundary. It validates the exact six ordered case
+  IDs, exact nine-asset archive inventory, embedded-manifest checksum, every
+  asset checksum and size, fixed retention policy, regular-file status, and
+  path containment before changing the run phase to `staged`.
+- Kept submission closed until the scientific execution body exists; both the
+  local controller and remote dispatcher reject a `control-slice` submission
+  rather than allowing a false successful no-op.
+
+### Immutable evidence
+
+- The focused archive/controller/CLI/policy/public-control suite passes 84/84.
+  Project `ty` type checking passes, and all three reviewed HPC shell scripts
+  pass `bash -n`.
+- Collection now includes the small stage manifest, stage log, case count, and
+  archive/manifest identities without collecting the transferred model or MTZ
+  payloads.
+
+### Unresolved work
+
+- Implement the minimal scheduled execution body: prepare the fixed first-copy
+  contracts, run the five real Phenix attempts, retain every parsed outcome,
+  derive the target-absent/wrong-catalogue/6CXH typed cases, and continue the
+  best-supported 3W45 parents through copy two and T12.
+- Only after that body and its focused tests are complete should the repository
+  run one full locked gate, create one coherent commit, push once, and watch CI
+  once before deploying and staging on Viper.
+
+### Next exact starting point
+
+Add one fixed control-slice runtime preparer that consumes only the validated
+`artifacts/control-slice-inputs` tree and the configured Phenix manifest. Emit
+the two MTZ preflights, target sequence groups, processed-model registry, and
+five first-copy hypotheses needed by a small scheduled workflow; do not add a
+general benchmark-runner abstraction.
+
+### Compaction-safe roadmap invariant
+
+- The five first-copy Phaser attempts are only the execution-bearing portion
+  of the six-case smoke slice: exact and homolog models for 1JCF and 3W45, plus
+  the unrelated 6HF7 model against 3W45. `NEG_ABSENT_3W45` must remain a typed
+  target-absent boundary outcome, and `NEG_ASSUMPTION_6CXH` must remain an
+  `ASU = nA` abstention; neither may be converted into a fabricated MR search.
+- Acceptance of this smoke slice immediately unlocks expansion of the same
+  fixed boundary to the already defined 23-case matrix: **11 positives, seven
+  wrong-model controls, two target-absent controls, two wrong-catalogue
+  controls, and one heteromeric assumption-violation/abstention case**.
+- The 23-case expansion is part of the active single-component prototype goal,
+  not optional follow-up polish. Context compaction must not narrow the goal to
+  the six-case slice. Retain every candidate and use LLG/TFZ for ranking only.
+- The six-case slice validates only one- and two-copy mechanics and must never
+  be described as general multi-copy validation. The 23-case matrix must
+  execute its truth-labelled positive controls across ASU copy counts 1, 2, 3,
+  4, and 6, including 7P50/6HF7 (three), 8Q5T (four), and 7L6G (six), and must
+  assess retention against the expected count rather than first-copy success.
+- User-confirmed terminal scope: continue development through implementation
+  and real Viper execution of the complete 23-case matrix. A successful
+  six-case Slurm run is an intermediate feedback gate and must be followed by
+  the 23-case fixed archive, execution, evidence collection, and correction
+  loop; it is not completion of the active goal.
+
+## 2026-08-16T10:27:36Z - Six-case real-Phenix execution boundary ready
+
+### Discoveries
+
+- The five real first-copy searches are the exact and homolog models for 1JCF
+  and 3W45 plus the unrelated 6HF7 model against 3W45. The target-absent and
+  6CXH cases are identity/assumption boundaries and must not fabricate Phaser
+  work merely to increase the search count.
+- Gemmi reports modified residues such as selenomethionine with a lower-case
+  one-letter code. Canonical upper-case normalisation is required before the
+  sequence-derived mass contract can assess an experimental search model.
+- The six-case slice covers expected ASU counts one and two only. The frozen
+  23-case matrix provides the required higher-copy controls at counts three,
+  four, and six; smoke success cannot be claimed as multi-copy validation.
+
+### Accomplishments
+
+- Implemented the fixed Viper runtime for five real first-copy Phenix attempts,
+  all supported 3W45 copy-two transitions, and T12 refinement/sequence
+  assessment of every supported copy-two child. First-copy, copy-two,
+  refinement, sequence, and six typed case records are retained separately.
+- A truth-labelled two-copy positive now requires a supported second copy; a
+  packed first copy alone is insufficient. Candidate retention and the policy
+  that LLG/TFZ are ranking annotations only remain explicit.
+- Added the checksum-gated site-isolated stage, 8-CPU/32-GB/24-hour submit
+  profile, bounded collection inventory, and focused scientific regression for
+  modified-residue sequence normalisation.
+
+### Immutable evidence
+
+- The current fixed archive has six cases, nine scientific assets, size
+  2,177,793 bytes, archive SHA-256
+  `3526f819ec3e69b16afd2fe444f6f6bc0b4b099d067cdfc9293e086a2c1dd892`,
+  and manifest SHA-256
+  `3bf849dc6fb1516c6a9c52599a1d2f71c0e718859bf8c6868b97a0edaf09e524`.
+- A real-data local preparation proof emitted exactly five hypotheses with
+  expected counts 1, 1, 2, 2, and 2. The complete locked gate passes 387 unit,
+  57 contract, and 47 integration tests plus formatting, Ruff, `ty`, schemas,
+  public-panel, docs, Actions, Nextflow syntax/stub, and HPC wrapper checks.
+
+### Unresolved work
+
+- Commit and publish this coherent boundary once, deploy checksum-reviewed
+  tools, stage and submit the six-case Viper run, then monitor and correct only
+  evidence-backed failures through its next Slurm attempt.
+- After smoke acceptance, implement and execute the complete fixed 23-case
+  matrix. Its positive acceptance must exercise expected ASU counts 1/2/3/4/6;
+  all 11 positives and every negative/abstention case remain in scope.
+
+### Next exact starting point
+
+Inspect the staged diff, create the focused execution-boundary commit, push and
+watch one GitHub Actions run, then deploy, run `control-slice-stage`, submit the
+returned immutable run ID, and attach the 30-minute monitor to that run.
