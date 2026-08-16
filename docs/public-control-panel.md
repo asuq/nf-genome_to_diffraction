@@ -1,8 +1,9 @@
-# Public methanogen and methanotroph X-ray control panel
+# Public prokaryotic X-ray control panel
 
 ## Purpose and current status
 
-The version-1 panel freezes ten public X-ray structures for prototype testing.
+The version-2 panel freezes twelve public prokaryotic X-ray structures for
+prototype testing.
 It is intended to test catalogue-to-construct mapping, MTZ ingestion, Matthews
 copy-number hypotheses, model selection, and eventually molecular replacement.
 It does **not** validate raw-image integration: all reflections are deposited,
@@ -15,7 +16,7 @@ The panel currently contains:
 
 - three `runnable_control` entries with full catalogue, exact-model, homolog-model,
   source, and MTZ preparation specifications;
-- six `source_qualified` single-component entries with verified public sources,
+- eight `source_qualified` single-component entries with verified public sources,
   deterministic MTZ ground truth, and exact catalogue/construct mappings; and
 - one `assumption_violation` entry that the current `ASU = nA` prototype must not
   report as a successful single-component solution.
@@ -38,16 +39,18 @@ after execution with the licensed Phenix runtime.
 | [7L6G](https://www.rcsb.org/structure/7L6G) | Methanotroph | *M. trichosporium* MbnP | `6A` | `WP_003614734.1` residues 26–324 | Source-qualified |
 | [8JPV](https://www.rcsb.org/structure/8JPV) | Methanotroph | *Methylacidiphilum fumariolicum* GluRS | `A` | Full GenBank `CCG91288.1` | Source-qualified |
 | [2Q7E](https://www.rcsb.org/structure/2Q7E) | Methanogen | *Methanosarcina mazei* PylRS catalytic domain | `A` | `WP_011033391.1` residues 185–454 after a 21-aa prefix | Source-qualified |
+| [1JCF](https://www.rcsb.org/structure/1JCF) | Bacterium | *Thermotoga maritima* MreB | `A` | Full `WP_010865154.1` followed by an 8-aa tag | Source-qualified |
+| [3W45](https://www.rcsb.org/structure/3W45) | Bacterium | *Bacillus subtilis* RsbX | `2A` | Full `NP_388355.1` | Source-qualified |
 | [6CXH](https://www.rcsb.org/structure/6CXH) | Methanotroph | *Methylotuvimicrobium alcaliphilum* pMMO | `ABC` | Three exact full-length RefSeq proteins | Assumption violation |
 
-This is a ten-structure panel, not ten independent biological replicates. Public
+This is a twelve-structure panel, not twelve independent biological replicates. Public
 entries can share study-specific preparation, model, beamline, and deposition
 effects. The panel is therefore a feasibility and regression suite rather than a
 statistically representative performance benchmark.
 
 ## Why these cases were retained
 
-- The nine positives contain one protein species in the crystallographic ASU,
+- The eleven positives contain one protein species in the crystallographic ASU,
   with copy counts from one to six. They therefore exercise the approved
   `ASU = nA` model without implying that the biological assembly equals the ASU.
 - 8OOX, 7P50, and 8Q5T were reduced with autoPROC, which matches the expected
@@ -60,6 +63,9 @@ statistically representative performance benchmark.
 - 7L6G includes a kynurenine modification. The catalogue sequence remains the
   identity source, while the coordinate model records the experimental chemical
   state.
+- 1JCF and 3W45 add non-methanotroph bacterial controls with exact RefSeq
+  mappings. They test a tagged single-copy target and an exact full-length
+  two-copy target, respectively.
 - 6CXH is an `A3B3C3` membrane complex and its deposited structure-factor CIF has
   two reflection blocks. It is a negative contract test for both the current
   single-component scope and unsafe silent reflection-block selection.
@@ -87,13 +93,13 @@ For non-interactive automation, place the global option before the subcommand:
 pixi run genome-to-diffraction --no-progress \
   benchmark prepare-public-panel \
   --panel benchmarks/public-controls/panel.yaml \
-  --outdir .untracked/public-controls/panel-v1
+  --outdir .untracked/public-controls/panel-v2
 ```
 
 To prohibit network access and revalidate an existing cache, add `--offline`.
 Every source is accepted only if its exact byte count and SHA-256 match the panel.
 Writes are atomic, each entry receives a preparation record, and the aggregate
-record is `.untracked/public-controls/panel-v1/preparation.json`.
+record is `.untracked/public-controls/panel-v2/preparation.json`.
 
 The preparation command contacts `files.rcsb.org` only for missing public PDB IDs.
 No biological sample, private MTZ, credential, or catalogue sequence is submitted.
@@ -127,6 +133,27 @@ chains, catalogue/crystal manifests, and checksum-rich provenance. It fails if a
 construct is incorrectly equated with a full protein, if an exact-sequence
 catalogue group changes, or if Gemmi conversion output drifts.
 
+## Positive and negative execution matrix
+
+[`homomer_workflow_cases.yaml`](../benchmarks/public-controls/homomer_workflow_cases.yaml)
+turns the source panel into a truth-labelled workflow suite:
+
+- eleven positive cases require the correct catalogue sequence and known ASU
+  copy count to remain available for review;
+- seven wrong-model controls use unrelated prokaryotic proteins matched within
+  25% of the target construct length;
+- two target-absent cases remove the exact target from the otherwise correct
+  catalogue;
+- two wrong-catalogue cases pair diffraction data with an independently frozen
+  prokaryotic proteome; and
+- 6CXH remains a known heteromeric assumption-violation control.
+
+The negatives do not impose a hidden score cutoff. A wrong model may remain in
+the review package or even cross the provisional score annotation, but it must
+not displace the truth-labelled positive. Target-absent and wrong-catalogue
+cases must produce no reportable catalogue identity. This distinction tests
+safe interpretation rather than rewarding aggressive candidate deletion.
+
 ## Interpretation and deferred work
 
 - The public positives establish that a known `ASU = nA` answer is present. They
@@ -153,7 +180,9 @@ assembly packages: [GCF_000711905.1](https://www.ncbi.nlm.nih.gov/datasets/genom
 [GCF_000178815.2](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000178815.2/),
 [GCF_000007065.1](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000007065.1/),
 [GCA_000297415.1](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_000297415.1/),
-and [GCF_000968535.2](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000968535.2/).
+[GCF_000968535.2](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000968535.2/),
+[GCF_000008545.1](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000008545.1/),
+and [GCF_000009045.1](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000009045.1/).
 The exact release identifiers and proteome SHA-256 values are recorded in the
 panel rather than inferred from organism names.
 

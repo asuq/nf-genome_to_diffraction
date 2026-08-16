@@ -144,10 +144,11 @@ All notable changes to this project are documented here.
 - The immutable HPC controller builder now canonicalises archive order,
   timestamps, permissions, and compression, producing the same SHA-256 for
   repeated builds from identical source and the same locked interpreter path.
-- A ten-structure public methanogen/methanotroph X-ray panel now freezes exact
-  RCSB and NCBI provenance, catalogue-to-construct mappings, deterministic MTZ
-  derivation, three fully preparable controls, and one deliberate heteromer
-  assumption violation, with structured logging and bounded progress reporting.
+- A twelve-structure public prokaryotic X-ray panel now freezes exact RCSB and
+  NCBI provenance, catalogue-to-construct mappings, deterministic MTZ
+  derivation, three fully preparable controls, eleven truth-labelled positives,
+  a negative execution matrix, and one deliberate heteromer assumption
+  violation, with structured logging and bounded progress reporting.
 - The pilot Matthews retention cap is now four rather than three. Real 8OOX
   Task 05 and Phenix 2.1-6048 reference runs independently place its known
   two-copy, high-solvent ASU hypothesis fourth, so this is a bounded execution

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from genome_to_diffraction.benchmarks.panel import (
     PublicControlPanelSpec,
     PublicPanelPreparationRequest,
+    load_homomer_workflow_suite,
     load_public_control_panel,
     prepare_public_control_panel,
 )
@@ -31,18 +32,29 @@ def _yaml_document(path: Path) -> dict[str, object]:
     return document
 
 
-def test_tracked_panel_has_ten_diverse_entries_and_three_runnable_controls() -> None:
+def test_tracked_panel_has_twelve_diverse_entries_and_balanced_workflow_suite() -> None:
     panel = load_public_control_panel(CONTROL_ROOT / "panel.yaml")
+    suite = load_homomer_workflow_suite(CONTROL_ROOT / panel.workflow_suite, panel)
 
-    assert len(panel.entries) == 10
+    assert len(panel.entries) == 12
     assert {entry.metabolic_group for entry in panel.entries} == {
         "methanogen",
         "methanotroph",
+        "other_prokaryote",
     }
     assert (
         sum(entry.qualification_status == "runnable_control" for entry in panel.entries)
         == 3
     )
+    assert sum(case.case_kind == "positive" for case in suite.cases) == 11
+    assert sum(case.case_kind == "wrong_model_negative" for case in suite.cases) == 7
+    assert {case.case_kind for case in suite.cases} == {
+        "positive",
+        "wrong_model_negative",
+        "target_absent_negative",
+        "wrong_catalogue_negative",
+        "assumption_violation",
+    }
     violation = next(entry for entry in panel.entries if entry.pdb_id == "6CXH")
     assert violation.expected_prototype_outcome == "assumption_violation"
     assert violation.asu_distinct_protein_species == 3
@@ -111,6 +123,57 @@ def test_panel_rejects_unsafe_active_specification_path() -> None:
         PublicControlPanelSpec.model_validate(document)
 
 
+def test_workflow_suite_rejects_missing_positive_case(tmp_path: Path) -> None:
+    panel = PublicControlPanelSpec.model_validate(
+        _yaml_document(CONTROL_ROOT / "panel.yaml")
+    )
+    document = _yaml_document(CONTROL_ROOT / "homomer_workflow_cases.yaml")
+    cases = document["cases"]
+    if not isinstance(cases, list):
+        raise AssertionError("cases must be a list")
+    document["cases"] = [case for case in cases if case["case_id"] != "POS_3W45"]
+    path = tmp_path / "suite.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    with pytest.raises(PublicControlError, match="one positive case"):
+        load_homomer_workflow_suite(path, panel)
+
+
+def test_workflow_suite_rejects_duplicate_positive_case(tmp_path: Path) -> None:
+    panel = PublicControlPanelSpec.model_validate(
+        _yaml_document(CONTROL_ROOT / "panel.yaml")
+    )
+    document = _yaml_document(CONTROL_ROOT / "homomer_workflow_cases.yaml")
+    cases = document["cases"]
+    if not isinstance(cases, list):
+        raise AssertionError("cases must be a list")
+    duplicate = dict(next(case for case in cases if case["case_id"] == "POS_3W45"))
+    duplicate["case_id"] = "POS_3W45_DUPLICATE"
+    cases.append(duplicate)
+    path = tmp_path / "suite.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    with pytest.raises(PublicControlError, match="one positive case"):
+        load_homomer_workflow_suite(path, panel)
+
+
+def test_workflow_suite_rejects_size_mismatched_wrong_model(tmp_path: Path) -> None:
+    panel = PublicControlPanelSpec.model_validate(
+        _yaml_document(CONTROL_ROOT / "panel.yaml")
+    )
+    document = _yaml_document(CONTROL_ROOT / "homomer_workflow_cases.yaml")
+    cases = document["cases"]
+    if not isinstance(cases, list):
+        raise AssertionError("cases must be a list")
+    case = next(item for item in cases if item["case_id"] == "NEG_MODEL_8OOX_8JPV")
+    case["model_control_id"] = "PDB_7P50"
+    path = tmp_path / "suite.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    with pytest.raises(PublicControlError, match="not size matched"):
+        load_homomer_workflow_suite(path, panel)
+
+
 def test_offline_panel_preparation_fails_loudly_and_logs_context(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -143,4 +206,4 @@ def test_cli_checks_panel_successfully(capsys: pytest.CaptureFixture[str]) -> No
         )
         == 0
     )
-    assert "10 entries" in capsys.readouterr().out
+    assert "12 entries" in capsys.readouterr().out

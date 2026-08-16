@@ -1,0 +1,146 @@
+schema_version: "1.0"
+suite_id: prokaryote_homomer_workflow_v1
+panel_id: prokaryote_public_xray_v2
+frozen_at: 2026-08-16T00:00:00Z
+interpretation_policy:
+  - Positive cases require retention of the truth-labelled catalogue sequence and known ASU copy count; top-one identity is not required.
+  - A wrong-model negative may remain inspectable or even cross the provisional score annotation, but it must not displace the matched positive ground truth.
+  - Target-absent and wrong-catalogue controls must never convert an external coordinate hit into a reportable identity.
+  - The known heteromer is an abstention control for ASU=nA, not a heteromer-reconstruction target.
+  - This operational suite includes public exact structures and must not be reported as leakage-controlled generalisation evidence.
+cases:
+  - case_id: POS_8OOX
+    case_kind: positive
+    target_control_id: PDB_8OOX
+    expected_outcome: ground_truth_retained
+    purpose: Full-length 442-residue archaeal target with two ASU copies and autoPROC/STARANISO reflections.
+  - case_id: POS_7P50
+    case_kind: positive
+    target_control_id: PDB_7P50
+    expected_outcome: ground_truth_retained
+    purpose: Small affinity-tagged archaeal target with three ASU copies and a close paralogue.
+  - case_id: POS_8Q5T
+    case_kind: positive
+    target_control_id: PDB_8Q5T
+    expected_outcome: ground_truth_retained
+    purpose: Full-length iron-sulfur protein with four ASU copies and autoPROC reflections.
+  - case_id: POS_6HF7
+    case_kind: positive
+    target_control_id: PDB_6HF7
+    expected_outcome: ground_truth_retained
+    purpose: Full-length archaeal adenylate kinase with three ASU copies and bound crystallophore.
+  - case_id: POS_6P1F
+    case_kind: positive
+    target_control_id: PDB_6P1F
+    expected_outcome: ground_truth_retained
+    purpose: Monomeric internal domain of a longer bacterial precursor.
+  - case_id: POS_5FJE
+    case_kind: positive
+    target_control_id: PDB_5FJE
+    expected_outcome: ground_truth_retained
+    purpose: Mature copper-storage protein fragment with two ASU copies.
+  - case_id: POS_7L6G
+    case_kind: positive
+    target_control_id: PDB_7L6G
+    expected_outcome: ground_truth_retained
+    purpose: Six-copy ASU with a mature precursor fragment and a modified tryptophan.
+  - case_id: POS_8JPV
+    case_kind: positive
+    target_control_id: PDB_8JPV
+    expected_outcome: ground_truth_retained
+    purpose: Full-length 448-residue bacterial enzyme with one ASU copy.
+  - case_id: POS_2Q7E
+    case_kind: positive
+    target_control_id: PDB_2Q7E
+    expected_outcome: ground_truth_retained
+    purpose: Monomeric catalytic domain embedded in a substantially longer catalogue protein.
+  - case_id: POS_1JCF
+    case_kind: positive
+    target_control_id: PDB_1JCF
+    expected_outcome: ground_truth_retained
+    purpose: Full-length bacterial MreB monomer followed by an explicit C-terminal affinity tag.
+  - case_id: POS_3W45
+    case_kind: positive
+    target_control_id: PDB_3W45
+    expected_outcome: ground_truth_retained
+    purpose: Exact full-length bacterial RsbX with two independent ASU copies in a triclinic cell.
+
+  - case_id: NEG_MODEL_8OOX_8JPV
+    case_kind: wrong_model_negative
+    target_control_id: PDB_8OOX
+    model_control_id: PDB_8JPV
+    model_chain_id: A
+    expected_outcome: must_not_displace_ground_truth
+    purpose: Size-matched unrelated 448-residue bacterial enzyme against the 442-residue archaeal target.
+  - case_id: NEG_MODEL_7P50_6P1F
+    case_kind: wrong_model_negative
+    target_control_id: PDB_7P50
+    model_control_id: PDB_6P1F
+    model_chain_id: A
+    expected_outcome: must_not_displace_ground_truth
+    purpose: Size-matched unrelated 131-residue copper-binding domain against the 132-residue GlnK2 construct.
+  - case_id: NEG_MODEL_6P1F_7P50
+    case_kind: wrong_model_negative
+    target_control_id: PDB_6P1F
+    model_control_id: PDB_7P50
+    model_chain_id: A
+    expected_outcome: must_not_displace_ground_truth
+    purpose: Reciprocal size-matched unrelated GlnK2 model against the PCuAC-domain target.
+  - case_id: NEG_MODEL_8Q5T_7L6G
+    case_kind: wrong_model_negative
+    target_control_id: PDB_8Q5T
+    model_control_id: PDB_7L6G
+    model_chain_id: A
+    expected_outcome: must_not_displace_ground_truth
+    purpose: Unrelated 299-residue copper protein against the 284-residue nitrogenase Fe protein.
+  - case_id: NEG_MODEL_2Q7E_8Q5T
+    case_kind: wrong_model_negative
+    target_control_id: PDB_2Q7E
+    model_control_id: PDB_8Q5T
+    model_chain_id: A
+    expected_outcome: must_not_displace_ground_truth
+    purpose: Unrelated 284-residue Fe protein against the 291-residue PylRS construct.
+  - case_id: NEG_MODEL_1JCF_8Q5T
+    case_kind: wrong_model_negative
+    target_control_id: PDB_1JCF
+    model_control_id: PDB_8Q5T
+    model_chain_id: A
+    expected_outcome: must_not_displace_ground_truth
+    purpose: Unrelated 284-residue Fe protein against the 344-residue tagged MreB construct.
+  - case_id: NEG_MODEL_3W45_6HF7
+    case_kind: wrong_model_negative
+    target_control_id: PDB_3W45
+    model_control_id: PDB_6HF7
+    model_chain_id: A
+    expected_outcome: must_not_displace_ground_truth
+    purpose: Size-matched unrelated archaeal adenylate kinase against the 199-residue RsbX target.
+
+  - case_id: NEG_ABSENT_8OOX
+    case_kind: target_absent_negative
+    target_control_id: PDB_8OOX
+    expected_outcome: no_reportable_identity
+    purpose: Remove every exact WP_042685700.1 sequence record while retaining the same diffraction data and model universe.
+  - case_id: NEG_ABSENT_3W45
+    case_kind: target_absent_negative
+    target_control_id: PDB_3W45
+    expected_outcome: no_reportable_identity
+    purpose: Remove every exact NP_388355.1 sequence record while retaining the same diffraction data and model universe.
+
+  - case_id: NEG_CATALOGUE_8OOX_7P50
+    case_kind: wrong_catalogue_negative
+    target_control_id: PDB_8OOX
+    catalogue_control_id: PDB_7P50
+    expected_outcome: no_reportable_identity
+    purpose: Run 8OOX diffraction against the independently frozen Methanothermococcus catalogue without inventing an identity.
+  - case_id: NEG_CATALOGUE_3W45_1JCF
+    case_kind: wrong_catalogue_negative
+    target_control_id: PDB_3W45
+    catalogue_control_id: PDB_1JCF
+    expected_outcome: no_reportable_identity
+    purpose: Run RsbX diffraction against the independently frozen Thermotoga catalogue without inventing an identity.
+
+  - case_id: NEG_ASSUMPTION_6CXH
+    case_kind: assumption_violation
+    target_control_id: PDB_6CXH
+    expected_outcome: assumption_violation_or_abstention
+    purpose: Known PmoABC heteromer must not be reported as a successful ASU=nA reconstruction.

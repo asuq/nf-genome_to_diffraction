@@ -4918,3 +4918,61 @@ T13.1/T13.2 and begin the immutable three-dataset pilot.
 
 Finish the focused T12/T12.5 implementation and tests, then run
 `pixi run --locked check` before committing the correction milestone.
+
+## 2026-08-16T00:25:07Z - Prokaryotic homomer control panel expanded
+
+### Discoveries
+
+- Restricting the truth-labelled panel to methanogens and methanotrophs was not
+  scientifically necessary for the single-protein-species workflow. Public
+  prokaryotic proteins are suitable when the deposited reflections, catalogue
+  sequence, construct mapping, and ASU composition are independently frozen.
+- The existing panel already supplied nine `ASU = nA` positives spanning one to
+  six ASU copies. Two bacterial structures add useful independent cases without
+  proliferating controls: tagged single-copy MreB (1JCF) and exact full-length
+  two-copy RsbX (3W45).
+- A negative result needs an explicit truth condition. An unrelated model may
+  remain inspectable and must not displace ground truth, whereas a target-absent
+  or wrong-catalogue run must not invent a reportable catalogue identity.
+
+### Accomplishments
+
+- Expanded the source panel to 12 structures: 11 positive single-protein-species
+  ASUs and the retained 6CXH heteromeric assumption-violation control.
+- Added a versioned 23-case workflow matrix containing all 11 positives, seven
+  size-matched unrelated-model controls, two target-absent controls, two
+  wrong-catalogue controls, and the heteromeric abstention case. Every positive
+  must occur exactly once and all alternatives remain reviewable.
+- Downloaded and checksum-verified the public coordinate and structure-factor
+  sources, derived deterministic Gemmi 0.7.5 MTZ files, and confirmed that all
+  12 prepared entries revalidate without network access.
+
+### Immutable evidence
+
+- The tracked panel and workflow-suite SHA-256 values are
+  `80fed6487cbeee190e2ae09053147669a40f4cc10708dbde179cc5fbdf14b8ba`
+  and `ebfc3a1c710596b712ed76ff9f13fc438db0a2de1aa60cca51011cf5241e868d`.
+- The new 1JCF and 3W45 MTZ SHA-256 values are
+  `5ffad9350783b19dec15e5cc46ea71966f46753f898f953191960f37d5eede2f`
+  and `9f984c3c3211d801d49c7cf3ab144ab73f3490de8ad09e6a305e85ab365cbfc6`.
+- `pixi run --locked check` passed with 374 unit, 57 contract, and 47
+  integration tests plus formatting, lint, `ty`, schemas, documentation,
+  Actions, Nextflow syntax/stub/resume, public-panel, and shell-wrapper checks.
+  The focused final invariant test then passed 13/13 public-control tests.
+
+### Unresolved work
+
+- The eight source-qualified positives still require independent exact/homolog
+  model selection and licensed-Phenix execution before promotion to runnable
+  controls. Start with 1JCF and 3W45 rather than launching all 23 scenarios at
+  once.
+- These public structures are operational controls, not leakage-controlled
+  evidence of generalisation. CD6 remains a separate unknown-composition
+  challenge and must not substitute for a truth-labelled positive.
+
+### Next exact starting point
+
+Commit and push this focused panel/matrix increment and require both supported
+Pixi CI jobs to pass. Then prepare the smallest real Viper smoke slice containing
+1JCF and 3W45 positives plus one case from each negative class before expanding
+to the complete 23-case matrix.

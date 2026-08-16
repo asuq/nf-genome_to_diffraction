@@ -60,7 +60,7 @@ class PublicPanelEntrySpec(ContractModel):
     pdb_id: str = Field(pattern=r"^[0-9A-Z]{4}$")
     pdb_version: NonEmptyString
     organism: NonEmptyString
-    metabolic_group: Literal["methanogen", "methanotroph"]
+    metabolic_group: Literal["methanogen", "methanotroph", "other_prokaryote"]
     molecular_system: NonEmptyString
     expected_prototype_outcome: Literal["positive", "assumption_violation"]
     qualification_status: Literal[
@@ -138,8 +138,9 @@ class PublicControlPanelSpec(ContractModel):
     schema_version: Literal["1.0"]
     panel_id: OperatorIdentifier
     frozen_at: UtcTimestamp
+    workflow_suite: str = Field(pattern=r"^[0-9A-Za-z][0-9A-Za-z._-]*\.yaml$")
     selection_policy: tuple[NonEmptyString, ...] = Field(min_length=1)
-    entries: tuple[PublicPanelEntrySpec, ...] = Field(min_length=8, max_length=12)
+    entries: tuple[PublicPanelEntrySpec, ...] = Field(min_length=8, max_length=24)
 
     @model_validator(mode="after")
     def _validate_panel(self) -> Self:
@@ -149,10 +150,10 @@ class PublicControlPanelSpec(ContractModel):
             raise ValueError("panel control IDs must be unique")
         if len(pdb_ids) != len(set(pdb_ids)):
             raise ValueError("panel PDB IDs must be unique")
-        if {entry.metabolic_group for entry in self.entries} != {
+        if not {
             "methanogen",
             "methanotroph",
-        }:
+        } <= {entry.metabolic_group for entry in self.entries}:
             raise ValueError("panel must include methanogens and methanotrophs")
         if not any(
             entry.expected_prototype_outcome == "assumption_violation"
@@ -168,6 +169,176 @@ class PublicControlPanelSpec(ContractModel):
         ):
             raise ValueError("panel must contain at least three runnable controls")
         return self
+
+
+class HomomerWorkflowCaseSpec(ContractModel):
+    """One truth-labelled positive or negative workflow scenario."""
+
+    case_id: OperatorIdentifier
+    case_kind: Literal[
+        "positive",
+        "wrong_model_negative",
+        "target_absent_negative",
+        "wrong_catalogue_negative",
+        "assumption_violation",
+    ]
+    target_control_id: OperatorIdentifier
+    model_control_id: OperatorIdentifier | None = None
+    model_chain_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9]+$")
+    catalogue_control_id: OperatorIdentifier | None = None
+    expected_outcome: Literal[
+        "ground_truth_retained",
+        "must_not_displace_ground_truth",
+        "no_reportable_identity",
+        "assumption_violation_or_abstention",
+    ]
+    purpose: NonEmptyString
+
+    @model_validator(mode="after")
+    def _validate_case_shape(self) -> Self:
+        expected = {
+            "positive": "ground_truth_retained",
+            "wrong_model_negative": "must_not_displace_ground_truth",
+            "target_absent_negative": "no_reportable_identity",
+            "wrong_catalogue_negative": "no_reportable_identity",
+            "assumption_violation": "assumption_violation_or_abstention",
+        }
+        if self.expected_outcome != expected[self.case_kind]:
+            raise ValueError("case kind and expected outcome disagree")
+        model_fields = (self.model_control_id, self.model_chain_id)
+        if self.case_kind == "wrong_model_negative":
+            if None in model_fields or self.catalogue_control_id is not None:
+                raise ValueError("wrong-model case requires only model source fields")
+        elif model_fields != (None, None):
+            raise ValueError("only wrong-model cases may name a model source")
+        if self.case_kind == "wrong_catalogue_negative":
+            if self.catalogue_control_id is None:
+                raise ValueError("wrong-catalogue case lacks a catalogue source")
+        elif self.catalogue_control_id is not None:
+            raise ValueError("only wrong-catalogue cases may name a catalogue source")
+        return self
+
+
+class HomomerWorkflowSuiteSpec(ContractModel):
+    """Balanced execution matrix for the single-protein-species workflow."""
+
+    schema_version: Literal["1.0"]
+    suite_id: OperatorIdentifier
+    panel_id: OperatorIdentifier
+    frozen_at: UtcTimestamp
+    interpretation_policy: tuple[NonEmptyString, ...] = Field(min_length=1)
+    cases: tuple[HomomerWorkflowCaseSpec, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_case_ids(self) -> Self:
+        case_ids = [case.case_id for case in self.cases]
+        if len(case_ids) != len(set(case_ids)):
+            raise ValueError("workflow case IDs must be unique")
+        return self
+
+
+def load_homomer_workflow_suite(
+    path: Path, panel: PublicControlPanelSpec
+) -> HomomerWorkflowSuiteSpec:
+    """Load the workflow matrix and verify every reference against the panel."""
+
+    resolved = path.resolve(strict=True)
+    try:
+        payload = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+        suite = HomomerWorkflowSuiteSpec.model_validate(payload)
+    except (OSError, ValueError, yaml.YAMLError) as error:
+        raise PublicControlError(
+            f"invalid homomer workflow suite {resolved}: {error}"
+        ) from error
+    if suite.panel_id != panel.panel_id:
+        raise PublicControlError("workflow suite and public panel IDs disagree")
+
+    entries = {entry.control_id: entry for entry in panel.entries}
+    positive_ids = {
+        entry.control_id
+        for entry in panel.entries
+        if entry.expected_prototype_outcome == "positive"
+    }
+    positive_cases = [
+        case.target_control_id for case in suite.cases if case.case_kind == "positive"
+    ]
+    if len(positive_cases) != len(positive_ids) or set(positive_cases) != positive_ids:
+        raise PublicControlError(
+            "workflow suite must contain one positive case for every positive entry"
+        )
+
+    observed_kinds: set[str] = set()
+    for case in suite.cases:
+        observed_kinds.add(case.case_kind)
+        target = entries.get(case.target_control_id)
+        if target is None:
+            raise PublicControlError(
+                f"workflow case references unknown target: {case.case_id}"
+            )
+        if case.case_kind == "assumption_violation":
+            if target.expected_prototype_outcome != "assumption_violation":
+                raise PublicControlError(
+                    f"assumption case is not a known violation: {case.case_id}"
+                )
+            continue
+        if target.expected_prototype_outcome != "positive":
+            raise PublicControlError(
+                f"homomer case target is not a positive entry: {case.case_id}"
+            )
+
+        if case.model_control_id is not None:
+            model_source = entries.get(case.model_control_id)
+            if (
+                model_source is None
+                or model_source.expected_prototype_outcome != "positive"
+                or model_source.control_id == target.control_id
+            ):
+                raise PublicControlError(
+                    f"wrong-model source is not an independent positive: {case.case_id}"
+                )
+            target_length = target.catalogue_targets[
+                0
+            ].construct_mapping.coordinate_sequence_length
+            model_length = model_source.catalogue_targets[
+                0
+            ].construct_mapping.coordinate_sequence_length
+            ratio = model_length / target_length
+            if not 0.75 <= ratio <= 1.25:
+                raise PublicControlError(
+                    f"wrong-model control is not size matched: {case.case_id}"
+                )
+            if (
+                model_source.catalogue_targets[0].sequence_sha256
+                == target.catalogue_targets[0].sequence_sha256
+            ):
+                raise PublicControlError(
+                    f"wrong-model control has the target sequence: {case.case_id}"
+                )
+
+        if case.catalogue_control_id is not None:
+            catalogue = entries.get(case.catalogue_control_id)
+            if catalogue is None or catalogue.control_id == target.control_id:
+                raise PublicControlError(
+                    f"wrong-catalogue source is not independent: {case.case_id}"
+                )
+            target_digest = target.catalogue_targets[0].sequence_sha256
+            if target_digest in {
+                item.sequence_sha256 for item in catalogue.catalogue_targets
+            }:
+                raise PublicControlError(
+                    f"wrong catalogue contains the known target: {case.case_id}"
+                )
+
+    required_kinds = {
+        "positive",
+        "wrong_model_negative",
+        "target_absent_negative",
+        "wrong_catalogue_negative",
+        "assumption_violation",
+    }
+    if observed_kinds != required_kinds:
+        raise PublicControlError("workflow suite lacks a required control class")
+    return suite
 
 
 @dataclass(frozen=True)
@@ -228,6 +399,10 @@ def load_public_control_panel(path: Path) -> PublicControlPanelSpec:
                 "panel and active control catalogue mapping disagree: "
                 f"{entry.control_id}"
             )
+    suite_path = (resolved.parent / panel.workflow_suite).resolve(strict=True)
+    if not suite_path.is_relative_to(resolved.parent):
+        raise PublicControlError("workflow suite escaped the public-control root")
+    load_homomer_workflow_suite(suite_path, panel)
     return panel
 
 
@@ -243,7 +418,7 @@ def _reflection_block_count(path: Path) -> int:
 def prepare_public_control_panel(
     request: PublicPanelPreparationRequest,
 ) -> PublicPanelPreparationResult:
-    """Download, verify, and derive the ten public panel datasets outside Git."""
+    """Download, verify, and derive the public panel datasets outside Git."""
 
     if request.storage_limit_bytes < 1 or request.minimum_free_bytes < 0:
         raise ValueError("public-panel storage bounds must be non-negative")
