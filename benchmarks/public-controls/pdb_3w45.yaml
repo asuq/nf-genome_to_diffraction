@@ -1,0 +1,100 @@
+schema_version: "1.0"
+control_id: PDB_3W45
+benchmark_class: operational_public_positive_control
+organism: Bacillus subtilis subsp. subtilis strain 168
+assembly_accession: GCF_000009045.1
+assembly_version: ASM904v1
+annotation_provider: NCBI RefSeq
+annotation_version: GCF_000009045.1-protein.faa-retrieved_2026_08_16
+expected_proteome_sha256: c0b6f56f434d113c4c71ba619f9916dd24eef1834b77bd972e77edd7ea05eec8
+catalogue_id: bacillus_subtilis_gcf_000009045_1_refseq_2026_08_16
+target_protein_id: NP_388355.1
+target_sequence_length: 199
+target_sequence_sha256: d622ee28585539d715df66d104bd686a7e9835d55cf4a57e538ac374b9374a50
+expected_exact_catalogue_records:
+  - NP_388355.1
+target_pdb_id: 3W45
+target_pdb_version: "1.2"
+expected_asu_copy_count: 2
+biological_assembly_copy_count: 1
+asu_model: single_protein_species_multi_copy
+target_construct:
+  coordinate_sequence_length: 199
+  coordinate_sequence_sha256: d622ee28585539d715df66d104bd686a7e9835d55cf4a57e538ac374b9374a50
+  catalogue_start: 1
+  catalogue_end: 199
+  coordinate_match_start: 1
+  coordinate_match_end: 199
+processing_software:
+  - HKL-2000
+sds_page_evidence: not_available
+resources:
+  - role: target_coordinates
+    pdb_id: 3W45
+    url: https://files.rcsb.org/download/3W45.cif
+    filename: 3W45.cif
+    sha256: 8a4a9321ada240cc7c4dd1a017ccfbf8bcb0cb5a38599b0d993a3c7a1805e6f3
+    size_bytes: 404041
+  - role: target_structure_factors
+    pdb_id: 3W45
+    url: https://files.rcsb.org/download/3W45-sf.cif
+    filename: 3W45-sf.cif
+    sha256: d225c96ebceb7e70bf84c4e3afeda43c9edc30f73019cd1b8a6627986be8102c
+    size_bytes: 2222366
+  - role: exact_mr_coordinates
+    pdb_id: 3W43
+    url: https://files.rcsb.org/download/3W43.cif
+    filename: 3W43.cif
+    sha256: 73484dcd65df11612512e6887ebfe08a8659ec4838567ed79e84c31cd9b11334
+    size_bytes: 429508
+  - role: homolog_mr_coordinates
+    pdb_id: 3T91
+    url: https://files.rcsb.org/download/3T91.cif
+    filename: 3T91.cif
+    sha256: 6f506a8b67c617634d6fa38d40464ce1f1678b914e13ff8a4a1795a02cdccade
+    size_bytes: 722006
+derived_mtz:
+  filename: 3W45-hkl2000-deposited.mtz
+  gemmi_version: 0.7.5
+  sha256: 9f984c3c3211d801d49c7cf3ab144ab73f3490de8ad09e6a305e85ab365cbfc6
+  reflection_count: 34167
+  space_group: P 1
+  unit_cell: [33.108, 41.614, 68.806, 80.81, 89.949, 71.083]
+  observation_labels: FP,SIGFP
+  free_flag_labels: FreeR_flag
+mr_models:
+  - model_id: pdb_3w43_chain_a_exact
+    source_role: exact_mr_coordinates
+    chain_id: A
+    filename: 3W43-chain-A-polymer.pdb
+    source_sequence_sha256: d622ee28585539d715df66d104bd686a7e9835d55cf4a57e538ac374b9374a50
+    expected_model_sha256: 4cc94c96e03373e9412c47887d0a120658bfd39a131e50da4a1d0e92bc80a3be
+    relationship_to_target: 100% sequence identity; different crystal form and metal state
+    leakage_class: operational_exact
+    target_fragment_start_in_source: 1
+    target_fragment_end_in_source: 199
+  - model_id: pdb_3t91_chain_a_homolog
+    source_role: homolog_mr_coordinates
+    chain_id: A
+    filename: 3T91-chain-A-polymer.pdb
+    source_sequence_sha256: 55065fa48ed1daf7ab59515da72ed15fc3adc9d057777c010b27fa294e093c97
+    expected_model_sha256: aa06a85ccb2a2ba28b1c9e06a4623413d59ed32b52490c8fe434825170f479a3
+    relationship_to_target: approximately 21% global sequence identity; PP2C-type SpoIIE phosphatase domain from Bacillus subtilis
+    leakage_class: homolog_challenge
+score_gate:
+  llg_greater_than: 50
+  tfz_greater_than: 5
+  combination: "or"
+database_exclusions_for_homolog_challenge:
+  - 3W40
+  - 3W41
+  - 3W42
+  - 3W43
+  - 3W44
+  - 3W45
+limitations:
+  - Deposited merged structure factors test MTZ-to-MR handling, not raw-image integration.
+  - The ASU contains two copies, whereas each author-defined biological assembly contains one copy.
+  - The target is cobalt-bound and the exact model uses a manganese-bound crystal form.
+  - The exact 3W43 model is an intentional operational control and is not leakage-controlled.
+  - The 3T91 model is a remote PP2C-fold challenge rather than an RsbX orthologue.

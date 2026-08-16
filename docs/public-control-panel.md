@@ -39,8 +39,8 @@ after execution with the licensed Phenix runtime.
 | [7L6G](https://www.rcsb.org/structure/7L6G) | Methanotroph | *M. trichosporium* MbnP | `6A` | `WP_003614734.1` residues 26–324 | Source-qualified |
 | [8JPV](https://www.rcsb.org/structure/8JPV) | Methanotroph | *Methylacidiphilum fumariolicum* GluRS | `A` | Full GenBank `CCG91288.1` | Source-qualified |
 | [2Q7E](https://www.rcsb.org/structure/2Q7E) | Methanogen | *Methanosarcina mazei* PylRS catalytic domain | `A` | `WP_011033391.1` residues 185–454 after a 21-aa prefix | Source-qualified |
-| [1JCF](https://www.rcsb.org/structure/1JCF) | Bacterium | *Thermotoga maritima* MreB | `A` | Full `WP_010865154.1` followed by an 8-aa tag | Source-qualified |
-| [3W45](https://www.rcsb.org/structure/3W45) | Bacterium | *Bacillus subtilis* RsbX | `2A` | Full `NP_388355.1` | Source-qualified |
+| [1JCF](https://www.rcsb.org/structure/1JCF) | Bacterium | *Thermotoga maritima* MreB | `A` | Full `WP_010865154.1` followed by an 8-aa tag | Runnable |
+| [3W45](https://www.rcsb.org/structure/3W45) | Bacterium | *Bacillus subtilis* RsbX | `2A` | Full `NP_388355.1` | Runnable |
 | [6CXH](https://www.rcsb.org/structure/6CXH) | Methanotroph | *Methylotuvimicrobium alcaliphilum* pMMO | `ABC` | Three exact full-length RefSeq proteins | Assumption violation |
 
 This is a twelve-structure panel, not twelve independent biological replicates. Public
@@ -66,6 +66,10 @@ statistically representative performance benchmark.
 - 1JCF and 3W45 add non-methanotroph bacterial controls with exact RefSeq
   mappings. They test a tagged single-copy target and an exact full-length
   two-copy target, respectively.
+- The fixed first real-execution slice contains those two positives, one matched
+  wrong-model control, one target-absent control, one wrong-catalogue control,
+  and the 6CXH assumption violation. The same execution boundary expands to the
+  tracked 23-case matrix only after this six-case slice works.
 - 6CXH is an `A3B3C3` membrane complex and its deposited structure-factor CIF has
   two reflection blocks. It is a negative contract test for both the current
   single-component scope and unsafe silent reflection-block selection.

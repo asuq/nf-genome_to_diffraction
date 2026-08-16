@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from genome_to_diffraction.benchmarks.panel import (
     PublicControlPanelSpec,
     PublicPanelPreparationRequest,
+    load_homomer_workflow_slice,
     load_homomer_workflow_suite,
     load_public_control_panel,
     prepare_public_control_panel,
@@ -35,6 +36,9 @@ def _yaml_document(path: Path) -> dict[str, object]:
 def test_tracked_panel_has_twelve_diverse_entries_and_balanced_workflow_suite() -> None:
     panel = load_public_control_panel(CONTROL_ROOT / "panel.yaml")
     suite = load_homomer_workflow_suite(CONTROL_ROOT / panel.workflow_suite, panel)
+    smoke_slice = load_homomer_workflow_slice(
+        CONTROL_ROOT / panel.smoke_slice, panel=panel, suite=suite
+    )
 
     assert len(panel.entries) == 12
     assert {entry.metabolic_group for entry in panel.entries} == {
@@ -44,7 +48,7 @@ def test_tracked_panel_has_twelve_diverse_entries_and_balanced_workflow_suite() 
     }
     assert (
         sum(entry.qualification_status == "runnable_control" for entry in panel.entries)
-        == 3
+        == 5
     )
     assert sum(case.case_kind == "positive" for case in suite.cases) == 11
     assert sum(case.case_kind == "wrong_model_negative" for case in suite.cases) == 7
@@ -55,6 +59,14 @@ def test_tracked_panel_has_twelve_diverse_entries_and_balanced_workflow_suite() 
         "wrong_catalogue_negative",
         "assumption_violation",
     }
+    assert smoke_slice.case_ids == (
+        "POS_1JCF",
+        "POS_3W45",
+        "NEG_MODEL_3W45_6HF7",
+        "NEG_ABSENT_3W45",
+        "NEG_CATALOGUE_3W45_1JCF",
+        "NEG_ASSUMPTION_6CXH",
+    )
     violation = next(entry for entry in panel.entries if entry.pdb_id == "6CXH")
     assert violation.expected_prototype_outcome == "assumption_violation"
     assert violation.asu_distinct_protein_species == 3
@@ -62,7 +74,7 @@ def test_tracked_panel_has_twelve_diverse_entries_and_balanced_workflow_suite() 
     assert violation.derived_mtz is None
 
 
-@pytest.mark.parametrize("pdb_id", ("8OOX", "7P50", "6P1F"))
+@pytest.mark.parametrize("pdb_id", ("8OOX", "7P50", "6P1F", "1JCF", "3W45"))
 def test_runnable_control_construct_mapping_matches_panel(pdb_id: str) -> None:
     panel = load_public_control_panel(CONTROL_ROOT / "panel.yaml")
     entry = next(item for item in panel.entries if item.pdb_id == pdb_id)
@@ -172,6 +184,25 @@ def test_workflow_suite_rejects_size_mismatched_wrong_model(tmp_path: Path) -> N
 
     with pytest.raises(PublicControlError, match="not size matched"):
         load_homomer_workflow_suite(path, panel)
+
+
+def test_workflow_slice_rejects_missing_control_class(tmp_path: Path) -> None:
+    panel = PublicControlPanelSpec.model_validate(
+        _yaml_document(CONTROL_ROOT / "panel.yaml")
+    )
+    suite = load_homomer_workflow_suite(
+        CONTROL_ROOT / "homomer_workflow_cases.yaml", panel
+    )
+    document = _yaml_document(CONTROL_ROOT / "homomer_smoke_slice.yaml")
+    case_ids = document["case_ids"]
+    if not isinstance(case_ids, list):
+        raise AssertionError("case_ids must be a list")
+    case_ids[-1] = "POS_8OOX"
+    path = tmp_path / "slice.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    with pytest.raises(PublicControlError, match="two positives"):
+        load_homomer_workflow_slice(path, panel=panel, suite=suite)
 
 
 def test_offline_panel_preparation_fails_loudly_and_logs_context(

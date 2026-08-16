@@ -5012,3 +5012,68 @@ Create the focused runnable-control specifications for 1JCF and 3W45, validate
 their frozen proteomes and independent search models, and submit the minimal
 Viper positive/negative smoke slice. Do not use the unknown CD6 crystal as the
 truth-labelled acceptance control.
+
+## 2026-08-16T09:24:48Z - Six-case control slice and Phenix map labels frozen
+
+### Discoveries
+
+- Phenix 2.1 rewrites two unlabeled map-coefficient blocks to internal labels
+  that differ from the old verifier's expected hyphenated labels. Requesting
+  the standard Coot-compatible `2FOFCWT`/`PH2FOFCWT` and
+  `FOFCWT`/`PHFOFCWT` pairs removes that ambiguity without weakening the
+  requirement for both maps.
+- The offline 1JCF and 3W45 preparations reproduce every frozen source,
+  proteome, model, and MTZ checksum. Their exact and independent homolog models
+  are therefore ready for a licensed-Phenix Viper execution boundary.
+- The smallest scientifically balanced slice is six cases: two positives and
+  one wrong-model, target-absent, wrong-catalogue, and assumption-violation
+  case. It exercises every outcome class without paying for all 23 cases first.
+
+### Accomplishments
+
+- Promoted 1JCF and 3W45 to runnable controls with checksum-frozen exact and
+  homolog model specifications. Offline preparation produced MTZ SHA-256
+  `5ffad9350783b19dec15e5cc46ea71966f46753f898f953191960f37d5eede2f`
+  and `9f984c3c3211d801d49c7cf3ab144ab73f3490de8ad09e6a305e85ab365cbfc6`.
+- Added and validated `prokaryote_homomer_smoke_v1`: `POS_1JCF`, `POS_3W45`,
+  `NEG_MODEL_3W45_6HF7`, `NEG_ABSENT_3W45`,
+  `NEG_CATALOGUE_3W45_1JCF`, and `NEG_ASSUMPTION_6CXH`. The panel contract
+  requires exactly two runnable positives and one case from every remaining
+  class, with each negative bound to its matched positive context.
+- Updated the brief-refinement protocol to require the four standard Coot MTZ
+  coefficient labels while preserving separate 2mFo-DFc and mFo-DFc maps.
+- Created the 30-minute task `continue-prokaryotic-control-roadmap`; it resumes
+  this exact slice before expanding to the tracked 23-case matrix.
+
+### Immutable evidence
+
+- Both public controls passed offline preparation against their frozen
+  proteomes and source assets. Exact/homolog model SHA-256 values are
+  `00ef1bc62689f6fd6183ef6c73913abe8dca72289a00f490129fb39b16d5918f` /
+  `aa17264da3d7caac140b18fcdca2cc8e6926f10681eef4deee3266e3dd16c3c3`
+  for 1JCF and
+  `4cc94c96e03373e9412c47887d0a120658bfd39a131e50da4a1d0e92bc80a3be` /
+  `aa06a85ccb2a2ba28b1c9e06a4623413d59ed32b52490c8fe434825170f479a3`
+  for 3W45.
+- `pixi run --locked check` passes with 378 unit, 57 contract, and 47
+  integration tests plus formatting, Ruff, `ty`, schemas, the public panel,
+  documentation, Actions, Nextflow syntax/stub/resume, and shell-wrapper gates.
+
+### Unresolved work
+
+- Add the smallest checksum-gated Viper staging/execution boundary for the
+  fixed six cases. Run the exact and homolog positives through production
+  Phenix adapters, continue the two-copy 3W45 case through sequential
+  placement and T12, and emit typed no-identity/abstention evidence for the
+  three catalogue/assumption controls. Do not add general fallback machinery.
+- Run one full locked gate, one focused commit/push, one CI watch, then deploy
+  and submit the real Viper slice. Expand the same boundary to all 23 cases only
+  after the six-case result is accepted.
+
+### Next exact starting point
+
+Implement the fixed local evidence archive and site-isolated Viper stage for
+`benchmarks/public-controls/homomer_smoke_slice.yaml`, reusing the existing
+first-copy, sequential-copy, and brief-refinement adapters. Accept no arbitrary
+case list or data root, retain every model outcome, and keep 6CXH as a typed
+`ASU = nA` abstention rather than a reconstruction target.

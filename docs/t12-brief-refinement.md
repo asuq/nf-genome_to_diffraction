@@ -129,7 +129,8 @@ solvent addition. It preserves the input free-reflection set; missing free flags
 or other invalid reflection contracts fail loudly instead of generating a new
 comparison set. Map generation uses both `2mFo-DFc` and `mFo-DFc`, CCP4, sigma
 scaling, the full cell, and no filled missing observations. The refined MTZ
-must contain `2mFo-DFc`/`PH2mFo-DFc` and `mFo-DFc`/`PHmFo-DFc`; missing pairs
+must contain the standard Coot-compatible `2FOFCWT`/`PH2FOFCWT` and
+`FOFCWT`/`PHFOFCWT` pairs; missing pairs
 turn the candidate into a typed parse failure.
 
 The output serial is fixed to zero because Phenix increments that value when

@@ -1,0 +1,11 @@
+schema_version: "1.0"
+slice_id: prokaryote_homomer_smoke_v1
+suite_id: prokaryote_homomer_workflow_v1
+frozen_at: 2026-08-16T00:00:00Z
+case_ids:
+  - POS_1JCF
+  - POS_3W45
+  - NEG_MODEL_3W45_6HF7
+  - NEG_ABSENT_3W45
+  - NEG_CATALOGUE_3W45_1JCF
+  - NEG_ASSUMPTION_6CXH

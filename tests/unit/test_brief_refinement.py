@@ -67,7 +67,11 @@ def test_fixed_refinement_parameters_are_conservative_and_stable() -> None:
     assert "write_final_pdb_file = True" in text
     assert "map_coefficients {" in text
     assert "map_type = 2mFo-DFc" in text
+    assert "mtz_label_amplitudes = 2FOFCWT" in text
+    assert "mtz_label_phases = PH2FOFCWT" in text
     assert "map_type = mFo-DFc" in text
+    assert "mtz_label_amplitudes = FOFCWT" in text
+    assert "mtz_label_phases = PHFOFCWT" in text
     assert "file_name = stable.ccp4" in text
     assert "file_name = difference.ccp4" in text
     assert "fill_missing_f_obs = False" in text
@@ -111,10 +115,10 @@ def test_refined_mtz_requires_both_review_map_coefficient_pairs(
         brief_module.gemmi,
         "read_mtz_file",
         lambda _path: columns(
-            ("2mFo-DFc", "F"),
-            ("PH2mFo-DFc", "P"),
-            ("mFo-DFc", "F"),
-            ("PHmFo-DFc", "P"),
+            ("2FOFCWT", "F"),
+            ("PH2FOFCWT", "P"),
+            ("FOFCWT", "F"),
+            ("PHFOFCWT", "P"),
         ),
     )
     assert _has_required_map_coefficients(path)
@@ -122,7 +126,7 @@ def test_refined_mtz_requires_both_review_map_coefficient_pairs(
     monkeypatch.setattr(
         brief_module.gemmi,
         "read_mtz_file",
-        lambda _path: columns(("2mFo-DFc", "F"), ("PH2mFo-DFc", "P")),
+        lambda _path: columns(("2FOFCWT", "F"), ("PH2FOFCWT", "P")),
     )
     assert not _has_required_map_coefficients(path)
 

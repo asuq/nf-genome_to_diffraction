@@ -1,0 +1,97 @@
+schema_version: "1.0"
+control_id: PDB_1JCF
+benchmark_class: operational_public_positive_control
+organism: Thermotoga maritima MSB8
+assembly_accession: GCF_000008545.1
+assembly_version: ASM854v1
+annotation_provider: NCBI RefSeq
+annotation_version: GCF_000008545.1-protein.faa-retrieved_2026_08_16
+expected_proteome_sha256: 2b26a553a56e5d030365a6909ba66dce62912a6b598095193349144eb172bfc2
+catalogue_id: thermotoga_maritima_gcf_000008545_1_refseq_2026_08_16
+target_protein_id: WP_010865154.1
+target_sequence_length: 336
+target_sequence_sha256: c9b60ee394c1f15fdc6f964dc4c1c9a023eb3ad89079d3622d1426753423dec1
+expected_exact_catalogue_records:
+  - WP_010865154.1
+target_pdb_id: 1JCF
+target_pdb_version: "1.3"
+expected_asu_copy_count: 1
+biological_assembly_copy_count: 1
+asu_model: single_protein_species_multi_copy
+target_construct:
+  coordinate_sequence_length: 344
+  coordinate_sequence_sha256: f535d58c3e027ca73a17f1baad79a61c30cfdf42997d77ab7a9cef3028a839fd
+  catalogue_start: 1
+  catalogue_end: 336
+  coordinate_match_start: 1
+  coordinate_match_end: 336
+processing_software:
+  - MOSFLM
+  - SCALA
+sds_page_evidence: not_available
+resources:
+  - role: target_coordinates
+    pdb_id: 1JCF
+    url: https://files.rcsb.org/download/1JCF.cif
+    filename: 1JCF.cif
+    sha256: 823eba3879c13882557393776ba152fb741c43b0ab189abfdc7c73c1a596dee4
+    size_bytes: 325368
+  - role: target_structure_factors
+    pdb_id: 1JCF
+    url: https://files.rcsb.org/download/1JCF-sf.cif
+    filename: 1JCF-sf.cif
+    sha256: 671f887cdf8f95e4f7687b7094e959172ab948f2eb7b7d8988bbcf92a45eb193
+    size_bytes: 1072150
+  - role: exact_mr_coordinates
+    pdb_id: 1JCE
+    url: https://files.rcsb.org/download/1JCE.cif
+    filename: 1JCE.cif
+    sha256: dbc9f221057d12a736e47282c054d48808be26be8894fc8f3df1a0575ebaa872
+    size_bytes: 329905
+  - role: homolog_mr_coordinates
+    pdb_id: 8AZG
+    url: https://files.rcsb.org/download/8AZG.cif
+    filename: 8AZG.cif
+    sha256: f5219060adaf45766ca28016552793f4b9a877d5b29916c45c2b6d28e16126b4
+    size_bytes: 365392
+derived_mtz:
+  filename: 1JCF-mosflm-deposited.mtz
+  gemmi_version: 0.7.5
+  sha256: 5ffad9350783b19dec15e5cc46ea71966f46753f898f953191960f37d5eede2f
+  reflection_count: 26782
+  space_group: P 31 2 1
+  unit_cell: [51.1, 51.1, 292.9, 90.0, 90.0, 120.0]
+  observation_labels: FP,SIGFP
+  free_flag_labels: FreeR_flag
+mr_models:
+  - model_id: pdb_1jce_chain_a_exact
+    source_role: exact_mr_coordinates
+    chain_id: A
+    filename: 1JCE-chain-A-polymer.pdb
+    source_sequence_sha256: f535d58c3e027ca73a17f1baad79a61c30cfdf42997d77ab7a9cef3028a839fd
+    expected_model_sha256: 00ef1bc62689f6fd6183ef6c73913abe8dca72289a00f490129fb39b16d5918f
+    relationship_to_target: complete target sequence in a related nucleotide-state crystal structure
+    leakage_class: operational_exact
+    target_fragment_start_in_source: 1
+    target_fragment_end_in_source: 336
+  - model_id: pdb_8azg_chain_m_homolog
+    source_role: homolog_mr_coordinates
+    chain_id: M
+    filename: 8AZG-chain-M-polymer.pdb
+    source_sequence_sha256: b940f71b9b3949084eade472ea2794d30d8c91b9f3bbb58537ada7c427d8851c
+    expected_model_sha256: aa17264da3d7caac140b18fcdca2cc8e6926f10681eef4deee3266e3dd16c3c3
+    relationship_to_target: approximately 56% global sequence identity; bacterial MreB from Geobacillus stearothermophilus
+    leakage_class: homolog_challenge
+score_gate:
+  llg_greater_than: 50
+  tfz_greater_than: 5
+  combination: "or"
+database_exclusions_for_homolog_challenge:
+  - 1JCE
+  - 1JCF
+  - 1JCG
+limitations:
+  - Deposited merged structure factors test MTZ-to-MR handling, not raw-image integration.
+  - The crystallised construct has a C-terminal GSHHHHHH tag outside the 336-residue catalogue protein.
+  - The exact 1JCE model is an intentional operational control and is not leakage-controlled.
+  - The homolog challenge requires the listed related target structures to be excluded from structural databases.

@@ -139,6 +139,7 @@ class PublicControlPanelSpec(ContractModel):
     panel_id: OperatorIdentifier
     frozen_at: UtcTimestamp
     workflow_suite: str = Field(pattern=r"^[0-9A-Za-z][0-9A-Za-z._-]*\.yaml$")
+    smoke_slice: str = Field(pattern=r"^[0-9A-Za-z][0-9A-Za-z._-]*\.yaml$")
     selection_policy: tuple[NonEmptyString, ...] = Field(min_length=1)
     entries: tuple[PublicPanelEntrySpec, ...] = Field(min_length=8, max_length=24)
 
@@ -234,6 +235,22 @@ class HomomerWorkflowSuiteSpec(ContractModel):
         case_ids = [case.case_id for case in self.cases]
         if len(case_ids) != len(set(case_ids)):
             raise ValueError("workflow case IDs must be unique")
+        return self
+
+
+class HomomerWorkflowSliceSpec(ContractModel):
+    """Small, truth-labelled execution slice drawn from the full suite."""
+
+    schema_version: Literal["1.0"]
+    slice_id: OperatorIdentifier
+    suite_id: OperatorIdentifier
+    frozen_at: UtcTimestamp
+    case_ids: tuple[OperatorIdentifier, ...] = Field(min_length=6, max_length=6)
+
+    @model_validator(mode="after")
+    def _validate_case_ids(self) -> Self:
+        if len(set(self.case_ids)) != len(self.case_ids):
+            raise ValueError("workflow slice case IDs must be unique")
         return self
 
 
@@ -341,6 +358,84 @@ def load_homomer_workflow_suite(
     return suite
 
 
+def load_homomer_workflow_slice(
+    path: Path,
+    *,
+    panel: PublicControlPanelSpec,
+    suite: HomomerWorkflowSuiteSpec,
+) -> HomomerWorkflowSliceSpec:
+    """Load the fixed six-case smoke slice and validate its scientific balance."""
+
+    resolved = path.resolve(strict=True)
+    try:
+        payload = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+        smoke_slice = HomomerWorkflowSliceSpec.model_validate(payload)
+    except (OSError, ValueError, yaml.YAMLError) as error:
+        raise PublicControlError(
+            f"invalid homomer workflow slice {resolved}: {error}"
+        ) from error
+    if smoke_slice.suite_id != suite.suite_id:
+        raise PublicControlError("workflow slice and suite IDs disagree")
+
+    cases = {case.case_id: case for case in suite.cases}
+    selected: list[HomomerWorkflowCaseSpec] = []
+    for case_id in smoke_slice.case_ids:
+        case = cases.get(case_id)
+        if case is None:
+            raise PublicControlError(
+                f"workflow slice references unknown case: {case_id}"
+            )
+        selected.append(case)
+
+    counts = {
+        kind: sum(case.case_kind == kind for case in selected)
+        for kind in {
+            "positive",
+            "wrong_model_negative",
+            "target_absent_negative",
+            "wrong_catalogue_negative",
+            "assumption_violation",
+        }
+    }
+    if counts != {
+        "positive": 2,
+        "wrong_model_negative": 1,
+        "target_absent_negative": 1,
+        "wrong_catalogue_negative": 1,
+        "assumption_violation": 1,
+    }:
+        raise PublicControlError(
+            "workflow slice must contain two positives and one case from each "
+            "negative/abstention class"
+        )
+
+    entries = {entry.control_id: entry for entry in panel.entries}
+    selected_positive_ids = {
+        case.target_control_id for case in selected if case.case_kind == "positive"
+    }
+    if any(
+        entries[control_id].qualification_status != "runnable_control"
+        for control_id in selected_positive_ids
+    ):
+        raise PublicControlError("workflow slice positive is not runnable")
+    for case in selected:
+        if (
+            case.case_kind in {"wrong_model_negative", "target_absent_negative"}
+            and case.target_control_id not in selected_positive_ids
+        ):
+            raise PublicControlError(
+                "workflow slice negative lacks its matched positive"
+            )
+        if case.case_kind == "wrong_catalogue_negative" and (
+            case.target_control_id not in selected_positive_ids
+            or case.catalogue_control_id not in selected_positive_ids
+        ):
+            raise PublicControlError(
+                "workflow slice wrong-catalogue case lacks both positive controls"
+            )
+    return smoke_slice
+
+
 @dataclass(frozen=True)
 class PublicPanelPreparationRequest:
     """Bounded source-preparation request for the public panel."""
@@ -402,7 +497,11 @@ def load_public_control_panel(path: Path) -> PublicControlPanelSpec:
     suite_path = (resolved.parent / panel.workflow_suite).resolve(strict=True)
     if not suite_path.is_relative_to(resolved.parent):
         raise PublicControlError("workflow suite escaped the public-control root")
-    load_homomer_workflow_suite(suite_path, panel)
+    suite = load_homomer_workflow_suite(suite_path, panel)
+    slice_path = (resolved.parent / panel.smoke_slice).resolve(strict=True)
+    if not slice_path.is_relative_to(resolved.parent):
+        raise PublicControlError("workflow smoke slice escaped the public-control root")
+    load_homomer_workflow_slice(slice_path, panel=panel, suite=suite)
     return panel
 
 

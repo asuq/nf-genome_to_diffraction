@@ -47,7 +47,7 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
-_PROTOCOL_VERSION = "phenix-t12-brief-v4"
+_PROTOCOL_VERSION = "phenix-t12-brief-v5"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -185,9 +185,13 @@ def _refine_parameters(*, threads: int, map_name: str, difference_map_name: str)
   electron_density_maps {{
     map_coefficients {{
       map_type = 2mFo-DFc
+      mtz_label_amplitudes = 2FOFCWT
+      mtz_label_phases = PH2FOFCWT
     }}
     map_coefficients {{
       map_type = mFo-DFc
+      mtz_label_amplitudes = FOFCWT
+      mtz_label_phases = PHFOFCWT
     }}
     map {{
       map_type = 2mFo-DFc
@@ -236,10 +240,10 @@ def _has_required_map_coefficients(path: Path) -> bool:
     return all(
         columns.get(label) == type_code
         for label, type_code in (
-            ("2mFo-DFc", "F"),
-            ("PH2mFo-DFc", "P"),
-            ("mFo-DFc", "F"),
-            ("PHmFo-DFc", "P"),
+            ("2FOFCWT", "F"),
+            ("PH2FOFCWT", "P"),
+            ("FOFCWT", "F"),
+            ("PHFOFCWT", "P"),
         )
     )
 

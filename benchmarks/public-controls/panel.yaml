@@ -2,6 +2,7 @@ schema_version: "1.0"
 panel_id: prokaryote_public_xray_v2
 frozen_at: 2026-08-16T00:00:00Z
 workflow_suite: homomer_workflow_cases.yaml
+smoke_slice: homomer_smoke_slice.yaml
 selection_policy:
   - Use only public X-ray entries with deposited structure factors and a frozen catalogue mapping.
   - Cover diverse prokaryotes without treating multiple crystal forms of one protein as independent targets.
@@ -533,7 +534,7 @@ entries:
     metabolic_group: other_prokaryote
     molecular_system: rod shape-determining protein MreB
     expected_prototype_outcome: positive
-    qualification_status: source_qualified
+    qualification_status: runnable_control
     assembly_accession: GCF_000008545.1
     assembly_version: ASM854v1
     annotation_provider: NCBI RefSeq
@@ -580,6 +581,7 @@ entries:
       unit_cell: [51.1, 51.1, 292.9, 90.0, 90.0, 120.0]
       observation_labels: FP,SIGFP
       free_flag_labels: FreeR_flag
+    active_control_specification: pdb_1jcf.yaml
     limitations:
       - The crystallised sequence contains a C-terminal GSHHHHHH tag after the complete 336-residue catalogue protein.
 
@@ -590,7 +592,7 @@ entries:
     metabolic_group: other_prokaryote
     molecular_system: stress-response serine phosphatase RsbX
     expected_prototype_outcome: positive
-    qualification_status: source_qualified
+    qualification_status: runnable_control
     assembly_accession: GCF_000009045.1
     assembly_version: ASM904v1
     annotation_provider: NCBI RefSeq
@@ -637,6 +639,7 @@ entries:
       unit_cell: [33.108, 41.614, 68.806, 80.81, 89.949, 71.083]
       observation_labels: FP,SIGFP
       free_flag_labels: FreeR_flag
+    active_control_specification: pdb_3w45.yaml
     limitations:
       - The ASU contains two copies, whereas each author-defined biological assembly contains one copy.
       - The deposited structure is cobalt-bound rather than ligand-free.
