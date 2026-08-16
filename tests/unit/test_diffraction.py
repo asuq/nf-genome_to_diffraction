@@ -130,6 +130,34 @@ def test_gemmi_preflight_selects_observations_and_asu_volume(
     assert "xtriage_not_run" in record.warning_codes
 
 
+def test_preflight_prefers_non_anomalous_pair_for_mr(tmp_path: Path) -> None:
+    mtz_path = tmp_path / "merged-anomalous.mtz"
+    _write_mtz(
+        mtz_path,
+        (
+            ("I(+)", "K"),
+            ("SIGI(+)", "M"),
+            ("I(-)", "K"),
+            ("SIGI(-)", "M"),
+            ("IMEAN", "J"),
+            ("SIGIMEAN", "Q"),
+        ),
+    )
+
+    record = inspect_crystal(
+        _crystal(mtz_path),
+        manifest_path=tmp_path / "crystals.json",
+        output_directory=tmp_path / "output",
+        phenix_manifest=None,
+        skip_xtriage=True,
+        progress=False,
+        xtriage_timeout_seconds=30,
+    )
+
+    assert record.selected_observation_labels == "IMEAN,SIGIMEAN"
+    assert record.selected_observation_type == "intensity"
+
+
 def test_map_coefficients_never_become_observations(tmp_path: Path) -> None:
     mtz_path = tmp_path / "map-only.mtz"
     _write_mtz(mtz_path, (("FWT", "F"), ("PHWT", "P")))

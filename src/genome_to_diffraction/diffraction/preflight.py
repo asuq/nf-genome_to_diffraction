@@ -262,8 +262,17 @@ def select_observations(
         ]
         if not matching:
             continue
+        had_multiple_matches = len(matching) > 1
+        non_anomalous = [
+            candidate for candidate in matching if len(candidate.labels) == 2
+        ]
+        if non_anomalous:
+            matching = non_anomalous
         if len(matching) == 1:
-            return matching[0], rendered, ()
+            warnings = (
+                ("observation_selection_deterministic",) if had_multiple_matches else ()
+            )
+            return matching[0], rendered, warnings
         best_rank = min(candidate.rank for candidate in matching)
         best = [candidate for candidate in matching if candidate.rank == best_rank]
         if len(best) == 1:

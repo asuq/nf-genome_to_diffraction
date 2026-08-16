@@ -5864,3 +5864,268 @@ Run `git status --short`, inspect the complete staged and unstaged diff, and run
 `git diff --check`; then create the single coherent correction commit and
 continue through push, one CI watch, checksum-reviewed deployment, replacement
 staging/submission, and rebinding the existing heartbeat without a handoff.
+
+## 2026-08-16T13:07:14Z - Corrected matrix replacement submitted
+
+### Discoveries
+
+- The focused identity correction did not alter the remote dispatcher,
+  job-wrapper, or recovery scripts, so their reviewed SHA-256 values remained
+  unchanged when deployed from the new green source revision.
+- Rebuilding the deterministic local controller from the new revision produced
+  SHA-256
+  `27659a8aaa8c9d4242d36c500e07957c5e7338392c065901468e332dae2c8dbf`.
+  The previous installed controller was preserved under the ignored rollback
+  directory with its verified checksum before replacement.
+- Restaging the source-aware archive changed the outer archive digest while the
+  embedded fixed-matrix manifest digest remained unchanged, as expected: the
+  scientific 23-case inputs did not change.
+
+### Accomplishments
+
+- Created and pushed commit
+  `73caf1b556dea3f82c337b8f66b1bcc10f1820e1` once. The sole GitHub Actions
+  watch, run `31948420900`, passed under Pixi 0.76.2 in 5m48s.
+- Deployed the reviewed remote tools, built and installed the matching immutable
+  local controller, staged the complete fixed matrix, and submitted replacement
+  Viper job `10931011` without changing the 8-CPU/32-GB/24-hour request or
+  four-attempt concurrency cap.
+- Updated the existing `continue-prokaryotic-control-roadmap` heartbeat in place
+  to monitor only the new run every 30 minutes. Its task, active status, thread
+  binding, and schedule were preserved; no duplicate automation was created.
+
+### Immutable evidence
+
+- Active run:
+  `gtd-control-matrix-20260816T130359Z-73caf1b556de-b556c9e3`, Slurm job
+  `10931011`, source commit
+  `73caf1b556dea3f82c337b8f66b1bcc10f1820e1`, nf-helper commit
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, site `viper-cpu`, profile
+  `control-matrix`, suite `prokaryote_homomer_workflow_v1`, Pixi 0.76.2, 23
+  cases, 11 positives, and 18 planned real first-copy searches.
+- Archive SHA-256 is
+  `4a600fd1ecc48395583222e7d12d7ade14243f33e53e1a9bb02559adea683db3`;
+  embedded-manifest SHA-256 is
+  `97132162e558df1c9087aab1826a32e954eb3477b2b241eb9930b0655cf74b40`;
+  Pixi-lock SHA-256 remains
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`.
+- Local controller SHA-256 is
+  `27659a8aaa8c9d4242d36c500e07957c5e7338392c065901468e332dae2c8dbf`.
+  Deployed dispatcher, job-wrapper, and recovery SHA-256 values are
+  `69e4959eb9ce3bcc3ff287b7e92db67425fd5b76004c9303f3e10b02cc2e0e5d`,
+  `6d679a06a14f80fb68432fac38b16606486ae00d4b83bfe563adedc5de0a50a7`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- Latest structured state is phase `submitted`, scheduler state `PENDING`,
+  terminal `false`, with no exit code or failure class. Silence is not a failure
+  signal; the retained run must remain untouched.
+
+### Unresolved work
+
+- Wait for terminal evidence from only the active replacement. Do not monitor,
+  recollect, clean, or reuse predecessor run
+  `gtd-control-matrix-20260816T123957Z-ab3f47b28486-678daa04` or the earlier
+  cancelled oversized run.
+- At terminal state, run bounded logs with `--tail 200`, collect through the
+  reviewed wrapper, and verify the complete 23-case, 18-search, copy-transition,
+  refinement, sequence, bounded-log, candidate-failure, provenance, and
+  retain-all evidence boundary before editing or advancing to M5.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-control-matrix-20260816T130359Z-73caf1b556de-b556c9e3`. If non-terminal,
+report the structured state concisely and leave the retained run untouched. If
+terminal, run bounded `logs --tail 200`, then `collect`, and classify the full
+evidence before making any source change.
+
+## 2026-08-16T13:15:02Z - Corrected matrix remains queued
+
+### Discoveries
+
+- The active replacement remains non-terminal in scheduler state `PENDING`.
+  There is no exit code, failure class, or terminal evidence to classify;
+  scheduler silence is not a failure signal.
+
+### Accomplishments
+
+- Queried only the retained run through the reviewed controller and left the
+  Slurm job, staged inputs, resources, and remote evidence untouched. The
+  existing 30-minute heartbeat remains the sole monitor.
+
+### Immutable evidence
+
+- Run `gtd-control-matrix-20260816T130359Z-73caf1b556de-b556c9e3`, Slurm job
+  `10931011`, phase `submitted`, scheduler state `PENDING`, terminal `false`,
+  source commit `73caf1b556dea3f82c337b8f66b1bcc10f1820e1`.
+
+### Unresolved work
+
+- Continue waiting for terminal evidence. Do not cancel, clean, collect, edit,
+  or infer failure while this state remains non-terminal.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-control-matrix-20260816T130359Z-73caf1b556de-b556c9e3`. If non-terminal,
+report the structured state and leave the run untouched. If terminal, run
+bounded `logs --tail 200`, then `collect`, and classify the evidence before any
+source change.
+
+## 2026-08-16T13:57:55Z - Complete matrix evidence exposes four narrow adapter defects
+
+### Discoveries
+
+- Corrected run `gtd-control-matrix-20260816T130359Z-73caf1b556de-b556c9e3`
+  completed successfully at the outer job boundary. The retained package has
+  exactly 23 typed case records and 18 unique real first-copy records: 11
+  positives, seven wrong-model searches, and five non-search boundary outcomes.
+- The operational positive gate is not yet accepted. Three positives retained
+  the expected ASU count and eight did not. First-copy states are ten
+  `completed_hit`, seven `failed_tool_execution`, and one `failed_parse`.
+  Positive best-supported counts currently reach 1 and 2, not the complete
+  expected 1/2/3/4/6 boundary.
+- All seven tool exits used MTZs for which preflight selected an anomalous
+  intensity quartet. The same Phenix 2.1-6048 I/O layer identifies those
+  quartet arrays with a trailing `merged` array-info label and performs an exact
+  label-string lookup, whereas the command passed only the four MTZ column
+  labels. Every affected fixed-matrix MTZ also contains a directly usable
+  non-anomalous intensity pair; the sole anomalous-amplitude-only control was
+  found and executed correctly. This is a deterministic observation-selection
+  interoperability defect, not seven independent scientific no-hits.
+- The `PDB_7L6G` run exited successfully, wrote PDB/MTZ outputs, reported seven
+  solutions, packing, top LLG 1601, and top-solution TFZ 14.2, but translational
+  NCS suppressed the refined-TFZ-equivalent line. The parser therefore emitted
+  `failed_parse` despite complete retained evidence.
+- The `PDB_3W45` copy-two run used Phenix's `** SINGLE solution` summary and
+  complete PDB/MTZ outputs. The generic parser recognises only numeric legacy
+  solution-count lines, and the guarded output-file fallback is currently used
+  only by first-copy execution, so the additional-copy record incorrectly
+  failed parsing.
+- The `PDB_8Q5T` copy-three output represents the complete two-copy fixed parent
+  as one `fixed_parent` ensemble placement plus one `search_copy` placement.
+  Counting raw ensemble remarks as total molecular copies therefore reports two
+  instead of three and stops a packed, high-scoring sequential transition.
+
+### Accomplishments
+
+- Ran only bounded `logs --tail 200`, collected through the reviewed wrapper,
+  and verified every declared collected digest locally. The bounded Phaser file
+  contains 14 retained native-log sections of exactly 200 lines each.
+- Verified all 23 case records set `all_candidates_retained=true`, all 18
+  first-copy hypotheses are unique and retained, all three additional-copy
+  records retain their parents, and all seven wrong-model cases forbid
+  displacement while preserving their raw LLG/TFZ annotations.
+- Verified five refinement records are `completed_success` and five sequence
+  records are `completed_hit`. Four typed identity boundaries return
+  `no_reportable_identity`, and the heteromeric control returns
+  `assumption_violation_abstained` without an MR search.
+
+### Immutable evidence
+
+- Slurm job `10931011` ran from 2026-08-16T13:16:24Z to 13:28:29Z and ended
+  `COMPLETED`, exit code 0, failure class `success`. Source commit is
+  `73caf1b556dea3f82c337b8f66b1bcc10f1820e1`; nf-helper commit is
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`; Pixi is 0.76.2; Pixi-lock
+  SHA-256 is
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`;
+  Phenix is 2.1-6048 and all seven required commands passed qualification.
+- Archive SHA-256 is
+  `4a600fd1ecc48395583222e7d12d7ade14243f33e53e1a9bb02559adea683db3`;
+  import-manifest SHA-256 is
+  `97132162e558df1c9087aab1826a32e954eb3477b2b241eb9930b0655cf74b40`;
+  Phenix-manifest SHA-256 is
+  `0410c2b835a8de91061cb727bf5eb007cfac82b787e857cefc5fd549b5c3bad1`.
+- Case, first-copy, additional-copy, refinement, sequence, and bounded-log
+  SHA-256 values are respectively
+  `409b3c55f7ef1a3b78a7df949ad4f1a55f8c2603536535f2db535c8380e10b7b`,
+  `104f2ae6d1dcea90cf4cb53211fdf608a2d28bd8268bd8bda5b8fd60e0098426`,
+  `a03e014b19f7eb383737e70c02d3038686258db65663f75fef44ef9a53e9f6fc`,
+  `b37a0b9510ef7b27083a4e2c9c51a09c973cc56a34b8d8725fb70be00ce2d000`,
+  `4af81855283661e2002cf8b5768e88cf93cff6914ba912797df94e0deaf22a1e`,
+  and `e857af11f7a01072cd3d20ff1ed0a5c8e8b9fc70dadfe14878a841836b8e04b5`.
+- The summary preserves
+  `LLG/TFZ_are_ranking_annotations_only`, `all_candidates_retained=true`, and
+  `none_operational_same_structure_controls`; these results make no
+  generalisation claim.
+
+### Unresolved work
+
+- Add one focused regression for each demonstrated defect: prefer an available
+  non-anomalous pair over an anomalous quartet, recognise Phenix's single-
+  solution form, retain the top-solution TFZ when tNCS omits a refined
+  equivalent, and count a checksum-validated fixed parent by its known copy
+  count plus explicit `search_copy` placements.
+- Do not suppress or reinterpret the `PDB_7L6G` three-placement tNCS outcome.
+  Parse and retain it first; any multi-copy tNCS transition requires separate
+  evidence after the narrow corrections, not a speculative fallback.
+- After focused tests and one complete locked gate, create one coherent commit,
+  push/watch once, deploy reviewed tools, and continue through the next
+  right-sized complete-matrix Viper attempt before yielding to monitoring.
+
+### Next exact starting point
+
+Add the four focused regressions against the existing preflight, Phaser-parser,
+and additional-copy adapter tests, confirm they fail for the observed reasons,
+then implement only the corresponding guarded corrections.
+
+## 2026-08-16T14:07:31Z - Four evidence-backed adapter corrections pass the locked gate
+
+### Discoveries
+
+- Each focused regression failed at the intended pre-correction boundary. The
+  preflight selected `I(+),SIGI(+),I(-),SIGI(-)` instead of the available
+  `IMEAN,SIGIMEAN` pair; the parser rejected both `** SINGLE solution` and a
+  solution with only the top-solution TFZ annotation; and the additional-copy
+  test could not import the absent fixed-parent placement counter.
+- No broader fallback was required. The corrected selection still preserves an
+  explicit user override and still permits anomalous data when no ordinary pair
+  exists. Refined TFZ remains preferred, and the top-solution annotation is
+  retained only when that refined value is absent.
+- A fixed-parent Phaser ensemble is a coordinate representation, not a count of
+  its constituent molecular copies. The narrow counter now uses the validated
+  parent copy count plus explicit `search_copy` placements only when exactly one
+  `fixed_parent` ensemble and at least one `search_copy` ensemble are present;
+  other output forms keep the legacy raw-placement count.
+
+### Accomplishments
+
+- Added four focused regressions and implemented the four corresponding
+  corrections. The first-copy and additional-copy adapter provenance versions
+  are now `phenix-first-copy-mr-v4` and `phenix-add-copy-mr-v2`.
+- The focused preflight, Phaser-parser, and additional-copy files pass all 64
+  tests.
+- The first locked-gate invocation stopped immediately at Ruff's format check
+  and ran no test suite. After applying only Ruff's three reported mechanical
+  line wraps, the single complete `pixi run --locked check` passed format,
+  lint, type checking, 400 unit tests, 57 contract tests, 48 integration tests,
+  schema/public-panel/docs/actionlint checks, Nextflow syntax and stub
+  execution, and HPC wrapper syntax.
+
+### Immutable evidence
+
+- The correction remains grounded in retained Viper run
+  `gtd-control-matrix-20260816T130359Z-73caf1b556de-b556c9e3`, Slurm job
+  `10931011`, and its checksummed terminal evidence recorded above. No new
+  scientific inputs, score policy, candidate filters, resource request, or
+  heteromer behaviour were introduced.
+- The focused test command completed with `64 passed in 1.12s`. The complete
+  locked gate completed with exit code 0: `400 passed in 45.70s`, `57 passed in
+  0.42s`, and `48 passed in 106.36s`, followed by every repository check.
+- Every candidate remains retained, and LLG/TFZ remain annotations rather than
+  candidate-deletion gates. The matrix remains an operational same-structure
+  control and does not establish generalisation.
+
+### Unresolved work
+
+- Review the complete focused diff and commit it together with the accumulated
+  evidence journal as one coherent milestone. Push once and watch exactly one
+  GitHub Actions run.
+- After green CI, deploy checksum-reviewed tools, rebuild and verify the local
+  controller, stage the unchanged 23-case matrix, submit the next 8-CPU/32-GB
+  Viper attempt, and rebind the existing 30-minute heartbeat before handoff.
+
+### Next exact starting point
+
+Run `git status --short`, then inspect the unstaged diff and run
+`git diff --check` as separate commands before staging only the six focused
+source/test files and this accumulated journal.

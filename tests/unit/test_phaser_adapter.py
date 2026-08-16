@@ -246,6 +246,37 @@ def test_real_format_parser_uses_final_packing_and_retains_advisory() -> None:
     assert parsed.parser_warnings == ("phaser_advisory_top_ftf_did_not_pack",)
 
 
+def test_parser_accepts_phenix_single_solution_summary() -> None:
+    log = (
+        POSITIVE_LOG.replace("2 accepted of 2 solutions", "1 accepted of 1 solutions")
+        .replace("2 pack of 2 accepted solutions", "1 pack of 1 accepted solutions")
+        .replace("** There were 2 solutions", "** SINGLE solution")
+    )
+
+    parsed = parse_phaser_log(log)
+
+    assert parsed.solution_count == 1
+    assert parsed.accepted_solution_count == 1
+    assert parsed.packed_solution_count == 1
+
+
+def test_parser_retains_top_solution_tfz_when_tncs_omits_refined_value() -> None:
+    parsed = parse_phaser_log(
+        "PHENIX: Phaser 2.8.4\n"
+        "Top LLG (packs) = 1601.02\n"
+        "7 accepted of 7 solutions\n"
+        "7 pack of 7 accepted solutions\n"
+        "** There were 7 solutions\n"
+        "Solution #1 annotation (history):\n"
+        "SOLU SET RFZ=10.8 TFZ=14.2 +TNCS PAK=0 LLG=1601\n"
+        "EXIT STATUS: SUCCESS\n"
+    )
+
+    assert parsed.llg == pytest.approx(1601.02)
+    assert parsed.tfz == pytest.approx(14.2)
+    assert parsed.parser_warnings == ("tfz_from_top_solution_annotation",)
+
+
 def test_parser_rejects_solution_without_final_packing() -> None:
     with pytest.raises(PhaserParseError, match="final packing evidence"):
         parse_phaser_log(

@@ -16,6 +16,7 @@ from genome_to_diffraction.mr import (
     run_additional_copy_phaser,
     run_additional_copy_series,
 )
+from genome_to_diffraction.mr.add_copy import _phaser_placement_count
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
     PhenixInstallManifest,
@@ -261,6 +262,16 @@ def test_packed_additional_copy_advances_child_state(
     assert output.result.failed_addition_proves_absence is False
     assert output.result.llg_delta_from_parent == pytest.approx(1622.91 - 27.0)
     assert output.result.child_solution_id is not None
+
+
+def test_fixed_parent_ensemble_retains_known_parent_copy_count() -> None:
+    coordinate = (
+        "REMARK ENSEMBLE fixed_parent EULER 0 0 0 FRAC 0 0 0\n"
+        "REMARK ENSEMBLE search_copy EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
+        "ATOM\n"
+    )
+
+    assert _phaser_placement_count(coordinate, parent_copy_count=2) == 3
 
 
 def test_explicit_staged_solution_model_preserves_original_provenance(

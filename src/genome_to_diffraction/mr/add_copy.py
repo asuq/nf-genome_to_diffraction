@@ -51,9 +51,19 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.add_copy")
-_ADAPTER_VERSION = "phenix-add-copy-mr-v1"
+_ADAPTER_VERSION = "phenix-add-copy-mr-v2"
 _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
+_FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
+_SEARCH_COPY_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+search_copy(?:\s|$)", re.M)
+
+
+def _phaser_placement_count(text: str, *, parent_copy_count: int) -> int:
+    fixed_parent_count = len(_FIXED_PARENT_PLACEMENT.findall(text))
+    search_copy_count = len(_SEARCH_COPY_PLACEMENT.findall(text))
+    if fixed_parent_count == 1 and search_copy_count >= 1:
+        return parent_copy_count + search_copy_count
+    return len(_PLACEMENT.findall(text))
 
 
 @dataclass(frozen=True)
@@ -549,7 +559,9 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
                 coordinate_text = coordinate.read_text(
                     encoding="utf-8", errors="replace"
                 )
-                placements = len(_PLACEMENT.findall(coordinate_text))
+                placements = _phaser_placement_count(
+                    coordinate_text, parent_copy_count=resolved.parent_copy_count
+                )
                 coordinate_path = coordinate.name
                 mtz_path = result_mtz.name
                 coordinate_sha = sha256_file(coordinate)

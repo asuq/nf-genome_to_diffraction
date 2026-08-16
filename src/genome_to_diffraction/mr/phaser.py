@@ -65,7 +65,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
-_ADAPTER_VERSION = "phenix-first-copy-mr-v3"
+_ADAPTER_VERSION = "phenix-first-copy-mr-v4"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -73,8 +73,14 @@ _REFINED_TFZ = re.compile(
     r"Refined TF/TFZ equivalent\s*=\s*-?[0-9]+(?:\.[0-9]+)?/\s*"
     r"(-?[0-9]+(?:\.[0-9]+)?)"
 )
+_TOP_SOLUTION_TFZ = re.compile(
+    r"Solution\s+#1 annotation \(history\):\s*\n?\s*SOLU SET[^\n]*"
+    r"\bTFZ=(-?[0-9]+(?:\.[0-9]+)?)",
+    re.I,
+)
 _LLGI = re.compile(r"\bLLGI\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
 _SOLUTION_COUNT = re.compile(r"\*\* There (?:were|was)\s+(\d+) solutions?", re.I)
+_SINGLE_SOLUTION = re.compile(r"^\s*\*\*\s+SINGLE solution\s*$", re.I | re.M)
 _NO_SOLUTION = re.compile(r"^\s*(?:\*\*\s+)?Sorry\s+-\s+No solutions?\s*$", re.I | re.M)
 _PACKING = re.compile(
     r"(\d+) accepted of (\d+) solutions\s+(\d+) pack of (\d+) accepted solutions"
@@ -433,17 +439,16 @@ def _last_match_float(pattern: re.Pattern[str], text: str) -> float | None:
 def parse_phaser_log(text: str) -> ParsedPhaserLog:
     """Parse final Phaser metrics without treating early advisories as terminal."""
 
-    solution_matches = list(_SOLUTION_COUNT.finditer(text))
-    no_solution_matches = list(_NO_SOLUTION.finditer(text))
-    if no_solution_matches and (
-        not solution_matches
-        or no_solution_matches[-1].start() > solution_matches[-1].start()
-    ):
-        solution_count = 0
-    elif solution_matches:
-        solution_count = int(solution_matches[-1].group(1))
-    else:
+    terminal_markers = [
+        (match.start(), int(match.group(1))) for match in _SOLUTION_COUNT.finditer(text)
+    ]
+    terminal_markers.extend(
+        (match.start(), 1) for match in _SINGLE_SOLUTION.finditer(text)
+    )
+    terminal_markers.extend((match.start(), 0) for match in _NO_SOLUTION.finditer(text))
+    if not terminal_markers:
         raise PhaserParseError("Phaser log lacks a final solution count")
+    _, solution_count = max(terminal_markers, key=lambda marker: marker[0])
     packing_rows = [
         tuple(int(value) for value in row) for row in _PACKING.findall(text)
     ]
@@ -463,6 +468,11 @@ def parse_phaser_log(text: str) -> ParsedPhaserLog:
     tfz_values = [float(value) for value in _REFINED_TFZ.findall(text)]
     llg = max(llg_values) if llg_values else None
     tfz = max(tfz_values) if tfz_values else None
+    if tfz is None:
+        top_solution_tfz = [float(value) for value in _TOP_SOLUTION_TFZ.findall(text)]
+        if top_solution_tfz:
+            tfz = top_solution_tfz[-1]
+            warnings.append("tfz_from_top_solution_annotation")
     llgi = _last_match_float(_LLGI, text)
     if solution_count > 0 and (llg is None or tfz is None):
         raise PhaserParseError("Phaser solution lacks final LLG or TFZ")
