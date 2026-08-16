@@ -54,7 +54,7 @@ Use the existing Pixi executable directly; do not activate Mamba:
 
 The Mamba `pixi` environment is only a launch location. `pixi.lock` governs
 Python 3.14.6, Nextflow 26.04.6, Java 21, MMseqs2, Foldseek, and development
-tools. CI qualifies Pixi 0.74.0 and Viper's 0.76.2. Separate Mamba `nextflow`
+tools. CI qualifies Viper's Pixi 0.76.2. Separate Mamba `nextflow`
 and `core` environments are not production dependencies.
 
 ## Secure bootstrap
@@ -208,6 +208,30 @@ then writes `crystal_report.html`, `scientific_status.json`, and
 `crystal_report_manifest.json` inside that package, so its links remain
 portable with the review assets. The HTML is a review aid, not a replacement
 for Coot inspection or explicit decisions.
+
+## Fixed 23-case homomer control matrix
+
+The operational control matrix is a fixed Viper boundary with no caller-
+supplied data root or case selection. It contains 11 prokaryotic positive
+controls, seven wrong-model controls, two target-absent controls, two wrong-
+catalogue controls, and one heteromeric assumption-violation control. Positive
+ground truth spans expected ASU counts 1, 2, 3, 4, and 6. All candidates and
+candidate-level failures are retained; LLG/TFZ remain ranking annotations.
+
+```bash
+nf-gtd-hpc-test --no-progress deploy-tools --revision HEAD
+nf-gtd-hpc-test --no-progress control-matrix-stage --revision HEAD
+nf-gtd-hpc-test --no-progress submit control-matrix --run-id RUN_ID
+nf-gtd-hpc-test --no-progress status --run-id RUN_ID
+nf-gtd-hpc-test --no-progress logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test --no-progress collect --run-id RUN_ID
+```
+
+The scheduled job uses 64 CPUs, 192 GB, and the 24-hour Viper ceiling. It runs
+at most seven concurrent Phaser searches, advances every packed positive
+sequentially to its expected count, and applies T12 to every packed positive.
+The package is an operational same-structure test and makes no leakage-
+controlled generalisation claim.
 
 ## Database track
 

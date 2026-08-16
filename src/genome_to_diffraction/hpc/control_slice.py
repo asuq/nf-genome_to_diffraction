@@ -92,6 +92,8 @@ def _write_bundle_archive(
     members: dict[str, Path],
     manifest_payload: dict[str, object],
     progress: bool,
+    maximum_archive_bytes: int = MAX_CONTROL_SLICE_ARCHIVE_BYTES,
+    manifest_name: str = "control_slice_import_manifest.json",
 ) -> tuple[str, int, str]:
     """Write a bounded regular-file-only archive plus checksum inventory."""
 
@@ -114,12 +116,12 @@ def _write_bundle_archive(
     with tempfile.TemporaryDirectory(
         prefix="nf-gtd-control-slice-", dir="/tmp"
     ) as temporary:
-        manifest = Path(temporary) / "control_slice_import_manifest.json"
+        manifest = Path(temporary) / manifest_name
         atomic_write_json(manifest, {**manifest_payload, "inventory": inventory})
         manifest_sha256 = sha256_file(manifest)
         archive_members = {
             **resolved_members,
-            "control_slice_import_manifest.json": manifest,
+            manifest_name: manifest,
         }
         with (
             tarfile.open(
@@ -137,7 +139,7 @@ def _write_bundle_archive(
                 progress_bar.update(1)
 
     archive_size = destination.stat().st_size
-    if not 1 <= archive_size <= MAX_CONTROL_SLICE_ARCHIVE_BYTES:
+    if not 1 <= archive_size <= maximum_archive_bytes:
         destination.unlink(missing_ok=True)
         raise ValidationError("control-slice archive exceeds its fixed size bound")
     return sha256_file(destination), archive_size, manifest_sha256

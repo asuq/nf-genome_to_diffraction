@@ -303,6 +303,41 @@ def test_adapter_runs_exact_composition_and_emits_credible_hit(
     assert record["model_uncertainty_source"].startswith("phenix.process")
 
 
+def test_adapter_uses_complete_solution_files_when_log_omits_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _inputs(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text="PHENIX: Phaser 2.8.4\nEXIT STATUS: SUCCESS\n",
+        write_solution=True,
+    )
+
+    output = run_first_copy_phaser(request)
+
+    assert output.result.execution_status == "completed_hit"
+    assert output.result.packing_summary["solution_count"] == 1
+    assert output.result.packing_summary["top_solution_packed"] is True
+    assert output.result.parser_warnings == (
+        "solution_count_inferred_from_output_files",
+    )
+
+
+def test_adapter_does_not_infer_no_hit_from_marker_free_empty_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _inputs(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text="PHENIX: Phaser 2.8.4\nEXIT STATUS: SUCCESS\n",
+    )
+
+    output = run_first_copy_phaser(request)
+
+    assert output.result.execution_status == "failed_parse"
+    assert output.result.rejection_reason == "Phaser log lacks a final solution count"
+
+
 def test_adapter_uses_registered_experimental_sequence_identity(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

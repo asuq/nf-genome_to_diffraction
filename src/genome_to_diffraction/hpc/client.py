@@ -24,6 +24,7 @@ from typing import Protocol
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import atomic_write_text, sha256_file
+from genome_to_diffraction.hpc.control_matrix import build_fixed_control_matrix_bundle
 from genome_to_diffraction.hpc.control_slice import build_fixed_control_slice_bundle
 from genome_to_diffraction.hpc.m4_import import build_fixed_m4_import_bundle
 from genome_to_diffraction.hpc.models import (
@@ -102,13 +103,14 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/p2-diverse.log",
         "logs/p2-control.log",
         "logs/control-slice.log",
+        "logs/control-matrix.log",
         "logs/m4-copy.log",
         "logs/t12.log",
         "logs/database.log",
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -273,6 +275,13 @@ class TextTransport(Protocol):
         archive_path: Path,
     ) -> dict[str, str]:
         """Stream the fixed six-case prokaryotic control archive."""
+
+    def control_matrix_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream the fixed 23-case prokaryotic control archive."""
 
     def t12_stage(
         self,
@@ -917,6 +926,45 @@ class SshTransport:
             )
         return fields
 
+    def control_matrix_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream the bounded 23-case control archive to Viper."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("control-matrix-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote control-matrix staging exceeded the fixed transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote control-matrix staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote control-matrix staging returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
     def t12_stage(
         self,
         arguments: Sequence[str],
@@ -1359,6 +1407,76 @@ class HpcController:
             "local_record": str(local_path),
         }
 
+    def control_matrix_stage(self, revision: str) -> dict[str, object]:
+        """Stage the complete fixed 23-case truth-labelled matrix on Viper."""
+
+        if self.config.site_id != "viper-cpu":
+            raise ValidationError(
+                "control-matrix-stage is available only for viper-cpu"
+            )
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+        run_id = f"gtd-control-matrix-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
+        owner_id = secrets.token_hex(16)
+        validate_run_id(run_id)
+        lock_checksum = sha256_file(self.config.repository / "pixi.lock")
+        record = LocalRunRecord(
+            run_id=run_id,
+            site_id=self.config.site_id,
+            commit=commit,
+            owner_id=owner_id,
+            profile="control-matrix",
+            iteration=1,
+            parent_run_id=None,
+        )
+        local_path = record.write(self.config.local_state_root)
+        with tempfile.TemporaryDirectory(
+            prefix="nf-gtd-control-matrix-", dir="/tmp"
+        ) as temporary:
+            bundle = build_fixed_control_matrix_bundle(
+                self.config.repository,
+                Path(temporary) / "control-matrix.tar.gz",
+                progress=self.progress,
+            )
+            self.logger.info(
+                "staging complete prokaryotic control matrix",
+                extra={
+                    "run_id": run_id,
+                    "archive_sha256": bundle.archive_sha256,
+                    "case_count": bundle.case_count,
+                },
+            )
+            remote = self.transport.control_matrix_stage(
+                [
+                    run_id,
+                    commit,
+                    lock_checksum,
+                    owner_id,
+                    bundle.archive_sha256,
+                    str(bundle.archive_size_bytes),
+                    bundle.manifest_sha256,
+                    str(bundle.case_count),
+                ],
+                bundle.archive,
+            )
+        return {
+            **remote,
+            "operation": "control-matrix-stage",
+            "run_id": run_id,
+            "site_id": self.config.site_id,
+            "commit": commit,
+            "profile": "control-matrix",
+            "suite_id": "prokaryote_homomer_workflow_v1",
+            "case_count": bundle.case_count,
+            "positive_count": bundle.positive_count,
+            "real_search_count": bundle.real_search_count,
+            "archive_sha256": bundle.archive_sha256,
+            "manifest_sha256": bundle.manifest_sha256,
+            "local_record": str(local_path),
+        }
+
     def t12_stage(self, revision: str, parent_run_id: str) -> dict[str, object]:
         """Stage all retained copy-two parents plus the fixed source crosswalk."""
 
@@ -1718,6 +1836,7 @@ class HpcController:
                             "p2-diverse",
                             "p2-control",
                             "control-slice",
+                            "control-matrix",
                             "m4-copy",
                             "t12",
                         }

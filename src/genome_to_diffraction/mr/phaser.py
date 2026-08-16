@@ -479,6 +479,47 @@ def parse_phaser_log(text: str) -> ParsedPhaserLog:
     )
 
 
+def _parse_completed_outputs(text: str, output: Path) -> ParsedPhaserLog:
+    """Parse a completed run, using final solution files when logs omit a count.
+
+    Phenix 2.1-6048 can exit successfully and write the complete top PDB/MTZ
+    pair without the legacy ``** There were N solutions`` summary.  Output-file
+    inference is deliberately narrow: both files and final PDB LLG, TFZ, and
+    placement remarks must exist.  A marker-free run without that evidence
+    remains a parse failure rather than a scientific no-hit.
+    """
+
+    try:
+        return parse_phaser_log(text)
+    except PhaserParseError as error:
+        if str(error) != "Phaser log lacks a final solution count":
+            raise
+        coordinate = output / f"{_ROOT}.1.pdb"
+        output_mtz = output / f"{_ROOT}.1.mtz"
+        if not coordinate.is_file() or not output_mtz.is_file():
+            raise
+        pdb_text = coordinate.read_text(encoding="utf-8", errors="replace")
+        llg = _last_match_float(_PDB_LLG, pdb_text)
+        tfz_values = [float(value) for value in _PDB_TFZ.findall(pdb_text)]
+        placed_count = len(_PDB_PLACEMENT.findall(pdb_text))
+        if llg is None or not tfz_values or placed_count < 1:
+            raise
+        warnings = ["solution_count_inferred_from_output_files"]
+        if "EXIT STATUS: SUCCESS" not in text:
+            warnings.append("phaser_success_marker_absent")
+        version_match = _VERSION.search(text)
+        return ParsedPhaserLog(
+            phaser_version=version_match.group(1) if version_match else None,
+            solution_count=1,
+            llg=llg,
+            llgi=_last_match_float(_LLGI, text),
+            tfz=tfz_values[-1],
+            accepted_solution_count=1,
+            packed_solution_count=1,
+            parser_warnings=tuple(warnings),
+        )
+
+
 def _command(resolved: _ResolvedInput, sequence_fasta: Path, threads: int) -> list[str]:
     hypothesis = resolved.hypothesis
     return [
@@ -744,7 +785,7 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
         return _write_result(output, result, command_json)
     log_text = raw_log.read_text(encoding="utf-8", errors="replace")
     try:
-        parsed = parse_phaser_log(log_text)
+        parsed = _parse_completed_outputs(log_text, output)
         tool_version = (
             f"Phenix {phenix_manifest.phenix_version}; Phaser {parsed.phaser_version}"
             if parsed.phaser_version is not None

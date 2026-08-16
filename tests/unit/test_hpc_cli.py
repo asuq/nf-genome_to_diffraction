@@ -138,6 +138,17 @@ def test_control_slice_stage_has_no_caller_supplied_cases_or_paths() -> None:
     assert submitted.profile == "control-slice"
 
 
+def test_control_matrix_stage_has_no_caller_supplied_cases_or_paths() -> None:
+    parser = _build_parser()
+
+    staged = parser.parse_args(["control-matrix-stage", "--revision", "HEAD"])
+    assert staged.operation == "control-matrix-stage"
+    assert vars(staged)["revision"] == "HEAD"
+    assert not {"cases", "source", "destination", "evidence_root"} & vars(staged).keys()
+    submitted = parser.parse_args(["submit", "control-matrix", "--run-id", "RUN_ID"])
+    assert submitted.profile == "control-matrix"
+
+
 def test_t12_stage_accepts_only_revision_and_owned_parent() -> None:
     parser = _build_parser()
 
@@ -180,6 +191,22 @@ def test_control_slice_remote_stage_validates_before_exposing_staged() -> None:
     )
     final_staged = function.index('atomic_text "$run/state/phase" staged')
     assert import_phase < manifest_checksum < final_staged
+
+
+def test_control_matrix_remote_stage_validates_fixed_scope_before_staged() -> None:
+    dispatcher = (
+        Path(__file__).resolve().parents[2] / "bootstrap/nf-gtd-hpc-remote"
+    ).read_text(encoding="utf-8")
+    function = dispatcher.split("control_matrix_stage_run() {", 1)[1].split(
+        "\nm4_import_stage_run() {", 1
+    )[0]
+
+    assert '"$case_count" -eq 23' in function
+    assert '"positive": 11' in function
+    assert '"wrong_model_negative": 7' in function
+    assert 'manifest.get("positive_copy_counts") != [1, 2, 3, 4, 6]' in function
+    assert 'manifest.get("all_candidates_retained") is not True' in function
+    assert 'manifest.get("score_policy")' in function
 
 
 def test_m4_copy_remote_stage_exposes_staged_only_after_inputs_are_bound() -> None:

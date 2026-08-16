@@ -641,21 +641,22 @@ or evidence model. None is part of the 26–44 week baseline estimate.
 
 ## Immediate next goal
 
-M0–M4 and T13.1–T13.3 have passed on the accepted real CD6 evidence. The active
-goal is now **close M5 and the Prototype 0.2 gate** without expanding scope:
+M0–M4 and T13.1–T13.3 have passed on real CD6 evidence, but CD6 has unknown
+composition and may violate `ASU = nA`. It must not block truth-labelled
+single-component validation. The active goal is therefore:
 
-1. run and collect one corrected all-11 T12 replay that provides both maps,
-   genome annotation, and Matthews/ASU context;
-2. complete Coot review of all 11 retained CD6 alternatives, record explicit
-   sequence-group decisions, and assess the single-component assumption;
-3. rebuild the scientific status and self-contained report from those human
-   decisions without treating preliminary scores or high `R_free` values as a
-   validated identity;
-4. freeze one clean revision and run the three-dataset T13.4 feasibility pilot
-   with ground truth kept blind until review; and
-5. use all three cases for the bounded T13.5 resource and heuristic review,
-   document known failures and unsupported cases, and assess the Prototype 0.2
-   gate. Three crystals are feasibility evidence, not statistical calibration.
+1. execute the fixed 23-case prokaryotic operational matrix: 11 positives,
+   seven wrong-model controls, two target-absent controls, two wrong-catalogue
+   controls, and one assumption-violation control;
+2. require positive coverage across expected ASU counts 1, 2, 3, 4, and 6,
+   retaining every parent/child attempt and candidate-level failure;
+3. collect and correct evidence-backed software failures until the fixed
+   matrix completes, without using LLG/TFZ alone to remove alternatives;
+4. keep CD6 Coot decisions as a separate unknown-sample checkpoint rather than
+   treating them as truth-labelled homomer validation; and
+5. use the matrix and three feasibility datasets for the bounded resource and
+   heuristic review, documenting that the operational same-structure controls
+   do not establish leakage-controlled generalisation.
 
 After Prototype 0.2, M6 defines an independent leakage-controlled benchmark and
 internal research release. Heteromer reconstruction and the other deferred

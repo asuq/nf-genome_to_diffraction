@@ -63,3 +63,22 @@ def test_modified_amino_acid_model_sequence_is_mass_compatible(
 
     assert sequence == "M"
     assert atom_count == 3
+
+
+def test_kynurenine_model_residue_is_retained_as_tryptophan(tmp_path: Path) -> None:
+    model = tmp_path / "kyn.pdb"
+    model.write_text(
+        "HETATM    1  N   KYN A   1       0.000   0.000   0.000  1.00 20.00"
+        "           N  \n"
+        "HETATM    2  CA  KYN A   1       1.000   0.000   0.000  1.00 20.00"
+        "           C  \n"
+        "HETATM    3  C   KYN A   1       1.000   1.000   0.000  1.00 20.00"
+        "           C  \n"
+        "END\n",
+        encoding="ascii",
+    )
+
+    sequence, _, atom_count = _pdb_sequence(model)
+
+    assert sequence == "W"
+    assert atom_count == 3

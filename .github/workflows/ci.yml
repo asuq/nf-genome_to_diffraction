@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pixi-version: [v0.74.0, v0.76.2]
+        pixi-version: [v0.76.2]
     steps:
       - name: Check out repository
         uses: actions/checkout@v6

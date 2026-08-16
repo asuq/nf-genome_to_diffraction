@@ -39,6 +39,13 @@ _MAP_LABEL = re.compile(
     r"(?:^|[^A-Z0-9])(2?FOFC|DELFWT|FWT|PHWT|FMODEL|FC)(?:$|[^A-Z0-9])"
 )
 _FLOAT_PATTERN = r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+_OBSERVATION_TYPES: dict[str, Literal["intensity", "amplitude"]] = {
+    "J": "intensity",
+    "K": "intensity",
+    "F": "amplitude",
+    "G": "amplitude",
+}
+_SIGMA_TYPES = {"J": "Q", "K": "M", "F": "Q", "G": "L"}
 
 
 class MtzPreflightError(InputContractError):
@@ -127,7 +134,9 @@ def _without_anomalous_sign(label: str) -> str:
 def _is_sigma_for(value_label: str, sigma_label: str) -> bool:
     value = _normalise_label(value_label)
     sigma = _normalise_label(sigma_label)
-    return sigma == f"SIG{value}"
+    return sigma == f"SIG{value}" and _anomalous_sign(value_label) == _anomalous_sign(
+        sigma_label
+    )
 
 
 def _observation_rank(label: str, observation_type: str) -> int:
@@ -148,14 +157,12 @@ def _is_map_coefficient(label: str) -> bool:
 def _candidate_pairs(mtz: gemmi.Mtz) -> tuple[_ObservationCandidate, ...]:
     pairs: list[_ObservationCandidate] = []
     for value in mtz.columns:
-        if value.type not in {"J", "F"} or _is_map_coefficient(value.label):
+        if value.type not in _OBSERVATION_TYPES or _is_map_coefficient(value.label):
             continue
-        observation_type: Literal["intensity", "amplitude"] = (
-            "intensity" if value.type == "J" else "amplitude"
-        )
+        observation_type = _OBSERVATION_TYPES[value.type]
         for sigma in mtz.columns:
             if (
-                sigma.type == "Q"
+                sigma.type == _SIGMA_TYPES[value.type]
                 and sigma.dataset_id == value.dataset_id
                 and _is_sigma_for(value.label, sigma.label)
             ):
@@ -220,18 +227,21 @@ def _explicit_candidate(mtz: gemmi.Mtz, labels_text: str) -> _ObservationCandida
     if any(_is_map_coefficient(column.label) for column in value_columns):
         raise MtzPreflightError("map coefficients cannot be selected as observations")
     value_types = {column.type for column in value_columns}
-    if len(value_types) != 1 or value_types.pop() not in {"J", "F"}:
-        raise MtzPreflightError("observation values must all be MTZ type J or F")
-    if any(column.type != "Q" for column in sigma_columns):
-        raise MtzPreflightError("observation sigma columns must be MTZ type Q")
+    if len(value_types) != 1 or not value_types.issubset(_OBSERVATION_TYPES):
+        raise MtzPreflightError(
+            "observation values must all use one MTZ observation type"
+        )
+    value_type = value_columns[0].type
+    if any(column.type != _SIGMA_TYPES[value_type] for column in sigma_columns):
+        raise MtzPreflightError(
+            "observation sigma columns do not match the MTZ observation type"
+        )
     if any(
         not _is_sigma_for(value.label, sigma.label)
         for value, sigma in zip(value_columns, sigma_columns, strict=True)
     ):
         raise MtzPreflightError("explicit observation value/sigma labels do not pair")
-    observation_type: Literal["intensity", "amplitude"] = (
-        "intensity" if value_columns[0].type == "J" else "amplitude"
-    )
+    observation_type = _OBSERVATION_TYPES[value_type]
     return _ObservationCandidate(labels, observation_type, -1)
 
 

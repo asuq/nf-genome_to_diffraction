@@ -92,6 +92,16 @@ def _crystal(path: Path, **updates: object) -> CrystalEntry:
             "intensity",
         ),
         ((("FP", "F"), ("SIGFP", "Q")), "FP,SIGFP", "amplitude"),
+        (
+            (
+                ("F(+)", "G"),
+                ("SIGF(+)", "L"),
+                ("F(-)", "G"),
+                ("SIGF(-)", "L"),
+            ),
+            "F(+),SIGF(+),F(-),SIGF(-)",
+            "amplitude",
+        ),
     ),
 )
 def test_gemmi_preflight_selects_observations_and_asu_volume(

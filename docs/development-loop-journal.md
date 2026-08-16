@@ -5267,3 +5267,109 @@ general benchmark-runner abstraction.
 Inspect the staged diff, create the focused execution-boundary commit, push and
 watch one GitHub Actions run, then deploy, run `control-slice-stage`, submit the
 returned immutable run ID, and attach the 30-minute monitor to that run.
+
+## 2026-08-16T10:37:49Z - Six-case Viper attempt running; 23-case goal retained
+
+### Discoveries
+
+- The installed local controller zipapp predated the new staging operation even
+  though the remote tools were current. Rebuilding and checksum-verifying the
+  reviewed zipapp restored the intended fixed wrapper boundary; this was a
+  local launch-tool version mismatch, not a Viper or scientific failure.
+- The user has standardised future CI execution on Pixi 0.76.2 to avoid
+  redundant same-version checks. Preserve that workflow update when it appears
+  in the local source and do not recreate the old two-version matrix.
+
+### Accomplishments
+
+- Published green commit `dda0180cd94dc8e79605661c61506ed52a2e152d` and
+  completed GitHub Actions run `31941761025`. Deployed dispatcher SHA-256 is
+  `29000d7eebf2cc1d385f05565901ebbff003336cf2bed3edaa613c5735156f5b`
+  and job-wrapper SHA-256 is
+  `ee538a37586176b535b2821f4b7818be357433a0ab0e077e9d38fea9e25d76bd`.
+- Installed local reviewed controller SHA-256
+  `b3062af7cbacfae7bdc104c39ce1406444c7af5f649c24379caa9ad101598c8f`.
+- Staged and submitted the immutable six-case control slice on Viper. The
+  30-minute continuation now binds the exact run and retains the complete
+  23-case implementation/execution goal after smoke acceptance.
+
+### Immutable evidence
+
+- Active run: `gtd-control-slice-20260816T103617Z-dda0180cd94d-a6450e4a`,
+  Slurm job `10930288`, source commit `dda0180cd94dc8e79605661c61506ed52a2e152d`,
+  archive SHA-256
+  `a1833a232580936750f8433d7b85da4e41391e3cd0af5ba3b6c5c370766e64d4`,
+  and import-manifest SHA-256
+  `3bf849dc6fb1516c6a9c52599a1d2f71c0e718859bf8c6868b97a0edaf09e524`.
+- The wrapper reports scheduler state `RUNNING`, terminal `false`; no failure is
+  inferred from the absence of further output.
+
+### Unresolved work
+
+- On terminal evidence, collect and verify all five searches, six typed cases,
+  supported 3W45 copy-two transitions, T12 outputs, checksums, provenance, and
+  candidate-level failures. Fix only demonstrated software failures and submit
+  the next attempt before returning to scheduled monitoring.
+- After smoke acceptance, implement and execute the entire fixed 23-case
+  matrix, including positive ASU copy counts 1/2/3/4/6. Do not end the active
+  goal at the smoke result.
+
+### Next exact starting point
+
+Read this entry, query only the active run through the reviewed wrapper, and
+leave it untouched while non-terminal. If terminal, inspect bounded logs and
+collect; otherwise let the 30-minute continuation recur. After accepted smoke
+evidence, begin the fixed 23-case archive/runtime increment immediately.
+
+## 2026-08-16T11:17:11Z - Complete 23-case Viper matrix boundary ready
+
+### Discoveries
+
+- The terminal six-case job completed successfully at the scheduler/tool level,
+  but all five exit-zero Phaser attempts were classified `failed_parse` because
+  Phenix 2.1-6048 omitted the legacy final solution-count line. Complete top
+  PDB/MTZ pairs remain valid bounded evidence; marker-free empty output does not.
+- Real preparation of the full public matrix exposed standard anomalous MTZ
+  amplitude types `G/L` in 7L6G and the modified residue KYN. Preflight must
+  pair anomalous signs exactly, and KYN must remain in the observed model as W.
+- The user-standardised launcher/CI version is Pixi 0.76.2 only. The previous
+  two-version CI matrix is no longer part of the active policy.
+
+### Accomplishments
+
+- Added the fixed 23-case archive and runtime: 11 positives, seven wrong-model
+  searches, five typed boundary outcomes, sequential placement through expected
+  ASU counts 1/2/3/4/6, T12 for packed positives, and retain-all case evidence.
+- Added a Viper-only `control-matrix-stage` operation with no arbitrary roots or
+  case selection, exact case/distribution/copy-count validation, 64-CPU/192-GB/
+  24-hour submission, bounded Phaser tails, checksums, and collection paths.
+- Added narrow regressions for marker-free complete Phaser output, anomalous
+  `G/L` observation selection/sign pairing, and KYN model normalisation.
+
+### Immutable evidence
+
+- The local archive contains exactly 23 cases and 34 regular members. Its
+  current dry-run size is 21,143,071 bytes, archive SHA-256
+  `a2ca7ad6f7c4b1e4f30852a2c155ef03637334d11c877e85b4ebe93322d1b84a`,
+  and embedded-manifest SHA-256
+  `97132162e558df1c9087aab1826a32e954eb3477b2b241eb9930b0655cf74b40`.
+- Real local preparation emitted 11 usable MTZ preflights and 18 first-copy
+  hypotheses, including all 11 positives and expected counts 1, 2, 3, 4, and 6.
+- The complete locked gate passes 394 unit, 57 contract, and 47 integration
+  tests plus formatting, Ruff, `ty`, schemas, public-panel, docs, Actions,
+  Nextflow syntax/stub, and HPC-wrapper checks.
+
+### Unresolved work
+
+- Publish this coherent commit once, watch the single Pixi 0.76.2 CI job, deploy
+  checksum-reviewed tools, stage and submit the fixed matrix on Viper, and
+  monitor terminal evidence without cancelling or inferring failure from silence.
+- The matrix is operational same-structure evidence. Leakage-controlled
+  generalisation remains a later M6 validation activity.
+
+### Next exact starting point
+
+Inspect and stage only this milestone, commit and push once, watch one GitHub
+Actions run, deploy tools from that green commit, run `control-matrix-stage`,
+submit the returned run ID with profile `control-matrix`, and replace the stale
+continuation with a 30-minute monitor for that exact retained Viper run.

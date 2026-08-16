@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -20,6 +20,7 @@ MAX_P0_INPUT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_SOURCE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
 MAX_M4_IMPORT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_CONTROL_SLICE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
+MAX_CONTROL_MATRIX_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_T12_SOURCE_RECORD_BYTES=$((2 * 1024 * 1024))
 
 TOOL_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -1001,7 +1002,8 @@ stage_run_common() {
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
-          "$profile" == control-slice || "$profile" == m4-copy || \
+          "$profile" == control-slice || "$profile" == control-matrix || \
+          "$profile" == m4-copy || \
           "$profile" == t12 || \
           "$profile" == database ]]; then
         if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
@@ -1024,7 +1026,8 @@ stage_run_common() {
         }
         if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
               "$profile" == p2-diverse || "$profile" == p2-control || \
-              "$profile" == control-slice || "$profile" == m4-copy || \
+              "$profile" == control-slice || "$profile" == control-matrix || \
+              "$profile" == m4-copy || \
               "$profile" == t12 ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
             java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
@@ -1673,6 +1676,155 @@ PY
     emit phase staged
 }
 
+control_matrix_stage_run() {
+    [[ "$#" -eq 8 ]] || \
+        fail wrapper_failure "control-matrix-stage expects eight fixed arguments"
+    local run_id="$1" commit="$2" lock_sha256="$3" owner_id="$4"
+    local archive_sha256="$5" archive_size="$6" manifest_sha256="$7"
+    local case_count="$8" run import_archive import_root python phenix_manifest
+
+    [[ "$archive_sha256" =~ $CHECKSUM_RE && \
+       "$manifest_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid control-matrix checksum"
+    [[ "$archive_size" =~ $BYTE_COUNT_RE && "$case_count" =~ $INTEGER_RE ]] || \
+        fail wrapper_failure "invalid control-matrix size or case count"
+    (( archive_size >= 1 && archive_size <= MAX_CONTROL_MATRIX_ARCHIVE_BYTES )) || \
+        fail wrapper_failure "control-matrix archive is outside the fixed limit"
+    [[ "$case_count" -eq 23 ]] || \
+        fail wrapper_failure "control-matrix must contain exactly 23 cases"
+    [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && \
+       "$(head -n 1 "$SITE_CONFIG")" == viper-cpu ]] || \
+        fail environment_failure "control-matrix-stage requires the fixed Viper site"
+    phenix_manifest="$(sed -n '7p' "$SITE_CONFIG")"
+    [[ "$phenix_manifest" =~ $SAFE_PATH_RE && -f "$phenix_manifest" && \
+       ! -L "$phenix_manifest" ]] || \
+        fail environment_failure "fixed Viper Phenix manifest is unavailable"
+
+    stage_run_common \
+        "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 control-matrix
+    run="$(run_directory "$run_id")"
+    atomic_text "$run/state/phase" control_matrix_importing
+    import_archive="$run/control-matrix.tar.gz"
+    head -c "$archive_size" > "$import_archive" || \
+        fail transfer_failure "control-matrix archive transfer failed"
+    [[ "$(file_size "$import_archive")" -eq "$archive_size" && \
+       "$(sha256sum "$import_archive" | awk '{print $1}')" == \
+       "$archive_sha256" ]] || \
+        fail transfer_failure "control-matrix archive changed during transfer"
+
+    import_root="$run/artifacts/control-matrix-inputs"
+    mkdir -m 0700 "$import_root"
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    if ! "$python" - "$import_archive" "$import_root" "$manifest_sha256" \
+        > "$run/logs/control-matrix-stage.log" 2>&1 <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+import tarfile
+
+archive_path = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+expected_manifest_sha256 = sys.argv[3]
+expected_cases = [
+    "POS_8OOX", "POS_7P50", "POS_8Q5T", "POS_6HF7", "POS_6P1F",
+    "POS_5FJE", "POS_7L6G", "POS_8JPV", "POS_2Q7E", "POS_1JCF",
+    "POS_3W45", "NEG_MODEL_8OOX_8JPV", "NEG_MODEL_7P50_6P1F",
+    "NEG_MODEL_6P1F_7P50", "NEG_MODEL_8Q5T_7L6G",
+    "NEG_MODEL_2Q7E_8Q5T", "NEG_MODEL_1JCF_8Q5T",
+    "NEG_MODEL_3W45_6HF7", "NEG_ABSENT_8OOX", "NEG_ABSENT_3W45",
+    "NEG_CATALOGUE_8OOX_7P50", "NEG_CATALOGUE_3W45_1JCF",
+    "NEG_ASSUMPTION_6CXH",
+]
+expected_counts = {
+    "positive": 11,
+    "wrong_model_negative": 7,
+    "target_absent_negative": 2,
+    "wrong_catalogue_negative": 2,
+    "assumption_violation": 1,
+}
+with tarfile.open(archive_path, "r:gz") as archive:
+    members = archive.getmembers()
+    names = []
+    for member in members:
+        path = pathlib.PurePosixPath(member.name)
+        if path.is_absolute() or ".." in path.parts or not member.isfile():
+            raise SystemExit("unsafe control-matrix archive member")
+        names.append(path.as_posix())
+    if len(names) != len(set(names)):
+        raise SystemExit("duplicate control-matrix archive member")
+    if len(names) != 34 or "control_matrix_import_manifest.json" not in names:
+        raise SystemExit("control-matrix archive inventory count changed")
+    archive.extractall(destination, members=members, filter="data")
+
+manifest_path = destination / "control_matrix_import_manifest.json"
+manifest_bytes = manifest_path.read_bytes()
+if hashlib.sha256(manifest_bytes).hexdigest() != expected_manifest_sha256:
+    raise SystemExit("control-matrix manifest checksum changed")
+manifest = json.loads(manifest_bytes)
+if manifest.get("schema_version") != "1.0":
+    raise SystemExit("control-matrix manifest schema is invalid")
+if manifest.get("adapter_version") != "public-homomer-matrix-import-v1":
+    raise SystemExit("control-matrix adapter version is invalid")
+if manifest.get("site_id") != "viper-cpu":
+    raise SystemExit("control-matrix site is invalid")
+if manifest.get("suite_id") != "prokaryote_homomer_workflow_v1":
+    raise SystemExit("control-matrix identity is invalid")
+if manifest.get("case_ids") != expected_cases:
+    raise SystemExit("control-matrix case order is invalid")
+if manifest.get("case_kind_counts") != expected_counts:
+    raise SystemExit("control-matrix case distribution is invalid")
+if manifest.get("positive_copy_counts") != [1, 2, 3, 4, 6]:
+    raise SystemExit("control-matrix copy-count coverage is invalid")
+if manifest.get("all_candidates_retained") is not True:
+    raise SystemExit("control-matrix retention policy is invalid")
+if manifest.get("score_policy") != "LLG/TFZ_are_ranking_annotations_only":
+    raise SystemExit("control-matrix score policy is invalid")
+if len(manifest.get("positive_controls", {})) != 11:
+    raise SystemExit("control-matrix positive inventory is invalid")
+if len(manifest.get("wrong_model_controls", {})) != 7:
+    raise SystemExit("control-matrix wrong-model inventory is invalid")
+if len(manifest.get("typed_boundary_cases", {})) != 5:
+    raise SystemExit("control-matrix typed-boundary inventory is invalid")
+inventory = manifest.get("inventory")
+archive_assets = set(names) - {"control_matrix_import_manifest.json"}
+if not isinstance(inventory, dict) or set(inventory) != archive_assets:
+    raise SystemExit("control-matrix checksum inventory is invalid")
+for relative, record in inventory.items():
+    path = destination / relative
+    if path.is_symlink() or not path.is_file() or not isinstance(record, dict):
+        raise SystemExit("control-matrix asset is absent or unsafe")
+    payload = path.read_bytes()
+    if hashlib.sha256(payload).hexdigest() != record.get("sha256"):
+        raise SystemExit("control-matrix asset checksum changed")
+    if len(payload) != record.get("size_bytes"):
+        raise SystemExit("control-matrix asset size changed")
+PY
+    then
+        atomic_text "$run/state/phase" stage_failed
+        atomic_text "$run/state/failure-class" wrapper_failure
+        append_event "$run" control_matrix_import_failed
+        fail wrapper_failure "control-matrix validation or extraction failed"
+    fi
+    rm -f -- "$import_archive"
+    atomic_text "$run/state/control-matrix-archive-sha256" "$archive_sha256"
+    atomic_text "$run/state/control-matrix-manifest-sha256" "$manifest_sha256"
+    atomic_text "$run/state/control-matrix-case-count" "$case_count"
+    atomic_text "$run/state/phenix-manifest" "$phenix_manifest"
+    atomic_text "$run/state/phenix-manifest-sha256" \
+        "$(sha256sum "$phenix_manifest" | awk '{print $1}')"
+    atomic_text "$run/state/phase" staged
+    append_event "$run" control_matrix_inputs_ready
+    emit operation control-matrix-stage
+    emit run_id "$run_id"
+    emit site_id viper-cpu
+    emit suite_id prokaryote_homomer_workflow_v1
+    emit case_count "$case_count"
+    emit archive_sha256 "$archive_sha256"
+    emit manifest_sha256 "$manifest_sha256"
+    emit phase staged
+}
+
 m4_import_stage_run() {
     [[ "$#" -eq 9 ]] || \
         fail wrapper_failure "m4-import-stage expects nine fixed arguments"
@@ -1858,10 +2010,15 @@ submit_run() {
         cpus=8
         memory=32G
     fi
+    if [[ "$profile" == control-matrix ]]; then
+        cpus=64
+        memory=192G
+    fi
     [[ "$profile" != p0 ]] || walltime=24:00:00
     if [[ "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
-          "$profile" == control-slice || "$profile" == m4-copy || \
+          "$profile" == control-slice || "$profile" == control-matrix || \
+          "$profile" == m4-copy || \
           "$profile" == t12 ]]; then
         walltime=24:00:00
     fi
@@ -2318,6 +2475,9 @@ collect_run() {
         state/control-slice-archive-sha256 \
         state/control-slice-manifest-sha256 \
         state/control-slice-case-count \
+        state/control-matrix-archive-sha256 \
+        state/control-matrix-manifest-sha256 \
+        state/control-matrix-case-count \
         state/failure-class \
         state/exit-code \
         logs/git-fetch.log \
@@ -2330,6 +2490,8 @@ collect_run() {
         logs/m4-import-stage.log \
         logs/control-slice-stage.log \
         logs/control-slice.log \
+        logs/control-matrix-stage.log \
+        logs/control-matrix.log \
         logs/database-source-stage.log \
         logs/sbatch.err \
         logs/smoke.log \
@@ -2443,6 +2605,15 @@ collect_run() {
         artifacts/qualification/control-slice-sequence-results.jsonl \
         artifacts/qualification/control-slice-checksums.sha256 \
         artifacts/qualification/control-slice-phenix-verification.log \
+        artifacts/qualification/control-matrix-summary.json \
+        artifacts/qualification/control-matrix-case-results.jsonl \
+        artifacts/qualification/control-matrix-first-copy-results.jsonl \
+        artifacts/qualification/control-matrix-additional-copy-results.jsonl \
+        artifacts/qualification/control-matrix-refinement-results.jsonl \
+        artifacts/qualification/control-matrix-sequence-results.jsonl \
+        artifacts/qualification/control-matrix-checksums.sha256 \
+        artifacts/qualification/control-matrix-phenix-verification.log \
+        artifacts/qualification/control-matrix-log-tails.txt \
         artifacts/qualification/p2-control-first-pipeline-info/report.html \
         artifacts/qualification/p2-control-first-pipeline-info/timeline.html \
         artifacts/qualification/p2-control-first-pipeline-info/trace.tsv \
@@ -2453,6 +2624,7 @@ collect_run() {
         artifacts/qualification/p2-control-resume-pipeline-info/dag.html \
         artifacts/qualification/m4-copy-input-checksums.sha256 \
         artifacts/control-slice-inputs/control_slice_import_manifest.json \
+        artifacts/control-matrix-inputs/control_matrix_import_manifest.json \
         artifacts/qualification/m4-copy-summary.json \
         artifacts/qualification/m4-copy-results.jsonl \
         artifacts/qualification/m4-copy-series-summaries.jsonl \
@@ -3147,6 +3319,7 @@ main() {
         m4-copy-stage) m4_copy_stage_run "$@" ;;
         m4-import-stage) m4_import_stage_run "$@" ;;
         control-slice-stage) control_slice_stage_run "$@" ;;
+        control-matrix-stage) control_matrix_stage_run "$@" ;;
         t12-stage) t12_stage_run "$@" ;;
         database-stage) database_stage_run "$@" ;;
         submit) submit_run "$@" ;;

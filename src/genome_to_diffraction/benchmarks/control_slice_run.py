@@ -144,11 +144,13 @@ def _pdb_sequence(path: Path) -> tuple[str, tuple[str, ...], int]:
         for chain in model:
             for residue in chain:
                 info = gemmi.find_tabulated_residue(residue.name)
-                if info.is_amino_acid():
+                if info.is_amino_acid() or residue.name == "KYN":
                     residues.append(residue)
                     atom_count += len(residue)
     sequence = "".join(
-        gemmi.find_tabulated_residue(residue.name).one_letter_code
+        "W"
+        if residue.name == "KYN"
+        else gemmi.find_tabulated_residue(residue.name).one_letter_code
         for residue in residues
     ).upper()
     if not sequence or atom_count < 1:

@@ -17,6 +17,10 @@ from genome_to_diffraction.benchmarks import (
     prepare_public_control,
     prepare_public_control_panel,
 )
+from genome_to_diffraction.benchmarks.control_matrix_run import (
+    ControlMatrixRunRequest,
+    run_control_matrix,
+)
 from genome_to_diffraction.benchmarks.control_slice_run import (
     ControlSliceRunRequest,
     run_control_slice,
@@ -459,6 +463,14 @@ def _build_parser() -> argparse.ArgumentParser:
     control_slice_parser.add_argument("--phenix-manifest", type=Path, required=True)
     control_slice_parser.add_argument("--outdir", type=Path, required=True)
     control_slice_parser.add_argument("--threads", type=int, default=8)
+    control_matrix_parser = benchmark_actions.add_parser(
+        "run-control-matrix",
+        help="run the fixed 23-case prokaryotic homomer benchmark",
+    )
+    control_matrix_parser.add_argument("--import-root", type=Path, required=True)
+    control_matrix_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    control_matrix_parser.add_argument("--outdir", type=Path, required=True)
+    control_matrix_parser.add_argument("--threads", type=int, default=64)
     panel_check_parser = benchmark_actions.add_parser(
         "check-public-panel",
         help="validate the tracked public panel and active control mappings",
@@ -1251,6 +1263,23 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             f"Executed six-case control slice with "
             f"{result.first_copy_attempt_count} first-copy attempts: "
             f"{result.summary_json}"
+        )
+        return 0
+    if args.benchmark_action == "run-control-matrix":
+        result = run_control_matrix(
+            ControlMatrixRunRequest(
+                import_root=args.import_root,
+                phenix_manifest=args.phenix_manifest,
+                output_directory=args.outdir,
+                threads=args.threads,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            "Completed fixed 23-case homomer matrix: "
+            f"{result.first_copy_attempt_count} first-copy, "
+            f"{result.additional_copy_attempt_count} additional-copy, "
+            f"{result.refinement_attempt_count} refinement attempts"
         )
         return 0
     if args.benchmark_action == "check-public-panel":

@@ -76,6 +76,7 @@ class FakeTransport:
     p0_archive: bytes = b""
     m4_import_archive: bytes = b""
     control_slice_archive: bytes = b""
+    control_matrix_archive: bytes = b""
     deploy_error: RemoteOperationError | None = None
     stage_error: RemoteOperationError | None = None
 
@@ -214,6 +215,16 @@ class FakeTransport:
         return {
             "run_id": arguments[0],
             "remote_operation": "control-slice-stage",
+        }
+
+    def control_matrix_stage(
+        self, arguments: Sequence[str], archive_path: Path
+    ) -> dict[str, str]:
+        self.calls.append(("control-matrix-stage", tuple(arguments)))
+        self.control_matrix_archive = archive_path.read_bytes()
+        return {
+            "run_id": arguments[0],
+            "remote_operation": "control-matrix-stage",
         }
 
     def t12_stage(
@@ -1012,6 +1023,54 @@ def test_control_slice_stage_streams_only_fixed_viper_archive(
     assert arguments[5] == str(len(payload))
     assert arguments[6] == "7" * 64
     assert arguments[7] == "6"
+    assert all("/" not in argument for argument in arguments)
+
+
+def test_control_matrix_stage_streams_only_fixed_viper_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from genome_to_diffraction.hpc.control_matrix import ControlMatrixBundle
+
+    payload = b"fixed 23-case archive"
+
+    def build_bundle(
+        repository: Path, destination: Path, *, progress: bool
+    ) -> ControlMatrixBundle:
+        assert repository == tmp_path
+        assert progress is False
+        destination.write_bytes(payload)
+        return ControlMatrixBundle(
+            archive=destination,
+            archive_sha256=hashlib.sha256(payload).hexdigest(),
+            archive_size_bytes=len(payload),
+            manifest_sha256="8" * 64,
+            case_count=23,
+            positive_count=11,
+            real_search_count=18,
+        )
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client.build_fixed_control_matrix_bundle",
+        build_bundle,
+    )
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id="viper-cpu")
+
+    result = controller.control_matrix_stage("HEAD")
+
+    assert result["profile"] == "control-matrix"
+    assert result["suite_id"] == "prokaryote_homomer_workflow_v1"
+    assert result["case_count"] == 23
+    assert result["positive_count"] == 11
+    assert result["real_search_count"] == 18
+    assert transport.control_matrix_archive == payload
+    operation, arguments = transport.calls[-1]
+    assert operation == "control-matrix-stage"
+    assert arguments[4] == hashlib.sha256(payload).hexdigest()
+    assert arguments[5] == str(len(payload))
+    assert arguments[6] == "8" * 64
+    assert arguments[7] == "23"
     assert all("/" not in argument for argument in arguments)
 
 

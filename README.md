@@ -80,7 +80,7 @@ foundation.
 
 The environment pins the conventional GIL build of Python 3.14.6, Nextflow
 26.04.6, Java 21 LTS, and the `ty` type checker.
-Pixi versions from 0.74.0 through 0.76.x are supported and tested. Phenix is
+Pixi 0.76.2 is the supported and tested launcher version. Phenix is
 licensed external software and is never installed by Pixi or included in this
 repository.
 
