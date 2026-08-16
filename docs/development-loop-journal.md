@@ -5657,3 +5657,210 @@ Inspect `git status --short`, the complete diff, and `git diff --check`; stage
 only this correction, create its coherent commit, and continue without a
 handoff through push, one CI watch, checksum-reviewed deployment, matrix
 staging, replacement submission, and heartbeat rebinding.
+
+## 2026-08-16T12:41:32Z - Right-sized complete matrix is running on Viper
+
+### Discoveries
+
+- The 8-CPU/32-GB replacement entered scheduler state `RUNNING` immediately
+  after submission on the crowded Viper queue. The right-sized profile therefore
+  met the primary operational goal without increasing resources or changing
+  scientific policy.
+- Rebuilding the local controller after the green commit produced a new
+  checksum even though the staging interface itself was unchanged. Installing
+  that exact artifact keeps local orchestration, pushed source, and deployed
+  tools aligned for later provenance review.
+
+### Accomplishments
+
+- Created and pushed commit
+  `ab3f47b2848609335423ad67279ffbf1e7ef0187` once. GitHub Actions run
+  `31947352435` passed its single Pixi 0.76.2 job in 5m42s.
+- Deployed checksum-reviewed dispatcher and compute-job tools, rebuilt and
+  installed the matching local controller, staged the fixed public 23-case
+  archive, and submitted the replacement Viper job.
+- Rebound the existing `continue-prokaryotic-control-roadmap` 30-minute
+  heartbeat to only the replacement run. It remains active in the current task;
+  no duplicate monitor was created.
+
+### Immutable evidence
+
+- Active run:
+  `gtd-control-matrix-20260816T123957Z-ab3f47b28486-678daa04`, Slurm job
+  `10930972`, source commit
+  `ab3f47b2848609335423ad67279ffbf1e7ef0187`, nf-helper commit
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, site `viper-cpu`, profile
+  `control-matrix`, suite `prokaryote_homomer_workflow_v1`, 23 cases, 11
+  positives, and 18 real first-copy searches.
+- The outer request is 8 CPUs, 32 GB, and 24 hours; the adapter runs at most four
+  concurrent Phenix attempts. Initial structured state is phase `submitted`,
+  scheduler state `RUNNING`, terminal `false`, with no exit code or failure
+  class.
+- Staged archive SHA-256 is
+  `51add8b8448f7920861efb47946d57f1526b83abc887091fcd3c3244f06d137c`;
+  embedded-manifest SHA-256 is
+  `97132162e558df1c9087aab1826a32e954eb3477b2b241eb9930b0655cf74b40`;
+  Pixi lock SHA-256 is
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`.
+- Local controller SHA-256 is
+  `5220857aa60735db74da4fdf065e1ed914a017d502edb926beacb0e445cfb7d2`.
+  Deployed dispatcher, job-wrapper, and recovery SHA-256 values are
+  `69e4959eb9ce3bcc3ff287b7e92db67425fd5b76004c9303f3e10b02cc2e0e5d`,
+  `6d679a06a14f80fb68432fac38b16606486ae00d4b83bfe563adedc5de0a50a7`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- Superseded run
+  `gtd-control-matrix-20260816T112741Z-7705252f7cee-423f9da8`, job `10930411`,
+  was cancelled while still `PENDING`; it performed no matrix computation and
+  must not be reused or cleaned automatically.
+
+### Unresolved work
+
+- While the replacement is non-terminal, leave it untouched and never infer a
+  failure from silence. On terminal evidence, inspect only bounded logs with
+  `--tail 200`, collect through the reviewed wrapper, and verify the complete
+  23-case evidence and provenance boundary before considering source changes.
+- Verify all 18 first-copy attempts, 11 positives, seven wrong-model searches,
+  five typed boundary outcomes, copy transitions through 1/2/3/4/6, all
+  additional-copy/refinement/sequence records, Phenix qualification, bounded
+  Phaser logs, candidate-level failures, and retain-all semantics. These
+  operational same-structure controls do not establish generalisation.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-control-matrix-20260816T123957Z-ab3f47b28486-678daa04`. If non-terminal,
+report the structured state concisely and leave it untouched. If terminal, run
+bounded `logs --tail 200`, then `collect`, and classify the complete evidence
+before editing source.
+
+## 2026-08-16T12:43:51Z - Remaining single-component gates clarified
+
+### Discoveries
+
+- M0–M4 and T13.1–T13.3 are implemented and have real CD6 execution evidence,
+  but CD6 has unknown composition. The active 23-case truth-labelled matrix is
+  therefore the remaining operational acceptance layer for the existing
+  single-component machinery, not a new numbered milestone.
+- After the matrix, the remaining numbered milestones are M5 and M6. M5 closes
+  the three-dataset pilot, human checkpoints, bounded calibration, and
+  Prototype 0.2. M6 adds leakage-controlled independent validation and the
+  versioned internal research release.
+- The full-program roadmap's final “next M0” status paragraph is stale relative
+  to the newer single-component roadmap and development journal. It must not be
+  used to restart accepted work or rerun old qualification tracks.
+
+### Accomplishments
+
+- Reconciled the active run with the tracked dependency path and separated
+  implementation completion, truth-labelled operational acceptance,
+  Prototype 0.2 acceptance, and independent generalisation/release evidence.
+- Kept heteromer reconstruction, advanced crystallographic branches,
+  calibrated automation, and other Phase II+ work outside the active scope.
+
+### Immutable evidence
+
+- Active operational gate remains run
+  `gtd-control-matrix-20260816T123957Z-ab3f47b28486-678daa04`, job `10930972`,
+  source commit `ab3f47b2848609335423ad67279ffbf1e7ef0187`; its last observed state
+  is `RUNNING`, terminal `false`.
+- The single-component roadmap explicitly states that M0–M4 and T13.1–T13.3
+  passed on real CD6 evidence and names the complete fixed matrix as the
+  immediate goal before M5/Prototype 0.2 and M6.
+
+### Unresolved work
+
+- Complete and classify the 23-case matrix, correcting only demonstrated
+  software failures until its full retain-all evidence boundary passes.
+- Close M5 with the human-reviewed three-dataset P0–P4 pilot and measured
+  resource/heuristic review, then accept or reject Prototype 0.2 explicitly.
+- Execute M6's independent leakage-controlled benchmark, release hardening,
+  clean-install acceptance, documentation/licensing/provenance package, and
+  maintainer-approved internal research release.
+- Treat every Phase II+ expansion as a separately authorised programme after
+  Gate 1; it is not remaining work within the active prototype.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-control-matrix-20260816T123957Z-ab3f47b28486-678daa04`. If non-terminal,
+leave it untouched. If terminal, run bounded `logs --tail 200`, then `collect`,
+and verify the complete matrix before advancing to M5.
+
+## 2026-08-16T12:55:14Z - Matrix adapter identity failure reproduced and corrected
+
+### Discoveries
+
+- Replacement job `10930972` reached terminal scheduler state `FAILED` with
+  outer exit code 1 and failure class `test_failure`. Bounded logs and the
+  retained collection show that all 11 MTZ preflights completed before the
+  adapter raised `experimental hypothesis and model mapping identities differ`;
+  no real Phaser attempt began.
+- The failure is a narrow matrix-adapter contract defect, not a scheduler,
+  resource, archive, MTZ, Phenix-installation, or Phaser-parser failure. The
+  positive `ProcessedModelRecord` retained its generated `mapping_id`, but the
+  paired `MrHypothesis.priority_features` omitted the required
+  `coordinate_mapping_id` used by the existing fail-loud experimental-model
+  guard.
+- The collected package contains the staged import manifest, Phenix
+  qualification, bounded logs, outer result, events, and state. It correctly
+  contains no matrix result JSON/JSONL files because execution stopped before
+  the planned 18 first-copy candidates were constructed. Candidate-level
+  results, copy transitions, refinements, sequences, and runtime retain-all
+  evidence therefore remain unverified rather than failed.
+
+### Accomplishments
+
+- Added a focused synthetic runtime regression that reproduces the exact Viper
+  exception by passing a generated positive hypothesis and model through the
+  production experimental-identity guard. It failed before the correction and
+  passes after adding only the missing `coordinate_mapping_id` field.
+- Focused tests passed: 22 Phaser-adapter, matrix-resource, and matrix-runtime
+  tests. One complete `pixi run --locked check` passed with 396 unit, 57
+  contract, and 48 integration tests plus formatting, Ruff, ty, schema,
+  public-panel, documentation, actionlint, Nextflow syntax/stub, and HPC wrapper
+  checks.
+- Preserved the prior uncommitted roadmap clarification in this coherent
+  code/evidence milestone. No score policy, retention rule, scientific boundary,
+  concurrency limit, or resource request changed.
+
+### Immutable evidence
+
+- Failed run:
+  `gtd-control-matrix-20260816T123957Z-ab3f47b28486-678daa04`, Slurm job
+  `10930972`, source commit
+  `ab3f47b2848609335423ad67279ffbf1e7ef0187`, nf-helper commit
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, Pixi 0.76.2, Pixi-lock SHA-256
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`,
+  and Phenix 2.1-6048. Collection failure signature is
+  `ade60a5db89f1d2e7d786a76a767c6438d7e8ae5665666f626384e0e2a653878`.
+- The retained import proves exactly 23 typed cases: 11 positives, seven
+  wrong-model controls, two target-absent controls, two wrong-catalogue
+  controls, and one assumption violation. It also records positive copy counts
+  1/2/3/4/6, `all_candidates_retained=true`,
+  `LLG/TFZ_are_ranking_annotations_only`, and no generalisation claim.
+- Archive SHA-256 remains
+  `51add8b8448f7920861efb47946d57f1526b83abc887091fcd3c3244f06d137c`;
+  embedded-manifest SHA-256 remains
+  `97132162e558df1c9087aab1826a32e954eb3477b2b241eb9930b0655cf74b40`.
+  All seven required Phenix commands passed qualification, including accepted
+  command-specific non-zero help conventions where applicable.
+
+### Unresolved work
+
+- Inspect and commit only the focused adapter regression/fix plus the carried
+  journal, push once, watch one GitHub Actions run, deploy checksum-reviewed
+  tools, stage the immutable matrix again, and submit the next right-sized Viper
+  attempt before returning to monitoring.
+- On terminal evidence from that attempt, verify all 23 typed outcomes, exactly
+  18 real first-copy attempts, copy transitions through 1/2/3/4/6, every raw
+  first-copy/additional-copy/refinement/sequence record, bounded Phaser logs,
+  candidate failure states, complete provenance, and retention of every
+  candidate. The operational same-structure controls still do not establish
+  generalisation.
+
+### Next exact starting point
+
+Run `git status --short`, inspect the complete staged and unstaged diff, and run
+`git diff --check`; then create the single coherent correction commit and
+continue through push, one CI watch, checksum-reviewed deployment, replacement
+staging/submission, and rebinding the existing heartbeat without a handoff.

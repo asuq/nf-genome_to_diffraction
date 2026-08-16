@@ -259,6 +259,7 @@ def _write_runtime_inputs(
                     "control_role": "known_positive",
                     "exact_sequence_mapping": True,
                     "structural_source_class": "experimental",
+                    "coordinate_mapping_id": mapping_id,
                     "candidate_source_sequence_identity": 1.0,
                     "generalisation_claim": "none",
                 },
