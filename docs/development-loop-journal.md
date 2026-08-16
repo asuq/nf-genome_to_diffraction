@@ -4976,3 +4976,39 @@ Commit and push this focused panel/matrix increment and require both supported
 Pixi CI jobs to pass. Then prepare the smallest real Viper smoke slice containing
 1JCF and 3W45 positives plus one case from each negative class before expanding
 to the complete 23-case matrix.
+
+## 2026-08-16T00:37:13Z - Prokaryotic control milestone closed green
+
+### Discoveries
+
+- The expanded panel and five-class workflow matrix behave identically under
+  both supported Pixi releases; no platform-specific validation or preparation
+  issue appeared.
+
+### Accomplishments
+
+- Committed and pushed the prokaryotic homomer controls as
+  `88637396076745f35e516f5c390e3e254568de26`.
+- Both Pixi 0.74.0 and 0.76.2 jobs passed in GitHub Actions run `31917398119`.
+  The checksum-frozen 12-entry source cache also passed offline revalidation.
+
+### Immutable evidence
+
+- GitHub Actions jobs `95091493574` and `95091493639` completed successfully
+  against the exact pushed commit.
+- The tracked workflow matrix contains 23 truth-labelled cases and the panel
+  validator requires all 11 positive controls exactly once.
+
+### Unresolved work
+
+- Promote 1JCF and 3W45 from source-qualified to runnable by freezing their
+  independent model selections and exercising them with the licensed Viper
+  Phenix runtime. Then run the four negative classes on the smallest smoke
+  slice before scaling to the full matrix.
+
+### Next exact starting point
+
+Create the focused runnable-control specifications for 1JCF and 3W45, validate
+their frozen proteomes and independent search models, and submit the minimal
+Viper positive/negative smoke slice. Do not use the unknown CD6 crystal as the
+truth-labelled acceptance control.
