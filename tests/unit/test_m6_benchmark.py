@@ -12,6 +12,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 from genome_to_diffraction.benchmarks import m6_model_policy as m6_model_policy_module
+from genome_to_diffraction.benchmarks import m6_scientific as m6_scientific_module
 from genome_to_diffraction.benchmarks.m6_collection import (
     _assessment as _truth_assessment,
 )
@@ -351,7 +352,7 @@ def _synthetic_scientific_output(tmp_path: Path) -> Path:
         output / "m6_scientific_summary.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-scientific-run-v1",
+            "adapter_version": "m6-scientific-run-v2",
             "track": "operational",
             "case_ids": list(case_ids),
             "case_evidence_digest": canonical_digest(cases),
@@ -359,7 +360,7 @@ def _synthetic_scientific_output(tmp_path: Path) -> Path:
             "input_sha256": input_sha256,
             "cache_key": canonical_digest(
                 {
-                    "adapter_version": "m6-scientific-run-v1",
+                    "adapter_version": "m6-scientific-run-v2",
                     "track": "operational",
                     "input_sha256": input_sha256,
                 }
@@ -633,6 +634,40 @@ def test_m6_runner_verifier_checks_opaque_media_and_policy(tmp_path: Path) -> No
     assert result.object_count == 4
     assert report["all_candidates_retained"] is True
     assert report["case_records"][0]["selected_observation_labels"] == "FP,SIGFP"
+
+
+def test_m6_scientific_runner_materialises_typed_opaque_objects(
+    tmp_path: Path,
+) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    preparation = _prepared_manifest(tmp_path, protocol)
+    bundle = build_m6_runner_bundle(
+        M6RunnerBundleRequest(
+            protocol=PROTOCOL,
+            preparation_manifest=preparation,
+            output_directory=tmp_path / "runner",
+            archive=tmp_path / "runner.tar",
+        )
+    )
+    runner_root = bundle.runner_manifest.parent
+    inventory = m6_scientific_module._load_inventory(runner_root)
+
+    cases = m6_scientific_module._case_objects(
+        runner_root,
+        inventory,
+        tmp_path / "materialised-inputs",
+    )
+
+    first = cases["M6C001"]
+    assert first.analysis_config.suffix == ".json"
+    assert first.catalogue.suffix == ".faa"
+    assert first.model_policy.suffix == ".json"
+    assert first.reflections.suffix == ".mtz"
+    analysis_spec = next(
+        item for item in inventory.cases[0].objects if item.role == "analysis_config"
+    )
+    assert sha256_file(first.analysis_config) == analysis_spec.sha256
+    assert len(tuple((tmp_path / "materialised-inputs").iterdir())) == 4
 
 
 def test_m6_runner_verifier_rejects_changed_object(tmp_path: Path) -> None:

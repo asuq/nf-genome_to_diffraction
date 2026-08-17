@@ -6983,3 +6983,71 @@ scientific-execution commit.
 
 Run `git status --short`, inspect the complete diff, and create the single
 coherent Viper M6 runtime-binding commit.
+
+## 2026-08-17T02:08:02Z - Opaque M6 media types restored at execution boundary
+
+### Discoveries
+
+- Corrected operational run
+  `gtd-m6-operational-20260817T014921Z-692ed9197a9b-529417a8` staged all 63
+  cases and 64 objects, then Slurm job `10934054` ran on `vipc2144`. Phenix
+  2.1-6048 qualified all seven fixed commands before the scientific runner
+  started.
+- The job ended after 37 seconds with exit 1 and `test_failure`, before any
+  search or Phaser attempt. The first catalogue import passed the opaque
+  content-addressed analysis-config object directly to suffix-based contract
+  loading, which failed with `cannot infer input format from suffix`.
+- The runner manifest already declares every object's media type. Removing
+  filename suffixes for content addressing was correct for truth isolation,
+  but the blind execution adapter had not restored that non-truth format
+  metadata for downstream tools. This is a software failure, not scientific or
+  infrastructure evidence.
+
+### Accomplishments
+
+- Added one guarded materialisation boundary. Each already-qualified opaque
+  object is copied once to a digest-only basename plus the suffix implied by
+  its declared media type (`.json`, `.mtz`, `.faa`, or `.txt`), then its size
+  and SHA-256 are rechecked before catalogue import, MTZ preflight, or Phenix.
+  Case IDs and all scientific content remain opaque and unchanged.
+- Bumped the scientific adapter identity to `m6-scientific-run-v2`, preventing
+  a v1 output from being accepted by checksum-only resume. Added a focused
+  regression covering typed materialisation and reuse of the four shared test
+  objects across all 63 cases.
+- Focused M6 tests passed 21 cases. One complete `pixi run --locked check`
+  passed formatting, lint, strict typing, 430 unit tests, 58 contract tests, 50
+  integration tests, schemas, public-panel validation, documentation links,
+  actionlint, Nextflow syntax/stubs, and all reviewed Bash syntax checks.
+
+### Immutable evidence
+
+- Failed job `10934054` has collection failure signature
+  `517298370fad69e6dc9df3da64ee66e840242cc96af2c5447201d421003a74da`.
+  It used source `692ed9197a9baa2cdc827fdb957dcc32f9c6cd12`, nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, Pixi 0.76.2, lock SHA-256
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`,
+  database-config SHA-256
+  `bb2deb19d147769e9e2338e66c75d5c5986e336ae72deb4ae85257871ead1a30`,
+  and database-manifest SHA-256
+  `ffa0c2cc4b7bb68996584776c319beda7aec5d4c991f0fc3ff62c46a8d8cb68b`.
+- The runner archive and manifest stayed fixed at SHA-256
+  `91ea40f332e6d188567d0a437115c95547ebfb59b43f63bc95cd02ebb0b22f7c`
+  and `19b52d32cab618e04a504760b252371df62c8f58a8a233a0c23eebbd13ae9e38`.
+  The deployed dispatcher, job wrapper, and recovery SHA-256 values were
+  `e46622449f4c088d38ee7f5836bb88a502fd4f0c5c0a7cb5409f2390b7aac7ab`,
+  `3be01421bef61228e62cd3f323350b2b210162b7e0806c876155b9b80843568c`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+
+### Unresolved work
+
+- Commit and push this narrow adapter correction, watch exactly one GitHub
+  Actions run, deploy the matching reviewed tools, and submit a new immutable
+  operational attempt from the unchanged archive.
+- If that run becomes terminal, collect and classify it before any further
+  edit. Proceed to the leakage track only after operational evidence is
+  complete and free of a demonstrated software defect.
+
+### Next exact starting point
+
+Run `git status --short`, inspect and stage only the media-materialisation code,
+test, and retained journal evidence, then create one coherent commit.

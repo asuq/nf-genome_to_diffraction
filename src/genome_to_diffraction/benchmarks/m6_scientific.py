@@ -26,6 +26,7 @@ real completion requires licensed Phenix execution on Viper.
 
 import gzip
 import json
+import shutil
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -104,7 +105,13 @@ from genome_to_diffraction.structure_search import (
 from genome_to_diffraction.time import utc_now_iso
 
 M6ScientificTrack = Literal["operational", "leakage"]
-_ADAPTER_VERSION = "m6-scientific-run-v1"
+_ADAPTER_VERSION = "m6-scientific-run-v2"
+_MATERIALISED_SUFFIX = {
+    "application/json": ".json",
+    "application/x-mtz": ".mtz",
+    "text/plain": ".txt",
+    "text/x-fasta": ".faa",
+}
 _TRACK_CASES: dict[M6ScientificTrack, tuple[str, ...]] = {
     "operational": tuple(
         f"M6C{index:03d}" for index in (*range(1, 13), *range(25, 49))
@@ -207,11 +214,36 @@ def _load_inventory(root: Path) -> M6RunnerInventorySpec:
 
 
 def _case_objects(
-    root: Path, inventory: M6RunnerInventorySpec
+    root: Path,
+    inventory: M6RunnerInventorySpec,
+    materialised_root: Path,
 ) -> dict[str, _CaseObjects]:
+    materialised_root.mkdir()
     records: dict[str, _CaseObjects] = {}
     for case in inventory.cases:
-        by_role = {item.role: root / "objects" / item.object for item in case.objects}
+        by_role: dict[str, Path] = {}
+        for item in case.objects:
+            source = root / "objects" / item.object
+            target = materialised_root / (
+                f"{item.object}{_MATERIALISED_SUFFIX[item.media_type]}"
+            )
+            try:
+                if not target.exists():
+                    shutil.copyfile(source, target)
+            except OSError as error:
+                raise PublicControlError(
+                    f"cannot materialise M6 input object: {item.object}"
+                ) from error
+            if (
+                target.is_symlink()
+                or not target.is_file()
+                or target.stat().st_size != item.size_bytes
+                or sha256_file(target) != item.sha256
+            ):
+                raise PublicControlError(
+                    f"materialised M6 input object changed: {item.object}"
+                )
+            by_role[item.role] = target
         records[case.case_id] = _CaseObjects(
             case_id=case.case_id,
             catalogue=by_role["catalogue"],
@@ -1037,7 +1069,7 @@ def run_m6_scientific_track(
         M6RunnerVerificationRequest(runner_root=root, output=qualification)
     )
     inventory = _load_inventory(root)
-    objects_by_case = _case_objects(root, inventory)
+    objects_by_case = _case_objects(root, inventory, output / "materialised-inputs")
     case_ids = m6_track_case_ids(request.track)
     expected_count = 36 if request.track == "operational" else 27
     if len(case_ids) != expected_count:
