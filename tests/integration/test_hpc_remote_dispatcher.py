@@ -26,6 +26,7 @@ P2_DIVERSE_RUN_ID = "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567"
 P2_CONTROL_RUN_ID = "gtd-p2-control-20260802T120000Z-0123456789ab-01234567"
 CONTROL_MATRIX_RUN_ID = "gtd-control-matrix-20260802T120000Z-0123456789ab-01234567"
 M6_INPUTS_RUN_ID = "gtd-m6-inputs-20260802T120000Z-0123456789ab-01234567"
+M6_OPERATIONAL_RUN_ID = "gtd-m6-operational-20260802T120000Z-0123456789ab-01234567"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 T12_RUN_ID = "gtd-t12-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
@@ -619,6 +620,42 @@ def test_m6_input_qualification_uses_small_fixed_resources(tmp_path: Path) -> No
     )
     assert '[[ "${SLURM_CPUS_PER_TASK:-0}" == 1 ]]' in m6_body
     assert "benchmark verify-m6-runner" in m6_body
+
+
+def test_m6_scientific_submit_uses_approved_bounded_resources(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    run = remote_root / "runs" / M6_OPERATIONAL_RUN_ID
+    state = run / "state"
+    state.mkdir(parents=True)
+    (run / "logs").mkdir()
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="utf-8")
+    (state / "phase").write_text("staged\n", encoding="utf-8")
+    (state / "profile").write_text("m6-operational\n", encoding="utf-8")
+
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", M6_OPERATIONAL_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert submitted["job_id"] == "123"
+    submitted_arguments = (
+        (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    )
+    assert "--cpus-per-task=8" in submitted_arguments
+    assert "--mem=16G" in submitted_arguments
+    assert "--time=24:00:00" in submitted_arguments
+    m6_body = (
+        smoke_job.read_text(encoding="utf-8")
+        .split("run_m6_scientific() {", maxsplit=1)[1]
+        .split("run_m4_copy_nextflow() {", maxsplit=1)[0]
+    )
+    assert "--maximum-concurrent-phenix-attempts 4" in m6_body
+    assert "--resume" in m6_body
+    assert "tool_runtime_timeouts" in m6_body
 
 
 def test_remote_dispatcher_stages_checksum_verified_source_archive(

@@ -1,5 +1,10 @@
 """Reproducible public controls for scientific qualification."""
 
+from genome_to_diffraction.benchmarks.m6_collection import (
+    M6CollectionRequest,
+    M6CollectionResult,
+    collect_m6_evidence,
+)
 from genome_to_diffraction.benchmarks.m6_evaluation import (
     M6EvaluationRequest,
     M6EvaluationResult,
@@ -20,6 +25,12 @@ from genome_to_diffraction.benchmarks.m6_runner import (
     M6RunnerBundleResult,
     build_m6_runner_bundle,
     load_m6_preparation_manifest,
+)
+from genome_to_diffraction.benchmarks.m6_scientific import (
+    M6ScientificRunOutput,
+    M6ScientificRunRequest,
+    m6_track_case_ids,
+    run_m6_scientific_track,
 )
 from genome_to_diffraction.benchmarks.m6_verification import (
     M6RunnerVerificationRequest,
@@ -46,6 +57,8 @@ from genome_to_diffraction.benchmarks.public_control import (
 
 __all__ = [
     "M6BenchmarkProtocol",
+    "M6CollectionRequest",
+    "M6CollectionResult",
     "M6EvaluationRequest",
     "M6EvaluationResult",
     "M6InputPreparationRequest",
@@ -54,6 +67,8 @@ __all__ = [
     "M6RunnerBundleResult",
     "M6RunnerVerificationRequest",
     "M6RunnerVerificationResult",
+    "M6ScientificRunOutput",
+    "M6ScientificRunRequest",
     "MrControlBundleOutput",
     "MrControlBundleRequest",
     "PublicControlPreparationRequest",
@@ -62,14 +77,17 @@ __all__ = [
     "PublicPanelPreparationResult",
     "build_m6_runner_bundle",
     "build_mr_control_bundle",
+    "collect_m6_evidence",
     "evaluate_m6",
     "load_first_copy_control_pair",
     "load_m6_evidence",
     "load_m6_preparation_manifest",
     "load_m6_protocol",
     "load_public_control_panel",
+    "m6_track_case_ids",
     "prepare_m6_inputs",
     "prepare_public_control",
     "prepare_public_control_panel",
+    "run_m6_scientific_track",
     "verify_m6_runner_bundle",
 ]

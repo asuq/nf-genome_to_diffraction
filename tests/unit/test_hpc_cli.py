@@ -149,6 +149,32 @@ def test_control_matrix_stage_has_no_caller_supplied_cases_or_paths() -> None:
     assert submitted.profile == "control-matrix"
 
 
+@pytest.mark.parametrize("track", ["operational", "leakage"])
+def test_m6_scientific_stage_accepts_only_a_confirmed_archive_and_track(
+    track: str,
+) -> None:
+    parser = _build_parser()
+
+    staged = parser.parse_args(
+        [
+            "m6-scientific-stage",
+            "--revision",
+            "HEAD",
+            "--archive",
+            ".untracked/m6-runner.tar",
+            "--confirm-archive-sha256",
+            "a" * 64,
+            "--track",
+            track,
+        ]
+    )
+    submitted = parser.parse_args(["submit", f"m6-{track}", "--run-id", "RUN_ID"])
+
+    assert staged.operation == "m6-scientific-stage"
+    assert staged.track == track
+    assert submitted.profile == f"m6-{track}"
+
+
 def test_t12_stage_accepts_only_revision_and_owned_parent() -> None:
     parser = _build_parser()
 

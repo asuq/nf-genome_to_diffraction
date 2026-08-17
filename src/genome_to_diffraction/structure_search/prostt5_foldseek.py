@@ -147,6 +147,8 @@ class _SequenceMapping:
     namespace: str
     token: str
     seqres_target: str
+    sequence_length: int
+    sequence_sha256: str
 
 
 @dataclass(frozen=True)
@@ -524,6 +526,8 @@ def _load_target_mappings(
             "pdb_id",
             "identifier_namespace",
             "seqres_token",
+            "sequence_length",
+            "sequence_sha256",
         }
         if reader.fieldnames is None or not required.issubset(reader.fieldnames):
             raise ResultParseError("PDB target mapping has invalid headers")
@@ -541,11 +545,30 @@ def _load_target_mappings(
                 raise ResultParseError(
                     f"duplicate PDB target mapping: {row['target_id']}"
                 )
+            try:
+                sequence_length = int(row["sequence_length"])
+            except ValueError as error:
+                raise ResultParseError(
+                    f"invalid PDB target-mapping length: {row['target_id']}"
+                ) from error
+            sequence_sha256 = row["sequence_sha256"]
+            if (
+                sequence_length < 1
+                or len(sequence_sha256) != 64
+                or any(
+                    character not in "0123456789abcdef" for character in sequence_sha256
+                )
+            ):
+                raise ResultParseError(
+                    f"invalid PDB target-mapping sequence identity: {row['target_id']}"
+                )
             by_key[key] = _SequenceMapping(
                 pdb_id=key[0],
                 namespace=row["identifier_namespace"],
                 token=key[1],
                 seqres_target=row["target_id"],
+                sequence_length=sequence_length,
+                sequence_sha256=sequence_sha256,
             )
             if len(by_key) == len(needed):
                 break
@@ -563,6 +586,8 @@ def _load_target_mappings(
             namespace=sequence_mapping.namespace,
             token=sequence_mapping.token,
             seqres_target=sequence_mapping.seqres_target,
+            sequence_length=sequence_mapping.sequence_length,
+            sequence_sha256=sequence_mapping.sequence_sha256,
             foldseek_chain=parsed.chain,
             assembly_number=parsed.assembly_number,
             operator_indices=parsed.operator_indices,
@@ -759,6 +784,8 @@ def search_prostt5_foldseek(
                     "query_length": raw_hit.query_length,
                     "target_length": raw_hit.target_length,
                     "seqres_target": mapping.seqres_target,
+                    "target_sequence_length": mapping.sequence_length,
+                    "target_sequence_sha256": mapping.sequence_sha256,
                     "prostt5_database_id": resources.prostt5.database_id,
                     "mapping_database_id": resources.pdb_sequences.database_id,
                     "probability_unavailable_reason": (_PROBABILITY_UNAVAILABLE_REASON),

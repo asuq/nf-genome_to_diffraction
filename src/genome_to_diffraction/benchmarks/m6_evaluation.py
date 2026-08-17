@@ -312,6 +312,11 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
     typed_edge_count = sum(
         _typed_edge_outcome(case, assessments[case.case_id]) for case in edge_cases
     )
+    unexpected_execution_failures = sum(
+        assessment.execution_status == "failed" and case.case_kind != "missing_phenix"
+        for case in protocol.cases
+        for assessment in (assessments[case.case_id],)
+    )
 
     operational_metrics = _positive_metrics(
         protocol, cases, assessments, kind="operational_positive"
@@ -333,6 +338,7 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
         "duplicate_locus_ambiguities": duplicate_ambiguities
         >= protocol.criteria.required_duplicate_locus_ambiguities,
         "typed_edge_outcomes": typed_edge_count == len(edge_cases),
+        "unexpected_execution_failures": unexpected_execution_failures == 0,
         "deterministic_replay_equivalent": evidence.deterministic_replay_equivalent,
         "resume_equivalent": evidence.resume_equivalent,
         "cache_invalidation_verified": evidence.cache_invalidation_verified,
@@ -369,6 +375,7 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
         "assumption_abstention_count": assumption_abstentions,
         "duplicate_locus_ambiguity_count": duplicate_ambiguities,
         "typed_edge_outcome_count": typed_edge_count,
+        "unexpected_execution_failure_count": unexpected_execution_failures,
         "operational_metrics": operational_metrics,
         "leakage_controlled_metrics": leakage_metrics,
         "gates": gates,

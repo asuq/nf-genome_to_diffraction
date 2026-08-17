@@ -78,6 +78,7 @@ class FakeTransport:
     control_slice_archive: bytes = b""
     control_matrix_archive: bytes = b""
     m6_inputs_archive: bytes = b""
+    m6_scientific_archive: bytes = b""
     deploy_error: RemoteOperationError | None = None
     stage_error: RemoteOperationError | None = None
 
@@ -236,6 +237,16 @@ class FakeTransport:
         return {
             "run_id": arguments[0],
             "remote_operation": "m6-inputs-stage",
+        }
+
+    def m6_scientific_stage(
+        self, arguments: Sequence[str], archive_path: Path
+    ) -> dict[str, str]:
+        self.calls.append(("m6-scientific-stage", tuple(arguments)))
+        self.m6_scientific_archive = archive_path.read_bytes()
+        return {
+            "run_id": arguments[0],
+            "remote_operation": "m6-scientific-stage",
         }
 
     def t12_stage(
@@ -1127,6 +1138,47 @@ def test_m6_inputs_stage_streams_confirmed_truth_isolated_archive(
         "63",
         "64",
     )
+    assert all("/" not in argument for argument in arguments)
+
+
+@pytest.mark.parametrize("track", ["operational", "leakage"])
+def test_m6_scientific_stage_streams_one_fixed_bounded_track(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, track: str
+) -> None:
+    archive = tmp_path / ".untracked" / "m6-runner.tar"
+    archive.parent.mkdir()
+    archive.write_bytes(b"confirmed M6 archive")
+    archive_sha256 = hashlib.sha256(archive.read_bytes()).hexdigest()
+
+    def inspect(
+        candidate: Path,
+        *,
+        protocol: Path,
+        expected_sha256: str,
+    ) -> tuple[Path, str, int, str, int, int]:
+        assert protocol == tmp_path / "benchmarks/m6/protocol.yaml"
+        assert expected_sha256 == archive_sha256
+        return candidate, archive_sha256, candidate.stat().st_size, "9" * 64, 63, 64
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client._inspect_m6_runner_archive",
+        inspect,
+    )
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id="viper-cpu")
+
+    result = controller.m6_scientific_stage("HEAD", archive, archive_sha256, track)
+
+    assert result["profile"] == f"m6-{track}"
+    assert result["maximum_cpu_count"] == 8
+    assert result["maximum_memory_gb"] == 16.0
+    assert result["maximum_concurrent_phenix_attempts"] == 4
+    assert result["scheduler_ceiling_hours"] == 24.0
+    assert transport.m6_scientific_archive == archive.read_bytes()
+    operation, arguments = transport.calls[-1]
+    assert operation == "m6-scientific-stage"
+    assert arguments[-1] == track
     assert all("/" not in argument for argument in arguments)
 
 

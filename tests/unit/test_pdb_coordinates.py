@@ -148,6 +148,8 @@ def _inputs(
     )
     sequence_root = tmp_path / "PDB sequence resource"
     sequence_root.mkdir()
+    foldseek_root = tmp_path / "PDB Foldseek resource"
+    foldseek_root.mkdir()
     cache_root = tmp_path / "coordinate cache with spaces"
     initialise_coordinate_cache(cache_root, progress=False)
     common = {
@@ -172,6 +174,14 @@ def _inputs(
                         "root_path": str(sequence_root),
                         "release_or_snapshot": "pdb-2026-08-11",
                         "prepared_with": {"tool": "mmseqs", "version": "test"},
+                    },
+                    {
+                        **common,
+                        "database_id": "db_test_pdb_foldseek",
+                        "name": "pdb_foldseek",
+                        "root_path": str(foldseek_root),
+                        "release_or_snapshot": "pdb-2026-08-11",
+                        "prepared_with": {"tool": "foldseek", "version": "test"},
                     },
                     {
                         **common,

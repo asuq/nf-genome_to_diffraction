@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-operational|m6-leakage|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -968,6 +968,7 @@ stage_run_common() {
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
+          "$profile" == m6-operational || "$profile" == m6-leakage || \
           ( "$profile" == m4-copy && "${M4_CROSS_SITE_IMPORT:-false}" != true ) ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
@@ -1005,6 +1006,7 @@ stage_run_common() {
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-inputs || \
+          "$profile" == m6-operational || "$profile" == m6-leakage || \
           "$profile" == m4-copy || \
           "$profile" == t12 || \
           "$profile" == database ]]; then
@@ -1029,6 +1031,7 @@ stage_run_common() {
         if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
               "$profile" == p2-diverse || "$profile" == p2-control || \
               "$profile" == control-slice || "$profile" == control-matrix || \
+              "$profile" == m6-operational || "$profile" == m6-leakage || \
               "$profile" == m4-copy || \
               "$profile" == t12 ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
@@ -1827,12 +1830,29 @@ PY
     emit phase staged
 }
 
-m6_inputs_stage_run() {
-    [[ "$#" -eq 9 ]] || \
-        fail wrapper_failure "m6-inputs-stage expects nine fixed arguments"
-    local run_id="$1" commit="$2" lock_sha256="$3" owner_id="$4"
-    local archive_sha256="$5" archive_size="$6" manifest_sha256="$7"
-    local case_count="$8" object_count="$9" run import_archive import_root python
+m6_runner_stage_common() {
+    [[ "$#" -eq 12 ]] || \
+        fail wrapper_failure "M6 runner stage expects twelve fixed arguments"
+    local operation="$1" profile="$2" track="$3"
+    local run_id="$4" commit="$5" lock_sha256="$6" owner_id="$7"
+    local archive_sha256="$8" archive_size="$9" manifest_sha256="${10}"
+    local case_count="${11}" object_count="${12}"
+    local run import_archive import_root python stage_log database_manifest
+    local phenix_manifest
+    local -a p0_values=()
+
+    if [[ "$operation" == m6-inputs-stage ]]; then
+        [[ "$profile" == m6-inputs && "$track" == qualification ]] || \
+            fail wrapper_failure "invalid M6 input qualification profile"
+        stage_log=m6-inputs-stage.log
+    elif [[ "$operation" == m6-scientific-stage ]]; then
+        [[ ( "$profile" == m6-operational && "$track" == operational ) || \
+           ( "$profile" == m6-leakage && "$track" == leakage ) ]] || \
+            fail wrapper_failure "invalid M6 scientific profile"
+        stage_log=m6-scientific-stage.log
+    else
+        fail wrapper_failure "invalid M6 runner stage operation"
+    fi
 
     [[ "$archive_sha256" =~ $CHECKSUM_RE && \
        "$manifest_sha256" =~ $CHECKSUM_RE ]] || \
@@ -1846,12 +1866,12 @@ m6_inputs_stage_run() {
         fail wrapper_failure "M6 runner inventory is outside the fixed boundary"
     [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && \
        "$(head -n 1 "$SITE_CONFIG")" == viper-cpu ]] || \
-        fail environment_failure "m6-inputs-stage requires the fixed Viper site"
+        fail environment_failure "M6 runner staging requires the fixed Viper site"
 
     stage_run_common \
-        "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 m6-inputs
+        "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 "$profile"
     run="$(run_directory "$run_id")"
-    atomic_text "$run/state/phase" m6_inputs_importing
+    atomic_text "$run/state/phase" m6_runner_importing
     import_archive="$run/m6-runner.tar"
     head -c "$archive_size" > "$import_archive" || \
         fail transfer_failure "M6 runner archive transfer failed"
@@ -1865,7 +1885,7 @@ m6_inputs_stage_run() {
     python="$run/source/.pixi/envs/hpc/bin/python"
     if ! "$python" - "$import_archive" "$import_root" "$manifest_sha256" \
         "$case_count" "$object_count" "$MAX_M6_RUNNER_ARCHIVE_BYTES" \
-        > "$run/logs/m6-inputs-stage.log" 2>&1 <<'PY'
+        > "$run/logs/$stage_log" 2>&1 <<'PY'
 import hashlib
 import json
 import pathlib
@@ -1950,7 +1970,7 @@ PY
     then
         atomic_text "$run/state/phase" stage_failed
         atomic_text "$run/state/failure-class" wrapper_failure
-        append_event "$run" m6_inputs_import_failed
+        append_event "$run" m6_runner_import_failed
         fail wrapper_failure "M6 runner validation or extraction failed"
     fi
     rm -f -- "$import_archive"
@@ -1958,17 +1978,55 @@ PY
     atomic_text "$run/state/m6-runner-manifest-sha256" "$manifest_sha256"
     atomic_text "$run/state/m6-runner-case-count" "$case_count"
     atomic_text "$run/state/m6-runner-object-count" "$object_count"
+    atomic_text "$run/state/m6-track" "$track"
+    if [[ "$track" != qualification ]]; then
+        mapfile -t p0_values < "$P0_CONFIG"
+        [[ "${#p0_values[@]}" -eq 7 ]] || \
+            fail environment_failure "fixed M6 scientific configuration changed"
+        database_manifest="${p0_values[5]}"
+        phenix_manifest="${p0_values[6]}"
+        [[ "$database_manifest" =~ $SAFE_PATH_RE && \
+           "$phenix_manifest" =~ $SAFE_PATH_RE && \
+           -f "$database_manifest" && ! -L "$database_manifest" && \
+           -f "$phenix_manifest" && ! -L "$phenix_manifest" ]] || \
+            fail environment_failure "fixed M6 database or Phenix manifest is unavailable"
+        [[ "$(sha256sum "$database_manifest" | awk '{print $1}')" == \
+           "$(<"$run/state/database-manifest-sha256")" ]] || \
+            fail environment_failure "fixed M6 database manifest changed"
+        atomic_text "$run/state/database-manifest" "$database_manifest"
+        atomic_text "$run/state/phenix-manifest" "$phenix_manifest"
+        atomic_text "$run/state/phenix-manifest-sha256" \
+            "$(sha256sum "$phenix_manifest" | awk '{print $1}')"
+    fi
     atomic_text "$run/state/phase" staged
-    append_event "$run" m6_inputs_ready
-    emit operation m6-inputs-stage
+    append_event "$run" m6_runner_ready
+    emit operation "$operation"
     emit run_id "$run_id"
     emit site_id viper-cpu
     emit protocol_id m6_independent_prokaryote_homomer_v1
+    emit profile "$profile"
+    emit track "$track"
     emit case_count "$case_count"
     emit object_count "$object_count"
     emit archive_sha256 "$archive_sha256"
     emit manifest_sha256 "$manifest_sha256"
     emit phase staged
+}
+
+m6_inputs_stage_run() {
+    [[ "$#" -eq 9 ]] || \
+        fail wrapper_failure "m6-inputs-stage expects nine fixed arguments"
+    m6_runner_stage_common m6-inputs-stage m6-inputs qualification "$@"
+}
+
+m6_scientific_stage_run() {
+    [[ "$#" -eq 10 ]] || \
+        fail wrapper_failure "m6-scientific-stage expects ten fixed arguments"
+    local track="${10}"
+    [[ "$track" == operational || "$track" == leakage ]] || \
+        fail wrapper_failure "invalid M6 scientific track"
+    m6_runner_stage_common \
+        m6-scientific-stage "m6-${track}" "$track" "${@:1:9}"
 }
 
 m4_import_stage_run() {
@@ -2164,10 +2222,15 @@ submit_run() {
         cpus=1
         memory=4G
     fi
+    if [[ "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
+        cpus=8
+        memory=16G
+    fi
     [[ "$profile" != p0 ]] || walltime=24:00:00
     if [[ "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == control-slice || "$profile" == control-matrix || \
+          "$profile" == m6-operational || "$profile" == m6-leakage || \
           "$profile" == m4-copy || \
           "$profile" == t12 ]]; then
         walltime=24:00:00
@@ -2632,6 +2695,7 @@ collect_run() {
         state/m6-runner-manifest-sha256 \
         state/m6-runner-case-count \
         state/m6-runner-object-count \
+        state/m6-track \
         state/failure-class \
         state/exit-code \
         logs/git-fetch.log \
@@ -2647,7 +2711,10 @@ collect_run() {
         logs/control-matrix-stage.log \
         logs/control-matrix.log \
         logs/m6-inputs-stage.log \
+        logs/m6-scientific-stage.log \
         logs/m6-inputs.log \
+        logs/m6-operational.log \
+        logs/m6-leakage.log \
         logs/database-source-stage.log \
         logs/sbatch.err \
         logs/smoke.log \
@@ -2772,6 +2839,17 @@ collect_run() {
         artifacts/qualification/control-matrix-log-tails.txt \
         artifacts/qualification/m6-input-qualification.json \
         artifacts/qualification/m6-input-checksums.sha256 \
+        artifacts/qualification/m6-scientific-summary.json \
+        artifacts/qualification/m6-execution-verification.json \
+        artifacts/qualification/m6-case-results.jsonl \
+        artifacts/qualification/m6-candidate-rankings.jsonl.gz \
+        artifacts/qualification/m6-model-policy-results.jsonl \
+        artifacts/qualification/m6-sequence-summary.jsonl \
+        artifacts/qualification/m6-resume-check.json \
+        artifacts/qualification/m6-runtime-provenance.json \
+        artifacts/qualification/m6-scientific-checksums.sha256 \
+        artifacts/qualification/m6-phenix-verification.log \
+        artifacts/qualification/m6-phaser-log-tails.txt \
         artifacts/qualification/p2-control-first-pipeline-info/report.html \
         artifacts/qualification/p2-control-first-pipeline-info/timeline.html \
         artifacts/qualification/p2-control-first-pipeline-info/trace.tsv \
@@ -3480,6 +3558,7 @@ main() {
         control-slice-stage) control_slice_stage_run "$@" ;;
         control-matrix-stage) control_matrix_stage_run "$@" ;;
         m6-inputs-stage) m6_inputs_stage_run "$@" ;;
+        m6-scientific-stage) m6_scientific_stage_run "$@" ;;
         t12-stage) t12_stage_run "$@" ;;
         database-stage) database_stage_run "$@" ;;
         submit) submit_run "$@" ;;

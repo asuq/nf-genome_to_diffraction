@@ -6852,3 +6852,73 @@ Run `git status --short`, inspect `git diff --check` and the complete diff,
 stage only this M6 real-input/qualification milestone, and create one coherent
 commit. Push once, watch one GitHub Actions run, deploy the reviewed tools, and
 stage the confirmed archive with `m6-inputs-stage`.
+
+## 2026-08-17T00:59:35Z - M6 scientific execution boundary passes focused checks
+
+### Discoveries
+
+- Foldseek `fident` is a 3Di metric and cannot satisfy the approved amino-acid
+  leakage rule. A Foldseek proposal therefore advances only when the same
+  opaque candidate and PDB source-sequence digest has a pinned direct-MMseqs2
+  alignment; otherwise it is retained as an
+  `amino_acid_alignment_unavailable` annotation and fails closed.
+- The scientific outputs can exceed the reviewed collection bound if every
+  sequence score is duplicated into the case report. Full raw records now stay
+  retained on Viper, while collection uses compact per-case/sequence summaries
+  plus a deterministic gzip containing every candidate rank.
+- A completed-output `--resume` path can verify immutable inputs and every
+  output checksum without rerunning Phenix. The job wrapper compares the full
+  pre/post-resume output inventory byte for byte.
+
+### Accomplishments
+
+- Implemented the opaque operational and leakage runners: catalogue import,
+  MTZ preflight, cached PDB-sequence and ProstT5/Foldseek discovery, the narrow
+  trusted exact-deposition/leakage transition, bounded model preparation and
+  Matthews hypotheses, first-copy/add-copy Phenix, refinement, and sequence
+  assessment. Candidate and parent retention remain unconditional; LLG/TFZ
+  only order the at-most-five refinement/sequence advancement seeds.
+- Added deterministic output verification, cache-key invalidation probes,
+  partial-output rejection, compact truth-side evidence assembly, and an
+  explicit hold for any unexpected execution failure.
+- Added reviewed `m6-operational` and `m6-leakage` Viper profiles. Each fixes
+  8 CPUs, 16 GB, four concurrent Phenix attempts, a 24-hour Slurm ceiling, no
+  tool runtime timeout, checksum-confirmed runner transfer, bounded log tails,
+  and checksum-gated collection.
+- Focused M6/parser/model-policy tests passed 34 cases. Focused controller,
+  wrapper, build, and fake-Slurm integration tests passed 120 cases. Ruff,
+  strict typing, and both reviewed Bash syntax checks also passed.
+- One complete `pixi run --locked check` passed formatting, lint, strict
+  typing, 429 unit tests, 57 contract tests, 50 integration tests, schemas,
+  public-panel validation, documentation links, actionlint, Nextflow syntax and
+  stubs, and all reviewed Bash syntax checks.
+
+### Immutable evidence
+
+- Input qualification run
+  `gtd-m6-inputs-20260816T235752Z-61f58daec3a9-f6314643` (Slurm `10933548`)
+  completed successfully with exit 0. It verified exactly 63 cases and 64
+  objects; qualification SHA-256 is
+  `92eddb9b26b24519ac66b6c1f5fdedd700dc2b9c5b450e3bc428af0194b17f36`.
+- Its source commit is `61f58daec3a96bce060514be4ed9ed7ccff260e8`,
+  nf-helper commit is `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`,
+  Pixi is 0.76.2, lock SHA-256 is
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`,
+  runner archive SHA-256 is
+  `91ea40f332e6d188567d0a437115c95547ebfb59b43f63bc95cd02ebb0b22f7c`,
+  and runner-manifest SHA-256 is
+  `19b52d32cab618e04a504760b252371df62c8f58a8a233a0c23eebbd13ae9e38`.
+
+### Unresolved work
+
+- Commit this code, tests, profiles, documentation, and retained journal update
+  together; push once, watch one GitHub Actions run, deploy checksum-reviewed
+  tools, and run the operational and leakage Viper stages sequentially.
+- Collect both terminal scientific runs, classify evidence before any code
+  edit, assemble all 63 truth-side assessments, and issue the frozen M6
+  accept/hold decision. Do not revisit 7L6G or the three unknown crystals.
+
+### Next exact starting point
+
+Run `git diff --check`, inspect the staged diff, and create the coherent M6
+scientific-execution commit.

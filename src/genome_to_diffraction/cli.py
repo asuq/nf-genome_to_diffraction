@@ -9,21 +9,25 @@ from typing import cast
 
 from genome_to_diffraction import __version__
 from genome_to_diffraction.benchmarks import (
+    M6CollectionRequest,
     M6EvaluationRequest,
     M6InputPreparationRequest,
     M6RunnerBundleRequest,
     M6RunnerVerificationRequest,
+    M6ScientificRunRequest,
     MrControlBundleRequest,
     PublicControlPreparationRequest,
     PublicPanelPreparationRequest,
     build_m6_runner_bundle,
     build_mr_control_bundle,
+    collect_m6_evidence,
     evaluate_m6,
     load_m6_protocol,
     load_public_control_panel,
     prepare_m6_inputs,
     prepare_public_control,
     prepare_public_control_panel,
+    run_m6_scientific_track,
     verify_m6_runner_bundle,
 )
 from genome_to_diffraction.benchmarks.control_matrix_run import (
@@ -531,6 +535,27 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     m6_verify_parser.add_argument("--runner-root", type=Path, required=True)
     m6_verify_parser.add_argument("--report", type=Path, required=True)
+    m6_scientific_parser = benchmark_actions.add_parser(
+        "run-m6-scientific",
+        help="execute one truth-isolated M6 scientific track",
+    )
+    m6_scientific_parser.add_argument("--runner-root", type=Path, required=True)
+    m6_scientific_parser.add_argument("--protocol", type=Path, required=True)
+    m6_scientific_parser.add_argument("--database-manifest", type=Path, required=True)
+    m6_scientific_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    m6_scientific_parser.add_argument(
+        "--track", choices=("operational", "leakage"), required=True
+    )
+    m6_scientific_parser.add_argument("--outdir", type=Path, required=True)
+    m6_scientific_parser.add_argument("--threads", type=int, default=8)
+    m6_scientific_parser.add_argument(
+        "--maximum-concurrent-phenix-attempts", type=int, default=4
+    )
+    m6_scientific_parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="verify and reuse a complete checksum-matching track output",
+    )
     m6_evaluate_parser = benchmark_actions.add_parser(
         "evaluate-m6",
         help="evaluate collected M6 evidence against the frozen gates",
@@ -538,6 +563,14 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_evaluate_parser.add_argument("--protocol", type=Path, required=True)
     m6_evaluate_parser.add_argument("--evidence", type=Path, required=True)
     m6_evaluate_parser.add_argument("--report", type=Path, required=True)
+    m6_collect_parser = benchmark_actions.add_parser(
+        "collect-m6-evidence",
+        help="verify and truth-join two collected M6 scientific tracks",
+    )
+    m6_collect_parser.add_argument("--protocol", type=Path, required=True)
+    m6_collect_parser.add_argument("--operational-collection", type=Path, required=True)
+    m6_collect_parser.add_argument("--leakage-collection", type=Path, required=True)
+    m6_collect_parser.add_argument("--output", type=Path, required=True)
 
     catalogue_parser = subparsers.add_parser(
         "catalogue", help="normalise trusted protein catalogues"
@@ -1399,6 +1432,25 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             f"and {result.object_count} objects: {result.qualification}"
         )
         return 0
+    if args.benchmark_action == "run-m6-scientific":
+        result = run_m6_scientific_track(
+            M6ScientificRunRequest(
+                runner_root=args.runner_root,
+                protocol=args.protocol,
+                database_manifest=args.database_manifest,
+                phenix_manifest=args.phenix_manifest,
+                output_directory=args.outdir,
+                track=args.track,
+                threads=args.threads,
+                maximum_concurrent_phenix_attempts=(
+                    args.maximum_concurrent_phenix_attempts
+                ),
+                progress=not args.no_progress,
+                resume=args.resume,
+            )
+        )
+        print(f"Completed M6 {args.track} scientific track: {result.summary_json}")
+        return 0
     if args.benchmark_action == "evaluate-m6":
         result = evaluate_m6(
             M6EvaluationRequest(
@@ -1411,6 +1463,17 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             f"M6 release decision: {'accept' if result.accepted else 'hold'}; "
             f"report: {result.report_path}"
         )
+        return 0
+    if args.benchmark_action == "collect-m6-evidence":
+        result = collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=args.protocol,
+                operational_collection=args.operational_collection,
+                leakage_collection=args.leakage_collection,
+                output=args.output,
+            )
+        )
+        print(f"Collected M6 evidence: {result.output} ({result.sha256})")
         return 0
     raise AssertionError(f"unhandled benchmark action: {args.benchmark_action}")
 

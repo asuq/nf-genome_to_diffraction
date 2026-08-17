@@ -115,13 +115,15 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/control-slice.log",
         "logs/control-matrix.log",
         "logs/m6-inputs.log",
+        "logs/m6-operational.log",
+        "logs/m6-leakage.log",
         "logs/m4-copy.log",
         "logs/t12.log",
         "logs/database.log",
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -387,6 +389,13 @@ class TextTransport(Protocol):
         archive_path: Path,
     ) -> dict[str, str]:
         """Stream one confirmed truth-isolated M6 runner archive."""
+
+    def m6_scientific_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one confirmed M6 runner for a fixed scientific track."""
 
     def t12_stage(
         self,
@@ -1109,6 +1118,45 @@ class SshTransport:
             )
         return fields
 
+    def m6_scientific_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one confirmed runner to a fixed M6 scientific profile."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("m6-scientific-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote M6 scientific staging exceeded the fixed transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote M6 scientific staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote M6 scientific staging returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
     def t12_stage(
         self,
         arguments: Sequence[str],
@@ -1701,6 +1749,102 @@ class HpcController:
             "protocol_id": "m6_independent_prokaryote_homomer_v1",
             "case_count": case_count,
             "object_count": object_count,
+            "archive_sha256": archive_sha256,
+            "manifest_sha256": manifest_sha256,
+            "local_record": str(local_path),
+        }
+
+    def m6_scientific_stage(
+        self,
+        revision: str,
+        archive: Path,
+        expected_archive_sha256: str,
+        track: str,
+    ) -> dict[str, object]:
+        """Stage one fixed 8-CPU/16-GB truth-isolated M6 scientific track."""
+
+        if self.config.site_id != "viper-cpu":
+            raise ValidationError("m6-scientific-stage is available only for viper-cpu")
+        if track not in {"operational", "leakage"}:
+            raise ValidationError("M6 scientific track must be operational or leakage")
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        untracked_root = (self.config.repository / ".untracked").resolve(strict=True)
+        try:
+            archive.resolve(strict=True).relative_to(untracked_root)
+        except (OSError, ValueError) as error:
+            raise ValidationError(
+                "M6 runner archive must be below the repository .untracked directory"
+            ) from error
+        (
+            archive_path,
+            archive_sha256,
+            archive_size,
+            manifest_sha256,
+            case_count,
+            object_count,
+        ) = _inspect_m6_runner_archive(
+            archive,
+            protocol=self.config.repository / "benchmarks/m6/protocol.yaml",
+            expected_sha256=expected_archive_sha256,
+        )
+        profile = f"m6-{track}"
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+        run_id = f"gtd-{profile}-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
+        owner_id = secrets.token_hex(16)
+        validate_run_id(run_id)
+        lock_checksum = sha256_file(self.config.repository / "pixi.lock")
+        record = LocalRunRecord(
+            run_id=run_id,
+            site_id=self.config.site_id,
+            commit=commit,
+            owner_id=owner_id,
+            profile=profile,
+            iteration=1,
+            parent_run_id=None,
+        )
+        local_path = record.write(self.config.local_state_root)
+        self.logger.info(
+            "staging truth-isolated M6 scientific track",
+            extra={
+                "run_id": run_id,
+                "track": track,
+                "archive_sha256": archive_sha256,
+                "case_count": case_count,
+                "object_count": object_count,
+            },
+        )
+        remote = self.transport.m6_scientific_stage(
+            [
+                run_id,
+                commit,
+                lock_checksum,
+                owner_id,
+                archive_sha256,
+                str(archive_size),
+                manifest_sha256,
+                str(case_count),
+                str(object_count),
+                track,
+            ],
+            archive_path,
+        )
+        return {
+            **remote,
+            "operation": "m6-scientific-stage",
+            "run_id": run_id,
+            "site_id": self.config.site_id,
+            "commit": commit,
+            "profile": profile,
+            "track": track,
+            "protocol_id": "m6_independent_prokaryote_homomer_v1",
+            "case_count": case_count,
+            "object_count": object_count,
+            "maximum_cpu_count": 8,
+            "maximum_memory_gb": 16.0,
+            "maximum_concurrent_phenix_attempts": 4,
+            "scheduler_ceiling_hours": 24.0,
             "archive_sha256": archive_sha256,
             "manifest_sha256": manifest_sha256,
             "local_record": str(local_path),

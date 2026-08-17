@@ -1,5 +1,6 @@
 """Focused contracts for the approved truth-isolated M6 benchmark."""
 
+import gzip
 import json
 from pathlib import Path
 
@@ -10,12 +11,20 @@ import yaml
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
+from genome_to_diffraction.benchmarks import m6_model_policy as m6_model_policy_module
+from genome_to_diffraction.benchmarks.m6_collection import (
+    _assessment as _truth_assessment,
+)
 from genome_to_diffraction.benchmarks.m6_evaluation import (
     M6CaseAssessment,
     M6CollectedEvidence,
     M6EvaluationRequest,
     M6SoftwareProvenance,
     evaluate_m6,
+)
+from genome_to_diffraction.benchmarks.m6_model_policy import (
+    M6ModelPolicyRequest,
+    apply_m6_model_policy,
 )
 from genome_to_diffraction.benchmarks.m6_prepare import (
     M6MtzVariation,
@@ -31,6 +40,10 @@ from genome_to_diffraction.benchmarks.m6_runner import (
     M6RunnerBundleRequest,
     build_m6_runner_bundle,
 )
+from genome_to_diffraction.benchmarks.m6_scientific import (
+    m6_track_case_ids,
+    verify_m6_scientific_output,
+)
 from genome_to_diffraction.benchmarks.m6_verification import (
     M6RunnerVerificationRequest,
     verify_m6_runner_bundle,
@@ -38,7 +51,17 @@ from genome_to_diffraction.benchmarks.m6_verification import (
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.diffraction.preflight import select_observations
-from genome_to_diffraction.ids import sequence_digest
+from genome_to_diffraction.ids import (
+    canonical_digest,
+    canonical_json_text,
+    sequence_digest,
+)
+from genome_to_diffraction.schemas.results import (
+    EligibilityStatus,
+    SequenceGroupRecord,
+    SourceProteinRecord,
+    StructuralSearchHit,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "benchmarks" / "m6" / "protocol.yaml"
@@ -169,6 +192,19 @@ def test_m6_protocol_fixes_the_approved_case_balance() -> None:
         4,
         6,
     }
+
+
+def test_m6_scientific_tracks_partition_all_opaque_cases() -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    operational = m6_track_case_ids("operational")
+    leakage = m6_track_case_ids("leakage")
+
+    assert len(operational) == 36
+    assert len(leakage) == 27
+    assert set(operational).isdisjoint(leakage)
+    assert set(operational) | set(leakage) == {
+        f"M6C{index:03d}" for index in range(1, 64)
+    }
     assert (
         len({target.rcsb_30_cluster_line_sha256 for target in protocol.positives}) == 12
     )
@@ -178,6 +214,185 @@ def test_m6_protocol_fixes_the_approved_case_balance() -> None:
     assert (
         sum(target.correct_family_model_eligible for target in protocol.positives) == 11
     )
+
+
+def _raw_m6_case(case_id: str) -> dict[str, object]:
+    return {
+        "schema_version": "1.0",
+        "case_id": case_id,
+        "execution_status": "completed",
+        "scientific_status": "candidate_evidence",
+        "typed_outcome": "completed_candidate_evidence",
+        "failure_class": None,
+        "candidate_count": 1,
+        "retained_candidate_count": 1,
+        "all_candidates_retained": True,
+        "selected_seed_results": [],
+    }
+
+
+def test_m6_truth_join_uses_retained_rank_and_copy_evidence() -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    case = next(item for item in protocol.cases if item.case_id == "M6C001")
+    target = next(item for item in protocol.positives if item.target_key == "T01")
+    raw = _raw_m6_case(case.case_id)
+    raw["selected_seed_results"] = [
+        {
+            "sequence_group_id": "seq_target",
+            "best_supported_copy_count": target.expected_asu_copy_count,
+        }
+    ]
+    rankings: tuple[dict[str, object], ...] = (
+        {
+            "case_id": case.case_id,
+            "sequence_sha256": target.target_sequence_sha256,
+            "sequence_group_id": "seq_target",
+            "rank": 4,
+            "accepted_model_hit_count": 1,
+        },
+    )
+
+    assessment = _truth_assessment(protocol, case, raw, rankings)
+
+    assert assessment.target_sequence_rank == 4
+    assert assessment.correct_family_model_retained is True
+    assert assessment.credible_seed_recovered is True
+    assert assessment.supported_copy_count == 2
+    assert assessment.exact_identity_sequence_sha256 is None
+
+
+def test_m6_truth_join_does_not_auto_accept_an_assumption_violation() -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    case = next(item for item in protocol.cases if item.case_id == "M6C045")
+    raw = _raw_m6_case(case.case_id)
+    raw["selected_seed_results"] = [
+        {"sequence_group_id": "seq_component", "best_supported_copy_count": 1}
+    ]
+
+    assessment = _truth_assessment(protocol, case, raw, ())
+
+    assert assessment.scientific_status == "candidate_evidence"
+    assert assessment.typed_outcome == "single_component_seed_on_assumption_violation"
+
+
+def _synthetic_scientific_output(tmp_path: Path) -> Path:
+    output = tmp_path / "scientific-output"
+    output.mkdir()
+    case_ids = m6_track_case_ids("operational")
+    cases = tuple(
+        {
+            **_raw_m6_case(case_id),
+            "candidate_ranking_path": "model-policy/candidate_ranking.jsonl",
+            "model_policy_report_path": "model-policy/model_policy_report.json",
+            "first_copy_attempt_count": 0,
+            "additional_copy_attempt_count": 0,
+            "refinement_attempt_count": 0,
+            "sequence_assessment_count": 0,
+            "first_copy_results": [],
+            "additional_copy_results": [],
+            "refinement_results": [],
+            "sequence_summaries": [],
+        }
+        for case_id in case_ids
+    )
+    rankings = tuple(
+        {
+            "schema_version": "1.0",
+            "case_id": case_id,
+            "rank": 1,
+            "sequence_group_id": f"seq_{case_id}",
+            "sequence_sha256": HASH,
+            "source_record_count": 1,
+            "accepted_model_hit_count": 0,
+            "rejected_model_hit_count": 0,
+            "all_candidate_records_retained": True,
+        }
+        for case_id in case_ids
+    )
+    files: dict[str, str] = {
+        "case_results": "m6_case_results.jsonl",
+        "candidate_rankings": "m6_candidate_rankings.jsonl",
+        "candidate_rankings_gzip": "m6_candidate_rankings.jsonl.gz",
+        "model_policy_results": "m6_model_policy_results.jsonl",
+        "first_copy_results": "m6_first_copy_results.jsonl",
+        "additional_copy_results": "m6_additional_copy_results.jsonl",
+        "refinement_results": "m6_refinement_results.jsonl",
+        "sequence_results": "m6_sequence_results.jsonl",
+        "sequence_summary": "m6_sequence_summary.jsonl",
+    }
+    (output / files["case_results"]).write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in cases),
+        encoding="utf-8",
+    )
+    ranking_bytes = "".join(
+        json.dumps(row, sort_keys=True) + "\n" for row in rankings
+    ).encode()
+    (output / files["candidate_rankings"]).write_bytes(ranking_bytes)
+    (output / files["candidate_rankings_gzip"]).write_bytes(
+        gzip.compress(ranking_bytes, compresslevel=9, mtime=0)
+    )
+    for key in (
+        "model_policy_results",
+        "first_copy_results",
+        "additional_copy_results",
+        "refinement_results",
+        "sequence_results",
+        "sequence_summary",
+    ):
+        (output / files[key]).write_text("", encoding="utf-8")
+    output_sha256 = {key: sha256_file(output / value) for key, value in files.items()}
+    input_sha256 = {
+        "runner_manifest": "1" * 64,
+        "protocol": "2" * 64,
+        "database_manifest": "3" * 64,
+        "phenix_manifest": "4" * 64,
+    }
+    _write_json(
+        output / "m6_scientific_summary.json",
+        {
+            "schema_version": "1.0",
+            "adapter_version": "m6-scientific-run-v1",
+            "track": "operational",
+            "case_ids": list(case_ids),
+            "case_evidence_digest": canonical_digest(cases),
+            "scientific_output_digest": canonical_digest(output_sha256),
+            "input_sha256": input_sha256,
+            "cache_key": canonical_digest(
+                {
+                    "adapter_version": "m6-scientific-run-v1",
+                    "track": "operational",
+                    "input_sha256": input_sha256,
+                }
+            ),
+            "outputs": output_sha256,
+            "threads": 8,
+            "maximum_concurrent_phenix_attempts": 4,
+            "first_copy_attempt_count": 0,
+            "additional_copy_attempt_count": 0,
+            "refinement_attempt_count": 0,
+            "sequence_assessment_count": 0,
+        },
+    )
+    return output
+
+
+def test_m6_scientific_verifier_replays_complete_bounded_outputs(
+    tmp_path: Path,
+) -> None:
+    output = _synthetic_scientific_output(tmp_path)
+
+    report_path = verify_m6_scientific_output(output, "operational")
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["deterministic_assembly_verified"] is True
+    assert report["resume_load_verified"] is True
+    assert report["cache_invalidation_verified"] is True
+    assert report["candidate_retention_verified"] is True
+
+    with (output / "m6_case_results.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write("{}\n")
+    with pytest.raises(PublicControlError, match="checksum changed"):
+        verify_m6_scientific_output(output, "operational")
 
 
 def test_m6_protocol_rejects_a_relabelled_case() -> None:
@@ -233,6 +448,25 @@ def test_m6_evaluator_holds_on_false_assignment_and_candidate_loss(
     assert result.accepted is False
     assert "candidate_retention" in result.failed_gates
     assert "exact_false_assignments" in result.failed_gates
+
+
+def test_m6_evaluator_holds_on_an_unexpected_execution_failure(
+    tmp_path: Path,
+) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    payload = _evidence(protocol).model_dump(mode="json")
+    failed = next(
+        item for item in payload["assessments"] if item["case_id"] == "M6C025"
+    )
+    failed["execution_status"] = "failed"
+    failed["failure_class"] = "candidate_adapter_failure"
+    evidence_path = tmp_path / "evidence.json"
+    _write_json(evidence_path, payload)
+
+    result = evaluate_m6(M6EvaluationRequest(protocol=PROTOCOL, evidence=evidence_path))
+
+    assert result.accepted is False
+    assert "unexpected_execution_failures" in result.failed_gates
 
 
 def _prepared_manifest(
@@ -513,6 +747,230 @@ def test_m6_catalogue_anonymisation_removes_and_duplicates_exact_sequence(
     assert sum(record.sequence_sha256 == target_digest for record in duplicated) == 2
     assert "NP_414916.1" not in output.read_text(encoding="ascii")
     assert all(record.opaque_id.startswith("loc_") for record in duplicated)
+
+
+def _policy_group(sequence: str) -> SequenceGroupRecord:
+    digest = sequence_digest(sequence)
+    return SequenceGroupRecord(
+        schema_version="1.0",
+        sequence_group_id=f"seq_{digest}",
+        sha256=digest,
+        sequence=sequence,
+        length_aa=len(sequence),
+        molecular_mass_da=500.0,
+        mass_method="test",
+        residue_policy="test",
+        source_record_count=1,
+    )
+
+
+def _policy_hit(
+    group: SequenceGroupRecord,
+    *,
+    hit_id: str,
+    provider: str,
+    pdb_id: str,
+    target_sha256: str,
+    identity: float,
+    coverage: float,
+) -> StructuralSearchHit:
+    return StructuralSearchHit(
+        schema_version="1.0",
+        hit_id=hit_id,
+        sequence_group_id=group.sequence_group_id,
+        provider=provider,
+        provider_rank=1,
+        target_id=f"{pdb_id.lower()}_A",
+        model_key=f"pdb:{pdb_id}:legacy_seqres_suffix:A",
+        target_chain_or_entity="A",
+        pdb_id=pdb_id,
+        identifier_namespace="legacy_seqres_suffix",
+        query_start=1,
+        query_end=len(group.sequence),
+        target_start=1,
+        target_end=len(group.sequence),
+        aligned_length=len(group.sequence),
+        query_coverage=coverage,
+        target_coverage=coverage,
+        sequence_identity=identity,
+        evalue=1.0e-10,
+        bits=50.0,
+        database_id=(
+            "db_pdb_sequences"
+            if provider == "pdb_sequence_mmseqs"
+            else "db_pdb_foldseek"
+        ),
+        raw_result_pointer="raw/results.tsv",
+        raw_metrics={
+            "target_sequence_length": len(group.sequence),
+            "target_sequence_sha256": target_sha256,
+        },
+        eligibility_status=EligibilityStatus.SELECTED,
+        eligibility_reason="test proposal",
+    )
+
+
+def test_m6_model_policy_filters_every_route_and_retains_candidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = _policy_group("ACDE")
+    second = _policy_group("FGHI")
+    groups = tmp_path / "groups.jsonl"
+    groups.write_text(
+        "".join(f"{canonical_json_text(item)}\n" for item in (first, second)),
+        encoding="utf-8",
+    )
+    sources = tmp_path / "sources.jsonl"
+    sources.write_text(
+        "".join(
+            f"{canonical_json_text(item)}\n"
+            for item in (
+                SourceProteinRecord(
+                    schema_version="1.0",
+                    source_record_id="src_first",
+                    catalogue_id="opaque",
+                    original_protein_id="loc_first",
+                    original_header="loc_first",
+                    sequence_group_id=first.sequence_group_id,
+                    source_annotation_provider="test",
+                ),
+                SourceProteinRecord(
+                    schema_version="1.0",
+                    source_record_id="src_second",
+                    catalogue_id="opaque",
+                    original_protein_id="loc_second",
+                    original_header="loc_second",
+                    sequence_group_id=second.sequence_group_id,
+                    source_annotation_provider="test",
+                ),
+            )
+        ),
+        encoding="utf-8",
+    )
+    safe_source_sha256 = "b" * 64
+    direct_hits = (
+        _policy_hit(
+            first,
+            hit_id="hit_exact_deposition",
+            provider="pdb_sequence_mmseqs",
+            pdb_id="8GKV",
+            target_sha256=first.sha256,
+            identity=1.0,
+            coverage=1.0,
+        ),
+        _policy_hit(
+            first,
+            hit_id="hit_leaking_model",
+            provider="pdb_sequence_mmseqs",
+            pdb_id="2ABC",
+            target_sha256="c" * 64,
+            identity=0.8,
+            coverage=0.9,
+        ),
+        _policy_hit(
+            first,
+            hit_id="hit_safe_model",
+            provider="pdb_sequence_mmseqs",
+            pdb_id="1ABC",
+            target_sha256=safe_source_sha256,
+            identity=0.5,
+            coverage=1.0,
+        ),
+    )
+    foldseek_hits = (
+        _policy_hit(
+            first,
+            hit_id="hit_foldseek_qualified",
+            provider="foldseek_prostt5_pdb",
+            pdb_id="3ABC",
+            target_sha256=safe_source_sha256,
+            identity=0.2,
+            coverage=0.7,
+        ),
+        _policy_hit(
+            second,
+            hit_id="hit_foldseek_unqualified",
+            provider="foldseek_prostt5_pdb",
+            pdb_id="4ABC",
+            target_sha256="d" * 64,
+            identity=0.2,
+            coverage=0.7,
+        ),
+    )
+    pdb_hits = tmp_path / "pdb.jsonl"
+    pdb_hits.write_text(
+        "".join(f"{canonical_json_text(item)}\n" for item in direct_hits),
+        encoding="utf-8",
+    )
+    foldseek_path = tmp_path / "foldseek.jsonl"
+    foldseek_path.write_text(
+        "".join(f"{canonical_json_text(item)}\n" for item in foldseek_hits),
+        encoding="utf-8",
+    )
+    policy = tmp_path / "policy.json"
+    _write_json(
+        policy,
+        {
+            "schema_version": "1.0",
+            "mode": "query_relative_leakage",
+            "maximum_model_identity_fraction": 0.7,
+            "minimum_exclusion_coverage_fraction": 0.8,
+            "exact_deposition_removed_by_trusted_transition": True,
+            "applies_to_all_model_routes": True,
+            "retain_rejected_model_annotations": True,
+            "candidate_policy": "retain_all",
+            "score_policy": "llg_tfz_annotations_only",
+        },
+    )
+    database = tmp_path / "database.json"
+    database.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        m6_model_policy_module,
+        "_mmseqs_version",
+        lambda _path: ("18.8cc5c", "db_pdb_sequences"),
+    )
+
+    output = apply_m6_model_policy(
+        M6ModelPolicyRequest(
+            protocol=PROTOCOL,
+            case_id="M6C013",
+            model_policy=policy,
+            database_manifest=database,
+            sequence_groups_jsonl=groups,
+            source_records_jsonl=sources,
+            pdb_hits_jsonl=pdb_hits,
+            prostt5_hits_jsonl=foldseek_path,
+            output_directory=tmp_path / "output",
+        )
+    )
+
+    assert {hit.hit_id for hit in output.accepted_hits} == {
+        "hit_safe_model",
+        "hit_foldseek_qualified",
+    }
+    foldseek = next(
+        hit for hit in output.accepted_hits if hit.hit_id == "hit_foldseek_qualified"
+    )
+    assert foldseek.sequence_identity == pytest.approx(0.5)
+    report = json.loads(output.report_json.read_text(encoding="utf-8"))
+    assert report["candidate_count"] == 2
+    assert report["retained_candidate_count"] == 2
+    assert report["all_candidates_retained"] is True
+    assert report["rejection_reason_counts"] == {
+        "amino_acid_alignment_unavailable": 1,
+        "exact_deposited_coordinates": 1,
+        "query_relative_leakage": 1,
+    }
+    ranking = [
+        json.loads(line)
+        for line in output.candidate_ranking_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    assert [row["sequence_group_id"] for row in ranking] == [
+        first.sequence_group_id,
+        second.sequence_group_id,
+    ]
 
 
 def _m6_source_mtz() -> gemmi.Mtz:

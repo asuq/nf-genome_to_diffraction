@@ -57,7 +57,9 @@ from genome_to_diffraction.time import utc_now_iso
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.pdb_coordinates")
 _ADAPTER_VERSION = "pdb-coordinate-registration-v1"
 _PDB_COORDINATE_URL = "https://files.rcsb.org/download/{pdb_id}.cif.gz"
-_PROVIDER = "pdb_sequence_mmseqs"
+_DIRECT_PROVIDER = "pdb_sequence_mmseqs"
+_PROSTT5_PROVIDER = "foldseek_prostt5_pdb"
+_PROVIDERS = frozenset({_DIRECT_PROVIDER, _PROSTT5_PROVIDER})
 _PROTEIN_ALPHABET = frozenset("ABCDEFGHIKLMNPQRSTVWXYZOUJ")
 
 
@@ -148,7 +150,9 @@ def _read_jsonl[T: ContractModel](
     return tuple(records)
 
 
-def _resources(manifest_path: Path) -> tuple[DatabaseResource, DatabaseResource]:
+def _resources(
+    manifest_path: Path,
+) -> tuple[DatabaseResource, DatabaseResource, DatabaseResource]:
     manifest = load_contract(manifest_path, "database-manifest", progress=False)
     if not isinstance(manifest, DatabaseManifest):
         raise AssertionError("database-manifest loader returned an unexpected model")
@@ -168,9 +172,10 @@ def _resources(manifest_path: Path) -> tuple[DatabaseResource, DatabaseResource]
         return resource
 
     sequences = exactly_one("pdb_sequences")
+    foldseek = exactly_one("pdb_foldseek")
     cache = exactly_one("coordinate_cache")
     verify_coordinate_cache(Path(cache.root_path).resolve(strict=True))
-    return sequences, cache
+    return sequences, foldseek, cache
 
 
 def _required_metric[T](hit: StructuralSearchHit, name: str, expected: type[T]) -> T:
@@ -187,7 +192,7 @@ def _validate_hit(
     hit: StructuralSearchHit, groups: dict[str, SequenceGroupRecord]
 ) -> None:
     if (
-        hit.provider != _PROVIDER
+        hit.provider not in _PROVIDERS
         or hit.eligibility_status is not EligibilityStatus.SELECTED
     ):
         raise PdbCoordinateInputError(
@@ -451,11 +456,16 @@ def register_pdb_coordinates(
     )
     for hit in hits:
         _validate_hit(hit, group_index)
-    sequence_resource, cache_resource = _resources(request.database_manifest)
-    if any(hit.database_id != sequence_resource.database_id for hit in hits):
+    sequence_resource, foldseek_resource, cache_resource = _resources(
+        request.database_manifest
+    )
+    expected_database_ids = {
+        _DIRECT_PROVIDER: sequence_resource.database_id,
+        _PROSTT5_PROVIDER: foldseek_resource.database_id,
+    }
+    if any(hit.database_id != expected_database_ids.get(hit.provider) for hit in hits):
         raise PdbCoordinateInputError(
-            "direct-PDB hit database_id differs from the qualified PDB sequence "
-            "resource"
+            "PDB hit database_id differs from its qualified discovery resource"
         )
     selected = _select_hits(hits, request)
     if not selected:
@@ -622,9 +632,15 @@ def register_pdb_coordinates(
             "registration_id": content_id("coordreg_", manifest_identity),
             "created_at": utc_now_iso(),
             "adapter_version": _ADAPTER_VERSION,
-            "scope": "direct_pdb_sequence_hits",
-            "source_database_id": sequence_resource.database_id,
-            "source_database_release": sequence_resource.release_or_snapshot,
+            "scope": "pdb_sequence_and_prostt5_foldseek_hits",
+            "source_database_ids": {
+                _DIRECT_PROVIDER: sequence_resource.database_id,
+                _PROSTT5_PROVIDER: foldseek_resource.database_id,
+            },
+            "source_database_releases": {
+                _DIRECT_PROVIDER: sequence_resource.release_or_snapshot,
+                _PROSTT5_PROVIDER: foldseek_resource.release_or_snapshot,
+            },
             "coordinate_cache_database_id": cache_resource.database_id,
             "input_sha256": input_sha256,
             "parameters": {

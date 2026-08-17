@@ -99,6 +99,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "control-slice",
             "control-matrix",
             "m6-inputs",
+            "m6-operational",
+            "m6-leakage",
             "m4-copy",
             "t12",
         ),
@@ -164,6 +166,17 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_inputs_stage.add_argument("--archive", type=Path, required=True)
     m6_inputs_stage.add_argument("--confirm-archive-sha256", required=True)
 
+    m6_scientific_stage = actions.add_parser(
+        "m6-scientific-stage",
+        help="stage one fixed truth-isolated M6 scientific track",
+    )
+    m6_scientific_stage.add_argument("--revision", required=True)
+    m6_scientific_stage.add_argument("--archive", type=Path, required=True)
+    m6_scientific_stage.add_argument("--confirm-archive-sha256", required=True)
+    m6_scientific_stage.add_argument(
+        "--track", choices=("operational", "leakage"), required=True
+    )
+
     t12_stage = actions.add_parser(
         "t12-stage",
         help="stage all retained M4 copy-two parents for Viper T12",
@@ -220,6 +233,13 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.revision,
             args.archive,
             args.confirm_archive_sha256,
+        )
+    if args.operation == "m6-scientific-stage":
+        return controller.m6_scientific_stage(
+            args.revision,
+            args.archive,
+            args.confirm_archive_sha256,
+            args.track,
         )
     if args.operation == "t12-stage":
         return controller.t12_stage(args.revision, args.parent_run)

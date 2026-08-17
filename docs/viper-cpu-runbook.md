@@ -261,6 +261,34 @@ Phenix, search databases, evaluate truth, or count as either final M6
 scientific run. The later scientific profiles retain the approved 8-CPU,
 16-GB, at-most-four-Phenix-attempt, 24-hour boundaries.
 
+Stage and submit the two scientific tracks separately. Each transfer repeats
+the same confirmed runner archive; the track name selects only the frozen case
+partition and cannot change case membership or thresholds:
+
+```bash
+nf-gtd-hpc-test --no-progress m6-scientific-stage \
+  --revision HEAD \
+  --archive .untracked/m6-runner-candidate.tar \
+  --confirm-archive-sha256 ARCHIVE_SHA256 \
+  --track operational
+nf-gtd-hpc-test --no-progress submit m6-operational --run-id RUN_ID
+
+nf-gtd-hpc-test --no-progress m6-scientific-stage \
+  --revision HEAD \
+  --archive .untracked/m6-runner-candidate.tar \
+  --confirm-archive-sha256 ARCHIVE_SHA256 \
+  --track leakage
+nf-gtd-hpc-test --no-progress submit m6-leakage --run-id RUN_ID
+```
+
+Only one managed Viper job is submitted at a time. After each terminal job,
+retrieve `logs --tail 200` and `collect` through this wrapper. The job performs
+a checksum-only `--resume` pass and requires byte-identical scientific outputs;
+all raw candidates, parent/child attempts, Phenix results, and sequence records
+remain retained remotely. Collection transfers compact case evidence, a
+deterministically compressed retain-all ranking, verification reports,
+representative bounded Phaser log tails, and complete immutable checksums.
+
 ## Database track
 
 ```bash

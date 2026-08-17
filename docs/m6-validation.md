@@ -54,13 +54,17 @@ are excluded from both positive tracks. MMseqs2 18.8cc5c performs the pinned
 identity/coverage calculation. The 8AI1 case is predeclared model-scarce, giving
 an 11-case leakage correct-family denominator.
 
-The tracked protocol is never staged to the runner. A trusted preparer emits
-anonymised catalogue IDs, sanitised MTZ metadata, per-case configuration, and
-model-policy objects. `benchmark build-m6-runner` verifies every object,
-renames it by SHA-256, emits only opaque `M6Cnnn` case IDs, scans every byte for
-PDB/accession/sequence/cluster truth tokens, and writes a deterministic tar
-archive. The evaluator receives the truth contract only after the collected
-runner archive checksum is fixed.
+The opaque runner archive never contains the tracked protocol or private truth
+map. A trusted preparer emits anonymised catalogue IDs, sanitised MTZ metadata,
+per-case configuration, and model-policy objects. `benchmark build-m6-runner`
+verifies every object, renames it by SHA-256, emits only opaque `M6Cnnn` case
+IDs, scans every byte for PDB/accession/sequence/cluster truth tokens, and
+writes a deterministic tar archive. During execution, catalogue import,
+preflight, discovery, MR, copy search, refinement, and sequence assessment read
+only opaque inputs. A narrow trusted transition reads the tracked protocol only
+to remove the exact deposition and enforce the approved all-route leakage
+threshold. Truth-side case assessment occurs only after both collected result
+checksums are fixed.
 
 ## Commands and artefacts
 
@@ -130,9 +134,38 @@ benchmark bundle; PDB-sequence and local ProstT5/Foldseek discovery remain the
 enabled model routes, and the leakage transition applies to every enabled
 route.
 
+The two scientific run IDs are staged and submitted separately from the same
+confirmed runner archive:
+
+```bash
+nf-gtd-hpc-test --no-progress m6-scientific-stage \
+  --revision HEAD \
+  --archive .untracked/m6/runner.tar \
+  --confirm-archive-sha256 ARCHIVE_SHA256 \
+  --track operational
+nf-gtd-hpc-test --no-progress submit m6-operational --run-id RUN_ID
+
+nf-gtd-hpc-test --no-progress m6-scientific-stage \
+  --revision HEAD \
+  --archive .untracked/m6/runner.tar \
+  --confirm-archive-sha256 ARCHIVE_SHA256 \
+  --track leakage
+nf-gtd-hpc-test --no-progress submit m6-leakage --run-id RUN_ID
+```
+
+Each track retains its full raw output remotely, emits compact case evidence
+and a deterministic gzip of every candidate rank, verifies all output
+checksums, and performs a checksum-only `--resume` pass. No Phenix search is
+silently repeated during that resume check.
+
 Truth-side evaluation:
 
 ```bash
+pixi run --locked genome-to-diffraction benchmark collect-m6-evidence \
+  --protocol benchmarks/m6/protocol.yaml \
+  --operational-collection .untracked/hpc-test/OPERATIONAL_RUN/collected \
+  --leakage-collection .untracked/hpc-test/LEAKAGE_RUN/collected \
+  --output .untracked/m6/collected-evidence.json
 pixi run --locked genome-to-diffraction benchmark evaluate-m6 \
   --protocol benchmarks/m6/protocol.yaml \
   --evidence .untracked/m6/collected-evidence.json \
@@ -178,6 +211,8 @@ only after collected terminal evidence demonstrates a software defect.
 Focused unit tests validate the exact 63-case balance, positive copy-count
 coverage, M5/M6 cluster separation, the 11-case leakage denominator, failure on
 case relabelling, accept and hold evaluator paths, 100% retention and zero-false
-assignment gates, deterministic runner archives, and byte-level rejection of a
-truth-bearing runner object. The complete locked repository gate remains
-required before an immutable Viper candidate is staged.
+assignment gates, unexpected execution-failure holds, deterministic runner
+archives, byte-level rejection of a truth-bearing runner object, all-route
+model exclusion, compact truth joins, output-checksum replay, cache
+invalidation, and the fixed Viper resource profiles. The complete locked
+repository gate remains required before an immutable Viper candidate is staged.
