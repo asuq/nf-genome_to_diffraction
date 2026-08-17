@@ -1009,10 +1009,10 @@ def test_m6_execution_policy_and_trace_use_per_job_bounds(tmp_path: Path) -> Non
     trace = tmp_path / "trace.tsv"
     trace.write_text(
         "process\ttag\tstatus\tnative_id\tcpus\tmemory\ttime\tstart\tcomplete\tpeak_rss\t%cpu\n"
-        "M6_SEARCH_FOLDSEEK\tb1\tCOMPLETED\t101\t32\t16 GB\t24h\t"
+        "M6_SEARCH_FOLDSEEK\tb1\tCOMPLETED\t101\t32\t16 GB\t1d\t"
         "2026-08-17T00:00:00+00:00\t2026-08-17T01:00:00+00:00\t8 GB\t3100%\n"
         "M6_FIRST_COPY\th1\tCOMPLETED\t102\t2\t4 GB\t24h\t"
-        "2026-08-17T00:30:00+00:00\t2026-08-17T00:45:00+00:00\t2 GB\t190%\n",
+        "2026-08-17T00:30:00+00:00\t2026-08-17T00:45:00+00:00\t0\t190%\n",
         encoding="utf-8",
     )
 
@@ -1032,7 +1032,9 @@ def test_m6_execution_policy_and_trace_use_per_job_bounds(tmp_path: Path) -> Non
     assert evidence.peak_running_jobs == 2
     assert evidence.peak_aggregate_cpus == 34
     assert evidence.peak_concurrent_phenix_jobs == 1
+    assert evidence.maximum_scheduler_hours_per_job == 24.0
     assert evidence.maximum_peak_rss_gb == 8.0
+    assert evidence.jobs[1].peak_rss_gb == 0.0
     assert evidence.maximum_observed_cpu_percent == 3100.0
 
 

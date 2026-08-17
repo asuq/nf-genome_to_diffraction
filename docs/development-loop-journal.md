@@ -7279,3 +7279,165 @@ After the mandatory `AGENTS.md`/newest-journal/status inspection, run
 
 Stage only the reviewed architecture increment with `git add`, inspect the
 staged diff, and create its coherent commit.
+
+## 2026-08-17T13:07:17Z - Fan-out rollout ready behind retained operational run
+
+### Accomplishments and immutable evidence
+
+- Created and pushed the single coherent architecture commit
+  `aa334b47db419d9cb6fbe3eed0ffea6fd950f20d`. GitHub Actions run
+  `32032519420` passed once under Pixi 0.76.2 in 6m25s.
+- Built and installed the matching local controller with SHA-256
+  `a7a6e694ebb25f83049112b749cc5c710433c235be3b39b52c06500c0e759f22`.
+  Deployed dispatcher, job-wrapper, and recovery SHA-256 values are
+  `5aa8979ec1218c8187c4ed5f5fd0e67ac130beb8956354d82d314580446a8076`,
+  `be2abafdd0a988614fdaf3f0d75d32abc7cdb140bea5b16f4a947c9802f2ee3b`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- Staged the non-acceptance smoke as
+  `gtd-m6-nextflow-smoke-20260817T130616Z-aa334b47db41-dd678eaf` from the
+  immutable commit and unchanged nf-helper commit
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`.
+
+### Changed blocker and unresolved work
+
+- Smoke submission was correctly rejected because another managed test job is
+  still active. One reviewed status query then confirmed retained operational
+  run `gtd-m6-operational-20260817T045037Z-ebffd2b75ed7-6be05fd4`, Slurm job
+  `10934859`, remains `RUNNING`, terminal=false. It was not modified, cancelled,
+  cleaned, or used to seed the new cache.
+- Continue monitoring only that retained run at the approved 30-minute cadence.
+  When terminal, collect and classify it first; then submit the already-staged
+  smoke. Do not stage a duplicate smoke or scientific run.
+
+### Next exact starting point
+
+Run the single reviewed status command for retained operational run
+`gtd-m6-operational-20260817T045037Z-ebffd2b75ed7-6be05fd4` at the next
+30-minute heartbeat.
+
+## 2026-08-17T13:17:50Z - Current-version Slurm fan-out smoke submitted
+
+### Approved state change and immutable evidence
+
+- At the user's explicit direction, cancelled only superseded monolithic run
+  `gtd-m6-operational-20260817T045037Z-ebffd2b75ed7-6be05fd4`, Slurm job
+  `10934859`; the scheduler returned `CANCEL_REQUESTED`. Its partial artefacts
+  remain retained. Do not clean, resume, monitor, or seed the new cache from it.
+- Submitted the already-staged non-acceptance current-version smoke
+  `gtd-m6-nextflow-smoke-20260817T130616Z-aa334b47db41-dd678eaf` as Slurm job
+  `10938045`. It uses source commit
+  `aa334b47db419d9cb6fbe3eed0ffea6fd950f20d`, nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, a 2-CPU/8-GB driver, and
+  separately scheduled 32-CPU/16-GB MMseqs2 and Foldseek stub workers.
+- One initial status snapshot returned `PENDING`, terminal=false. No polling or
+  runtime timeout was introduced.
+
+### Unresolved work
+
+- Monitor only smoke job `10938045` at the existing 30-minute cadence. When
+  terminal, obtain bounded logs and collection, then verify native child Slurm
+  IDs, per-job bounds, fully cached byte-identical resume, typed empty/active
+  branches, and truthless-only cross-track store reuse. It is orchestration
+  evidence and cannot count as M6 acceptance.
+- After the smoke passes, stage a fresh full operational Nextflow track from
+  the same frozen 63-case runner archive; the cancelled monolithic run no
+  longer supplies acceptance evidence.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-m6-nextflow-smoke-20260817T130616Z-aa334b47db41-dd678eaf` at the next
+30-minute heartbeat.
+
+## 2026-08-17T14:02:23Z - Adversarial review identifies M6 and core stop gates
+
+### Discoveries and local evidence
+
+- Completed three independent read-only review passes covering scientific
+  validity, Nextflow/HPC behaviour, and Python/schema/test boundaries. The
+  consolidated report is `docs/adverse-code-review-2026-08-17.md`; it separates
+  21 enduring pipeline findings from 13 temporary HPC/validation findings.
+- Identified three M6 release-decision stop gates: correct-family recovery is
+  not family-verified, exact false assignments are hard-coded absent during
+  collection, and several edge controls derive their result from the injected
+  descriptor instead of observed behaviour.
+- Confirmed enduring high-priority defects including one-item consumption in
+  integrated fan-out, incomplete Nextflow cache identities, ignored provider
+  configuration, unpropagated crystallographic/Free-R choices, and packing-only
+  copy support.
+- The fresh complete `pixi run --locked check` passed with 439 unit, 59
+  contract, and 51 integration tests plus every configured static, schema,
+  documentation, Nextflow, and wrapper check. Focused synthetic probes
+  reproduced the semantic findings that the green fixture suite misses.
+- No remote service, scheduler, HPC job, private input, or generated scientific
+  result was queried or modified.
+
+### Unresolved work
+
+- Hold M6 acceptance and do not submit an operational or leakage scientific
+  track until the three report P0 findings and the 29-catalogue partition defect
+  are corrected and covered by multi-item integration tests.
+- Treat the submitted two-case smoke, if it completes, as orchestration-only
+  evidence. Its one-catalogue fixture cannot clear the scientific or
+  cardinality findings.
+- Review and prioritise the enduring pipeline P1 findings before a general
+  production release. Preserve the report and immutable validation evidence
+  when later removing the temporary HPC/benchmark slice.
+
+### Next exact starting point
+
+At the next approved heartbeat, query only
+`gtd-m6-nextflow-smoke-20260817T130616Z-aa334b47db41-dd678eaf` as previously
+recorded. Before any M6 scientific submission, start from the P0 remediation
+order in `docs/adverse-code-review-2026-08-17.md`.
+
+## 2026-08-17T15:15:30Z - Real Slurm trace exposes narrow resource-parser defect
+
+### Immutable Viper evidence and classification
+
+- Smoke run `gtd-m6-nextflow-smoke-20260817T130616Z-aa334b47db41-dd678eaf`,
+  Slurm job `10938045`, finished `FAILED` with exit code 1 and
+  `test_failure`. Bounded logs and collection were retrieved through the
+  reviewed wrapper; collection failure signature is
+  `47fdd2b6c04f940db4e207df04fd5639efdb859c3bebae798394198857bf6b25`.
+- All 21 child Slurm jobs completed before the outer wrapper failed. MMseqs2 and
+  Foldseek used distinct native IDs `10938131` and `10938132`; each requested
+  32 CPUs/16 GB and completed successfully. The active and typed-empty branches
+  reached deterministic track aggregation.
+- The demonstrated software defect is confined to resource-evidence parsing:
+  Nextflow 26.04.6 emits bare `0` for unmeasurably small peak RSS and `1d` for a
+  24-hour request, while the adapter accepted only unit-suffixed memory and
+  hour/minute/second time. The failure occurred before resume/cross-track proof,
+  so this run cannot pass the non-acceptance smoke gate.
+- The trace also retained Nextflow warnings that executor-specific `$slurm` and
+  `$local` settings were unrecognised at runtime. Per-job requests are directly
+  evidenced, but queue-size/submission-rate enforcement is not claimed from
+  this smoke and remains a separate execution-configuration finding.
+
+### Focused correction and local evidence
+
+- Added only the guarded trace-format support for memory `0` and day-suffixed
+  durations, plus one focused regression using both exact representations.
+  The corrected CLI normalised the retained real trace into 21 typed jobs with
+  per-job bounds passed, 32 maximum CPUs, 16 GB maximum memory, and a 24-hour
+  maximum scheduler request.
+- The one complete `pixi run --locked check` passed after the correction: 439
+  unit, 59 contract, and 51 integration tests plus every configured static,
+  schema, documentation, Nextflow, and wrapper check.
+- Preserved the independent adversarial review in
+  `docs/adverse-code-review-2026-08-17.md`. Its three M6 P0 findings and the
+  multi-catalogue partition defect remain hard stop gates: a replacement smoke
+  may test orchestration, but no operational or leakage scientific run may be
+  submitted until those findings are remediated with multi-item evidence.
+
+### Unresolved work
+
+- Create one focused parser/evidence commit, push once, watch one CI run,
+  install/deploy matching tools, and submit one replacement two-case smoke.
+- Do not start M6 scientific execution after the smoke; next scientific work is
+  the separately reviewed P0 remediation order in the adverse review.
+
+### Next exact starting point
+
+Inspect and commit the focused parser regression, retained journal evidence,
+and adversarial review as one coherent code/evidence milestone.

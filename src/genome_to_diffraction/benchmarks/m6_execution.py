@@ -169,7 +169,10 @@ def load_m6_execution_policy(path: Path) -> M6ExecutionPolicy:
 
 
 def _memory_gb(value: str) -> float:
-    match = _MEMORY.fullmatch(value.strip())
+    text = value.strip()
+    if text == "0":
+        return 0.0
+    match = _MEMORY.fullmatch(text)
     if match is None:
         raise PublicControlError(f"cannot parse Nextflow trace memory: {value}")
     amount = float(match.group(1))
@@ -179,6 +182,8 @@ def _memory_gb(value: str) -> float:
 
 def _hours(value: str) -> float:
     text = value.strip()
+    if text.endswith("d"):
+        return float(text[:-1]) * 24.0
     if text.endswith("h"):
         return float(text[:-1])
     if text.endswith("m"):
