@@ -10,6 +10,10 @@ remain authoritative for scientific policy and interface contracts.
   active single-component prototype through heteromer search, advanced
   crystallographic/assembly support, calibrated automation, and the final
   internal research platform.
+- [Software v0.2 roadmap](v0.2-roadmap.md): dependency-ordered M6/core
+  remediation, joint-copy component search, bounded `nA + mB` development,
+  immutable HPC loops, validation gates, and all adversarial-review finding
+  dispositions.
 - [Single-component prototype roadmap](single-component-prototype-roadmap.md):
   detailed current maturity and authorised milestones from real-site
   qualification through structural discovery, MR, sequence narrowing,
@@ -55,6 +59,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Development loop journal](development-loop-journal.md): the mandatory
   read-first hand-off record of discoveries, accomplishments, immutable
   evidence, unresolved work, and the next exact starting point.
+- [Adversarial code review](adverse-code-review-2026-08-17.md): 34 finding
+  baseline covering enduring pipeline and temporary M6/HPC code, including
+  the release-decision stop gates that precede v0.1 acceptance.
 - [Public methanogen and methanotroph control panel](public-control-panel.md):
   ten frozen X-ray structures, catalogue-to-construct mappings, reproducible
   source/MTZ preparation, runnable-control order, and one deliberate heteromer

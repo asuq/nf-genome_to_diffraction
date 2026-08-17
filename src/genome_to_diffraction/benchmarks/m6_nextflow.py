@@ -31,7 +31,20 @@ from genome_to_diffraction.benchmarks.control_matrix_run import (
     _supported_first_copy_count,
 )
 from genome_to_diffraction.benchmarks.control_slice_run import _review_seed
+from genome_to_diffraction.benchmarks.m6_edge import (
+    M6EdgeObservation,
+    edge_stimulus,
+    observe_case_edge,
+    observe_isolated_missing_phenix,
+    verify_edge_observations,
+    write_missing_model_stimulus,
+)
 from genome_to_diffraction.benchmarks.m6_execution import load_m6_execution_policy
+from genome_to_diffraction.benchmarks.m6_identity import (
+    M6IdentityDecision,
+    derive_m6_identity_decision,
+    verify_m6_identity_decision_evidence,
+)
 from genome_to_diffraction.benchmarks.m6_model_policy import (
     M6ModelPolicyRequest,
     apply_m6_model_policy,
@@ -57,6 +70,7 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.diffraction.preflight import (
+    MtzPreflightError,
     PreflightRequest,
     preflight_crystals,
 )
@@ -108,6 +122,8 @@ _PDB_ADAPTER = "m6-nextflow-pdb-search-v1"
 _FOLDSEEK_ADAPTER = "m6-nextflow-foldseek-search-v1"
 _PREFLIGHT_ADAPTER = "m6-nextflow-preflight-v1"
 _CASE_ADAPTER = "m6-nextflow-case-v1"
+_CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v2"
+_RUN_ADAPTER = "m6-nextflow-run-v2"
 _MATERIALISED_SUFFIX = {
     "application/json": ".json",
     "application/x-mtz": ".mtz",
@@ -222,8 +238,8 @@ class M6HypothesisGroupTask(ContractModel):
 class M6CaseEvidence(ContractModel):
     """One complete retain-all case record assembled from child tasks."""
 
-    schema_version: Literal["1.0"]
-    adapter_version: Literal["m6-nextflow-case-evidence-v1"]
+    schema_version: Literal["2.0"]
+    adapter_version: Literal["m6-nextflow-case-evidence-v2"]
     case_id: str
     execution_status: Literal["completed", "failed"]
     scientific_status: str
@@ -238,6 +254,8 @@ class M6CaseEvidence(ContractModel):
     additional_copy_attempt_count: NonNegativeInt
     refinement_attempt_count: NonNegativeInt
     sequence_assessment_count: NonNegativeInt
+    identity_decision: M6IdentityDecision
+    edge_observations: tuple[M6EdgeObservation, ...]
     first_copy_results: tuple[dict[str, object], ...]
     selected_seed_results: tuple[dict[str, object], ...]
     additional_copy_results: tuple[dict[str, object], ...]
@@ -246,6 +264,16 @@ class M6CaseEvidence(ContractModel):
 
     @model_validator(mode="after")
     def _validate_retention_and_counts(self) -> Self:
+        if self.identity_decision.case_id != self.case_id:
+            raise ValueError("M6 identity decision belongs to another case")
+        verify_m6_identity_decision_evidence(
+            self.identity_decision,
+            self.selected_seed_results,
+        )
+        if verify_edge_observations(self.case_id, self.edge_observations) != (
+            self.edge_observations
+        ):
+            raise ValueError("M6 edge observations are not canonical")
         if self.retained_candidate_count != self.candidate_count:
             raise ValueError("M6 case evidence lost a candidate")
         expected = (
@@ -962,6 +990,7 @@ def _batch_search_records(
     results: list[StructuralSearchResult] = []
     hits: list[StructuralSearchHit] = []
     manifests: dict[str, str] = {}
+    loaded: list[tuple[M6SearchBatchTask, Path]] = []
     for directory in bundles:
         root = directory.resolve(strict=True)
         task = M6SearchBatchTask.model_validate_json(
@@ -969,12 +998,32 @@ def _batch_search_records(
         )
         if task.provider != provider:
             raise PublicControlError("M6 batch search provider changed")
+        loaded.append((task, root))
+    batch_ids = [task.batch_id for task, _ in loaded]
+    if len(batch_ids) != len(set(batch_ids)):
+        raise PublicControlError(f"M6 {provider} search batch is duplicated")
+    for task, root in sorted(loaded, key=lambda item: item[0].batch_id):
         results.extend(
             _jsonl(root / "search/search_results.jsonl", StructuralSearchResult)
         )
         hits.extend(_jsonl(root / "search/structural_hits.jsonl", StructuralSearchHit))
         manifests[task.batch_id] = sha256_file(root / "bundle_manifest.json")
-    return tuple(results), tuple(hits), manifests
+    result_ids = [item.search_id for item in results]
+    hit_ids = [item.hit_id for item in hits]
+    if len(result_ids) != len(set(result_ids)) or len(hit_ids) != len(set(hit_ids)):
+        raise PublicControlError(f"M6 {provider} search records are duplicated")
+    results.sort(
+        key=lambda item: (item.sequence_group_id, item.provider, item.search_id)
+    )
+    hits.sort(
+        key=lambda item: (
+            item.sequence_group_id,
+            item.provider,
+            item.provider_rank,
+            item.hit_id,
+        )
+    )
+    return tuple(results), tuple(hits), dict(sorted(manifests.items()))
 
 
 def partition_m6_discovery_task(
@@ -1115,6 +1164,7 @@ def _write_crystal_manifest(
     case_id: str,
     reflections: Path,
     policy: dict[str, object],
+    allow_remote_sequence_submission: bool,
 ) -> None:
     raw_masses = policy.get("sds_page_mass_kda", [])
     if not isinstance(raw_masses, list) or any(
@@ -1141,7 +1191,9 @@ def _write_crystal_manifest(
                     "sds_page_condition": "unknown" if masses else None,
                     "sds_page_band_roles": ["uncertain" for _ in masses],
                     "sds_page_tolerance_fraction": 0.3,
-                    "allow_remote_sequence_submission": False,
+                    "allow_remote_sequence_submission": (
+                        allow_remote_sequence_submission
+                    ),
                     "notes": "truth-isolated M6 diffraction case",
                 }
             ],
@@ -1149,15 +1201,21 @@ def _write_crystal_manifest(
     )
 
 
-def _early_outcome(
-    fault: dict[str, object], preflight: MtzPreflightRecord
-) -> str | None:
+def _early_outcome(preflight: MtzPreflightRecord) -> str | None:
+    """Classify unusable observations from the preflight record alone."""
+
     warnings = set(preflight.warning_codes)
-    if fault.get("phenix_manifest") == "forced_missing":
-        return "missing_phenix"
-    if fault.get("reflection_mode") == "map_only":
+    if (
+        preflight.selected_observation_labels is None
+        and not preflight.observation_candidates
+        and "no_observed_data" in warnings
+    ):
         return "completed_map_only_mtz"
-    if fault.get("observation_columns") == "conflicting_duplicate":
+    if (
+        preflight.selected_observation_labels is None
+        and len(preflight.observation_candidates) >= 2
+        and "ambiguous_observation_arrays" in warnings
+    ):
         return "ambiguous_columns_conflicting"
     if "no_observed_data" in warnings or "ambiguous_observation_arrays" in warnings:
         return "unusable_observations"
@@ -1178,27 +1236,66 @@ def run_m6_preflight_task(
     policy = json.loads((case_root / "model_policy.json").read_text(encoding="utf-8"))
     if not isinstance(policy, dict):
         raise PublicControlError(f"M6 model policy is invalid: {task.case_id}")
+    fault = _fault(case_root, task)
+    stimulus = edge_stimulus(fault)
     crystal_manifest = output / "crystal_manifest.json"
     _write_crystal_manifest(
         crystal_manifest,
         case_id=task.case_id,
         reflections=case_root / "reflections.mtz",
         policy=cast(dict[str, object], policy),
+        allow_remote_sequence_submission=stimulus == "remote_rate_limited",
     )
-    result = preflight_crystals(
-        PreflightRequest(
-            crystal_manifest=crystal_manifest,
-            output_directory=output / "preflight",
-            phenix_manifest=phenix,
-            skip_xtriage=True,
-            progress=False,
-            xtriage_timeout_seconds=None,
+    try:
+        result = preflight_crystals(
+            PreflightRequest(
+                crystal_manifest=crystal_manifest,
+                output_directory=output / "preflight",
+                phenix_manifest=phenix,
+                skip_xtriage=True,
+                progress=False,
+                xtriage_timeout_seconds=None,
+            )
         )
-    )
-    if len(result.records) != 1:
+        records = result.records
+        preflight_jsonl = result.jsonl_path
+    except MtzPreflightError:
+        if stimulus not in {
+            "map_only_mtz",
+            "ambiguous_columns_conflicting",
+        }:
+            raise
+        preflight_jsonl = output / "preflight/mtz_preflight.jsonl"
+        records = _jsonl(preflight_jsonl, MtzPreflightRecord)
+    if len(records) != 1:
         raise PublicControlError("M6 case preflight did not return one record")
     shutil.copy2(case_root / "task.json", output / "case_task.json")
-    early = _early_outcome(_fault(case_root, task), result.records[0])
+    early = _early_outcome(records[0])
+    phenix_observation: M6EdgeObservation | None = None
+    if stimulus == "missing_phenix":
+        phenix_observation = observe_isolated_missing_phenix(
+            case_id=task.case_id,
+            supplied_manifest=phenix,
+            isolated_manifest=output / "isolated_missing_phenix_manifest.json",
+        )
+        atomic_write_json(
+            output / "phenix_edge_observation.json",
+            phenix_observation.model_dump(mode="json"),
+        )
+        early = (
+            "missing_phenix"
+            if phenix_observation.measurement_status == "measured"
+            else "edge_observation_contradicted"
+        )
+    outputs = {
+        "crystal_manifest": crystal_manifest,
+        "preflight": preflight_jsonl,
+    }
+    if phenix_observation is not None:
+        outputs["phenix_edge_observation"] = output / "phenix_edge_observation.json"
+        outputs["isolated_phenix_manifest"] = (
+            output / "isolated_missing_phenix_manifest.json"
+        )
     _write_bundle_manifest(
         output,
         adapter=_PREFLIGHT_ADAPTER,
@@ -1209,10 +1306,7 @@ def run_m6_preflight_task(
             "reflections": case_root / "reflections.mtz",
             "phenix_manifest": phenix,
         },
-        outputs={
-            "crystal_manifest": crystal_manifest,
-            "preflight": result.jsonl_path,
-        },
+        outputs=outputs,
         early_outcome=early,
     )
     return output
@@ -1404,11 +1498,16 @@ def run_m6_prepare_case_task(
         catalogue, policy, output
     )
     fault = _fault(case_root, task)
+    stimulus = edge_stimulus(fault)
     typed_outcome: str | None = None
     hypothesis_count = 0
     hypothesis_ids: tuple[str, ...] = ()
-    if fault.get("pdb_coordinate_route") == "forced_no_model":
-        typed_outcome = "completed_no_pdb_model"
+    if stimulus == "missing_pdb_model":
+        write_missing_model_stimulus(
+            accepted_hits=hits_path,
+            output_directory=output / "missing-model-stimulus",
+        )
+        typed_outcome = "completed_no_model"
     elif not hits_path.read_text(encoding="utf-8").strip():
         typed_outcome = "completed_no_model"
     else:
@@ -1484,6 +1583,10 @@ def run_m6_prepare_case_task(
     }
     if hypothesis_count:
         outputs["funnel_manifest"] = output / "first-copy-funnel/funnel_manifest.json"
+    if stimulus == "missing_pdb_model":
+        outputs["missing_model_route"] = (
+            output / "missing-model-stimulus/model_route_manifest.json"
+        )
     _write_bundle_manifest(
         output,
         adapter=_CASE_ADAPTER,
@@ -1984,7 +2087,7 @@ def run_m6_refinement_task(
     return output
 
 
-def _fault_case_outcome(
+def _duplicate_locus_outcome(
     fault: dict[str, object], sources: tuple[SourceProteinRecord, ...]
 ) -> tuple[str, str] | None:
     if fault.get("duplicate_locus") is True:
@@ -1992,31 +2095,6 @@ def _fault_case_outcome(
         if max(counts.values(), default=0) < 2:
             raise PublicControlError("M6 duplicate-locus control lost its ambiguity")
         return "ambiguous_multiple_loci", "duplicate_loci_retained"
-    mapping = {
-        ("sds_mass", "deliberately_wrong"): (
-            "typed_control_outcome",
-            "completed_wrong_mass_prior_retained",
-        ),
-        ("retain_non_top_matthews", True): (
-            "typed_control_outcome",
-            "completed_non_top_matthews_retained",
-        ),
-        ("observation_columns", "equivalent_duplicate"): (
-            "typed_control_outcome",
-            "completed_equivalent_columns_deterministic",
-        ),
-        ("remote_provider", "disabled"): (
-            "typed_control_outcome",
-            "completed_remote_disabled",
-        ),
-        ("remote_provider", "simulated_rate_limited"): (
-            "typed_control_outcome",
-            "completed_remote_rate_limited",
-        ),
-    }
-    for key, outcome in mapping.items():
-        if fault.get(key[0]) == key[1]:
-            return outcome
     return None
 
 
@@ -2125,6 +2203,7 @@ def run_m6_assemble_case_task(
         first = first_by_hypothesis[hypothesis_id]
         selected_rows.append(
             {
+                "seed_solution_id": seed_id,
                 "hypothesis_id": hypothesis_id,
                 "sequence_group_id": row["sequence_group_id"],
                 "model_id": row["model_id"],
@@ -2140,6 +2219,18 @@ def run_m6_assemble_case_task(
                 "parent_retained": True,
             }
         )
+    identity_decision = derive_m6_identity_decision(
+        case_id=case_id,
+        selected_seed_results=selected_rows,
+        sequence_groups=groups,
+    )
+    edge_observations = observe_case_edge(
+        case_id=case_id,
+        case_bundle=case,
+        fault_control=fault,
+        sequence_groups=groups,
+        hypothesis_count=case_plan.hypothesis_count,
+    )
     sequence_summaries = [
         {
             "case_id": case_id,
@@ -2169,20 +2260,13 @@ def run_m6_assemble_case_task(
         execution_status = "failed"
         scientific_status = "not_assessed"
         failure_class = "missing_phenix"
-    elif typed_outcome in {
-        "completed_map_only_mtz",
-        "completed_wrong_mass_prior_retained",
-        "completed_non_top_matthews_retained",
-        "completed_equivalent_columns_deterministic",
-        "completed_remote_disabled",
-        "completed_remote_rate_limited",
-    }:
+    elif typed_outcome == "completed_map_only_mtz":
         scientific_status = "typed_control_outcome"
     elif typed_outcome == "ambiguous_columns_conflicting":
         scientific_status = "abstained"
-    fault_outcome = _fault_case_outcome(fault, sources)
-    if fault_outcome is not None:
-        scientific_status, typed_outcome = fault_outcome
+    duplicate_outcome = _duplicate_locus_outcome(fault, sources)
+    if duplicate_outcome is not None:
+        scientific_status, typed_outcome = duplicate_outcome
     policy = case / "policy_bundle/policy"
     output = output_directory.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -2202,8 +2286,8 @@ def run_m6_assemble_case_task(
             },
         )
     case_record = M6CaseEvidence(
-        schema_version="1.0",
-        adapter_version="m6-nextflow-case-evidence-v1",
+        schema_version="2.0",
+        adapter_version=_CASE_EVIDENCE_ADAPTER,
         case_id=case_id,
         execution_status=execution_status,
         scientific_status=scientific_status,
@@ -2222,6 +2306,8 @@ def run_m6_assemble_case_task(
         additional_copy_attempt_count=len(copy_rows),
         refinement_attempt_count=len(refinements),
         sequence_assessment_count=len(sequences),
+        identity_decision=identity_decision,
+        edge_observations=edge_observations,
         first_copy_results=tuple(first_rows),
         selected_seed_results=tuple(selected_rows),
         additional_copy_results=tuple(
@@ -2229,6 +2315,16 @@ def run_m6_assemble_case_task(
         ),
         refinement_results=tuple(item.model_dump(mode="json") for item in refinements),
         sequence_summaries=tuple(sequence_summaries),
+    )
+    atomic_write_json(
+        output / "identity_decision.json",
+        identity_decision.model_dump(mode="json"),
+    )
+    atomic_write_text(
+        output / "edge_observations.jsonl",
+        "".join(
+            f"{canonical_json_text(observation)}\n" for observation in edge_observations
+        ),
     )
     atomic_write_json(output / "case_record.json", case_record.model_dump(mode="json"))
     atomic_write_text(
@@ -2258,10 +2354,12 @@ def run_m6_assemble_case_task(
     atomic_write_json(
         output / "case_evidence_manifest.json",
         {
-            "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-case-evidence-v1",
+            "schema_version": "2.0",
+            "adapter_version": _CASE_EVIDENCE_ADAPTER,
             "case_id": case_id,
             "case_record_sha256": sha256_file(output / "case_record.json"),
+            "identity_decision_sha256": sha256_file(output / "identity_decision.json"),
+            "edge_observations_sha256": sha256_file(output / "edge_observations.jsonl"),
             "all_candidates_retained": True,
             "all_child_attempts_retained": True,
         },
@@ -2392,8 +2490,8 @@ def run_m6_aggregate_track_task(
     atomic_write_json(
         summary,
         {
-            "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-run-v1",
+            "schema_version": "2.0",
+            "adapter_version": _RUN_ADAPTER,
             "execution_model": "nextflow_dsl2_slurm_fanout",
             "protocol_id": "m6_independent_prokaryote_homomer_v1",
             "track": track,
@@ -2428,7 +2526,7 @@ def run_m6_aggregate_track_task(
             "input_sha256": input_sha256,
             "cache_key": canonical_digest(
                 {
-                    "adapter_version": "m6-nextflow-run-v1",
+                    "adapter_version": _RUN_ADAPTER,
                     "track": track,
                     "input_sha256": input_sha256,
                 }

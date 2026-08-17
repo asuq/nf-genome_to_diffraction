@@ -747,6 +747,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="verify and truth-join two collected M6 scientific tracks",
     )
     m6_collect_parser.add_argument("--protocol", type=Path, required=True)
+    m6_collect_parser.add_argument("--private-truth-map", type=Path, required=True)
     m6_collect_parser.add_argument("--operational-collection", type=Path, required=True)
     m6_collect_parser.add_argument("--leakage-collection", type=Path, required=True)
     m6_collect_parser.add_argument("--output", type=Path, required=True)
@@ -1798,6 +1799,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         result = collect_m6_evidence(
             M6CollectionRequest(
                 protocol=args.protocol,
+                private_truth_map=args.private_truth_map,
                 operational_collection=args.operational_collection,
                 leakage_collection=args.leakage_collection,
                 output=args.output,

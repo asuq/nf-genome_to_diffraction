@@ -2,8 +2,8 @@
 
 Scientific execution is owned by ``m6_validation.nf``.  This module contains no
 scheduler, external-tool loop, or concurrency primitive.  It preserves the
-legacy v3 output verifier so the already-running operational job remains
-collectable, and verifies the compatible Nextflow v1 aggregate.
+legacy v3 and Nextflow v1 output verifiers so historical jobs remain
+collectable, and verifies the identity-bearing Nextflow v2 aggregate.
 """
 
 import gzip
@@ -12,16 +12,36 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Literal, cast
 
+from pydantic import ValidationError
+
+from genome_to_diffraction.benchmarks.m6_edge import (
+    M6EdgeObservation,
+    verify_edge_observations,
+)
+from genome_to_diffraction.benchmarks.m6_identity import (
+    M6IdentityDecision,
+    verify_m6_identity_decision_evidence,
+)
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.ids import canonical_digest
 
 M6ScientificTrack = Literal["operational", "leakage"]
 _LEGACY_ADAPTER_VERSION = "m6-scientific-run-v3"
-_NEXTFLOW_ADAPTER_VERSION = "m6-nextflow-run-v1"
+_NEXTFLOW_V1_ADAPTER_VERSION = "m6-nextflow-run-v1"
+_NEXTFLOW_V2_ADAPTER_VERSION = "m6-nextflow-run-v2"
 _VERIFIABLE_ADAPTER_VERSIONS = frozenset(
-    {_LEGACY_ADAPTER_VERSION, _NEXTFLOW_ADAPTER_VERSION}
+    {
+        _LEGACY_ADAPTER_VERSION,
+        _NEXTFLOW_V1_ADAPTER_VERSION,
+        _NEXTFLOW_V2_ADAPTER_VERSION,
+    }
 )
+_SUMMARY_SCHEMA_BY_ADAPTER = {
+    _LEGACY_ADAPTER_VERSION: "1.0",
+    _NEXTFLOW_V1_ADAPTER_VERSION: "1.0",
+    _NEXTFLOW_V2_ADAPTER_VERSION: "2.0",
+}
 
 _TRACK_CASES: dict[M6ScientificTrack, tuple[str, ...]] = {
     "operational": tuple(
@@ -82,8 +102,9 @@ def verify_m6_scientific_output(
     summary = _json_object(summary_path)
     adapter_version = summary.get("adapter_version")
     if (
-        summary.get("schema_version") != "1.0"
-        or adapter_version not in _VERIFIABLE_ADAPTER_VERSIONS
+        adapter_version not in _VERIFIABLE_ADAPTER_VERSIONS
+        or summary.get("schema_version")
+        != _SUMMARY_SCHEMA_BY_ADAPTER[cast(str, adapter_version)]
         or summary.get("track") != track
         or summary.get("case_ids") != list(m6_track_case_ids(track))
     ):
@@ -126,6 +147,55 @@ def verify_m6_scientific_output(
         rankings_by_case[cast(str, row.get("case_id"))].append(row)
     for case in cases:
         case_id = cast(str, case["case_id"])
+        if adapter_version == _NEXTFLOW_V2_ADAPTER_VERSION:
+            if (
+                case.get("schema_version") != "2.0"
+                or case.get("adapter_version") != "m6-nextflow-case-evidence-v2"
+            ):
+                raise PublicControlError(
+                    f"M6 identity-bearing case contract changed: {case_id}"
+                )
+            try:
+                identity = M6IdentityDecision.model_validate(
+                    case.get("identity_decision")
+                )
+            except ValidationError as error:
+                raise PublicControlError(
+                    f"M6 case identity decision is invalid: {case_id}"
+                ) from error
+            if identity.case_id != case_id:
+                raise PublicControlError(
+                    f"M6 case identity decision belongs to another case: {case_id}"
+                )
+            selected_seed_results = case.get("selected_seed_results")
+            if not isinstance(selected_seed_results, list) or any(
+                not isinstance(row, dict) for row in selected_seed_results
+            ):
+                raise PublicControlError(
+                    f"M6 selected-seed identity evidence is invalid: {case_id}"
+                )
+            try:
+                verify_m6_identity_decision_evidence(
+                    identity,
+                    cast(list[dict[str, object]], selected_seed_results),
+                )
+            except ValueError as error:
+                raise PublicControlError(
+                    f"M6 case identity evidence changed: {case_id}"
+                ) from error
+            raw_edge_observations = case.get("edge_observations")
+            if not isinstance(raw_edge_observations, list):
+                raise PublicControlError(f"M6 case edge evidence is invalid: {case_id}")
+            try:
+                edge_observations = tuple(
+                    M6EdgeObservation.model_validate(item)
+                    for item in raw_edge_observations
+                )
+                verify_edge_observations(case_id, edge_observations)
+            except (ValidationError, ValueError) as error:
+                raise PublicControlError(
+                    f"M6 case edge evidence changed: {case_id}"
+                ) from error
         rows = rankings_by_case.get(case_id, [])
         expects_ranking = case.get("candidate_ranking_path") is not None
         if expects_ranking:
@@ -214,7 +284,7 @@ def verify_m6_scientific_output(
     atomic_write_json(
         report,
         {
-            "schema_version": "1.0",
+            "schema_version": _SUMMARY_SCHEMA_BY_ADAPTER[cast(str, adapter_version)],
             "adapter_version": adapter_version,
             "track": track,
             "case_count": len(cases),

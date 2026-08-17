@@ -1,6 +1,7 @@
 # M6 independent validation protocol
 
-Status: **protocol approved; execution evidence pending**.
+Status: **protocol approved; scientific execution held for corrected evidence
+contracts and multi-item validation**.
 
 The truth-facing source of record is
 [`benchmarks/m6/protocol.yaml`](../benchmarks/m6/protocol.yaml). This document
@@ -42,8 +43,9 @@ Public coordinates and structure factors come from the
 RefSeq protein catalogues are frozen from
 [NCBI Datasets genome packages](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/reference-docs/data-packages/genome/).
 The protocol records every URL, size, and SHA-256. RCSB 30% and 70% sequence
-cluster snapshots are independent cross-checks, not substitutes for the
-all-route identity calculation.
+cluster snapshots are independent partitions and are not assumed to be nested.
+Their exact target lines and frozen set differences are private truth-side
+cross-checks, not substitutes for the all-route identity calculation.
 
 ## Leakage and truth isolation
 
@@ -51,8 +53,9 @@ The leakage-controlled track excludes any model chain with at least 70% target
 sequence identity and at least 80% coverage. The exclusion applies to PDB,
 AFDB, and every other enabled model route. Exact deposited target coordinates
 are excluded from both positive tracks. MMseqs2 18.8cc5c performs the pinned
-identity/coverage calculation. The 8AI1 case is predeclared model-scarce, giving
-an 11-case leakage correct-family denominator.
+identity/coverage calculation. The 8AI1 case is predeclared leakage-model-
+scarce, giving an 11-case leakage correct-family denominator. Operational
+family evidence retains the full 12-case denominator.
 
 The opaque runner archive never contains the tracked protocol or private truth
 map. A trusted preparer emits anonymised catalogue IDs, sanitised MTZ metadata,
@@ -66,6 +69,15 @@ to remove the exact deposition and enforce the approved all-route leakage
 threshold. Truth-side case assessment occurs only after both collected result
 checksums are fixed.
 
+Each fresh runner case emits a checksum-bound identity decision:
+`reported`, `ambiguous`, or `abstained`. It also emits typed edge observations
+whose success is derived from actual Matthews, MTZ, provider-authorisation,
+HTTP-response, model-route, or Phenix-validation records. The trusted collector
+carries identity decisions unchanged, joins PDB/entity attempts against the
+private verified family sets, and makes a reported wrong open-set identity or
+contradicted edge observation produce `HOLD`. Historical v1 evidence remains
+readable but cannot enter corrected M6 acceptance.
+
 ## Commands and artefacts
 
 Protocol validation:
@@ -75,9 +87,11 @@ pixi run --locked genome-to-diffraction benchmark check-m6-protocol \
   --protocol benchmarks/m6/protocol.yaml
 ```
 
-Trusted source preparation verifies the frozen RCSB and RefSeq files, strips
-coordinate and catalogue identifiers from runner-visible inputs, and keeps the
-private truth map outside the runner bundle:
+Trusted source preparation verifies the frozen RCSB coordinate, reflection,
+30%/70% cluster-snapshot, and RefSeq files. It verifies target cluster-line
+checksums and frozen 30%-minus-70% family counts, strips coordinate and
+catalogue identifiers from runner-visible inputs, and keeps the schema-1.1
+private case/family truth map outside the runner bundle:
 
 ```bash
 pixi run --locked genome-to-diffraction benchmark prepare-m6-inputs \
@@ -169,6 +183,7 @@ Truth-side evaluation:
 ```bash
 pixi run --locked genome-to-diffraction benchmark collect-m6-evidence \
   --protocol benchmarks/m6/protocol.yaml \
+  --private-truth-map .untracked/m6/prepared/private_truth_map.json \
   --operational-collection .untracked/hpc-test/OPERATIONAL_RUN/collected \
   --leakage-collection .untracked/hpc-test/LEAKAGE_RUN/collected \
   --output .untracked/m6/collected-evidence.json

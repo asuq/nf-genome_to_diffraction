@@ -1,10 +1,10 @@
 """Prepare sanitised, truth-isolated M6 discovery inputs from frozen sources.
 
-This trusted local step verifies every public coordinate, structure-factor, and
-RefSeq catalogue file against the approved protocol.  It converts and sanitises
-MTZ files, replaces catalogue accessions with opaque locus IDs, applies the
-predeclared catalogue/MTZ edge transformations, and writes the 63-case
-preparation manifest consumed by :mod:`m6_runner`.
+This trusted local step verifies every public coordinate, structure-factor,
+RCSB cluster-snapshot, and RefSeq catalogue file against the approved protocol.
+It converts and sanitises MTZ files, replaces catalogue accessions with opaque
+locus IDs, applies the predeclared catalogue/MTZ edge transformations, and
+writes the 63-case preparation manifest consumed by :mod:`m6_runner`.
 
 The private truth map remains outside the runner archive.  No network service
 or scientific executable is invoked; Gemmi performs the deterministic
@@ -25,6 +25,7 @@ import numpy as np
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
+from genome_to_diffraction.benchmarks.m6_edge import M6_RATE_LIMIT_HTTP_FIXTURE
 from genome_to_diffraction.benchmarks.m6_protocol import (
     M6AssumptionControlSpec,
     M6BenchmarkProtocol,
@@ -78,6 +79,70 @@ class _OpaqueRecord:
     sequence_sha256: str
 
 
+@dataclass(frozen=True)
+class _VerifiedClusterSnapshot:
+    """Checksum-bound RCSB snapshot evidence retained outside the runner."""
+
+    identity_threshold_percent: int
+    file_name: str
+    source_url: str
+    sha256: str
+    size_bytes: int
+    target_line_count: int
+
+    def as_record(self) -> dict[str, object]:
+        """Serialise stable, path-free snapshot provenance."""
+
+        return {
+            "identity_threshold_percent": self.identity_threshold_percent,
+            "file_name": self.file_name,
+            "source_url": self.source_url,
+            "sha256": self.sha256,
+            "size_bytes": self.size_bytes,
+            "target_line_count": self.target_line_count,
+        }
+
+
+@dataclass(frozen=True)
+class _VerifiedFamily:
+    """One target's independently verified RCSB family membership."""
+
+    target_key: str
+    source_pdb_entity_id: str
+    cluster_30_line: str
+    cluster_70_line: str
+    cluster_30_line_sha256: str
+    cluster_70_line_sha256: str
+    cluster_30_entities: tuple[str, ...]
+    cluster_70_entities: tuple[str, ...]
+    operational_family_entities: tuple[str, ...]
+    leakage_safe_family_entities: tuple[str, ...]
+    frozen_allowed_30_to_70_model_count: int
+    observed_allowed_30_to_70_model_count: int
+
+    def as_record(self) -> dict[str, object]:
+        """Serialise family truth for the private schema-1.1 boundary."""
+
+        return {
+            "target_key": self.target_key,
+            "source_pdb_entity_id": self.source_pdb_entity_id,
+            "cluster_30_line": self.cluster_30_line,
+            "cluster_70_line": self.cluster_70_line,
+            "cluster_30_line_sha256": self.cluster_30_line_sha256,
+            "cluster_70_line_sha256": self.cluster_70_line_sha256,
+            "cluster_30_entities": list(self.cluster_30_entities),
+            "cluster_70_entities": list(self.cluster_70_entities),
+            "operational_family_entities": list(self.operational_family_entities),
+            "leakage_safe_family_entities": list(self.leakage_safe_family_entities),
+            "frozen_allowed_30_to_70_model_count": (
+                self.frozen_allowed_30_to_70_model_count
+            ),
+            "observed_allowed_30_to_70_model_count": (
+                self.observed_allowed_30_to_70_model_count
+            ),
+        }
+
+
 def _verify_file(path: Path, *, sha256: str, size_bytes: int, label: str) -> Path:
     if path.is_symlink():
         raise PublicControlError(f"{label} is a symlink: {path}")
@@ -94,6 +159,155 @@ def _verify_file(path: Path, *, sha256: str, size_bytes: int, label: str) -> Pat
             f"{label} checksum differs from the protocol: {resolved}"
         )
     return resolved
+
+
+def _target_cluster_lines(
+    path: Path,
+    *,
+    target_entities: frozenset[str],
+    label: str,
+) -> dict[str, tuple[tuple[str, ...], str, str]]:
+    """Read target cluster lines while hashing their exact LF-terminated bytes."""
+
+    found: dict[str, tuple[tuple[str, ...], str, str]] = {}
+    try:
+        with path.open("rb") as handle:
+            for line_number, raw_line in enumerate(handle, start=1):
+                if not raw_line.endswith(b"\n") or raw_line.endswith(b"\r\n"):
+                    raise PublicControlError(
+                        f"{label} line {line_number} is not LF terminated"
+                    )
+                try:
+                    entities = tuple(raw_line[:-1].decode("ascii").split())
+                except UnicodeDecodeError as error:
+                    raise PublicControlError(
+                        f"{label} line {line_number} is not ASCII"
+                    ) from error
+                if not entities:
+                    raise PublicControlError(f"{label} line {line_number} is empty")
+                if len(entities) != len(set(entities)):
+                    raise PublicControlError(
+                        f"{label} line {line_number} repeats an entity"
+                    )
+                matched = target_entities.intersection(entities)
+                if not matched:
+                    continue
+                line_sha256 = hashlib.sha256(raw_line).hexdigest()
+                sorted_entities = tuple(sorted(entities))
+                for entity in matched:
+                    if entity in found:
+                        raise PublicControlError(
+                            f"{label} repeats target entity {entity}"
+                        )
+                    found[entity] = (
+                        sorted_entities,
+                        raw_line[:-1].decode("ascii"),
+                        line_sha256,
+                    )
+    except OSError as error:
+        raise PublicControlError(f"cannot read {label} {path}: {error}") from error
+    missing = sorted(target_entities - found.keys())
+    if missing:
+        raise PublicControlError(f"{label} lacks target entities: {', '.join(missing)}")
+    return found
+
+
+def _verify_m6_family_snapshots(
+    protocol: M6BenchmarkProtocol,
+    rcsb_root: Path,
+) -> tuple[tuple[_VerifiedClusterSnapshot, ...], tuple[_VerifiedFamily, ...]]:
+    """Verify frozen RCSB snapshots and derive private target-family truth."""
+
+    snapshot_specs = (
+        (
+            30,
+            "clusters-by-entity-30.txt",
+            protocol.leakage_policy.rcsb_30_snapshot,
+        ),
+        (
+            70,
+            "clusters-by-entity-70.txt",
+            protocol.leakage_policy.rcsb_70_snapshot,
+        ),
+    )
+    target_entities = frozenset(
+        target.source_pdb_entity_id for target in protocol.positives
+    )
+    if len(target_entities) != len(protocol.positives):
+        raise PublicControlError("M6 positives must use distinct PDB entities")
+
+    snapshots: list[_VerifiedClusterSnapshot] = []
+    lines_by_threshold: dict[int, dict[str, tuple[tuple[str, ...], str, str]]] = {}
+    for threshold, file_name, spec in snapshot_specs:
+        verified = _verify_file(
+            rcsb_root / file_name,
+            sha256=spec.sha256,
+            size_bytes=spec.size_bytes,
+            label=f"M6 RCSB {threshold}% cluster snapshot",
+        )
+        target_lines = _target_cluster_lines(
+            verified,
+            target_entities=target_entities,
+            label=f"M6 RCSB {threshold}% cluster snapshot",
+        )
+        lines_by_threshold[threshold] = target_lines
+        snapshots.append(
+            _VerifiedClusterSnapshot(
+                identity_threshold_percent=threshold,
+                file_name=file_name,
+                source_url=spec.url,
+                sha256=spec.sha256,
+                size_bytes=spec.size_bytes,
+                target_line_count=len(target_lines),
+            )
+        )
+
+    families: list[_VerifiedFamily] = []
+    for target in sorted(protocol.positives, key=lambda item: item.target_key):
+        source_entity = target.source_pdb_entity_id
+        cluster_30, line_30, line_30_sha256 = lines_by_threshold[30][source_entity]
+        cluster_70, line_70, line_70_sha256 = lines_by_threshold[70][source_entity]
+        if line_30_sha256 != target.rcsb_30_cluster_line_sha256:
+            raise PublicControlError(
+                f"M6 target {target.target_key} 30% cluster-line checksum changed"
+            )
+        if line_70_sha256 != target.rcsb_70_cluster_line_sha256:
+            raise PublicControlError(
+                f"M6 target {target.target_key} 70% cluster-line checksum changed"
+            )
+        cluster_30_set = set(cluster_30)
+        cluster_70_set = set(cluster_70)
+        if source_entity not in cluster_30_set or source_entity not in cluster_70_set:
+            raise PublicControlError(
+                f"M6 target {target.target_key} is absent from its own cluster"
+            )
+        operational_family = tuple(sorted(cluster_30_set - {source_entity}))
+        leakage_safe_family = tuple(sorted(cluster_30_set - cluster_70_set))
+        observed_count = len(leakage_safe_family)
+        if observed_count != target.allowed_30_to_70_model_count:
+            raise PublicControlError(
+                f"M6 target {target.target_key} frozen 30%-minus-70% count "
+                f"is {target.allowed_30_to_70_model_count}, observed {observed_count}"
+            )
+        families.append(
+            _VerifiedFamily(
+                target_key=target.target_key,
+                source_pdb_entity_id=source_entity,
+                cluster_30_line=line_30,
+                cluster_70_line=line_70,
+                cluster_30_line_sha256=line_30_sha256,
+                cluster_70_line_sha256=line_70_sha256,
+                cluster_30_entities=cluster_30,
+                cluster_70_entities=cluster_70,
+                operational_family_entities=operational_family,
+                leakage_safe_family_entities=leakage_safe_family,
+                frozen_allowed_30_to_70_model_count=(
+                    target.allowed_30_to_70_model_count
+                ),
+                observed_allowed_30_to_70_model_count=observed_count,
+            )
+        )
+    return tuple(snapshots), tuple(families)
 
 
 def _catalogue_path(roots: tuple[Path, ...], assembly_accession: str) -> Path:
@@ -403,17 +617,43 @@ def _mtz_variation(case: M6CaseSpec) -> M6MtzVariation:
 def _fault_control(case: M6CaseSpec) -> dict[str, object] | None:
     controls: dict[str, dict[str, object]] = {
         "duplicate_locus": {"duplicate_locus": True},
-        "missing_pdb_model": {"pdb_coordinate_route": "forced_no_model"},
-        "wrong_sds_mass": {"sds_mass": "deliberately_wrong"},
-        "non_top_matthews": {"retain_non_top_matthews": True},
-        "map_only_mtz": {"reflection_mode": "map_only"},
-        "ambiguous_columns_equivalent": {"observation_columns": "equivalent_duplicate"},
-        "ambiguous_columns_conflicting": {
-            "observation_columns": "conflicting_duplicate"
+        "missing_pdb_model": {
+            "edge_stimulus": "missing_pdb_model",
+            "pdb_coordinate_route": "forced_no_model",
         },
-        "remote_disabled": {"remote_provider": "disabled"},
-        "remote_rate_limited": {"remote_provider": "simulated_rate_limited"},
-        "missing_phenix": {"phenix_manifest": "forced_missing"},
+        "wrong_sds_mass": {
+            "edge_stimulus": "wrong_sds_mass",
+            "sds_mass": "deliberately_wrong",
+        },
+        "non_top_matthews": {
+            "edge_stimulus": "non_top_matthews",
+            "retain_non_top_matthews": True,
+        },
+        "map_only_mtz": {
+            "edge_stimulus": "map_only_mtz",
+            "reflection_mode": "map_only",
+        },
+        "ambiguous_columns_equivalent": {
+            "edge_stimulus": "ambiguous_columns_equivalent",
+            "observation_columns": "equivalent_duplicate",
+        },
+        "ambiguous_columns_conflicting": {
+            "edge_stimulus": "ambiguous_columns_conflicting",
+            "observation_columns": "conflicting_duplicate",
+        },
+        "remote_disabled": {
+            "edge_stimulus": "remote_disabled",
+            "remote_provider": "disabled",
+        },
+        "remote_rate_limited": {
+            "edge_stimulus": "remote_rate_limited",
+            "remote_provider": "local_http_fixture",
+            "local_http_response": M6_RATE_LIMIT_HTTP_FIXTURE,
+        },
+        "missing_phenix": {
+            "edge_stimulus": "missing_phenix",
+            "phenix_manifest": "isolated_missing_runtime",
+        },
     }
     payload = controls.get(case.case_kind)
     if payload is None:
@@ -448,9 +688,16 @@ def prepare_m6_inputs(
     catalogue_roots = tuple(
         root.resolve(strict=True) for root in request.catalogue_directories
     )
+    protocol_sha256 = sha256_file(protocol_path)
+    verified_snapshots, verified_families = _verify_m6_family_snapshots(
+        protocol, rcsb_root
+    )
 
     catalogue_records: dict[str, tuple[SeqRecord, ...]] = {}
-    source_inventory: list[dict[str, object]] = []
+    source_inventory: list[dict[str, object]] = [
+        {"role": "cluster_snapshot", **snapshot.as_record()}
+        for snapshot in verified_snapshots
+    ]
     for catalogue in protocol.catalogues:
         path = _catalogue_path(catalogue_roots, catalogue.assembly_accession)
         verified = _verify_file(
@@ -580,7 +827,7 @@ def prepare_m6_inputs(
                     "pdb_sequence": {"enabled": True, "max_hits": 3},
                     "foldseek_prostt5_pdb": {"enabled": True, "max_hits": 3},
                     "esm_atlas": {
-                        "enabled": False,
+                        "enabled": case.case_kind == "remote_rate_limited",
                         "max_hits": 2,
                         "requests_per_minute": 10,
                         "max_sequence_length": 1500,
@@ -698,7 +945,7 @@ def prepare_m6_inputs(
         {
             "schema_version": "1.0",
             "protocol_id": protocol.protocol_id,
-            "protocol_sha256": sha256_file(protocol_path),
+            "protocol_sha256": protocol_sha256,
             "cases": prepared_cases,
         },
     )
@@ -706,8 +953,13 @@ def prepare_m6_inputs(
     atomic_write_json(
         private_truth_map,
         {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "protocol_id": protocol.protocol_id,
+            "protocol_sha256": protocol_sha256,
+            "cluster_snapshots": [
+                snapshot.as_record() for snapshot in verified_snapshots
+            ],
+            "verified_families": [family.as_record() for family in verified_families],
             "cases": private_cases,
         },
     )
@@ -715,8 +967,9 @@ def prepare_m6_inputs(
     atomic_write_json(
         source_inventory_path,
         {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "protocol_id": protocol.protocol_id,
+            "protocol_sha256": protocol_sha256,
             "source_count": len(source_inventory),
             "sources": source_inventory,
         },

@@ -6,6 +6,12 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- M6 acceptance now uses checksum-bound runner identity decisions, verified
+  private 30%/70% family truth, and observation-derived edge evidence rather
+  than accepted-hit counts, manufactured null identities, or fault-control
+  descriptors. Fresh acceptance requires identity-bearing Nextflow-v2 tracks.
+- M6 discovery partitioning now reuses complete batch/result value channels for
+  every catalogue and deterministically sorts batch outputs before publication.
 - The user-approved provisional first-copy acceptance score gate is now the
   strict disjunction `LLG > 50` or `TFZ > 5`. The adapter records the operator
   and thresholds, review packages recompute the policy from raw scores, and
@@ -15,6 +21,9 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- Multi-catalogue/multi-batch Nextflow regression coverage, real open-set false-
+  assignment `HOLD` coverage, family/off-family classification evidence, and
+  typed measured/contradicted/unavailable records for all nine M6 edge cases.
 - Initial repository foundation for Task 00 / Epic 0.
 - Bounded direct-PDB coordinate registration with sequence-group-first
   diversity, exact PDB entity/chain and searched-snapshot verification,

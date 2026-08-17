@@ -7441,3 +7441,212 @@ order in `docs/adverse-code-review-2026-08-17.md`.
 
 Inspect and commit the focused parser regression, retained journal evidence,
 and adversarial review as one coherent code/evidence milestone.
+
+## 2026-08-17T15:24:27Z - Parser correction pushed; CI API temporarily unavailable
+
+### Accomplishments and immutable local evidence
+
+- Created and pushed focused commit
+  `3a724be88d969a85212533eb69f02421bee47077`, containing the exact
+  `0`/`1d` trace-parser regression and correction together with the retained
+  development evidence and adversarial review.
+- Built the deterministic matching controller locally with SHA-256
+  `b4c814f87eed5c0e69d8a8c66196906810512f6ba3845b246b7f3135ea114606`.
+  It has not been installed or deployed because CI is not yet verified.
+
+### Changed blocker and unresolved work
+
+- Authenticated GitHub CLI access remained configured, but repeated Actions and
+  repository API requests returned connection errors or HTTP 404 while Git push
+  continued to work over SSH. No CI conclusion was inferred, no second push or
+  CI watch was created, and deployment/replacement smoke submission did not
+  proceed ahead of CI.
+- When GitHub API access returns, identify the single Actions run for commit
+  `3a724be88d969a85212533eb69f02421bee47077` and watch it once. Only after a
+  green result may the matching controller/tools be installed/deployed and one
+  replacement non-acceptance smoke be staged/submitted.
+- M6 scientific execution remains held independently by the adverse-review P0
+  findings and multi-catalogue defect even if the replacement smoke passes.
+
+### Next exact starting point
+
+Run `gh run list --commit 3a724be88d969a85212533eb69f02421bee47077
+--limit 5 --json databaseId,status,conclusion,workflowName,headSha,url,createdAt`
+when GitHub connectivity is restored.
+
+## 2026-08-17T15:47:46Z - Parser-corrected replacement smoke submitted
+
+### Accomplishments and immutable evidence
+
+- GitHub's REST Actions endpoints remained unavailable to both `gh` and the
+  connected GitHub app, but the authenticated commit check-rollup returned the
+  authoritative result: Actions run `32041874452`, job `95422511782`, completed
+  `SUCCESS` for commit `3a724be88d969a85212533eb69f02421bee47077`
+  under Pixi 0.76.2. No duplicate CI run or watch was created.
+- Installed the matching controller with SHA-256
+  `b4c814f87eed5c0e69d8a8c66196906810512f6ba3845b246b7f3135ea114606`.
+  Deployed tools remain dispatcher
+  `5aa8979ec1218c8187c4ed5f5fd0e67ac130beb8956354d82d314580446a8076`,
+  job-wrapper
+  `be2abafdd0a988614fdaf3f0d75d32abc7cdb140bea5b16f4a947c9802f2ee3b`,
+  and recovery
+  `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`;
+  their source commit is now the parser-corrected revision.
+- Temporarily stashed the unrelated uncommitted roadmap/journal files only to
+  satisfy the clean-worktree deployment guard, then restored and dropped that
+  exact stash after deployment. No user documentation change was discarded.
+- Staged and submitted exactly one replacement non-acceptance smoke as
+  `gtd-m6-nextflow-smoke-20260817T154618Z-3a724be88d96-ad6feaf7`, Slurm job
+  `10939394`. Its initial state is `PENDING`, terminal=false.
+
+### Unresolved work
+
+- Monitor only replacement smoke job `10939394` at the existing 30-minute
+  cadence. On terminal state, collect and verify the complete orchestration,
+  child-resource, resume, and truthless-store evidence. Preserve the observed
+  executor-scope warnings separately; do not infer queue/rate enforcement.
+- Even a passing smoke cannot authorise an M6 scientific stage. The
+  adverse-review DEV-P0-01 through DEV-P0-03 and DEV-P1-01 findings remain hard
+  stop gates pending separate remediation and multi-catalogue evidence.
+
+### Next exact starting point
+
+Run `nf-gtd-hpc-test --no-progress status --run-id
+gtd-m6-nextflow-smoke-20260817T154618Z-3a724be88d96-ad6feaf7` at the next
+30-minute heartbeat.
+
+## 2026-08-17T18:29:17Z - Parser-corrected Slurm fan-out smoke passes
+
+### Discoveries and immutable evidence
+
+- Replacement smoke
+  `gtd-m6-nextflow-smoke-20260817T154618Z-3a724be88d96-ad6feaf7`, Slurm job
+  `10939394`, ran from 2026-08-17T15:48:43Z to 18:07:11Z and finished
+  `COMPLETED` with exit code 0 and failure class `success` from source commit
+  `3a724be88d969a85212533eb69f02421bee47077` and nf-helper commit
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb` under Pixi 0.76.2.
+- All 21 first-pass child Slurm jobs completed. PDB-sequence and Foldseek
+  workers used distinct native IDs `10939508` and `10939510`, each requesting
+  32 CPUs, 16 GB, and 24 hours. Observed maxima were 32 aggregate CPUs, 16 GB,
+  one running job, one concurrent Phenix job, and 0.002 GB MaxRSS; all per-job
+  bounds passed.
+- The active M6C001 chain and typed-empty M6C057 chain both reached aggregate
+  evidence. The operational resume cached all 18 non-store tasks and reused the
+  three truthless stored discovery stages. The leakage track reused only
+  catalogue import, MMseqs2, and Foldseek storage; track-specific reuse was
+  false. Canonical resume output was byte-identical.
+- Collected summary, resume, resource, and store-reuse SHA-256 values are
+  `0030c51b743180f9c5ecd062a5cbdf9e4b22112cd90c3451fbf16d9bd47afcaa`,
+  `d7a9b2d73fbd505fa4cb0a4cab205122b5e88814b82e9ab295a7b5a042af3612`,
+  `ca4a6584c27a553d85c756d990bcceffcf3561d29b6a6f7c41790087826af11d`,
+  and `dd52ff861f3a186ac9322c608ea3ab4fb1218dbef5876dce2183c78c8031e714`;
+  every collected local digest matches the remote inventory.
+- Nextflow 26.04.6 still reports the tracked unrecognised `$slurm` and `$local`
+  executor-scope options. Per-job requests are evidenced, but queue-size,
+  submission-rate, and aggregate-concurrency enforcement remain unclaimed.
+
+### Classification and unresolved work
+
+- This is a successful non-acceptance orchestration smoke only. It proves real
+  Slurm child fan-out, typed branches, deterministic resume, bounded per-job
+  resources, and truthless-only cross-track store reuse for the two-case stub.
+  It cannot clear M6 scientific or multi-catalogue gates.
+- Operational and leakage M6 scientific tracks remain held. Begin the approved
+  R0A remediation for `DEV-P0-01` through `DEV-P0-03` and `DEV-P1-01`; do not
+  stage another Viper run until focused regressions, the complete locked gate,
+  CI, reviewed deployment, and a corrected multi-item smoke are ready.
+
+### Next exact starting point
+
+Add the focused family-truth, emitted-identity/false-assignment,
+observation-derived edge, and two-catalogue fan-out regressions. Implement only
+the smallest coherent evidence-contract correction and run the affected tests
+before one complete locked gate.
+
+## 2026-08-17T19:47:35Z - M6 R0A stop-gate correction locally integrated
+
+### Discoveries
+
+- The frozen RCSB 30% and 70% cluster snapshots are independent partitions,
+  not a guaranteed hierarchy. Their complete frozen checksums and all 24 target
+  line checksums validate, but T10 has one 70%-cluster entity outside its 30%
+  cluster. Leakage-safe family evidence therefore remains the explicit
+  30%-minus-70% set without a containment assumption.
+- T06 has operational PDB-family alternatives but no 30%-minus-70% family
+  alternative. The operational correct-family denominator is consequently 12,
+  while only the predeclared leakage denominator is 11.
+- The real RCSB target lines were used only for a local verifier qualification
+  and remain outside Git. Unit collection tests use a fully synthetic protocol
+  and synthetic private truth, preventing family membership from entering the
+  runner source checkout.
+
+### Accomplishments and local evidence
+
+- Replaced accepted-hit-count family claims with trusted snapshot verification,
+  schema-1.1 private family truth, per-attempt PDB/entity classifications, and
+  explicit exact-deposition/close-family prohibition gates.
+- Added checksum-bound runner identity decisions derived from selected seed
+  rows. Collection now carries `reported`, `ambiguous`, or `abstained`
+  decisions unchanged; a complete collect-to-evaluate regression proves a
+  reported wrong open-set digest produces `HOLD`.
+- Replaced descriptor-derived edge success with content-addressed observed
+  Matthews, MTZ, provider-authorisation, local HTTP-429, model-exhaustion, and
+  Phenix-validation evidence. Contradicted or absent observations cannot pass
+  the typed-edge gate.
+- Converted shared M6 batch/search emissions to reusable values for every
+  catalogue, expanded the stub to two catalogues plus two MMseqs2 and two
+  Foldseek batches, and made batch/result aggregation independent of completion
+  order with duplicate-ID rejection.
+- Focused R0A tests pass: 57 tests. The complete unit suite passes 468 tests;
+  contract and integration suites pass 59 and 51 tests. The expanded Nextflow
+  stub, syntax check, and documentation-link check pass. The frozen public
+  snapshots independently qualify 2/2 snapshots and 12/12 target families;
+  T10 is correctly reported non-nested.
+
+### Unresolved work
+
+- Run one complete `pixi run --locked check`, inspect the full diff and staged
+  scope, then create and push one coherent R0A evidence-contract correction.
+- After one green CI run, deploy reviewed tools and execute a corrected fixed
+  multi-catalogue/multi-batch non-acceptance Viper smoke. Operational and
+  leakage scientific tracks remain held.
+- The tracked Nextflow executor-scope warnings remain a separate correction;
+  queue-size, submission-rate, and aggregate-concurrency enforcement are not
+  claimed.
+
+### Next exact starting point
+
+Run `pixi run --locked check`. If it passes, inspect `git status`, the complete
+diff, `git diff --check`, and stage only the coherent R0A code, tests,
+roadmap/review dispositions, and this journal evidence.
+
+## 2026-08-17T19:59:34Z - R0A correction passes the complete locked gate
+
+### Accomplishments and immutable local evidence
+
+- The one complete `pixi run --locked check` passed after its focused
+  formatting and type corrections: Ruff format/lint, `ty`, 468 unit tests, 59
+  contract tests, 51 integration tests, schemas, public-panel validation,
+  documentation links, actionlint, Nextflow syntax, the expanded two-catalogue/
+  four-batch Nextflow stub with cached resume, and reviewed-wrapper syntax.
+- The final R0A focused set contains 57 passing family, identity, edge,
+  collect/evaluate, and deterministic batch-partition tests. A separate real
+  frozen-snapshot probe verified both full snapshot checksums, all 12 target
+  families, and the intentional non-nested T10 partition.
+- Complete scope/privacy review found no tracked private family-membership
+  fixture. Actual target lines remain outside Git; only synthetic private truth
+  is used by unit collection tests. No external database, unknown crystal,
+  historical M5 result, or retained remote run was altered.
+
+### Unresolved work
+
+- Inspect and stage the complete coherent R0A diff, create one commit, push
+  once, and require one CI run.
+- Deploy reviewed tools after green CI and run one corrected fixed
+  multi-catalogue/multi-batch non-acceptance Viper smoke. Scientific M6 tracks
+  remain held pending the remaining roadmap foundations and acceptance gates.
+
+### Next exact starting point
+
+Run final staged-diff checks, commit the R0A evidence-contract correction, push
+once, and watch exactly one CI run.

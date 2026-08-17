@@ -70,7 +70,8 @@ workflow M6_VALIDATION_WORKFLOW {
         tuple(bundles, database_manifest, execution_policy, software_lock)
     }
     batch_plan = M6_BUILD_SEARCH_BATCHES(batch_input)
-    pdb_batch_tasks = batch_plan.flatMap { Path bundle ->
+    batch_plan_value = batch_plan.first()
+    pdb_batch_tasks = batch_plan_value.flatMap { Path bundle ->
         bundle.resolve('pdb_sequence_batches.tsv').toFile().readLines().drop(1)
             .findAll { String line -> line.trim() }
             .collect { String line ->
@@ -85,7 +86,7 @@ workflow M6_VALIDATION_WORKFLOW {
                 )
             }
     }
-    foldseek_batch_tasks = batch_plan.flatMap { Path bundle ->
+    foldseek_batch_tasks = batch_plan_value.flatMap { Path bundle ->
         bundle.resolve('prostt5_foldseek_batches.tsv').toFile().readLines().drop(1)
             .findAll { String line -> line.trim() }
             .collect { String line ->
@@ -102,19 +103,19 @@ workflow M6_VALIDATION_WORKFLOW {
     }
     pdb = M6_SEARCH_PDB(pdb_batch_tasks)
     foldseek = M6_SEARCH_FOLDSEEK(foldseek_batch_tasks)
-    pdb_bundles = pdb
+    pdb_bundles_value = pdb
         .map { batchId, bundle -> bundle }
         .collect()
         .map { values -> values as List<Path> }
-    foldseek_bundles = foldseek
+    foldseek_bundles_value = foldseek
         .map { batchId, bundle -> bundle }
         .collect()
         .map { values -> values as List<Path> }
     discovery = M6_PARTITION_DISCOVERY(
         imported,
-        batch_plan,
-        pdb_bundles,
-        foldseek_bundles
+        batch_plan_value,
+        pdb_bundles_value,
+        foldseek_bundles_value
     )
 
     preflight_inputs = case_tasks.map { caseId, catalogueKey, task ->

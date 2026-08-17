@@ -1,8 +1,10 @@
 """Focused contracts for the approved truth-isolated M6 benchmark."""
 
 import gzip
+import hashlib
 import json
 from pathlib import Path
+from typing import cast
 
 import gemmi
 import numpy as np
@@ -14,15 +16,30 @@ from Bio.SeqRecord import SeqRecord
 from genome_to_diffraction.benchmarks import m6_model_policy as m6_model_policy_module
 from genome_to_diffraction.benchmarks.m6_collection import (
     M6CollectionRequest,
+    _M6PrivateCaseTruth,
+    _M6PrivateFamily,
     collect_m6_evidence,
 )
 from genome_to_diffraction.benchmarks.m6_collection import (
     _assessment as _truth_assessment,
 )
+from genome_to_diffraction.benchmarks.m6_edge import (
+    M6EdgeObservation,
+    M6HttpRateLimitEvidence,
+    M6MatthewsCandidateEvidence,
+    M6MatthewsEdgeEvidence,
+    M6ModelExhaustionEvidence,
+    M6MtzEdgeEvidence,
+    M6PhenixValidationEvidence,
+    M6RemoteGuardEvidence,
+    M6RetainedMatthewsFact,
+    make_edge_observation,
+)
 from genome_to_diffraction.benchmarks.m6_evaluation import (
     M6CaseAssessment,
     M6CollectedEvidence,
     M6EvaluationRequest,
+    M6FamilyModelEvidence,
     M6SoftwareProvenance,
     evaluate_m6,
 )
@@ -30,6 +47,12 @@ from genome_to_diffraction.benchmarks.m6_execution import (
     M6ResourceEvidenceRequest,
     collect_m6_resource_evidence,
     load_m6_execution_policy,
+)
+from genome_to_diffraction.benchmarks.m6_identity import (
+    M6IdentityCandidate,
+    M6IdentityDecision,
+    M6IdentityEvidencePointer,
+    derive_m6_identity_decision,
 )
 from genome_to_diffraction.benchmarks.m6_model_policy import (
     M6ModelPolicyRequest,
@@ -78,6 +101,7 @@ from genome_to_diffraction.diffraction.preflight import select_observations
 from genome_to_diffraction.ids import (
     canonical_digest,
     canonical_json_text,
+    content_id,
     sequence_digest,
 )
 from genome_to_diffraction.schemas.results import (
@@ -91,6 +115,52 @@ ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "benchmarks" / "m6" / "protocol.yaml"
 EXECUTION_POLICY = ROOT / "benchmarks" / "m6" / "execution-nextflow-v1.yaml"
 HASH = "a" * 64
+
+
+def _identity_decision(case_id: str, digest: str | None = None) -> M6IdentityDecision:
+    """Build one valid runner decision for truth-side unit fixtures."""
+
+    if digest is None:
+        return derive_m6_identity_decision(
+            case_id=case_id,
+            selected_seed_results=(),
+            sequence_groups=(),
+        )
+    selected_row = {
+        "seed_solution_id": f"seed_{case_id}",
+        "sequence_group_id": f"seq_{digest}",
+    }
+    pointer_payload = {
+        "role": "selected_seed",
+        "seed_solution_id": selected_row["seed_solution_id"],
+        "record_sha256": canonical_digest(selected_row),
+    }
+    pointer = M6IdentityEvidencePointer(
+        role="selected_seed",
+        record_id=content_id("m6idevidence_", pointer_payload),
+        seed_solution_id=selected_row["seed_solution_id"],
+        record_sha256=pointer_payload["record_sha256"],
+    )
+    candidate = M6IdentityCandidate(
+        sequence_group_id=f"seq_{digest}",
+        sequence_sha256=digest,
+        evidence_pointers=(pointer,),
+    )
+    payload = {
+        "schema_version": "1.0",
+        "adapter_version": "m6-identity-decision-v1",
+        "case_id": case_id,
+        "decision": "reported",
+        "candidates": [candidate.model_dump(mode="json")],
+    }
+    return M6IdentityDecision(
+        schema_version="1.0",
+        adapter_version="m6-identity-decision-v1",
+        identity_decision_id=content_id("m6identity_", payload),
+        case_id=case_id,
+        decision="reported",
+        candidates=(candidate,),
+    )
 
 
 def _assessment(
@@ -111,7 +181,25 @@ def _assessment(
         "candidate_count": 3,
         "retained_candidate_count": 3,
         "all_candidates_retained": True,
+        "runner_identity_decision": _identity_decision(case.case_id),
+        "exact_identity_sequence_sha256": None,
     }
+    edge_kinds = {
+        "missing_pdb_model",
+        "wrong_sds_mass",
+        "non_top_matthews",
+        "map_only_mtz",
+        "ambiguous_columns_equivalent",
+        "ambiguous_columns_conflicting",
+        "remote_disabled",
+        "remote_rate_limited",
+        "missing_phenix",
+    }
+    if case.case_kind in edge_kinds:
+        common.update(
+            edge_observations=(_measured_edge_observation(protocol, case.case_id),),
+            edge_outcome_verified=True,
+        )
     if case.case_kind in {"operational_positive", "leakage_positive"}:
         assert target is not None
         common.update(
@@ -119,8 +207,20 @@ def _assessment(
             typed_outcome="target_evidence_retained",
             target_sequence_rank=1,
             correct_family_model_retained=True,
+            family_model_evidence=(
+                M6FamilyModelEvidence(
+                    hypothesis_id=f"hyp_{case.case_id}",
+                    model_id=f"model_{case.case_id}",
+                    pdb_id="1ABC",
+                    pdb_entity_id=1,
+                    classification="verified_family",
+                ),
+            ),
             credible_seed_recovered=True,
             supported_copy_count=target.expected_asu_copy_count,
+            runner_identity_decision=_identity_decision(
+                case.case_id, target.target_sequence_sha256
+            ),
             exact_identity_sequence_sha256=target.target_sequence_sha256,
         )
     elif case.case_kind in {"target_absent", "wrong_related_catalogue"}:
@@ -170,9 +270,10 @@ def _assessment(
 
 def _evidence(protocol: M6BenchmarkProtocol) -> M6CollectedEvidence:
     return M6CollectedEvidence(
-        schema_version="1.0",
+        schema_version="1.1",
         protocol_id=protocol.protocol_id,
         protocol_sha256=sha256_file(PROTOCOL),
+        private_truth_map_sha256=HASH,
         run_ids=("m6-operational-run", "m6-leakage-run"),
         provenance=M6SoftwareProvenance(
             source_commit="a" * 40,
@@ -202,6 +303,83 @@ def _evidence(protocol: M6BenchmarkProtocol) -> M6CollectedEvidence:
 
 def _write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _private_truth_file(
+    tmp_path: Path, protocol_path: Path, protocol: M6BenchmarkProtocol
+) -> Path:
+    positives = {item.target_key: item for item in protocol.positives}
+    assumptions = {item.target_key: item for item in protocol.assumption_controls}
+    cases: list[dict[str, object]] = []
+    for case in protocol.cases:
+        target = positives.get(case.target_key)
+        if target is not None:
+            digests = (target.target_sequence_sha256,)
+            source_pdb_id = target.source.pdb_id
+            expected_copy_count = target.expected_asu_copy_count
+        else:
+            assumption = assumptions[case.target_key]
+            digests = tuple(item.sequence_sha256 for item in assumption.proteins)
+            source_pdb_id = assumption.source.pdb_id
+            expected_copy_count = None
+        cases.append(
+            {
+                "case_id": case.case_id,
+                "case_kind": case.case_kind,
+                "target_key": case.target_key,
+                "source_pdb_id": source_pdb_id,
+                "target_sequence_sha256": list(digests),
+                "target_opaque_loci": {
+                    digest: [f"opaque_{index}"]
+                    for index, digest in enumerate(digests, start=1)
+                },
+                "expected_asu_copy_count": expected_copy_count,
+            }
+        )
+    path = tmp_path / "private_truth_map.json"
+    _write_json(
+        path,
+        {
+            "schema_version": "1.1",
+            "protocol_id": protocol.protocol_id,
+            "protocol_sha256": sha256_file(protocol_path),
+            "cluster_snapshots": [
+                {
+                    "identity_threshold_percent": threshold,
+                    "file_name": Path(
+                        (
+                            protocol.leakage_policy.rcsb_30_snapshot
+                            if threshold == 30
+                            else protocol.leakage_policy.rcsb_70_snapshot
+                        ).url
+                    ).name,
+                    "source_url": (
+                        protocol.leakage_policy.rcsb_30_snapshot
+                        if threshold == 30
+                        else protocol.leakage_policy.rcsb_70_snapshot
+                    ).url,
+                    "sha256": (
+                        protocol.leakage_policy.rcsb_30_snapshot
+                        if threshold == 30
+                        else protocol.leakage_policy.rcsb_70_snapshot
+                    ).sha256,
+                    "size_bytes": (
+                        protocol.leakage_policy.rcsb_30_snapshot
+                        if threshold == 30
+                        else protocol.leakage_policy.rcsb_70_snapshot
+                    ).size_bytes,
+                    "target_line_count": 12,
+                }
+                for threshold in (30, 70)
+            ],
+            "verified_families": [
+                _private_family(protocol, target.target_key).model_dump(mode="json")
+                for target in protocol.positives
+            ],
+            "cases": cases,
+        },
+    )
+    return path
 
 
 def test_m6_protocol_fixes_the_approved_case_balance() -> None:
@@ -253,18 +431,252 @@ def _raw_m6_case(case_id: str) -> dict[str, object]:
         "retained_candidate_count": 1,
         "all_candidates_retained": True,
         "selected_seed_results": [],
+        "first_copy_results": [],
+        "identity_decision": _identity_decision(case_id).model_dump(mode="json"),
+        "edge_observations": [],
     }
+
+
+def _private_family(protocol: M6BenchmarkProtocol, target_key: str) -> _M6PrivateFamily:
+    target = next(item for item in protocol.positives if item.target_key == target_key)
+    source = target.source_pdb_entity_id
+    safe = [
+        f"AF_SYNTHETIC_{target_key}_{index}"
+        for index in range(1, target.allowed_30_to_70_model_count + 1)
+    ]
+    if target_key == "T02" and safe:
+        safe[0] = "3G14_1"
+    close = ("2GPJ_1",) if target_key == "T03" else ()
+    cluster_30 = tuple(sorted((source, *close, *safe)))
+    cluster_70 = tuple(sorted((source, *close)))
+    line_30 = " ".join(cluster_30)
+    line_70 = " ".join(cluster_70)
+    operational = tuple(sorted(set(cluster_30) - {source}))
+    leakage_safe = tuple(sorted(set(cluster_30) - set(cluster_70)))
+    return _M6PrivateFamily(
+        target_key=target_key,
+        source_pdb_entity_id=source,
+        cluster_30_line=line_30,
+        cluster_70_line=line_70,
+        cluster_30_line_sha256=target.rcsb_30_cluster_line_sha256,
+        cluster_70_line_sha256=target.rcsb_70_cluster_line_sha256,
+        cluster_30_entities=cluster_30,
+        cluster_70_entities=cluster_70,
+        operational_family_entities=operational,
+        leakage_safe_family_entities=leakage_safe,
+        frozen_allowed_30_to_70_model_count=target.allowed_30_to_70_model_count,
+        observed_allowed_30_to_70_model_count=target.allowed_30_to_70_model_count,
+    )
+
+
+def _synthetic_collection_protocol(tmp_path: Path) -> Path:
+    """Create truth-side-only cluster lines and matching frozen checksums."""
+
+    base = load_m6_protocol(PROTOCOL)
+    payload = base.model_dump(mode="json")
+    lines_by_threshold: dict[int, list[str]] = {30: [], 70: []}
+    for raw_target in payload["positives"]:
+        target_key = raw_target["target_key"]
+        family = _private_family(base, target_key)
+        lines_by_threshold[30].append(family.cluster_30_line)
+        lines_by_threshold[70].append(family.cluster_70_line)
+        raw_target["rcsb_30_cluster_line_sha256"] = hashlib.sha256(
+            f"{family.cluster_30_line}\n".encode("ascii")
+        ).hexdigest()
+        raw_target["rcsb_70_cluster_line_sha256"] = hashlib.sha256(
+            f"{family.cluster_70_line}\n".encode("ascii")
+        ).hexdigest()
+    for threshold in (30, 70):
+        snapshot_bytes = (
+            "".join(f"{line}\n" for line in lines_by_threshold[threshold])
+        ).encode("ascii")
+        resource = payload["leakage_policy"][f"rcsb_{threshold}_snapshot"]
+        resource["sha256"] = hashlib.sha256(snapshot_bytes).hexdigest()
+        resource["size_bytes"] = len(snapshot_bytes)
+    path = tmp_path / "synthetic-m6-protocol.yaml"
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    (tmp_path / "execution-nextflow-v1.yaml").write_bytes(EXECUTION_POLICY.read_bytes())
+    load_m6_protocol(path)
+    return path
+
+
+def _private_case(protocol: M6BenchmarkProtocol, case_id: str) -> _M6PrivateCaseTruth:
+    case = next(item for item in protocol.cases if item.case_id == case_id)
+    positive = next(
+        (item for item in protocol.positives if item.target_key == case.target_key),
+        None,
+    )
+    if positive is not None:
+        digests = (positive.target_sequence_sha256,)
+        source_pdb_id = positive.source.pdb_id
+        expected_copy_count = positive.expected_asu_copy_count
+    else:
+        assumption = next(
+            item
+            for item in protocol.assumption_controls
+            if item.target_key == case.target_key
+        )
+        digests = tuple(item.sequence_sha256 for item in assumption.proteins)
+        source_pdb_id = assumption.source.pdb_id
+        expected_copy_count = None
+    return _M6PrivateCaseTruth(
+        case_id=case.case_id,
+        case_kind=case.case_kind,
+        target_key=case.target_key,
+        source_pdb_id=source_pdb_id,
+        target_sequence_sha256=digests,
+        target_opaque_loci={
+            digest: (f"opaque_{index}",)
+            for index, digest in enumerate(digests, start=1)
+        },
+        expected_asu_copy_count=expected_copy_count,
+    )
+
+
+def _measured_edge_observation(
+    protocol: M6BenchmarkProtocol, case_id: str
+) -> M6EdgeObservation:
+    case = next(item for item in protocol.cases if item.case_id == case_id)
+    kind = case.case_kind
+    if kind == "missing_pdb_model":
+        evidence = M6ModelExhaustionEvidence(
+            evidence_kind="model_exhaustion",
+            route_manifest_sha256=HASH,
+            stimulus_source_hits_sha256=HASH,
+            accepted_hits_sha256=HASH,
+            coordinate_sources_sha256=HASH,
+            processed_models_sha256=HASH,
+            accepted_hit_count=0,
+            coordinate_source_count=0,
+            processed_model_count=0,
+            hypothesis_count=0,
+            route_completed=True,
+        )
+    elif kind in {"wrong_sds_mass", "non_top_matthews"}:
+        target = next(
+            item for item in protocol.positives if item.target_key == case.target_key
+        )
+        evidence = M6MatthewsEdgeEvidence(
+            evidence_kind="matthews",
+            matthews_jsonl_sha256=HASH,
+            candidate_summaries=(
+                M6MatthewsCandidateEvidence(
+                    sequence_group_id=f"seq_{target.target_sequence_sha256}",
+                    sequence_sha256=target.target_sequence_sha256,
+                    sds_page_nearest_band_kda=1.0,
+                    sds_page_absolute_difference_kda=100.0,
+                    sds_page_fractional_difference=1.0,
+                    sds_page_prior_label=(
+                        "weak" if kind == "wrong_sds_mass" else "compatible"
+                    ),
+                    retained_hypotheses=(
+                        M6RetainedMatthewsFact(
+                            hypothesis_id=f"mhyp_{case.case_id}",
+                            copy_count=target.expected_asu_copy_count,
+                            rank_within_candidate=2,
+                            physical_status="plausible",
+                            matthews_prior=0.5,
+                        ),
+                    ),
+                ),
+            ),
+        )
+    elif kind in {
+        "map_only_mtz",
+        "ambiguous_columns_equivalent",
+        "ambiguous_columns_conflicting",
+    }:
+        if kind == "map_only_mtz":
+            candidates: tuple[str, ...] = ()
+            selected = None
+            warnings = ("no_observed_data",)
+            decision = "fail"
+        elif kind == "ambiguous_columns_equivalent":
+            candidates = ("I,SIGI", "IMEAN,SIGIMEAN")
+            selected = "I,SIGI"
+            warnings = (
+                "equivalent_observation_arrays",
+                "observation_selection_deterministic",
+            )
+            decision = "pass_with_review"
+        else:
+            candidates = ("I,SIGI", "IMEAN,SIGIMEAN")
+            selected = None
+            warnings = ("ambiguous_observation_arrays",)
+            decision = "fail"
+        evidence = M6MtzEdgeEvidence(
+            evidence_kind="mtz_preflight",
+            preflight_jsonl_sha256=HASH,
+            preflight_record_sha256=HASH,
+            preflight_id=f"preflight_{case.case_id}",
+            mtz_sha256=HASH,
+            observation_candidates=candidates,
+            selected_observation_labels=selected,
+            warning_codes=warnings,
+            decision=decision,
+            available_columns=(),
+        )
+    elif kind == "remote_disabled":
+        evidence = M6RemoteGuardEvidence(
+            evidence_kind="remote_guard",
+            analysis_config_sha256=HASH,
+            crystal_manifest_sha256=HASH,
+            provider_enabled=False,
+            consent_allowed=False,
+            authorisation_denied=True,
+            authorisation_failure_code="run_remote_disabled",
+            request_count=0,
+        )
+    elif kind == "remote_rate_limited":
+        evidence = M6HttpRateLimitEvidence(
+            evidence_kind="http_rate_limit",
+            analysis_config_sha256=HASH,
+            crystal_manifest_sha256=HASH,
+            fault_control_sha256=HASH,
+            fixture_sha256=HASH,
+            provider_enabled=True,
+            consent_allowed=True,
+            request_count=1,
+            http_status_code=429,
+            retry_after_seconds=60,
+        )
+    elif kind == "missing_phenix":
+        evidence = M6PhenixValidationEvidence(
+            evidence_kind="phenix_validation",
+            supplied_manifest_sha256=HASH,
+            isolated_manifest_sha256=HASH,
+            validation_succeeded=False,
+            failure_code="environment_file_missing",
+        )
+    else:
+        raise AssertionError(f"not an edge case: {case_id}")
+    return make_edge_observation(
+        case_id=case.case_id,
+        edge_kind=kind,
+        evidence=evidence,
+    )
 
 
 def test_m6_truth_join_uses_retained_rank_and_copy_evidence() -> None:
     protocol = load_m6_protocol(PROTOCOL)
-    case = next(item for item in protocol.cases if item.case_id == "M6C001")
-    target = next(item for item in protocol.positives if item.target_key == "T01")
+    case = next(item for item in protocol.cases if item.case_id == "M6C002")
+    target = next(item for item in protocol.positives if item.target_key == "T02")
     raw = _raw_m6_case(case.case_id)
     raw["selected_seed_results"] = [
         {
             "sequence_group_id": "seq_target",
             "best_supported_copy_count": target.expected_asu_copy_count,
+        }
+    ]
+    raw["first_copy_results"] = [
+        {
+            "hypothesis": {
+                "hypothesis_id": "mrhyp_family",
+                "sequence_group_id": "seq_target",
+                "model_id": "model_family",
+                "priority_features": {"pdb_id": "3G14", "pdb_entity_id": 1},
+            },
+            "result": {},
         }
     ]
     rankings: tuple[dict[str, object], ...] = (
@@ -277,7 +689,14 @@ def test_m6_truth_join_uses_retained_rank_and_copy_evidence() -> None:
         },
     )
 
-    assessment = _truth_assessment(protocol, case, raw, rankings)
+    assessment = _truth_assessment(
+        protocol,
+        case,
+        raw,
+        rankings,
+        {target.target_key: _private_family(protocol, target.target_key)},
+        {case.case_id: _private_case(protocol, case.case_id)},
+    )
 
     assert assessment.target_sequence_rank == 4
     assert assessment.correct_family_model_retained is True
@@ -286,15 +705,112 @@ def test_m6_truth_join_uses_retained_rank_and_copy_evidence() -> None:
     assert assessment.exact_identity_sequence_sha256 is None
 
 
+def test_m6_truth_join_does_not_count_an_off_family_accepted_hit() -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    case = next(item for item in protocol.cases if item.case_id == "M6C002")
+    target = next(item for item in protocol.positives if item.target_key == "T02")
+    raw = _raw_m6_case(case.case_id)
+    raw["first_copy_results"] = [
+        {
+            "hypothesis": {
+                "hypothesis_id": "mrhyp_off_family",
+                "sequence_group_id": "seq_target",
+                "model_id": "model_off_family",
+                "priority_features": {"pdb_id": "9ZZZ", "pdb_entity_id": 1},
+            },
+            "result": {},
+        }
+    ]
+    rankings: tuple[dict[str, object], ...] = (
+        {
+            "case_id": case.case_id,
+            "sequence_sha256": target.target_sequence_sha256,
+            "sequence_group_id": "seq_target",
+            "rank": 1,
+            "accepted_model_hit_count": 99,
+        },
+    )
+
+    assessment = _truth_assessment(
+        protocol,
+        case,
+        raw,
+        rankings,
+        {target.target_key: _private_family(protocol, target.target_key)},
+        {case.case_id: _private_case(protocol, case.case_id)},
+    )
+
+    assert assessment.correct_family_model_retained is False
+    assert [item.classification for item in assessment.family_model_evidence] == [
+        "off_family"
+    ]
+
+
+def test_m6_leakage_truth_excludes_a_close_70_percent_cluster_model() -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    case = next(item for item in protocol.cases if item.case_id == "M6C015")
+    target = next(item for item in protocol.positives if item.target_key == "T03")
+    family = _private_family(protocol, target.target_key)
+    raw = _raw_m6_case(case.case_id)
+    raw["first_copy_results"] = [
+        {
+            "hypothesis": {
+                "hypothesis_id": "mrhyp_close",
+                "sequence_group_id": "seq_target",
+                "model_id": "model_close",
+                "priority_features": {"pdb_id": "2GPJ", "pdb_entity_id": 1},
+            },
+            "result": {},
+        }
+    ]
+    rankings: tuple[dict[str, object], ...] = (
+        {
+            "case_id": case.case_id,
+            "sequence_sha256": target.target_sequence_sha256,
+            "sequence_group_id": "seq_target",
+            "rank": 1,
+            "accepted_model_hit_count": 1,
+        },
+    )
+
+    assessment = _truth_assessment(
+        protocol,
+        case,
+        raw,
+        rankings,
+        {target.target_key: family},
+        {case.case_id: _private_case(protocol, case.case_id)},
+    )
+
+    assert assessment.correct_family_model_retained is False
+    assert [item.classification for item in assessment.family_model_evidence] == [
+        "excluded_close_family"
+    ]
+
+
 def test_m6_truth_join_does_not_auto_accept_an_assumption_violation() -> None:
     protocol = load_m6_protocol(PROTOCOL)
     case = next(item for item in protocol.cases if item.case_id == "M6C045")
     raw = _raw_m6_case(case.case_id)
     raw["selected_seed_results"] = [
-        {"sequence_group_id": "seq_component", "best_supported_copy_count": 1}
+        {
+            "seed_solution_id": f"seed_{case.case_id}",
+            "sequence_group_id": f"seq_{HASH}",
+            "best_supported_copy_count": 1,
+        }
     ]
+    raw["identity_decision"] = _identity_decision(case.case_id, HASH).model_dump(
+        mode="json"
+    )
 
-    assessment = _truth_assessment(protocol, case, raw, ())
+    assessment = _truth_assessment(
+        protocol,
+        case,
+        raw,
+        (),
+        {},
+        {case.case_id: _private_case(protocol, case.case_id)},
+    )
 
     assert assessment.scientific_status == "candidate_evidence"
     assert assessment.typed_outcome == "single_component_seed_on_assumption_violation"
@@ -305,12 +821,16 @@ def _synthetic_scientific_output(
     *,
     adapter_version: str = "m6-scientific-run-v3",
     track: M6ScientificTrack = "operational",
+    reported_identity_by_case: dict[str, str] | None = None,
+    edge_observation_by_case: dict[str, M6EdgeObservation] | None = None,
+    protocol_path: Path = PROTOCOL,
 ) -> Path:
     output = tmp_path / f"{adapter_version}-{track}"
     output.mkdir()
     case_ids = m6_track_case_ids(track)
-    cases = tuple(
-        {
+    case_rows: list[dict[str, object]] = []
+    for case_id in case_ids:
+        row: dict[str, object] = {
             **_raw_m6_case(case_id),
             "candidate_ranking_path": "model-policy/candidate_ranking.jsonl",
             "model_policy_report_path": "model-policy/model_policy_report.json",
@@ -323,11 +843,35 @@ def _synthetic_scientific_output(
             "refinement_results": [],
             "sequence_summaries": [],
         }
-        for case_id in case_ids
-    )
+        if adapter_version == "m6-nextflow-run-v2":
+            row.update(
+                schema_version="2.0",
+                adapter_version="m6-nextflow-case-evidence-v2",
+            )
+            reported_digest = (reported_identity_by_case or {}).get(case_id)
+            if reported_digest is not None:
+                selected = {
+                    "seed_solution_id": f"seed_{case_id}",
+                    "sequence_group_id": f"seq_{reported_digest}",
+                }
+                row["selected_seed_results"] = [selected]
+                row["identity_decision"] = _identity_decision(
+                    case_id, reported_digest
+                ).model_dump(mode="json")
+            edge_observation = (edge_observation_by_case or {}).get(case_id)
+            if edge_observation is not None:
+                row["edge_observations"] = [edge_observation.model_dump(mode="json")]
+        else:
+            row.pop("identity_decision", None)
+            row.pop("first_copy_results", None)
+            row["first_copy_results"] = []
+        case_rows.append(row)
+    cases = tuple(case_rows)
     rankings = tuple(
         {
-            "schema_version": "1.0",
+            "schema_version": (
+                "2.0" if adapter_version == "m6-nextflow-run-v2" else "1.0"
+            ),
             "case_id": case_id,
             "rank": 1,
             "sequence_group_id": f"seq_{case_id}",
@@ -373,14 +917,16 @@ def _synthetic_scientific_output(
     output_sha256 = {key: sha256_file(output / value) for key, value in files.items()}
     input_sha256 = {
         "runner_manifest": "1" * 64,
-        "protocol": sha256_file(PROTOCOL),
+        "protocol": sha256_file(protocol_path),
         "database_manifest": "3" * 64,
         "phenix_manifest": "4" * 64,
     }
     _write_json(
         output / "m6_scientific_summary.json",
         {
-            "schema_version": "1.0",
+            "schema_version": (
+                "2.0" if adapter_version == "m6-nextflow-run-v2" else "1.0"
+            ),
             "adapter_version": adapter_version,
             "track": track,
             "case_ids": list(case_ids),
@@ -399,7 +945,7 @@ def _synthetic_scientific_output(
             "maximum_concurrent_phenix_attempts": 4,
             "execution_model": (
                 "nextflow_dsl2_slurm_fanout"
-                if adapter_version == "m6-nextflow-run-v1"
+                if adapter_version in {"m6-nextflow-run-v1", "m6-nextflow-run-v2"}
                 else None
             ),
             "phenix_release": "Phenix 2.1-6048",
@@ -449,11 +995,17 @@ def _synthetic_collection(
     track: M6ScientificTrack,
     adapter_version: str,
     commit: str,
+    reported_identity_by_case: dict[str, str] | None = None,
+    edge_observation_by_case: dict[str, M6EdgeObservation] | None = None,
+    protocol_path: Path = PROTOCOL,
 ) -> Path:
     scientific = _synthetic_scientific_output(
         tmp_path,
         adapter_version=adapter_version,
         track=track,
+        reported_identity_by_case=reported_identity_by_case,
+        edge_observation_by_case=edge_observation_by_case,
+        protocol_path=protocol_path,
     )
     verification = verify_m6_scientific_output(scientific, track)
     root = tmp_path / f"collection-{track}"
@@ -480,7 +1032,7 @@ def _synthetic_collection(
             "resume_equivalent": True,
         },
     )
-    nextflow = adapter_version == "m6-nextflow-run-v1"
+    nextflow = adapter_version in {"m6-nextflow-run-v1", "m6-nextflow-run-v2"}
     runtime = {
         "schema_version": "1.1" if nextflow else "1.0",
         "profile": profile,
@@ -584,25 +1136,106 @@ def _synthetic_collection(
     return root
 
 
-def test_m6_collection_accepts_legacy_operational_and_nextflow_leakage(
+def test_m6_collection_rejects_legacy_tracks_for_corrected_acceptance(
     tmp_path: Path,
 ) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
     operational = _synthetic_collection(
         tmp_path,
         track="operational",
         adapter_version="m6-scientific-run-v3",
         commit="a" * 40,
+        protocol_path=protocol_path,
     )
     leakage = _synthetic_collection(
         tmp_path,
         track="leakage",
         adapter_version="m6-nextflow-run-v1",
         commit="b" * 40,
+        protocol_path=protocol_path,
     )
+
+    with pytest.raises(PublicControlError, match="identity-bearing v2 tracks"):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=_private_truth_file(
+                    tmp_path, protocol_path, protocol
+                ),
+                operational_collection=operational,
+                leakage_collection=leakage,
+                output=tmp_path / "collected-evidence.json",
+            )
+        )
+
+
+def test_m6_collection_rejects_private_truth_from_another_protocol(
+    tmp_path: Path,
+) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    truth = _private_truth_file(tmp_path, protocol_path, protocol)
+    payload = json.loads(truth.read_text(encoding="utf-8"))
+    payload["protocol_sha256"] = "f" * 64
+    _write_json(truth, payload)
+
+    with pytest.raises(PublicControlError, match="uses another protocol"):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=truth,
+                operational_collection=tmp_path / "not-read-operational",
+                leakage_collection=tmp_path / "not-read-leakage",
+                output=tmp_path / "not-written.json",
+            )
+        )
+
+
+def test_m6_collection_rehashes_private_cluster_lines(tmp_path: Path) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    truth = _private_truth_file(tmp_path, protocol_path, protocol)
+    payload = json.loads(truth.read_text(encoding="utf-8"))
+    family = payload["verified_families"][0]
+    family["cluster_30_line"] = " ".join(reversed(family["cluster_30_line"].split()))
+    _write_json(truth, payload)
+
+    with pytest.raises(PublicControlError, match="private family truth changed"):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=truth,
+                operational_collection=tmp_path / "not-read-operational",
+                leakage_collection=tmp_path / "not-read-leakage",
+                output=tmp_path / "not-written.json",
+            )
+        )
+
+
+def test_m6_collection_accepts_two_identity_bearing_tracks(tmp_path: Path) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="b" * 40,
+        protocol_path=protocol_path,
+    )
+    truth = _private_truth_file(tmp_path, protocol_path, protocol)
 
     result = collect_m6_evidence(
         M6CollectionRequest(
-            protocol=PROTOCOL,
+            protocol=protocol_path,
+            private_truth_map=truth,
             operational_collection=operational,
             leakage_collection=leakage,
             output=tmp_path / "collected-evidence.json",
@@ -613,10 +1246,123 @@ def test_m6_collection_accepts_legacy_operational_and_nextflow_leakage(
     assert result.evidence.maximum_cpu_count == 32
     assert result.evidence.child_job_count == 2
     assert result.evidence.execution_policy_sha256 == sha256_file(EXECUTION_POLICY)
+    assert result.evidence.private_truth_map_sha256 == sha256_file(truth)
     assert result.evidence.provenance.track_source_commits == {
         "operational": "a" * 40,
         "leakage": "b" * 40,
     }
+
+
+def test_collect_then_evaluate_holds_on_reported_wrong_open_set_identity(
+    tmp_path: Path,
+) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        reported_identity_by_case={"M6C025": HASH},
+        protocol_path=protocol_path,
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="b" * 40,
+        protocol_path=protocol_path,
+    )
+    evidence_path = tmp_path / "collected-evidence.json"
+    collect_m6_evidence(
+        M6CollectionRequest(
+            protocol=protocol_path,
+            private_truth_map=_private_truth_file(tmp_path, protocol_path, protocol),
+            operational_collection=operational,
+            leakage_collection=leakage,
+            output=evidence_path,
+        )
+    )
+
+    result = evaluate_m6(
+        M6EvaluationRequest(protocol=protocol_path, evidence=evidence_path)
+    )
+
+    assert result.accepted is False
+    assert "exact_false_assignments" in result.failed_gates
+    assert result.report["reported_open_set_identities"] == [
+        {"case_id": "M6C025", "sequence_sha256": HASH}
+    ]
+
+
+def test_collect_then_evaluate_holds_when_edge_descriptor_lacks_matching_evidence(
+    tmp_path: Path,
+) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    case = next(item for item in protocol.cases if item.case_id == "M6C053")
+    target = next(
+        item for item in protocol.positives if item.target_key == case.target_key
+    )
+    contradictory = make_edge_observation(
+        case_id=case.case_id,
+        edge_kind="wrong_sds_mass",
+        evidence=M6MatthewsEdgeEvidence(
+            evidence_kind="matthews",
+            matthews_jsonl_sha256=HASH,
+            candidate_summaries=(
+                M6MatthewsCandidateEvidence(
+                    sequence_group_id=f"seq_{target.target_sequence_sha256}",
+                    sequence_sha256=target.target_sequence_sha256,
+                    sds_page_nearest_band_kda=50.0,
+                    sds_page_absolute_difference_kda=1.0,
+                    sds_page_fractional_difference=0.02,
+                    sds_page_prior_label="compatible",
+                    retained_hypotheses=(
+                        M6RetainedMatthewsFact(
+                            hypothesis_id="mhyp_contradictory",
+                            copy_count=target.expected_asu_copy_count,
+                            rank_within_candidate=1,
+                            physical_status="plausible",
+                            matthews_prior=0.5,
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="b" * 40,
+        edge_observation_by_case={case.case_id: contradictory},
+        protocol_path=protocol_path,
+    )
+    evidence_path = tmp_path / "edge-evidence.json"
+    collect_m6_evidence(
+        M6CollectionRequest(
+            protocol=protocol_path,
+            private_truth_map=_private_truth_file(tmp_path, protocol_path, protocol),
+            operational_collection=operational,
+            leakage_collection=leakage,
+            output=evidence_path,
+        )
+    )
+
+    result = evaluate_m6(
+        M6EvaluationRequest(protocol=protocol_path, evidence=evidence_path)
+    )
+
+    assert result.accepted is False
+    assert "typed_edge_outcomes" in result.failed_gates
 
 
 def test_m6_protocol_rejects_a_relabelled_case() -> None:
@@ -650,6 +1396,12 @@ def test_m6_evaluator_accepts_only_complete_predeclared_evidence(
     assert result.report["release_decision"] == "accept"
     assert result.report["candidate_retention_fraction"] == 1.0
     assert result.report["exact_false_assignment_count"] == 0
+    operational_metrics = cast(dict[str, object], result.report["operational_metrics"])
+    leakage_metrics = cast(
+        dict[str, object], result.report["leakage_controlled_metrics"]
+    )
+    assert operational_metrics["correct_family_denominator"] == 12
+    assert leakage_metrics["correct_family_denominator"] == 11
     assert report_path.is_file()
 
 
@@ -660,6 +1412,9 @@ def test_m6_evaluator_holds_on_false_assignment_and_candidate_loss(
     payload = _evidence(protocol).model_dump(mode="json")
     absent = next(
         item for item in payload["assessments"] if item["case_id"] == "M6C025"
+    )
+    absent["runner_identity_decision"] = _identity_decision("M6C025", HASH).model_dump(
+        mode="json"
     )
     absent["exact_identity_sequence_sha256"] = HASH
     absent["retained_candidate_count"] = 2
@@ -672,6 +1427,9 @@ def test_m6_evaluator_holds_on_false_assignment_and_candidate_loss(
     assert result.accepted is False
     assert "candidate_retention" in result.failed_gates
     assert "exact_false_assignments" in result.failed_gates
+    assert result.report["reported_open_set_identities"] == [
+        {"case_id": "M6C025", "sequence_sha256": HASH}
+    ]
 
 
 def test_m6_evaluator_holds_on_an_unexpected_execution_failure(
@@ -714,6 +1472,44 @@ def test_m6_evaluator_binds_the_nextflow_execution_policy(tmp_path: Path) -> Non
     held = evaluate_m6(M6EvaluationRequest(protocol=PROTOCOL, evidence=evidence_path))
     assert held.accepted is False
     assert "execution_policy_verified" in held.failed_gates
+
+
+def test_m6_evaluator_holds_on_forbidden_family_attempts(tmp_path: Path) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    payload = _evidence(protocol).model_dump(mode="json")
+    operational = next(
+        item for item in payload["assessments"] if item["case_id"] == "M6C001"
+    )
+    leakage = next(
+        item for item in payload["assessments"] if item["case_id"] == "M6C013"
+    )
+    operational["correct_family_model_retained"] = False
+    operational["family_model_evidence"] = [
+        {
+            "hypothesis_id": "hyp_exact",
+            "model_id": "model_exact",
+            "pdb_id": "8GKV",
+            "pdb_entity_id": 1,
+            "classification": "exact_deposition",
+        }
+    ]
+    leakage["correct_family_model_retained"] = False
+    leakage["family_model_evidence"] = [
+        {
+            "hypothesis_id": "hyp_close",
+            "model_id": "model_close",
+            "pdb_id": "2GPJ",
+            "pdb_entity_id": 1,
+            "classification": "excluded_close_family",
+        }
+    ]
+    evidence_path = tmp_path / "forbidden-family-evidence.json"
+    _write_json(evidence_path, payload)
+
+    result = evaluate_m6(M6EvaluationRequest(protocol=PROTOCOL, evidence=evidence_path))
+
+    assert "no_exact_deposition_models_attempted" in result.failed_gates
+    assert "no_leakage_close_models_attempted" in result.failed_gates
 
 
 def _prepared_manifest(
@@ -1128,10 +1924,21 @@ def test_m6_nextflow_early_case_retains_catalogue_and_assembles(
         tmp_path / "catalogue",
     )
     case_task = plan.plan_directory / "case_tasks/M6C057"
+    reflections = case_task / "reflections.mtz"
+    write_m6_mtz_variant(
+        _m6_source_mtz(),
+        reflections,
+        opaque_id="M6C057",
+        variation="map_only",
+    )
     fault = case_task / "fault_control.json"
-    _write_json(fault, {"reflection_mode": "map_only"})
+    _write_json(
+        fault,
+        {"edge_stimulus": "map_only_mtz", "reflection_mode": "map_only"},
+    )
     task_record = json.loads((case_task / "task.json").read_text(encoding="utf-8"))
     task_record["fault_control_sha256"] = sha256_file(fault)
+    task_record["reflections_sha256"] = sha256_file(reflections)
     _write_json(case_task / "task.json", task_record)
     preflight = run_m6_preflight_task(
         case_task,

@@ -109,7 +109,11 @@ process M6_SEARCH_PDB {
 
     stub:
     """
-    sleep 1
+    if [[ '${item[0]}' == b* ]]; then
+        sleep 4
+    else
+        sleep 1
+    fi
     cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/pdb_bundle' m6_pdb_bundle
     """
 }
@@ -139,7 +143,11 @@ process M6_SEARCH_FOLDSEEK {
 
     stub:
     """
-    sleep 1
+    if [[ '${item[0]}' == d* ]]; then
+        sleep 4
+    else
+        sleep 1
+    fi
     cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/foldseek_bundle' m6_foldseek_bundle
     """
 }

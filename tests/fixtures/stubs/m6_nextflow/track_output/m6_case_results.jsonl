@@ -1,2 +1,2 @@
-{"schema_version":"1.0","case_id":"M6C001","all_candidates_retained":true}
-{"schema_version":"1.0","case_id":"M6C057","all_candidates_retained":true}
+{"schema_version":"2.0","adapter_version":"m6-nextflow-case-evidence-v2","case_id":"M6C001","all_candidates_retained":true,"identity_decision":{"adapter_version":"m6-identity-decision-v1","candidates":[],"case_id":"M6C001","decision":"abstained","identity_decision_id":"m6identity_34ea9ccd34b30520ab7340a268037d21aab85088a7e6079bb39836fa88891805","schema_version":"1.0"},"edge_observations":[]}
+{"schema_version":"2.0","adapter_version":"m6-nextflow-case-evidence-v2","case_id":"M6C057","all_candidates_retained":true,"identity_decision":{"adapter_version":"m6-identity-decision-v1","candidates":[],"case_id":"M6C057","decision":"abstained","identity_decision_id":"m6identity_9dec86f777ae37a38914f39530d7458a3b2fe5683295d31c575bb81540ac1730","schema_version":"1.0"},"edge_observations":[]}

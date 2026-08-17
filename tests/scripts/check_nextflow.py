@@ -73,6 +73,61 @@ def _assert_files(root: Path, names: set[str]) -> None:
         raise RuntimeError(f"missing outputs under {root}: {sorted(missing)}")
 
 
+def _assert_m6_fanout_trace(
+    trace_rows: Sequence[dict[str, str]], *, require_cached: bool
+) -> dict[str, tuple[dict[str, str], ...]]:
+    """Require the complete multi-catalogue M6 stub fan-out."""
+
+    catalogue_keys = {
+        "a" * 64,
+        "e" * 64,
+    }
+    expected_tags = {
+        "M6_IMPORT_CATALOGUE": {
+            f"m6-import:{catalogue_key}" for catalogue_key in catalogue_keys
+        },
+        "M6_SEARCH_PDB": {f"m6-pdb:{batch_id}" for batch_id in ("b" * 64, "c" * 64)},
+        "M6_SEARCH_FOLDSEEK": {
+            f"m6-foldseek:{batch_id}" for batch_id in ("d" * 64, "e" * 64)
+        },
+        "M6_PARTITION_DISCOVERY": {
+            f"m6-partition:{catalogue_key}" for catalogue_key in catalogue_keys
+        },
+        "M6_PREFLIGHT_CASE": {
+            "m6-preflight:M6C001",
+            "m6-preflight:M6C057",
+        },
+        "M6_PREPARE_ACTIVE_CASE": {"m6-case:M6C001"},
+        "M6_PREPARE_EARLY_CASE": {"m6-early-case:M6C057"},
+    }
+    stored_processes = {
+        "M6_IMPORT_CATALOGUE",
+        "M6_SEARCH_PDB",
+        "M6_SEARCH_FOLDSEEK",
+    }
+    rows_by_process: dict[str, tuple[dict[str, str], ...]] = {}
+    for process, expected in expected_tags.items():
+        if require_cached and process in stored_processes:
+            continue
+        process_rows = tuple(
+            row for row in trace_rows if row["process"].split(":")[-1] == process
+        )
+        actual = {row["tag"] for row in process_rows}
+        if len(process_rows) != len(expected) or actual != expected:
+            raise RuntimeError(
+                f"M6 stub {process} fan-out mismatch: "
+                f"expected={sorted(expected)}, actual={sorted(actual)}, "
+                f"count={len(process_rows)}"
+            )
+        if require_cached and {row["status"] for row in process_rows} != {"CACHED"}:
+            raise RuntimeError(
+                f"resumed M6 stub did not cache every {process} task: "
+                f"{sorted(row['status'] for row in process_rows)}"
+            )
+        rows_by_process[process] = process_rows
+    return rows_by_process
+
+
 def _write_real_inputs(root: Path) -> Path:
     """Create tiny local contracts and MTZ for real Task 05 workflow acceptance."""
 
@@ -1005,6 +1060,7 @@ def check_stubs() -> None:
         trace_path = m6_out / "pipeline_info" / "trace.tsv"
         with trace_path.open(encoding="utf-8", newline="") as handle:
             trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+        fanout_rows = _assert_m6_fanout_trace(trace_rows, require_cached=False)
         processes = {row["process"].split(":")[-1] for row in trace_rows}
         required_processes = {
             "M6_IMPORT_CATALOGUE",
@@ -1027,21 +1083,49 @@ def check_stubs() -> None:
                 "M6 stub did not exercise required fan-out branches: "
                 f"{sorted(required_processes - processes)}"
             )
-        search_rows = {
-            row["process"].split(":")[-1]: row
-            for row in trace_rows
-            if row["process"].split(":")[-1] in {"M6_SEARCH_PDB", "M6_SEARCH_FOLDSEEK"}
+        search_intervals = {
+            process: tuple(
+                (
+                    datetime.fromisoformat(row["start"]),
+                    datetime.fromisoformat(row["complete"]),
+                )
+                for row in fanout_rows[process]
+            )
+            for process in ("M6_SEARCH_PDB", "M6_SEARCH_FOLDSEEK")
         }
-        pdb_start = datetime.fromisoformat(search_rows["M6_SEARCH_PDB"]["start"])
-        pdb_complete = datetime.fromisoformat(search_rows["M6_SEARCH_PDB"]["complete"])
-        foldseek_start = datetime.fromisoformat(
-            search_rows["M6_SEARCH_FOLDSEEK"]["start"]
-        )
-        foldseek_complete = datetime.fromisoformat(
-            search_rows["M6_SEARCH_FOLDSEEK"]["complete"]
-        )
-        if max(pdb_start, foldseek_start) > min(pdb_complete, foldseek_complete):
+        if not any(
+            max(pdb_start, foldseek_start) <= min(pdb_complete, foldseek_complete)
+            for pdb_start, pdb_complete in search_intervals["M6_SEARCH_PDB"]
+            for foldseek_start, foldseek_complete in search_intervals[
+                "M6_SEARCH_FOLDSEEK"
+            ]
+        ):
             raise RuntimeError("M6 MMseqs2 and Foldseek stub jobs did not overlap")
+        summary_paths = tuple(m6_out.rglob("m6_scientific_summary.json"))
+        if len(summary_paths) != 1:
+            raise RuntimeError("M6 stub summary path is not unique")
+        summary_path = summary_paths[0]
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        if (
+            summary.get("schema_version") != "2.0"
+            or summary.get("adapter_version") != "m6-nextflow-run-v2"
+        ):
+            raise RuntimeError("M6 stub did not publish the v2 aggregate contract")
+        case_records = tuple(
+            json.loads(line)
+            for line in (summary_path.parent / "m6_case_results.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line
+        )
+        if len(case_records) != 2 or any(
+            record.get("schema_version") != "2.0"
+            or record.get("adapter_version") != "m6-nextflow-case-evidence-v2"
+            or not isinstance(record.get("identity_decision"), dict)
+            or not isinstance(record.get("edge_observations"), list)
+            for record in case_records
+        ):
+            raise RuntimeError("M6 stub did not retain v2 identity/edge evidence")
         m6_files = sorted(path for path in m6_out.rglob("*") if path.is_file())
         before_resume = {
             str(path.relative_to(m6_out)): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -1049,8 +1133,22 @@ def check_stubs() -> None:
             if "pipeline_info" not in path.parts
         }
         resumed_m6 = _run([*m6_command, "-resume"], environment=environment)
-        if "cached" not in f"{resumed_m6.stdout}\n{resumed_m6.stderr}".lower():
+        resumed_m6_output = f"{resumed_m6.stdout}\n{resumed_m6.stderr}"
+        if "cached" not in resumed_m6_output.lower():
             raise RuntimeError("resumed M6 stub did not report cached work")
+        for process in (
+            "M6_IMPORT_CATALOGUE",
+            "M6_SEARCH_PDB",
+            "M6_SEARCH_FOLDSEEK",
+        ):
+            stored_token = f"M6_VALIDATION_WORKFLOW:{process} ("
+            if resumed_m6_output.count(stored_token) != 2:
+                raise RuntimeError(
+                    f"resumed M6 stub did not reuse both stored {process} tasks"
+                )
+        with trace_path.open(encoding="utf-8", newline="") as handle:
+            resumed_trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+        _assert_m6_fanout_trace(resumed_trace_rows, require_cached=True)
         after_resume = {
             str(path.relative_to(m6_out)): hashlib.sha256(path.read_bytes()).hexdigest()
             for path in m6_out.rglob("*")

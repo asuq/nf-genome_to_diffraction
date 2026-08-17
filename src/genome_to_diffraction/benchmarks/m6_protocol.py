@@ -127,6 +127,23 @@ class M6PositiveTargetSpec(ContractModel):
     allowed_30_to_70_model_count: int = Field(ge=0)
     correct_family_model_eligible: bool = True
 
+    @model_validator(mode="after")
+    def _validate_family_model_eligibility(self) -> Self:
+        if self.correct_family_model_eligible != (
+            self.allowed_30_to_70_model_count > 0
+        ):
+            raise ValueError(
+                "correct-family eligibility must match the frozen 30%-minus-70% "
+                "model count"
+            )
+        return self
+
+    @property
+    def source_pdb_entity_id(self) -> str:
+        """Return the RCSB cluster token for the target's sole polymer entity."""
+
+        return f"{self.source.pdb_id}_{self.source.pdb_entity_ids[0]}"
+
 
 class M6AssumptionProteinSpec(ContractModel):
     """One known protein species in a heteromeric ASU truth control."""
@@ -271,6 +288,16 @@ class M6LeakagePolicy(ContractModel):
             raise ValueError("30% RCSB file has the wrong role")
         if self.rcsb_70_snapshot.role != "cluster_snapshot":
             raise ValueError("70% RCSB file has the wrong role")
+        expected_suffixes = (
+            "/clusters-by-entity-30.txt",
+            "/clusters-by-entity-70.txt",
+        )
+        if not self.rcsb_30_snapshot.url.endswith(expected_suffixes[0]):
+            raise ValueError("30% RCSB snapshot URL has the wrong filename")
+        if not self.rcsb_70_snapshot.url.endswith(expected_suffixes[1]):
+            raise ValueError("70% RCSB snapshot URL has the wrong filename")
+        if self.rcsb_30_snapshot.sha256 == self.rcsb_70_snapshot.sha256:
+            raise ValueError("30% and 70% RCSB snapshots must be distinct")
         if len(set(self.m5_positive_30_cluster_line_sha256)) != 11:
             raise ValueError("M5 positive cluster identifiers must be unique")
         return self

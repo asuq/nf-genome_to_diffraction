@@ -17,6 +17,11 @@ Later phases in this document are programme plans, not authorisation to implemen
 them. Before each expansion, its scope, contracts, benchmark, resources, failure
 semantics, and scientific acceptance criteria require explicit approval.
 
+The dependency-ordered plan for release-gate remediation, software v0.2 joint
+component search, and the bounded two-component endpoint is the
+[software v0.2 roadmap](v0.2-roadmap.md). It does not authorise implementation
+before Gate 1 and a user-published v0.1 release.
+
 ## What “final full development” means
 
 The programme target is an internal research platform that can narrow and test
@@ -112,7 +117,27 @@ implementation sequence.
 - the three-pilot results and an independent benchmark are reviewed; and
 - the user approves a heteromer scope and benchmark charter.
 
+The [2026-08-17 adversarial review](adverse-code-review-2026-08-17.md)
+identified release-decision stop gates in the current M6 evaluator and
+enduring pipeline. A completed orchestration smoke cannot clear Gate 1. The
+review's P0/P1 remediation, corrected multi-item smoke, fresh operational and
+leakage tracks, and truth-side evaluation must finish before Gate 1 can be
+accepted.
+
 ## Phase II — Heteromer-capable research prototype
+
+The implementation-ready Phase II sequence, schema-v2 state model, automatic
+packed-partial expansion policy, joint-copy strategy, control/holdout panels,
+and local/CI/Viper loops are specified in the
+[software v0.2 roadmap](v0.2-roadmap.md). This broader programme section remains
+context for later phases and does not override that bounded v0.2 scope.
+
+For v0.2 specifically, automatic expansion replaces the generalized H0/H1
+human A-seed requirement, and each fixed-A attempt searches all requested B
+copies jointly rather than extending a general beam one copy at a time. The
+human composition checkpoint remains mandatory. The reviewed beam/DAG and
+arbitrary later-component behaviour below are future Phase II extensions, not
+v0.2 requirements.
 
 ### Scientific model
 
@@ -395,8 +420,10 @@ zero/no-hit, filtered, deferred, and failed states.
 Only Phase I is active. M0–M5 are complete, and Prototype 0.2 is accepted with
 the explicit limitation that 7L6G supports three rather than its declared six
 copies. The independent 63-case M6 benchmark manifest and criteria were
-approved on 2026-08-17; truth-isolated execution and release hardening are now
-active. The three unknown operator crystals remain post-M6 exploratory
-applications. Phase II planning may be refined while Phase I runs, but
-heteromer schemas, processes, or provider integrations must not be implemented
-before Gate 1 is explicitly accepted.
+approved on 2026-08-17, but the adversarial review holds scientific submission
+and acceptance until its stop gates are corrected. The active two-case smoke
+is orchestration evidence only. The three unknown operator crystals remain
+post-M6 exploratory applications. Phase II planning may be refined while Phase
+I runs, but heteromer schemas, processes, or provider integrations must not be
+implemented before corrected M6 evidence, explicit Gate 1 acceptance, and the
+user-published v0.1 release.
