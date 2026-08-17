@@ -220,3 +220,28 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert "--threads '${task.cpus}'" in database_module
     assert "threads: Integer" not in database_module
     assert "database administration" in runbook.lower()
+
+
+def test_m6_scientific_stage_uses_viper_runtime_manifests() -> None:
+    """Keep M6 independent of the legacy single-root P0 site contract."""
+
+    dispatcher = (REPOSITORY / "bootstrap" / "nf-gtd-hpc-remote").read_text(
+        encoding="utf-8"
+    )
+    stage_body = dispatcher.split("stage_run_common() {", maxsplit=1)[1].split(
+        "stage_run() {", maxsplit=1
+    )[0]
+    m6_body = dispatcher.split("m6_runner_stage_common() {", maxsplit=1)[1].split(
+        "m6_inputs_stage_run() {", maxsplit=1
+    )[0]
+
+    assert '"$profile" == m6-operational || "$profile" == m6-leakage' in stage_body
+    assert "database_config_readiness runtime" in stage_body
+    assert 'phenix_manifest="${startup_site_values[6]}"' in stage_body
+    assert 'atomic_text "$run/state/database-manifest" "$DATABASE_MANIFEST"' in (
+        stage_body
+    )
+    assert 'atomic_text "$run/state/phenix-manifest" "$phenix_manifest"' in (stage_body)
+    assert "P0_CONFIG" not in m6_body
+    assert 'database_manifest="$(<"$run/state/database-manifest")"' in m6_body
+    assert 'phenix_manifest="$(<"$run/state/phenix-manifest")"' in m6_body

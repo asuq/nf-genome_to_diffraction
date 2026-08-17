@@ -153,6 +153,11 @@ nf-gtd-hpc-test --no-progress m6-scientific-stage \
 nf-gtd-hpc-test --no-progress submit m6-leakage --run-id RUN_ID
 ```
 
+Scientific staging binds the checksum-validated Viper runtime database
+configuration and the fixed Viper Phenix manifest. It does not reuse the
+legacy P0 single-root path file, which cannot represent Viper's separate
+database and licensed-software mounts.
+
 Each track retains its full raw output remotely, emits compact case evidence
 and a deterministic gzip of every candidate rank, verifies all output
 checksums, and performs a checksum-only `--resume` pass. No Phenix search is

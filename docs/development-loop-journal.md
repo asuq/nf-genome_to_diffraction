@@ -6922,3 +6922,64 @@ stage the confirmed archive with `m6-inputs-stage`.
 
 Run `git diff --check`, inspect the staged diff, and create the coherent M6
 scientific-execution commit.
+
+## 2026-08-17T01:41:09Z - Viper M6 runtime binding corrected before submission
+
+### Discoveries
+
+- GitHub Actions run `31984437384` passed the scientific-execution commit
+  `82d34e918b82e4b1b2805b480cb182330e2e4376` under Pixi 0.76.2. The
+  deterministic local controller built from that commit has SHA-256
+  `8be9914f46c5b15e25a95757b6bcffbb14203ce49807bef5efc70d8490c44d67`.
+- The first scientific stage reached no remote run because the desktop sandbox
+  denied its existing SSH control socket. Retried through the same reviewed
+  wrapper with the approved host permission, run
+  `gtd-m6-operational-20260817T012344Z-82d34e918b82-04d7979d` then failed
+  safely during staging, before submission or Phenix, with `environment_failure`:
+  `fixed P0 configuration is absent or unsafe`.
+- This was a Viper adapter defect, not scientific evidence. M6 had inherited
+  the legacy P0 single-root configuration even though Viper deliberately keeps
+  its verified database under `/ptmp` and its licensed Phenix installation
+  under `/viper/u1`. The completed Viper database has a runtime manifest, but
+  that split layout cannot be represented by the P0 single-root contract.
+
+### Accomplishments
+
+- Narrowed only the M6 environment binding. The operational and leakage stages
+  now require the existing checksum-validated Viper database configuration in
+  runtime mode and the exact Phenix manifest from the fixed Viper site
+  configuration. Their paths and checksums are frozen into per-run state before
+  the opaque runner archive is accepted; M6 no longer reads `P0_CONFIG`.
+- Added a focused contract regression preventing the legacy dependency from
+  returning. The change does not alter the frozen protocol, model exclusion,
+  resource limits, Phenix concurrency, ranking, retain-all policy, or any
+  acceptance criterion.
+- Focused checks passed 10 repository-policy contracts and all 45 fake remote
+  dispatcher integrations. One complete `pixi run --locked check` then passed
+  formatting, lint, strict typing, 429 unit tests, 58 contract tests, 50
+  integration tests, schemas, public-panel validation, documentation links,
+  actionlint, Nextflow syntax/stubs, and all reviewed Bash syntax checks.
+
+### Immutable evidence
+
+- The failed stage has no Slurm job ID and made no scientific attempt. The
+  approved 63-case archive remains unchanged at SHA-256
+  `91ea40f332e6d188567d0a437115c95547ebfb59b43f63bc95cd02ebb0b22f7c`;
+  its runner-manifest SHA-256 remains
+  `19b52d32cab618e04a504760b252371df62c8f58a8a233a0c23eebbd13ae9e38`.
+- The previously completed Viper database remains authoritative; it was not
+  rebuilt or modified. No unknown operator crystal or 7L6G work was performed.
+
+### Unresolved work
+
+- Commit and push this focused adapter correction, watch exactly one GitHub
+  Actions run, deploy its checksum-reviewed controller/dispatcher/job wrapper,
+  and stage a new immutable operational run. Retain the failed stage untouched.
+- Execute and collect the operational and leakage tracks sequentially, assemble
+  the 63 truth-side assessments only after both outputs are immutable, and issue
+  the frozen M6 accept/hold decision.
+
+### Next exact starting point
+
+Run `git status --short`, inspect the complete diff, and create the single
+coherent Viper M6 runtime-binding commit.

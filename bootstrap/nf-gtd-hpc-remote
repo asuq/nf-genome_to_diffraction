@@ -800,6 +800,7 @@ stage_run_common() {
     local iteration="$5"
     local profile="$6"
     local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp
+    local phenix_manifest
     local gtd nextflow java mmseqs foldseek hpc_path
     local p0_config_sha256="" p0_config_json="null"
     local database_manifest_sha256="" database_manifest_json="null"
@@ -968,7 +969,6 @@ stage_run_common() {
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
-          "$profile" == m6-operational || "$profile" == m6-leakage || \
           ( "$profile" == m4-copy && "${M4_CROSS_SITE_IMPORT:-false}" != true ) ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
@@ -986,6 +986,37 @@ stage_run_common() {
         atomic_text "$run/state/p0-config-sha256" "$p0_config_sha256"
         atomic_text "$run/state/database-manifest-sha256" "$database_manifest_sha256"
         p0_config_json="\"$p0_config_sha256\""
+        database_manifest_json="\"$database_manifest_sha256\""
+    elif [[ "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
+        database_config_readiness runtime || true
+        [[ "$DATABASE_CONFIG_STATUS" == ready ]] || {
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "environment_failure"
+            append_event "$run" "stage_m6_database_config_absent"
+            fail environment_failure \
+                "fixed M6 runtime database configuration is absent or unsafe"
+        }
+        database_config_sha256="$DATABASE_CONFIG_SHA256"
+        database_manifest_sha256="$(sha256sum "$DATABASE_MANIFEST" | awk '{print $1}')"
+        [[ "$database_config_sha256" =~ $CHECKSUM_RE && \
+           "$database_manifest_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "M6 database provenance checksum failed"
+        phenix_manifest="${startup_site_values[6]}"
+        [[ "$phenix_manifest" =~ $SAFE_PATH_RE && -f "$phenix_manifest" && \
+           ! -L "$phenix_manifest" ]] || {
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "environment_failure"
+            append_event "$run" "stage_m6_phenix_manifest_absent"
+            fail environment_failure \
+                "fixed M6 Phenix manifest is absent or unsafe"
+        }
+        atomic_text "$run/state/database-config-sha256" "$database_config_sha256"
+        atomic_text "$run/state/database-manifest" "$DATABASE_MANIFEST"
+        atomic_text "$run/state/database-manifest-sha256" "$database_manifest_sha256"
+        atomic_text "$run/state/phenix-manifest" "$phenix_manifest"
+        atomic_text "$run/state/phenix-manifest-sha256" \
+            "$(sha256sum "$phenix_manifest" | awk '{print $1}')"
+        database_config_json="\"$database_config_sha256\""
         database_manifest_json="\"$database_manifest_sha256\""
     elif [[ "$profile" == database ]]; then
         database_config_readiness || true
@@ -1838,8 +1869,7 @@ m6_runner_stage_common() {
     local archive_sha256="$8" archive_size="$9" manifest_sha256="${10}"
     local case_count="${11}" object_count="${12}"
     local run import_archive import_root python stage_log database_manifest
-    local phenix_manifest
-    local -a p0_values=()
+    local phenix_manifest expected_database_sha expected_phenix_sha
 
     if [[ "$operation" == m6-inputs-stage ]]; then
         [[ "$profile" == m6-inputs && "$track" == qualification ]] || \
@@ -1980,23 +2010,27 @@ PY
     atomic_text "$run/state/m6-runner-object-count" "$object_count"
     atomic_text "$run/state/m6-track" "$track"
     if [[ "$track" != qualification ]]; then
-        mapfile -t p0_values < "$P0_CONFIG"
-        [[ "${#p0_values[@]}" -eq 7 ]] || \
+        [[ -f "$run/state/database-manifest" && \
+           -f "$run/state/database-manifest-sha256" && \
+           -f "$run/state/phenix-manifest" && \
+           -f "$run/state/phenix-manifest-sha256" ]] || \
             fail environment_failure "fixed M6 scientific configuration changed"
-        database_manifest="${p0_values[5]}"
-        phenix_manifest="${p0_values[6]}"
+        database_manifest="$(<"$run/state/database-manifest")"
+        phenix_manifest="$(<"$run/state/phenix-manifest")"
+        expected_database_sha="$(<"$run/state/database-manifest-sha256")"
+        expected_phenix_sha="$(<"$run/state/phenix-manifest-sha256")"
         [[ "$database_manifest" =~ $SAFE_PATH_RE && \
            "$phenix_manifest" =~ $SAFE_PATH_RE && \
            -f "$database_manifest" && ! -L "$database_manifest" && \
            -f "$phenix_manifest" && ! -L "$phenix_manifest" ]] || \
             fail environment_failure "fixed M6 database or Phenix manifest is unavailable"
-        [[ "$(sha256sum "$database_manifest" | awk '{print $1}')" == \
-           "$(<"$run/state/database-manifest-sha256")" ]] || \
-            fail environment_failure "fixed M6 database manifest changed"
-        atomic_text "$run/state/database-manifest" "$database_manifest"
-        atomic_text "$run/state/phenix-manifest" "$phenix_manifest"
-        atomic_text "$run/state/phenix-manifest-sha256" \
-            "$(sha256sum "$phenix_manifest" | awk '{print $1}')"
+        [[ "$expected_database_sha" =~ $CHECKSUM_RE && \
+           "$expected_phenix_sha" =~ $CHECKSUM_RE && \
+           "$(sha256sum "$database_manifest" | awk '{print $1}')" == \
+           "$expected_database_sha" && \
+           "$(sha256sum "$phenix_manifest" | awk '{print $1}')" == \
+           "$expected_phenix_sha" ]] || \
+            fail environment_failure "fixed M6 scientific manifest changed"
     fi
     atomic_text "$run/state/phase" staged
     append_event "$run" m6_runner_ready
