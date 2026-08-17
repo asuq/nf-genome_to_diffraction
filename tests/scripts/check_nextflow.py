@@ -1,6 +1,7 @@
 """Parse and exercise the implemented Nextflow entry points."""
 
 import argparse
+import csv
 import hashlib
 import json
 import os
@@ -8,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 
 import gemmi
@@ -959,6 +961,145 @@ def check_stubs() -> None:
                 "dag.html",
             },
         )
+
+        m6_out = temporary_root / "m6-nextflow-results"
+        m6_cache = temporary_root / "m6-nextflow-cache"
+        m6_discovery_store = temporary_root / "m6-discovery-store"
+        m6_discovery_store.mkdir()
+        m6_command = [
+            "nextflow",
+            "run",
+            "m6_validation.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "-params-file",
+            "tests/fixtures/stubs/m6_nextflow_params.yaml",
+            "--outdir",
+            str(m6_out),
+            "--cache_root",
+            str(m6_cache),
+            "--m6_discovery_store",
+            str(m6_discovery_store),
+        ]
+        _run(m6_command, environment=environment)
+        _assert_files(
+            m6_out,
+            {
+                "m6_scientific_summary.json",
+                "m6_execution_verification.json",
+                "m6_case_results.jsonl",
+                "m6_candidate_rankings.jsonl",
+                "m6_model_policy_results.jsonl",
+                "m6_first_copy_results.jsonl",
+                "m6_additional_copy_results.jsonl",
+                "m6_refinement_results.jsonl",
+                "m6_sequence_results.jsonl",
+                "m6_sequence_summary.jsonl",
+                "trace.tsv",
+                "report.html",
+                "timeline.html",
+                "dag.html",
+            },
+        )
+        trace_path = m6_out / "pipeline_info" / "trace.tsv"
+        with trace_path.open(encoding="utf-8", newline="") as handle:
+            trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+        processes = {row["process"].split(":")[-1] for row in trace_rows}
+        required_processes = {
+            "M6_IMPORT_CATALOGUE",
+            "M6_BUILD_SEARCH_BATCHES",
+            "M6_SEARCH_PDB",
+            "M6_SEARCH_FOLDSEEK",
+            "M6_PARTITION_DISCOVERY",
+            "M6_PREPARE_ACTIVE_CASE",
+            "M6_PREPARE_EARLY_CASE",
+            "M6_FIRST_COPY",
+            "M6_EMPTY_SEEDS",
+            "M6_ADDITIONAL_COPY",
+            "M6_REFINEMENT",
+            "M6_ASSEMBLE_CASE",
+            "M6_ASSEMBLE_EMPTY_CASE",
+            "M6_AGGREGATE_TRACK",
+        }
+        if not required_processes.issubset(processes):
+            raise RuntimeError(
+                "M6 stub did not exercise required fan-out branches: "
+                f"{sorted(required_processes - processes)}"
+            )
+        search_rows = {
+            row["process"].split(":")[-1]: row
+            for row in trace_rows
+            if row["process"].split(":")[-1] in {"M6_SEARCH_PDB", "M6_SEARCH_FOLDSEEK"}
+        }
+        pdb_start = datetime.fromisoformat(search_rows["M6_SEARCH_PDB"]["start"])
+        pdb_complete = datetime.fromisoformat(search_rows["M6_SEARCH_PDB"]["complete"])
+        foldseek_start = datetime.fromisoformat(
+            search_rows["M6_SEARCH_FOLDSEEK"]["start"]
+        )
+        foldseek_complete = datetime.fromisoformat(
+            search_rows["M6_SEARCH_FOLDSEEK"]["complete"]
+        )
+        if max(pdb_start, foldseek_start) > min(pdb_complete, foldseek_complete):
+            raise RuntimeError("M6 MMseqs2 and Foldseek stub jobs did not overlap")
+        m6_files = sorted(path for path in m6_out.rglob("*") if path.is_file())
+        before_resume = {
+            str(path.relative_to(m6_out)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in m6_files
+            if "pipeline_info" not in path.parts
+        }
+        resumed_m6 = _run([*m6_command, "-resume"], environment=environment)
+        if "cached" not in f"{resumed_m6.stdout}\n{resumed_m6.stderr}".lower():
+            raise RuntimeError("resumed M6 stub did not report cached work")
+        after_resume = {
+            str(path.relative_to(m6_out)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in m6_out.rglob("*")
+            if path.is_file() and "pipeline_info" not in path.parts
+        }
+        if before_resume != after_resume:
+            raise RuntimeError("M6 stub resume changed scientific outputs")
+
+        leakage_out = temporary_root / "m6-nextflow-leakage-results"
+        leakage_cache = temporary_root / "m6-nextflow-leakage-cache"
+        leakage_run = _run(
+            [
+                *m6_command,
+                "--track",
+                "leakage",
+                "--outdir",
+                str(leakage_out),
+                "--cache_root",
+                str(leakage_cache),
+            ],
+            environment=environment,
+        )
+        leakage_output = f"{leakage_run.stdout}\n{leakage_run.stderr}"
+        for shared_process in (
+            "M6_IMPORT_CATALOGUE",
+            "M6_SEARCH_PDB",
+            "M6_SEARCH_FOLDSEEK",
+        ):
+            if not any(
+                "stored process" in line.lower() and shared_process in line
+                for line in leakage_output.splitlines()
+            ):
+                raise RuntimeError(
+                    f"M6 leakage stub did not reuse truthless {shared_process}"
+                )
+        if any(
+            "stored process" in line.lower()
+            and any(
+                process in line
+                for process in (
+                    "M6_APPLY_POLICY",
+                    "M6_FIRST_COPY",
+                    "M6_ADDITIONAL_COPY",
+                    "M6_REFINEMENT",
+                )
+            )
+            for line in leakage_output.splitlines()
+        ):
+            raise RuntimeError("M6 leakage stub reused track-specific work")
 
         real_main_out = temporary_root / "main-real-results"
         real_main_cache = temporary_root / "main-real-cache"

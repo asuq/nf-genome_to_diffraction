@@ -108,6 +108,12 @@ Do not parallelise work across a downstream scientific gate. Within a milestone,
 independent provider adapters and their fixtures can be developed in parallel
 after their shared contract has been reviewed.
 
+Runtime fan-out is governed separately by the
+[Nextflow/Slurm execution architecture](execution-architecture.md): independent
+catalogues, cases, hypotheses, seeds, and finalists are executor tasks, while
+database-backed search tools use deterministic query/residue-bounded batches
+to amortise database and model initialisation.
+
 ## Roadmap summary
 
 The effort ranges below are planning ranges for one primary developer. They
@@ -550,8 +556,12 @@ provenance, deterministic and resume equivalence, cache invalidation, no silent
 partial output, and a bounded interface. These are internal engineering gates,
 not population-level sensitivity or specificity estimates.
 
-Start each Viper stage at eight CPUs, 16 GB, no more than four concurrent Phenix
-attempts, and a 24-hour scheduler ceiling. Split operational/open-set work from
+Start each Viper stage with a 2-CPU/8-GB Nextflow driver. Independent child
+tasks are Slurm jobs under the separately checksummed execution policy:
+MMseqs2 and Foldseek may use 32 CPUs/16 GB, smaller task classes retain their
+declared allocations, and every job has a 24-hour scheduler ceiling without a
+tool timeout. Slurm controls aggregate and Phenix concurrency; both are
+measured rather than capped. Split operational/open-set work from
 leakage/hardening work so failures and resource evidence remain attributable.
 
 ### Release hardening

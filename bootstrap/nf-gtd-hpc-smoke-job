@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -164,9 +164,12 @@ finalise() {
     elif [[ "$PROFILE" == m6-inputs ]]; then
         reports_json='["artifacts/qualification/m6-input-qualification.json"]'
         retained_json='["artifacts/m6-runner-inputs","artifacts/qualification"]'
+    elif [[ "$PROFILE" == m6-nextflow-smoke ]]; then
+        reports_json='["artifacts/qualification/m6-nextflow-smoke-summary.json","artifacts/qualification/m6-nextflow-smoke-resume-check.json","artifacts/qualification/m6-nextflow-smoke-resource-evidence.json"]'
+        retained_json='["artifacts/m6-nextflow-smoke","artifacts/qualification"]'
     elif [[ "$PROFILE" == m6-operational || "$PROFILE" == m6-leakage ]]; then
         reports_json='["artifacts/qualification/m6-scientific-summary.json","artifacts/qualification/m6-execution-verification.json","artifacts/qualification/m6-resume-check.json","artifacts/qualification/m6-runtime-provenance.json"]'
-        retained_json='["artifacts/m6-runner-inputs","artifacts/m6-scientific","artifacts/qualification"]'
+        retained_json='["artifacts/m6-runner-inputs","artifacts/m6-nextflow-results","artifacts/qualification"]'
     elif [[ "$PROFILE" == m4-copy ]]; then
         reports_json='["artifacts/qualification/m4-copy-summary.json","artifacts/qualification/m4-copy-resume-check.json"]'
         retained_json='["artifacts/m4-copy-inputs","artifacts/m4-copy","artifacts/qualification"]'
@@ -1790,66 +1793,314 @@ run_m6_inputs() {
     printf 'm6_input_status=truth_isolated_runner_qualified\n'
 }
 
+run_m6_stub_nextflow() {
+    local label="$1"
+    local track="$2"
+    local outdir="$3"
+    local cache="$4"
+    shift 4
+    mkdir -p "$RUN/execution/m6-nextflow-smoke-$track"
+    (
+        cd "$RUN/execution/m6-nextflow-smoke-$track"
+        "$NEXTFLOW" \
+            -log "$RUN/logs/nextflow-m6-smoke-${track}-${label}.log" \
+            run "$RUN/source/m6_validation.nf" \
+            -stub-run \
+            "$@" \
+            -profile viper-cpu \
+            --runner_root \
+                "$RUN/source/tests/fixtures/stubs/m6_nextflow" \
+            --protocol "$RUN/source/benchmarks/m6/protocol.yaml" \
+            --execution_policy \
+                "$RUN/source/benchmarks/m6/execution-nextflow-v1.yaml" \
+            --software_lock "$RUN/source/pixi.lock" \
+            --database_manifest \
+                "$RUN/source/tests/fixtures/stubs/database_manifest.json" \
+            --phenix_manifest \
+                "$RUN/source/tests/fixtures/stubs/phenix_install_manifest.json" \
+            --track "$track" \
+            --outdir "$outdir" \
+            --cache_root "$cache" \
+            --m6_discovery_store "$M6_SMOKE_STORE"
+    )
+}
+
+run_m6_nextflow_smoke() {
+    local qualification="$RUN/artifacts/qualification"
+    local root="$RUN/artifacts/m6-nextflow-smoke"
+    local operational="$root/operational"
+    local leakage="$root/leakage"
+    local before="$qualification/m6-smoke-before-resume.sha256"
+    local after="$qualification/m6-smoke-after-resume.sha256"
+    local cache_counts expected total cached stored child_summary
+    local child_jobs search_jobs peak_jobs peak_cpu peak_memory peak_phenix
+
+    [[ -f "$RUN/state/hpc-environment-status" && \
+        "$(<"$RUN/state/hpc-environment-status")" == ready ]] || return 2
+    [[ "${SLURM_CPUS_PER_TASK:-0}" == 2 ]] || return 2
+    if [[ -n "${SLURM_MEM_PER_NODE:-}" ]]; then
+        [[ "$SLURM_MEM_PER_NODE" == 8192 ]] || return 2
+    fi
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
+    export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
+    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
+    M6_SMOKE_STORE="$RUN/cache/m6-nextflow-smoke-store"
+    mkdir -p \
+        "$qualification" \
+        "$operational" \
+        "$leakage" \
+        "$M6_SMOKE_STORE" \
+        "$RUN/cache/m6-nextflow-smoke-operational" \
+        "$RUN/cache/m6-nextflow-smoke-leakage"
+
+    PHASE=test
+    printf 'phase=m6_nextflow_smoke_first track=operational\n'
+    run_m6_stub_nextflow \
+        first operational "$operational" \
+        "$RUN/cache/m6-nextflow-smoke-operational"
+    cp -a "$operational/pipeline_info" \
+        "$qualification/m6-smoke-first-pipeline-info"
+    "$GTD" --log-format json --no-progress benchmark collect-m6-resources \
+        --execution-policy \
+            "$RUN/source/benchmarks/m6/execution-nextflow-v1.yaml" \
+        --trace "$qualification/m6-smoke-first-pipeline-info/trace.tsv" \
+        --output \
+            "$qualification/m6-nextflow-smoke-resource-evidence.json"
+    (
+        cd "$operational/m6_scientific"
+        sha256sum \
+            m6_scientific_summary.json \
+            m6_execution_verification.json \
+            m6_case_results.jsonl \
+            m6_candidate_rankings.jsonl \
+            m6_model_policy_results.jsonl \
+            m6_first_copy_results.jsonl \
+            m6_additional_copy_results.jsonl \
+            m6_refinement_results.jsonl \
+            m6_sequence_results.jsonl \
+            m6_sequence_summary.jsonl
+    ) > "$before"
+
+    printf 'phase=m6_nextflow_smoke_resume track=operational\n'
+    run_m6_stub_nextflow \
+        resume operational "$operational" \
+        "$RUN/cache/m6-nextflow-smoke-operational" -resume
+    cp -a "$operational/pipeline_info" \
+        "$qualification/m6-smoke-resume-pipeline-info"
+    cache_counts="$(awk -F '\t' '
+        NR == 1 { for (i = 1; i <= NF; i++) if ($i == "status") column = i; next }
+        column > 0 { total++; if ($column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$qualification/m6-smoke-resume-pipeline-info/trace.tsv")"
+    read -r total cached <<< "$cache_counts"
+    expected="$(awk 'NR > 1 && NF { count++ } END { print count + 0 }' \
+        "$qualification/m6-smoke-first-pipeline-info/trace.tsv")"
+    stored=$((expected - total))
+    [[ "$expected" -ge 20 && "$total" -gt 0 && "$cached" -eq "$total" && \
+       "$stored" -eq 3 ]] || return 4
+    (
+        cd "$operational/m6_scientific"
+        sha256sum \
+            m6_scientific_summary.json \
+            m6_execution_verification.json \
+            m6_case_results.jsonl \
+            m6_candidate_rankings.jsonl \
+            m6_model_policy_results.jsonl \
+            m6_first_copy_results.jsonl \
+            m6_additional_copy_results.jsonl \
+            m6_refinement_results.jsonl \
+            m6_sequence_results.jsonl \
+            m6_sequence_summary.jsonl
+    ) > "$after"
+    cmp -s "$before" "$after" || return 3
+
+    printf 'phase=m6_nextflow_smoke_cross_track track=leakage\n'
+    run_m6_stub_nextflow \
+        first leakage "$leakage" \
+        "$RUN/cache/m6-nextflow-smoke-leakage"
+    cp -a "$leakage/pipeline_info" \
+        "$qualification/m6-smoke-leakage-pipeline-info"
+    grep 'Stored process' "$RUN/logs/nextflow-m6-smoke-leakage-first.log" \
+        > "$qualification/m6-nextflow-smoke-store-reuse.txt"
+    for process in M6_IMPORT_CATALOGUE M6_SEARCH_PDB M6_SEARCH_FOLDSEEK; do
+        grep -q "$process" \
+            "$qualification/m6-nextflow-smoke-store-reuse.txt" || return 4
+    done
+    if grep -Eq \
+        'M6_APPLY_POLICY|M6_FIRST_COPY|M6_ADDITIONAL_COPY|M6_REFINEMENT' \
+        "$qualification/m6-nextflow-smoke-store-reuse.txt"; then
+        return 4
+    fi
+
+    child_summary="$("$RUN/source/.pixi/envs/hpc/bin/python" - \
+        "$qualification/m6-nextflow-smoke-resource-evidence.json" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+record = json.loads(pathlib.Path(sys.argv[1]).read_text())
+jobs = record["jobs"]
+search = [
+    job for job in jobs
+    if job["process"].endswith(("M6_SEARCH_PDB", "M6_SEARCH_FOLDSEEK"))
+]
+if not record["per_job_bounds_passed"] or len(jobs) < 20 or len(search) != 2:
+    raise SystemExit("M6 Slurm smoke child inventory is incomplete")
+if any(job["requested_cpus"] != 32 for job in search):
+    raise SystemExit("M6 search smoke did not request 32 CPUs per job")
+if len({job["native_job_id"] for job in search}) != 2:
+    raise SystemExit("M6 search smoke did not create distinct Slurm jobs")
+if any(re.fullmatch(r"[0-9]+", job["native_job_id"]) is None for job in jobs):
+    raise SystemExit("M6 smoke lacks native Slurm job IDs")
+print(
+    record["child_job_count"],
+    len(search),
+    record["peak_running_jobs"],
+    record["peak_aggregate_cpus"],
+    record["peak_aggregate_memory_gb"],
+    record["peak_concurrent_phenix_jobs"],
+)
+PY
+    )"
+    read -r child_jobs search_jobs peak_jobs peak_cpu peak_memory peak_phenix \
+        <<< "$child_summary"
+    cat > "$qualification/m6-nextflow-smoke-resume-check.json" <<EOF
+{
+  "schema_version": "1.0",
+  "acceptance_evidence": false,
+  "two_case_stub_only": true,
+  "operational_first_task_count": $expected,
+  "operational_cached_resume_task_count": $cached,
+  "stored_discovery_resume_count": $stored,
+  "byte_identical_resume": true,
+  "cross_track_truthless_store_reuse": true,
+  "track_specific_store_reuse": false
+}
+EOF
+    cat > "$qualification/m6-nextflow-smoke-summary.json" <<EOF
+{
+  "schema_version": "1.0",
+  "profile": "m6-nextflow-smoke",
+  "acceptance_evidence": false,
+  "two_case_stub_only": true,
+  "nextflow_slurm_driver_cpus": 2,
+  "nextflow_slurm_driver_memory_gb": 8.0,
+  "child_job_count": $child_jobs,
+  "search_child_job_count": $search_jobs,
+  "search_cpus_per_job": 32,
+  "peak_running_jobs": $peak_jobs,
+  "peak_aggregate_cpu_count": $peak_cpu,
+  "peak_aggregate_memory_gb": $peak_memory,
+  "peak_concurrent_phenix_jobs": $peak_phenix,
+  "per_job_bounds_passed": true,
+  "fully_cached_resume": true,
+  "truthless_cross_track_store_reuse": true
+}
+EOF
+    sha256sum \
+        "$qualification/m6-nextflow-smoke-summary.json" \
+        "$qualification/m6-nextflow-smoke-resume-check.json" \
+        "$qualification/m6-nextflow-smoke-resource-evidence.json" \
+        "$qualification/m6-nextflow-smoke-store-reuse.txt" \
+        > "$qualification/m6-nextflow-smoke-checksums.sha256"
+    rm -f -- "$before" "$after"
+    printf 'm6_nextflow_smoke_status=slurm_fanout_verified_non_acceptance\n'
+}
+
+run_m6_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/nextflow-m6-${M6_TRACK}-${label}.log" \
+        run "$RUN/source/m6_validation.nf" \
+        "$@" \
+        -profile viper-cpu \
+        --runner_root "$M6_IMPORT_ROOT" \
+        --protocol "$RUN/source/benchmarks/m6/protocol.yaml" \
+        --execution_policy "$RUN/source/benchmarks/m6/execution-nextflow-v1.yaml" \
+        --software_lock "$RUN/source/pixi.lock" \
+        --database_manifest "$M6_DATABASE_MANIFEST" \
+        --phenix_manifest "$M6_PHENIX_MANIFEST" \
+        --track "$M6_TRACK" \
+        --outdir "$M6_RESULTS_ROOT" \
+        --cache_root "$RUN/cache/m6-nextflow-$M6_TRACK" \
+        --m6_discovery_store "$ROOT/_cache/m6-discovery"
+}
+
 run_m6_scientific() {
     local qualification="$RUN/artifacts/qualification"
-    local import_root="$RUN/artifacts/m6-runner-inputs"
-    local output="$RUN/artifacts/m6-scientific"
-    local database_manifest phenix_manifest expected_database_sha expected_phenix_sha
-    local track before after replay_digest log relative log_count included=0
+    local expected_database_sha expected_phenix_sha output before after
+    local replay_digest cache_counts expected total cached log relative log_count
+    local included=0 peak_phenix peak_jobs peak_cpu peak_memory child_jobs
 
     if [[ "$PROFILE" == m6-operational ]]; then
-        track=operational
+        M6_TRACK=operational
     elif [[ "$PROFILE" == m6-leakage ]]; then
-        track=leakage
+        M6_TRACK=leakage
     else
         return 2
     fi
-    mkdir -p "$qualification" "$output"
-    cd "$RUN/source"
+    M6_IMPORT_ROOT="$RUN/artifacts/m6-runner-inputs"
+    M6_RESULTS_ROOT="$RUN/artifacts/m6-nextflow-results"
+    output="$M6_RESULTS_ROOT/m6_scientific"
+    mkdir -p \
+        "$qualification" \
+        "$M6_RESULTS_ROOT" \
+        "$RUN/cache/m6-nextflow-$M6_TRACK" \
+        "$ROOT/_cache/m6-discovery" \
+        "$RUN/execution"
     [[ -f "$RUN/state/hpc-environment-status" && \
         "$(<"$RUN/state/hpc-environment-status")" == ready && \
-        "$(<"$RUN/state/m6-track")" == "$track" ]] || return 2
-    [[ -f "$RUN/state/database-manifest" && \
-        -f "$RUN/state/database-manifest-sha256" && \
-        -f "$RUN/state/phenix-manifest" && \
-        -f "$RUN/state/phenix-manifest-sha256" ]] || return 2
-    database_manifest="$(<"$RUN/state/database-manifest")"
-    phenix_manifest="$(<"$RUN/state/phenix-manifest")"
+        "$(<"$RUN/state/m6-track")" == "$M6_TRACK" ]] || return 2
+    M6_DATABASE_MANIFEST="$(<"$RUN/state/database-manifest")"
+    M6_PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
     expected_database_sha="$(<"$RUN/state/database-manifest-sha256")"
     expected_phenix_sha="$(<"$RUN/state/phenix-manifest-sha256")"
-    [[ "$database_manifest" =~ $SAFE_PATH_RE && -f "$database_manifest" && \
-       ! -L "$database_manifest" && "$expected_database_sha" =~ $CHECKSUM_RE && \
-       "$(sha256sum "$database_manifest" | awk '{print $1}')" == \
+    [[ "$M6_DATABASE_MANIFEST" =~ $SAFE_PATH_RE && \
+       -f "$M6_DATABASE_MANIFEST" && ! -L "$M6_DATABASE_MANIFEST" && \
+       "$expected_database_sha" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$M6_DATABASE_MANIFEST" | awk '{print $1}')" == \
        "$expected_database_sha" ]] || return 2
-    [[ "$phenix_manifest" =~ $SAFE_PATH_RE && -f "$phenix_manifest" && \
-       ! -L "$phenix_manifest" && "$expected_phenix_sha" =~ $CHECKSUM_RE && \
-       "$(sha256sum "$phenix_manifest" | awk '{print $1}')" == \
+    [[ "$M6_PHENIX_MANIFEST" =~ $SAFE_PATH_RE && \
+       -f "$M6_PHENIX_MANIFEST" && ! -L "$M6_PHENIX_MANIFEST" && \
+       "$expected_phenix_sha" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$M6_PHENIX_MANIFEST" | awk '{print $1}')" == \
        "$expected_phenix_sha" ]] || return 2
-    [[ "${SLURM_CPUS_PER_TASK:-0}" == 8 ]] || return 2
+    [[ "${SLURM_CPUS_PER_TASK:-0}" == 2 ]] || return 2
     if [[ -n "${SLURM_MEM_PER_NODE:-}" ]]; then
-        [[ "$SLURM_MEM_PER_NODE" == 16384 ]] || return 2
+        [[ "$SLURM_MEM_PER_NODE" == 8192 ]] || return 2
     fi
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
-    [[ -x "$GTD" ]] || return 2
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
+    export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
+    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
 
     PHASE=test
-    printf 'phase=m6_phenix_verify profile=%s track=%s\n' "$PROFILE" "$track"
+    printf 'phase=m6_phenix_verify profile=%s track=%s\n' "$PROFILE" "$M6_TRACK"
     "$GTD" --log-format json --no-progress phenix verify \
-        --manifest "$phenix_manifest" \
+        --manifest "$M6_PHENIX_MANIFEST" \
         --verification-log "$qualification/m6-phenix-verification.log" \
         --no-command-timeout
-    printf 'phase=m6_scientific_run profile=%s track=%s\n' "$PROFILE" "$track"
-    "$GTD" --log-format json --no-progress benchmark run-m6-scientific \
-        --runner-root "$import_root" \
-        --protocol "$RUN/source/benchmarks/m6/protocol.yaml" \
-        --database-manifest "$database_manifest" \
-        --phenix-manifest "$phenix_manifest" \
-        --track "$track" \
-        --outdir "$output" \
-        --threads 8 \
-        --maximum-concurrent-phenix-attempts 4
-
+    cd "$RUN/execution"
+    printf 'phase=m6_nextflow_first profile=%s track=%s\n' "$PROFILE" "$M6_TRACK"
+    run_m6_nextflow first
+    [[ -d "$M6_RESULTS_ROOT/pipeline_info" && -d "$output" ]] || return 4
+    cp -a "$M6_RESULTS_ROOT/pipeline_info" \
+        "$qualification/m6-first-pipeline-info"
+    "$GTD" --log-format json --no-progress benchmark collect-m6-resources \
+        --execution-policy "$RUN/source/benchmarks/m6/execution-nextflow-v1.yaml" \
+        --trace "$qualification/m6-first-pipeline-info/trace.tsv" \
+        --output "$qualification/m6-child-resource-evidence.json"
     before="$qualification/m6-before-resume.sha256"
     after="$qualification/m6-after-resume.sha256"
     (
@@ -1867,17 +2118,72 @@ run_m6_scientific() {
             m6_sequence_results.jsonl \
             m6_sequence_summary.jsonl
     ) > "$before"
-    printf 'phase=m6_scientific_resume profile=%s track=%s\n' "$PROFILE" "$track"
-    "$GTD" --log-format json --no-progress benchmark run-m6-scientific \
-        --runner-root "$import_root" \
-        --protocol "$RUN/source/benchmarks/m6/protocol.yaml" \
-        --database-manifest "$database_manifest" \
-        --phenix-manifest "$phenix_manifest" \
-        --track "$track" \
-        --outdir "$output" \
-        --threads 8 \
-        --maximum-concurrent-phenix-attempts 4 \
-        --resume
+    printf 'phase=m6_nextflow_resume profile=%s track=%s\n' "$PROFILE" "$M6_TRACK"
+    run_m6_nextflow resume -resume
+    cp -a "$M6_RESULTS_ROOT/pipeline_info" \
+        "$qualification/m6-resume-pipeline-info"
+    "$RUN/source/.pixi/envs/hpc/bin/python" - \
+        "$RUN/logs/nextflow-m6-${M6_TRACK}-first.log" \
+        "$RUN/logs/nextflow-m6-${M6_TRACK}-resume.log" \
+        "$qualification/m6-shared-store-evidence.json" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+eligible = {
+    "M6_IMPORT_CATALOGUE",
+    "M6_SEARCH_PDB",
+    "M6_SEARCH_FOLDSEEK",
+}
+pattern = re.compile(r"Stored process > .*:(M6_[A-Z_]+)(?: \(([0-9]+)\))?")
+
+
+def stored(path: pathlib.Path) -> dict[str, int]:
+    records: dict[str, int] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = pattern.search(line)
+        if match is None:
+            continue
+        process = match.group(1)
+        records[process] = records.get(process, 0) + int(match.group(2) or 1)
+    unexpected = set(records) - eligible
+    if unexpected:
+        raise SystemExit(f"track-specific M6 store reuse detected: {sorted(unexpected)}")
+    return dict(sorted(records.items()))
+
+
+first = stored(pathlib.Path(sys.argv[1]))
+resume = stored(pathlib.Path(sys.argv[2]))
+if set(resume) != eligible:
+    raise SystemExit("M6 resume did not reuse every truthless shared-store stage")
+pathlib.Path(sys.argv[3]).write_text(
+    json.dumps(
+        {
+            "schema_version": "1.0",
+            "eligible_processes": sorted(eligible),
+            "first_run_reuse": first,
+            "resume_reuse": resume,
+            "truthless_only": True,
+            "track_specific_reuse": False,
+        },
+        indent=2,
+        sort_keys=True,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
+    cache_counts="$(awk -F '\t' '
+        NR == 1 { for (i = 1; i <= NF; i++) if ($i == "status") column = i; next }
+        column > 0 { total++; if ($column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$qualification/m6-resume-pipeline-info/trace.tsv")"
+    read -r total cached <<< "$cache_counts"
+    expected="$(awk 'NR > 1 && NF { count++ } END { print count + 0 }' \
+        "$qualification/m6-first-pipeline-info/trace.tsv")"
+    [[ "$expected" -gt 0 && "$total" -gt 0 && "$total" -le "$expected" && \
+       "$cached" -eq "$total" ]] || return 4
     (
         cd "$output"
         sha256sum \
@@ -1895,25 +2201,48 @@ run_m6_scientific() {
     ) > "$after"
     cmp -s "$before" "$after" || return 3
     replay_digest="$(sha256sum "$before" | awk '{print $1}')"
+    read -r child_jobs peak_jobs peak_cpu peak_memory peak_phenix < <(
+        "$RUN/source/.pixi/envs/hpc/bin/python" - \
+            "$qualification/m6-child-resource-evidence.json" <<'PY'
+import json, pathlib, sys
+record = json.loads(pathlib.Path(sys.argv[1]).read_text())
+print(
+    record["child_job_count"],
+    record["peak_running_jobs"],
+    record["peak_aggregate_cpus"],
+    record["peak_aggregate_memory_gb"],
+    record["peak_concurrent_phenix_jobs"],
+)
+PY
+    )
     cat > "$qualification/m6-resume-check.json" <<EOF
 {
   "schema_version": "1.0",
-  "track": "$track",
+  "track": "$M6_TRACK",
   "deterministic_replay_equivalent": true,
   "resume_equivalent": true,
+  "first_task_count": $expected,
+  "cached_resume_task_count": $cached,
+  "stored_discovery_reuse_count": $((expected - total)),
   "output_inventory_sha256": "$replay_digest"
 }
 EOF
     cat > "$qualification/m6-runtime-provenance.json" <<EOF
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "profile": "$PROFILE",
-  "track": "$track",
-  "maximum_cpu_count": 8,
+  "track": "$M6_TRACK",
+  "execution_model": "nextflow_dsl2_slurm_fanout",
+  "maximum_cpu_count": 32,
   "maximum_memory_gb": 16.0,
-  "maximum_concurrent_phenix_attempts": 4,
+  "maximum_concurrent_phenix_attempts": $peak_phenix,
   "scheduler_ceiling_hours": 24.0,
-  "tool_runtime_timeouts": false
+  "tool_runtime_timeouts": false,
+  "child_job_count": $child_jobs,
+  "peak_running_jobs": $peak_jobs,
+  "peak_aggregate_cpu_count": $peak_cpu,
+  "peak_aggregate_memory_gb": $peak_memory,
+  "execution_policy": "m6_nextflow_slurm_v1"
 }
 EOF
     cp "$output/m6_scientific_summary.json" \
@@ -1951,14 +2280,16 @@ EOF
         "$qualification/m6-sequence-summary.jsonl" \
         "$qualification/m6-resume-check.json" \
         "$qualification/m6-runtime-provenance.json" \
+        "$qualification/m6-child-resource-evidence.json" \
+        "$qualification/m6-shared-store-evidence.json" \
         "$qualification/m6-phenix-verification.log" \
         "$qualification/m6-phaser-log-tails.txt" \
-        "$phenix_manifest" \
-        "$database_manifest" \
-        "$import_root/runner_manifest.json" \
+        "$M6_PHENIX_MANIFEST" \
+        "$M6_DATABASE_MANIFEST" \
+        "$M6_IMPORT_ROOT/runner_manifest.json" \
         > "$qualification/m6-scientific-checksums.sha256"
     rm -f -- "$before" "$after"
-    printf 'm6_scientific_status=complete track=%s\n' "$track"
+    printf 'm6_scientific_status=complete track=%s\n' "$M6_TRACK"
 }
 
 run_m4_copy_nextflow() {
@@ -2496,6 +2827,7 @@ case "$PROFILE" in
     control-slice) run_control_slice ;;
     control-matrix) run_control_matrix ;;
     m6-inputs) run_m6_inputs ;;
+    m6-nextflow-smoke) run_m6_nextflow_smoke ;;
     m6-operational|m6-leakage) run_m6_scientific ;;
     m4-copy) run_m4_copy ;;
     t12) run_t12 ;;

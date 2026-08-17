@@ -258,8 +258,26 @@ nf-gtd-hpc-test --no-progress collect --run-id RUN_ID
 This input-only job uses one CPU, 4 GB, and the default 45-minute scheduler
 ceiling. It parses the complete 63-case FASTA/MTZ/JSON bundle but does not run
 Phenix, search databases, evaluate truth, or count as either final M6
-scientific run. The later scientific profiles retain the approved 8-CPU,
-16-GB, at-most-four-Phenix-attempt, 24-hour boundaries.
+scientific run. A later scientific profile uses a 2-CPU/8-GB Nextflow driver;
+child jobs obey the separately approved per-job maximum of 32 CPUs, 16 GB, and
+24 hours with scheduler-managed concurrency.
+
+After an architecture change and before scientific submission, run the fixed
+two-case orchestration smoke once:
+
+```bash
+nf-gtd-hpc-test --no-progress stage m6-nextflow-smoke --revision HEAD
+nf-gtd-hpc-test --no-progress submit m6-nextflow-smoke --run-id RUN_ID
+nf-gtd-hpc-test --no-progress status --run-id RUN_ID
+nf-gtd-hpc-test --no-progress logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test --no-progress collect --run-id RUN_ID
+```
+
+This uses `-stub-run` but the Nextflow driver and every process boundary are
+real Slurm jobs. Acceptance requires distinct native job IDs for the 32-CPU
+MMseqs2 and Foldseek tasks, per-job resource evidence, a fully cached resume,
+and cross-track reuse of exactly the truthless import/search store. Its summary
+sets `acceptance_evidence=false`; it cannot count toward either M6 track.
 
 Stage and submit the two scientific tracks separately. Each transfer repeats
 the same confirmed runner archive; the track name selects only the frozen case
@@ -281,13 +299,16 @@ nf-gtd-hpc-test --no-progress m6-scientific-stage \
 nf-gtd-hpc-test --no-progress submit m6-leakage --run-id RUN_ID
 ```
 
-Only one managed Viper job is submitted at a time. After each terminal job,
+Only one managed M6 driver is submitted at a time; that driver submits all
+independent worker jobs through the reviewed Nextflow Slurm executor. After
+each terminal driver,
 retrieve `logs --tail 200` and `collect` through this wrapper. The job performs
-a checksum-only `--resume` pass and requires byte-identical scientific outputs;
+a fully cached `-resume` pass and requires byte-identical scientific outputs;
 all raw candidates, parent/child attempts, Phenix results, and sequence records
 remain retained remotely. Collection transfers compact case evidence, a
 deterministically compressed retain-all ranking, verification reports,
-representative bounded Phaser log tails, and complete immutable checksums.
+representative bounded Phaser log tails, Nextflow trace/report/timeline/DAG,
+child Slurm resource evidence, and complete immutable checksums.
 
 ## Database track
 

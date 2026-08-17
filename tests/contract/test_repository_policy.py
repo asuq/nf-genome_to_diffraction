@@ -245,3 +245,61 @@ def test_m6_scientific_stage_uses_viper_runtime_manifests() -> None:
     assert "P0_CONFIG" not in m6_body
     assert 'database_manifest="$(<"$run/state/database-manifest")"' in m6_body
     assert 'phenix_manifest="$(<"$run/state/phenix-manifest")"' in m6_body
+
+
+def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
+    """Prevent a return to one multi-sample Python/Slurm allocation."""
+
+    agents = (REPOSITORY / "AGENTS.md").read_text(encoding="utf-8")
+    architecture = (REPOSITORY / "docs/execution-architecture.md").read_text(
+        encoding="utf-8"
+    )
+    job = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(encoding="utf-8")
+    m6_body = job.split("run_m6_scientific() {", maxsplit=1)[1].split(
+        "run_m4_copy_nextflow() {", maxsplit=1
+    )[0]
+    workflow = (REPOSITORY / "workflows/m6_validation_workflow.nf").read_text(
+        encoding="utf-8"
+    )
+    modules = (REPOSITORY / "modules/local/m6_nextflow_tasks.nf").read_text(
+        encoding="utf-8"
+    )
+    viper = (REPOSITORY / "conf/viper-cpu.config").read_text(encoding="utf-8")
+    legacy = (
+        REPOSITORY / "src/genome_to_diffraction/benchmarks/m6_scientific.py"
+    ).read_text(encoding="utf-8")
+    task_boundaries = (
+        REPOSITORY / "src/genome_to_diffraction/benchmarks/m6_nextflow.py"
+    ).read_text(encoding="utf-8")
+    policy = yaml.safe_load(
+        (REPOSITORY / "benchmarks/m6/execution-nextflow-v1.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert "Independent catalogues, samples, candidates, hypotheses" in agents
+    assert "efficient batch" in agents
+    assert "shared-store task's inputs" in agents
+    assert "Nextflow owns scientific fan-out" in architecture
+    assert "run_m6_nextflow first" in m6_body
+    assert "benchmark run-m6-scientific" not in m6_body
+    assert "m6_validation.nf" in job
+    assert '--software_lock "$RUN/source/pixi.lock"' in job
+    assert '"artifacts/m6-nextflow-results"' in job
+    assert "groupKey(" in workflow
+    assert "M6_FIRST_COPY(hypothesis_tasks)" in workflow
+    assert "M6_ADDITIONAL_COPY(copy_tasks)" in workflow
+    assert "M6_BUILD_SEARCH_BATCHES" in workflow
+    assert "M6_SEARCH_PDB" in modules and "M6_SEARCH_FOLDSEEK" in modules
+    assert "ThreadPoolExecutor" not in legacy
+    assert "ThreadPoolExecutor" not in task_boundaries
+    assert "ProcessPoolExecutor" not in task_boundaries
+    assert "multiprocessing" not in task_boundaries
+    assert policy["per_job"]["maximum_cpus"] == 32
+    assert policy["search_batching"]["mmseqs2"]["cpus"] == 32
+    assert policy["search_batching"]["foldseek"]["cpus"] == 32
+    assert policy["search_batching"]["global_exact_sequence_deduplication"] is True
+    assert policy["concurrency"]["phenix_policy"] == "scheduler_managed"
+    assert "withLabel: m6_pdb_search" in viper
+    assert "withLabel: m6_foldseek_search" in viper
+    assert viper.count("cpus = 32") >= 2

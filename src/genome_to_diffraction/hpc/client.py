@@ -115,6 +115,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/control-slice.log",
         "logs/control-matrix.log",
         "logs/m6-inputs.log",
+        "logs/m6-nextflow-smoke.log",
         "logs/m6-operational.log",
         "logs/m6-leakage.log",
         "logs/m4-copy.log",
@@ -123,7 +124,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -1304,6 +1305,8 @@ class HpcController:
             raise ValidationError(
                 "database administration requires the separate database-stage operation"
             )
+        if profile == "m6-nextflow-smoke" and self.config.site_id != "viper-cpu":
+            raise ValidationError("m6-nextflow-smoke is available only for viper-cpu")
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
         self.git.ensure_reachable_from_origin_main(commit)
@@ -1841,9 +1844,11 @@ class HpcController:
             "protocol_id": "m6_independent_prokaryote_homomer_v1",
             "case_count": case_count,
             "object_count": object_count,
-            "maximum_cpu_count": 8,
+            "driver_cpu_count": 2,
+            "driver_memory_gb": 8.0,
+            "maximum_cpu_count": 32,
             "maximum_memory_gb": 16.0,
-            "maximum_concurrent_phenix_attempts": 4,
+            "maximum_concurrent_phenix_attempts": "scheduler_managed",
             "scheduler_ceiling_hours": 24.0,
             "archive_sha256": archive_sha256,
             "manifest_sha256": manifest_sha256,

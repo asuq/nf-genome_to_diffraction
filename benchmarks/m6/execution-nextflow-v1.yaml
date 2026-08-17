@@ -1,0 +1,36 @@
+schema_version: "1.0"
+policy_id: m6_nextflow_slurm_v1
+orchestrator: nextflow_dsl2
+executor: slurm
+driver:
+  maximum_cpus: 2
+  maximum_memory_gb: 8.0
+  maximum_scheduler_hours: 24.0
+per_job:
+  maximum_cpus: 32
+  maximum_memory_gb: 16.0
+  maximum_scheduler_hours: 24.0
+concurrency:
+  aggregate_policy: scheduler_managed
+  phenix_policy: scheduler_managed
+  queue_size: 250
+  submit_rate_limit: "5/1s"
+search_batching:
+  global_exact_sequence_deduplication: true
+  mmseqs2:
+    cpus: 32
+    maximum_unique_sequences: 100000
+    maximum_residues: 30000000
+  foldseek:
+    cpus: 32
+    maximum_unique_sequences: 10000
+    maximum_residues: 3000000
+tool_runtime_timeouts: false
+shared_cache:
+  eligible_stages:
+    - catalogue_import
+    - pdb_sequence_search
+    - prostt5_foldseek_search
+  truthless_only: true
+  require_content_addressed_key: true
+  require_complete_checksum_manifest: true

@@ -12,7 +12,10 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 from genome_to_diffraction.benchmarks import m6_model_policy as m6_model_policy_module
-from genome_to_diffraction.benchmarks import m6_scientific as m6_scientific_module
+from genome_to_diffraction.benchmarks.m6_collection import (
+    M6CollectionRequest,
+    collect_m6_evidence,
+)
 from genome_to_diffraction.benchmarks.m6_collection import (
     _assessment as _truth_assessment,
 )
@@ -23,9 +26,28 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
     M6SoftwareProvenance,
     evaluate_m6,
 )
+from genome_to_diffraction.benchmarks.m6_execution import (
+    M6ResourceEvidenceRequest,
+    collect_m6_resource_evidence,
+    load_m6_execution_policy,
+)
 from genome_to_diffraction.benchmarks.m6_model_policy import (
     M6ModelPolicyRequest,
     apply_m6_model_policy,
+)
+from genome_to_diffraction.benchmarks.m6_nextflow import (
+    M6CaseEvidence,
+    M6CatalogueTask,
+    M6HypothesisGroupTask,
+    M6TrackPlanRequest,
+    build_m6_search_batches,
+    plan_m6_nextflow_track,
+    run_m6_assemble_case_task,
+    run_m6_catalogue_task,
+    run_m6_empty_finalists_task,
+    run_m6_empty_seeds_task,
+    run_m6_preflight_task,
+    run_m6_prepare_case_task,
 )
 from genome_to_diffraction.benchmarks.m6_prepare import (
     M6MtzVariation,
@@ -42,6 +64,7 @@ from genome_to_diffraction.benchmarks.m6_runner import (
     build_m6_runner_bundle,
 )
 from genome_to_diffraction.benchmarks.m6_scientific import (
+    M6ScientificTrack,
     m6_track_case_ids,
     verify_m6_scientific_output,
 )
@@ -66,6 +89,7 @@ from genome_to_diffraction.schemas.results import (
 
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "benchmarks" / "m6" / "protocol.yaml"
+EXECUTION_POLICY = ROOT / "benchmarks" / "m6" / "execution-nextflow-v1.yaml"
 HASH = "a" * 64
 
 
@@ -276,10 +300,15 @@ def test_m6_truth_join_does_not_auto_accept_an_assumption_violation() -> None:
     assert assessment.typed_outcome == "single_component_seed_on_assumption_violation"
 
 
-def _synthetic_scientific_output(tmp_path: Path) -> Path:
-    output = tmp_path / "scientific-output"
+def _synthetic_scientific_output(
+    tmp_path: Path,
+    *,
+    adapter_version: str = "m6-scientific-run-v3",
+    track: M6ScientificTrack = "operational",
+) -> Path:
+    output = tmp_path / f"{adapter_version}-{track}"
     output.mkdir()
-    case_ids = m6_track_case_ids("operational")
+    case_ids = m6_track_case_ids(track)
     cases = tuple(
         {
             **_raw_m6_case(case_id),
@@ -344,7 +373,7 @@ def _synthetic_scientific_output(tmp_path: Path) -> Path:
     output_sha256 = {key: sha256_file(output / value) for key, value in files.items()}
     input_sha256 = {
         "runner_manifest": "1" * 64,
-        "protocol": "2" * 64,
+        "protocol": sha256_file(PROTOCOL),
         "database_manifest": "3" * 64,
         "phenix_manifest": "4" * 64,
     }
@@ -352,22 +381,28 @@ def _synthetic_scientific_output(tmp_path: Path) -> Path:
         output / "m6_scientific_summary.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-scientific-run-v3",
-            "track": "operational",
+            "adapter_version": adapter_version,
+            "track": track,
             "case_ids": list(case_ids),
             "case_evidence_digest": canonical_digest(cases),
             "scientific_output_digest": canonical_digest(output_sha256),
             "input_sha256": input_sha256,
             "cache_key": canonical_digest(
                 {
-                    "adapter_version": "m6-scientific-run-v3",
-                    "track": "operational",
+                    "adapter_version": adapter_version,
+                    "track": track,
                     "input_sha256": input_sha256,
                 }
             ),
             "outputs": output_sha256,
             "threads": 8,
             "maximum_concurrent_phenix_attempts": 4,
+            "execution_model": (
+                "nextflow_dsl2_slurm_fanout"
+                if adapter_version == "m6-nextflow-run-v1"
+                else None
+            ),
+            "phenix_release": "Phenix 2.1-6048",
             "first_copy_attempt_count": 0,
             "additional_copy_attempt_count": 0,
             "refinement_attempt_count": 0,
@@ -390,10 +425,198 @@ def test_m6_scientific_verifier_replays_complete_bounded_outputs(
     assert report["cache_invalidation_verified"] is True
     assert report["candidate_retention_verified"] is True
 
+
+def test_m6_scientific_verifier_accepts_nextflow_aggregate(tmp_path: Path) -> None:
+    output = _synthetic_scientific_output(
+        tmp_path, adapter_version="m6-nextflow-run-v1"
+    )
+
+    report_path = verify_m6_scientific_output(output, "operational")
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["adapter_version"] == "m6-nextflow-run-v1"
+    assert report["bounded_interface_verified"] is True
+
     with (output / "m6_case_results.jsonl").open("a", encoding="utf-8") as handle:
         handle.write("{}\n")
     with pytest.raises(PublicControlError, match="checksum changed"):
         verify_m6_scientific_output(output, "operational")
+
+
+def _synthetic_collection(
+    tmp_path: Path,
+    *,
+    track: M6ScientificTrack,
+    adapter_version: str,
+    commit: str,
+) -> Path:
+    scientific = _synthetic_scientific_output(
+        tmp_path,
+        adapter_version=adapter_version,
+        track=track,
+    )
+    verification = verify_m6_scientific_output(scientific, track)
+    root = tmp_path / f"collection-{track}"
+    qualification = root / "artifacts/qualification"
+    state = root / "state"
+    qualification.mkdir(parents=True)
+    state.mkdir()
+    for source, destination in (
+        (scientific / "m6_scientific_summary.json", "m6-scientific-summary.json"),
+        (verification, "m6-execution-verification.json"),
+        (scientific / "m6_case_results.jsonl", "m6-case-results.jsonl"),
+        (
+            scientific / "m6_candidate_rankings.jsonl.gz",
+            "m6-candidate-rankings.jsonl.gz",
+        ),
+    ):
+        (qualification / destination).write_bytes(source.read_bytes())
+    profile = f"m6-{track}"
+    run_id = f"gtd-{profile}-20260817T000000Z-{commit[:12]}-01234567"
+    _write_json(
+        qualification / "m6-resume-check.json",
+        {
+            "deterministic_replay_equivalent": True,
+            "resume_equivalent": True,
+        },
+    )
+    nextflow = adapter_version == "m6-nextflow-run-v1"
+    runtime = {
+        "schema_version": "1.1" if nextflow else "1.0",
+        "profile": profile,
+        "track": track,
+        "maximum_cpu_count": 32 if nextflow else 8,
+        "maximum_memory_gb": 16.0,
+        "maximum_concurrent_phenix_attempts": 3 if nextflow else 4,
+        "scheduler_ceiling_hours": 24.0,
+        "tool_runtime_timeouts": False,
+    }
+    if nextflow:
+        runtime.update(
+            execution_model="nextflow_dsl2_slurm_fanout",
+            execution_policy="m6_nextflow_slurm_v1",
+            child_job_count=1,
+            peak_running_jobs=1,
+            peak_aggregate_cpu_count=32,
+            peak_aggregate_memory_gb=16.0,
+            maximum_concurrent_phenix_attempts=0,
+        )
+        _write_json(
+            qualification / "m6-child-resource-evidence.json",
+            {
+                "schema_version": "1.0",
+                "execution_policy_id": "m6_nextflow_slurm_v1",
+                "execution_policy_sha256": sha256_file(EXECUTION_POLICY),
+                "child_job_count": 1,
+                "maximum_cpu_per_job": 32,
+                "maximum_memory_gb_per_job": 16.0,
+                "maximum_scheduler_hours_per_job": 24.0,
+                "maximum_peak_rss_gb": 8.0,
+                "maximum_observed_cpu_percent": 3100.0,
+                "peak_running_jobs": 1,
+                "peak_aggregate_cpus": 32,
+                "peak_aggregate_memory_gb": 16.0,
+                "peak_concurrent_phenix_jobs": 0,
+                "per_job_bounds_passed": True,
+                "jobs": [
+                    {
+                        "process": "M6_SEARCH_FOLDSEEK",
+                        "tag": "batch",
+                        "status": "COMPLETED",
+                        "native_job_id": "101",
+                        "requested_cpus": 32,
+                        "requested_memory_gb": 16.0,
+                        "requested_time_hours": 24.0,
+                        "start": "2026-08-17T00:00:00Z",
+                        "complete": "2026-08-17T01:00:00Z",
+                        "peak_rss_gb": 8.0,
+                        "observed_cpu_percent": 3100.0,
+                        "phenix_job": False,
+                    }
+                ],
+            },
+        )
+        _write_json(
+            qualification / "m6-shared-store-evidence.json",
+            {
+                "schema_version": "1.0",
+                "eligible_processes": [
+                    "M6_IMPORT_CATALOGUE",
+                    "M6_SEARCH_FOLDSEEK",
+                    "M6_SEARCH_PDB",
+                ],
+                "first_run_reuse": {},
+                "resume_reuse": {
+                    "M6_IMPORT_CATALOGUE": 1,
+                    "M6_SEARCH_FOLDSEEK": 1,
+                    "M6_SEARCH_PDB": 1,
+                },
+                "truthless_only": True,
+                "track_specific_reuse": False,
+            },
+        )
+    _write_json(qualification / "m6-runtime-provenance.json", runtime)
+    _write_json(
+        root / "manifest.json",
+        {
+            "run_id": run_id,
+            "site_id": "viper-cpu",
+            "profile": profile,
+            "commit": commit,
+            "nf_helper_commit": "c" * 40,
+            "pixi_version": "pixi 0.76.2",
+            "pixi_lock_sha256": "d" * 64,
+            "database_manifest_sha256": "3" * 64,
+        },
+    )
+    _write_json(
+        state / "job-result.json",
+        {
+            "scheduler_state": "COMPLETED",
+            "exit_code": 0,
+            "failure_class": "success",
+        },
+    )
+    (state / "failure-class").write_text("success\n", encoding="ascii")
+    (state / "exit-code").write_text("0\n", encoding="ascii")
+    (state / "m6-runner-archive-sha256").write_text("5" * 64, encoding="ascii")
+    (state / "m6-runner-manifest-sha256").write_text("1" * 64, encoding="ascii")
+    return root
+
+
+def test_m6_collection_accepts_legacy_operational_and_nextflow_leakage(
+    tmp_path: Path,
+) -> None:
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-scientific-run-v3",
+        commit="a" * 40,
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v1",
+        commit="b" * 40,
+    )
+
+    result = collect_m6_evidence(
+        M6CollectionRequest(
+            protocol=PROTOCOL,
+            operational_collection=operational,
+            leakage_collection=leakage,
+            output=tmp_path / "collected-evidence.json",
+        )
+    )
+
+    assert result.evidence.execution_policy_id == "m6_nextflow_slurm_v1"
+    assert result.evidence.maximum_cpu_count == 32
+    assert result.evidence.child_job_count == 2
+    assert result.evidence.execution_policy_sha256 == sha256_file(EXECUTION_POLICY)
+    assert result.evidence.provenance.track_source_commits == {
+        "operational": "a" * 40,
+        "leakage": "b" * 40,
+    }
 
 
 def test_m6_protocol_rejects_a_relabelled_case() -> None:
@@ -468,6 +691,29 @@ def test_m6_evaluator_holds_on_an_unexpected_execution_failure(
 
     assert result.accepted is False
     assert "unexpected_execution_failures" in result.failed_gates
+
+
+def test_m6_evaluator_binds_the_nextflow_execution_policy(tmp_path: Path) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    payload = _evidence(protocol).model_dump(mode="json")
+    payload.update(
+        maximum_cpu_count=32,
+        execution_policy_id="m6_nextflow_slurm_v1",
+        execution_policy_sha256=sha256_file(EXECUTION_POLICY),
+        child_job_count=1,
+    )
+    evidence_path = tmp_path / "evidence.json"
+    _write_json(evidence_path, payload)
+    accepted = evaluate_m6(
+        M6EvaluationRequest(protocol=PROTOCOL, evidence=evidence_path)
+    )
+    assert accepted.accepted is True
+
+    payload["execution_policy_sha256"] = "0" * 64
+    _write_json(evidence_path, payload)
+    held = evaluate_m6(M6EvaluationRequest(protocol=PROTOCOL, evidence=evidence_path))
+    assert held.accepted is False
+    assert "execution_policy_verified" in held.failed_gates
 
 
 def _prepared_manifest(
@@ -610,6 +856,186 @@ def test_m6_runner_bundle_is_truth_isolated_and_deterministic(
     assert "expected_asu_copy_count" not in manifest_text
 
 
+def test_m6_nextflow_plan_emits_case_and_unique_catalogue_tasks(
+    tmp_path: Path,
+) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    preparation = _prepared_manifest(tmp_path, protocol)
+    bundle = build_m6_runner_bundle(
+        M6RunnerBundleRequest(
+            protocol=PROTOCOL,
+            preparation_manifest=preparation,
+            output_directory=tmp_path / "runner",
+            archive=tmp_path / "runner.tar",
+        )
+    )
+
+    plan = plan_m6_nextflow_track(
+        M6TrackPlanRequest(
+            runner_root=bundle.runner_manifest.parent,
+            database_manifest=ROOT / "tests/fixtures/stubs/database_manifest.json",
+            software_lock=ROOT / "pixi.lock",
+            track="operational",
+            output_directory=tmp_path / "plan",
+        )
+    )
+
+    assert plan.case_task_count == 36
+    assert plan.catalogue_task_count == 1
+    assert len(plan.case_tasks_tsv.read_text(encoding="utf-8").splitlines()) == 37
+    assert (plan.plan_directory / "case_tasks/M6C001/reflections.mtz").is_file()
+
+
+def _nextflow_catalogue_task(
+    tmp_path: Path,
+    name: str,
+    sequences: tuple[str, ...],
+) -> Path:
+    task_root = tmp_path / name
+    task_root.mkdir()
+    catalogue = task_root / "catalogue.faa"
+    catalogue.write_text(
+        "".join(
+            f">loc_{index:064x}\n{sequence}\n"
+            for index, sequence in enumerate(sequences, start=1)
+        ),
+        encoding="ascii",
+    )
+    config = task_root / "analysis_config.json"
+    config.write_text(
+        json.dumps(
+            yaml.safe_load((ROOT / "examples/config.yaml").read_text(encoding="utf-8"))
+        ),
+        encoding="utf-8",
+    )
+    catalogue_key = canonical_digest(
+        {
+            "catalogue": sha256_file(catalogue),
+            "config": sha256_file(config),
+        }
+    )
+    task = M6CatalogueTask(
+        schema_version="1.0",
+        catalogue_key=catalogue_key,
+        catalogue_sha256=sha256_file(catalogue),
+        analysis_config_sha256=sha256_file(config),
+        software_lock_sha256=sha256_file(ROOT / "pixi.lock"),
+        import_cache_key=canonical_digest({"catalogue_key": catalogue_key}),
+    )
+    _write_json(task_root / "task.json", task.model_dump(mode="json"))
+    return task_root
+
+
+def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> None:
+    first_task = _nextflow_catalogue_task(
+        tmp_path,
+        "first-task",
+        ("A" * 50, "C" * 50),
+    )
+    second_task = _nextflow_catalogue_task(
+        tmp_path,
+        "second-task",
+        ("A" * 50, "D" * 50),
+    )
+    first = run_m6_catalogue_task(
+        first_task, ROOT / "pixi.lock", tmp_path / "first-bundle"
+    )
+    second = run_m6_catalogue_task(
+        second_task, ROOT / "pixi.lock", tmp_path / "second-bundle"
+    )
+
+    output = build_m6_search_batches(
+        (first, second),
+        ROOT / "tests/fixtures/stubs/database_manifest.json",
+        EXECUTION_POLICY,
+        ROOT / "pixi.lock",
+        tmp_path / "batches",
+    )
+    manifest = json.loads((output / "batch_plan.json").read_text(encoding="utf-8"))
+
+    assert manifest["catalogue_count"] == 2
+    assert manifest["catalogue_record_count"] == 4
+    assert manifest["unique_sequence_count"] == 3
+    assert manifest["unique_residue_count"] == 150
+    assert manifest["pdb_batch_count"] == 1
+    assert manifest["foldseek_batch_count"] == 1
+    assert manifest["pdb_threads"] == 32
+    assert manifest["foldseek_threads"] == 32
+    first_batch_task = next((output / "prostt5_foldseek_batches").glob("*/task.json"))
+    first_batch = json.loads(first_batch_task.read_text(encoding="utf-8"))
+    changed_database = tmp_path / "changed-database.json"
+    database_payload = json.loads(
+        (ROOT / "tests/fixtures/stubs/database_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    database_payload["manifest_id"] = "dbm_changed"
+    _write_json(changed_database, database_payload)
+    changed = build_m6_search_batches(
+        (first, second),
+        changed_database,
+        EXECUTION_POLICY,
+        ROOT / "pixi.lock",
+        tmp_path / "changed-batches",
+    )
+    changed_batch = json.loads(
+        next((changed / "prostt5_foldseek_batches").glob("*/task.json")).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert changed_batch["batch_id"] == first_batch["batch_id"]
+    assert changed_batch["search_cache_key"] != first_batch["search_cache_key"]
+
+    changed_lock = tmp_path / "pixi.lock"
+    changed_lock.write_bytes((ROOT / "pixi.lock").read_bytes() + b"\n")
+    changed_software = build_m6_search_batches(
+        (first, second),
+        ROOT / "tests/fixtures/stubs/database_manifest.json",
+        EXECUTION_POLICY,
+        changed_lock,
+        tmp_path / "changed-software-batches",
+    )
+    changed_software_batch = json.loads(
+        next(
+            (changed_software / "prostt5_foldseek_batches").glob("*/task.json")
+        ).read_text(encoding="utf-8")
+    )
+    assert changed_software_batch["batch_id"] == first_batch["batch_id"]
+    assert changed_software_batch["search_cache_key"] != first_batch["search_cache_key"]
+
+
+def test_m6_execution_policy_and_trace_use_per_job_bounds(tmp_path: Path) -> None:
+    policy = load_m6_execution_policy(EXECUTION_POLICY)
+    trace = tmp_path / "trace.tsv"
+    trace.write_text(
+        "process\ttag\tstatus\tnative_id\tcpus\tmemory\ttime\tstart\tcomplete\tpeak_rss\t%cpu\n"
+        "M6_SEARCH_FOLDSEEK\tb1\tCOMPLETED\t101\t32\t16 GB\t24h\t"
+        "2026-08-17T00:00:00+00:00\t2026-08-17T01:00:00+00:00\t8 GB\t3100%\n"
+        "M6_FIRST_COPY\th1\tCOMPLETED\t102\t2\t4 GB\t24h\t"
+        "2026-08-17T00:30:00+00:00\t2026-08-17T00:45:00+00:00\t2 GB\t190%\n",
+        encoding="utf-8",
+    )
+
+    evidence = collect_m6_resource_evidence(
+        M6ResourceEvidenceRequest(
+            policy=EXECUTION_POLICY,
+            trace=trace,
+            output=tmp_path / "resource-evidence.json",
+        )
+    )
+
+    assert policy.per_job.maximum_cpus == 32
+    assert policy.search_batching.mmseqs2.cpus == 32
+    assert policy.search_batching.foldseek.cpus == 32
+    assert evidence.per_job_bounds_passed is True
+    assert evidence.child_job_count == 2
+    assert evidence.peak_running_jobs == 2
+    assert evidence.peak_aggregate_cpus == 34
+    assert evidence.peak_concurrent_phenix_jobs == 1
+    assert evidence.maximum_peak_rss_gb == 8.0
+    assert evidence.maximum_observed_cpu_percent == 3100.0
+
+
 def test_m6_runner_verifier_checks_opaque_media_and_policy(tmp_path: Path) -> None:
     protocol = load_m6_protocol(PROTOCOL)
     preparation = _prepared_manifest(tmp_path, protocol)
@@ -649,25 +1075,97 @@ def test_m6_scientific_runner_materialises_typed_opaque_objects(
             archive=tmp_path / "runner.tar",
         )
     )
-    runner_root = bundle.runner_manifest.parent
-    inventory = m6_scientific_module._load_inventory(runner_root)
-
-    cases = m6_scientific_module._case_objects(
-        runner_root,
-        inventory,
-        tmp_path / "materialised-inputs",
+    plan = plan_m6_nextflow_track(
+        M6TrackPlanRequest(
+            runner_root=bundle.runner_manifest.parent,
+            database_manifest=ROOT / "tests/fixtures/stubs/database_manifest.json",
+            software_lock=ROOT / "pixi.lock",
+            track="operational",
+            output_directory=tmp_path / "materialised-inputs",
+        )
     )
 
-    first = cases["M6C001"]
-    assert first.analysis_config.suffix == ".json"
-    assert first.catalogue.suffix == ".faa"
-    assert first.model_policy.suffix == ".json"
-    assert first.reflections.suffix == ".mtz"
-    analysis_spec = next(
-        item for item in inventory.cases[0].objects if item.role == "analysis_config"
+    case_root = plan.plan_directory / "case_tasks/M6C001"
+    catalogue_root = next(
+        path for path in (plan.plan_directory / "catalogue_tasks").iterdir()
     )
-    assert sha256_file(first.analysis_config) == analysis_spec.sha256
-    assert len(tuple((tmp_path / "materialised-inputs").iterdir())) == 4
+    assert (case_root / "analysis_config.json").is_file()
+    assert (case_root / "model_policy.json").is_file()
+    assert (case_root / "reflections.mtz").is_file()
+    assert (catalogue_root / "catalogue.faa").is_file()
+
+
+def test_m6_nextflow_early_case_retains_catalogue_and_assembles(
+    tmp_path: Path,
+) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    preparation = _prepared_manifest(tmp_path, protocol)
+    bundle = build_m6_runner_bundle(
+        M6RunnerBundleRequest(
+            protocol=PROTOCOL,
+            preparation_manifest=preparation,
+            output_directory=tmp_path / "runner",
+            archive=tmp_path / "runner.tar",
+        )
+    )
+    plan = plan_m6_nextflow_track(
+        M6TrackPlanRequest(
+            runner_root=bundle.runner_manifest.parent,
+            database_manifest=ROOT / "tests/fixtures/stubs/database_manifest.json",
+            software_lock=ROOT / "pixi.lock",
+            track="leakage",
+            output_directory=tmp_path / "plan",
+        )
+    )
+    catalogue_task = next(
+        path for path in (plan.plan_directory / "catalogue_tasks").iterdir()
+    )
+    catalogue = run_m6_catalogue_task(
+        catalogue_task,
+        ROOT / "pixi.lock",
+        tmp_path / "catalogue",
+    )
+    case_task = plan.plan_directory / "case_tasks/M6C057"
+    fault = case_task / "fault_control.json"
+    _write_json(fault, {"reflection_mode": "map_only"})
+    task_record = json.loads((case_task / "task.json").read_text(encoding="utf-8"))
+    task_record["fault_control_sha256"] = sha256_file(fault)
+    _write_json(case_task / "task.json", task_record)
+    preflight = run_m6_preflight_task(
+        case_task,
+        ROOT / "tests/fixtures/stubs/phenix_install_manifest.json",
+        tmp_path / "preflight",
+    )
+    case = run_m6_prepare_case_task(
+        case_task,
+        preflight,
+        catalogue,
+        None,
+        ROOT / "tests/fixtures/stubs/database_manifest.json",
+        tmp_path / "case",
+    )
+    assert (case / "all_sequence_groups.jsonl").is_file()
+    assert (case / "all_source_records.jsonl").is_file()
+    group = M6HypothesisGroupTask.model_validate_json(
+        (case / "case_plan.json").read_text(encoding="utf-8")
+    )
+    assert group.early_outcome == "completed_map_only_mtz"
+    assert group.hypothesis_count == 0
+
+    seeds = run_m6_empty_seeds_task(case, tmp_path / "seeds")
+    finalists = run_m6_empty_finalists_task(case, seeds, tmp_path / "finalists")
+    evidence = run_m6_assemble_case_task(
+        case,
+        finalists,
+        (),
+        tmp_path / "evidence",
+    )
+    record = M6CaseEvidence.model_validate_json(
+        (evidence / "case_record.json").read_text(encoding="utf-8")
+    )
+    assert record.typed_outcome == "completed_map_only_mtz"
+    assert record.candidate_count == record.retained_candidate_count
+    assert record.candidate_count > 0
 
 
 def test_m6_runner_verifier_rejects_changed_object(tmp_path: Path) -> None:

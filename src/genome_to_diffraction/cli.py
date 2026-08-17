@@ -14,7 +14,6 @@ from genome_to_diffraction.benchmarks import (
     M6InputPreparationRequest,
     M6RunnerBundleRequest,
     M6RunnerVerificationRequest,
-    M6ScientificRunRequest,
     MrControlBundleRequest,
     PublicControlPreparationRequest,
     PublicPanelPreparationRequest,
@@ -27,7 +26,6 @@ from genome_to_diffraction.benchmarks import (
     prepare_m6_inputs,
     prepare_public_control,
     prepare_public_control_panel,
-    run_m6_scientific_track,
     verify_m6_runner_bundle,
 )
 from genome_to_diffraction.benchmarks.control_matrix_run import (
@@ -37,6 +35,30 @@ from genome_to_diffraction.benchmarks.control_matrix_run import (
 from genome_to_diffraction.benchmarks.control_slice_run import (
     ControlSliceRunRequest,
     run_control_slice,
+)
+from genome_to_diffraction.benchmarks.m6_execution import (
+    M6ResourceEvidenceRequest,
+    collect_m6_resource_evidence,
+)
+from genome_to_diffraction.benchmarks.m6_nextflow import (
+    M6TrackPlanRequest,
+    build_m6_search_batches,
+    partition_m6_discovery_task,
+    plan_m6_nextflow_track,
+    run_m6_add_copy_task,
+    run_m6_aggregate_track_task,
+    run_m6_assemble_case_task,
+    run_m6_catalogue_task,
+    run_m6_empty_finalists_task,
+    run_m6_empty_seeds_task,
+    run_m6_foldseek_search_task,
+    run_m6_model_policy_task,
+    run_m6_pdb_search_task,
+    run_m6_preflight_task,
+    run_m6_prepare_case_task,
+    run_m6_refinement_task,
+    run_m6_select_finalists_task,
+    run_m6_select_seeds_task,
 )
 from genome_to_diffraction.catalogue import CatalogueImportRequest, import_catalogues
 from genome_to_diffraction.checksums import atomic_write_text
@@ -537,7 +559,7 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_verify_parser.add_argument("--report", type=Path, required=True)
     m6_scientific_parser = benchmark_actions.add_parser(
         "run-m6-scientific",
-        help="execute one truth-isolated M6 scientific track",
+        help="reject legacy monolithic execution; retained for CLI compatibility",
     )
     m6_scientific_parser.add_argument("--runner-root", type=Path, required=True)
     m6_scientific_parser.add_argument("--protocol", type=Path, required=True)
@@ -556,6 +578,163 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="verify and reuse a complete checksum-matching track output",
     )
+    m6_plan_nf = benchmark_actions.add_parser(
+        "plan-m6-nextflow", help="materialise one truthless M6 Nextflow task graph"
+    )
+    m6_plan_nf.add_argument("--runner-root", type=Path, required=True)
+    m6_plan_nf.add_argument("--database-manifest", type=Path, required=True)
+    m6_plan_nf.add_argument("--software-lock", type=Path, required=True)
+    m6_plan_nf.add_argument(
+        "--track", choices=("operational", "leakage"), required=True
+    )
+    m6_plan_nf.add_argument("--outdir", type=Path, required=True)
+    m6_import_task = benchmark_actions.add_parser(
+        "run-m6-catalogue-task", help="import one M6 catalogue channel item"
+    )
+    m6_import_task.add_argument("--task", type=Path, required=True)
+    m6_import_task.add_argument("--software-lock", type=Path, required=True)
+    m6_import_task.add_argument("--outdir", type=Path, required=True)
+    m6_batch_task = benchmark_actions.add_parser(
+        "build-m6-search-batches",
+        help="deduplicate imported catalogues into bounded search batches",
+    )
+    m6_batch_task.add_argument(
+        "--catalogue-bundle", type=Path, action="append", required=True
+    )
+    m6_batch_task.add_argument("--database-manifest", type=Path, required=True)
+    m6_batch_task.add_argument("--execution-policy", type=Path, required=True)
+    m6_batch_task.add_argument("--software-lock", type=Path, required=True)
+    m6_batch_task.add_argument("--outdir", type=Path, required=True)
+    m6_pdb_task = benchmark_actions.add_parser(
+        "run-m6-pdb-task", help="search one bounded M6 query batch with MMseqs2"
+    )
+    m6_pdb_task.add_argument("--batch-task", type=Path, required=True)
+    m6_pdb_task.add_argument("--database-manifest", type=Path, required=True)
+    m6_pdb_task.add_argument("--execution-policy", type=Path, required=True)
+    m6_pdb_task.add_argument("--software-lock", type=Path, required=True)
+    m6_pdb_task.add_argument("--threads", type=int, required=True)
+    m6_pdb_task.add_argument("--outdir", type=Path, required=True)
+    m6_foldseek_task = benchmark_actions.add_parser(
+        "run-m6-foldseek-task", help="search one bounded M6 query batch with Foldseek"
+    )
+    m6_foldseek_task.add_argument("--batch-task", type=Path, required=True)
+    m6_foldseek_task.add_argument("--database-manifest", type=Path, required=True)
+    m6_foldseek_task.add_argument("--execution-policy", type=Path, required=True)
+    m6_foldseek_task.add_argument("--software-lock", type=Path, required=True)
+    m6_foldseek_task.add_argument("--threads", type=int, required=True)
+    m6_foldseek_task.add_argument("--outdir", type=Path, required=True)
+    m6_partition_task = benchmark_actions.add_parser(
+        "partition-m6-discovery",
+        help="partition global search batches back into one catalogue",
+    )
+    m6_partition_task.add_argument("--catalogue-bundle", type=Path, required=True)
+    m6_partition_task.add_argument("--batch-plan", type=Path, required=True)
+    m6_partition_task.add_argument(
+        "--pdb-result", type=Path, action="append", required=True
+    )
+    m6_partition_task.add_argument(
+        "--foldseek-result", type=Path, action="append", required=True
+    )
+    m6_partition_task.add_argument("--outdir", type=Path, required=True)
+    m6_preflight_task = benchmark_actions.add_parser(
+        "run-m6-preflight-task", help="preflight one opaque M6 case"
+    )
+    m6_preflight_task.add_argument("--task", type=Path, required=True)
+    m6_preflight_task.add_argument("--phenix-manifest", type=Path, required=True)
+    m6_preflight_task.add_argument("--outdir", type=Path, required=True)
+    m6_policy_task = benchmark_actions.add_parser(
+        "run-m6-policy-task", help="apply trusted model policy to one M6 case"
+    )
+    m6_policy_task.add_argument("--task", type=Path, required=True)
+    m6_policy_task.add_argument("--catalogue-bundle", type=Path, required=True)
+    m6_policy_task.add_argument("--pdb-bundle", type=Path, required=True)
+    m6_policy_task.add_argument("--foldseek-bundle", type=Path, required=True)
+    m6_policy_task.add_argument("--protocol", type=Path, required=True)
+    m6_policy_task.add_argument("--database-manifest", type=Path, required=True)
+    m6_policy_task.add_argument("--outdir", type=Path, required=True)
+    m6_case_task = benchmark_actions.add_parser(
+        "run-m6-case-task", help="prepare one blind M6 case and its hypotheses"
+    )
+    m6_case_task.add_argument("--task", type=Path, required=True)
+    m6_case_task.add_argument("--preflight-bundle", type=Path, required=True)
+    m6_case_task.add_argument("--catalogue-bundle", type=Path, required=True)
+    m6_case_task.add_argument("--policy-bundle", type=Path)
+    m6_case_task.add_argument("--database-manifest", type=Path, required=True)
+    m6_case_task.add_argument("--outdir", type=Path, required=True)
+    m6_seed_task = benchmark_actions.add_parser(
+        "select-m6-seeds", help="select retained first-copy seeds for one M6 case"
+    )
+    m6_seed_task.add_argument("--case-bundle", type=Path, required=True)
+    m6_seed_task.add_argument(
+        "--first-copy-result", type=Path, action="append", default=[]
+    )
+    m6_seed_task.add_argument("--outdir", type=Path, required=True)
+    m6_empty_seed_task = benchmark_actions.add_parser(
+        "empty-m6-seeds", help="emit an explicit zero-hypothesis M6 seed bundle"
+    )
+    m6_empty_seed_task.add_argument("--case-bundle", type=Path, required=True)
+    m6_empty_seed_task.add_argument("--outdir", type=Path, required=True)
+    m6_copy_task = benchmark_actions.add_parser(
+        "run-m6-add-copy-task", help="run one retained M6 copy chain"
+    )
+    m6_copy_task.add_argument("--case-bundle", type=Path, required=True)
+    m6_copy_task.add_argument("--seed-bundle", type=Path, required=True)
+    m6_copy_task.add_argument("--seed-solution-id", required=True)
+    m6_copy_task.add_argument("--phenix-manifest", type=Path, required=True)
+    m6_copy_task.add_argument("--threads", type=int, required=True)
+    m6_copy_task.add_argument("--outdir", type=Path, required=True)
+    m6_finalist_task = benchmark_actions.add_parser(
+        "select-m6-finalists", help="select retained parents for one M6 case"
+    )
+    m6_finalist_task.add_argument("--case-bundle", type=Path, required=True)
+    m6_finalist_task.add_argument("--seed-bundle", type=Path, required=True)
+    m6_finalist_task.add_argument(
+        "--add-copy-result", type=Path, action="append", default=[]
+    )
+    m6_finalist_task.add_argument("--outdir", type=Path, required=True)
+    m6_empty_finalist = benchmark_actions.add_parser(
+        "empty-m6-finalists", help="emit an explicit zero-seed M6 finalist bundle"
+    )
+    m6_empty_finalist.add_argument("--case-bundle", type=Path, required=True)
+    m6_empty_finalist.add_argument("--seed-bundle", type=Path, required=True)
+    m6_empty_finalist.add_argument("--outdir", type=Path, required=True)
+    m6_refinement_task = benchmark_actions.add_parser(
+        "run-m6-refinement-task", help="refine and sequence-assess one M6 finalist"
+    )
+    m6_refinement_task.add_argument("--finalist-bundle", type=Path, required=True)
+    m6_refinement_task.add_argument("--seed-solution-id", required=True)
+    m6_refinement_task.add_argument("--phenix-manifest", type=Path, required=True)
+    m6_refinement_task.add_argument("--threads", type=int, required=True)
+    m6_refinement_task.add_argument("--outdir", type=Path, required=True)
+    m6_case_evidence = benchmark_actions.add_parser(
+        "assemble-m6-case", help="assemble one complete M6 case evidence bundle"
+    )
+    m6_case_evidence.add_argument("--case-bundle", type=Path, required=True)
+    m6_case_evidence.add_argument("--finalist-bundle", type=Path, required=True)
+    m6_case_evidence.add_argument(
+        "--refinement-result", type=Path, action="append", default=[]
+    )
+    m6_case_evidence.add_argument("--outdir", type=Path, required=True)
+    m6_track_evidence = benchmark_actions.add_parser(
+        "aggregate-m6-track", help="aggregate a complete Nextflow M6 track"
+    )
+    m6_track_evidence.add_argument(
+        "--case-evidence", type=Path, action="append", required=True
+    )
+    m6_track_evidence.add_argument("--runner-root", type=Path, required=True)
+    m6_track_evidence.add_argument("--protocol", type=Path, required=True)
+    m6_track_evidence.add_argument("--database-manifest", type=Path, required=True)
+    m6_track_evidence.add_argument("--phenix-manifest", type=Path, required=True)
+    m6_track_evidence.add_argument(
+        "--track", choices=("operational", "leakage"), required=True
+    )
+    m6_track_evidence.add_argument("--outdir", type=Path, required=True)
+    m6_resources = benchmark_actions.add_parser(
+        "collect-m6-resources", help="derive M6 child-job resource evidence"
+    )
+    m6_resources.add_argument("--execution-policy", type=Path, required=True)
+    m6_resources.add_argument("--trace", type=Path, required=True)
+    m6_resources.add_argument("--output", type=Path, required=True)
     m6_evaluate_parser = benchmark_actions.add_parser(
         "evaluate-m6",
         help="evaluate collected M6 evidence against the frozen gates",
@@ -1433,23 +1612,174 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         )
         return 0
     if args.benchmark_action == "run-m6-scientific":
-        result = run_m6_scientific_track(
-            M6ScientificRunRequest(
+        raise GenomeToDiffractionError(
+            "run-m6-scientific is a legacy verifier-only boundary; "
+            "execute M6 through m6_validation.nf"
+        )
+    if args.benchmark_action == "plan-m6-nextflow":
+        result = plan_m6_nextflow_track(
+            M6TrackPlanRequest(
                 runner_root=args.runner_root,
-                protocol=args.protocol,
                 database_manifest=args.database_manifest,
-                phenix_manifest=args.phenix_manifest,
-                output_directory=args.outdir,
+                software_lock=args.software_lock,
                 track=args.track,
-                threads=args.threads,
-                maximum_concurrent_phenix_attempts=(
-                    args.maximum_concurrent_phenix_attempts
-                ),
-                progress=not args.no_progress,
-                resume=args.resume,
+                output_directory=args.outdir,
             )
         )
-        print(f"Completed M6 {args.track} scientific track: {result.summary_json}")
+        print(
+            f"Planned M6 {args.track}: {result.case_task_count} cases, "
+            f"{result.catalogue_task_count} catalogues"
+        )
+        return 0
+    if args.benchmark_action == "run-m6-catalogue-task":
+        result = run_m6_catalogue_task(args.task, args.software_lock, args.outdir)
+        print(f"Completed M6 catalogue task: {result}")
+        return 0
+    if args.benchmark_action == "build-m6-search-batches":
+        result = build_m6_search_batches(
+            tuple(args.catalogue_bundle),
+            args.database_manifest,
+            args.execution_policy,
+            args.software_lock,
+            args.outdir,
+        )
+        print(f"Built M6 search batches: {result}")
+        return 0
+    if args.benchmark_action == "run-m6-pdb-task":
+        result = run_m6_pdb_search_task(
+            args.batch_task,
+            args.database_manifest,
+            args.execution_policy,
+            args.software_lock,
+            args.outdir,
+            threads=args.threads,
+        )
+        print(f"Completed M6 PDB task: {result}")
+        return 0
+    if args.benchmark_action == "run-m6-foldseek-task":
+        result = run_m6_foldseek_search_task(
+            args.batch_task,
+            args.database_manifest,
+            args.execution_policy,
+            args.software_lock,
+            args.outdir,
+            threads=args.threads,
+        )
+        print(f"Completed M6 Foldseek task: {result}")
+        return 0
+    if args.benchmark_action == "partition-m6-discovery":
+        result = partition_m6_discovery_task(
+            args.catalogue_bundle,
+            args.batch_plan,
+            tuple(args.pdb_result),
+            tuple(args.foldseek_result),
+            args.outdir,
+        )
+        print(f"Partitioned M6 discovery: {result}")
+        return 0
+    if args.benchmark_action == "run-m6-preflight-task":
+        result = run_m6_preflight_task(args.task, args.phenix_manifest, args.outdir)
+        print(f"Completed M6 preflight task: {result}")
+        return 0
+    if args.benchmark_action == "run-m6-policy-task":
+        result = run_m6_model_policy_task(
+            args.task,
+            args.catalogue_bundle,
+            args.pdb_bundle,
+            args.foldseek_bundle,
+            args.protocol,
+            args.database_manifest,
+            args.outdir,
+        )
+        print(f"Completed M6 policy task: {result}")
+        return 0
+    if args.benchmark_action == "run-m6-case-task":
+        result = run_m6_prepare_case_task(
+            args.task,
+            args.preflight_bundle,
+            args.catalogue_bundle,
+            args.policy_bundle,
+            args.database_manifest,
+            args.outdir,
+        )
+        print(f"Completed M6 case task: {result}")
+        return 0
+    if args.benchmark_action == "select-m6-seeds":
+        result = run_m6_select_seeds_task(
+            args.case_bundle, tuple(args.first_copy_result), args.outdir
+        )
+        print(f"Selected M6 seeds: {result}")
+        return 0
+    if args.benchmark_action == "empty-m6-seeds":
+        result = run_m6_empty_seeds_task(args.case_bundle, args.outdir)
+        print(f"Published empty M6 seed bundle: {result}")
+        return 0
+    if args.benchmark_action == "run-m6-add-copy-task":
+        result = run_m6_add_copy_task(
+            args.case_bundle,
+            args.seed_bundle,
+            args.seed_solution_id,
+            args.phenix_manifest,
+            args.outdir,
+            threads=args.threads,
+        )
+        print(f"Completed M6 copy task: {result}")
+        return 0
+    if args.benchmark_action == "select-m6-finalists":
+        result = run_m6_select_finalists_task(
+            args.case_bundle,
+            args.seed_bundle,
+            tuple(args.add_copy_result),
+            args.outdir,
+        )
+        print(f"Selected M6 finalists: {result}")
+        return 0
+    if args.benchmark_action == "empty-m6-finalists":
+        result = run_m6_empty_finalists_task(
+            args.case_bundle, args.seed_bundle, args.outdir
+        )
+        print(f"Published empty M6 finalist bundle: {result}")
+        return 0
+    if args.benchmark_action == "run-m6-refinement-task":
+        result = run_m6_refinement_task(
+            args.finalist_bundle,
+            args.seed_solution_id,
+            args.phenix_manifest,
+            args.outdir,
+            threads=args.threads,
+        )
+        print(f"Completed M6 refinement task: {result}")
+        return 0
+    if args.benchmark_action == "assemble-m6-case":
+        result = run_m6_assemble_case_task(
+            args.case_bundle,
+            args.finalist_bundle,
+            tuple(args.refinement_result),
+            args.outdir,
+        )
+        print(f"Assembled M6 case evidence: {result}")
+        return 0
+    if args.benchmark_action == "aggregate-m6-track":
+        result = run_m6_aggregate_track_task(
+            tuple(args.case_evidence),
+            args.runner_root,
+            args.protocol,
+            args.database_manifest,
+            args.phenix_manifest,
+            args.track,
+            args.outdir,
+        )
+        print(f"Aggregated M6 {args.track} track: {result}")
+        return 0
+    if args.benchmark_action == "collect-m6-resources":
+        result = collect_m6_resource_evidence(
+            M6ResourceEvidenceRequest(
+                policy=args.execution_policy,
+                trace=args.trace,
+                output=args.output,
+            )
+        )
+        print(f"Collected {result.child_job_count} M6 child jobs: {args.output}")
         return 0
     if args.benchmark_action == "evaluate-m6":
         result = evaluate_m6(

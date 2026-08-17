@@ -3,14 +3,16 @@
 The collector accepts only completed checksum-fixed operational and leakage
 Viper collections.  It verifies their immutable software, runner, database,
 Phenix, resource, resume, cache, and partial-output evidence before joining
-opaque case IDs and sequence digests to the approved protocol.  It never
-changes runner ranks, LLG/TFZ annotations, candidate counts, or copy evidence.
+opaque case IDs and sequence digests to the approved protocol.  A mixed
+legacy/new execution is allowed only with both source commits recorded.  It
+never changes runner ranks, LLG/TFZ annotations, candidate counts, or copy
+evidence.
 
 Inputs are the two local directories produced by the reviewed HPC collector
 and the frozen protocol.  The output is one ``M6CollectedEvidence`` JSON
-contract for ``evaluate-m6``.  A missing file, mismatched checksum, mixed
-commit, incomplete case partition, malformed assessment, or unverified runtime
-aborts rather than yielding partial evidence.  Unit tests cover profile and
+contract for ``evaluate-m6``.  A missing file, mismatched checksum, incomplete
+case partition, malformed assessment, or unverified runtime aborts rather than
+yielding partial evidence.  Unit tests cover profile and
 checksum rejection plus positive, open-set, assumption, duplicate-locus, and
 edge assessment joins.
 """
@@ -27,6 +29,7 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
     M6CollectedEvidence,
     M6SoftwareProvenance,
 )
+from genome_to_diffraction.benchmarks.m6_execution import M6ResourceEvidence
 from genome_to_diffraction.benchmarks.m6_protocol import (
     M6BenchmarkProtocol,
     M6CaseSpec,
@@ -136,7 +139,11 @@ def _state_text(root: Path, name: str) -> str:
     return value
 
 
-def _load_track(root: Path, track: M6ScientificTrack) -> _CollectedTrack:
+def _load_track(
+    root: Path,
+    track: M6ScientificTrack,
+    expected_execution_policy_sha256: str,
+) -> _CollectedTrack:
     resolved = root.resolve(strict=True)
     qualification = resolved / "artifacts" / "qualification"
     manifest = _json_object(resolved / "manifest.json", "collection manifest")
@@ -207,14 +214,77 @@ def _load_track(root: Path, track: M6ScientificTrack) -> _CollectedTrack:
         or resume.get("resume_equivalent") is not True
     ):
         raise PublicControlError(f"collected M6 {track} resume differs")
-    if (
+    if runtime.get("execution_model") == "nextflow_dsl2_slurm_fanout":
+        try:
+            resource_evidence = M6ResourceEvidence.model_validate(
+                _json_object(
+                    qualification / "m6-child-resource-evidence.json",
+                    "child resource evidence",
+                )
+            )
+        except ValueError as error:
+            raise PublicControlError(
+                f"collected M6 {track} child resource evidence is invalid"
+            ) from error
+        shared_store = _json_object(
+            qualification / "m6-shared-store-evidence.json",
+            "shared-store evidence",
+        )
+        eligible_store_processes = {
+            "M6_IMPORT_CATALOGUE",
+            "M6_SEARCH_PDB",
+            "M6_SEARCH_FOLDSEEK",
+        }
+        first_reuse = shared_store.get("first_run_reuse")
+        resume_reuse = shared_store.get("resume_reuse")
+        if (
+            runtime.get("maximum_cpu_count") != 32
+            or runtime.get("maximum_memory_gb") != 16.0
+            or runtime.get("scheduler_ceiling_hours") != 24.0
+            or runtime.get("tool_runtime_timeouts") is not False
+            or runtime.get("execution_policy") != "m6_nextflow_slurm_v1"
+            or resource_evidence.per_job_bounds_passed is not True
+            or resource_evidence.execution_policy_id != "m6_nextflow_slurm_v1"
+            or resource_evidence.execution_policy_sha256
+            != expected_execution_policy_sha256
+            or resource_evidence.child_job_count != runtime.get("child_job_count")
+            or resource_evidence.maximum_cpu_per_job > 32
+            or resource_evidence.maximum_memory_gb_per_job > 16.0
+            or resource_evidence.maximum_scheduler_hours_per_job > 24.0
+            or resource_evidence.peak_running_jobs != runtime.get("peak_running_jobs")
+            or resource_evidence.peak_aggregate_cpus
+            != runtime.get("peak_aggregate_cpu_count")
+            or resource_evidence.peak_aggregate_memory_gb
+            != runtime.get("peak_aggregate_memory_gb")
+            or resource_evidence.peak_concurrent_phenix_jobs
+            != runtime.get("maximum_concurrent_phenix_attempts")
+            or any(job.status != "COMPLETED" for job in resource_evidence.jobs)
+            or any(
+                re.fullmatch(r"[0-9]+", job.native_job_id) is None
+                for job in resource_evidence.jobs
+            )
+            or shared_store.get("truthless_only") is not True
+            or shared_store.get("track_specific_reuse") is not False
+            or shared_store.get("eligible_processes")
+            != sorted(eligible_store_processes)
+            or not isinstance(first_reuse, dict)
+            or not set(first_reuse).issubset(eligible_store_processes)
+            or not isinstance(resume_reuse, dict)
+            or set(resume_reuse) != eligible_store_processes
+            or any(
+                isinstance(count, bool) or not isinstance(count, int) or count < 1
+                for count in (*first_reuse.values(), *resume_reuse.values())
+            )
+        ):
+            raise PublicControlError(f"collected M6 {track} fan-out resources changed")
+    elif (
         runtime.get("maximum_cpu_count") != 8
         or runtime.get("maximum_memory_gb") != 16.0
         or runtime.get("maximum_concurrent_phenix_attempts") != 4
         or runtime.get("scheduler_ceiling_hours") != 24.0
         or runtime.get("tool_runtime_timeouts") is not False
     ):
-        raise PublicControlError(f"collected M6 {track} resources changed")
+        raise PublicControlError(f"collected M6 {track} legacy resources changed")
     runner_archive = _state_text(resolved, "m6-runner-archive-sha256")
     runner_manifest = _state_text(resolved, "m6-runner-manifest-sha256")
     if (
@@ -388,12 +458,24 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
 
     protocol_path = request.protocol.resolve(strict=True)
     protocol = load_m6_protocol(protocol_path)
-    operational = _load_track(request.operational_collection, "operational")
-    leakage = _load_track(request.leakage_collection, "leakage")
+    execution_policy_path = protocol_path.with_name("execution-nextflow-v1.yaml")
+    if not execution_policy_path.is_file():
+        raise PublicControlError("M6 Nextflow execution policy is absent")
+    execution_policy_sha256 = sha256_file(execution_policy_path)
+    operational = _load_track(
+        request.operational_collection,
+        "operational",
+        execution_policy_sha256,
+    )
+    leakage = _load_track(
+        request.leakage_collection,
+        "leakage",
+        execution_policy_sha256,
+    )
     tracks = (operational, leakage)
     if operational.run_id == leakage.run_id:
         raise PublicControlError("M6 requires two distinct scientific run IDs")
-    common_manifest_fields = ("commit", "nf_helper_commit", "pixi_lock_sha256")
+    common_manifest_fields = ("nf_helper_commit", "pixi_lock_sha256")
     for name in common_manifest_fields:
         if operational.manifest.get(name) != leakage.manifest.get(name):
             raise PublicControlError(f"M6 collected runs disagree on {name}")
@@ -440,6 +522,10 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
             database_manifest_sha256=cast(str, operational_inputs["database_manifest"]),
             runner_archive_sha256=operational.runner_archive_sha256,
             runner_manifest_sha256=operational.runner_manifest_sha256,
+            track_source_commits={
+                "operational": cast(str, operational.manifest["commit"]),
+                "leakage": cast(str, leakage.manifest["commit"]),
+            },
         ),
         maximum_cpu_count=max(
             cast(int, track.runtime["maximum_cpu_count"]) for track in tracks
@@ -453,6 +539,36 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
         ),
         scheduler_ceiling_hours=max(
             cast(float, track.runtime["scheduler_ceiling_hours"]) for track in tracks
+        ),
+        execution_policy_id=(
+            "m6_nextflow_slurm_v1"
+            if any(
+                track.runtime.get("execution_model") == "nextflow_dsl2_slurm_fanout"
+                for track in tracks
+            )
+            else None
+        ),
+        execution_policy_sha256=(
+            execution_policy_sha256
+            if any(
+                track.runtime.get("execution_model") == "nextflow_dsl2_slurm_fanout"
+                for track in tracks
+            )
+            else None
+        ),
+        child_job_count=sum(
+            cast(int, track.runtime.get("child_job_count", 1)) for track in tracks
+        ),
+        peak_running_jobs=max(
+            cast(int, track.runtime.get("peak_running_jobs", 1)) for track in tracks
+        ),
+        peak_aggregate_cpu_count=max(
+            cast(int, track.runtime.get("peak_aggregate_cpu_count", 8))
+            for track in tracks
+        ),
+        peak_aggregate_memory_gb=max(
+            cast(float, track.runtime.get("peak_aggregate_memory_gb", 16.0))
+            for track in tracks
         ),
         deterministic_replay_equivalent=all(
             track.resume["deterministic_replay_equivalent"] is True for track in tracks

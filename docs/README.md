@@ -18,6 +18,9 @@ remain authoritative for scientific policy and interface contracts.
 - [M6 validation protocol](m6-validation.md): approved 63-case truth-isolated
   benchmark, leakage boundary, evaluator gates, runner artefacts, failure
   semantics, resource profile, and test coverage.
+- [Nextflow and Slurm execution architecture](execution-architecture.md):
+  mandatory driver/worker boundary, scientific fan-out invariant, per-job M6
+  resources, truthless shared cache, and execution evidence.
 - [Viper-CPU runbook](viper-cpu-runbook.md): active site cut-over, secure
   bootstrap, cross-site M4 continuation, database track, and rollback.
 - [M0 qualification status](m0-qualification.md): gate dashboard, frozen

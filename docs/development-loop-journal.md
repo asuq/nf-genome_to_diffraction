@@ -7155,3 +7155,127 @@ partial outputs or infer failure from scheduler silence.
 
 Run `git status --short`, inspect the complete diff, and create one coherent
 unmapped-Foldseek retention commit carrying this journal evidence.
+
+## 2026-08-17T04:51:52Z - Retain-as-annotation successor submitted
+
+### Accomplishments and immutable evidence
+
+- Committed the focused correction as
+  `ebffd2b75ed7ec016be7c76ede7c868c443fd415`, pushed once, and watched only
+  GitHub Actions run `31995429609`; it passed under Pixi 0.76.2. The installed
+  controller SHA-256 is
+  `f3e86b45819a6d3edf581218a81dc4f03fc1cdcfef4ff519e95f6c3fe836318c`.
+- Deployed matching tools with dispatcher, job-wrapper, and recovery SHA-256
+  values `e46622449f4c088d38ee7f5836bb88a502fd4f0c5c0a7cb5409f2390b7aac7ab`,
+  `3be01421bef61228e62cd3f323350b2b210162b7e0806c876155b9b80843568c`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- Staged
+  `gtd-m6-operational-20260817T045037Z-ebffd2b75ed7-6be05fd4` from the
+  unchanged 63-case/64-object archive and submitted it as Slurm job `10934859`.
+  Its fixed resources remain 8 CPUs, 16 GB, at most four concurrent Phenix
+  attempts, a 24-hour scheduler ceiling, and no per-tool timeout. Initial state
+  was `PENDING`, terminal=false.
+
+### Unresolved work
+
+- Leave job `10934859` untouched while non-terminal. On terminal state, obtain
+  bounded logs and collection through the reviewed wrapper, then classify the
+  complete evidence before any edit or leakage-track submission.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-m6-operational-20260817T045037Z-ebffd2b75ed7-6be05fd4`.
+
+## 2026-08-17T11:35:13Z - M6 Nextflow/Slurm fan-out rewrite locally verified
+
+### Discoveries and accomplishments
+
+- Replaced future M6 execution with a typed DSL2 driver/worker graph. Unique
+  catalogues, cases, hypotheses, seeds, and finalists are Nextflow channel
+  items; Python now executes one task or deterministically aggregates completed
+  records. The legacy v3 verifier remains so the retained monolithic
+  operational run stays collectable, but its execution CLI is disabled.
+- Avoided one database/model load per sample. The fixed runner's 29 catalogues
+  contain 70,864 unique exact sequences and 23,020,184 unique residues after
+  global deduplication. The checksummed execution policy therefore emits one
+  MMseqs2 batch capped at 100,000 sequences/30 million residues and about eight
+  Foldseek batches capped at 10,000 sequences/3 million residues. MMseqs2 and
+  Foldseek fork independently and each search job requests 32 CPUs/16 GB.
+- Bound shared truthless import/search cache identities to input content, the
+  database manifest, exact parameters, the Pixi lock, the execution policy,
+  and adapter versions. Policy and all downstream case work remain
+  track-specific. Added a durable `AGENTS.md` invariant and architecture
+  document to prevent Python/Bash multi-sample scheduling and unsafe cache
+  reuse from returning.
+- Added child Slurm resource evidence with native IDs, requested CPU/memory/time,
+  observed CPU percentage and peak RSS, peak simultaneous jobs/aggregate
+  allocation/Phenix jobs, and per-job policy checks. Mixed legacy-operational
+  plus Nextflow-leakage collection is explicitly supported with both source
+  commits retained.
+- Added the non-acceptance `m6-nextflow-smoke` profile. It will run the two-case
+  `-stub-run` graph through real Slurm process boundaries, require distinct
+  32-CPU MMseqs2/Foldseek child IDs, prove byte-identical cached resume, and
+  verify that only truthless discovery crosses tracks.
+- Corrected two implementation defects found during review: the real catalogue
+  process used the wrong tuple index, and early/zero-hypothesis cases did not
+  carry the complete retained catalogue into final evidence assembly.
+
+### Local evidence
+
+- Focused M6 unit tests: 28 passed, including global batch/cache invalidation,
+  typed early-case assembly, legacy/new collection, and execution-policy gates.
+- Contract tests: 59 passed. Targeted fake-Viper submission tests: 2 passed.
+- Ruff lint/format, ty type checking, Nextflow DSL2 lint, both reviewed-wrapper
+  Bash syntax checks, and `git diff --check` passed.
+- The complete `pixi run --locked nextflow-stub` suite passed. Its M6 branch
+  demonstrated overlapping MMseqs2/Foldseek stub workers, all hypothesis/seed/
+  finalist and typed-empty branches, fully cached resume, byte-identical
+  outputs, and reuse of only the three truthless store stages across tracks.
+- The retained production run was not queried, modified, cancelled, cleaned,
+  or used to seed the new cache during this implementation turn.
+
+### Unresolved work
+
+- The architecture increment remains uncommitted by request to pause. Run the
+  one complete locked repository gate, inspect the complete diff, then create
+  one coherent code/test/docs commit, push once, and watch one CI run.
+- After green CI, install and deploy the reviewed tools, run and collect the
+  two-case Viper `m6-nextflow-smoke`, then branch M6 execution from the retained
+  operational run's terminal evidence. Do not submit scientific M6 work before
+  the smoke passes, and never import monolithic discovery output into the new
+  shared store.
+
+### Next exact starting point
+
+After the mandatory `AGENTS.md`/newest-journal/status inspection, run
+`pixi run --locked check` from the repository root.
+
+## 2026-08-17T12:56:12Z - M6 fan-out architecture passes the locked gate
+
+### Accomplishments and immutable local evidence
+
+- The one complete `pixi run --locked check` passed: 438 unit, 59 contract,
+  and 51 integration tests plus formatting, lint, type checking, schemas,
+  public-panel validation, documentation links, actionlint, Nextflow syntax,
+  the complete Nextflow stub suite, and reviewed-wrapper syntax.
+- Complete diff review found and corrected two narrow provenance/authority
+  issues before staging: scientific results are now declared under the actual
+  `artifacts/m6-nextflow-results` retention root, and the non-acceptance
+  `m6-nextflow-smoke` profile is rejected outside `viper-cpu` locally and by
+  the remote dispatcher. Focused lint/type/wrapper checks and four targeted
+  unit/contract/integration tests passed after those corrections; the complete
+  gate was not duplicated.
+- The retained monolithic operational run and the new truthless shared cache
+  remain untouched by this local verification work.
+
+### Unresolved work
+
+- Create the single coherent architecture commit, push once, and watch one CI
+  run. After green CI, install and deploy the reviewed tools and execute the
+  two-case Viper `m6-nextflow-smoke` before any rewritten scientific track.
+
+### Next exact starting point
+
+Stage only the reviewed architecture increment with `git add`, inspect the
+staged diff, and create its coherent commit.

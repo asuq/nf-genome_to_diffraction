@@ -160,8 +160,9 @@ database and licensed-software mounts.
 
 Each track retains its full raw output remotely, emits compact case evidence
 and a deterministic gzip of every candidate rank, verifies all output
-checksums, and performs a checksum-only `--resume` pass. No Phenix search is
-silently repeated during that resume check.
+checksums, and performs a fully cached Nextflow `-resume` pass. No search or
+Phenix task is silently repeated during that resume check. The execution model
+is detailed in [the Nextflow/Slurm architecture](execution-architecture.md).
 
 Truth-side evaluation:
 
@@ -200,9 +201,17 @@ not drop, round, or relabel cases.
 ## Execution and failure semantics
 
 M6 uses separate operational/open-set and leakage/hardening Viper stages. Each
-starts at eight CPUs, 16 GB, at most four concurrent Phenix attempts, and a
-24-hour scheduler ceiling. The ceiling is a Slurm allocation boundary, not a
-tool timeout. Silence, queueing, or a long-running Phenix child is not failure.
+starts with a 2-CPU/8-GB Nextflow driver. Independent child tasks are submitted
+to Slurm; batched MMseqs2 and Foldseek jobs may request 32 CPUs/16 GB, while all
+other child jobs retain smaller allocations. The ceiling is 24 hours per Slurm
+job, not a tool timeout. Slurm controls aggregate and Phenix concurrency, which
+are measured rather than capped.
+
+The 29 frozen catalogues are imported independently and deduplicated to 70,864
+unique sequences. MMseqs2 searches one batch capped at 100,000 sequences/30
+million residues. Foldseek searches deterministic batches capped at 10,000
+sequences/3 million residues. This avoids reloading the target database and
+ProstT5 model once per sample while retaining every catalogue candidate.
 
 Candidate-specific no-hit, no-model, ambiguity, assumption violation, remote
 disabled/rate-limited, and conflicting-column outcomes are completed scientific
@@ -219,5 +228,8 @@ case relabelling, accept and hold evaluator paths, 100% retention and zero-false
 assignment gates, unexpected execution-failure holds, deterministic runner
 archives, byte-level rejection of a truth-bearing runner object, all-route
 model exclusion, compact truth joins, output-checksum replay, cache
-invalidation, and the fixed Viper resource profiles. The complete locked
+invalidation, deterministic query batching, Nextflow fan-out, child-job
+resource evidence, cross-track truthless-store isolation, and the fixed Viper
+resource profiles. A two-case Viper `-stub-run` must then prove real child Slurm
+submission without generating acceptance evidence. The complete locked
 repository gate remains required before an immutable Viper candidate is staged.

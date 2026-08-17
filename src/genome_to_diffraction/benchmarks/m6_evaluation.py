@@ -11,6 +11,7 @@ explicit hold; it is never rounded, relabelled, or silently excluded.
 """
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal, Self
@@ -49,6 +50,21 @@ class M6SoftwareProvenance(ContractModel):
     database_manifest_sha256: Sha256Hex
     runner_archive_sha256: Sha256Hex
     runner_manifest_sha256: Sha256Hex
+    track_source_commits: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_track_commits(self) -> Self:
+        if self.track_source_commits and set(self.track_source_commits) != {
+            "operational",
+            "leakage",
+        }:
+            raise ValueError("M6 track source commits must cover both tracks")
+        if any(
+            re.fullmatch(r"[a-f0-9]{40}", value) is None
+            for value in self.track_source_commits.values()
+        ):
+            raise ValueError("M6 track source commit is invalid")
+        return self
 
 
 class M6CaseAssessment(ContractModel):
@@ -101,8 +117,14 @@ class M6CollectedEvidence(ContractModel):
     provenance: M6SoftwareProvenance
     maximum_cpu_count: PositiveInt
     maximum_memory_gb: PositiveFloat
-    maximum_concurrent_phenix_attempts: PositiveInt
+    maximum_concurrent_phenix_attempts: NonNegativeInt
     scheduler_ceiling_hours: PositiveFloat
+    execution_policy_id: str | None = None
+    execution_policy_sha256: Sha256Hex | None = None
+    child_job_count: NonNegativeInt = 1
+    peak_running_jobs: NonNegativeInt = 1
+    peak_aggregate_cpu_count: NonNegativeInt = 0
+    peak_aggregate_memory_gb: float = Field(default=0.0, ge=0)
     deterministic_replay_equivalent: bool
     resume_equivalent: bool
     cache_invalidation_verified: bool
@@ -240,6 +262,10 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
 
     protocol_path = request.protocol.resolve(strict=True)
     protocol = load_m6_protocol(protocol_path)
+    execution_policy_path = protocol_path.with_name("execution-nextflow-v1.yaml")
+    expected_execution_policy_sha256 = (
+        sha256_file(execution_policy_path) if execution_policy_path.is_file() else None
+    )
     evidence = load_m6_evidence(request.evidence)
     if evidence.protocol_id != protocol.protocol_id:
         raise PublicControlError("M6 evidence and protocol IDs disagree")
@@ -344,9 +370,21 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
         "cache_invalidation_verified": evidence.cache_invalidation_verified,
         "no_silent_partial_output": evidence.no_silent_partial_output,
         "bounded_interface_verified": evidence.bounded_interface_verified,
-        "bounded_cpu": evidence.maximum_cpu_count <= 8,
+        "execution_policy_verified": (
+            (
+                evidence.execution_policy_id is None
+                and evidence.execution_policy_sha256 is None
+                and evidence.maximum_cpu_count <= 8
+            )
+            or (
+                evidence.execution_policy_id == "m6_nextflow_slurm_v1"
+                and evidence.execution_policy_sha256 == expected_execution_policy_sha256
+                and evidence.child_job_count > 0
+            )
+        ),
+        "bounded_cpu_per_job": evidence.maximum_cpu_count <= 32,
         "bounded_memory": evidence.maximum_memory_gb <= 16.0,
-        "bounded_phenix_concurrency": evidence.maximum_concurrent_phenix_attempts <= 4,
+        "phenix_concurrency_recorded": evidence.maximum_concurrent_phenix_attempts >= 0,
         "bounded_scheduler_ceiling": evidence.scheduler_ceiling_hours <= 24.0,
     }
     gates.update(

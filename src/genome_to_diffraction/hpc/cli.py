@@ -81,7 +81,15 @@ def _build_parser() -> argparse.ArgumentParser:
     stage = actions.add_parser("stage", help="stage an immutable pushed commit")
     stage.add_argument(
         "profile",
-        choices=("smoke", "p0", "p1", "p2", "p2-diverse", "p2-control"),
+        choices=(
+            "smoke",
+            "p0",
+            "p1",
+            "p2",
+            "p2-diverse",
+            "p2-control",
+            "m6-nextflow-smoke",
+        ),
     )
     stage.add_argument("--revision", required=True)
     stage.add_argument("--parent-run")
@@ -99,6 +107,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "control-slice",
             "control-matrix",
             "m6-inputs",
+            "m6-nextflow-smoke",
             "m6-operational",
             "m6-leakage",
             "m4-copy",

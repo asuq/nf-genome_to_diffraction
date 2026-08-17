@@ -947,6 +947,19 @@ def test_all_owned_operations_use_the_recorded_capability(tmp_path: Path) -> Non
     assert len(owner_values) == 1
 
 
+def test_m6_nextflow_smoke_staging_is_viper_only(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+
+    with pytest.raises(ValidationError, match="available only for viper-cpu"):
+        controller.stage("m6-nextflow-smoke", "HEAD")
+
+    controller.config = _config(tmp_path, site_id="viper-cpu")
+    staged = controller.stage("m6-nextflow-smoke", "HEAD")
+    assert staged["profile"] == "m6-nextflow-smoke"
+    assert transport.calls[-1][0] == "stage"
+
+
 def test_m4_copy_stage_sends_only_bound_parent_and_checksummed_decisions(
     tmp_path: Path,
 ) -> None:
@@ -1171,9 +1184,11 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
     result = controller.m6_scientific_stage("HEAD", archive, archive_sha256, track)
 
     assert result["profile"] == f"m6-{track}"
-    assert result["maximum_cpu_count"] == 8
+    assert result["driver_cpu_count"] == 2
+    assert result["driver_memory_gb"] == 8.0
+    assert result["maximum_cpu_count"] == 32
     assert result["maximum_memory_gb"] == 16.0
-    assert result["maximum_concurrent_phenix_attempts"] == 4
+    assert result["maximum_concurrent_phenix_attempts"] == "scheduler_managed"
     assert result["scheduler_ceiling_hours"] == 24.0
     assert transport.m6_scientific_archive == archive.read_bytes()
     operation, arguments = transport.calls[-1]

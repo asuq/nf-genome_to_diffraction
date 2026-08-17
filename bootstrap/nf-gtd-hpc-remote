@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -839,6 +839,12 @@ stage_run_common() {
     [[ "$expected_lock" =~ $CHECKSUM_RE ]] || fail wrapper_failure "invalid lock checksum"
     validate_owner "$owner_id"
     validate_profile "$profile"
+    if [[ "$profile" == m6-nextflow-smoke ]]; then
+        [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && \
+           "$(head -n 1 "$SITE_CONFIG")" == viper-cpu ]] || \
+            fail environment_failure \
+                "M6 Nextflow smoke requires the fixed Viper site"
+    fi
     [[ "$run_id" == "gtd-${profile}-"* ]] || \
         fail wrapper_failure "run ID profile does not match the requested profile"
     [[ "$iteration" =~ $INTEGER_RE ]] || fail wrapper_failure "invalid iteration"
@@ -1036,7 +1042,7 @@ stage_run_common() {
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == control-slice || "$profile" == control-matrix || \
-          "$profile" == m6-inputs || \
+          "$profile" == m6-inputs || "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
           "$profile" == m4-copy || \
           "$profile" == t12 || \
@@ -1062,6 +1068,7 @@ stage_run_common() {
         if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
               "$profile" == p2-diverse || "$profile" == p2-control || \
               "$profile" == control-slice || "$profile" == control-matrix || \
+              "$profile" == m6-nextflow-smoke || \
               "$profile" == m6-operational || "$profile" == m6-leakage || \
               "$profile" == m4-copy || \
               "$profile" == t12 ]]; then
@@ -2256,14 +2263,16 @@ submit_run() {
         cpus=1
         memory=4G
     fi
-    if [[ "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
-        cpus=8
-        memory=16G
+    if [[ "$profile" == m6-nextflow-smoke || \
+          "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
+        cpus=2
+        memory=8G
     fi
     [[ "$profile" != p0 ]] || walltime=24:00:00
     if [[ "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == control-slice || "$profile" == control-matrix || \
+          "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
           "$profile" == m4-copy || \
           "$profile" == t12 ]]; then
@@ -2747,6 +2756,7 @@ collect_run() {
         logs/m6-inputs-stage.log \
         logs/m6-scientific-stage.log \
         logs/m6-inputs.log \
+        logs/m6-nextflow-smoke.log \
         logs/m6-operational.log \
         logs/m6-leakage.log \
         logs/database-source-stage.log \
@@ -2777,6 +2787,10 @@ collect_run() {
         logs/nextflow-m4-copy-resume.log \
         logs/nextflow-t12-first.log \
         logs/nextflow-t12-resume.log \
+        logs/nextflow-m6-operational-first.log \
+        logs/nextflow-m6-operational-resume.log \
+        logs/nextflow-m6-leakage-first.log \
+        logs/nextflow-m6-leakage-resume.log \
         artifacts/qualification/input-checksums.sha256 \
         artifacts/qualification/phenix-verification.log \
         artifacts/qualification/database_manifest.p0-revalidated.json \
@@ -2873,6 +2887,23 @@ collect_run() {
         artifacts/qualification/control-matrix-log-tails.txt \
         artifacts/qualification/m6-input-qualification.json \
         artifacts/qualification/m6-input-checksums.sha256 \
+        artifacts/qualification/m6-nextflow-smoke-summary.json \
+        artifacts/qualification/m6-nextflow-smoke-resume-check.json \
+        artifacts/qualification/m6-nextflow-smoke-resource-evidence.json \
+        artifacts/qualification/m6-nextflow-smoke-store-reuse.txt \
+        artifacts/qualification/m6-nextflow-smoke-checksums.sha256 \
+        artifacts/qualification/m6-smoke-first-pipeline-info/report.html \
+        artifacts/qualification/m6-smoke-first-pipeline-info/timeline.html \
+        artifacts/qualification/m6-smoke-first-pipeline-info/trace.tsv \
+        artifacts/qualification/m6-smoke-first-pipeline-info/dag.html \
+        artifacts/qualification/m6-smoke-resume-pipeline-info/report.html \
+        artifacts/qualification/m6-smoke-resume-pipeline-info/timeline.html \
+        artifacts/qualification/m6-smoke-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/m6-smoke-resume-pipeline-info/dag.html \
+        artifacts/qualification/m6-smoke-leakage-pipeline-info/report.html \
+        artifacts/qualification/m6-smoke-leakage-pipeline-info/timeline.html \
+        artifacts/qualification/m6-smoke-leakage-pipeline-info/trace.tsv \
+        artifacts/qualification/m6-smoke-leakage-pipeline-info/dag.html \
         artifacts/qualification/m6-scientific-summary.json \
         artifacts/qualification/m6-execution-verification.json \
         artifacts/qualification/m6-case-results.jsonl \
@@ -2881,9 +2912,19 @@ collect_run() {
         artifacts/qualification/m6-sequence-summary.jsonl \
         artifacts/qualification/m6-resume-check.json \
         artifacts/qualification/m6-runtime-provenance.json \
+        artifacts/qualification/m6-child-resource-evidence.json \
+        artifacts/qualification/m6-shared-store-evidence.json \
         artifacts/qualification/m6-scientific-checksums.sha256 \
         artifacts/qualification/m6-phenix-verification.log \
         artifacts/qualification/m6-phaser-log-tails.txt \
+        artifacts/qualification/m6-first-pipeline-info/report.html \
+        artifacts/qualification/m6-first-pipeline-info/timeline.html \
+        artifacts/qualification/m6-first-pipeline-info/trace.tsv \
+        artifacts/qualification/m6-first-pipeline-info/dag.html \
+        artifacts/qualification/m6-resume-pipeline-info/report.html \
+        artifacts/qualification/m6-resume-pipeline-info/timeline.html \
+        artifacts/qualification/m6-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/m6-resume-pipeline-info/dag.html \
         artifacts/qualification/p2-control-first-pipeline-info/report.html \
         artifacts/qualification/p2-control-first-pipeline-info/timeline.html \
         artifacts/qualification/p2-control-first-pipeline-info/trace.tsv \

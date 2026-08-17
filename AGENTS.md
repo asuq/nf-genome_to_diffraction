@@ -79,6 +79,23 @@ Use local PDB and ProstT5 resources for the prototype. Use the public ESM Atlas 
 - Use Pixi and commit `pixi.lock`.
 - Keep Nextflow responsible for deterministic execution, scheduling, retries, caching, and publication.
 - Keep scientific ranking, state transitions, manifests, and report assembly in Python.
+- Independent catalogues, samples, candidates, hypotheses, seeds, and finalists
+  must be emitted as Nextflow channel items. Nextflow and the configured HPC
+  executor own their scheduling and concurrency; Python and Bash must not run a
+  multi-sample scientific loop, thread pool, process pool, or nested scheduler.
+- A scientifically dependent chain may remain sequential inside one task only
+  when the next operation requires the preceding result, such as iterative
+  same-component copy placement. Independent chains must still fan out through
+  Nextflow.
+- Choose channel-item granularity from the external tool's efficient batch
+  boundary. For database-backed batch tools such as MMseqs2 and Foldseek,
+  deduplicate queries and use deterministic query/residue-bounded batches;
+  never create one database-loading process per sample merely because samples
+  are independent.
+- A change to a shared-store task's inputs, parameters, tool binding, or output
+  semantics must change its content key or adapter version and its cache-
+  invalidation contract test. Never rely on a source commit alone to make a
+  cross-track scientific cache safe.
 - Keep Bash wrappers thin and limited to environment setup plus one external-tool invocation.
 - Introduce Rust only after profiling identifies a material Python bottleneck. Prefer a standalone CLI over a Python extension.
 - Human checkpoints must be file-based. Never prompt interactively inside a scheduled Nextflow process.

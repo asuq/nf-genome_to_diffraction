@@ -130,6 +130,7 @@ def test_run_and_log_identifiers_are_bounded() -> None:
     assert validate_profile("p2") == "p2"
     assert validate_profile("p2-diverse") == "p2-diverse"
     assert validate_profile("p2-control") == "p2-control"
+    assert validate_profile("m6-nextflow-smoke") == "m6-nextflow-smoke"
     assert validate_profile("m4-copy") == "m4-copy"
     assert validate_profile("database") == "database"
     assert validate_log_lines(2_000) == 2_000
