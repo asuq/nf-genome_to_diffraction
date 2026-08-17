@@ -7051,3 +7051,107 @@ coherent Viper M6 runtime-binding commit.
 
 Run `git status --short`, inspect and stage only the media-materialisation code,
 test, and retained journal evidence, then create one coherent commit.
+
+## 2026-08-17T02:26:44Z - Materialised-input successor executing on Viper
+
+### Accomplishments and immutable evidence
+
+- Committed the guarded media-type materialisation fix as
+  `39a024ad879c30ac6d5b8b782c8d96feb9473bca`, pushed once, and watched only
+  GitHub Actions run `31987115933`; it passed under Pixi 0.76.2. The installed
+  deterministic controller SHA-256 is
+  `30ad385d250ccffe4c2170bb3ebdfa5cb82406446f74162cec03cb677c3716be`.
+- Deployed matching tools with dispatcher, job-wrapper, and recovery SHA-256
+  values `e46622449f4c088d38ee7f5836bb88a502fd4f0c5c0a7cb5409f2390b7aac7ab`,
+  `3be01421bef61228e62cd3f323350b2b210162b7e0806c876155b9b80843568c`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- Staged successor
+  `gtd-m6-operational-20260817T021453Z-39a024ad879c-28f5a82e` from the
+  unchanged 63-case/64-object archive and submitted it as Slurm job `10934191`.
+  It uses 8 CPUs, 16 GB, at most four concurrent Phenix attempts, the 24-hour
+  scheduler ceiling, and no per-tool timeout. Last observed state was
+  `RUNNING`, terminal=false.
+
+### Unresolved work
+
+- Leave job `10934191` untouched while non-terminal. On terminal state, run
+  bounded 200-line logs and collect through the reviewed wrapper, then classify
+  the complete evidence before any edit.
+- If operational execution is sound, stage the leakage track from the same
+  frozen archive. After both collections, assemble all 63 truth-side
+  assessments and issue the predeclared M6 accept/hold decision.
+
+### Next exact starting point
+
+Run `/Users/asuq/.local/bin/nf-gtd-hpc-test --no-progress status --run-id
+gtd-m6-operational-20260817T021453Z-39a024ad879c-28f5a82e`. Do not inspect
+partial outputs or infer failure from scheduler silence.
+
+## 2026-08-17T04:41:25Z - Unmapped Foldseek proposals retained fail-closed
+
+### Discoveries
+
+- Operational job `10934191` ran from `02:22:03Z` to `04:29:17Z` on
+  `vipc2144`. Phenix 2.1-6048 qualified all seven commands. The materialised
+  JSON/FASTA boundary passed, the first opaque catalogue imported 4,300 source
+  records into 4,259 sequence groups, and MMseqs2 18.8cc5c completed 4,166
+  eligible PDB-sequence queries with 8,161 retained hits.
+- The full ProstT5/Foldseek search also completed successfully for all 4,166
+  eligible queries under Foldseek 10.941cd33. Only during output normalisation
+  did the adapter abort because five retained Foldseek targets (`7DU3_A`,
+  `8Q4F_K`, `8Q4F_d`, `8T8O_C`, and `8T8O_N`) lacked entries in the separate
+  PDB-sequence coordinate-mapping table.
+- This is a software boundary failure, not a search, Phenix, infrastructure, or
+  scientific no-hit result. Those raw hits are valid Foldseek observations but
+  cannot safely become coordinate models without a sequence/coordinate
+  mapping. Aborting discarded the entire batch instead of retaining the five
+  proposals as model-ineligible annotations, contrary to the frozen M6
+  retain-all policy.
+
+### Accomplishments
+
+- Added one explicit `retain_unmapped_targets` search option, defaulting to
+  false so every non-M6 caller remains fail-loud. M6 alone enables it. Missing
+  mappings now yield deferred structural-hit records with the parsed PDB/chain,
+  all raw Foldseek metrics, and an explicit unavailable-mapping state; no
+  sequence digest, coordinate mapping, or model is guessed.
+- The trusted M6 model transition now rejects those proposals fail-closed as
+  `coordinate_mapping_unavailable` while retaining each full hit as an
+  annotation and retaining every catalogue candidate. Adapter identities were
+  advanced for the shared Foldseek search, trusted model policy, and M6
+  scientific run so cached v3/v1/v2 semantics cannot be reused.
+- Focused structure-search and M6 tests passed 34 cases, including preservation
+  of strict default behaviour, retained M6 unmapped-hit evidence, and the new
+  trusted rejection class. One complete `pixi run --locked check` passed
+  formatting, lint, strict typing, 431 unit tests, 58 contract tests, 50
+  integration tests, schemas, public-panel validation, documentation links,
+  actionlint, Nextflow syntax/stubs, and all reviewed Bash syntax checks.
+
+### Immutable evidence
+
+- Failed run
+  `gtd-m6-operational-20260817T021453Z-39a024ad879c-28f5a82e` ended with exit
+  1 and `test_failure`; its collection failure signature is
+  `f754aa5436e4fe7a63c2f0387229f2383ffe85f73315fc805cb95fe80c51f7af`.
+  No Phaser attempt started.
+- Source was `39a024ad879c30ac6d5b8b782c8d96feb9473bca`, nf-helper was
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, Pixi was 0.76.2, and lock,
+  database-manifest, and database-config SHA-256 values were respectively
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`,
+  `ffa0c2cc4b7bb68996584776c319beda7aec5d4c991f0fc3ff62c46a8d8cb68b`,
+  and `bb2deb19d147769e9e2338e66c75d5c5986e336ae72deb4ae85257871ead1a30`.
+  The 63-case archive and runner manifest remain unchanged.
+
+### Unresolved work
+
+- Commit and push this focused retain-as-annotation correction, watch one CI
+  run, deploy the exact reviewed tools, and submit a new immutable operational
+  attempt. Do not reuse partial predecessor outputs or alter the frozen search
+  limits merely to avoid the two-hour full query.
+- On terminal successor evidence, classify before editing. Begin the leakage
+  track only after operational execution completes without a software defect.
+
+### Next exact starting point
+
+Run `git status --short`, inspect the complete diff, and create one coherent
+unmapped-Foldseek retention commit carrying this journal evidence.

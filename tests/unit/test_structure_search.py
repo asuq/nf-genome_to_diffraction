@@ -11,6 +11,7 @@ import pytest
 
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.schemas.results import (
+    EligibilityStatus,
     SearchScientificStatus,
     SequenceGroupRecord,
 )
@@ -350,7 +351,7 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
     assert hit.raw_metrics["foldseek_target_chain"] == "A-2"
     assert hit.raw_metrics["biological_assembly_number"] == 1
     assert hit.raw_metrics["assembly_operator_indices"] == [2]
-    assert manifest["adapter_version"] == "prostt5-foldseek-pdb-v3"
+    assert manifest["adapter_version"] == "prostt5-foldseek-pdb-v4"
     assert "prob" not in manifest["parameters"]["output_fields"]
     assert manifest["resource_ids"] == {
         "pdb_foldseek": "db_test_pdb_foldseek",
@@ -377,6 +378,56 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
         "--gpu",
     ):
         assert forbidden not in command_log
+
+
+def test_prostt5_foldseek_m6_mode_retains_unmapped_hit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sequence_path, manifest_path, groups = _write_foldseek_inputs(tmp_path)
+    bin_directory = tmp_path / "mock unmapped Foldseek bin"
+    bin_directory.mkdir()
+    _write_foldseek(
+        bin_directory / "foldseek",
+        groups[0].sequence_group_id,
+        target="9zzz_Z",
+    )
+    monkeypatch.setenv("PATH", f"{bin_directory}{os.pathsep}{os.environ['PATH']}")
+
+    with pytest.raises(ResultParseError, match="lack coordinate mappings"):
+        search_prostt5_foldseek(
+            ProstT5FoldseekSearchRequest(
+                sequence_groups_jsonl=sequence_path,
+                database_manifest=manifest_path,
+                output_directory=tmp_path / "strict output",
+                progress=False,
+            )
+        )
+
+    output = search_prostt5_foldseek(
+        ProstT5FoldseekSearchRequest(
+            sequence_groups_jsonl=sequence_path,
+            database_manifest=manifest_path,
+            output_directory=tmp_path / "M6 retain output",
+            retain_unmapped_targets=True,
+            progress=False,
+        )
+    )
+
+    result = next(
+        item
+        for item in output.results
+        if item.sequence_group_id == groups[0].sequence_group_id
+    )
+    hit = result.hits[0]
+    assert result.execution_status is ExecutionStatus.COMPLETED_HIT
+    assert hit.eligibility_status is EligibilityStatus.DEFERRED
+    assert hit.model_key == "pdb-unmapped:9ZZZ:foldseek_target:9zzz_Z"
+    assert hit.raw_metrics["coordinate_mapping_status"] == "unavailable"
+    assert hit.raw_metrics["target_sequence_sha256"] is None
+    manifest = json.loads(output.search_manifest.read_text(encoding="utf-8"))
+    assert manifest["parameters"]["retain_unmapped_targets"] is True
+    assert manifest["unmapped_target_count"] == 1
+    assert manifest["unmapped_hit_count"] == 1
 
 
 def test_prostt5_foldseek_query_cap_is_deterministic_and_not_a_no_hit(

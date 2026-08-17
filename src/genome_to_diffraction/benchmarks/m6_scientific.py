@@ -105,7 +105,7 @@ from genome_to_diffraction.structure_search import (
 from genome_to_diffraction.time import utc_now_iso
 
 M6ScientificTrack = Literal["operational", "leakage"]
-_ADAPTER_VERSION = "m6-scientific-run-v2"
+_ADAPTER_VERSION = "m6-scientific-run-v3"
 _MATERIALISED_SUFFIX = {
     "application/json": ".json",
     "application/x-mtz": ".mtz",
@@ -385,6 +385,7 @@ def _prepare_catalogue(
                 maximum_evalue=1.0e-3,
                 minimum_query_coverage=0.5,
                 maximum_queries=0,
+                retain_unmapped_targets=True,
                 gpu=False,
                 progress=request.progress,
             )

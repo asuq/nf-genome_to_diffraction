@@ -352,7 +352,7 @@ def _synthetic_scientific_output(tmp_path: Path) -> Path:
         output / "m6_scientific_summary.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-scientific-run-v2",
+            "adapter_version": "m6-scientific-run-v3",
             "track": "operational",
             "case_ids": list(case_ids),
             "case_evidence_digest": canonical_digest(cases),
@@ -360,7 +360,7 @@ def _synthetic_scientific_output(tmp_path: Path) -> Path:
             "input_sha256": input_sha256,
             "cache_key": canonical_digest(
                 {
-                    "adapter_version": "m6-scientific-run-v2",
+                    "adapter_version": "m6-scientific-run-v3",
                     "track": "operational",
                     "input_sha256": input_sha256,
                 }
@@ -931,6 +931,21 @@ def test_m6_model_policy_filters_every_route_and_retains_candidates(
             identity=0.2,
             coverage=0.7,
         ),
+        _policy_hit(
+            second,
+            hit_id="hit_foldseek_unmapped",
+            provider="foldseek_prostt5_pdb",
+            pdb_id="5ABC",
+            target_sha256="e" * 64,
+            identity=0.2,
+            coverage=0.7,
+        ).model_copy(
+            update={
+                "raw_metrics": {"coordinate_mapping_status": "unavailable"},
+                "eligibility_status": EligibilityStatus.DEFERRED,
+                "eligibility_reason": "retained unmapped test proposal",
+            }
+        ),
     )
     pdb_hits = tmp_path / "pdb.jsonl"
     pdb_hits.write_text(
@@ -993,6 +1008,7 @@ def test_m6_model_policy_filters_every_route_and_retains_candidates(
     assert report["all_candidates_retained"] is True
     assert report["rejection_reason_counts"] == {
         "amino_acid_alignment_unavailable": 1,
+        "coordinate_mapping_unavailable": 1,
         "exact_deposited_coordinates": 1,
         "query_relative_leakage": 1,
     }

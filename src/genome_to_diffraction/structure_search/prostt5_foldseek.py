@@ -44,7 +44,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.prostt5_foldseek")
-_ADAPTER_VERSION = "prostt5-foldseek-pdb-v3"
+_ADAPTER_VERSION = "prostt5-foldseek-pdb-v4"
 _PROVIDER = "foldseek_prostt5_pdb"
 _RAW_HIT_LIMIT = 1000
 _FAILURE_LOG_TAIL_BYTES = 16 * 1024
@@ -93,6 +93,7 @@ class ProstT5FoldseekSearchRequest:
     minimum_query_coverage: float = 0.5
     maximum_query_length: int = 10_000
     maximum_queries: int = 0
+    retain_unmapped_targets: bool = False
     gpu: bool = False
     progress: bool = True
 
@@ -510,7 +511,11 @@ def _parse_target(target: str) -> _ParsedTarget:
 
 
 def _load_target_mappings(
-    path: Path, targets: frozenset[str], *, progress: bool
+    path: Path,
+    targets: frozenset[str],
+    *,
+    progress: bool,
+    require_all: bool,
 ) -> dict[str, _TargetMapping]:
     parsed_targets = {target: _parse_target(target) for target in targets}
     if not parsed_targets:
@@ -573,14 +578,16 @@ def _load_target_mappings(
             if len(by_key) == len(needed):
                 break
     missing = sorted(needed - by_key.keys())
-    if missing:
+    if missing and require_all:
         formatted = ", ".join(f"{pdb_id}_{chain}" for pdb_id, chain in missing[:10])
         raise ResultParseError(
             "Foldseek PDB targets lack coordinate mappings: " + formatted
         )
     resolved: dict[str, _TargetMapping] = {}
     for target, parsed in parsed_targets.items():
-        sequence_mapping = by_key[(parsed.pdb_id, parsed.seqres_token)]
+        sequence_mapping = by_key.get((parsed.pdb_id, parsed.seqres_token))
+        if sequence_mapping is None:
+            continue
         resolved[target] = _TargetMapping(
             pdb_id=sequence_mapping.pdb_id,
             namespace=sequence_mapping.namespace,
@@ -672,6 +679,7 @@ def search_prostt5_foldseek(
         "minimum_query_coverage": request.minimum_query_coverage,
         "maximum_query_length": request.maximum_query_length,
         "maximum_queries": request.maximum_queries,
+        "retain_unmapped_targets": request.retain_unmapped_targets,
         "coverage_mode": 2,
         "gpu": request.gpu,
         "output_fields": list(_RESULT_FIELDS),
@@ -728,10 +736,20 @@ def search_prostt5_foldseek(
         maximum_hits_per_query=request.maximum_hits_per_query,
         progress=request.progress,
     )
+    requested_targets = frozenset(
+        hit.target for hits in raw_hits.values() for hit in hits
+    )
     target_mappings = _load_target_mappings(
         target_mapping_path,
-        frozenset(hit.target for hits in raw_hits.values() for hit in hits),
+        requested_targets,
         progress=request.progress,
+        require_all=not request.retain_unmapped_targets,
+    )
+    unmapped_targets = frozenset(requested_targets - target_mappings.keys())
+    unmapped_hit_count = sum(
+        raw_hit.target in unmapped_targets
+        for hits in raw_hits.values()
+        for raw_hit in hits
     )
     raw_result_sha256 = sha256_file(result_path, progress=False)
     command_log_sha256 = sha256_file(log_path, progress=False)
@@ -743,7 +761,34 @@ def search_prostt5_foldseek(
     for record in sequence_groups:
         record_hits: list[StructuralSearchHit] = []
         for rank, raw_hit in enumerate(raw_hits.get(record.sequence_group_id, ()), 1):
-            mapping = target_mappings[raw_hit.target]
+            mapping = target_mappings.get(raw_hit.target)
+            parsed = _parse_target(raw_hit.target)
+            if mapping is None:
+                model_key = (
+                    f"pdb-unmapped:{parsed.pdb_id}:foldseek_target:{raw_hit.target}"
+                )
+                target_token = parsed.chain
+                namespace = "foldseek_target_unmapped"
+                seqres_target = None
+                target_sequence_length = None
+                target_sequence_sha256 = None
+                mapping_status = "unavailable"
+                eligibility_status = EligibilityStatus.DEFERRED
+                eligibility_reason = (
+                    "retained Foldseek hit without a PDB sequence coordinate mapping"
+                )
+            else:
+                model_key = f"pdb:{mapping.pdb_id}:{mapping.namespace}:{mapping.token}"
+                target_token = mapping.token
+                namespace = mapping.namespace
+                seqres_target = mapping.seqres_target
+                target_sequence_length = mapping.sequence_length
+                target_sequence_sha256 = mapping.sequence_sha256
+                mapping_status = "resolved"
+                eligibility_status = EligibilityStatus.SELECTED
+                eligibility_reason = (
+                    "passed configured ProstT5/Foldseek PDB search thresholds"
+                )
             hit_identity = {
                 "sequence_group_id": record.sequence_group_id,
                 "provider": _PROVIDER,
@@ -763,10 +808,10 @@ def search_prostt5_foldseek(
                 provider=_PROVIDER,
                 provider_rank=rank,
                 target_id=raw_hit.target,
-                model_key=(f"pdb:{mapping.pdb_id}:{mapping.namespace}:{mapping.token}"),
-                target_chain_or_entity=mapping.token,
-                pdb_id=mapping.pdb_id,
-                identifier_namespace=mapping.namespace,
+                model_key=model_key,
+                target_chain_or_entity=target_token,
+                pdb_id=parsed.pdb_id,
+                identifier_namespace=namespace,
                 query_start=raw_hit.query_start,
                 query_end=raw_hit.query_end,
                 target_start=raw_hit.target_start,
@@ -783,20 +828,24 @@ def search_prostt5_foldseek(
                     "identity_fraction": raw_hit.identity_fraction,
                     "query_length": raw_hit.query_length,
                     "target_length": raw_hit.target_length,
-                    "seqres_target": mapping.seqres_target,
-                    "target_sequence_length": mapping.sequence_length,
-                    "target_sequence_sha256": mapping.sequence_sha256,
+                    "seqres_target": seqres_target,
+                    "target_sequence_length": target_sequence_length,
+                    "target_sequence_sha256": target_sequence_sha256,
                     "prostt5_database_id": resources.prostt5.database_id,
                     "mapping_database_id": resources.pdb_sequences.database_id,
+                    "coordinate_mapping_status": mapping_status,
+                    "coordinate_mapping_unavailable_reason": (
+                        None
+                        if mapping is not None
+                        else "PDB sequence target mapping absent"
+                    ),
                     "probability_unavailable_reason": (_PROBABILITY_UNAVAILABLE_REASON),
-                    "foldseek_target_chain": mapping.foldseek_chain,
-                    "biological_assembly_number": mapping.assembly_number,
-                    "assembly_operator_indices": list(mapping.operator_indices),
+                    "foldseek_target_chain": parsed.chain,
+                    "biological_assembly_number": parsed.assembly_number,
+                    "assembly_operator_indices": list(parsed.operator_indices),
                 },
-                eligibility_status=EligibilityStatus.SELECTED,
-                eligibility_reason=(
-                    "passed configured ProstT5/Foldseek PDB search thresholds"
-                ),
+                eligibility_status=eligibility_status,
+                eligibility_reason=eligibility_reason,
             )
             record_hits.append(hit)
             all_hits.append(hit)
@@ -891,6 +940,8 @@ def search_prostt5_foldseek(
             "eligible_query_count": len(eligible_records),
             "deferred_query_count": len(policy_skipped),
             "hit_count": len(all_hits),
+            "unmapped_target_count": len(unmapped_targets),
+            "unmapped_hit_count": unmapped_hit_count,
             "status_counts": dict(sorted(status_counts.items())),
             "parameters": parameters,
             "outputs": {
