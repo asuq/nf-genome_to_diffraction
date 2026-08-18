@@ -390,6 +390,7 @@ def test_missing_phenix_requires_an_actual_isolated_validation_failure(
     )
     source["status"] = "verified"
     source["required_commands"][0]["smoke_test_status"] = "passed"
+    source["required_commands"][0]["executable_sha256"] = "3" * 64
     supplied = _write_json(tmp_path / "supplied.json", source)
     observed = observe_isolated_missing_phenix(
         case_id="M6C063",

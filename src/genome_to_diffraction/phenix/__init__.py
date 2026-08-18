@@ -12,6 +12,7 @@ from genome_to_diffraction.phenix.runtime import (
     execute_from_manifest,
     inspect_runtime,
     validate_manifest_environment,
+    verified_runtime_identity_sha256,
     verify_manifest,
 )
 
@@ -26,5 +27,6 @@ __all__ = [
     "install_phenix",
     "recover_failed_install",
     "validate_manifest_environment",
+    "verified_runtime_identity_sha256",
     "verify_manifest",
 ]

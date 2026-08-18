@@ -27,7 +27,14 @@
           "phenix_env_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
           "required_commands": {
             "items": {
-              "properties": {"smoke_test_status": {"const": "passed"}}
+              "required": ["executable_sha256"],
+              "properties": {
+                "executable_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "smoke_test_status": {"const": "passed"}
+              }
             }
           }
         }
@@ -67,6 +74,10 @@
         "properties": {
           "name": {"type": "string"},
           "path": {"type": "string"},
+          "executable_sha256": {
+            "type": ["string", "null"],
+            "pattern": "^[a-f0-9]{64}$"
+          },
           "smoke_test_status": {"enum": ["passed", "failed", "not_run"]},
           "version_text": {"type": ["string", "null"]}
         }

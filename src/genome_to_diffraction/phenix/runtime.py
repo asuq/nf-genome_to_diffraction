@@ -3,7 +3,8 @@
 Inputs are a versioned installation prefix or a schema-valid installation
 manifest. Outputs are command-resolution records and optional verification logs.
 Failures are infrastructure errors; scientific no-hit states are not produced
-here. The cache/provenance key is the manifest plus ``phenix_env.sh`` checksum.
+here. The verified runtime identity binds ``phenix_env.sh`` and every recorded
+command executable by SHA-256 for later cache/provenance use.
 """
 
 import json
@@ -19,6 +20,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import atomic_write_text, sha256_file
+from genome_to_diffraction.ids import canonical_digest
 from genome_to_diffraction.phenix.errors import PhenixRuntimeVerificationError
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
@@ -104,6 +106,90 @@ class MatthewsReferenceExecution:
     executable: Path
     executable_sha256: str
     phenix_version: str
+
+
+def _runtime_identity_sha256(manifest: PhenixInstallManifest) -> str:
+    """Return the path- and checksum-bound identity of a verified runtime."""
+
+    if manifest.status != "verified" or manifest.phenix_env_sha256 is None:
+        raise PhenixRuntimeVerificationError(
+            "runtime identity requires a verified Phenix manifest"
+        )
+    commands: list[dict[str, str]] = []
+    for command in sorted(manifest.required_commands, key=lambda item: item.name):
+        if command.executable_sha256 is None:
+            raise PhenixRuntimeVerificationError(
+                f"runtime identity requires executable_sha256 for {command.name}"
+            )
+        commands.append(
+            {
+                "name": command.name,
+                "path": command.path,
+                "executable_sha256": command.executable_sha256,
+            }
+        )
+    return canonical_digest(
+        {
+            "identity_schema": "phenix-runtime-v1",
+            "phenix_version": manifest.phenix_version,
+            "installation_prefix": manifest.installation_prefix,
+            "phenix_env_sh": manifest.phenix_env_sh,
+            "phenix_env_sha256": manifest.phenix_env_sha256,
+            "platform": manifest.platform.model_dump(mode="json"),
+            "required_commands": commands,
+        }
+    )
+
+
+def _verified_command_executable(
+    manifest: PhenixInstallManifest, requested: str
+) -> Path:
+    """Resolve and checksum one manifest command before it may be spawned."""
+
+    command = next(
+        (record for record in manifest.required_commands if record.name == requested),
+        None,
+    )
+    if command is None or command.smoke_test_status is not SmokeTestStatus.PASSED:
+        raise PhenixRuntimeVerificationError(
+            f"Phenix command is not verified in the manifest: {requested}"
+        )
+    if command.executable_sha256 is None:
+        raise PhenixRuntimeVerificationError(
+            f"verified Phenix command lacks executable_sha256: {requested}"
+        )
+    recorded_path = Path(command.path)
+    if not recorded_path.is_absolute():
+        raise PhenixRuntimeVerificationError(
+            f"verified Phenix command path is not absolute: {requested}"
+        )
+    try:
+        executable = recorded_path.resolve(strict=True)
+        prefix = Path(manifest.installation_prefix).resolve(strict=True)
+    except OSError as error:
+        raise PhenixRuntimeVerificationError(
+            f"verified Phenix command is missing or unreadable: {requested}"
+        ) from error
+    if (
+        not executable.is_file()
+        or not executable.is_relative_to(prefix)
+        or not os.access(executable, os.X_OK)
+    ):
+        raise PhenixRuntimeVerificationError(
+            f"verified Phenix command escapes installation prefix: {requested}"
+        )
+    try:
+        actual_digest = sha256_file(executable)
+    except OSError as error:
+        raise PhenixRuntimeVerificationError(
+            f"verified Phenix command could not be checksummed: {requested}"
+        ) from error
+    if actual_digest != command.executable_sha256:
+        raise PhenixRuntimeVerificationError(
+            f"Phenix command checksum does not match the installation manifest: "
+            f"{requested}"
+        )
+    return executable
 
 
 def _evaluate_command_probe(
@@ -379,6 +465,7 @@ def inspect_runtime(
                 "reason=resolution failed or escaped installation prefix\n"
             )
             continue
+        executable_sha256 = sha256_file(resolved_path)
         try:
             completed = _child_shell(
                 environment_file,
@@ -391,6 +478,7 @@ def inspect_runtime(
                 PhenixCommandRecord(
                     name=command,
                     path=str(resolved_path),
+                    executable_sha256=executable_sha256,
                     smoke_test_status=SmokeTestStatus.FAILED,
                     version_text=detected_version,
                 )
@@ -419,8 +507,12 @@ def inspect_runtime(
             returncode=completed.returncode,
             output=output,
         )
+        if sha256_file(resolved_path) != executable_sha256:
+            passed = False
+            reason = "executable checksum changed during the command probe"
         log_sections.append(
             f"## {command}\npath={resolved_path}\n"
+            f"executable_sha256={executable_sha256}\n"
             f"probe_args={json.dumps(probe_arguments)}\n"
             f"exit={completed.returncode}\n"
             f"result={'passed' if passed else 'failed'}\n"
@@ -431,6 +523,7 @@ def inspect_runtime(
             PhenixCommandRecord(
                 name=command,
                 path=str(resolved_path),
+                executable_sha256=executable_sha256,
                 smoke_test_status=status,
                 version_text=detected_version,
             )
@@ -468,7 +561,7 @@ def inspect_runtime(
 
 
 def validate_manifest_environment(manifest_path: Path) -> PhenixInstallManifest:
-    """Validate a verified manifest and its immutable environment checksum."""
+    """Validate a verified manifest and all recorded runtime checksums."""
 
     model = load_contract(manifest_path, "phenix-install-manifest", progress=False)
     if not isinstance(model, PhenixInstallManifest):
@@ -502,7 +595,15 @@ def validate_manifest_environment(manifest_path: Path) -> PhenixInstallManifest:
         raise PhenixRuntimeVerificationError(
             "phenix_env.sh checksum does not match the installation manifest"
         )
+    for command in model.required_commands:
+        _verified_command_executable(model, command.name)
     return model
+
+
+def verified_runtime_identity_sha256(manifest_path: Path) -> str:
+    """Verify a Phenix runtime and return its cache-ready identity digest."""
+
+    return _runtime_identity_sha256(validate_manifest_environment(manifest_path))
 
 
 def verify_manifest(
@@ -540,20 +641,23 @@ def execute_from_manifest(
     if environment_overrides:
         raise ValueError("environment overrides are not supported at this boundary")
     manifest = validate_manifest_environment(manifest_path)
-    environment_file = Path(manifest.phenix_env_sh).resolve()
+    requested = arguments[0]
+    executable = _verified_command_executable(manifest, requested)
+    environment_file = Path(manifest.phenix_env_sh).resolve(strict=True)
+    resolved_arguments = [str(executable), *arguments[1:]]
     _LOGGER.info(
         "executing isolated Phenix command",
-        extra={"command": arguments[0], "manifest": str(manifest_path)},
+        extra={"command": requested, "manifest": str(manifest_path)},
     )
     completed = _child_shell(
         environment_file,
-        list(arguments),
+        resolved_arguments,
         timeout_seconds=None,
         capture_output=False,
     )
     _LOGGER.info(
         "isolated Phenix command finished",
-        extra={"command": arguments[0], "exit_status": completed.returncode},
+        extra={"command": requested, "exit_status": completed.returncode},
     )
     return completed.returncode
 
@@ -578,20 +682,7 @@ def capture_from_manifest(
         raise ValueError("a Phenix command and optional arguments are required")
     manifest = validate_manifest_environment(manifest_path)
     requested = arguments[0]
-    command = next(
-        (record for record in manifest.required_commands if record.name == requested),
-        None,
-    )
-    if command is None or command.smoke_test_status is not SmokeTestStatus.PASSED:
-        raise PhenixRuntimeVerificationError(
-            f"Phenix command is not verified in the manifest: {requested}"
-        )
-    executable = Path(command.path).resolve(strict=True)
-    prefix = Path(manifest.installation_prefix).resolve(strict=True)
-    if not executable.is_file() or not executable.is_relative_to(prefix):
-        raise PhenixRuntimeVerificationError(
-            f"verified Phenix command escapes installation prefix: {requested}"
-        )
+    executable = _verified_command_executable(manifest, requested)
     working_directory.mkdir(parents=True, exist_ok=True)
     resolved_arguments = [str(executable), *arguments[1:]]
     _LOGGER.info(

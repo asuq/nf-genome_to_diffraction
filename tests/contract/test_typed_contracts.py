@@ -246,6 +246,23 @@ def test_verified_phenix_manifest_cannot_contain_failed_command(tmp_path: Path) 
         load_contract(path, "phenix-install-manifest", progress=False)
 
 
+def test_verified_phenix_manifest_requires_command_executable_digest(
+    tmp_path: Path,
+) -> None:
+    document = json.loads(
+        (REPOSITORY / "tests/fixtures/stubs/phenix_install_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    document["status"] = "verified"
+    document["required_commands"][0]["smoke_test_status"] = "passed"
+    path = tmp_path / "missing-command-digest.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ContractValidationError, match="executable_sha256"):
+        load_contract(path, "phenix-install-manifest", progress=False)
+
+
 @pytest.mark.parametrize("kind", contract_kinds())
 def test_generated_contract_schema_is_draft_2020_12(kind: str) -> None:
     schema = contract_json_schema(kind)

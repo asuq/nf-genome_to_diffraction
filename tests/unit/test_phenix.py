@@ -18,9 +18,11 @@ from genome_to_diffraction.phenix.errors import (
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
 from genome_to_diffraction.phenix.runtime import (
     REQUIRED_COMMANDS,
+    capture_from_manifest,
     capture_matthews_reference_from_manifest,
     execute_from_manifest,
     validate_manifest_environment,
+    verified_runtime_identity_sha256,
     verify_manifest,
 )
 
@@ -90,6 +92,9 @@ if [[ "${{1-}}" == "--help" ]]; then
       exit 0
       ;;
   esac
+fi
+if [[ "${{1-}}" == "--exit-23" ]]; then
+  exit 23
 fi
 printf '%s\n' "$@"
 COMMAND
@@ -198,6 +203,11 @@ def test_mocked_installer_writes_verified_schema_valid_manifest(
     assert all(
         record.smoke_test_status == "passed" for record in manifest.required_commands
     )
+    assert all(
+        record.executable_sha256 is not None and len(record.executable_sha256) == 64
+        for record in manifest.required_commands
+    )
+    assert len(verified_runtime_identity_sha256(request.manifest_path)) == 64
     assert request.current_symlink is not None
     assert request.current_symlink.resolve() == request.installation_prefix.resolve()
     loaded = validate_manifest_environment(request.manifest_path)
@@ -328,17 +338,14 @@ def test_shell_executor_preserves_external_exit_status(tmp_path: Path) -> None:
     digest = _write_installer(installer)
     request = _request(tmp_path, installer, digest)
     install_phenix(request)
-    exit_command = request.installation_prefix / "bin" / "phenix.exit"
-    exit_command.write_text("#!/usr/bin/env bash\nexit 23\n", encoding="utf-8")
-    exit_command.chmod(0o755)
-
     completed = subprocess.run(
         [
             REPOSITORY / "bin" / "phenix_exec.sh",
             "--manifest",
             request.manifest_path,
             "--",
-            "phenix.exit",
+            "phenix.xtriage",
+            "--exit-23",
         ],
         check=False,
     )
@@ -357,6 +364,40 @@ def test_manifest_environment_tampering_fails(tmp_path: Path) -> None:
     )
     with pytest.raises(PhenixRuntimeVerificationError, match="checksum"):
         validate_manifest_environment(request.manifest_path)
+
+
+@pytest.mark.parametrize("execution_boundary", ["execute", "capture"])
+def test_manifest_execution_rejects_same_path_replaced_executable_before_spawn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    execution_boundary: str,
+) -> None:
+    installer = tmp_path / "phenix installer.sh"
+    digest = _write_installer(installer)
+    request = _request(tmp_path, installer, digest)
+    install_phenix(request)
+    executable = request.installation_prefix / "bin/phenix.xtriage"
+    executable.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o755)
+
+    def unexpected_spawn(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise AssertionError("replaced Phenix executable was spawned")
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.phenix.runtime._child_shell", unexpected_spawn
+    )
+
+    with pytest.raises(PhenixRuntimeVerificationError, match="checksum"):
+        if execution_boundary == "execute":
+            execute_from_manifest(request.manifest_path, ["phenix.xtriage"])
+        else:
+            capture_from_manifest(
+                request.manifest_path,
+                ["phenix.xtriage"],
+                working_directory=tmp_path / "capture",
+                timeout_seconds=10,
+            )
 
 
 def test_fixed_matthews_reference_is_captured_with_provenance(tmp_path: Path) -> None:

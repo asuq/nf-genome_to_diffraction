@@ -312,6 +312,7 @@ class PhenixCommandRecord(ContractModel):
 
     name: str
     path: str
+    executable_sha256: Sha256Hex | None = None
     smoke_test_status: SmokeTestStatus
     version_text: str | None = None
 
@@ -346,6 +347,16 @@ class PhenixInstallManifest(ContractModel):
         if self.status == "verified":
             if self.phenix_env_sha256 is None:
                 raise ValueError("verified Phenix manifest requires phenix_env_sha256")
+            missing_digests = [
+                command.name
+                for command in self.required_commands
+                if command.executable_sha256 is None
+            ]
+            if missing_digests:
+                raise ValueError(
+                    "verified Phenix manifest contains commands without "
+                    "executable_sha256: " + ", ".join(missing_digests)
+                )
             failed = [
                 command.name
                 for command in self.required_commands
