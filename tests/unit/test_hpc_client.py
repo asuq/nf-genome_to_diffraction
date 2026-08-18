@@ -892,6 +892,13 @@ def test_deploy_tools_recovers_only_from_approved_bootstrap_failures(
     assert transport.calls[-1][0] == "recover-tools"
 
     transport.deploy_error = RemoteOperationError(
+        "bare Git mirror is absent",
+        failure_class=FailureClass.FILESYSTEM_FAILURE,
+    )
+    assert controller.deploy_tools("HEAD")["recovery_used"] == "true"
+    assert transport.calls[-1][0] == "recover-tools"
+
+    transport.deploy_error = RemoteOperationError(
         "Git mirror fetch failed",
         failure_class=FailureClass.TRANSFER_FAILURE,
     )

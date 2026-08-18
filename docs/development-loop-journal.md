@@ -8213,3 +8213,27 @@ as the batch gate. After green CI, rebuild and checksum the controller, deploy
 the reviewed tools to the rebuilt Marmic root, then stage the exact pushed SHA
 through source-archive fallback. Submit no job unless the staged record binds
 the Marmic site, fixed Marmic policy, and run-owned Apptainer cache.
+
+## 2026-08-18T18:23:47Z - Absent Marmic mirror recovery completed
+
+### Observed failure and focused correction
+
+- Actions run `32170166049`, job `95819123019`, passed exact-Pixi commit
+  `95252d30576dd26fb13306de9e8c3fab7b24db30` in 4m53s under Pixi
+  0.76.2. The rebuilt and installed controller checksums are both
+  `5a7c28e54c2a8001ba53b76b235073538e44d27ff119f8830ffa8d03e120bfea`.
+- Reviewed Marmic deployment stopped with typed `filesystem_failure` and exact
+  message `bare Git mirror is absent`. No job or scientific run was created.
+  The controller already recovered an invalid bare mirror but omitted this
+  equivalent absent-mirror state from the deploy-only allow-list; archive
+  staging already handled both states.
+- Added only the exact absent-mirror state to checksum-gated tool recovery and
+  extended the existing allow-list regression. The focused unit test, targeted
+  Ruff and `ty`, and `git diff --check` pass. No full local suite was repeated.
+
+### Next exact starting point
+
+Commit and push this one-branch controller correction and watch its single CI
+job. After green CI, rebuild and verify the controller checksum, retry the same
+reviewed Marmic deployment, and then stage the exact pushed SHA through the
+source-archive boundary. Do not submit unless all fixed Marmic state is bound.

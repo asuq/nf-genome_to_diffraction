@@ -1267,7 +1267,11 @@ class HpcController:
                 )
                 or (
                     error.failure_class is FailureClass.FILESYSTEM_FAILURE
-                    and str(error) == "configured Git mirror is not bare"
+                    and str(error)
+                    in {
+                        "bare Git mirror is absent",
+                        "configured Git mirror is not bare",
+                    }
                 )
                 or (
                     error.failure_class is FailureClass.TRANSFER_FAILURE
