@@ -37,6 +37,8 @@ job="$tool_dir/nf-gtd-hpc-smoke-job"
 locks="$root/_locks"
 bootstrap_used=false
 root_bootstrap_used=false
+pixi_path_bootstrap_used=false
+pixi_executable=""
 
 [[ "$dispatcher" == "$tool_dir/nf-gtd-hpc-remote" ]] || \
     die "dispatcher target is inconsistent"
@@ -86,6 +88,33 @@ elif [[ "$dispatcher_present" == false && "$job_present" == false ]]; then
 else
     die "fixed tool installation is partial"
 fi
+
+pixi_path="$tool_dir/pixi.path"
+if [[ -e "$pixi_path" || -L "$pixi_path" ]]; then
+    [[ -f "$pixi_path" && ! -L "$pixi_path" && -O "$pixi_path" ]] || \
+        die "installed Pixi path record is unsafe"
+    IFS= read -r pixi_executable < "$pixi_path" || \
+        die "cannot read installed Pixi path record"
+else
+    [[ "${USER:-}" =~ ^[A-Za-z0-9._-]+$ ]] || \
+        die "remote user name is unsafe"
+    pixi_executable="/home/${USER}/.local/bin/pixi"
+    if [[ ! -x "$pixi_executable" ]]; then
+        pixi_executable="$(command -v pixi || true)"
+    fi
+    [[ "$pixi_executable" =~ ^/[A-Za-z0-9._/-]+$ && \
+       -x "$pixi_executable" ]] || \
+        die "Pixi is unavailable for fixed tool bootstrap"
+    printf '%s\n' "$pixi_executable" > "$pixi_path"
+    chmod 0600 "$pixi_path"
+    pixi_path_bootstrap_used=true
+fi
+[[ "$pixi_executable" =~ ^/[A-Za-z0-9._/-]+$ && \
+   -x "$pixi_executable" ]] || die "recorded Pixi executable is unsafe"
+pixi_version="$("$pixi_executable" --version 2>&1)" || \
+    die "Pixi version check failed"
+[[ "$pixi_version" =~ ^pixi[[:space:]]+0\.(74\.0|76\.2)$ ]] || \
+    die "Pixi 0.74.0 or 0.76.2 is required"
 
 mkdir -p "$locks"
 exec 9>"$locks/deploy-tools.lock"
@@ -141,7 +170,9 @@ cat >"$record" <<EOF
   "deployed_at": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
   "recovery_used": true,
   "bootstrap_used": $bootstrap_used,
-  "root_bootstrap_used": $root_bootstrap_used
+  "root_bootstrap_used": $root_bootstrap_used,
+  "pixi_path_bootstrap_used": $pixi_path_bootstrap_used,
+  "pixi_executable": "$pixi_executable"
 }
 EOF
 

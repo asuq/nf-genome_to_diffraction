@@ -1203,10 +1203,16 @@ def test_recovery_script_bootstraps_an_absent_fixed_tool_directory(
     record = json.loads(
         (dispatcher.parent / "deployed-tools.json").read_text(encoding="utf-8")
     )
+    pixi_path = dispatcher.parent / "pixi.path"
+    assert pixi_path.is_file()
+    assert stat.S_IMODE(pixi_path.stat().st_mode) == 0o600
+    assert Path(pixi_path.read_text(encoding="utf-8").strip()).is_file()
     assert record["commit"] == commit
     assert record["recovery_used"] is True
     assert record["bootstrap_used"] is True
     assert record["root_bootstrap_used"] is True
+    assert record["pixi_path_bootstrap_used"] is True
+    assert record["pixi_executable"] == pixi_path.read_text(encoding="utf-8").strip()
 
     partial_root = tmp_path / "partial-remote-root"
     partial_tooling = partial_root / "_tooling"

@@ -8158,3 +8158,31 @@ Commit and push this focused recovery refinement, watch one CI run, rebuild the
 controller only after green CI, and retry the same checksum-gated Marmic
 deployment. If the nearest existing ancestor is not owned, stop and request the
 administrator/user-created root rather than weakening the guard.
+
+## 2026-08-18T18:06:48Z - Marmic Pixi path restored from retained evidence
+
+### External evidence and focused correction
+
+- Actions run `32168246397`, job `95812919596`, passed pushed directory-chain
+  commit `bd62c6607ab02e4ff8fff5f867dbfb77dc980a9c` in 6m23s.
+- Checksum-gated recovery then rebuilt the deleted Marmic directory chain and
+  installed the fixed tools. Immutable source-archive staging correctly
+  stopped before creating a runnable job because the deleted root also removed
+  `_tooling/pixi.path`, and non-login SSH could not discover Pixi from `PATH`.
+- Locally retained Marmic run manifests consistently identify the qualified
+  executable as `/home/ashima/.local/bin/pixi`; the executable lies outside the
+  deleted test root. Fresh recovery now checks the fixed
+  `/home/${USER}/.local/bin/pixi` candidate, then a safe absolute `PATH`
+  fallback, requires an executable Pixi 0.74.0 or 0.76.2, writes a mode-0600
+  path record, and binds the path plus bootstrap status into deployment
+  evidence. Existing path records must be owned regular non-symlink files.
+- The focused missing-root/Pixi recovery regression and Bash syntax pass. Per
+  the approved cadence, no redundant complete local gate was run; CI is the
+  full-platform boundary before remote retry.
+
+### Next exact starting point
+
+Commit and push the focused Pixi-path recovery, watch one CI run, then retry
+the checksum-gated deployment so the path record is created. Stage the exact
+pushed SHA through source-archive fallback; submit only if stage reports
+`site_id=marmic`, the Marmic policy ID/checksum, and a run-owned cache.
