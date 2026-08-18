@@ -28,7 +28,12 @@ TOOL_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 LEGACY_ROOT="$(cd "$TOOL_DIR/.." && pwd -P)"
 SITE_CONFIG="$TOOL_DIR/site.paths"
 ROOT="$LEGACY_ROOT"
-if [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" ]]; then
+SITE_ID=marmic
+if [[ -e "$SITE_CONFIG" || -L "$SITE_CONFIG" ]]; then
+    [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" ]] || {
+        printf 'unsafe HPC site configuration\n' >&2
+        exit 1
+    }
     IFS= read -r site_config_id < "$SITE_CONFIG" || true
     if [[ "$site_config_id" == viper-cpu ]]; then
         [[ -O "$SITE_CONFIG" && "$(stat -c '%a' "$SITE_CONFIG")" == 600 ]] || {
@@ -56,6 +61,21 @@ if [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" ]]; then
             exit 1
         }
         ROOT="$expected_viper_root"
+        SITE_ID=viper-cpu
+    elif [[ "$site_config_id" == marmic ]]; then
+        [[ -O "$SITE_CONFIG" && "$(stat -c '%a' "$SITE_CONFIG")" == 600 ]] || {
+            printf 'unsafe Marmic site configuration\n' >&2
+            exit 1
+        }
+        mapfile -t startup_site_values < "$SITE_CONFIG"
+        [[ "${#startup_site_values[@]}" -eq 1 && \
+           "${startup_site_values[0]}" == marmic ]] || {
+            printf 'Marmic site configuration differs from the reviewed fixed identity\n' >&2
+            exit 1
+        }
+    else
+        printf 'unsupported HPC site configuration\n' >&2
+        exit 1
     fi
 fi
 RUNS="$ROOT/runs"
@@ -816,6 +836,7 @@ stage_run_common() {
     local candidate coordinate_count hit_count
     local source_archive=false source_archive_sha256="" source_archive_size=""
     local expected_submodule_commit="" source_archive_json="null"
+    local m6_site_contract_json="null"
     local -a p0_values=()
 
     if [[ "$#" -eq 9 ]]; then
@@ -839,12 +860,8 @@ stage_run_common() {
     [[ "$expected_lock" =~ $CHECKSUM_RE ]] || fail wrapper_failure "invalid lock checksum"
     validate_owner "$owner_id"
     validate_profile "$profile"
-    if [[ "$profile" == m6-nextflow-smoke ]]; then
-        [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && \
-           "$(head -n 1 "$SITE_CONFIG")" == viper-cpu ]] || \
-            fail environment_failure \
-                "M6 Nextflow smoke requires the fixed Viper site"
-    fi
+    [[ "$SITE_ID" == marmic || "$SITE_ID" == viper-cpu ]] || \
+        fail environment_failure "unsupported fixed HPC site"
     [[ "$run_id" == "gtd-${profile}-"* ]] || \
         fail wrapper_failure "run ID profile does not match the requested profile"
     [[ "$iteration" =~ $INTEGER_RE ]] || fail wrapper_failure "invalid iteration"
@@ -883,11 +900,7 @@ stage_run_common() {
     atomic_text "$run/state/commit" "$commit"
     atomic_text "$run/state/pixi-bin" "$pixi_bin"
     atomic_text "$run/state/profile" "$profile"
-    if [[ -f "$SITE_CONFIG" ]] && [[ "$(sed -n '1p' "$SITE_CONFIG")" == viper-cpu ]]; then
-        atomic_text "$run/state/site-id" viper-cpu
-    else
-        atomic_text "$run/state/site-id" marmic
-    fi
+    atomic_text "$run/state/site-id" "$SITE_ID"
     append_event "$run" "stage_started"
 
     if [[ "$source_archive" == true ]]; then
@@ -972,6 +985,45 @@ stage_run_common() {
         fail transfer_failure "nf-helper submodule commit could not be recorded"
     ln -s "$run/environment/.pixi" "$run/source/.pixi" || \
         fail filesystem_failure "cannot attach the per-run Pixi environment"
+
+    if [[ "$profile" == m6-nextflow-smoke ]]; then
+        local nextflow_profile execution_policy_relative execution_policy
+        local execution_policy_sha256 execution_policy_id apptainer_cache
+        if [[ "$SITE_ID" == viper-cpu ]]; then
+            nextflow_profile=viper-cpu
+            execution_policy_relative=benchmarks/m6/execution-nextflow-v1.yaml
+            execution_policy_id=m6_nextflow_slurm_v1
+        else
+            nextflow_profile=marmic
+            execution_policy_relative=benchmarks/m6/execution-nextflow-marmic-v1.yaml
+            execution_policy_id=m6_nextflow_slurm_marmic_v1
+        fi
+        execution_policy="$run/source/$execution_policy_relative"
+        [[ -f "$execution_policy" && ! -L "$execution_policy" && \
+           -O "$execution_policy" ]] || \
+            fail filesystem_failure "fixed M6 execution policy is absent or unsafe"
+        git -C "$run/source" ls-files --error-unmatch "$execution_policy_relative" \
+            <"$DISCARD" >"$DISCARD" 2>&1 || \
+            fail wrapper_failure "fixed M6 execution policy is not tracked"
+        execution_policy_sha256="$(sha256sum "$execution_policy" | awk '{print $1}')"
+        [[ "$execution_policy_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "fixed M6 execution policy checksum failed"
+        apptainer_cache="$run/cache/apptainer"
+        mkdir -p "$apptainer_cache"
+        chmod 700 "$apptainer_cache"
+        [[ -d "$apptainer_cache" && ! -L "$apptainer_cache" && \
+           -O "$apptainer_cache" ]] || \
+            fail filesystem_failure "run-owned Apptainer cache is unsafe"
+        atomic_text "$run/state/nextflow-profile" "$nextflow_profile"
+        atomic_text "$run/state/execution-policy-relative" \
+            "$execution_policy_relative"
+        atomic_text "$run/state/execution-policy-id" "$execution_policy_id"
+        atomic_text "$run/state/execution-policy-sha256" \
+            "$execution_policy_sha256"
+        atomic_text "$run/state/apptainer-cache-dir" "$apptainer_cache"
+        m6_site_contract_json="{\"nextflow_profile\":\"$nextflow_profile\",\"execution_policy\":\"$execution_policy_relative\",\"execution_policy_id\":\"$execution_policy_id\",\"execution_policy_sha256\":\"$execution_policy_sha256\",\"apptainer_cache_scope\":\"run_owned\"}"
+        append_event "$run" "stage_m6_site_policy_bound"
+    fi
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
@@ -1365,6 +1417,7 @@ stage_run_common() {
   "p1_login_prefetch_sha256": $p1_prefetch_json,
   "p2_diverse_login_stage_sha256": $p2_diverse_json,
   "p2_control_login_stage_sha256": $p2_control_json,
+  "m6_site_contract": $m6_site_contract_json,
   "source_archive_sha256": $source_archive_json,
   "staged_at": "$(now_utc)",
   "source_snapshot_status": "immutable"
@@ -2230,6 +2283,52 @@ database_stage_run() {
     stage_run_common "$1" "$2" "$3" "$4" 1 database
 }
 
+validate_m6_smoke_site_state() {
+    local run="$1"
+    local expected_profile expected_policy expected_policy_id
+    local policy actual_policy_sha cache
+    local state_name
+    for state_name in \
+        site-id \
+        nextflow-profile \
+        execution-policy-relative \
+        execution-policy-id \
+        execution-policy-sha256 \
+        apptainer-cache-dir; do
+        [[ -f "$run/state/$state_name" && ! -L "$run/state/$state_name" && \
+           -O "$run/state/$state_name" ]] || \
+            fail wrapper_failure "M6 site policy state is absent or unsafe"
+    done
+    [[ "$(<"$run/state/site-id")" == "$SITE_ID" ]] || \
+        fail wrapper_failure "M6 run site differs from the installed dispatcher"
+    if [[ "$SITE_ID" == viper-cpu ]]; then
+        expected_profile=viper-cpu
+        expected_policy=benchmarks/m6/execution-nextflow-v1.yaml
+        expected_policy_id=m6_nextflow_slurm_v1
+    elif [[ "$SITE_ID" == marmic ]]; then
+        expected_profile=marmic
+        expected_policy=benchmarks/m6/execution-nextflow-marmic-v1.yaml
+        expected_policy_id=m6_nextflow_slurm_marmic_v1
+    else
+        fail environment_failure "unsupported fixed HPC site"
+    fi
+    [[ "$(<"$run/state/nextflow-profile")" == "$expected_profile" && \
+       "$(<"$run/state/execution-policy-relative")" == "$expected_policy" && \
+       "$(<"$run/state/execution-policy-id")" == "$expected_policy_id" ]] || \
+        fail wrapper_failure "M6 run site policy mapping changed after staging"
+    policy="$run/source/$expected_policy"
+    [[ -f "$policy" && ! -L "$policy" && -O "$policy" ]] || \
+        fail filesystem_failure "fixed M6 execution policy is absent or unsafe"
+    actual_policy_sha="$(sha256sum "$policy" | awk '{print $1}')"
+    [[ "$actual_policy_sha" == \
+       "$(<"$run/state/execution-policy-sha256")" ]] || \
+        fail wrapper_failure "M6 execution policy changed after staging"
+    cache="$(<"$run/state/apptainer-cache-dir")"
+    [[ "$cache" == "$run/cache/apptainer" && -d "$cache" && \
+       ! -L "$cache" && -O "$cache" ]] || \
+        fail filesystem_failure "run-owned M6 Apptainer cache is unsafe"
+}
+
 submit_run() {
     [[ "$#" -eq 2 ]] || fail wrapper_failure "submit expects run ID and owner ID"
     local run_id="$1"
@@ -2248,6 +2347,9 @@ submit_run() {
         fail wrapper_failure "database profile requires database-submit"
     [[ "$run_id" == "gtd-${profile}-"* ]] || \
         fail wrapper_failure "recorded profile does not match the run ID"
+    if [[ "$profile" == m6-nextflow-smoke ]]; then
+        validate_m6_smoke_site_state "$run"
+    fi
     walltime=00:45:00
     cpus=2
     memory=8G
@@ -2314,6 +2416,7 @@ submit_run() {
     emit operation submit
     emit run_id "$run_id"
     emit job_id "$job_id"
+    emit site_id "$(<"$run/state/site-id")"
     emit profile "$profile"
     emit scheduler_state SUBMITTED
 }

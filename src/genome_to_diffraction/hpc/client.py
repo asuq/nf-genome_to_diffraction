@@ -58,6 +58,7 @@ from genome_to_diffraction.hpc.models import (
     validate_profile,
     validate_remote_path,
     validate_run_id,
+    validate_site_id,
 )
 from genome_to_diffraction.hpc.p0_inputs import (
     P0_PATHS_FILENAME,
@@ -1305,8 +1306,6 @@ class HpcController:
             raise ValidationError(
                 "database administration requires the separate database-stage operation"
             )
-        if profile == "m6-nextflow-smoke" and self.config.site_id != "viper-cpu":
-            raise ValidationError("m6-nextflow-smoke is available only for viper-cpu")
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
         self.git.ensure_reachable_from_origin_main(commit)
@@ -1363,6 +1362,17 @@ class HpcController:
                         helper_commit,
                     ],
                     archive_path,
+                )
+        if profile == "m6-nextflow-smoke":
+            remote_site = remote.get("site_id")
+            if not isinstance(remote_site, str):
+                raise ValidationError("M6 stage response omits the fixed site identity")
+            validate_site_id(remote_site)
+            if remote_site != self.config.site_id:
+                replace(record, site_id=remote_site).write(self.config.local_state_root)
+                raise ValidationError(
+                    "M6 stage endpoint site differs from the configured site: "
+                    f"{remote_site} != {self.config.site_id}"
                 )
         return {
             **remote,

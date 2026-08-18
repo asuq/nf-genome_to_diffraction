@@ -112,6 +112,9 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
     assert "time = '48 hours'" in wrapper
     assert "withLabel: process_prostt5_search" in wrapper
     assert "time = '1000 hours'" in wrapper
+    assert "withLabel: m6_pdb_search" in wrapper
+    assert "withLabel: m6_foldseek_search" in wrapper
+    assert wrapper.count("cpus = 32") >= 2
 
     nextflow_config = (REPOSITORY / "nextflow.config").read_text(encoding="utf-8")
     assert "includeConfig 'conf/marmic.config'" in nextflow_config
@@ -303,3 +306,59 @@ def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     assert "withLabel: m6_pdb_search" in viper
     assert "withLabel: m6_foldseek_search" in viper
     assert viper.count("cpus = 32") >= 2
+
+
+def test_m6_smoke_uses_only_fixed_site_bound_profiles_and_policies() -> None:
+    """Keep Marmic migration closed over staged immutable run state."""
+
+    dispatcher = (REPOSITORY / "bootstrap/nf-gtd-hpc-remote").read_text(
+        encoding="utf-8"
+    )
+    job = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(encoding="utf-8")
+    smoke_body = job.split("load_m6_smoke_site_contract() {", maxsplit=1)[1].split(
+        "run_m6_nextflow() {", maxsplit=1
+    )[0]
+    viper_policy = yaml.safe_load(
+        (REPOSITORY / "benchmarks/m6/execution-nextflow-v1.yaml").read_text()
+    )
+    marmic_policy = yaml.safe_load(
+        (REPOSITORY / "benchmarks/m6/execution-nextflow-marmic-v1.yaml").read_text()
+    )
+    marmic_site = (
+        REPOSITORY / "external/nf-helper/conf/sites/marmic.config"
+    ).read_text()
+
+    assert "SITE_ID=marmic" in dispatcher
+    assert "SITE_ID=viper-cpu" in dispatcher
+    assert "unsupported HPC site configuration" in dispatcher
+    assert "stage_m6_site_policy_bound" in dispatcher
+    assert "validate_m6_smoke_site_state" in dispatcher
+    assert "execution-nextflow-marmic-v1.yaml" in dispatcher
+    assert "execution-nextflow-v1.yaml" in dispatcher
+    assert '-profile "$M6_NEXTFLOW_PROFILE"' in smoke_body
+    assert "--execution_policy" in smoke_body
+    assert '"$M6_EXECUTION_POLICY"' in smoke_body
+    assert '--execution-policy "$M6_EXECUTION_POLICY"' in smoke_body
+    assert '--apptainer_cache_dir "$M6_APPTAINER_CACHE"' in smoke_body
+    assert 'export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"' in smoke_body
+    assert 'if [[ "$M6_SITE_ID" == viper-cpu ]]' in smoke_body
+    assert "unset NF_HELPER_VIPER_COMPUTE_CONTROLLER" in smoke_body
+    assert "/ptmp/ashima/apptainer-cache" not in smoke_body
+    assert viper_policy["site_id"] == "viper-cpu"
+    assert viper_policy["policy_id"] == "m6_nextflow_slurm_v1"
+    assert viper_policy["concurrency"] == {
+        "aggregate_policy": "scheduler_managed",
+        "phenix_policy": "scheduler_managed",
+        "queue_size": 250,
+        "submit_rate_limit": "5/1s",
+    }
+    assert marmic_policy["site_id"] == "marmic"
+    assert marmic_policy["policy_id"] == "m6_nextflow_slurm_marmic_v1"
+    assert marmic_policy["concurrency"] == {
+        "aggregate_policy": "scheduler_managed",
+        "phenix_policy": "scheduler_managed",
+        "queue_size": 30,
+        "submit_rate_limit": "10/1s",
+    }
+    assert "executor_queue_size = 30" in marmic_site
+    assert "executor_submit_rate_limit = '10/1s'" in marmic_site

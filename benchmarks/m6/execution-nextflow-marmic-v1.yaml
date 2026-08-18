@@ -1,6 +1,6 @@
 schema_version: "1.0"
-policy_id: m6_nextflow_slurm_v1
-site_id: viper-cpu
+policy_id: m6_nextflow_slurm_marmic_v1
+site_id: marmic
 orchestrator: nextflow_dsl2
 executor: slurm
 driver:
@@ -14,8 +14,8 @@ per_job:
 concurrency:
   aggregate_policy: scheduler_managed
   phenix_policy: scheduler_managed
-  queue_size: 250
-  submit_rate_limit: "5/1s"
+  queue_size: 30
+  submit_rate_limit: "10/1s"
 search_batching:
   global_exact_sequence_deduplication: true
   mmseqs2:

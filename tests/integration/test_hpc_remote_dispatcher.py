@@ -143,6 +143,13 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         REPOSITORY / "screen_first_copy_controls.nf",
         source / "screen_first_copy_controls.nf",
     )
+    m6_benchmarks = source / "benchmarks" / "m6"
+    m6_benchmarks.mkdir(parents=True)
+    for name in (
+        "execution-nextflow-v1.yaml",
+        "execution-nextflow-marmic-v1.yaml",
+    ):
+        shutil.copy2(REPOSITORY / "benchmarks" / "m6" / name, m6_benchmarks / name)
     controls = source / "benchmarks" / "public-controls"
     controls.mkdir(parents=True)
     shutil.copy2(
@@ -391,6 +398,21 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
     environment["GIT_ALLOW_PROTOCOL"] = "file"
     environment["HOME"] = str(tmp_path)
     return dispatcher, smoke_job, environment, commit
+
+
+def _select_fake_dispatcher_site(dispatcher: Path, site_id: str) -> None:
+    """Select a fake site without creating production-shaped absolute paths."""
+
+    if site_id == "marmic":
+        return
+    assert site_id == "viper-cpu"
+    text = dispatcher.read_text(encoding="utf-8")
+    marker = 'SITE_ID=marmic\nif [[ -e "$SITE_CONFIG" || -L "$SITE_CONFIG" ]]; then'
+    replacement = (
+        'SITE_ID=viper-cpu\nif [[ -e "$SITE_CONFIG" || -L "$SITE_CONFIG" ]]; then'
+    )
+    assert marker in text
+    dispatcher.write_text(text.replace(marker, replacement, 1), encoding="utf-8")
 
 
 def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None:
@@ -665,16 +687,78 @@ def test_m6_scientific_submit_uses_approved_bounded_resources(tmp_path: Path) ->
     assert "tool_runtime_timeouts" in m6_body
 
 
-def test_m6_nextflow_smoke_uses_real_child_slurm_boundaries(tmp_path: Path) -> None:
-    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+@pytest.mark.parametrize(
+    ("site_id", "nextflow_profile", "policy_name", "policy_id"),
+    [
+        (
+            "marmic",
+            "marmic",
+            "execution-nextflow-marmic-v1.yaml",
+            "m6_nextflow_slurm_marmic_v1",
+        ),
+        (
+            "viper-cpu",
+            "viper-cpu",
+            "execution-nextflow-v1.yaml",
+            "m6_nextflow_slurm_v1",
+        ),
+    ],
+)
+def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
+    tmp_path: Path,
+    site_id: str,
+    nextflow_profile: str,
+    policy_name: str,
+    policy_id: str,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    _select_fake_dispatcher_site(dispatcher, site_id)
     remote_root = smoke_job.parent.parent
+    lock_checksum = hashlib.sha256(
+        (tmp_path / "source-origin" / "pixi.lock").read_bytes()
+    ).hexdigest()
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                M6_NEXTFLOW_SMOKE_RUN_ID,
+                commit,
+                lock_checksum,
+                OWNER_ID,
+                "1",
+                "m6-nextflow-smoke",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
     run = remote_root / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID
     state = run / "state"
-    state.mkdir(parents=True)
-    (run / "logs").mkdir()
-    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="utf-8")
-    (state / "phase").write_text("staged\n", encoding="utf-8")
-    (state / "profile").write_text("m6-nextflow-smoke\n", encoding="utf-8")
+    policy_relative = f"benchmarks/m6/{policy_name}"
+    policy = run / "source" / policy_relative
+    assert staged["site_id"] == site_id
+    assert (state / "site-id").read_text().strip() == site_id
+    assert (state / "nextflow-profile").read_text().strip() == nextflow_profile
+    assert (state / "execution-policy-relative").read_text().strip() == (
+        policy_relative
+    )
+    assert (state / "execution-policy-id").read_text().strip() == policy_id
+    assert (state / "execution-policy-sha256").read_text().strip() == (
+        hashlib.sha256(policy.read_bytes()).hexdigest()
+    )
+    assert (state / "apptainer-cache-dir").read_text().strip() == str(
+        run / "cache" / "apptainer"
+    )
+    assert (run / "cache" / "apptainer").is_dir()
+    manifest = json.loads((run / "manifest.json").read_text())
+    assert manifest["m6_site_contract"] == {
+        "nextflow_profile": nextflow_profile,
+        "execution_policy": policy_relative,
+        "execution_policy_id": policy_id,
+        "execution_policy_sha256": hashlib.sha256(policy.read_bytes()).hexdigest(),
+        "apptainer_cache_scope": "run_owned",
+    }
 
     submitted = _decode_protocol(
         _run(
@@ -685,18 +769,28 @@ def test_m6_nextflow_smoke_uses_real_child_slurm_boundaries(tmp_path: Path) -> N
     )
 
     assert submitted["job_id"] == "123"
+    assert submitted["site_id"] == site_id
     arguments = (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
     assert "--cpus-per-task=2" in arguments
     assert "--mem=8G" in arguments
     assert "--time=24:00:00" in arguments
-    body = (
-        smoke_job.read_text(encoding="utf-8")
-        .split("run_m6_nextflow_smoke() {", maxsplit=1)[1]
-        .split("run_m6_nextflow() {", maxsplit=1)[0]
-    )
+    job_text = smoke_job.read_text(encoding="utf-8")
+    body = job_text.split("run_m6_nextflow_smoke() {", maxsplit=1)[1].split(
+        "run_m6_nextflow() {", maxsplit=1
+    )[0]
+    smoke_functions = job_text.split("load_m6_smoke_site_contract() {", maxsplit=1)[
+        1
+    ].split("run_m6_nextflow() {", maxsplit=1)[0]
     dispatcher_text = dispatcher.read_text(encoding="utf-8")
-    assert "-stub-run" in smoke_job.read_text(encoding="utf-8")
-    assert "managed-slurm" in body
+    assert "-stub-run" in job_text
+    assert 'if [[ "$M6_SITE_ID" == viper-cpu ]]' in body
+    assert "export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm" in body
+    assert "unset NF_HELPER_VIPER_COMPUTE_CONTROLLER" in body
+    assert '-profile "$M6_NEXTFLOW_PROFILE"' in smoke_functions
+    assert '--execution-policy "$M6_EXECUTION_POLICY"' in smoke_functions
+    assert '--apptainer_cache_dir "$M6_APPTAINER_CACHE"' in smoke_functions
+    assert 'export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"' in body
+    assert "/ptmp/ashima/apptainer-cache" not in body
     assert "m6-nextflow-smoke-resource-evidence.json" in body
     assert "m6-nextflow-smoke-contract-evidence.json" in body
     assert 'record.get("identity_decision")' in body
@@ -758,6 +852,60 @@ def test_m6_nextflow_smoke_uses_real_child_slurm_boundaries(tmp_path: Path) -> N
         and isinstance(row["edge_observations"], list)
         for row in contract["case_contracts"]
     )
+
+
+def test_m6_nextflow_smoke_submit_rejects_changed_site_policy_state(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    lock_checksum = hashlib.sha256(
+        (tmp_path / "source-origin" / "pixi.lock").read_bytes()
+    ).hexdigest()
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            M6_NEXTFLOW_SMOKE_RUN_ID,
+            commit,
+            lock_checksum,
+            OWNER_ID,
+            "1",
+            "m6-nextflow-smoke",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    state = smoke_job.parent.parent / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID / "state"
+    (state / "nextflow-profile").write_text("viper-cpu\n", encoding="ascii")
+
+    rejected = _run(
+        [str(dispatcher), "submit", M6_NEXTFLOW_SMOKE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+
+    fields = _decode_protocol(rejected.stdout)
+    assert fields["failure_class"] == "wrapper_failure"
+    assert fields["message"] == "M6 run site policy mapping changed after staging"
+    assert not (tmp_path / "sbatch-args").exists()
+
+
+def test_dispatcher_rejects_an_unknown_site_configuration(tmp_path: Path) -> None:
+    dispatcher, _, environment, _ = _prepare_remote_layout(tmp_path)
+    site_config = dispatcher.parent / "site.paths"
+    site_config.write_text("caller-selected-site\n", encoding="ascii")
+    site_config.chmod(0o600)
+
+    rejected = _run(
+        [str(dispatcher), "readiness", "p0"],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+
+    assert rejected.stdout == b""
+    assert rejected.stderr == b"unsupported HPC site configuration\n"
 
 
 def test_m6_nextflow_smoke_collects_v2_and_resume_evidence(tmp_path: Path) -> None:

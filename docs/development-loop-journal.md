@@ -7873,3 +7873,182 @@ the immutable commit/CI/deploy/single-smoke loop.
 Stage and commit only the two bootstrap scripts, focused integration coverage,
 and material journal evidence. Push once, watch exactly one CI run, deploy the
 checksummed scripts, and submit exactly one final unchanged replacement smoke.
+
+## 2026-08-18T14:34:52Z - Evidence-complete replacement smoke running
+
+### Accomplishments and immutable evidence
+
+- Created and pushed commit
+  `c6e384d8b5883c0e2245115c274dc60fe83b60ef`. The sole GitHub Actions run
+  `32148254240`, job `95747299990`, completed successfully in 6m33s under
+  Pixi 0.76.2.
+- The deterministic controller remains byte-identical at SHA-256
+  `f8b35bc89937ccde49e5f3d42bef536865e69fe782355af6b8d1b4a2479b5a4a`.
+  Deployed dispatcher, job-wrapper, and recovery SHA-256 values are
+  `d903afa955b3758f2e3874986cf0d1c1831e306d3062e98f698e11ed2af1bb60`,
+  `c33bc2f30172d8ff32db9ed78f1a446b745dc6753544850bef937df53d472ef4`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- Staged and submitted exactly one evidence-complete replacement as
+  `gtd-m6-nextflow-smoke-20260818T143325Z-c6e384d8b588-de9c14b8`, Slurm job
+  `10947942`, from the pushed source and nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`. Its first status is `RUNNING`,
+  terminal=false.
+- Rebound the existing 30-minute heartbeat in place to this run and retained
+  this thread as its destination. No duplicate automation, CI watch, or Viper
+  job was created.
+
+### Unresolved work
+
+- Monitor only job `10947942`. On terminal state, collect bounded logs and the
+  exact allow-listed evidence. In addition to topology/resources/reuse, require
+  the collected v2 identity/edge contract report, identical before/after
+  ten-file digests, operational synthetic outputs matching those digests, and
+  a portable relative-path checksum manifest.
+- Treat process-level shared-store membership as orchestration evidence only;
+  raw-input and cache-key truthlessness remains an R2 release stop. Preserve
+  the executor-option warnings without claiming queue/rate enforcement.
+- If every fixed smoke gate passes, close R0A and begin the smallest R1 strict
+  contract slice. Do not stage operational or leakage M6 science first.
+
+### Next exact starting point
+
+Run `nf-gtd-hpc-test --no-progress status --run-id
+gtd-m6-nextflow-smoke-20260818T143325Z-c6e384d8b588-de9c14b8` at the next
+30-minute heartbeat.
+
+## 2026-08-18T15:23:33Z - Parallel foundation slices merge cleanly in isolation
+
+### Accomplishments and local evidence
+
+- Created three isolated local worktree branches from pushed source
+  `c6e384d8b5883c0e2245115c274dc60fe83b60ef`; none touched main, the active
+  smoke, remote state, or GitHub.
+- R1 commit `f2f364b` rejects duplicate top-level and nested JSON/YAML mapping
+  keys before schema validation and reports source plus array-aware pointer.
+  Six red/green regressions pass; the complete typed-contract file passes 52.
+- R2 commit `720b5f3` records and verifies every required Phenix command digest,
+  refuses unrecorded or same-path replaced executables before both spawn
+  boundaries, and exposes a verified runtime identity for later cache-key
+  integration. Its focused set passes 32 tests; downstream cache consumers
+  remain an explicit R2 task.
+- R3 commit `edf1096` carries MTZ dataset identity through observation
+  candidates and selections, compares arrays within the correct dataset, and
+  rejects label-only overrides that are ambiguous across datasets. Its
+  focused diffraction suite passes 90 tests; the additive record migration is
+  backward-readable.
+- The three commits cherry-pick without conflict into the local
+  `foundation-integration` branch. Combined focused tests pass 109. One full
+  `pixi run --locked check` passes Ruff format/lint, `ty`, 472 unit tests,
+  66 contract tests, 52 integration tests, schemas, public-panel validation,
+  documentation links, actionlint, Nextflow syntax and cached-resume stub, and
+  all Bash wrapper checks against pinned nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`.
+
+### Unresolved work and exact next starting point
+
+- These branches are local review points only; do not push or integrate them
+  into main while the evidence-complete R0A smoke is non-terminal.
+- At the next heartbeat, monitor only Slurm job `10947942`. If its collected
+  gates pass, close R0A, inspect the three foundation commits again, and
+  integrate them in R1/R2/R3 dependency order. Preserve the R2 runtime-identity
+  cache-consumer gap and the R3 downstream dataset-identity propagation as
+  named follow-up work rather than overstating those gates as complete.
+
+## 2026-08-18T15:36:31Z - R0A evidence-complete smoke passes
+
+### Immutable evidence and classification
+
+- Evidence-complete smoke
+  `gtd-m6-nextflow-smoke-20260818T143325Z-c6e384d8b588-de9c14b8`, Slurm job
+  `10947942`, completed successfully from source
+  `c6e384d8b5883c0e2245115c274dc60fe83b60ef`, nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, Pixi 0.76.2, lock SHA-256
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`,
+  and execution-policy SHA-256
+  `533f28c049cff718242718b6af6584684dd675a612f30adfcce928c86669d527`.
+- First, resume, and leakage traces contain respectively 25/25 completed,
+  19/19 cached, and 19/19 completed tasks. Six stored tasks are exactly two
+  catalogue imports, two PDB batches, and two Foldseek batches; both catalogue
+  partitions and the active M6C001 plus typed-empty M6C057 branches complete.
+- Search native IDs `10947998`--`10948001` are distinct and completed with
+  32 CPUs, 16 GB, and 24-hour requests. Per-job bounds pass. Peak observed
+  concurrency is two children, 33 aggregate CPUs, 20 GB, and one Phenix job,
+  within the reviewed Viper project ceiling.
+- The collected v2 report directly verifies `m6-nextflow-run-v2`, two
+  `m6-nextflow-case-evidence-v2` rows, case-bound identity decisions, and edge
+  lists. Both ten-file resume manifests have identical SHA-256
+  `f420ad722126e2ae9af97437428ac167a74493355609c9ca617923e479666bff`;
+  every allow-listed operational output verifies against both manifests.
+- Summary, resume, resource, contract, store, and final-manifest SHA-256 values
+  are
+  `ea53439398f1b18919242b4afac1aaad935ea7cb21fe42c2e713c579a9b64f41`,
+  `0e291e76468185712957e6595d8c07ad8f08ea7642dee09efb46b3a9140d53e2`,
+  `967b29bcc86c9f71b456eb475fc4adb0dc81fef35a03e3f4883dc8c67e08e35a`,
+  `4590714909d059e0247a9c8ffb088010f906d4b837e4bca18ef0aab99e6bfe1c`,
+  `413363d6fa4669f0d2f1db6939b999063c68363814c3135feb25061096908a27`,
+  and `823c19aa187188fff083f5c563618a7846f22e4a679c553373503d18d04e40b4`.
+- R0A is complete as non-acceptance orchestration/evidence qualification. It
+  does not clear R1--R4, M6 scientific Gate 1, or v0.1 release. Process-level
+  reuse membership is proven; raw-input/cache-key truthlessness remains R2.
+  Executor-scope warnings remain visible and aggregate queue/rate enforcement
+  remains unclaimed.
+
+### Marmic migration decision and exact next starting point
+
+- The user requested migration to less-crowded Marmic after the Viper job had
+  already completed, so no cancellation or duplicate rerun was performed.
+- The current controller and dispatcher intentionally refuse
+  `m6-nextflow-smoke` outside Viper, the job hard-codes `-profile viper-cpu`,
+  and its Apptainer path is Viper-specific. Marmic execution therefore requires
+  a separately reviewed site-parameterisation/configuration slice before any
+  submission; merely changing the SSH target would be unsafe.
+- Keep the completed Viper evidence immutable. Review and integrate the local
+  R1/R2/R3 foundation commits in dependency order while developing a fixed
+  Marmic smoke profile in an isolated worktree. Run no Marmic job until its
+  controller guard, dispatcher site validation, Nextflow profile, Apptainer
+  cache, resource mapping, collection, fake-Marmic lifecycle tests, and script
+  deployment checks pass one complete locked gate and CI.
+
+## 2026-08-18T16:44:59Z - Foundation slices integrated; Marmic profile locally green
+
+### Accomplishments and immutable local evidence
+
+- Integrated the reviewed foundation commits into main in dependency order:
+  `667fab2` rejects duplicate JSON/YAML mapping keys, `77bde73` binds verified
+  Phenix command digests, and `b193869` qualifies MTZ observation selection by
+  dataset. The previously tracked follow-up limits remain explicit; these do
+  not complete all of R1, R2, or R3.
+- Added a fixed two-site M6 smoke contract. Immutable stage state now binds
+  `site_id` to either `marmic` or `viper-cpu`, the corresponding Nextflow
+  profile, a site-specific execution-policy ID and checksum, and a run-owned
+  Apptainer cache. Unsupported sites, endpoint/config mismatches, altered
+  policy state, and unsafe cache paths fail closed before submission.
+- Added Marmic execution policy `m6_nextflow_slurm_marmic_v1` with truthful
+  queue size 30 and submission rate `10/1s`. Both sites retain the fixed
+  32-CPU/16-GB/24-hour search bounds. The Viper managed-controller environment
+  is set only on Viper; both sites pass the cache directory explicitly.
+- Focused Marmic/Viper site tests pass nine cases; the broader controller, M6,
+  contract, and fake-dispatcher selection passes 147. The focused M6 stub
+  retains 25/25 first-pass tasks and a resume of 19 cached plus six stored
+  discovery tasks.
+- One complete integrated-main `pixi run --locked check` passes Ruff
+  format/lint, `ty`, 475 unit tests, 67 contract tests, 55 integration tests,
+  schemas, public-panel validation, documentation links, actionlint, Nextflow
+  syntax and the complete cached-resume stub, and all Bash wrapper checks.
+  The complete stub performs 33 subprocess launches, explaining its long but
+  successful runtime.
+
+### Remaining migration boundary and exact next starting point
+
+- No Marmic remote operation has occurred. Inspect the full staged diff and
+  privacy scope, commit the migration with this journal, push once, and watch
+  exactly one CI run.
+- After green CI, create a separate mode-0600 Marmic controller configuration
+  and local state root from the retained approved settings; do not overwrite
+  the Viper configuration. Deploy the exact checksummed dispatcher/job script
+  through the Marmic wrapper and run reviewed readiness before staging.
+- The completed Viper smoke must not be duplicated merely as another
+  scientific claim. A Marmic M6 smoke is justified only as the requested new
+  site-profile validation; it remains non-acceptance orchestration evidence.
+  Real Phenix and production databases are not needed for that stub, but are
+  still required before Marmic scientific M6 tracks.

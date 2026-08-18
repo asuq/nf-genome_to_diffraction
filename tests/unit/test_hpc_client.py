@@ -81,6 +81,7 @@ class FakeTransport:
     m6_scientific_archive: bytes = b""
     deploy_error: RemoteOperationError | None = None
     stage_error: RemoteOperationError | None = None
+    stage_site_id: str = "marmic"
 
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         self.calls.append((operation, tuple(arguments)))
@@ -95,10 +96,13 @@ class FakeTransport:
                 "run_id": arguments[0],
                 "content_base64": base64.b64encode(b"line one\nline two\n").decode(),
             }
-        return {
+        response = {
             "run_id": arguments[0] if arguments else "",
             "remote_operation": operation,
         }
+        if operation == "stage":
+            response["site_id"] = self.stage_site_id
+        return response
 
     def recover_tools(
         self,
@@ -200,7 +204,11 @@ class FakeTransport:
     ) -> dict[str, str]:
         self.calls.append(("stage-archive", tuple(arguments)))
         assert archive_path.read_bytes() == b"source archive"
-        return {"run_id": arguments[0], "remote_operation": "stage-archive"}
+        return {
+            "run_id": arguments[0],
+            "remote_operation": "stage-archive",
+            "site_id": self.stage_site_id,
+        }
 
     def m4_import_stage(
         self, arguments: Sequence[str], archive_path: Path
@@ -947,17 +955,38 @@ def test_all_owned_operations_use_the_recorded_capability(tmp_path: Path) -> Non
     assert len(owner_values) == 1
 
 
-def test_m6_nextflow_smoke_staging_is_viper_only(tmp_path: Path) -> None:
+@pytest.mark.parametrize("site_id", ["marmic", "viper-cpu"])
+def test_m6_nextflow_smoke_staging_uses_the_fixed_configured_site(
+    tmp_path: Path, site_id: str
+) -> None:
     transport = FakeTransport()
+    transport.stage_site_id = site_id
     controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id=site_id)
 
-    with pytest.raises(ValidationError, match="available only for viper-cpu"):
-        controller.stage("m6-nextflow-smoke", "HEAD")
-
-    controller.config = _config(tmp_path, site_id="viper-cpu")
     staged = controller.stage("m6-nextflow-smoke", "HEAD")
     assert staged["profile"] == "m6-nextflow-smoke"
+    local_record = json.loads(Path(str(staged["local_record"])).read_text())
+    assert local_record["site_id"] == site_id
     assert transport.calls[-1][0] == "stage"
+
+
+def test_m6_nextflow_smoke_staging_rejects_an_endpoint_site_mismatch(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport(stage_site_id="viper-cpu")
+    controller = _controller(tmp_path, transport)
+
+    with pytest.raises(ValidationError, match="endpoint site differs"):
+        controller.stage("m6-nextflow-smoke", "HEAD")
+
+    run_id = transport.calls[-1][1][0]
+    preserved = json.loads(
+        (controller.config.local_state_root / run_id / "run.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert preserved["site_id"] == "viper-cpu"
 
 
 def test_m4_copy_stage_sends_only_bound_parent_and_checksummed_decisions(

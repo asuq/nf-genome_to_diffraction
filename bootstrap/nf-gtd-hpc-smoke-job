@@ -67,6 +67,12 @@ SCRATCH_PARENT=""
 SCRATCH_PARENT_CLEANUP=""
 SCRATCH=""
 SOURCE=""
+M6_SITE_ID=""
+M6_NEXTFLOW_PROFILE=""
+M6_EXECUTION_POLICY=""
+M6_EXECUTION_POLICY_ID=""
+M6_EXECUTION_POLICY_SHA256=""
+M6_APPTAINER_CACHE=""
 if [[ "$PROFILE" != database ]]; then
     SCRATCH_PARENT="${ROOT%/}/work"
     [[ "$SCRATCH_PARENT" =~ $SAFE_PATH_RE ]] || {
@@ -1793,6 +1799,66 @@ run_m6_inputs() {
     printf 'm6_input_status=truth_isolated_runner_qualified\n'
 }
 
+load_m6_smoke_site_contract() {
+    local expected_profile expected_policy_relative expected_policy_id
+    local policy_relative actual_policy_sha state_name
+    for state_name in \
+        site-id \
+        nextflow-profile \
+        execution-policy-relative \
+        execution-policy-id \
+        execution-policy-sha256 \
+        apptainer-cache-dir; do
+        [[ -f "$RUN/state/$state_name" && ! -L "$RUN/state/$state_name" && \
+           -O "$RUN/state/$state_name" ]] || {
+            printf 'M6 site policy state is absent or unsafe\n' >&2
+            return 1
+        }
+    done
+    M6_SITE_ID="$(<"$RUN/state/site-id")"
+    if [[ "$M6_SITE_ID" == viper-cpu ]]; then
+        expected_profile=viper-cpu
+        expected_policy_relative=benchmarks/m6/execution-nextflow-v1.yaml
+        expected_policy_id=m6_nextflow_slurm_v1
+    elif [[ "$M6_SITE_ID" == marmic ]]; then
+        expected_profile=marmic
+        expected_policy_relative=benchmarks/m6/execution-nextflow-marmic-v1.yaml
+        expected_policy_id=m6_nextflow_slurm_marmic_v1
+    else
+        printf 'unsupported M6 smoke site identity\n' >&2
+        return 1
+    fi
+    M6_NEXTFLOW_PROFILE="$(<"$RUN/state/nextflow-profile")"
+    policy_relative="$(<"$RUN/state/execution-policy-relative")"
+    M6_EXECUTION_POLICY_ID="$(<"$RUN/state/execution-policy-id")"
+    M6_EXECUTION_POLICY_SHA256="$(<"$RUN/state/execution-policy-sha256")"
+    M6_APPTAINER_CACHE="$(<"$RUN/state/apptainer-cache-dir")"
+    [[ "$M6_NEXTFLOW_PROFILE" == "$expected_profile" && \
+       "$policy_relative" == "$expected_policy_relative" && \
+       "$M6_EXECUTION_POLICY_ID" == "$expected_policy_id" && \
+       "$M6_EXECUTION_POLICY_SHA256" =~ $CHECKSUM_RE ]] || {
+        printf 'M6 smoke site policy mapping changed after staging\n' >&2
+        return 1
+    }
+    M6_EXECUTION_POLICY="$RUN/source/$policy_relative"
+    [[ -f "$M6_EXECUTION_POLICY" && ! -L "$M6_EXECUTION_POLICY" && \
+       -O "$M6_EXECUTION_POLICY" ]] || {
+        printf 'fixed M6 execution policy is absent or unsafe\n' >&2
+        return 1
+    }
+    actual_policy_sha="$(sha256sum "$M6_EXECUTION_POLICY" | awk '{print $1}')"
+    [[ "$actual_policy_sha" == "$M6_EXECUTION_POLICY_SHA256" ]] || {
+        printf 'fixed M6 execution policy changed after staging\n' >&2
+        return 1
+    }
+    [[ "$M6_APPTAINER_CACHE" == "$RUN/cache/apptainer" && \
+       -d "$M6_APPTAINER_CACHE" && ! -L "$M6_APPTAINER_CACHE" && \
+       -O "$M6_APPTAINER_CACHE" ]] || {
+        printf 'run-owned M6 Apptainer cache is unsafe\n' >&2
+        return 1
+    }
+}
+
 run_m6_stub_nextflow() {
     local label="$1"
     local track="$2"
@@ -1807,12 +1873,13 @@ run_m6_stub_nextflow() {
             run "$RUN/source/m6_validation.nf" \
             -stub-run \
             "$@" \
-            -profile viper-cpu \
+            -profile "$M6_NEXTFLOW_PROFILE" \
+            --apptainer_cache_dir "$M6_APPTAINER_CACHE" \
             --runner_root \
                 "$RUN/source/tests/fixtures/stubs/m6_nextflow" \
             --protocol "$RUN/source/benchmarks/m6/protocol.yaml" \
             --execution_policy \
-                "$RUN/source/benchmarks/m6/execution-nextflow-v1.yaml" \
+                "$M6_EXECUTION_POLICY" \
             --software_lock "$RUN/source/pixi.lock" \
             --database_manifest \
                 "$RUN/source/tests/fixtures/stubs/database_manifest.json" \
@@ -1837,6 +1904,7 @@ run_m6_nextflow_smoke() {
     local store_expected
     local child_jobs search_jobs peak_jobs peak_cpu peak_memory peak_phenix
 
+    load_m6_smoke_site_contract || return 2
     [[ -f "$RUN/state/hpc-environment-status" && \
         "$(<"$RUN/state/hpc-environment-status")" == ready ]] || return 2
     [[ "${SLURM_CPUS_PER_TASK:-0}" == 2 ]] || return 2
@@ -1849,8 +1917,12 @@ run_m6_nextflow_smoke() {
     [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
-    export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
-    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
+    if [[ "$M6_SITE_ID" == viper-cpu ]]; then
+        export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
+    else
+        unset NF_HELPER_VIPER_COMPUTE_CONTROLLER
+    fi
+    export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"
     M6_SMOKE_STORE="$RUN/cache/m6-nextflow-smoke-store"
     mkdir -p \
         "$qualification" \
@@ -1868,8 +1940,7 @@ run_m6_nextflow_smoke() {
     cp -a "$operational/pipeline_info" \
         "$qualification/m6-smoke-first-pipeline-info"
     "$GTD" --log-format json --no-progress benchmark collect-m6-resources \
-        --execution-policy \
-            "$RUN/source/benchmarks/m6/execution-nextflow-v1.yaml" \
+        --execution-policy "$M6_EXECUTION_POLICY" \
         --trace "$qualification/m6-smoke-first-pipeline-info/trace.tsv" \
         --output \
             "$qualification/m6-nextflow-smoke-resource-evidence.json"
@@ -2049,13 +2120,19 @@ PY
     fi
 
     child_summary="$("$RUN/source/.pixi/envs/hpc/bin/python" - \
-        "$qualification/m6-nextflow-smoke-resource-evidence.json" <<'PY'
+        "$qualification/m6-nextflow-smoke-resource-evidence.json" \
+        "$M6_EXECUTION_POLICY_ID" "$M6_EXECUTION_POLICY_SHA256" <<'PY'
 import json
 import pathlib
 import re
 import sys
 
 record = json.loads(pathlib.Path(sys.argv[1]).read_text())
+if (
+    record.get("execution_policy_id") != sys.argv[2]
+    or record.get("execution_policy_sha256") != sys.argv[3]
+):
+    raise SystemExit("M6 resource evidence used another site policy")
 jobs = record["jobs"]
 search = [
     job for job in jobs
@@ -2116,6 +2193,10 @@ EOF
 {
   "schema_version": "1.0",
   "profile": "m6-nextflow-smoke",
+  "site_id": "$M6_SITE_ID",
+  "nextflow_profile": "$M6_NEXTFLOW_PROFILE",
+  "execution_policy_id": "$M6_EXECUTION_POLICY_ID",
+  "execution_policy_sha256": "$M6_EXECUTION_POLICY_SHA256",
   "acceptance_evidence": false,
   "two_case_stub_only": true,
   "nextflow_slurm_driver_cpus": 2,

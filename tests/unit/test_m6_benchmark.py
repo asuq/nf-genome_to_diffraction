@@ -114,6 +114,9 @@ from genome_to_diffraction.schemas.results import (
 ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "benchmarks" / "m6" / "protocol.yaml"
 EXECUTION_POLICY = ROOT / "benchmarks" / "m6" / "execution-nextflow-v1.yaml"
+MARMIC_EXECUTION_POLICY = (
+    ROOT / "benchmarks" / "m6" / "execution-nextflow-marmic-v1.yaml"
+)
 HASH = "a" * 64
 
 
@@ -1800,8 +1803,34 @@ def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> No
     assert changed_software_batch["search_cache_key"] != first_batch["search_cache_key"]
 
 
-def test_m6_execution_policy_and_trace_use_per_job_bounds(tmp_path: Path) -> None:
-    policy = load_m6_execution_policy(EXECUTION_POLICY)
+@pytest.mark.parametrize(
+    ("policy_path", "site_id", "policy_id", "queue_size", "submit_rate_limit"),
+    [
+        (
+            EXECUTION_POLICY,
+            "viper-cpu",
+            "m6_nextflow_slurm_v1",
+            250,
+            "5/1s",
+        ),
+        (
+            MARMIC_EXECUTION_POLICY,
+            "marmic",
+            "m6_nextflow_slurm_marmic_v1",
+            30,
+            "10/1s",
+        ),
+    ],
+)
+def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
+    tmp_path: Path,
+    policy_path: Path,
+    site_id: str,
+    policy_id: str,
+    queue_size: int,
+    submit_rate_limit: str,
+) -> None:
+    policy = load_m6_execution_policy(policy_path)
     trace = tmp_path / "trace.tsv"
     trace.write_text(
         "process\ttag\tstatus\tnative_id\tcpus\tmemory\ttime\tstart\tcomplete\tpeak_rss\t%cpu\n"
@@ -1814,16 +1843,22 @@ def test_m6_execution_policy_and_trace_use_per_job_bounds(tmp_path: Path) -> Non
 
     evidence = collect_m6_resource_evidence(
         M6ResourceEvidenceRequest(
-            policy=EXECUTION_POLICY,
+            policy=policy_path,
             trace=trace,
             output=tmp_path / "resource-evidence.json",
         )
     )
 
     assert policy.per_job.maximum_cpus == 32
+    assert policy.site_id == site_id
+    assert policy.policy_id == policy_id
+    assert policy.concurrency.queue_size == queue_size
+    assert policy.concurrency.submit_rate_limit == submit_rate_limit
     assert policy.search_batching.mmseqs2.cpus == 32
     assert policy.search_batching.foldseek.cpus == 32
     assert evidence.per_job_bounds_passed is True
+    assert evidence.execution_policy_id == policy_id
+    assert evidence.execution_policy_sha256 == sha256_file(policy_path)
     assert evidence.child_job_count == 2
     assert evidence.peak_running_jobs == 2
     assert evidence.peak_aggregate_cpus == 34
