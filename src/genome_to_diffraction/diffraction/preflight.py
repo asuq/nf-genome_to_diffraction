@@ -26,6 +26,7 @@ from genome_to_diffraction.schemas.manifests import (
 from genome_to_diffraction.schemas.results import (
     AssessmentStatus,
     MtzColumnRecord,
+    MtzObservationCandidateRecord,
     MtzPreflightRecord,
     PreflightDecision,
 )
@@ -82,6 +83,7 @@ class PreflightResult:
 @dataclass(frozen=True)
 class _ObservationCandidate:
     labels: tuple[str, ...]
+    dataset_id: int
     observation_type: Literal["intensity", "amplitude"]
     rank: int
 
@@ -170,13 +172,14 @@ def _candidate_pairs(mtz: gemmi.Mtz) -> tuple[_ObservationCandidate, ...]:
                 pairs.append(
                     _ObservationCandidate(
                         labels=(value.label, sigma.label),
+                        dataset_id=value.dataset_id,
                         observation_type=observation_type,
                         rank=_observation_rank(value.label, observation_type),
                     )
                 )
 
     by_anomalous_base: dict[
-        tuple[Literal["intensity", "amplitude"], str, int],
+        tuple[int, Literal["intensity", "amplitude"], str, int],
         dict[str, _ObservationCandidate],
     ] = {}
     ordinary: list[_ObservationCandidate] = []
@@ -186,17 +189,19 @@ def _candidate_pairs(mtz: gemmi.Mtz) -> tuple[_ObservationCandidate, ...]:
             ordinary.append(pair)
             continue
         key = (
+            pair.dataset_id,
             pair.observation_type,
             _normalise_label(_without_anomalous_sign(pair.labels[0])),
             pair.rank,
         )
         by_anomalous_base.setdefault(key, {})[sign] = pair
     combined = list(ordinary)
-    for (observation_type, _, rank), signed in by_anomalous_base.items():
+    for (dataset_id, observation_type, _, rank), signed in by_anomalous_base.items():
         if set(signed) == {"+", "-"}:
             combined.append(
                 _ObservationCandidate(
                     labels=(*signed["+"].labels, *signed["-"].labels),
+                    dataset_id=dataset_id,
                     observation_type=observation_type,
                     rank=rank,
                 )
@@ -216,13 +221,50 @@ def _explicit_candidate(mtz: gemmi.Mtz, labels_text: str) -> _ObservationCandida
         raise MtzPreflightError(
             "obs_labels must contain one value/sigma pair or an anomalous quartet"
         )
-    columns = {column.label: column for column in mtz.columns}
-    try:
-        selected = tuple(columns[label] for label in labels)
-    except KeyError as error:
+    missing_label = next(
+        (
+            label
+            for label in labels
+            if not any(column.label == label for column in mtz.columns)
+        ),
+        None,
+    )
+    if missing_label is not None:
         raise MtzPreflightError(
-            f"explicit observation column is missing: {error.args[0]}"
-        ) from error
+            f"explicit observation column is missing: {missing_label}"
+        )
+    dataset_ids = sorted({column.dataset_id for column in mtz.columns})
+    matching_dataset_ids = tuple(
+        dataset_id
+        for dataset_id in dataset_ids
+        if all(
+            sum(
+                column.dataset_id == dataset_id and column.label == label
+                for column in mtz.columns
+            )
+            == 1
+            for label in labels
+        )
+    )
+    if len(matching_dataset_ids) > 1:
+        rendered_ids = ",".join(str(dataset_id) for dataset_id in matching_dataset_ids)
+        raise MtzPreflightError(
+            "explicit observation labels are ambiguous across MTZ datasets: "
+            f"labels={labels_text}; dataset_ids={rendered_ids}"
+        )
+    if not matching_dataset_ids:
+        raise MtzPreflightError(
+            "explicit observation columns must occur exactly once in one MTZ dataset"
+        )
+    dataset_id = matching_dataset_ids[0]
+    selected = tuple(
+        next(
+            column
+            for column in mtz.columns
+            if column.dataset_id == dataset_id and column.label == label
+        )
+        for label in labels
+    )
     value_columns = selected[::2]
     sigma_columns = selected[1::2]
     if any(_is_map_coefficient(column.label) for column in value_columns):
@@ -243,7 +285,23 @@ def _explicit_candidate(mtz: gemmi.Mtz, labels_text: str) -> _ObservationCandida
     ):
         raise MtzPreflightError("explicit observation value/sigma labels do not pair")
     observation_type = _OBSERVATION_TYPES[value_type]
-    return _ObservationCandidate(labels, observation_type, -1)
+    return _ObservationCandidate(labels, dataset_id, observation_type, -1)
+
+
+def _candidate_array(
+    mtz: gemmi.Mtz, candidate: _ObservationCandidate, label: str
+) -> np.ndarray:
+    matches = tuple(
+        column
+        for column in mtz.columns
+        if column.dataset_id == candidate.dataset_id and column.label == label
+    )
+    if len(matches) != 1:
+        raise MtzPreflightError(
+            "observation label must occur exactly once in its MTZ dataset: "
+            f"dataset_id={candidate.dataset_id}; label={label}"
+        )
+    return np.asarray(matches[0].array)
 
 
 def select_observations(
@@ -279,13 +337,13 @@ def select_observations(
         if len(best) == 1:
             return best[0], rendered, ("observation_selection_deterministic",)
         reference = tuple(
-            np.asarray(mtz.column_with_label(label).array) for label in best[0].labels
+            _candidate_array(mtz, best[0], label) for label in best[0].labels
         )
         equivalent = all(
             all(
                 np.array_equal(
                     reference_values,
-                    np.asarray(mtz.column_with_label(label).array),
+                    _candidate_array(mtz, candidate, label),
                     equal_nan=True,
                 )
                 for reference_values, label in zip(
@@ -765,6 +823,14 @@ def inspect_crystal(
     observation, candidates, selection_warnings = select_observations(
         mtz, entry.obs_labels
     )
+    candidate_identities = tuple(
+        MtzObservationCandidateRecord(
+            dataset_id=candidate.dataset_id,
+            labels=candidate.labels,
+            observation_type=candidate.observation_type,
+        )
+        for candidate in _candidate_pairs(mtz)
+    )
     warnings.extend(selection_warnings)
 
     free_column = None
@@ -847,6 +913,9 @@ def inspect_crystal(
         "crystal_id": entry.crystal_id,
         "mtz_sha256": mtz_sha,
         "selected_observation_labels": selected_labels,
+        "selected_observation_dataset_id": (
+            observation.dataset_id if observation is not None else None
+        ),
         "space_group": spacegroup.xhm(),
         "unit_cell": mtz.cell.parameters,
         "resolution_high_a": high_resolution,
@@ -860,6 +929,9 @@ def inspect_crystal(
         crystal_id=entry.crystal_id,
         mtz_sha256=mtz_sha,
         selected_observation_labels=selected_labels,
+        selected_observation_dataset_id=(
+            observation.dataset_id if observation is not None else None
+        ),
         selected_observation_type=(
             observation.observation_type if observation is not None else None
         ),
@@ -877,6 +949,7 @@ def inspect_crystal(
         reflection_count=mtz.nreflections,
         available_columns=columns,
         observation_candidates=candidates,
+        observation_candidate_identities=candidate_identities,
         completeness=assessment.completeness,
         mean_i_over_sigma=assessment.mean_i_over_sigma,
         anisotropy_status=assessment.anisotropy_status,
@@ -924,6 +997,7 @@ def _write_preflight_outputs(
         "crystal_id",
         "decision",
         "selected_observation_labels",
+        "selected_observation_dataset_id",
         "selected_observation_type",
         "free_flag_labels",
         "free_flag_status",
@@ -1022,12 +1096,18 @@ def _write_preflight_outputs(
             if most_anisotropy_z is not None
             else "not available"
         )
+        observation_dataset_id_display = (
+            str(record.selected_observation_dataset_id)
+            if record.selected_observation_dataset_id is not None
+            else "none"
+        )
         lines.extend(
             (
                 f"## {record.crystal_id}",
                 "",
                 f"- Decision: `{record.decision}`",
                 f"- Observations: `{record.selected_observation_labels or 'none'}`",
+                f"- Observation dataset ID: `{observation_dataset_id_display}`",
                 f"- Space group: `{record.space_group}`",
                 f"- Unit cell: `{unit_cell}`",
                 f"- MTZ row resolution: `{mtz_resolution}`",

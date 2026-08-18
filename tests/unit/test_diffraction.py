@@ -21,8 +21,10 @@ from genome_to_diffraction.diffraction.free_r import (
     generate_free_r,
 )
 from genome_to_diffraction.diffraction.preflight import (
+    MtzPreflightError,
     inspect_crystal,
     parse_xtriage_output,
+    select_observations,
 )
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.matthews import assess_sds, enumerate_group
@@ -122,7 +124,11 @@ def test_gemmi_preflight_selects_observations_and_asu_volume(
         xtriage_timeout_seconds=30,
     )
     assert record.selected_observation_labels == expected_labels
+    assert record.selected_observation_dataset_id == 1
     assert record.selected_observation_type == expected_type
+    assert tuple(
+        candidate.dataset_id for candidate in record.observation_candidate_identities
+    ) == (1,)
     assert record.general_position_multiplicity == 4
     assert record.cell_volume_a3 == pytest.approx(1_000_000)
     assert record.asu_volume_a3 == pytest.approx(250_000)
@@ -243,6 +249,54 @@ def test_explicit_observation_override_resolves_ambiguity(tmp_path: Path) -> Non
     )
     assert record.selected_observation_labels == "I2,SIGI2"
     assert "ambiguous_observation_arrays" not in record.warning_codes
+
+
+def _same_label_multi_dataset_mtz(*, equivalent: bool) -> gemmi.Mtz:
+    mtz = gemmi.Mtz(with_base=True)
+    first_dataset = mtz.add_dataset("first")
+    second_dataset = mtz.add_dataset("second")
+    for dataset in (first_dataset, second_dataset):
+        mtz.add_column("I", "J", dataset.id)
+        mtz.add_column("SIGI", "Q", dataset.id)
+    mtz.set_data(
+        np.asarray(
+            (
+                (1, 0, 0, 10, 1, 10 if equivalent else 100, 1 if equivalent else 10),
+                (2, 0, 0, 20, 2, 20 if equivalent else 200, 2 if equivalent else 20),
+            ),
+            dtype=np.float32,
+        )
+    )
+    return mtz
+
+
+def test_same_observation_labels_in_conflicting_datasets_are_ambiguous() -> None:
+    mtz = _same_label_multi_dataset_mtz(equivalent=False)
+
+    selected, candidates, warnings = select_observations(mtz, None)
+
+    assert selected is None
+    assert candidates == ("I,SIGI", "I,SIGI")
+    assert warnings == ("ambiguous_observation_arrays",)
+    with pytest.raises(
+        MtzPreflightError,
+        match="explicit observation labels are ambiguous across MTZ datasets",
+    ):
+        select_observations(mtz, "I,SIGI")
+
+
+def test_same_observation_labels_with_equal_arrays_retain_dataset_identity() -> None:
+    mtz = _same_label_multi_dataset_mtz(equivalent=True)
+
+    selected, candidates, warnings = select_observations(mtz, None)
+
+    assert selected is not None
+    assert selected.dataset_id == 1
+    assert candidates == ("I,SIGI", "I,SIGI")
+    assert warnings == (
+        "equivalent_observation_arrays",
+        "observation_selection_deterministic",
+    )
 
 
 def test_xtriage_parser_normalises_warnings_and_metrics() -> None:

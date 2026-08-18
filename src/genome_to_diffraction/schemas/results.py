@@ -387,6 +387,26 @@ class MtzColumnRecord(ContractModel):
     dataset_id: int = Field(ge=0)
 
 
+class MtzObservationCandidateRecord(ContractModel):
+    """One dataset-qualified MTZ observation candidate."""
+
+    dataset_id: int = Field(ge=0)
+    labels: tuple[NonEmptyString, ...] = Field(min_length=2, max_length=4)
+    observation_type: Literal["intensity", "amplitude"]
+
+    @model_validator(mode="after")
+    def _validate_label_count(self) -> Self:
+        if len(self.labels) not in {2, 4}:
+            raise ValueError("observation labels must be a pair or anomalous quartet")
+        return self
+
+    @property
+    def rendered_labels(self) -> str:
+        """Return the Phenix-compatible comma-separated labels."""
+
+        return ",".join(self.labels)
+
+
 class MtzPreflightRecord(ContractModel):
     """Independent MTZ/Xtriage inspection result."""
 
@@ -395,6 +415,7 @@ class MtzPreflightRecord(ContractModel):
     crystal_id: NonEmptyString
     mtz_sha256: Sha256Hex
     selected_observation_labels: str | None = None
+    selected_observation_dataset_id: int | None = Field(default=None, ge=0)
     selected_observation_type: Literal["intensity", "amplitude"] | None = None
     free_flag_labels: str | None = None
     free_flag_status: Literal["present", "missing", "generated"]
@@ -415,6 +436,7 @@ class MtzPreflightRecord(ContractModel):
     reflection_count: int = Field(ge=0)
     available_columns: tuple[MtzColumnRecord, ...] = ()
     observation_candidates: tuple[str, ...] = ()
+    observation_candidate_identities: tuple[MtzObservationCandidateRecord, ...] = ()
     completeness: float | None = Field(default=None, ge=0, le=1)
     mean_i_over_sigma: float | None = None
     anisotropy_status: AssessmentStatus = AssessmentStatus.NOT_ASSESSED
@@ -443,6 +465,29 @@ class MtzPreflightRecord(ContractModel):
             or self.selected_observation_type is None
         ):
             raise ValueError("pass decision requires selected observations")
+        if (
+            self.selected_observation_dataset_id is not None
+            and self.selected_observation_labels is None
+        ):
+            raise ValueError(
+                "selected observation dataset requires selected observation labels"
+            )
+        if self.observation_candidate_identities:
+            rendered = tuple(
+                candidate.rendered_labels
+                for candidate in self.observation_candidate_identities
+            )
+            if rendered != self.observation_candidates:
+                raise ValueError(
+                    "observation candidate identities do not match rendered candidates"
+                )
+            if (
+                self.selected_observation_labels is not None
+                and self.selected_observation_dataset_id is None
+            ):
+                raise ValueError(
+                    "dataset-qualified candidates require a selected dataset identity"
+                )
         return self
 
 
