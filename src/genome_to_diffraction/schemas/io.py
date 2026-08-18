@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Literal, cast
+from typing import IO, Literal, cast
 
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
@@ -64,6 +64,17 @@ class ContractValidationError(ContractError):
     def __init__(self, errors: list[str]) -> None:
         super().__init__("\n".join(errors))
         self.errors = tuple(errors)
+
+
+@dataclass(frozen=True)
+class _MappingPairs:
+    """Mapping entries retained until duplicate keys can be located."""
+
+    entries: tuple[tuple[object, object], ...]
+
+
+class _PairsSafeLoader(yaml.SafeLoader):
+    """Safe YAML loader that preserves mapping pairs for strict validation."""
 
 
 @dataclass(frozen=True)
@@ -242,6 +253,81 @@ def _resolve_format(path: Path, requested: InputFormat) -> InputFormat:
     raise ContractLoadError(f"{path}: cannot infer input format from suffix")
 
 
+def _preserve_json_pairs(pairs: list[tuple[str, object]]) -> _MappingPairs:
+    return _MappingPairs(tuple(pairs))
+
+
+def _preserve_yaml_pairs(loader: yaml.SafeLoader, node: yaml.Node) -> _MappingPairs:
+    if not isinstance(node, yaml.MappingNode):
+        raise yaml.constructor.ConstructorError(
+            None,
+            None,
+            f"expected a mapping node, but found {type(node).__name__}",
+            node.start_mark,
+        )
+    loader.flatten_mapping(node)
+    return _MappingPairs(
+        tuple(
+            (
+                loader.construct_object(key_node, deep=True),
+                loader.construct_object(value_node, deep=True),
+            )
+            for key_node, value_node in node.value
+        )
+    )
+
+
+_PairsSafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _preserve_yaml_pairs,
+)
+
+
+def _normalise_mapping_pairs(
+    value: object,
+    *,
+    label: str | Path,
+    parts: tuple[str | int, ...] = (),
+) -> object:
+    if isinstance(value, _MappingPairs):
+        mapping: dict[object, object] = {}
+        for key, item in value.entries:
+            key_parts = (*parts, str(key))
+            try:
+                duplicate = key in mapping
+            except TypeError as error:
+                raise ContractLoadError(
+                    f"{label}:{_json_pointer(key_parts)}: "
+                    f"unhashable mapping key {key!r}"
+                ) from error
+            if duplicate:
+                raise ContractLoadError(
+                    f"{label}:{_json_pointer(key_parts)}: duplicate mapping key {key!r}"
+                )
+            mapping[key] = _normalise_mapping_pairs(
+                item,
+                label=label,
+                parts=key_parts,
+            )
+        return mapping
+    if isinstance(value, list):
+        return [
+            _normalise_mapping_pairs(item, label=label, parts=(*parts, index))
+            for index, item in enumerate(value)
+        ]
+    return value
+
+
+def _read_json(handle: IO[str], label: str | Path) -> object:
+    document = json.load(handle, object_pairs_hook=_preserve_json_pairs)
+    return _normalise_mapping_pairs(document, label=label)
+
+
+def _read_yaml(handle: IO[str], label: str | Path) -> object:
+    document = yaml.load(handle, Loader=_PairsSafeLoader)
+    return _normalise_mapping_pairs(document, label=label)
+
+
 def _read_tsv(path: Path, adapter: TsvAdapter, *, progress: bool) -> object:
     with path.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
@@ -269,9 +355,9 @@ def _read_document(
             return _read_tsv(path, spec.tsv_adapter, progress=progress)
         with path.open(encoding="utf-8") as handle:
             if input_format == "json":
-                return json.load(handle)
+                return _read_json(handle, path)
             if input_format == "yaml":
-                return yaml.safe_load(handle)
+                return _read_yaml(handle, path)
     except (OSError, json.JSONDecodeError, yaml.YAMLError) as error:
         raise ContractLoadError(f"{path}: cannot parse input: {error}") from error
     raise AssertionError(f"unhandled input format: {input_format}")
@@ -293,14 +379,14 @@ def _authoritative_schema(spec: ContractSpec) -> Mapping[str, object] | bool:
     try:
         if path.is_file():
             with path.open(encoding="utf-8") as handle:
-                schema = json.load(handle)
+                schema = _read_json(handle, path)
             label = str(path)
         else:
             resource = resources.files("genome_to_diffraction").joinpath(
                 "_schemas", spec.schema_filename
             )
             with resource.open("r", encoding="utf-8") as handle:
-                schema = json.load(handle)
+                schema = _read_json(handle, str(resource))
             label = str(resource)
     except (OSError, json.JSONDecodeError) as error:
         raise ContractLoadError(

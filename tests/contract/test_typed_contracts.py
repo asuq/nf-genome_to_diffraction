@@ -94,6 +94,73 @@ def test_unknown_field_fails_at_json_pointer(tmp_path: Path) -> None:
     assert "observation_label_typo" in str(captured.value)
 
 
+@pytest.mark.parametrize(
+    ("filename", "kind", "contents", "pointer", "duplicate_key"),
+    (
+        (
+            "duplicate-top-level.json",
+            "crystal-manifest",
+            '{"schema_version":"1.0","schema_version":"1.0","crystals":[]}',
+            "/schema_version",
+            "schema_version",
+        ),
+        (
+            "duplicate-path.json",
+            "crystal-manifest",
+            '{"schema_version":"1.0","crystals":[{"mtz":"a.mtz","mtz":"b.mtz"}]}',
+            "/crystals/0/mtz",
+            "mtz",
+        ),
+        (
+            "duplicate-consent.json",
+            "crystal-manifest",
+            '{"schema_version":"1.0","crystals":['
+            '{"allow_remote_sequence_submission":false,'
+            '"allow_remote_sequence_submission":true}]}',
+            "/crystals/0/allow_remote_sequence_submission",
+            "allow_remote_sequence_submission",
+        ),
+        (
+            "duplicate-top-level.yaml",
+            "pipeline-config",
+            'schema_version: "1.0"\nschema_version: "1.0"\n',
+            "/schema_version",
+            "schema_version",
+        ),
+        (
+            "duplicate-provider.yaml",
+            "pipeline-config",
+            "providers:\n  pdb_sequence:\n    enabled: true\n    enabled: false\n",
+            "/providers/pdb_sequence/enabled",
+            "enabled",
+        ),
+        (
+            "duplicate-config.yaml",
+            "pipeline-config",
+            "search_limits:\n  max_first_copy_jobs: 200\n  max_first_copy_jobs: 1\n",
+            "/search_limits/max_first_copy_jobs",
+            "max_first_copy_jobs",
+        ),
+    ),
+)
+def test_duplicate_mapping_keys_fail_before_contract_validation(
+    tmp_path: Path,
+    filename: str,
+    kind: str,
+    contents: str,
+    pointer: str,
+    duplicate_key: str,
+) -> None:
+    path = tmp_path / filename
+    path.write_text(contents, encoding="utf-8")
+
+    with pytest.raises(ContractLoadError) as captured:
+        load_contract(path, kind, progress=False)
+
+    assert f"{path}:{pointer}" in str(captured.value)
+    assert f"duplicate mapping key {duplicate_key!r}" in str(captured.value)
+
+
 def test_tsv_error_includes_row_and_column(tmp_path: Path) -> None:
     path = tmp_path / "catalogues.tsv"
     path.write_text(
