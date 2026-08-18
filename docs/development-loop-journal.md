@@ -7744,3 +7744,132 @@ gtd-m6-nextflow-smoke-20260817T200853Z-7de1b5c8d25c-0cd67106` at the next
 Stage and commit only the wrapper regression, minimal correction, and material
 journal evidence. Push once, watch exactly one CI run, deploy checksummed tools,
 and submit exactly one unchanged replacement smoke.
+
+## 2026-08-18T11:40:28Z - Wrapper correction deployed and replacement running
+
+### Accomplishments and immutable evidence
+
+- Created and pushed commit
+  `feec15bdc61d606e012ae33773bb4d31fc5bb1df`. The sole GitHub Actions run
+  `32131924755`, job `95694745658`, completed successfully in 6m49s under
+  Pixi 0.76.2.
+- The deterministic controller build remained byte-identical to the installed
+  reviewed application at SHA-256
+  `f8b35bc89937ccde49e5f3d42bef536865e69fe782355af6b8d1b4a2479b5a4a`.
+  Deployed dispatcher, corrected job-wrapper, and recovery SHA-256 values are
+  `5aa8979ec1218c8187c4ed5f5fd0e67ac130beb8956354d82d314580446a8076`,
+  `f3b25ee7b86a3676ec51a73ac1470685413e357d9ca4f16595f6c08eb4a470bd`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- Staged and submitted exactly one unchanged replacement profile as
+  `gtd-m6-nextflow-smoke-20260818T113726Z-feec15bdc61d-8faed7e6`, Slurm job
+  `10945968`, from the pushed source and nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`. Its first status is `RUNNING`,
+  terminal=false.
+- Rebound the existing 30-minute heartbeat in place to the replacement run and
+  retained this thread as its destination. No duplicate automation, CI watch,
+  or Viper job was created.
+
+### Unresolved work
+
+- Monitor only job `10945968`. At terminal state, retrieve bounded logs and
+  collect before classification. Require the exact two-catalogue/four-batch/
+  two-partition topology, six stored plus 19 cached tasks accounting for the
+  25-task first pass, v2 identity/edge payloads, four distinct bounded search
+  jobs, byte-identical resume, truthless-only cross-track reuse, and complete
+  final checksums.
+- This remains non-acceptance orchestration evidence. Even on success, do not
+  stage operational or leakage M6 science; continue with the R1--R3 shared
+  release-stop foundations first.
+
+### Next exact starting point
+
+Run `nf-gtd-hpc-test --no-progress status --run-id
+gtd-m6-nextflow-smoke-20260818T113726Z-feec15bdc61d-8faed7e6` at the next
+30-minute heartbeat.
+
+## 2026-08-18T13:52:22Z - Replacement passes, collection exposes evidence gap
+
+### Immutable orchestration evidence
+
+- Wrapper-corrected replacement
+  `gtd-m6-nextflow-smoke-20260818T113726Z-feec15bdc61d-8faed7e6`, Slurm job
+  `10945968`, completed successfully from source
+  `feec15bdc61d606e012ae33773bb4d31fc5bb1df`, nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, Pixi 0.76.2, and the expected
+  lock and execution-policy digests. Bounded logs and collection completed
+  before further source edits.
+- The operational first trace has 25/25 completed tasks: exactly two catalogue
+  imports, two MMseqs2 batches, two Foldseek batches, two partitions, the full
+  active M6C001 branch, and the typed-empty M6C057 branch. The resume trace has
+  19/19 cached tasks plus exactly six stored discovery tasks, accounting for
+  all 25. The leakage trace has 19/19 newly completed track-specific tasks.
+- Search native IDs are `10945987`, `10945988`, `10945989`, and `10945991`;
+  each completed with requests of 32 CPUs, 16 GB, and 24 hours. All 25 child
+  IDs are distinct native numeric Slurm IDs. Per-job bounds passed; observed
+  maxima were one running child, 32 aggregate CPUs, 16 GB, one concurrent
+  Phenix job, and 0.002 GB peak RSS.
+- Cross-track reuse contains exactly two imports, two PDB searches, and two
+  Foldseek searches, with no policy, MR, copy, or refinement reuse. The
+  collected summary/resume/resource/store SHA-256 values are
+  `e1baaf75dd6c7caa10cf143b91d563da7fdadf5fd605db92d155b129dab876d7`,
+  `0e291e76468185712957e6595d8c07ad8f08ea7642dee09efb46b3a9140d53e2`,
+  `d0090f79eca773938b1c8628a1a883c5aa34823b02cbd87593221be3b5dec044`,
+  and `cc6df3393c5d95eacf62067ec75ca4e470fbafd75c103ff57243a73a4ad0351d`;
+  all match the remote manifest. The checksum-manifest digest is
+  `63ea5d9afb369a5c6e8f01cd3e34ec53728b38cceb2b7b5f45fd0c7a109d8522`.
+- The unrecognised `$slurm`/`$local` executor-option warnings remain visible.
+  Per-job requests are proven; aggregate queue/rate enforcement remains
+  unclaimed.
+
+### Evidence-gap classification
+
+- This run passes the fixed multi-item orchestration smoke, but R0A is not yet
+  closed. The collector retrieved only qualification reports, not the retained
+  synthetic scientific tree. Consequently the local bundle cannot directly
+  inspect the v2 case identity/edge payloads.
+- The wrapper compared ten output digests before and after resume, then deleted
+  both digest lists. Its success proves that the execution-time comparison
+  passed, but an independent local reviewer cannot recompute the claimed byte
+  identity. The final checksum manifest covers only four qualification files.
+- Treat this as a software evidence-contract defect, not a scientific or
+  infrastructure failure. Do not stage R1 or an M6 scientific track until a
+  small collected v2 contract report and retained before/after digest lists
+  close the gap. Deeper raw-input/cache-key truthlessness remains assigned to
+  R2 and must not be falsely claimed from process names alone.
+
+### Next exact starting point
+
+Add one focused wrapper/collector regression requiring a collected redacted v2
+identity/edge contract report and both output-digest manifests. Preserve those
+files, include them in the fixed collection allowlist and qualification
+checksums, run the focused checks plus one complete locked gate, then repeat
+the immutable commit/CI/deploy/single-smoke loop.
+
+### Evidence correction and local verification
+
+- Added a bootstrap-only v2 contract validator/report. It verifies the
+  aggregate and execution records are `m6-nextflow-run-v2`, both fixed case
+  records are `m6-nextflow-case-evidence-v2`, and each carries a case-bound
+  `m6-identity-decision-v1` object plus typed edge-observation list. The report
+  retains those redacted payloads and source-file digests.
+- Preserved both ten-file before/after scientific-output digest manifests and
+  added them, the contract report, and the exact operational synthetic outputs
+  to the bounded remote collection allowlist. An unlisted sibling remains
+  uncollectable. The portable final checksum manifest now covers the contract
+  report and both digest lists with relative paths.
+- Two focused wrapper/collector regressions pass, including direct execution
+  of the embedded validator against the tracked v2 fixture. All 47 dispatcher
+  integration tests pass. One complete `pixi run --locked check` passes Ruff
+  format/lint, `ty`, 468 unit tests, 59 contract tests, 52 integration tests,
+  schemas, public-panel validation, documentation links, actionlint, Nextflow
+  syntax and cached-resume stub, and all Bash wrapper checks.
+- No scientific adapter, schema, model, threshold, cache key, frozen protocol,
+  retained run, or unknown crystal changed. The controller zipapp remains
+  generic; only the dispatcher and fixed job body require new deployment
+  checksums.
+
+### Revised next exact starting point
+
+Stage and commit only the two bootstrap scripts, focused integration coverage,
+and material journal evidence. Push once, watch exactly one CI run, deploy the
+checksummed scripts, and submit exactly one final unchanged replacement smoke.

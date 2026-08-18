@@ -2890,8 +2890,21 @@ collect_run() {
         artifacts/qualification/m6-nextflow-smoke-summary.json \
         artifacts/qualification/m6-nextflow-smoke-resume-check.json \
         artifacts/qualification/m6-nextflow-smoke-resource-evidence.json \
+        artifacts/qualification/m6-nextflow-smoke-contract-evidence.json \
         artifacts/qualification/m6-nextflow-smoke-store-reuse.txt \
+        artifacts/qualification/m6-smoke-before-resume.sha256 \
+        artifacts/qualification/m6-smoke-after-resume.sha256 \
         artifacts/qualification/m6-nextflow-smoke-checksums.sha256 \
+        artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_scientific_summary.json \
+        artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_execution_verification.json \
+        artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_case_results.jsonl \
+        artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_candidate_rankings.jsonl \
+        artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_model_policy_results.jsonl \
+        artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_first_copy_results.jsonl \
+        artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_additional_copy_results.jsonl \
+        artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_refinement_results.jsonl \
+        artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_sequence_results.jsonl \
+        artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_sequence_summary.jsonl \
         artifacts/qualification/m6-smoke-first-pipeline-info/report.html \
         artifacts/qualification/m6-smoke-first-pipeline-info/timeline.html \
         artifacts/qualification/m6-smoke-first-pipeline-info/trace.tsv \

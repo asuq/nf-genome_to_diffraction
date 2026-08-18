@@ -165,7 +165,7 @@ finalise() {
         reports_json='["artifacts/qualification/m6-input-qualification.json"]'
         retained_json='["artifacts/m6-runner-inputs","artifacts/qualification"]'
     elif [[ "$PROFILE" == m6-nextflow-smoke ]]; then
-        reports_json='["artifacts/qualification/m6-nextflow-smoke-summary.json","artifacts/qualification/m6-nextflow-smoke-resume-check.json","artifacts/qualification/m6-nextflow-smoke-resource-evidence.json"]'
+        reports_json='["artifacts/qualification/m6-nextflow-smoke-summary.json","artifacts/qualification/m6-nextflow-smoke-resume-check.json","artifacts/qualification/m6-nextflow-smoke-resource-evidence.json","artifacts/qualification/m6-nextflow-smoke-contract-evidence.json"]'
         retained_json='["artifacts/m6-nextflow-smoke","artifacts/qualification"]'
     elif [[ "$PROFILE" == m6-operational || "$PROFILE" == m6-leakage ]]; then
         reports_json='["artifacts/qualification/m6-scientific-summary.json","artifacts/qualification/m6-execution-verification.json","artifacts/qualification/m6-resume-check.json","artifacts/qualification/m6-runtime-provenance.json"]'
@@ -1873,6 +1873,97 @@ run_m6_nextflow_smoke() {
         --trace "$qualification/m6-smoke-first-pipeline-info/trace.tsv" \
         --output \
             "$qualification/m6-nextflow-smoke-resource-evidence.json"
+    "$RUN/source/.pixi/envs/hpc/bin/python" - \
+        "$operational/m6_scientific/m6_scientific_summary.json" \
+        "$operational/m6_scientific/m6_execution_verification.json" \
+        "$operational/m6_scientific/m6_case_results.jsonl" \
+        "$qualification/m6-nextflow-smoke-contract-evidence.json" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+
+summary_path = pathlib.Path(sys.argv[1])
+verification_path = pathlib.Path(sys.argv[2])
+case_path = pathlib.Path(sys.argv[3])
+output_path = pathlib.Path(sys.argv[4])
+
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def load_contract(path, label):
+    record = json.loads(path.read_text(encoding="utf-8"))
+    expected = {
+        "schema_version": "2.0",
+        "adapter_version": "m6-nextflow-run-v2",
+        "track": "operational",
+        "case_count": 2,
+    }
+    if any(record.get(key) != value for key, value in expected.items()):
+        raise SystemExit(f"M6 smoke {label} is not the v2 operational contract")
+    return {key: record[key] for key in expected}
+
+
+aggregate = load_contract(summary_path, "summary")
+verification = load_contract(verification_path, "verification")
+case_records = [
+    json.loads(line)
+    for line in case_path.read_text(encoding="utf-8").splitlines()
+    if line
+]
+if [record.get("case_id") for record in case_records] != ["M6C001", "M6C057"]:
+    raise SystemExit("M6 smoke case partition changed")
+
+case_contracts = []
+for record in case_records:
+    case_id = record["case_id"]
+    if (
+        record.get("schema_version") != "2.0"
+        or record.get("adapter_version") != "m6-nextflow-case-evidence-v2"
+    ):
+        raise SystemExit(f"M6 smoke case is not v2: {case_id}")
+    identity = record.get("identity_decision")
+    edges = record.get("edge_observations")
+    if (
+        not isinstance(identity, dict)
+        or identity.get("schema_version") != "1.0"
+        or identity.get("adapter_version") != "m6-identity-decision-v1"
+        or identity.get("case_id") != case_id
+        or not isinstance(identity.get("identity_decision_id"), str)
+        or not isinstance(edges, list)
+        or any(not isinstance(edge, dict) for edge in edges)
+    ):
+        raise SystemExit(f"M6 smoke identity/edge evidence is invalid: {case_id}")
+    case_contracts.append(
+        {
+            "case_id": case_id,
+            "schema_version": record["schema_version"],
+            "adapter_version": record["adapter_version"],
+            "identity_decision": identity,
+            "edge_observations": edges,
+        }
+    )
+
+evidence = {
+    "schema_version": "1.0",
+    "acceptance_evidence": False,
+    "two_case_stub_only": True,
+    "aggregate_contract": aggregate,
+    "verification_contract": verification,
+    "case_contracts": case_contracts,
+    "source_sha256": {
+        "m6_scientific_summary.json": digest(summary_path),
+        "m6_execution_verification.json": digest(verification_path),
+        "m6_case_results.jsonl": digest(case_path),
+    },
+}
+output_path.write_text(
+    json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+PY
     (
         cd "$operational/m6_scientific"
         sha256sum \
@@ -2041,13 +2132,17 @@ EOF
   "truthless_cross_track_store_reuse": true
 }
 EOF
-    sha256sum \
-        "$qualification/m6-nextflow-smoke-summary.json" \
-        "$qualification/m6-nextflow-smoke-resume-check.json" \
-        "$qualification/m6-nextflow-smoke-resource-evidence.json" \
-        "$qualification/m6-nextflow-smoke-store-reuse.txt" \
-        > "$qualification/m6-nextflow-smoke-checksums.sha256"
-    rm -f -- "$before" "$after"
+    (
+        cd "$qualification"
+        sha256sum \
+            m6-nextflow-smoke-summary.json \
+            m6-nextflow-smoke-resume-check.json \
+            m6-nextflow-smoke-resource-evidence.json \
+            m6-nextflow-smoke-contract-evidence.json \
+            m6-nextflow-smoke-store-reuse.txt \
+            m6-smoke-before-resume.sha256 \
+            m6-smoke-after-resume.sha256
+    ) > "$qualification/m6-nextflow-smoke-checksums.sha256"
     printf 'm6_nextflow_smoke_status=slurm_fanout_verified_non_acceptance\n'
 }
 

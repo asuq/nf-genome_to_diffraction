@@ -694,9 +694,20 @@ def test_m6_nextflow_smoke_uses_real_child_slurm_boundaries(tmp_path: Path) -> N
         .split("run_m6_nextflow_smoke() {", maxsplit=1)[1]
         .split("run_m6_nextflow() {", maxsplit=1)[0]
     )
+    dispatcher_text = dispatcher.read_text(encoding="utf-8")
     assert "-stub-run" in smoke_job.read_text(encoding="utf-8")
     assert "managed-slurm" in body
     assert "m6-nextflow-smoke-resource-evidence.json" in body
+    assert "m6-nextflow-smoke-contract-evidence.json" in body
+    assert 'record.get("identity_decision")' in body
+    assert 'record.get("edge_observations")' in body
+    assert 'rm -f -- "$before" "$after"' not in body
+    for relative_path in (
+        "artifacts/qualification/m6-nextflow-smoke-contract-evidence.json",
+        "artifacts/qualification/m6-smoke-before-resume.sha256",
+        "artifacts/qualification/m6-smoke-after-resume.sha256",
+    ):
+        assert relative_path in dispatcher_text
     assert 'job["requested_cpus"] != 32' in body
     assert 'job["requested_memory_gb"] != 16.0' in body
     assert 'job["requested_time_hours"] != 24.0' in body
@@ -715,6 +726,88 @@ def test_m6_nextflow_smoke_uses_real_child_slurm_boundaries(tmp_path: Path) -> N
     assert "len(search) != 2" not in body
     assert '"acceptance_evidence": false' in body
     assert "cross_track_truthless_store_reuse" in body
+
+    contract_marker = (
+        "\"$qualification/m6-nextflow-smoke-contract-evidence.json\" <<'PY'\n"
+    )
+    contract_script = body.split(contract_marker, maxsplit=1)[1].split(
+        "\nPY\n", maxsplit=1
+    )[0]
+    fixture = REPOSITORY / "tests/fixtures/stubs/m6_nextflow/track_output"
+    contract_output = tmp_path / "m6-nextflow-smoke-contract-evidence.json"
+    _run(
+        [
+            sys.executable,
+            "-",
+            str(fixture / "m6_scientific_summary.json"),
+            str(fixture / "m6_execution_verification.json"),
+            str(fixture / "m6_case_results.jsonl"),
+            str(contract_output),
+        ],
+        cwd=tmp_path,
+        input_data=contract_script.encode(),
+    )
+    contract = json.loads(contract_output.read_text(encoding="utf-8"))
+    assert contract["aggregate_contract"]["adapter_version"] == ("m6-nextflow-run-v2")
+    assert [row["case_id"] for row in contract["case_contracts"]] == [
+        "M6C001",
+        "M6C057",
+    ]
+    assert all(
+        row["identity_decision"]["adapter_version"] == "m6-identity-decision-v1"
+        and isinstance(row["edge_observations"], list)
+        for row in contract["case_contracts"]
+    )
+
+
+def test_m6_nextflow_smoke_collects_v2_and_resume_evidence(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    run = remote_root / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID
+    state = run / "state"
+    state.mkdir(parents=True)
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="utf-8")
+    required = {
+        "artifacts/qualification/m6-nextflow-smoke-contract-evidence.json",
+        "artifacts/qualification/m6-smoke-before-resume.sha256",
+        "artifacts/qualification/m6-smoke-after-resume.sha256",
+        "artifacts/m6-nextflow-smoke/operational/m6_scientific/"
+        "m6_scientific_summary.json",
+        "artifacts/m6-nextflow-smoke/operational/m6_scientific/"
+        "m6_execution_verification.json",
+        "artifacts/m6-nextflow-smoke/operational/m6_scientific/m6_case_results.jsonl",
+        "artifacts/m6-nextflow-smoke/operational/m6_scientific/"
+        "m6_candidate_rankings.jsonl",
+        "artifacts/m6-nextflow-smoke/operational/m6_scientific/"
+        "m6_model_policy_results.jsonl",
+        "artifacts/m6-nextflow-smoke/operational/m6_scientific/"
+        "m6_first_copy_results.jsonl",
+        "artifacts/m6-nextflow-smoke/operational/m6_scientific/"
+        "m6_additional_copy_results.jsonl",
+        "artifacts/m6-nextflow-smoke/operational/m6_scientific/"
+        "m6_refinement_results.jsonl",
+        "artifacts/m6-nextflow-smoke/operational/m6_scientific/"
+        "m6_sequence_results.jsonl",
+        "artifacts/m6-nextflow-smoke/operational/m6_scientific/"
+        "m6_sequence_summary.jsonl",
+    }
+    for relative_path in required:
+        path = run / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}\n", encoding="utf-8")
+    unlisted = run / "artifacts/m6-nextflow-smoke/operational/private.txt"
+    unlisted.parent.mkdir(parents=True, exist_ok=True)
+    unlisted.write_text("not collected\n", encoding="utf-8")
+
+    archive = _run(
+        [str(dispatcher), "collect", M6_NEXTFLOW_SMOKE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    assert required <= names
+    assert "artifacts/m6-nextflow-smoke/operational/private.txt" not in names
 
 
 def test_remote_dispatcher_stages_checksum_verified_source_archive(
