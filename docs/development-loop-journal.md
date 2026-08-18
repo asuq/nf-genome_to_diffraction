@@ -8403,3 +8403,90 @@ CI, stage that exact SHA through the reviewed Marmic source-archive boundary,
 verify the fixed Marmic policy and run-owned cache, submit exactly one
 replacement M6 Nextflow smoke, and rebind the existing heartbeat rather than
 creating another.
+
+## 2026-08-18T20:24:35Z - Writable-stub Marmic replacement is running
+
+### Immutable execution evidence
+
+- Actions run `32181016092`, job `95853786465`, passed writable-stub commit
+  `d579f4130d0e20bd60c961ce30a4a7285e5cf663` in 5m58s under Pixi
+  0.76.2.
+- Checksum-gated deployment rebound the unchanged hardened dispatcher, job
+  wrapper, and recovery checksums to that exact source. Source-archive staging
+  completed with nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, site `marmic`, the fixed Marmic
+  policy, and the run-owned Apptainer cache.
+- Submitted exactly one replacement:
+  `gtd-m6-nextflow-smoke-20260818T201947Z-d579f4130d0e-acc965e0`, Slurm
+  `629490`. Its first structured state is `RUNNING`, terminal false.
+- Rebound the existing `continue-prokaryotic-control-roadmap` 30-minute
+  heartbeat in place. It uses wrapper-only status/logs/collect and never falls
+  back to raw SSH. The failed job `629472` remains retained and excluded from
+  monitoring, resume, cache reuse, and cleanup.
+
+### Next exact starting point
+
+While non-terminal, issue one reviewed-wrapper status per heartbeat and make no
+run change. At terminal, collect bounded logs and artifacts, verify the full
+Marmic R0A orchestration contract, and classify before source edits. If it
+passes, continue the R1--R3 foundations; do not stage M6 science yet.
+
+## 2026-08-18T20:29:31Z - Development paused after second Marmic store failure
+
+### Terminal evidence
+
+- Replacement run `gtd-m6-nextflow-smoke-20260818T201947Z-d579f4130d0e-acc965e0`,
+  Slurm `629490`, terminated `FAILED`, `test_failure`, with signature
+  `b6eb59532b30f4baf428cbfbcc9dc46c04aa31c3c992155458c15920543f03e5`.
+- The writable helper executed with exit zero and the previous scratch
+  permission-denied diagnostics are absent, but Nextflow still reported the
+  store-backed `m6_catalogue_bundle` output missing. This disproves copied mode
+  bits as the complete root cause and narrows the remaining defect to Marmic
+  scratch plus `storeDir` output registration/copy-back.
+- Wrapper-only `logs` and `collect` completed. Collection retained all seven
+  fixed task diagnostics; no raw SSH was used. Do not resume or reuse either
+  failed run/cache.
+
+### Pause state and next exact starting point
+
+- The existing `continue-prokaryotic-control-roadmap` heartbeat is `PAUSED`.
+  Slurm job `629490` is already terminal; no job was cancelled or cleaned.
+- Both parallel R1 worktrees stopped cleanly before edits or tests.
+- On explicit resume, first read the collected `.command.run`, `.command.sh`,
+  `.command.log`, and store evidence for job `629490` locally. Add one focused
+  regression for Marmic `scratch + stageOutMode=copy + storeDir`, then choose
+  the smallest configuration or process-boundary correction. Do not submit a
+  third run until that regression and one integration gate pass.
+
+## 2026-08-18T21:12:32Z - Marmic permanent-store tasks bypass scratch copy-back
+
+### Diagnosis and focused correction
+
+- The collected second-run task shows the fixture helper and generated scratch
+  unstage command both exited zero with empty command/error logs. Nextflow
+  copied the declared directory directly to the run-owned `storeDir`, then the
+  driver reported that same required directory missing. The prior permission
+  failure was therefore secondary rather than the remaining cause.
+- A minimal Nextflow 26.04.6 directory-output reproducer succeeds on local
+  APFS with `scratch + stageOutMode=copy + storeDir`; the remaining failure is
+  specific to Marmic's compute-node scratch to shared-NFS permanent-store
+  visibility boundary. Official Nextflow semantics define scratch copy-back
+  and `storeDir` as distinct output locations; the permanent store should not
+  require a second scratch publication boundary.
+- Added one red/green repository-policy regression that enumerates every M6
+  process using `storeDir` and requires exactly the catalogue, MMseqs2, and
+  Foldseek tasks to have Marmic `withName` selectors setting `scratch=false`.
+  All other Marmic tasks retain node-local scratch.
+- `nextflow config -profile marmic -flat` resolves the three selectors to
+  `scratch=false` while the profile default remains `/scratch/$USER`.
+- One complete `pixi run --locked check` passes Ruff format/lint, `ty`, 476
+  unit tests, 68 contract tests, 67 integration tests, schemas, public-panel
+  validation, documentation links, actionlint, Nextflow syntax and complete
+  stub/resume coverage, and all Bash wrapper checks.
+
+### Next exact starting point
+
+Commit and push this site-specific permanent-store boundary, watch one CI run,
+deploy/rebind the reviewed tools, and stage exactly one new Marmic smoke from
+the pushed SHA. Resume and rebind the existing heartbeat only after submission;
+never reuse either failed run or cache.

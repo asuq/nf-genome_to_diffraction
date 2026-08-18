@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import gemmi
@@ -306,6 +307,36 @@ def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     assert "withLabel: m6_pdb_search" in viper
     assert "withLabel: m6_foldseek_search" in viper
     assert viper.count("cpus = 32") >= 2
+
+
+def test_marmic_store_dir_tasks_bypass_node_scratch() -> None:
+    """Keep permanent shared-store writes out of Marmic scratch copy-back."""
+
+    module = (REPOSITORY / "modules/local/m6_nextflow_tasks.nf").read_text(
+        encoding="utf-8"
+    )
+    marmic = (REPOSITORY / "conf/marmic.config").read_text(encoding="utf-8")
+    process_bodies = {
+        match.group("name"): match.group("body")
+        for match in re.finditer(
+            r"^process (?P<name>[A-Z0-9_]+) \{(?P<body>.*?)(?=^process |\Z)",
+            module,
+            flags=re.MULTILINE | re.DOTALL,
+        )
+    }
+    stored_processes = {
+        name for name, body in process_bodies.items() if "storeDir" in body
+    }
+
+    assert stored_processes == {
+        "M6_IMPORT_CATALOGUE",
+        "M6_SEARCH_PDB",
+        "M6_SEARCH_FOLDSEEK",
+    }
+    for process_name in sorted(stored_processes):
+        selector = marmic.split(f"withName: {process_name} {{", maxsplit=1)
+        assert len(selector) == 2, f"missing Marmic selector for {process_name}"
+        assert "scratch = false" in selector[1].split("}", maxsplit=1)[0]
 
 
 def test_m6_smoke_uses_only_fixed_site_bound_profiles_and_policies() -> None:
