@@ -36,6 +36,16 @@ from genome_to_diffraction.schemas.results import (
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
+AUTHORITATIVE_SCHEMAS = {
+    "catalogue-manifest": "catalogue_manifest.schema.json",
+    "crystal-manifest": "crystal_manifest.schema.json",
+    "database-manifest": "database_manifest.schema.json",
+    "mr-hypothesis": "mr_hypothesis.schema.json",
+    "phenix-install-manifest": "phenix_install_manifest.schema.json",
+    "pipeline-config": "pipeline_config.schema.json",
+    "review-decisions": "review_decision.schema.json",
+}
+
 
 class _JsonWireDecodingProbe(ContractModel):
     """Exercise intentional JSON-mode conversion independently of schemas."""
@@ -410,6 +420,39 @@ def test_generated_contract_schema_is_draft_2020_12(kind: str) -> None:
     schema = contract_json_schema(kind)
     Draft202012Validator.check_schema(schema)
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+
+
+@pytest.mark.parametrize(("kind", "schema_filename"), AUTHORITATIVE_SCHEMAS.items())
+def test_exported_contract_schema_matches_runtime_authority(
+    kind: str, schema_filename: str
+) -> None:
+    authoritative = json.loads(
+        (REPOSITORY / "schemas" / schema_filename).read_text(encoding="utf-8")
+    )
+
+    assert contract_json_schema(kind) == authoritative
+
+
+def test_exported_pipeline_schema_rejects_runtime_rejected_null(
+    tmp_path: Path,
+) -> None:
+    document = yaml.safe_load(
+        (REPOSITORY / "examples/config.yaml").read_text(encoding="utf-8")
+    )
+    document["matthews"]["reference_backend"] = None
+    path = tmp_path / "null-reference-backend.yaml"
+    path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    with pytest.raises(ContractValidationError, match="reference_backend"):
+        load_contract(path, "pipeline-config", progress=False)
+
+    errors = list(
+        Draft202012Validator(contract_json_schema("pipeline-config")).iter_errors(
+            document
+        )
+    )
+    assert len(errors) == 1
+    assert list(errors[0].absolute_path) == ["matthews", "reference_backend"]
 
 
 def test_tqdm_progress_can_be_enabled_for_tabular_input(

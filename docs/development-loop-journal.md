@@ -8431,6 +8431,28 @@ run change. At terminal, collect bounded logs and artifacts, verify the full
 Marmic R0A orchestration contract, and classify before source edits. If it
 passes, continue the R1--R3 foundations; do not stage M6 science yet.
 
+## 2026-08-18T21:30:21Z - Authoritative schemas are the public export
+
+### R1 schema-parity correction
+
+- Reproduced `PIPE-P2-03`: all seven contract kinds with tracked authoritative
+  JSON Schemas exported independently regenerated Pydantic schemas. The public
+  `pipeline-config` export accepted `reference_backend: null` while the runtime
+  tracked schema rejected it.
+- `contract_json_schema()` now returns the same tracked or packaged
+  authoritative object used by runtime validation whenever a schema filename
+  is declared. Contract kinds without a tracked schema retain the generated
+  Draft 2020-12 export.
+- Seven byte-structure parity cases, the known null mutation, all 23 generated
+  schema-validity cases, and two CLI schema tests pass: 33 focused tests total.
+  Targeted Ruff format/lint, `ty`, and `git diff --check` pass.
+
+### Next exact starting point
+
+Commit this isolated slice without pushing. Integrate it with the other R1
+contract slices only after the active Marmic smoke is terminally classified,
+then run one complete locked gate for the combined R1 boundary.
+
 ## 2026-08-18T20:29:31Z - Development paused after second Marmic store failure
 
 ### Terminal evidence

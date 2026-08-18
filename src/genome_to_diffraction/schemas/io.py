@@ -477,6 +477,11 @@ def contract_json_schema(kind: str) -> dict[str, object]:
     spec = CONTRACTS.get(kind)
     if spec is None:
         raise ContractLoadError(f"unknown contract kind: {kind}")
+    if spec.schema_filename is not None:
+        schema = _authoritative_schema(spec)
+        if not isinstance(schema, Mapping):
+            raise ContractLoadError(f"authoritative schema for {kind} is not an object")
+        return dict(schema)
     schema = dict(spec.model.model_json_schema(mode="validation"))
     schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
     schema.setdefault(

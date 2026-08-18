@@ -49,3 +49,16 @@ def test_contract_schema_command_emits_draft_2020_12(
     assert main(["contract", "schema", "sequence-group"]) == 0
     schema = json.loads(capsys.readouterr().out)
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+
+
+def test_contract_schema_command_emits_authoritative_tracked_schema(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repository = Path(__file__).resolve().parents[2]
+    authoritative = json.loads(
+        (repository / "schemas/pipeline_config.schema.json").read_text(encoding="utf-8")
+    )
+
+    assert main(["contract", "schema", "pipeline-config"]) == 0
+
+    assert json.loads(capsys.readouterr().out) == authoritative
