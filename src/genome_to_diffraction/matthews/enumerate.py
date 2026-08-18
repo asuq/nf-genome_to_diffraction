@@ -6,7 +6,7 @@ import logging
 import os
 import tempfile
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -86,15 +86,15 @@ class SdsAssessment:
     warnings: tuple[str, ...]
 
 
-def _load_jsonl(path: Path, model: type[BaseModel]) -> tuple[BaseModel, ...]:
-    records: list[BaseModel] = []
+def _load_jsonl[T: BaseModel](path: Path, model: type[T]) -> tuple[tuple[int, T], ...]:
+    records: list[tuple[int, T]] = []
     try:
         with path.open(encoding="utf-8") as handle:
             for line_number, line in enumerate(handle, start=1):
                 if not line.strip():
                     continue
                 try:
-                    records.append(model.model_validate_json(line))
+                    records.append((line_number, model.model_validate_json(line)))
                 except (ValidationError, ValueError) as error:
                     raise MatthewsInputError(
                         f"{path}:{line_number}: invalid record: {error}"
@@ -104,6 +104,45 @@ def _load_jsonl(path: Path, model: type[BaseModel]) -> tuple[BaseModel, ...]:
     if not records:
         raise MatthewsInputError(f"JSONL input contains no records: {path}")
     return tuple(records)
+
+
+def _unique_index[T](
+    records: Sequence[tuple[int, T]],
+    *,
+    record_type: str,
+    key_name: str,
+    key: Callable[[T], str],
+) -> dict[str, T]:
+    index: dict[str, T] = {}
+    first_line_by_id: dict[str, int] = {}
+    for line_number, record in records:
+        identifier = key(record)
+        first_line = first_line_by_id.get(identifier)
+        if first_line is not None:
+            raise MatthewsInputError(
+                f"duplicate {record_type}.{key_name} {identifier!r} "
+                f"at lines {first_line} and {line_number}"
+            )
+        first_line_by_id[identifier] = line_number
+        index[identifier] = record
+    return index
+
+
+def _require_exact_coverage(
+    observed: set[str],
+    expected: set[str],
+    *,
+    observed_name: str,
+    expected_name: str,
+) -> None:
+    if observed == expected:
+        return
+    missing = ",".join(sorted(expected - observed)) or "none"
+    unexpected = ",".join(sorted(observed - expected)) or "none"
+    raise MatthewsInputError(
+        f"{observed_name} coverage differs from {expected_name}: "
+        f"missing={missing}; unexpected={unexpected}"
+    )
 
 
 def _bounded_distance(lower_kda: float, upper_kda: float, band_kda: float) -> float:
@@ -417,33 +456,59 @@ def enumerate_matthews(request: MatthewsRequest) -> MatthewsResult:
         config_model, PipelineConfig
     ):
         raise TypeError("Matthews enumeration received unexpected contracts")
-    preflights_raw = _load_jsonl(
+    preflight_records = _load_jsonl(
         request.preflight_jsonl.resolve(strict=True), MtzPreflightRecord
     )
-    groups_raw = _load_jsonl(
+    group_records = _load_jsonl(
         request.sequence_groups_jsonl.resolve(strict=True), SequenceGroupRecord
     )
-    sources_raw = _load_jsonl(
+    source_records = _load_jsonl(
         request.source_records_jsonl.resolve(strict=True), SourceProteinRecord
     )
-    preflights = tuple(
-        record for record in preflights_raw if isinstance(record, MtzPreflightRecord)
+    preflight_by_crystal = _unique_index(
+        preflight_records,
+        record_type="MtzPreflightRecord",
+        key_name="crystal_id",
+        key=lambda record: record.crystal_id,
     )
-    groups = tuple(
-        record for record in groups_raw if isinstance(record, SequenceGroupRecord)
+    group_by_id = _unique_index(
+        group_records,
+        record_type="SequenceGroupRecord",
+        key_name="sequence_group_id",
+        key=lambda record: record.sequence_group_id,
     )
-    sources = tuple(
-        record for record in sources_raw if isinstance(record, SourceProteinRecord)
+    source_by_id = _unique_index(
+        source_records,
+        record_type="SourceProteinRecord",
+        key_name="source_record_id",
+        key=lambda record: record.source_record_id,
     )
-    preflight_by_crystal = {record.crystal_id: record for record in preflights}
-    group_by_id = {group.sequence_group_id: group for group in groups}
+    _require_exact_coverage(
+        set(preflight_by_crystal),
+        {crystal.crystal_id for crystal in crystals_model.crystals},
+        observed_name="MtzPreflightRecord.crystal_id",
+        expected_name="CrystalManifest.crystal_id",
+    )
+    sources = tuple(source_by_id.values())
+    _require_exact_coverage(
+        set(group_by_id),
+        {source.sequence_group_id for source in sources},
+        observed_name="SequenceGroupRecord.sequence_group_id",
+        expected_name="SourceProteinRecord.sequence_group_id",
+    )
+    source_count_by_group: dict[str, int] = defaultdict(int)
     groups_by_catalogue: dict[str, set[str]] = defaultdict(set)
     for source in sources:
-        if source.sequence_group_id not in group_by_id:
-            raise MatthewsInputError(
-                f"source record references missing group: {source.sequence_group_id}"
-            )
+        source_count_by_group[source.sequence_group_id] += 1
         groups_by_catalogue[source.catalogue_id].add(source.sequence_group_id)
+    for group_id, group in group_by_id.items():
+        source_count = source_count_by_group[group_id]
+        if group.source_record_count != source_count:
+            raise MatthewsInputError(
+                "SequenceGroupRecord.source_record_count differs from unique "
+                f"SourceProteinRecord coverage for {group_id}: "
+                f"expected={group.source_record_count}; observed={source_count}"
+            )
 
     hypotheses: list[MatthewsHypothesis] = []
     for crystal in tqdm(
