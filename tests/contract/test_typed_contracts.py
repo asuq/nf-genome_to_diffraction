@@ -619,7 +619,8 @@ def test_exported_pipeline_schema_rejects_runtime_rejected_null(
         )
     )
     assert len(errors) == 1
-    assert list(errors[0].absolute_path) == ["matthews", "reference_backend"]
+    assert list(errors[0].absolute_path) == ["matthews"]
+    assert "reference_backend" in errors[0].message
 
 
 def test_tqdm_progress_can_be_enabled_for_tabular_input(
