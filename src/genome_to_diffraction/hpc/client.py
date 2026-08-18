@@ -1257,6 +1257,9 @@ class HpcController:
                 [commit, dispatcher_checksum, smoke_job_checksum],
             )
         except RemoteOperationError as error:
+            missing_dispatcher = (
+                f"/bin/bash: {self.config.remote_dispatcher}: No such file or directory"
+            )
             if not (
                 (
                     error.failure_class is FailureClass.ENVIRONMENT_FAILURE
@@ -1265,6 +1268,10 @@ class HpcController:
                 or (
                     error.failure_class is FailureClass.FILESYSTEM_FAILURE
                     and str(error) == "configured Git mirror is not bare"
+                )
+                or (
+                    error.failure_class is FailureClass.TRANSFER_FAILURE
+                    and str(error) == missing_dispatcher
                 )
             ):
                 raise
@@ -1340,7 +1347,11 @@ class HpcController:
         except RemoteOperationError as error:
             if not (
                 error.failure_class is FailureClass.FILESYSTEM_FAILURE
-                and str(error) == "configured Git mirror is not bare"
+                and str(error)
+                in {
+                    "bare Git mirror is absent",
+                    "configured Git mirror is not bare",
+                }
             ):
                 raise
             self.logger.warning(

@@ -858,7 +858,9 @@ def test_deploy_tools_sends_only_commit_and_verified_checksums(tmp_path: Path) -
     assert all(len(value) == 64 for value in arguments[1:])
 
 
-def test_deploy_tools_recovers_only_from_missing_base64(tmp_path: Path) -> None:
+def test_deploy_tools_recovers_only_from_approved_bootstrap_failures(
+    tmp_path: Path,
+) -> None:
     transport = FakeTransport(
         deploy_error=RemoteOperationError(
             "base64 is unavailable",
@@ -880,6 +882,14 @@ def test_deploy_tools_recovers_only_from_missing_base64(tmp_path: Path) -> None:
     assert arguments[2] == hashlib.sha256(smoke_job.read_bytes()).hexdigest()
     assert arguments[3] == COMMIT
     assert all(len(value) == 64 for value in arguments[4:])
+
+    transport.deploy_error = RemoteOperationError(
+        "/bin/bash: /approved/root/_tooling/nf-gtd-hpc-remote: "
+        "No such file or directory",
+        failure_class=FailureClass.TRANSFER_FAILURE,
+    )
+    assert controller.deploy_tools("HEAD")["recovery_used"] == "true"
+    assert transport.calls[-1][0] == "recover-tools"
 
     transport.deploy_error = RemoteOperationError(
         "Git mirror fetch failed",
@@ -1245,7 +1255,7 @@ def test_scientific_profile_has_a_closed_run_id_and_remote_argument(
         controller.submit("smoke", run_id)
 
 
-def test_stage_uses_source_archive_only_for_exact_broken_git_preflight(
+def test_stage_uses_source_archive_for_exact_unavailable_git_mirror(
     tmp_path: Path,
 ) -> None:
     transport = FakeTransport(
@@ -1272,9 +1282,9 @@ def test_stage_uses_source_archive_only_for_exact_broken_git_preflight(
         "bare Git mirror is absent",
         failure_class=FailureClass.FILESYSTEM_FAILURE,
     )
-    with pytest.raises(RemoteOperationError, match="bare Git mirror is absent"):
-        controller.stage("p2-control", "HEAD")
-    assert [call[0] for call in transport.calls] == ["stage"]
+    staged = controller.stage("p2-control", "HEAD")
+    assert staged["remote_operation"] == "stage-archive"
+    assert [call[0] for call in transport.calls] == ["stage", "stage-archive"]
 
 
 @pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse", "p2-control"])

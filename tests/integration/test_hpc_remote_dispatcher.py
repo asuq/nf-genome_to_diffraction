@@ -1166,6 +1166,72 @@ def test_recovery_script_replaces_only_checksum_verified_tools(tmp_path: Path) -
     assert not (tmp_path / "touch").exists()
 
 
+def test_recovery_script_bootstraps_an_absent_fixed_tool_directory(
+    tmp_path: Path,
+) -> None:
+    _, _, environment, commit = _prepare_remote_layout(tmp_path)
+    source_bootstrap = tmp_path / "source-origin" / "bootstrap"
+    recovery = source_bootstrap / "nf-gtd-hpc-recover-tools"
+    dispatcher_source = source_bootstrap / "nf-gtd-hpc-remote"
+    job_source = source_bootstrap / "nf-gtd-hpc-smoke-job"
+    parent = tmp_path / "fresh-parent"
+    parent.mkdir()
+    root = parent / "fresh-remote-root"
+    dispatcher = root / "_tooling/nf-gtd-hpc-remote"
+    dispatcher_digest = hashlib.sha256(dispatcher_source.read_bytes()).hexdigest()
+    job_digest = hashlib.sha256(job_source.read_bytes()).hexdigest()
+
+    recovered = _run(
+        [
+            str(recovery),
+            str(dispatcher),
+            commit,
+            dispatcher_digest,
+            job_digest,
+            str(dispatcher_source.stat().st_size),
+            str(job_source.stat().st_size),
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=dispatcher_source.read_bytes() + job_source.read_bytes(),
+    )
+
+    assert recovered.stdout == b"deployed\n"
+    assert hashlib.sha256(dispatcher.read_bytes()).hexdigest() == dispatcher_digest
+    job = dispatcher.parent / "nf-gtd-hpc-smoke-job"
+    assert hashlib.sha256(job.read_bytes()).hexdigest() == job_digest
+    record = json.loads(
+        (dispatcher.parent / "deployed-tools.json").read_text(encoding="utf-8")
+    )
+    assert record["commit"] == commit
+    assert record["recovery_used"] is True
+    assert record["bootstrap_used"] is True
+    assert record["root_bootstrap_used"] is True
+
+    partial_root = tmp_path / "partial-remote-root"
+    partial_tooling = partial_root / "_tooling"
+    partial_tooling.mkdir(parents=True)
+    partial_dispatcher = partial_tooling / "nf-gtd-hpc-remote"
+    shutil.copy2(dispatcher_source, partial_dispatcher)
+    rejected = _run(
+        [
+            str(recovery),
+            str(partial_dispatcher),
+            commit,
+            dispatcher_digest,
+            job_digest,
+            str(dispatcher_source.stat().st_size),
+            str(job_source.stat().st_size),
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=dispatcher_source.read_bytes() + job_source.read_bytes(),
+        success=False,
+    )
+    assert b"fixed tool installation is partial" in rejected.stderr
+    assert not (partial_tooling / "nf-gtd-hpc-smoke-job").exists()
+
+
 def test_remote_tools_do_not_depend_on_dev_null(tmp_path: Path) -> None:
     dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
     recovery = REPOSITORY / "bootstrap" / "nf-gtd-hpc-recover-tools"

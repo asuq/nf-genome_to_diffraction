@@ -8084,3 +8084,49 @@ gtd-m6-nextflow-smoke-20260818T143325Z-c6e384d8b588-de9c14b8` at the next
 Commit only the dispatcher response, regression, and this evidence. Push once,
 watch exactly one CI run, and require green CI before creating the separate
 Marmic controller configuration or deploying any remote script.
+
+## 2026-08-18T17:43:44Z - Fresh Marmic root bootstrap locally qualified
+
+### Discoveries and external evidence
+
+- Replacement Actions run `32164148221`, job `95799680466`, passed pushed
+  commit `c227e7d7d70697a9e63d278b5b300aec3e488bf2` in 5m06s under Pixi 0.76.2.
+- Created an ignored mode-0600 Marmic controller configuration from the
+  retained approved SSH alias and dispatcher path without overwriting the
+  Viper configuration. The controller schema requires both site configs to
+  share the site-bound local capability store; each run record prevents
+  cross-site operation.
+- The reviewed Marmic `deploy-tools` operation reached the host but the fixed
+  dispatcher path was absent. The user then confirmed all previous Marmic test
+  working directories had been deleted and authorised rebuilding them. No raw
+  SSH, fallback transfer, remote cancellation, or job submission occurred.
+
+### Fresh-bootstrap correction and local evidence
+
+- Extended only the checksum-gated recovery path to recognise the exact
+  configured missing-dispatcher error. It may create the exact run root only
+  beneath an existing owned non-symlink parent, then create the fixed tooling
+  directory and install only the two size- and SHA-256-bound payloads.
+- Existing upgrades still preserve and roll back both tools. Fresh bootstrap
+  removes a partial install on failure and refuses foreign/symlinked roots or
+  a one-file partial tool state. Deployment records distinguish tool and root
+  bootstrap.
+- An absent bare mirror now triggers the existing checksum-bound source-archive
+  staging route; arbitrary Git, transfer, or caller path authority was not
+  added. Four focused red/green bootstrap/archive tests pass.
+- One complete `pixi run --locked check` passes Ruff format/lint, `ty`,
+  475 unit tests, 67 contract tests, 56 integration tests, schemas,
+  public-panel validation, documentation links, actionlint, Nextflow syntax
+  and complete cached-resume stub, and all Bash wrapper checks.
+- Per user direction, the roadmap now requires focused checks while iterating
+  and one full gate per coherent integration/push/deployment batch, rather than
+  repeating the full 33-launch stub after every small edit. The documentation
+  check passes after this policy update.
+
+### Next exact starting point
+
+Commit the fresh-bootstrap code, regressions, loop-policy update, and this
+evidence. Push once and watch one CI run. Only after green CI, rebuild/install
+the controller, retry the checksum-gated Marmic deployment, then stage from a
+source archive if the deleted mirror remains absent. Run readiness before one
+Marmic site-validation smoke; do not stage scientific M6 tracks.

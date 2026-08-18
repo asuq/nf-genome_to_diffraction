@@ -33,17 +33,49 @@ job_size="$6"
 
 tool_dir="$(dirname "$dispatcher")"
 root="$(dirname "$tool_dir")"
+root_parent="$(dirname "$root")"
 job="$tool_dir/nf-gtd-hpc-smoke-job"
 locks="$root/_locks"
+bootstrap_used=false
+root_bootstrap_used=false
 
 [[ "$dispatcher" == "$tool_dir/nf-gtd-hpc-remote" ]] || \
     die "dispatcher target is inconsistent"
+if [[ ! -e "$root" && ! -L "$root" ]]; then
+    [[ -d "$root_parent" && ! -L "$root_parent" && -O "$root_parent" ]] || \
+        die "run-root parent is unsafe"
+    mkdir "$root" || die "cannot create fixed run root"
+    chmod 0700 "$root"
+    root_bootstrap_used=true
+fi
+[[ -d "$root" && ! -L "$root" && -O "$root" ]] || \
+    die "run root is unsafe"
+if [[ ! -e "$tool_dir" && ! -L "$tool_dir" ]]; then
+    mkdir "$tool_dir" || die "cannot create fixed tool directory"
+    chmod 0700 "$tool_dir"
+    bootstrap_used=true
+fi
 [[ -d "$tool_dir" && ! -L "$tool_dir" && -O "$tool_dir" ]] || \
     die "tool directory is unsafe"
-[[ -f "$dispatcher" && ! -L "$dispatcher" && -O "$dispatcher" ]] || \
-    die "installed dispatcher is unsafe"
-[[ -f "$job" && ! -L "$job" && -O "$job" ]] || \
-    die "installed job script is unsafe"
+dispatcher_present=false
+job_present=false
+if [[ -e "$dispatcher" || -L "$dispatcher" ]]; then
+    [[ -f "$dispatcher" && ! -L "$dispatcher" && -O "$dispatcher" ]] || \
+        die "installed dispatcher is unsafe"
+    dispatcher_present=true
+fi
+if [[ -e "$job" || -L "$job" ]]; then
+    [[ -f "$job" && ! -L "$job" && -O "$job" ]] || \
+        die "installed job script is unsafe"
+    job_present=true
+fi
+if [[ "$dispatcher_present" == true && "$job_present" == true ]]; then
+    bootstrap_used=false
+elif [[ "$dispatcher_present" == false && "$job_present" == false ]]; then
+    bootstrap_used=true
+else
+    die "fixed tool installation is partial"
+fi
 
 mkdir -p "$locks"
 exec 9>"$locks/deploy-tools.lock"
@@ -83,9 +115,12 @@ bash -n "$new_dispatcher" "$new_job" || die "new tool syntax is invalid"
 grep -Fq 'deploy-tools) deploy_tools "$@" ;;' "$new_dispatcher" || \
     die "new dispatcher omits the normal upgrade operation"
 
-cp -p -- "$dispatcher" "$previous_dispatcher" || \
-    die "cannot preserve the previous dispatcher"
-cp -p -- "$job" "$previous_job" || die "cannot preserve the previous job script"
+if [[ "$bootstrap_used" == false ]]; then
+    cp -p -- "$dispatcher" "$previous_dispatcher" || \
+        die "cannot preserve the previous dispatcher"
+    cp -p -- "$job" "$previous_job" || \
+        die "cannot preserve the previous job script"
+fi
 chmod 0555 "$new_dispatcher" "$new_job"
 cat >"$record" <<EOF
 {
@@ -94,20 +129,29 @@ cat >"$record" <<EOF
   "dispatcher_sha256": "$actual_dispatcher",
   "smoke_job_sha256": "$actual_job",
   "deployed_at": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
-  "recovery_used": true
+  "recovery_used": true,
+  "bootstrap_used": $bootstrap_used,
+  "root_bootstrap_used": $root_bootstrap_used
 }
 EOF
 
+rollback_tools() {
+    if [[ "$bootstrap_used" == true ]]; then
+        rm -f -- "$dispatcher" "$job"
+    else
+        mv -f -- "$previous_job" "$job" >"$staging/rollback.log" 2>&1 || true
+        mv -f -- "$previous_dispatcher" "$dispatcher" \
+            >>"$staging/rollback.log" 2>&1 || true
+    fi
+}
 if ! mv -f -- "$new_job" "$job" || ! mv -f -- "$new_dispatcher" "$dispatcher"; then
-    mv -f -- "$previous_job" "$job" >"$staging/rollback.log" 2>&1 || true
-    mv -f -- "$previous_dispatcher" "$dispatcher" >>"$staging/rollback.log" 2>&1 || true
+    rollback_tools
     die "atomic tool replacement failed"
 fi
 if [[ "$(sha256sum "$dispatcher" | awk '{print $1}')" != "$actual_dispatcher" ]] || \
     [[ "$(sha256sum "$job" | awk '{print $1}')" != "$actual_job" ]] || \
     ! mv -f -- "$record" "$tool_dir/deployed-tools.json"; then
-    mv -f -- "$previous_job" "$job" >"$staging/rollback.log" 2>&1 || true
-    mv -f -- "$previous_dispatcher" "$dispatcher" >>"$staging/rollback.log" 2>&1 || true
+    rollback_tools
     die "installed tool verification failed"
 fi
 
