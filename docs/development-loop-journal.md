@@ -8603,3 +8603,34 @@ this local contract correction.
 Integrate this focused dead-toggle commit, then continue reviewing the
 remaining declared caps separately without changing checkpoint or retention
 semantics.
+
+## 2026-08-18T22:08:16Z - Core R1 contract slices pass one combined gate
+
+### Integrated contract boundary
+
+- Integrated strict JSON wire types and finite metrics, line-aware Matthews
+  input identity/coverage validation, authoritative public schema export,
+  exact TSV shape/error handling, removal of three inert downstream caps, and
+  removal of four declaration-only toggles.
+- The cap/toggle removals preserve every mandatory checkpoint, retain-all
+  result behavior, and scheduler-owned concurrency. Provider-plan caps remain
+  an explicit R2 slice rather than being silently accepted here.
+- The combined focused scientific/configuration suite passes 155 tests.
+- One complete `pixi run --locked check` passes Ruff format/lint, `ty`, 488
+  unit tests, 106 contract tests, 67 integration tests, schemas, public-panel
+  validation, documentation links, actionlint, Nextflow syntax and complete
+  stub/resume coverage, and all Bash wrapper checks.
+
+### Remaining R1 parity boundary
+
+Typed `ContractModel` JSON/JSONL and central JSON/YAML/TSV contract loading are
+covered. Raw dictionary loaders in temporary M6 protocol/execution/evaluation
+helpers remain outside this boundary; inventory and migrate or explicitly
+delete them with the R4 temporary slice before claiming every repository entry
+point passes one mutation corpus.
+
+### Next exact starting point
+
+Integrate these local commits onto current main after preserving the active-run
+journal. Push once and watch one CI run for the combined R1 batch. Then close
+the remaining raw-loader parity slice without mixing in R2 provider behavior.
