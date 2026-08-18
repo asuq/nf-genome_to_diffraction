@@ -1,6 +1,7 @@
 """JSON, YAML, and TSV adapters with precise validation diagnostics."""
 
 import csv
+import io
 import json
 import logging
 import math
@@ -9,7 +10,7 @@ from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import IO, Literal, cast
+from typing import IO, Literal, Protocol, cast
 
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
@@ -78,6 +79,16 @@ class _PairsSafeLoader(yaml.SafeLoader):
     """Safe YAML loader that preserves mapping pairs for strict validation."""
 
 
+class _TsvReader(Protocol):
+    """Structural type exposed by ``csv.reader``."""
+
+    line_num: int
+
+    def __iter__(self) -> Iterator[list[str]]: ...
+
+    def __next__(self) -> list[str]: ...
+
+
 @dataclass(frozen=True)
 class ContractSpec:
     """Model, authoritative schema, and optional tabular adapter."""
@@ -85,6 +96,7 @@ class ContractSpec:
     model: type[BaseModel]
     schema_filename: str | None = None
     tsv_adapter: TsvAdapter | None = None
+    tsv_required_columns: tuple[str, ...] = ()
 
 
 def _is_null(value: str) -> bool:
@@ -203,10 +215,27 @@ def _review_tsv(rows: Iterator[tuple[int, dict[str, str]]], path: Path) -> objec
 CONTRACTS: dict[str, ContractSpec] = {
     "catalogue-import-manifest": ContractSpec(CatalogueImportManifest),
     "catalogue-manifest": ContractSpec(
-        CatalogueManifest, "catalogue_manifest.schema.json", _catalogue_tsv
+        CatalogueManifest,
+        "catalogue_manifest.schema.json",
+        _catalogue_tsv,
+        (
+            "catalogue_id",
+            "proteome_faa",
+            "annotation_provider",
+            "annotation_version",
+            "is_contaminant_catalogue",
+        ),
     ),
     "crystal-manifest": ContractSpec(
-        CrystalManifest, "crystal_manifest.schema.json", _crystal_tsv
+        CrystalManifest,
+        "crystal_manifest.schema.json",
+        _crystal_tsv,
+        (
+            "crystal_id",
+            "mtz",
+            "catalogue_id",
+            "allow_remote_sequence_submission",
+        ),
     ),
     "database-manifest": ContractSpec(
         DatabaseManifest, "database_manifest.schema.json"
@@ -217,7 +246,10 @@ CONTRACTS: dict[str, ContractSpec] = {
     "pipeline-config": ContractSpec(PipelineConfig, "pipeline_config.schema.json"),
     "mr-hypothesis": ContractSpec(MrHypothesis, "mr_hypothesis.schema.json"),
     "review-decisions": ContractSpec(
-        ReviewDecisionManifest, "review_decision.schema.json", _review_tsv
+        ReviewDecisionManifest,
+        "review_decision.schema.json",
+        _review_tsv,
+        ("checkpoint", "item_id", "decision", "reviewer", "reviewed_at"),
     ),
     "resource-summary": ContractSpec(ResourceSummaryRecord),
     "run-manifest": ContractSpec(RunManifest),
@@ -342,19 +374,109 @@ def _read_yaml(handle: IO[str], label: str | Path) -> object:
     return _normalise_mapping_pairs(document, label=label)
 
 
-def _read_tsv(path: Path, adapter: TsvAdapter, *, progress: bool) -> object:
-    with path.open(encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle, delimiter="\t")
-        if not reader.fieldnames:
-            raise ContractLoadError(f"{path}: TSV header is missing")
-        iterator = ((number, dict(row)) for number, row in enumerate(reader, start=2))
-        visible = tqdm(
-            iterator,
-            desc=f"Reading {path.name}",
-            unit="row",
-            disable=not progress,
-        )
-        return adapter(iter(visible), path)
+def _decode_tsv(path: Path) -> str:
+    payload = path.read_bytes()
+    try:
+        return payload.decode("utf-8")
+    except UnicodeDecodeError as error:
+        prefix = payload[: error.start]
+        row = prefix.count(b"\n") + 1
+        line_start = prefix.rfind(b"\n") + 1
+        column = len(prefix[line_start:].decode("utf-8", errors="ignore")) + 1
+        raise ContractLoadError(
+            f"{path}:{row}:character-{column}: invalid UTF-8"
+        ) from error
+
+
+def _validated_tsv_rows(
+    reader: _TsvReader,
+    path: Path,
+    *,
+    required_columns: tuple[str, ...],
+) -> Iterator[tuple[int, dict[str, str]]]:
+    try:
+        headers = next(reader)
+    except StopIteration as error:
+        raise ContractLoadError(f"{path}:1:header: TSV header is missing") from error
+    except csv.Error as error:
+        raise ContractLoadError(f"{path}:1:header: invalid TSV: {error}") from error
+    if not headers:
+        raise ContractLoadError(f"{path}:1:header: TSV header is missing")
+
+    seen: dict[str, int] = {}
+    for column_number, header in enumerate(headers, start=1):
+        normalised = header.strip()
+        if not normalised:
+            raise ContractLoadError(
+                f"{path}:1:column-{column_number}: TSV header is blank"
+            )
+        if header != normalised:
+            raise ContractLoadError(
+                f"{path}:1:{normalised}: TSV header has surrounding whitespace"
+            )
+        if normalised in seen:
+            raise ContractLoadError(
+                f"{path}:1:{normalised}: duplicate TSV header at columns "
+                f"{seen[normalised]} and {column_number}"
+            )
+        seen[normalised] = column_number
+
+    for required in required_columns:
+        if required not in seen:
+            raise ContractLoadError(
+                f"{path}:1:{required}: required TSV header is missing"
+            )
+
+    while True:
+        row_number = reader.line_num + 1
+        try:
+            values = next(reader)
+        except StopIteration:
+            return
+        except csv.Error as error:
+            raise ContractLoadError(
+                f"{path}:{row_number}:row: invalid TSV: {error}"
+            ) from error
+        if len(values) < len(headers):
+            missing_column = headers[len(values)]
+            raise ContractLoadError(
+                f"{path}:{row_number}:{missing_column}: TSV row has "
+                f"{len(values)} fields; expected {len(headers)}"
+            )
+        if len(values) > len(headers):
+            raise ContractLoadError(
+                f"{path}:{row_number}:column-{len(headers) + 1}: TSV row has "
+                f"{len(values)} fields; expected {len(headers)}"
+            )
+        row = dict(zip(headers, values, strict=True))
+        for required in required_columns:
+            value = row[required]
+            if _is_null(value):
+                raise ContractLoadError(
+                    f"{path}:{row_number}:{required}: required TSV value is blank"
+                )
+        yield row_number, row
+
+
+def _read_tsv(path: Path, spec: ContractSpec, *, progress: bool) -> object:
+    adapter = spec.tsv_adapter
+    if adapter is None:
+        raise AssertionError("TSV reader requires an adapter")
+    reader = csv.reader(
+        io.StringIO(_decode_tsv(path), newline=""), delimiter="\t", strict=True
+    )
+    iterator = _validated_tsv_rows(
+        reader,
+        path,
+        required_columns=spec.tsv_required_columns,
+    )
+    visible = tqdm(
+        iterator,
+        desc=f"Reading {path.name}",
+        unit="row",
+        disable=not progress,
+    )
+    return adapter(iter(visible), path)
 
 
 def _read_document(
@@ -366,7 +488,7 @@ def _read_document(
                 raise ContractLoadError(
                     f"{path}: TSV is not supported for this contract kind"
                 )
-            return _read_tsv(path, spec.tsv_adapter, progress=progress)
+            return _read_tsv(path, spec, progress=progress)
         with path.open(encoding="utf-8") as handle:
             if input_format == "json":
                 return _read_json(handle, path)

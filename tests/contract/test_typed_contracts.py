@@ -326,6 +326,113 @@ def test_tsv_error_includes_row_and_column(tmp_path: Path) -> None:
         load_contract(path, "catalogue-manifest", progress=False)
 
 
+@pytest.mark.parametrize(
+    ("name", "contents", "diagnostic"),
+    (
+        (
+            "short.tsv",
+            "catalogue_id\tproteome_faa\tannotation_provider\tannotation_version\t"
+            "is_contaminant_catalogue\ncat_a\ta.faa\tPGAP\t1\n",
+            ":2:is_contaminant_catalogue: TSV row has 4 fields; expected 5",
+        ),
+        (
+            "long.tsv",
+            "catalogue_id\tproteome_faa\tannotation_provider\tannotation_version\t"
+            "is_contaminant_catalogue\ncat_a\ta.faa\tPGAP\t1\tfalse\textra\n",
+            ":2:column-6: TSV row has 6 fields; expected 5",
+        ),
+    ),
+)
+def test_tsv_ragged_rows_fail_before_adaptation(
+    tmp_path: Path,
+    name: str,
+    contents: str,
+    diagnostic: str,
+) -> None:
+    path = tmp_path / name
+    path.write_text(contents, encoding="utf-8")
+
+    with pytest.raises(ContractLoadError) as captured:
+        load_contract(path, "catalogue-manifest", progress=False)
+
+    assert f"{path}{diagnostic}" in str(captured.value)
+
+
+def test_tsv_duplicate_headers_fail_before_adaptation(tmp_path: Path) -> None:
+    path = tmp_path / "duplicate-header.tsv"
+    path.write_text(
+        "catalogue_id\tcatalogue_id\tproteome_faa\tannotation_provider\t"
+        "annotation_version\tis_contaminant_catalogue\n"
+        "cat_a\tcat_b\ta.faa\tPGAP\t1\tfalse\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ContractLoadError) as captured:
+        load_contract(path, "catalogue-manifest", progress=False)
+
+    assert f"{path}:1:catalogue_id: duplicate TSV header at columns 1 and 2" in str(
+        captured.value
+    )
+
+
+def test_tsv_blank_header_fails_before_adaptation(tmp_path: Path) -> None:
+    path = tmp_path / "blank-header.tsv"
+    path.write_text(
+        "catalogue_id\t \tproteome_faa\tannotation_provider\tannotation_version\t"
+        "is_contaminant_catalogue\ncat_a\tunused\ta.faa\tPGAP\t1\tfalse\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ContractLoadError) as captured:
+        load_contract(path, "catalogue-manifest", progress=False)
+
+    assert f"{path}:1:column-2: TSV header is blank" in str(captured.value)
+
+
+def test_tsv_blank_required_cell_fails_before_adaptation(tmp_path: Path) -> None:
+    path = tmp_path / "blank-required.tsv"
+    path.write_text(
+        "catalogue_id\tproteome_faa\tannotation_provider\tannotation_version\t"
+        "is_contaminant_catalogue\ncat_a\t \tPGAP\t1\tfalse\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ContractLoadError) as captured:
+        load_contract(path, "catalogue-manifest", progress=False)
+
+    assert f"{path}:2:proteome_faa: required TSV value is blank" in str(captured.value)
+
+
+def test_tsv_invalid_utf8_has_a_load_diagnostic(tmp_path: Path) -> None:
+    path = tmp_path / "invalid-utf8.tsv"
+    path.write_bytes(
+        b"catalogue_id\tproteome_faa\tannotation_provider\tannotation_version\t"
+        b"is_contaminant_catalogue\ncat_a\t\xff\tPGAP\t1\tfalse\n"
+    )
+
+    with pytest.raises(ContractLoadError) as captured:
+        load_contract(path, "catalogue-manifest", progress=False)
+
+    message = str(captured.value)
+    assert message.startswith(f"{path}:2:character-")
+    assert message.endswith(": invalid UTF-8")
+
+
+def test_tsv_quoted_tabs_and_newlines_are_preserved(tmp_path: Path) -> None:
+    path = tmp_path / "quoted.tsv"
+    path.write_text(
+        "catalogue_id\tproteome_faa\tannotation_provider\tannotation_version\t"
+        "is_contaminant_catalogue\tnotes\n"
+        'cat_a\ta.faa\tPGAP\t1\tfalse\t"first\tpart\nsecond part"\n',
+        encoding="utf-8",
+    )
+
+    loaded = load_contract(path, "catalogue-manifest", progress=False)
+
+    assert isinstance(loaded, CatalogueManifest)
+    assert loaded.catalogues[0].notes == "first\tpart\nsecond part"
+
+
 def test_cross_reference_validation_rejects_unknown_catalogue() -> None:
     catalogues = load_contract(
         REPOSITORY / "examples/catalogue_manifest.json",
