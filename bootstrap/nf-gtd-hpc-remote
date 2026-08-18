@@ -2416,7 +2416,7 @@ submit_run() {
     emit operation submit
     emit run_id "$run_id"
     emit job_id "$job_id"
-    emit site_id "$(<"$run/state/site-id")"
+    emit site_id "$SITE_ID"
     emit profile "$profile"
     emit scheduler_state SUBMITTED
 }

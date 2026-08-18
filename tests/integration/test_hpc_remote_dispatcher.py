@@ -597,6 +597,7 @@ def test_control_matrix_submit_reuses_measured_control_slice_resources(
     )
 
     assert submitted["job_id"] == "123"
+    assert submitted["site_id"] == "marmic"
     submitted_arguments = (
         (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
     )

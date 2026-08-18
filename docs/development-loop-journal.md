@@ -8052,3 +8052,35 @@ gtd-m6-nextflow-smoke-20260818T143325Z-c6e384d8b588-de9c14b8` at the next
   site-profile validation; it remains non-acceptance orchestration evidence.
   Real Phenix and production databases are not needed for that stub, but are
   still required before Marmic scientific M6 tracks.
+
+## 2026-08-18T17:08:47Z - Linux submit-response regression corrected
+
+### Observed CI failure and root cause
+
+- The sole Actions run `32162113507`, job `95793175682`, for pushed head
+  `107f013131dcee178fc881cda8706e586efcdc92` failed during integration after
+  475 unit and 67 contract tests passed. Three fake staged-run tests failed on
+  Ubuntu because their legacy/manual state intentionally omits `state/site-id`.
+- The new common submit response read that optional file unconditionally.
+  Linux Bash exited on the failed redirection; macOS Bash emitted an empty
+  `site_id`, explaining why the complete local gate had passed. Scheduling had
+  already succeeded and the failure was confined to response rendering.
+
+### Focused correction and evidence
+
+- Added a regression requiring a non-M6 manual staged run to report the
+  dispatcher's validated immutable `SITE_ID`. The red regression reproduced an
+  empty value locally.
+- Changed only the common response to emit the already validated dispatcher
+  `SITE_ID`; M6 site-policy state validation and all submission behavior remain
+  unchanged. The three CI failures now pass locally.
+- One complete `pixi run --locked check` passes Ruff format/lint, `ty`,
+  475 unit tests, 67 contract tests, 55 integration tests, schemas,
+  public-panel validation, documentation links, actionlint, Nextflow syntax
+  and complete cached-resume stub, and all Bash wrapper checks.
+
+### Next exact starting point
+
+Commit only the dispatcher response, regression, and this evidence. Push once,
+watch exactly one CI run, and require green CI before creating the separate
+Marmic controller configuration or deploying any remote script.
