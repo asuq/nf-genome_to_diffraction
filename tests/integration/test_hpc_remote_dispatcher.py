@@ -1174,9 +1174,9 @@ def test_recovery_script_bootstraps_an_absent_fixed_tool_directory(
     recovery = source_bootstrap / "nf-gtd-hpc-recover-tools"
     dispatcher_source = source_bootstrap / "nf-gtd-hpc-remote"
     job_source = source_bootstrap / "nf-gtd-hpc-smoke-job"
-    parent = tmp_path / "fresh-parent"
-    parent.mkdir()
-    root = parent / "fresh-remote-root"
+    anchor = tmp_path / "fresh-anchor"
+    anchor.mkdir()
+    root = anchor / "deleted-parent/fresh-remote-root"
     dispatcher = root / "_tooling/nf-gtd-hpc-remote"
     dispatcher_digest = hashlib.sha256(dispatcher_source.read_bytes()).hexdigest()
     job_digest = hashlib.sha256(job_source.read_bytes()).hexdigest()

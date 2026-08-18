@@ -33,7 +33,6 @@ job_size="$6"
 
 tool_dir="$(dirname "$dispatcher")"
 root="$(dirname "$tool_dir")"
-root_parent="$(dirname "$root")"
 job="$tool_dir/nf-gtd-hpc-smoke-job"
 locks="$root/_locks"
 bootstrap_used=false
@@ -42,9 +41,20 @@ root_bootstrap_used=false
 [[ "$dispatcher" == "$tool_dir/nf-gtd-hpc-remote" ]] || \
     die "dispatcher target is inconsistent"
 if [[ ! -e "$root" && ! -L "$root" ]]; then
-    [[ -d "$root_parent" && ! -L "$root_parent" && -O "$root_parent" ]] || \
-        die "run-root parent is unsafe"
-    mkdir "$root" || die "cannot create fixed run root"
+    existing_root_anchor="$root"
+    while [[ ! -e "$existing_root_anchor" && ! -L "$existing_root_anchor" ]]; do
+        parent="$(dirname "$existing_root_anchor")"
+        [[ "$parent" != "$existing_root_anchor" ]] || \
+            die "cannot locate an existing run-root ancestor"
+        existing_root_anchor="$parent"
+    done
+    [[ "$existing_root_anchor" != / && -d "$existing_root_anchor" && \
+       ! -L "$existing_root_anchor" && -O "$existing_root_anchor" && \
+       "$root" == "$existing_root_anchor"/* ]] || \
+        die "run-root ancestor is unsafe"
+    mkdir -p "$root" || die "cannot create fixed run root"
+    [[ "$(cd "$root" && pwd -P)" == "$root" ]] || \
+        die "created run root resolves outside the fixed path"
     chmod 0700 "$root"
     root_bootstrap_used=true
 fi

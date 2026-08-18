@@ -8130,3 +8130,31 @@ evidence. Push once and watch one CI run. Only after green CI, rebuild/install
 the controller, retry the checksum-gated Marmic deployment, then stage from a
 source archive if the deleted mirror remains absent. Run readiness before one
 Marmic site-validation smoke; do not stage scientific M6 tracks.
+
+## 2026-08-18T17:54:57Z - Deleted Marmic parent chain handled explicitly
+
+### External evidence and focused correction
+
+- Actions run `32167317780`, job `95809831126`, passed pushed fresh-bootstrap
+  commit `a4c9237318d65809d9282237ebd3ec40d97d3e69` in 6m15s. The rebuilt local
+  controller checksum is
+  `5a7c28e54c2a8001ba53b76b235073538e44d27ff119f8830ffa8d03e120bfea`.
+- Checksum-gated recovery reached Marmic and correctly refused because the
+  user-deleted scope also included the recorded run-root parent
+  `codex-hpc-runs`. No files were installed and no job was staged.
+- The fresh-bootstrap path now walks only the fixed configured path toward its
+  nearest existing ancestor, requires that ancestor to be owned, a real
+  directory, and not `/` or a symlink, then recreates the missing chain with
+  mode-protected directories and verifies the final physical path exactly.
+  Existing roots retain the stricter direct ownership check.
+- The missing-chain bootstrap and missing-dispatcher controller regressions
+  pass two focused tests; Bash syntax and targeted Ruff pass. Per the updated
+  loop policy, the complete gate is not repeated for this two-line-scope safety
+  refinement; CI remains the full-platform gate before deployment.
+
+### Next exact starting point
+
+Commit and push this focused recovery refinement, watch one CI run, rebuild the
+controller only after green CI, and retry the same checksum-gated Marmic
+deployment. If the nearest existing ancestor is not owned, stop and request the
+administrator/user-created root rather than weakening the guard.
