@@ -276,7 +276,9 @@ nf-gtd-hpc-test --no-progress collect --run-id RUN_ID
 This uses `-stub-run` but the Nextflow driver and every process boundary are
 real Slurm jobs. Acceptance requires distinct native job IDs for the 32-CPU
 MMseqs2 and Foldseek tasks, per-job resource evidence, a fully cached resume,
-and cross-track reuse of exactly the truthless import/search store. Its summary
+and cross-track `-resume` reuse of exactly six truthless import/search tasks.
+The two scientific tracks run separately and intentionally recompute their own
+discovery tasks rather than sharing mutable cross-run state. The smoke summary
 sets `acceptance_evidence=false`; it cannot count toward either M6 track.
 
 Stage and submit the two scientific tracks separately. Each transfer repeats

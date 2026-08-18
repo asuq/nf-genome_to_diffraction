@@ -1028,14 +1028,17 @@ def _synthetic_collection(
         (qualification / destination).write_bytes(source.read_bytes())
     profile = f"m6-{track}"
     run_id = f"gtd-{profile}-20260817T000000Z-{commit[:12]}-01234567"
+    nextflow = adapter_version in {"m6-nextflow-run-v1", "m6-nextflow-run-v2"}
+    resume_record: dict[str, object] = {
+        "deterministic_replay_equivalent": True,
+        "resume_equivalent": True,
+    }
+    if nextflow:
+        resume_record.update(first_task_count=1, cached_resume_task_count=1)
     _write_json(
         qualification / "m6-resume-check.json",
-        {
-            "deterministic_replay_equivalent": True,
-            "resume_equivalent": True,
-        },
+        resume_record,
     )
-    nextflow = adapter_version in {"m6-nextflow-run-v1", "m6-nextflow-run-v2"}
     runtime = {
         "schema_version": "1.1" if nextflow else "1.0",
         "profile": profile,
@@ -1092,22 +1095,13 @@ def _synthetic_collection(
             },
         )
         _write_json(
-            qualification / "m6-shared-store-evidence.json",
+            qualification / "m6-resume-cache-evidence.json",
             {
                 "schema_version": "1.0",
-                "eligible_processes": [
-                    "M6_IMPORT_CATALOGUE",
-                    "M6_SEARCH_FOLDSEEK",
-                    "M6_SEARCH_PDB",
-                ],
-                "first_run_reuse": {},
-                "resume_reuse": {
-                    "M6_IMPORT_CATALOGUE": 1,
-                    "M6_SEARCH_FOLDSEEK": 1,
-                    "M6_SEARCH_PDB": 1,
-                },
-                "truthless_only": True,
-                "track_specific_reuse": False,
+                "cache_mechanism": "nextflow_resume",
+                "first_task_count": 1,
+                "cached_resume_task_count": 1,
+                "fully_cached_resume": True,
             },
         )
     _write_json(qualification / "m6-runtime-provenance.json", runtime)

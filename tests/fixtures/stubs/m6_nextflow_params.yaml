@@ -4,4 +4,3 @@ execution_policy: benchmarks/m6/execution-nextflow-v1.yaml
 database_manifest: tests/fixtures/stubs/database_manifest.json
 phenix_manifest: tests/fixtures/stubs/phenix_install_manifest.json
 track: operational
-m6_discovery_store: /tmp/nf-gtd-m6-stub-discovery

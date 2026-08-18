@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
@@ -100,15 +101,8 @@ def _assert_m6_fanout_trace(
         "M6_PREPARE_ACTIVE_CASE": {"m6-case:M6C001"},
         "M6_PREPARE_EARLY_CASE": {"m6-early-case:M6C057"},
     }
-    stored_processes = {
-        "M6_IMPORT_CATALOGUE",
-        "M6_SEARCH_PDB",
-        "M6_SEARCH_FOLDSEEK",
-    }
     rows_by_process: dict[str, tuple[dict[str, str], ...]] = {}
     for process, expected in expected_tags.items():
-        if require_cached and process in stored_processes:
-            continue
         process_rows = tuple(
             row for row in trace_rows if row["process"].split(":")[-1] == process
         )
@@ -126,6 +120,37 @@ def _assert_m6_fanout_trace(
             )
         rows_by_process[process] = process_rows
     return rows_by_process
+
+
+def _assert_m6_cross_track_cache(
+    first_rows: Sequence[dict[str, str]], leakage_rows: Sequence[dict[str, str]]
+) -> None:
+    """Require only the six truthless tasks to cache across M6 tracks."""
+
+    expected_cached = {
+        "M6_IMPORT_CATALOGUE": 2,
+        "M6_SEARCH_PDB": 2,
+        "M6_SEARCH_FOLDSEEK": 2,
+    }
+    cached = tuple(row for row in leakage_rows if row["status"] == "CACHED")
+    completed = tuple(row for row in leakage_rows if row["status"] == "COMPLETED")
+    cached_counts = Counter(row["process"].split(":")[-1] for row in cached)
+    if len(leakage_rows) != 25 or cached_counts != expected_cached:
+        raise RuntimeError(
+            "M6 leakage resume did not cache exactly six truthless tasks: "
+            f"{dict(sorted(cached_counts.items()))}"
+        )
+    if len(completed) != 19 or len(cached) + len(completed) != len(leakage_rows):
+        raise RuntimeError("M6 leakage resume did not complete 19 track-specific tasks")
+    for process in expected_cached:
+        first_tags = sorted(
+            row["tag"] for row in first_rows if row["process"].split(":")[-1] == process
+        )
+        cached_tags = sorted(
+            row["tag"] for row in cached if row["process"].split(":")[-1] == process
+        )
+        if first_tags != cached_tags:
+            raise RuntimeError(f"M6 cached task identity changed: {process}")
 
 
 def _write_real_inputs(root: Path) -> Path:
@@ -1019,8 +1044,6 @@ def check_stubs() -> None:
 
         m6_out = temporary_root / "m6-nextflow-results"
         m6_cache = temporary_root / "m6-nextflow-cache"
-        m6_discovery_store = temporary_root / "m6-discovery-store"
-        m6_discovery_store.mkdir()
         m6_command = [
             "nextflow",
             "run",
@@ -1034,8 +1057,6 @@ def check_stubs() -> None:
             str(m6_out),
             "--cache_root",
             str(m6_cache),
-            "--m6_discovery_store",
-            str(m6_discovery_store),
         ]
         _run(m6_command, environment=environment)
         _assert_files(
@@ -1060,6 +1081,10 @@ def check_stubs() -> None:
         trace_path = m6_out / "pipeline_info" / "trace.tsv"
         with trace_path.open(encoding="utf-8", newline="") as handle:
             trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+        if len(trace_rows) != 25 or {row["status"] for row in trace_rows} != {
+            "COMPLETED"
+        }:
+            raise RuntimeError("M6 first stub run did not complete exactly 25 tasks")
         fanout_rows = _assert_m6_fanout_trace(trace_rows, require_cached=False)
         processes = {row["process"].split(":")[-1] for row in trace_rows}
         required_processes = {
@@ -1148,6 +1173,10 @@ def check_stubs() -> None:
                 )
         with trace_path.open(encoding="utf-8", newline="") as handle:
             resumed_trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+        if len(resumed_trace_rows) != 25 or {
+            row["status"] for row in resumed_trace_rows
+        } != {"CACHED"}:
+            raise RuntimeError("resumed M6 stub did not cache all 25 tasks")
         _assert_m6_fanout_trace(resumed_trace_rows, require_cached=True)
         after_resume = {
             str(path.relative_to(m6_out)): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -1158,46 +1187,23 @@ def check_stubs() -> None:
             raise RuntimeError("M6 stub resume changed scientific outputs")
 
         leakage_out = temporary_root / "m6-nextflow-leakage-results"
-        leakage_cache = temporary_root / "m6-nextflow-leakage-cache"
-        leakage_run = _run(
+        _run(
             [
                 *m6_command,
                 "--track",
                 "leakage",
                 "--outdir",
                 str(leakage_out),
-                "--cache_root",
-                str(leakage_cache),
+                "-resume",
             ],
             environment=environment,
         )
-        leakage_output = f"{leakage_run.stdout}\n{leakage_run.stderr}"
-        for shared_process in (
-            "M6_IMPORT_CATALOGUE",
-            "M6_SEARCH_PDB",
-            "M6_SEARCH_FOLDSEEK",
-        ):
-            if not any(
-                "stored process" in line.lower() and shared_process in line
-                for line in leakage_output.splitlines()
-            ):
-                raise RuntimeError(
-                    f"M6 leakage stub did not reuse truthless {shared_process}"
-                )
-        if any(
-            "stored process" in line.lower()
-            and any(
-                process in line
-                for process in (
-                    "M6_APPLY_POLICY",
-                    "M6_FIRST_COPY",
-                    "M6_ADDITIONAL_COPY",
-                    "M6_REFINEMENT",
-                )
-            )
-            for line in leakage_output.splitlines()
-        ):
-            raise RuntimeError("M6 leakage stub reused track-specific work")
+        with (leakage_out / "pipeline_info/trace.tsv").open(
+            encoding="utf-8", newline=""
+        ) as handle:
+            leakage_trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+        _assert_m6_fanout_trace(leakage_trace_rows, require_cached=False)
+        _assert_m6_cross_track_cache(trace_rows, leakage_trace_rows)
 
         real_main_out = temporary_root / "main-real-results"
         real_main_cache = temporary_root / "main-real-cache"

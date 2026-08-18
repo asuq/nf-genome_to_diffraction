@@ -31,33 +31,6 @@ process M6_PLAN_TRACK {
     """
 }
 
-process M6_IMPORT_CATALOGUE {
-    tag "m6-import:${item[0]}"
-    label 'm6_small'
-    storeDir { "${params.m6_discovery_store}/catalogue/${item[1]}" }
-
-    input:
-    item: Tuple
-
-    output:
-    result: Tuple = tuple(item[0], file('m6_catalogue_bundle'))
-
-    script:
-    """
-        genome-to-diffraction --no-progress --log-format json \
-        benchmark run-m6-catalogue-task \
-        --task '${item[2]}' \
-        --software-lock '${item[3]}' \
-        --outdir m6_catalogue_bundle
-    """
-
-    stub:
-    """
-    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
-        '${projectDir}/tests/fixtures/stubs/m6_nextflow/catalogue_bundle' m6_catalogue_bundle
-    """
-}
-
 process M6_BUILD_SEARCH_BATCHES {
     tag 'm6-build-search-batches'
     label 'm6_small'
@@ -84,76 +57,6 @@ process M6_BUILD_SEARCH_BATCHES {
     """
     /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
         '${projectDir}/tests/fixtures/stubs/m6_nextflow/batch_plan' m6_batch_plan
-    """
-}
-
-process M6_SEARCH_PDB {
-    tag "m6-pdb:${item[0]}"
-    label 'm6_pdb_search'
-    storeDir { "${params.m6_discovery_store}/pdb/${item[1]}" }
-
-    input:
-    item: Tuple
-
-    output:
-    result: Tuple = tuple(item[0], file('m6_pdb_bundle'))
-
-    script:
-    """
-    genome-to-diffraction --no-progress --log-format json \
-        benchmark run-m6-pdb-task \
-        --batch-task '${item[2]}' \
-        --database-manifest '${item[3]}' \
-        --execution-policy '${item[4]}' \
-        --software-lock '${item[5]}' \
-        --threads '${task.cpus}' \
-        --outdir m6_pdb_bundle
-    """
-
-    stub:
-    """
-    if [[ '${item[0]}' == b* ]]; then
-        sleep 4
-    else
-        sleep 1
-    fi
-    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
-        '${projectDir}/tests/fixtures/stubs/m6_nextflow/pdb_bundle' m6_pdb_bundle
-    """
-}
-
-process M6_SEARCH_FOLDSEEK {
-    tag "m6-foldseek:${item[0]}"
-    label 'm6_foldseek_search'
-    storeDir { "${params.m6_discovery_store}/foldseek/${item[1]}" }
-
-    input:
-    item: Tuple
-
-    output:
-    result: Tuple = tuple(item[0], file('m6_foldseek_bundle'))
-
-    script:
-    """
-    genome-to-diffraction --no-progress --log-format json \
-        benchmark run-m6-foldseek-task \
-        --batch-task '${item[2]}' \
-        --database-manifest '${item[3]}' \
-        --execution-policy '${item[4]}' \
-        --software-lock '${item[5]}' \
-        --threads '${task.cpus}' \
-        --outdir m6_foldseek_bundle
-    """
-
-    stub:
-    """
-    if [[ '${item[0]}' == d* ]]; then
-        sleep 4
-    else
-        sleep 1
-    fi
-    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
-        '${projectDir}/tests/fixtures/stubs/m6_nextflow/foldseek_bundle' m6_foldseek_bundle
     """
 }
 

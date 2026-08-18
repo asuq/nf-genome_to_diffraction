@@ -2,10 +2,7 @@ nextflow.enable.types = true
 
 include {
     M6_PLAN_TRACK;
-    M6_IMPORT_CATALOGUE;
     M6_BUILD_SEARCH_BATCHES;
-    M6_SEARCH_PDB;
-    M6_SEARCH_FOLDSEEK;
     M6_PARTITION_DISCOVERY;
     M6_PREFLIGHT_CASE;
     M6_APPLY_POLICY;
@@ -22,6 +19,12 @@ include {
     M6_ASSEMBLE_EMPTY_CASE;
     M6_AGGREGATE_TRACK
 } from '../modules/local/m6_nextflow_tasks'
+
+include {
+    M6_IMPORT_CATALOGUE;
+    M6_SEARCH_PDB;
+    M6_SEARCH_FOLDSEEK
+} from '../modules/local/m6_truthless_cache_tasks'
 
 workflow M6_VALIDATION_WORKFLOW {
     take:
@@ -41,10 +44,13 @@ workflow M6_VALIDATION_WORKFLOW {
             .findAll { String line -> line.trim() }
             .collect { String line ->
                 def fields = line.split('\t', -1)
+                def taskRoot = bundle.resolve(fields[2])
                 tuple(
                     fields[0] as String,
                     fields[1] as String,
-                    file(bundle.resolve(fields[2]), checkIfExists: true),
+                    file(taskRoot.resolve('task.json'), checkIfExists: true),
+                    file(taskRoot.resolve('catalogue.faa'), checkIfExists: true),
+                    file(taskRoot.resolve('analysis_config.json'), checkIfExists: true),
                     software_lock
                 )
             }
@@ -66,8 +72,10 @@ workflow M6_VALIDATION_WORKFLOW {
     imported_bundles = imported
         .map { catalogueKey, bundle -> bundle }
         .collect()
+    // Track salts batch-plan construction so only the three approved
+    // content-addressed import/search processes can reuse cross-track work.
     batch_input = imported_bundles.map { bundles ->
-        tuple(bundles, database_manifest, execution_policy, software_lock)
+        tuple(bundles, database_manifest, execution_policy, software_lock, track)
     }
     batch_plan = M6_BUILD_SEARCH_BATCHES(batch_input)
     batch_plan_value = batch_plan.first()
@@ -76,10 +84,12 @@ workflow M6_VALIDATION_WORKFLOW {
             .findAll { String line -> line.trim() }
             .collect { String line ->
                 def fields = line.split('\t', -1)
+                def taskRoot = bundle.resolve(fields[2])
                 tuple(
                     fields[0] as String,
                     fields[1] as String,
-                    file(bundle.resolve(fields[2]), checkIfExists: true),
+                    file(taskRoot.resolve('task.json'), checkIfExists: true),
+                    file(taskRoot.resolve('sequence_groups.jsonl'), checkIfExists: true),
                     database_manifest,
                     execution_policy,
                     software_lock
@@ -91,10 +101,12 @@ workflow M6_VALIDATION_WORKFLOW {
             .findAll { String line -> line.trim() }
             .collect { String line ->
                 def fields = line.split('\t', -1)
+                def taskRoot = bundle.resolve(fields[2])
                 tuple(
                     fields[0] as String,
                     fields[1] as String,
-                    file(bundle.resolve(fields[2]), checkIfExists: true),
+                    file(taskRoot.resolve('task.json'), checkIfExists: true),
+                    file(taskRoot.resolve('sequence_groups.jsonl'), checkIfExists: true),
                     database_manifest,
                     execution_policy,
                     software_lock

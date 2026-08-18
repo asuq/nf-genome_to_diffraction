@@ -9,7 +9,10 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 COPY_HELPER = REPOSITORY / "tests/scripts/copy_stub_fixture.sh"
-M6_MODULE = REPOSITORY / "modules/local/m6_nextflow_tasks.nf"
+M6_MODULES = (
+    REPOSITORY / "modules/local/m6_nextflow_tasks.nf",
+    REPOSITORY / "modules/local/m6_truthless_cache_tasks.nf",
+)
 
 
 def _file_digests(root: Path) -> dict[str, str]:
@@ -85,14 +88,19 @@ def test_copy_stub_fixture_repairs_hardened_modes_and_allows_cleanup(
 
 
 def test_every_m6_directory_copy_stub_uses_the_writable_copy_helper() -> None:
-    module = M6_MODULE.read_text(encoding="utf-8")
-    stub_blocks = module.split("\n    stub:\n")[1:]
+    modules = tuple(path.read_text(encoding="utf-8") for path in M6_MODULES)
+    stub_blocks = tuple(
+        block for module in modules for block in module.split("\n    stub:\n")[1:]
+    )
 
     assert len(stub_blocks) == 20
-    assert "cp -R" not in module
-    assert module.count("tests/scripts/copy_stub_fixture.sh") == 21
+    assert all("cp -R" not in module for module in modules)
+    assert (
+        sum(module.count("tests/scripts/copy_stub_fixture.sh") for module in modules)
+        == 21
+    )
     hardened_invocation = "/bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh'"
-    assert module.count(hardened_invocation) == 21
+    assert sum(module.count(hardened_invocation) for module in modules) == 21
     for block in stub_blocks:
         stub = block.split("\n}\n", maxsplit=1)[0]
         assert "tests/scripts/copy_stub_fixture.sh" in stub

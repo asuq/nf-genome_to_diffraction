@@ -15,7 +15,6 @@ params {
     track: String
     outdir: Path = file('results/m6')
     cache_root: Path = file('.cache/m6')
-    m6_discovery_store: Path = file('.cache/m6-discovery')
 }
 
 workflow {

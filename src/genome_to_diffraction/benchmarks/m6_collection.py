@@ -413,17 +413,10 @@ def _load_track(
             raise PublicControlError(
                 f"collected M6 {track} child resource evidence is invalid"
             ) from error
-        shared_store = _json_object(
-            qualification / "m6-shared-store-evidence.json",
-            "shared-store evidence",
+        resume_cache = _json_object(
+            qualification / "m6-resume-cache-evidence.json",
+            "resume-cache evidence",
         )
-        eligible_store_processes = {
-            "M6_IMPORT_CATALOGUE",
-            "M6_SEARCH_PDB",
-            "M6_SEARCH_FOLDSEEK",
-        }
-        first_reuse = shared_store.get("first_run_reuse")
-        resume_reuse = shared_store.get("resume_reuse")
         if (
             runtime.get("maximum_cpu_count") != 32
             or runtime.get("maximum_memory_gb") != 16.0
@@ -450,18 +443,15 @@ def _load_track(
                 re.fullmatch(r"[0-9]+", job.native_job_id) is None
                 for job in resource_evidence.jobs
             )
-            or shared_store.get("truthless_only") is not True
-            or shared_store.get("track_specific_reuse") is not False
-            or shared_store.get("eligible_processes")
-            != sorted(eligible_store_processes)
-            or not isinstance(first_reuse, dict)
-            or not set(first_reuse).issubset(eligible_store_processes)
-            or not isinstance(resume_reuse, dict)
-            or set(resume_reuse) != eligible_store_processes
-            or any(
-                isinstance(count, bool) or not isinstance(count, int) or count < 1
-                for count in (*first_reuse.values(), *resume_reuse.values())
-            )
+            or resume_cache.get("schema_version") != "1.0"
+            or resume_cache.get("cache_mechanism") != "nextflow_resume"
+            or resume_cache.get("fully_cached_resume") is not True
+            or resume_cache.get("first_task_count") != resume.get("first_task_count")
+            or resume_cache.get("cached_resume_task_count")
+            != resume.get("cached_resume_task_count")
+            or resume_cache.get("first_task_count") != resource_evidence.child_job_count
+            or resume_cache.get("cached_resume_task_count")
+            != resource_evidence.child_job_count
         ):
             raise PublicControlError(f"collected M6 {track} fan-out resources changed")
     elif (

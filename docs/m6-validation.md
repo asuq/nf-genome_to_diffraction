@@ -244,7 +244,7 @@ assignment gates, unexpected execution-failure holds, deterministic runner
 archives, byte-level rejection of a truth-bearing runner object, all-route
 model exclusion, compact truth joins, output-checksum replay, cache
 invalidation, deterministic query batching, Nextflow fan-out, child-job
-resource evidence, cross-track truthless-store isolation, and the fixed Viper
+resource evidence, cross-track truthless Nextflow-cache isolation, and the fixed Viper
 resource profiles. A two-case Viper `-stub-run` must then prove real child Slurm
 submission without generating acceptance evidence. The complete locked
 repository gate remains required before an immutable Viper candidate is staged.

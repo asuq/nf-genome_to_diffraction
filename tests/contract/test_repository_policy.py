@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import re
 from pathlib import Path
 
 import gemmi
@@ -265,8 +264,12 @@ def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     workflow = (REPOSITORY / "workflows/m6_validation_workflow.nf").read_text(
         encoding="utf-8"
     )
-    modules = (REPOSITORY / "modules/local/m6_nextflow_tasks.nf").read_text(
-        encoding="utf-8"
+    modules = "\n".join(
+        (REPOSITORY / relative).read_text(encoding="utf-8")
+        for relative in (
+            "modules/local/m6_nextflow_tasks.nf",
+            "modules/local/m6_truthless_cache_tasks.nf",
+        )
     )
     viper = (REPOSITORY / "conf/viper-cpu.config").read_text(encoding="utf-8")
     legacy = (
@@ -309,34 +312,54 @@ def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     assert viper.count("cpus = 32") >= 2
 
 
-def test_marmic_store_dir_tasks_bypass_node_scratch() -> None:
-    """Keep permanent shared-store writes out of Marmic scratch copy-back."""
+def test_m6_uses_standard_nextflow_resume_cache_without_store_dir() -> None:
+    """Keep M6 reuse inside one standard Nextflow work/cache boundary."""
 
-    module = (REPOSITORY / "modules/local/m6_nextflow_tasks.nf").read_text(
+    module = (REPOSITORY / "modules/local/m6_truthless_cache_tasks.nf").read_text(
         encoding="utf-8"
     )
     marmic = (REPOSITORY / "conf/marmic.config").read_text(encoding="utf-8")
-    process_bodies = {
-        match.group("name"): match.group("body")
-        for match in re.finditer(
-            r"^process (?P<name>[A-Z0-9_]+) \{(?P<body>.*?)(?=^process |\Z)",
-            module,
-            flags=re.MULTILINE | re.DOTALL,
-        )
-    }
-    stored_processes = {
-        name for name, body in process_bodies.items() if "storeDir" in body
-    }
-
-    assert stored_processes == {
+    entrypoint = (REPOSITORY / "m6_validation.nf").read_text(encoding="utf-8")
+    params = (REPOSITORY / "tests/fixtures/stubs/m6_nextflow_params.yaml").read_text(
+        encoding="utf-8"
+    )
+    workflow = (REPOSITORY / "workflows/m6_validation_workflow.nf").read_text(
+        encoding="utf-8"
+    )
+    job = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(encoding="utf-8")
+    former_store_processes = {
         "M6_IMPORT_CATALOGUE",
         "M6_SEARCH_PDB",
         "M6_SEARCH_FOLDSEEK",
     }
-    for process_name in sorted(stored_processes):
-        selector = marmic.split(f"withName: {process_name} {{", maxsplit=1)
-        assert len(selector) == 2, f"missing Marmic selector for {process_name}"
-        assert "scratch = false" in selector[1].split("}", maxsplit=1)[0]
+
+    assert "storeDir" not in module
+    assert "m6_discovery_store" not in entrypoint
+    assert "m6_discovery_store" not in params
+    assert "m6_discovery_store" not in job
+    assert 'M6_SMOKE_CACHE="$RUN/cache/m6-nextflow-smoke"' in job
+    assert 'M6_SMOKE_EXECUTION="$RUN/execution/m6-nextflow-smoke"' in job
+    assert "m6-nextflow-smoke-cache-evidence.json" in job
+    assert (
+        "Stored process"
+        not in job.split("run_m6_nextflow_smoke() {", maxsplit=1)[1].split(
+            "run_m6_nextflow() {", maxsplit=1
+        )[0]
+    )
+    cache_directives = [
+        line for line in module.splitlines() if line.strip() == "cache 'deep'"
+    ]
+    assert len(cache_directives) == 3
+    assert (
+        "tuple(bundles, database_manifest, execution_policy, software_lock, track)"
+        in workflow
+    )
+    for process_name in sorted(former_store_processes):
+        assert f"withName: {process_name} {{" not in marmic
+        process_body = module.split(f"process {process_name} {{", maxsplit=1)[1].split(
+            "\n}\n", maxsplit=1
+        )[0]
+        assert "cache 'deep'" in process_body
 
 
 def test_m6_smoke_uses_only_fixed_site_bound_profiles_and_policies() -> None:

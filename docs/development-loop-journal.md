@@ -8452,6 +8452,40 @@ passes, continue the R1--R3 foundations; do not stage M6 science yet.
 Commit this isolated slice without pushing. Integrate it with the other R1
 contract slices only after the active Marmic smoke is terminally classified,
 then run one complete locked gate for the combined R1 boundary.
+## 2026-08-18T22:32:56Z - M6 storeDir replaced by standard resume caching
+
+### Terminal evidence and architecture correction
+
+- The third Marmic run, Slurm `629503`, failed with signature
+  `647db6e89242fcdd5e04127089fa690bf58f4dd884dd67d42de772b81275534b`.
+  Its collected runner proves `NXF_SCRATCH=''`; the task/helper and generated
+  copy exited zero, yet Nextflow still declared the directory moved through
+  `storeDir` missing. This isolates the failure to Marmic directory-output
+  `storeDir` registration rather than source modes or scratch.
+- Removed `storeDir` and the `m6_discovery_store` parameter. The smoke now uses
+  one standard Nextflow execution/work/cache for operational first pass,
+  operational `-resume`, and leakage `-resume`.
+- Moved only the catalogue/MMseqs2/Foldseek processes into a dedicated
+  truthless-cache module with explicit staged content files and `cache 'deep'`.
+  Track salt forces every other task to remain track-specific. Separate real
+  operational/leakage runs intentionally recompute discovery rather than share
+  mutable cross-run state.
+
+### Focused evidence
+
+- A real focused sequence completes 25 operational tasks, caches all 25 on
+  operational resume, then caches exactly six truthless leakage tasks (two
+  import, two PDB, two Foldseek) while completing 19 track-specific tasks.
+- Focused unit/contract checks pass 41 cases, dispatcher/cache checks pass 10,
+  and writable-copy checks pass 3. Nextflow syntax, Bash syntax, Ruff
+  format/lint, `ty`, and `git diff --check` pass.
+
+### Next exact starting point
+
+Commit this isolated cache-topology correction without pushing. Integrate it
+onto current main after preserving the third-run journal, run one complete
+locked gate and CI, deploy reviewed tools, then submit exactly one fixed Marmic
+replay. Rebind the existing heartbeat only after submission.
 
 ## 2026-08-18T20:29:31Z - Development paused after second Marmic store failure
 

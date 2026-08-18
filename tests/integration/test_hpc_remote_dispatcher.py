@@ -806,21 +806,21 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
     assert 'job["requested_cpus"] != 32' in body
     assert 'job["requested_memory_gb"] != 16.0' in body
     assert 'job["requested_time_hours"] != 24.0' in body
-    assert "catalogue_imports" in body
-    assert "pdb_searches" in body
-    assert "foldseek_searches" in body
-    assert "catalogue_partitions" in body
-    assert (
-        "store_expected=$((catalogue_imports + pdb_searches + foldseek_searches))"
-        in body
-    )
+    assert 'M6_SMOKE_CACHE="$RUN/cache/m6-nextflow-smoke"' in body
+    assert 'M6_SMOKE_EXECUTION="$RUN/execution/m6-nextflow-smoke"' in body
+    assert "m6-nextflow-smoke-cache-evidence.json" in body
+    assert "operational_first_task_count" in body
+    assert "operational_cached_resume_task_count" in body
+    assert "leakage_cached_truthless_task_count" in body
+    assert "leakage_completed_track_specific_task_count" in body
+    assert "Stored process" not in body
     assert '"M6_SEARCH_PDB": 2' in body
     assert '"M6_SEARCH_FOLDSEEK": 2' in body
     assert 'len({job["native_job_id"] for job in search}) != 4' in body
     assert '"$stored" -eq 3' not in body
     assert "len(search) != 2" not in body
     assert '"acceptance_evidence": false' in body
-    assert "cross_track_truthless_store_reuse" in body
+    assert "cross_track_truthless_cache_reuse" in body
 
     contract_marker = (
         "\"$qualification/m6-nextflow-smoke-contract-evidence.json\" <<'PY'\n"
@@ -853,6 +853,102 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
         and isinstance(row["edge_observations"], list)
         for row in contract["case_contracts"]
     )
+
+
+def test_m6_smoke_cache_evidence_requires_exact_cross_track_reuse(
+    tmp_path: Path,
+) -> None:
+    job = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(encoding="utf-8")
+    body = job.split("run_m6_nextflow_smoke() {", maxsplit=1)[1].split(
+        "run_m6_nextflow() {", maxsplit=1
+    )[0]
+    marker = "\"$qualification/m6-nextflow-smoke-cache-evidence.json\" <<'PY'\n"
+    validator = body.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
+    process_counts = {
+        "M6_PLAN_TRACK": 1,
+        "M6_IMPORT_CATALOGUE": 2,
+        "M6_BUILD_SEARCH_BATCHES": 1,
+        "M6_SEARCH_PDB": 2,
+        "M6_SEARCH_FOLDSEEK": 2,
+        "M6_PARTITION_DISCOVERY": 2,
+        "M6_PREFLIGHT_CASE": 2,
+        "M6_APPLY_POLICY": 1,
+        "M6_PREPARE_ACTIVE_CASE": 1,
+        "M6_PREPARE_EARLY_CASE": 1,
+        "M6_FIRST_COPY": 1,
+        "M6_SELECT_SEEDS": 1,
+        "M6_EMPTY_SEEDS": 1,
+        "M6_ADDITIONAL_COPY": 1,
+        "M6_SELECT_FINALISTS": 1,
+        "M6_EMPTY_FINALISTS": 1,
+        "M6_REFINEMENT": 1,
+        "M6_ASSEMBLE_CASE": 1,
+        "M6_ASSEMBLE_EMPTY_CASE": 1,
+        "M6_AGGREGATE_TRACK": 1,
+    }
+    truthless = {
+        "M6_IMPORT_CATALOGUE",
+        "M6_SEARCH_PDB",
+        "M6_SEARCH_FOLDSEEK",
+    }
+
+    def trace(path: Path, *, mode: str, extra_cached: str | None = None) -> None:
+        lines = ["process\tstatus\ttag"]
+        for process, count in process_counts.items():
+            for index in range(count):
+                status = mode
+                if mode == "LEAKAGE":
+                    status = (
+                        "CACHED"
+                        if process in truthless or process == extra_cached
+                        else "COMPLETED"
+                    )
+                lines.append(
+                    f"M6_VALIDATION_WORKFLOW:{process}\t{status}\t{process}:{index}"
+                )
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    first = tmp_path / "first.tsv"
+    operational_resume = tmp_path / "operational-resume.tsv"
+    leakage_resume = tmp_path / "leakage-resume.tsv"
+    evidence_path = tmp_path / "cache-evidence.json"
+    trace(first, mode="COMPLETED")
+    trace(operational_resume, mode="CACHED")
+    trace(leakage_resume, mode="LEAKAGE")
+
+    accepted = _run(
+        [
+            sys.executable,
+            "-",
+            str(first),
+            str(operational_resume),
+            str(leakage_resume),
+            str(evidence_path),
+        ],
+        cwd=tmp_path,
+        input_data=validator.encode(),
+    )
+    assert accepted.stdout.strip() == b"25 25 6 19"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert evidence["cache_mechanism"] == "nextflow_resume"
+    assert evidence["leakage_cached_truthless_task_count"] == 6
+    assert evidence["leakage_completed_track_specific_task_count"] == 19
+
+    trace(leakage_resume, mode="LEAKAGE", extra_cached="M6_APPLY_POLICY")
+    rejected = _run(
+        [
+            sys.executable,
+            "-",
+            str(first),
+            str(operational_resume),
+            str(leakage_resume),
+            str(evidence_path),
+        ],
+        cwd=tmp_path,
+        input_data=validator.encode(),
+        success=False,
+    )
+    assert b"exactly six truthless tasks" in rejected.stderr
 
 
 def test_m6_nextflow_smoke_submit_rejects_changed_site_policy_state(
@@ -918,6 +1014,7 @@ def test_m6_nextflow_smoke_collects_v2_and_resume_evidence(tmp_path: Path) -> No
     (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="utf-8")
     required = {
         "artifacts/qualification/m6-nextflow-smoke-contract-evidence.json",
+        "artifacts/qualification/m6-nextflow-smoke-cache-evidence.json",
         "artifacts/qualification/m6-smoke-before-resume.sha256",
         "artifacts/qualification/m6-smoke-after-resume.sha256",
         "artifacts/m6-nextflow-smoke/operational/m6_scientific/"
@@ -972,7 +1069,7 @@ def test_failed_nextflow_task_diagnostics_are_bounded_and_collected(
     (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
     (state / "phase").write_text("completed\n", encoding="ascii")
     (state / "failure-class").write_text("test_failure\n", encoding="ascii")
-    task = run / "cache/m6-nextflow-smoke-operational/work/a7" / ("1" * 32)
+    task = run / "cache/m6-nextflow-smoke/work/a7" / ("1" * 32)
     task.mkdir(parents=True)
     diagnostic_files = {
         ".command.sh": "#!/bin/bash\ncopy fixture\n",
@@ -1088,7 +1185,7 @@ def test_failed_nextflow_task_diagnostics_reject_a_symlinked_cache(
     (state / "phase").write_text("completed\n", encoding="ascii")
     (state / "failure-class").write_text("test_failure\n", encoding="ascii")
     outside_cache = tmp_path / "outside-cache"
-    task = outside_cache / "m6-nextflow-smoke-operational/work/a7" / ("3" * 32)
+    task = outside_cache / "m6-nextflow-smoke/work/a7" / ("3" * 32)
     task.mkdir(parents=True)
     (task / ".command.log").write_text("outside cache\n", encoding="ascii")
     (run / "cache").symlink_to(outside_cache, target_is_directory=True)
@@ -1136,7 +1233,7 @@ def test_nextflow_diagnostics_require_a_complete_terminal_failure_marker(
     (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
     (state / "phase").write_text("submitted\n", encoding="ascii")
     (state / "failure-class").write_text("test_failure\n", encoding="ascii")
-    task = run / "cache/m6-nextflow-smoke-operational/work/a7" / ("4" * 32)
+    task = run / "cache/m6-nextflow-smoke/work/a7" / ("4" * 32)
     task.mkdir(parents=True)
     (task / ".command.log").write_text("diagnostic\n", encoding="ascii")
     application = logs / "m6-nextflow-smoke.log"
@@ -1194,7 +1291,7 @@ def test_nextflow_logs_are_byte_bounded_and_prefer_nonempty_error(
     (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
     (state / "phase").write_text("completed\n", encoding="ascii")
     (state / "failure-class").write_text("test_failure\n", encoding="ascii")
-    task = run / "cache/m6-nextflow-smoke-operational/work/a7" / ("5" * 32)
+    task = run / "cache/m6-nextflow-smoke/work/a7" / ("5" * 32)
     task.mkdir(parents=True)
     (task / ".command.log").write_text("", encoding="ascii")
     (task / ".command.err").write_text("useful error\n", encoding="ascii")
@@ -1236,7 +1333,7 @@ def test_oversized_nextflow_diagnostic_does_not_block_core_collection(
     (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
     (state / "phase").write_text("completed\n", encoding="ascii")
     (state / "failure-class").write_text("test_failure\n", encoding="ascii")
-    task = run / "cache/m6-nextflow-smoke-operational/work/a7" / ("6" * 32)
+    task = run / "cache/m6-nextflow-smoke/work/a7" / ("6" * 32)
     task.mkdir(parents=True)
     (task / ".command.sh").write_text("small command\n", encoding="ascii")
     (task / ".command.log").write_bytes(b"z" * (2 * 1024 * 1024 + 1))

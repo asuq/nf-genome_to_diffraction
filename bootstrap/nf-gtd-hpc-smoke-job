@@ -73,6 +73,8 @@ M6_EXECUTION_POLICY=""
 M6_EXECUTION_POLICY_ID=""
 M6_EXECUTION_POLICY_SHA256=""
 M6_APPTAINER_CACHE=""
+M6_SMOKE_CACHE=""
+M6_SMOKE_EXECUTION=""
 if [[ "$PROFILE" != database ]]; then
     SCRATCH_PARENT="${ROOT%/}/work"
     [[ "$SCRATCH_PARENT" =~ $SAFE_PATH_RE ]] || {
@@ -1863,11 +1865,10 @@ run_m6_stub_nextflow() {
     local label="$1"
     local track="$2"
     local outdir="$3"
-    local cache="$4"
-    shift 4
-    mkdir -p "$RUN/execution/m6-nextflow-smoke-$track"
+    shift 3
+    mkdir -p "$M6_SMOKE_EXECUTION"
     (
-        cd "$RUN/execution/m6-nextflow-smoke-$track"
+        cd "$M6_SMOKE_EXECUTION"
         "$NEXTFLOW" \
             -log "$RUN/logs/nextflow-m6-smoke-${track}-${label}.log" \
             run "$RUN/source/m6_validation.nf" \
@@ -1887,8 +1888,7 @@ run_m6_stub_nextflow() {
                 "$RUN/source/tests/fixtures/stubs/phenix_install_manifest.json" \
             --track "$track" \
             --outdir "$outdir" \
-            --cache_root "$cache" \
-            --m6_discovery_store "$M6_SMOKE_STORE"
+            --cache_root "$M6_SMOKE_CACHE"
     )
 }
 
@@ -1899,9 +1899,8 @@ run_m6_nextflow_smoke() {
     local leakage="$root/leakage"
     local before="$qualification/m6-smoke-before-resume.sha256"
     local after="$qualification/m6-smoke-after-resume.sha256"
-    local cache_counts trace_counts expected total cached stored child_summary
-    local catalogue_imports pdb_searches foldseek_searches catalogue_partitions
-    local store_expected
+    local cache_summary expected cached leakage_cached leakage_completed
+    local child_summary
     local child_jobs search_jobs peak_jobs peak_cpu peak_memory peak_phenix
 
     load_m6_smoke_site_contract || return 2
@@ -1923,20 +1922,18 @@ run_m6_nextflow_smoke() {
         unset NF_HELPER_VIPER_COMPUTE_CONTROLLER
     fi
     export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"
-    M6_SMOKE_STORE="$RUN/cache/m6-nextflow-smoke-store"
+    M6_SMOKE_CACHE="$RUN/cache/m6-nextflow-smoke"
+    M6_SMOKE_EXECUTION="$RUN/execution/m6-nextflow-smoke"
     mkdir -p \
         "$qualification" \
         "$operational" \
         "$leakage" \
-        "$M6_SMOKE_STORE" \
-        "$RUN/cache/m6-nextflow-smoke-operational" \
-        "$RUN/cache/m6-nextflow-smoke-leakage"
+        "$M6_SMOKE_CACHE" \
+        "$M6_SMOKE_EXECUTION"
 
     PHASE=test
     printf 'phase=m6_nextflow_smoke_first track=operational\n'
-    run_m6_stub_nextflow \
-        first operational "$operational" \
-        "$RUN/cache/m6-nextflow-smoke-operational"
+    run_m6_stub_nextflow first operational "$operational"
     cp -a "$operational/pipeline_info" \
         "$qualification/m6-smoke-first-pipeline-info"
     "$GTD" --log-format json --no-progress benchmark collect-m6-resources \
@@ -2051,40 +2048,9 @@ PY
     ) > "$before"
 
     printf 'phase=m6_nextflow_smoke_resume track=operational\n'
-    run_m6_stub_nextflow \
-        resume operational "$operational" \
-        "$RUN/cache/m6-nextflow-smoke-operational" -resume
+    run_m6_stub_nextflow resume operational "$operational" -resume
     cp -a "$operational/pipeline_info" \
         "$qualification/m6-smoke-resume-pipeline-info"
-    cache_counts="$(awk -F '\t' '
-        NR == 1 { for (i = 1; i <= NF; i++) if ($i == "status") column = i; next }
-        column > 0 { total++; if ($column == "CACHED") cached++ }
-        END { printf "%d %d", total, cached }
-    ' "$qualification/m6-smoke-resume-pipeline-info/trace.tsv")"
-    read -r total cached <<< "$cache_counts"
-    expected="$(awk 'NR > 1 && NF { count++ } END { print count + 0 }' \
-        "$qualification/m6-smoke-first-pipeline-info/trace.tsv")"
-    trace_counts="$(awk -F '\t' '
-        NR == 1 {
-            for (i = 1; i <= NF; i++) if ($i == "process") column = i
-            next
-        }
-        column > 0 {
-            if ($column ~ /(^|:)M6_IMPORT_CATALOGUE$/) imports++
-            if ($column ~ /(^|:)M6_SEARCH_PDB$/) pdb++
-            if ($column ~ /(^|:)M6_SEARCH_FOLDSEEK$/) foldseek++
-            if ($column ~ /(^|:)M6_PARTITION_DISCOVERY$/) partitions++
-        }
-        END { printf "%d %d %d %d", imports, pdb, foldseek, partitions }
-    ' "$qualification/m6-smoke-first-pipeline-info/trace.tsv")"
-    read -r catalogue_imports pdb_searches foldseek_searches \
-        catalogue_partitions <<< "$trace_counts"
-    stored=$((expected - total))
-    store_expected=$((catalogue_imports + pdb_searches + foldseek_searches))
-    [[ "$expected" -ge 20 && "$total" -gt 0 && "$cached" -eq "$total" && \
-       "$catalogue_imports" -eq 2 && "$pdb_searches" -eq 2 && \
-       "$foldseek_searches" -eq 2 && "$catalogue_partitions" -eq 2 && \
-       "$stored" -eq "$store_expected" ]] || return 4
     (
         cd "$operational/m6_scientific"
         sha256sum \
@@ -2101,23 +2067,120 @@ PY
     ) > "$after"
     cmp -s "$before" "$after" || return 3
 
-    printf 'phase=m6_nextflow_smoke_cross_track track=leakage\n'
-    run_m6_stub_nextflow \
-        first leakage "$leakage" \
-        "$RUN/cache/m6-nextflow-smoke-leakage"
+    printf 'phase=m6_nextflow_smoke_cross_track_resume track=leakage\n'
+    run_m6_stub_nextflow resume leakage "$leakage" -resume
     cp -a "$leakage/pipeline_info" \
         "$qualification/m6-smoke-leakage-pipeline-info"
-    grep 'Stored process' "$RUN/logs/nextflow-m6-smoke-leakage-first.log" \
-        > "$qualification/m6-nextflow-smoke-store-reuse.txt"
-    for process in M6_IMPORT_CATALOGUE M6_SEARCH_PDB M6_SEARCH_FOLDSEEK; do
-        grep -q "$process" \
-            "$qualification/m6-nextflow-smoke-store-reuse.txt" || return 4
-    done
-    if grep -Eq \
-        'M6_APPLY_POLICY|M6_FIRST_COPY|M6_ADDITIONAL_COPY|M6_REFINEMENT' \
-        "$qualification/m6-nextflow-smoke-store-reuse.txt"; then
-        return 4
-    fi
+    cache_summary="$("$RUN/source/.pixi/envs/hpc/bin/python" - \
+        "$qualification/m6-smoke-first-pipeline-info/trace.tsv" \
+        "$qualification/m6-smoke-resume-pipeline-info/trace.tsv" \
+        "$qualification/m6-smoke-leakage-pipeline-info/trace.tsv" \
+        "$qualification/m6-nextflow-smoke-cache-evidence.json" <<'PY'
+import collections
+import csv
+import json
+import pathlib
+import sys
+
+expected_process_counts = {
+    "M6_PLAN_TRACK": 1,
+    "M6_IMPORT_CATALOGUE": 2,
+    "M6_BUILD_SEARCH_BATCHES": 1,
+    "M6_SEARCH_PDB": 2,
+    "M6_SEARCH_FOLDSEEK": 2,
+    "M6_PARTITION_DISCOVERY": 2,
+    "M6_PREFLIGHT_CASE": 2,
+    "M6_APPLY_POLICY": 1,
+    "M6_PREPARE_ACTIVE_CASE": 1,
+    "M6_PREPARE_EARLY_CASE": 1,
+    "M6_FIRST_COPY": 1,
+    "M6_SELECT_SEEDS": 1,
+    "M6_EMPTY_SEEDS": 1,
+    "M6_ADDITIONAL_COPY": 1,
+    "M6_SELECT_FINALISTS": 1,
+    "M6_EMPTY_FINALISTS": 1,
+    "M6_REFINEMENT": 1,
+    "M6_ASSEMBLE_CASE": 1,
+    "M6_ASSEMBLE_EMPTY_CASE": 1,
+    "M6_AGGREGATE_TRACK": 1,
+}
+truthless_process_counts = {
+    "M6_IMPORT_CATALOGUE": 2,
+    "M6_SEARCH_PDB": 2,
+    "M6_SEARCH_FOLDSEEK": 2,
+}
+
+
+def read_trace(path):
+    with pathlib.Path(path).open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+    if not rows or any(not row.get("process") or not row.get("status") for row in rows):
+        raise SystemExit(f"M6 smoke trace is incomplete: {path}")
+    return rows
+
+
+def process_name(row):
+    return row["process"].rsplit(":", 1)[-1]
+
+
+def process_counts(rows):
+    return collections.Counter(process_name(row) for row in rows)
+
+
+first = read_trace(sys.argv[1])
+operational_resume = read_trace(sys.argv[2])
+leakage_resume = read_trace(sys.argv[3])
+for label, rows in (
+    ("operational first", first),
+    ("operational resume", operational_resume),
+    ("leakage resume", leakage_resume),
+):
+    if len(rows) != 25 or process_counts(rows) != expected_process_counts:
+        raise SystemExit(f"M6 smoke {label} topology changed")
+if {row["status"] for row in first} != {"COMPLETED"}:
+    raise SystemExit("M6 operational first pass was not newly completed")
+if {row["status"] for row in operational_resume} != {"CACHED"}:
+    raise SystemExit("M6 operational resume was not fully cached")
+leakage_cached = [row for row in leakage_resume if row["status"] == "CACHED"]
+leakage_completed = [
+    row for row in leakage_resume if row["status"] == "COMPLETED"
+]
+if len(leakage_cached) != 6 or process_counts(leakage_cached) != truthless_process_counts:
+    raise SystemExit("M6 leakage resume did not cache exactly six truthless tasks")
+if len(leakage_completed) != 19:
+    raise SystemExit("M6 leakage resume did not complete 19 track-specific tasks")
+if len(leakage_cached) + len(leakage_completed) != len(leakage_resume):
+    raise SystemExit("M6 leakage resume contains an unexpected task status")
+for process in truthless_process_counts:
+    first_tags = sorted(
+        row.get("tag", "") for row in first if process_name(row) == process
+    )
+    cached_tags = sorted(
+        row.get("tag", "")
+        for row in leakage_cached
+        if process_name(row) == process
+    )
+    if first_tags != cached_tags:
+        raise SystemExit(f"M6 cached task identity changed: {process}")
+evidence = {
+    "schema_version": "1.0",
+    "cache_mechanism": "nextflow_resume",
+    "operational_first_task_count": len(first),
+    "operational_cached_resume_task_count": len(operational_resume),
+    "leakage_cached_truthless_task_count": len(leakage_cached),
+    "leakage_completed_track_specific_task_count": len(leakage_completed),
+    "truthless_cached_process_counts": dict(sorted(truthless_process_counts.items())),
+    "cross_track_truthless_cache_reuse": True,
+    "track_specific_cache_reuse": False,
+}
+pathlib.Path(sys.argv[4]).write_text(
+    json.dumps(evidence, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+print(len(first), len(operational_resume), len(leakage_cached), len(leakage_completed))
+PY
+    )"
+    read -r expected cached leakage_cached leakage_completed <<< "$cache_summary"
 
     child_summary="$("$RUN/source/.pixi/envs/hpc/bin/python" - \
         "$qualification/m6-nextflow-smoke-resource-evidence.json" \
@@ -2183,10 +2246,11 @@ PY
   "two_case_stub_only": true,
   "operational_first_task_count": $expected,
   "operational_cached_resume_task_count": $cached,
-  "stored_discovery_resume_count": $stored,
+  "leakage_cached_truthless_task_count": $leakage_cached,
+  "leakage_completed_track_specific_task_count": $leakage_completed,
   "byte_identical_resume": true,
-  "cross_track_truthless_store_reuse": true,
-  "track_specific_store_reuse": false
+  "cross_track_truthless_cache_reuse": true,
+  "track_specific_cache_reuse": false
 }
 EOF
     cat > "$qualification/m6-nextflow-smoke-summary.json" <<EOF
@@ -2210,7 +2274,9 @@ EOF
   "peak_concurrent_phenix_jobs": $peak_phenix,
   "per_job_bounds_passed": true,
   "fully_cached_resume": true,
-  "truthless_cross_track_store_reuse": true
+  "leakage_cached_truthless_task_count": $leakage_cached,
+  "leakage_completed_track_specific_task_count": $leakage_completed,
+  "truthless_cross_track_cache_reuse": true
 }
 EOF
     (
@@ -2220,7 +2286,7 @@ EOF
             m6-nextflow-smoke-resume-check.json \
             m6-nextflow-smoke-resource-evidence.json \
             m6-nextflow-smoke-contract-evidence.json \
-            m6-nextflow-smoke-store-reuse.txt \
+            m6-nextflow-smoke-cache-evidence.json \
             m6-smoke-before-resume.sha256 \
             m6-smoke-after-resume.sha256
     ) > "$qualification/m6-nextflow-smoke-checksums.sha256"
@@ -2243,8 +2309,7 @@ run_m6_nextflow() {
         --phenix_manifest "$M6_PHENIX_MANIFEST" \
         --track "$M6_TRACK" \
         --outdir "$M6_RESULTS_ROOT" \
-        --cache_root "$RUN/cache/m6-nextflow-$M6_TRACK" \
-        --m6_discovery_store "$ROOT/_cache/m6-discovery"
+        --cache_root "$RUN/cache/m6-nextflow-$M6_TRACK"
 }
 
 run_m6_scientific() {
@@ -2267,7 +2332,6 @@ run_m6_scientific() {
         "$qualification" \
         "$M6_RESULTS_ROOT" \
         "$RUN/cache/m6-nextflow-$M6_TRACK" \
-        "$ROOT/_cache/m6-discovery" \
         "$RUN/execution"
     [[ -f "$RUN/state/hpc-environment-status" && \
         "$(<"$RUN/state/hpc-environment-status")" == ready && \
@@ -2336,58 +2400,6 @@ run_m6_scientific() {
     run_m6_nextflow resume -resume
     cp -a "$M6_RESULTS_ROOT/pipeline_info" \
         "$qualification/m6-resume-pipeline-info"
-    "$RUN/source/.pixi/envs/hpc/bin/python" - \
-        "$RUN/logs/nextflow-m6-${M6_TRACK}-first.log" \
-        "$RUN/logs/nextflow-m6-${M6_TRACK}-resume.log" \
-        "$qualification/m6-shared-store-evidence.json" <<'PY'
-import json
-import pathlib
-import re
-import sys
-
-eligible = {
-    "M6_IMPORT_CATALOGUE",
-    "M6_SEARCH_PDB",
-    "M6_SEARCH_FOLDSEEK",
-}
-pattern = re.compile(r"Stored process > .*:(M6_[A-Z_]+)(?: \(([0-9]+)\))?")
-
-
-def stored(path: pathlib.Path) -> dict[str, int]:
-    records: dict[str, int] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        match = pattern.search(line)
-        if match is None:
-            continue
-        process = match.group(1)
-        records[process] = records.get(process, 0) + int(match.group(2) or 1)
-    unexpected = set(records) - eligible
-    if unexpected:
-        raise SystemExit(f"track-specific M6 store reuse detected: {sorted(unexpected)}")
-    return dict(sorted(records.items()))
-
-
-first = stored(pathlib.Path(sys.argv[1]))
-resume = stored(pathlib.Path(sys.argv[2]))
-if set(resume) != eligible:
-    raise SystemExit("M6 resume did not reuse every truthless shared-store stage")
-pathlib.Path(sys.argv[3]).write_text(
-    json.dumps(
-        {
-            "schema_version": "1.0",
-            "eligible_processes": sorted(eligible),
-            "first_run_reuse": first,
-            "resume_reuse": resume,
-            "truthless_only": True,
-            "track_specific_reuse": False,
-        },
-        indent=2,
-        sort_keys=True,
-    )
-    + "\n",
-    encoding="utf-8",
-)
-PY
     cache_counts="$(awk -F '\t' '
         NR == 1 { for (i = 1; i <= NF; i++) if ($i == "status") column = i; next }
         column > 0 { total++; if ($column == "CACHED") cached++ }
@@ -2396,8 +2408,17 @@ PY
     read -r total cached <<< "$cache_counts"
     expected="$(awk 'NR > 1 && NF { count++ } END { print count + 0 }' \
         "$qualification/m6-first-pipeline-info/trace.tsv")"
-    [[ "$expected" -gt 0 && "$total" -gt 0 && "$total" -le "$expected" && \
-       "$cached" -eq "$total" ]] || return 4
+    [[ "$expected" -gt 0 && "$total" -eq "$expected" && \
+       "$cached" -eq "$expected" ]] || return 4
+    cat > "$qualification/m6-resume-cache-evidence.json" <<EOF
+{
+  "schema_version": "1.0",
+  "cache_mechanism": "nextflow_resume",
+  "first_task_count": $expected,
+  "cached_resume_task_count": $cached,
+  "fully_cached_resume": true
+}
+EOF
     (
         cd "$output"
         sha256sum \
@@ -2437,7 +2458,6 @@ PY
   "resume_equivalent": true,
   "first_task_count": $expected,
   "cached_resume_task_count": $cached,
-  "stored_discovery_reuse_count": $((expected - total)),
   "output_inventory_sha256": "$replay_digest"
 }
 EOF
@@ -2495,7 +2515,7 @@ EOF
         "$qualification/m6-resume-check.json" \
         "$qualification/m6-runtime-provenance.json" \
         "$qualification/m6-child-resource-evidence.json" \
-        "$qualification/m6-shared-store-evidence.json" \
+        "$qualification/m6-resume-cache-evidence.json" \
         "$qualification/m6-phenix-verification.log" \
         "$qualification/m6-phaser-log-tails.txt" \
         "$M6_PHENIX_MANIFEST" \
