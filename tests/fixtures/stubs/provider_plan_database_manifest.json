@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "manifest_id": "db_provider_plan_fixture",
+  "created_at": "2026-08-19T00:00:00Z",
+  "resources": [
+    {
+      "database_id": "db_fixture_coordinate_cache",
+      "name": "coordinate_cache",
+      "source": "provider-plan-test",
+      "release_or_snapshot": "fixture-1",
+      "root_path": "/fixture/coordinate-cache",
+      "prepared_with": {"tool": "fixture", "version": "1"},
+      "parameters": {},
+      "prepared_at": "2026-08-19T00:00:00Z",
+      "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "status": "ready"
+    },
+    {
+      "database_id": "db_fixture_pdb_foldseek",
+      "name": "pdb_foldseek",
+      "source": "provider-plan-test",
+      "release_or_snapshot": "fixture-1",
+      "root_path": "/fixture/pdb-foldseek",
+      "prepared_with": {"tool": "foldseek", "version": "10.941cd33"},
+      "parameters": {},
+      "prepared_at": "2026-08-19T00:00:00Z",
+      "manifest_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "status": "ready"
+    },
+    {
+      "database_id": "db_fixture_pdb_sequences",
+      "name": "pdb_sequences",
+      "source": "provider-plan-test",
+      "release_or_snapshot": "fixture-1",
+      "root_path": "/fixture/pdb-sequences",
+      "prepared_with": {"tool": "mmseqs", "version": "18.8cc5c"},
+      "parameters": {},
+      "prepared_at": "2026-08-19T00:00:00Z",
+      "manifest_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "status": "ready"
+    },
+    {
+      "database_id": "db_fixture_prostt5",
+      "name": "prostt5",
+      "source": "provider-plan-test",
+      "release_or_snapshot": "fixture-1",
+      "root_path": "/fixture/prostt5",
+      "prepared_with": {"tool": "foldseek", "version": "10.941cd33"},
+      "parameters": {},
+      "prepared_at": "2026-08-19T00:00:00Z",
+      "manifest_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "status": "ready"
+    }
+  ]
+}

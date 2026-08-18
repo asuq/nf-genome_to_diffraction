@@ -22,6 +22,12 @@ from genome_to_diffraction.structure_search.prostt5_foldseek import (
     ProstT5FoldseekSearchRequest,
     search_prostt5_foldseek,
 )
+from genome_to_diffraction.structure_search.provider_plan import (
+    ProviderPlanError,
+    ProviderPlanOutput,
+    ProviderPlanRequest,
+    resolve_provider_plan,
+)
 from genome_to_diffraction.structure_search.qualification import (
     P1QualificationRequest,
     qualify_p1_search,
@@ -39,8 +45,12 @@ __all__ = [
     "PdbSequenceSearchRequest",
     "ProstT5FoldseekSearchOutput",
     "ProstT5FoldseekSearchRequest",
+    "ProviderPlanError",
+    "ProviderPlanOutput",
+    "ProviderPlanRequest",
     "qualify_p1_search",
     "register_pdb_coordinates",
+    "resolve_provider_plan",
     "search_afdb_exact",
     "search_pdb_sequences",
     "search_prostt5_foldseek",

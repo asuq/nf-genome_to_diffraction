@@ -171,8 +171,10 @@ from genome_to_diffraction.structure_search import (
     PdbCoordinateRegistrationRequest,
     PdbSequenceSearchRequest,
     ProstT5FoldseekSearchRequest,
+    ProviderPlanRequest,
     qualify_p1_search,
     register_pdb_coordinates,
+    resolve_provider_plan,
     search_afdb_exact,
     search_pdb_sequences,
     search_prostt5_foldseek,
@@ -1198,6 +1200,13 @@ def _build_parser() -> argparse.ArgumentParser:
     search_actions = search_parser.add_subparsers(
         dest="structure_search_action", required=True
     )
+    provider_plan_parser = search_actions.add_parser(
+        "resolve-provider-plan",
+        help="resolve provider enablement, caps, adapters, and database identities",
+    )
+    provider_plan_parser.add_argument("--config", type=Path, required=True)
+    provider_plan_parser.add_argument("--database-manifest", type=Path, required=True)
+    provider_plan_parser.add_argument("--outdir", type=Path, required=True)
     pdb_sequence_parser = search_actions.add_parser(
         "pdb-sequence",
         help="search exact catalogue sequences against the local PDB SEQRES database",
@@ -1900,6 +1909,19 @@ def _run_matthews(args: argparse.Namespace) -> int:
 
 
 def _run_structure_search(args: argparse.Namespace) -> int:
+    if args.structure_search_action == "resolve-provider-plan":
+        provider_plan = resolve_provider_plan(
+            ProviderPlanRequest(
+                pipeline_config=args.config,
+                database_manifest=args.database_manifest,
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            f"Resolved provider plan {provider_plan.plan.plan_id}: "
+            f"{provider_plan.plan_json}"
+        )
+        return 0
     if args.structure_search_action == "qualify-p1":
         report = qualify_p1_search(
             P1QualificationRequest(

@@ -26,6 +26,7 @@ from genome_to_diffraction.schemas.manifests import (
     PipelineConfig,
     RunManifest,
 )
+from genome_to_diffraction.schemas.providers import ProviderExecutionPlan
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
@@ -251,6 +252,9 @@ CONTRACTS: dict[str, ContractSpec] = {
         PhenixInstallManifest, "phenix_install_manifest.schema.json"
     ),
     "pipeline-config": ContractSpec(PipelineConfig, "pipeline_config.schema.json"),
+    "provider-execution-plan": ContractSpec(
+        ProviderExecutionPlan, "provider_execution_plan.schema.json"
+    ),
     "mr-hypothesis": ContractSpec(MrHypothesis, "mr_hypothesis.schema.json"),
     "review-decisions": ContractSpec(
         ReviewDecisionManifest,

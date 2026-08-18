@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/genome-to-diffraction/provider_execution_plan.schema.json",
+  "title": "Provider execution plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_id",
+    "adapter_version",
+    "pipeline_config_sha256",
+    "database_manifest_sha256",
+    "entries",
+    "entry_sha256",
+    "enabled_providers",
+    "disabled_providers"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "plan_id": {"type": "string", "minLength": 1},
+    "adapter_version": {"const": "provider-plan-v1"},
+    "pipeline_config_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "database_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {"$ref": "#/$defs/providerEntry"}
+    },
+    "entry_sha256": {
+      "type": "object",
+      "minProperties": 4,
+      "maxProperties": 4,
+      "propertyNames": {"$ref": "#/$defs/providerKey"},
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    },
+    "enabled_providers": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/providerKey"},
+      "uniqueItems": true
+    },
+    "disabled_providers": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/providerKey"},
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "providerKey": {
+      "enum": [
+        "afdb_exact",
+        "esm_atlas",
+        "foldseek_prostt5_pdb",
+        "pdb_sequence"
+      ]
+    },
+    "databaseBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resource_name",
+        "database_id",
+        "resource_manifest_sha256"
+      ],
+      "properties": {
+        "resource_name": {"type": "string", "minLength": 1},
+        "database_id": {"type": "string", "minLength": 1},
+        "resource_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "providerEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "entry_id",
+        "provider",
+        "result_provider",
+        "enabled",
+        "configured_max_hits",
+        "effective_max_hits",
+        "execution_class",
+        "support_status"
+      ],
+      "properties": {
+        "schema_version": {"const": "1.0"},
+        "entry_id": {"type": "string", "minLength": 1},
+        "provider": {"$ref": "#/$defs/providerKey"},
+        "result_provider": {"type": "string", "minLength": 1},
+        "enabled": {"type": "boolean"},
+        "configured_max_hits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "effective_max_hits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "execution_class": {
+          "enum": ["disabled", "local_compute", "needs_internet"]
+        },
+        "support_status": {"enum": ["available", "unsupported"]},
+        "provider_adapter_version": {"type": ["string", "null"]},
+        "database_resources": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/databaseBinding"}
+        },
+        "requests_per_minute": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "max_sequence_length": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "disabled_reason": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

@@ -10,6 +10,14 @@ from genome_to_diffraction.schemas.manifests import (
     require_remote_submission_authorisation,
     validate_manifest_references,
 )
+from genome_to_diffraction.schemas.providers import (
+    ProviderDatabaseBinding,
+    ProviderExecutionClass,
+    ProviderExecutionPlan,
+    ProviderKey,
+    ProviderPlanEntry,
+    ProviderSupportStatus,
+)
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
@@ -41,6 +49,12 @@ __all__ = [
     "PhenixInstallManifest",
     "PipelineConfig",
     "ProcessedModelRecord",
+    "ProviderDatabaseBinding",
+    "ProviderExecutionClass",
+    "ProviderExecutionPlan",
+    "ProviderKey",
+    "ProviderPlanEntry",
+    "ProviderSupportStatus",
     "ResourceSummaryRecord",
     "ReviewDecisionManifest",
     "RunManifest",

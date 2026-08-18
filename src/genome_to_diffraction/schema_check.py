@@ -28,6 +28,7 @@ _FIXTURE_MAP = {
         "tests/fixtures/stubs/phenix_install_manifest.json"
     ),
     "pipeline_config.schema.json": Path("examples/config.yaml"),
+    "provider_execution_plan.schema.json": Path("examples/provider_plan.json"),
     "review_decision.schema.json": Path("tests/fixtures/stubs/review_decision.json"),
 }
 
@@ -47,6 +48,7 @@ _TYPED_FIXTURES = (
     ("crystal-manifest", Path("examples/crystal_manifest.json")),
     ("crystal-manifest", Path("examples/crystals.tsv")),
     ("pipeline-config", Path("examples/config.yaml")),
+    ("provider-execution-plan", Path("examples/provider_plan.json")),
     ("database-manifest", Path("tests/fixtures/stubs/database_manifest.json")),
     (
         "phenix-install-manifest",

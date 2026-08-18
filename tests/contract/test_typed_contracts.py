@@ -66,6 +66,7 @@ class _JsonWireDecodingProbe(ContractModel):
         ("crystal-manifest", "examples/crystal_manifest.json"),
         ("crystal-manifest", "examples/crystals.tsv"),
         ("pipeline-config", "examples/config.yaml"),
+        ("provider-execution-plan", "examples/provider_plan.json"),
         ("database-manifest", "tests/fixtures/stubs/database_manifest.json"),
         (
             "phenix-install-manifest",

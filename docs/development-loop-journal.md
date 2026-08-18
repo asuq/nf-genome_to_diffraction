@@ -8898,3 +8898,92 @@ Review and commit this final M6 reader slice without pushing or running a full
 suite. Integrate the three ordered raw-loader commits onto current main while
 preserving the active-run journal, then run focused integration checks before
 the next coherent full gate.
+
+## 2026-08-18T23:32:44Z - Immutable provider-plan contract established
+
+### Contract and resolver boundary
+
+- Added strict content-addressed provider-entry and aggregate provider-plan
+  contracts, an authoritative tracked schema, canonical default example, and a
+  deterministic CLI resolver from the pipeline configuration plus database
+  manifest. Enabled routes bind ready database resource identities; disabled
+  routes bind no resources and resolve their effective hit cap to zero.
+- Provider caps resolve once in the plan. PDB and Foldseek retain their
+  configured cap, AFDB exact is bounded to one, enabled zero/oversized caps
+  fail, and enabled ESM Atlas fails before output because no adapter or approved
+  compute-network route exists.
+- The CLI writes one canonical `provider_plan.json` plus four independently
+  checksummed provider-entry files. Entry and plan validators reject content,
+  checksum-inventory, or ID tampering. No Nextflow route, provider adapter,
+  cache key, runtime parameter, or M6 code changed in this slice.
+
+### Focused evidence and next action
+
+- Forty-eight provider-plan and contract cases pass, including enable/disable,
+  configured/effective caps, database binding, ESM fail-closed behaviour,
+  byte determinism, CLI output, default-example equality, and tamper rejection.
+  Repository schema validation, targeted Ruff format/lint, targeted `ty`, and
+  `git diff --check` pass.
+- Integrate this resolver contract before implementing the separate typed-empty
+  bundle and Nextflow routing slices. Run the complete locked gate only at the
+  coherent R2 batch boundary; do not infer remote-provider or M6 evidence from
+  this local plan-only correction.
+
+## 2026-08-19T00:07:10Z - Deterministic-resume Marmic replay is running
+
+### Immutable execution evidence
+
+- Committed the canonical channel-order correction as
+  `8326afb668054a481eac03b74f71857cd8daf72b` and pushed it once to `main`.
+- Actions run `32199203030`, job `95909221455`, passed that exact commit in
+  6m28s under Pixi 0.76.2.
+- The rebuilt controller is byte-identical to the installed reviewed controller
+  at SHA-256
+  `ba5754386e2b6e9cc46ca7f0aa720cd3207dc1fe9c80357a8c42715c5b0f2f46`.
+  Deployed dispatcher/job-wrapper/recovery checksums remain
+  `d7d29d77eb258f6235a1a1e2a3b65864d915b6888b1279aa6e018e2d9aead1d2` /
+  `ac7ee72d9866c2b277e53203bf0d8c877b8db17f4d7ab6e7f5ff2bc606e4cddc` /
+  `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Staged exactly one fresh Marmic source archive with nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb` and submitted run
+  `gtd-m6-nextflow-smoke-20260819T000318Z-8326afb66805-b63c878f`, Slurm
+  `629614`. Its first structured state is `RUNNING`, terminal false.
+- The existing 30-minute heartbeat is rebound and active for only this run.
+  Failed run `629533` and every earlier failed run/cache remain retained but
+  excluded from monitoring, resume, reuse, and cleanup.
+
+### Next exact starting point
+
+While non-terminal, leave run `629614` untouched and continue the isolated R1
+raw-loader parity slice with focused checks only. At terminal, use separate
+reviewed-wrapper status, bounded logs, and collect operations; classify all
+retained evidence before run-related source edits. Do not stage M6 science.
+
+## 2026-08-19T00:32:57Z - Raw-loader and provider-plan batch passes integration gate
+
+### Integrated foundation evidence
+
+- Integrated the strict raw-document loader foundation, all identified M6 raw
+  authority/evidence readers, and the immutable provider-plan contract as four
+  focused commits after the deterministic-resume smoke source.
+- The focused integrated corpus passes 203 M6, edge, raw-loader,
+  provider-plan, and typed-contract tests. Schema export/runtime validation,
+  targeted Ruff, targeted `ty`, and `git diff --check` pass.
+- One complete locked gate passes Ruff format/lint, `ty`, 544 unit tests, 115
+  contract tests, 68 integration tests, schemas, public-panel and documentation
+  checks, actionlint, the full Nextflow syntax/stub-resume sweep, and all Bash
+  wrapper syntax checks.
+- No provider route, external request, cache key, M6 acceptance criterion, or
+  active Marmic run changed. Run `629614` remains owned by source `8326afb` and
+  is monitored only at the fixed heartbeat cadence.
+
+### Remaining boundaries and next exact starting point
+
+- R1 still requires the separately inventoried non-M6 runtime JSON/YAML readers
+  to migrate or be explicitly classified as external-tool/service parsers.
+- R2 provider-plan routing, typed empty/no-model bundles, network-site refusal,
+  complete content identities, and classified retries remain separate slices.
+- Amend the unpushed provider-plan commit with this journal evidence, push the
+  four-commit batch once, and watch exactly one CI run. Continue focused R1/R2
+  work while the independent Marmic smoke remains non-terminal; do not stage
+  M6 science.
