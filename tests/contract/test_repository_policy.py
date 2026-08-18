@@ -354,6 +354,8 @@ def test_m6_uses_standard_nextflow_resume_cache_without_store_dir() -> None:
         "tuple(bundles, database_manifest, execution_policy, software_lock, track)"
         in workflow
     )
+    assert workflow.count(".sort { left, right ->") == 4
+    assert workflow.count("(left[0] as String) <=> (right[0] as String)") == 3
     for process_name in sorted(former_store_processes):
         assert f"withName: {process_name} {{" not in marmic
         process_body = module.split(f"process {process_name} {{", maxsplit=1)[1].split(

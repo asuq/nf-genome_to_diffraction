@@ -70,8 +70,13 @@ workflow M6_VALIDATION_WORKFLOW {
 
     imported = M6_IMPORT_CATALOGUE(catalogue_tasks)
     imported_bundles = imported
-        .map { catalogueKey, bundle -> bundle }
         .collect()
+        .map { values ->
+            values.sort { left, right ->
+                    (left[0] as String) <=> (right[0] as String)
+                }
+                .collect { row -> row[1] as Path }
+        }
     // Track salts batch-plan construction so only the three approved
     // content-addressed import/search processes can reuse cross-track work.
     batch_input = imported_bundles.map { bundles ->
@@ -116,13 +121,21 @@ workflow M6_VALIDATION_WORKFLOW {
     pdb = M6_SEARCH_PDB(pdb_batch_tasks)
     foldseek = M6_SEARCH_FOLDSEEK(foldseek_batch_tasks)
     pdb_bundles_value = pdb
-        .map { batchId, bundle -> bundle }
         .collect()
-        .map { values -> values as List<Path> }
+        .map { values ->
+            values.sort { left, right ->
+                    (left[0] as String) <=> (right[0] as String)
+                }
+                .collect { row -> row[1] as Path }
+        }
     foldseek_bundles_value = foldseek
-        .map { batchId, bundle -> bundle }
         .collect()
-        .map { values -> values as List<Path> }
+        .map { values ->
+            values.sort { left, right ->
+                    (left[0] as String) <=> (right[0] as String)
+                }
+                .collect { row -> row[1] as Path }
+        }
     discovery = M6_PARTITION_DISCOVERY(
         imported,
         batch_plan_value,

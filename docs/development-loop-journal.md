@@ -8747,3 +8747,70 @@ Commit the stale-assertion cleanup with this evidence, push once, and watch one
 CI run. After green CI, deploy reviewed tools and submit exactly one Marmic
 shared-resume smoke. Rebind and resume the existing heartbeat only after
 submission; never reuse the three failed runs or caches.
+
+## 2026-08-18T23:08:58Z - Standard resume-cache Marmic smoke is running
+
+### Immutable execution evidence
+
+- Actions run `32195014221`, job `95897118858`, passed source
+  `e33082c37093f7f0fe92ab118f1e3a7d10f3e527` in 6m38s under Pixi 0.76.2.
+- Installed controller checksum
+  `ba5754386e2b6e9cc46ca7f0aa720cd3207dc1fe9c80357a8c42715c5b0f2f46`
+  and deployed dispatcher/job-wrapper checksums
+  `d7d29d77eb258f6235a1a1e2a3b65864d915b6888b1279aa6e018e2d9aead1d2` /
+  `ac7ee72d9866c2b277e53203bf0d8c877b8db17f4d7ab6e7f5ff2bc606e4cddc`.
+- Source-archive staging completed with site `marmic`, the fixed policy,
+  nf-helper `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, and run-owned Apptainer
+  cache. Submitted exactly one run:
+  `gtd-m6-nextflow-smoke-20260818T230434Z-e33082c37093-9ffca874`, Slurm
+  `629533`; first structured state `RUNNING`, terminal false.
+- Rebound and resumed the existing heartbeat. It monitors only this run through
+  wrapper status/logs/collect and enforces the 25 completed / 25 cached / six
+  truthless cached plus 19 track-specific completed topology.
+
+### Next exact starting point
+
+While non-terminal, leave the run untouched and continue the isolated R1 raw
+loader parity inventory. At terminal, collect and classify before any
+run-related source edit. Do not stage M6 science.
+
+## 2026-08-18T23:45:13Z - Marmic smoke exposes arrival-order cache instability
+
+### Terminal evidence and classification
+
+- Run `gtd-m6-nextflow-smoke-20260818T230434Z-e33082c37093-9ffca874`,
+  Slurm `629533`, terminated `FAILED`, `test_failure`, at source
+  `e33082c37093f7f0fe92ab118f1e3a7d10f3e527`. Wrapper-only collection
+  retained the three traces, scientific contract evidence, resource evidence,
+  digest manifests, and synthetic operational outputs.
+- The fresh operational pass completed all 25 tasks. Its operational resume
+  cached 14 tasks but reran both catalogue-partition tasks and their nine
+  downstream active-case tasks. The two partition task hashes changed while
+  all import and database-search hashes remained stable.
+- Leakage resume behaved as designed: exactly the two catalogue imports, two
+  PDB searches, and two Foldseek searches were cached; all 19 track-specific
+  tasks were recomputed. The permanent-store failure is therefore closed.
+- Classification is a deterministic workflow defect, not infrastructure or
+  scientific failure: arrival order from the three collected catalogue/search
+  channels leaked into the partition-task input hash.
+
+### Focused correction and evidence
+
+- Catalogue, PDB-batch, and Foldseek-batch tuples are now sorted by their
+  immutable identifiers before paths are passed to downstream value channels.
+  A repository-policy regression requires all three canonical sorts.
+- The focused contract regression, Nextflow syntax check, and diff check pass.
+  A targeted three-pass M6 stub completes 25 fresh operational tasks, caches
+  all 25 on operational resume, then caches exactly six truthless discovery
+  tasks and recomputes 19 leakage tasks.
+- One complete locked gate passes Ruff format/lint, `ty`, 488 unit tests, 106
+  contract tests, 68 integration tests, schemas, public-panel and documentation
+  checks, actionlint, the full Nextflow syntax/stub-resume sweep, and all Bash
+  wrapper syntax checks.
+
+### Next exact starting point
+
+Review and commit only the workflow, regression, and this journal evidence;
+push once, watch one CI run, deploy checksum-reviewed tools, and submit exactly
+one fresh Marmic replacement smoke. Never resume, clean, or reuse run `629533`
+or its cache.
