@@ -5,9 +5,10 @@ remain serialised as strings; execution layers resolve and checksum them before 
 """
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any, Self
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic.config import ExtraValues
 
 
 def _normalise_utc(value: datetime) -> datetime:
@@ -28,10 +29,35 @@ class ContractModel(BaseModel):
     """Base for immutable, strict versioned contract records."""
 
     model_config = ConfigDict(
+        allow_inf_nan=False,
         extra="forbid",
         frozen=True,
-        # JSON Schema validation enforces wire types before model construction.
-        # Pydantic must still parse ISO timestamps and string-backed enums.
+        # Programmatic construction may use explicit Python-compatible values.
+        # JSON wire input is forced through strict JSON-mode validation below.
         strict=False,
         validate_default=True,
     )
+
+    @classmethod
+    def model_validate_json(
+        cls,
+        json_data: str | bytes | bytearray,
+        *,
+        strict: bool | None = None,
+        extra: ExtraValues | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+    ) -> Self:
+        """Validate JSON wire data without coercing booleans or numbers."""
+
+        if strict is False:
+            raise ValueError("contract JSON validation cannot disable strict mode")
+        return super().model_validate_json(
+            json_data,
+            strict=True,
+            extra=extra,
+            context=context,
+            by_alias=by_alias,
+            by_name=by_name,
+        )

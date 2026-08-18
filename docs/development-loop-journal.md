@@ -8490,3 +8490,40 @@ Commit and push this site-specific permanent-store boundary, watch one CI run,
 deploy/rebind the reviewed tools, and stage exactly one new Marmic smoke from
 the pushed SHA. Resume and rebind the existing heartbeat only after submission;
 never reuse either failed run or cache.
+
+## 2026-08-18T21:28:30Z - Contract wire types and finite metrics fail closed
+
+### Discoveries and correction
+
+- Draft 2020-12 treats an integral JSON number such as `1.0` as an integer, so
+  authoritative schema validation alone cannot enforce the repository's exact
+  integer wire type. Pydantic strict JSON mode rejects that value together with
+  string integers and booleans while still decoding ISO timestamps,
+  string-backed enums, and paths.
+- Contract JSON mode is now always strict and all contract models reject
+  non-finite floats. The central JSON reader rejects the non-standard `NaN`,
+  `Infinity`, and `-Infinity` tokens; the YAML pair normaliser rejects `.nan`,
+  `.inf`, and `-.inf` at their document paths.
+- `load_contract` retains authoritative schema validation and then constructs
+  the model through the same strict JSON-mode boundary. Programmatic Python
+  construction remains compatible with explicitly typed values.
+
+### Focused evidence and remaining boundary
+
+- The focused contract suite passes 69 tests, including valid JSON, YAML, TSV,
+  datetime, enum, path, manifest, result, and JSONL examples plus coercion and
+  non-finite mutations. Ruff formatting, Ruff lint, `ty`, and
+  `git diff --check` pass.
+- Every typed `ContractModel.model_validate_json` entry point inherits the new
+  boundary. Raw dictionary readers based on ordinary `json.loads` or
+  `yaml.safe_load` remain outside it; notably the M6 protocol, execution,
+  runner, evaluation, collection, and scientific helper loaders. Migrating
+  those untyped documents requires a separate reviewed slice.
+- Duplicate scientific IDs, TSV width/header semantics, schema export, runtime
+  caps, HPC configuration, and scientific policy were not changed.
+
+### Next exact starting point
+
+Integrate this focused strict-wire commit, then inventory raw JSON/YAML
+dictionary loaders separately before claiming repository-wide entry-point
+parity.

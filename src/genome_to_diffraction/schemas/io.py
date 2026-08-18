@@ -3,6 +3,7 @@
 import csv
 import json
 import logging
+import math
 import re
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -315,11 +316,24 @@ def _normalise_mapping_pairs(
             _normalise_mapping_pairs(item, label=label, parts=(*parts, index))
             for index, item in enumerate(value)
         ]
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ContractLoadError(
+            f"{label}:{_json_pointer(parts)}: non-finite numeric value is not allowed"
+        )
     return value
 
 
 def _read_json(handle: IO[str], label: str | Path) -> object:
-    document = json.load(handle, object_pairs_hook=_preserve_json_pairs)
+    def reject_constant(value: str) -> object:
+        raise ContractLoadError(
+            f"{label}:/: non-standard JSON numeric constant {value!r} is not allowed"
+        )
+
+    document = json.load(
+        handle,
+        object_pairs_hook=_preserve_json_pairs,
+        parse_constant=reject_constant,
+    )
     return _normalise_mapping_pairs(document, label=label)
 
 
@@ -431,13 +445,18 @@ def load_contract(
     document = _read_document(path, spec, resolved_format, progress=progress)
     _validate_wire(document, spec, path)
     try:
-        model = spec.model.model_validate(document)
+        wire_json = json.dumps(document, allow_nan=False, separators=(",", ":"))
+        model = spec.model.model_validate_json(wire_json, strict=True)
     except ValidationError as error:
         raise ContractValidationError(
             [
                 f"{path}:{_json_pointer(list(item['loc']))}: {item['msg']}"
                 for item in error.errors(include_url=False)
             ]
+        ) from error
+    except (TypeError, ValueError) as error:
+        raise ContractValidationError(
+            [f"{path}:/: document is not valid finite JSON wire data: {error}"]
         ) from error
     _LOGGER.info(
         "contract valid",

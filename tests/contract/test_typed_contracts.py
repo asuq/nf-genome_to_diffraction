@@ -4,8 +4,11 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 from jsonschema import Draft202012Validator
+from pydantic import ValidationError
 
+from genome_to_diffraction.schemas.base import ContractModel, UtcTimestamp
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
     ContractValidationError,
@@ -17,11 +20,14 @@ from genome_to_diffraction.schemas.manifests import (
     CatalogueManifest,
     CrystalEntry,
     CrystalManifest,
+    SmokeTestStatus,
     require_remote_submission_authorisation,
     validate_manifest_references,
 )
 from genome_to_diffraction.schemas.results import (
+    AdditionalCopyResult,
     MtzPreflightRecord,
+    NormalisedMrResult,
     SequenceGroupRecord,
     SourceProteinRecord,
     StructuralSearchHit,
@@ -29,6 +35,14 @@ from genome_to_diffraction.schemas.results import (
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+
+
+class _JsonWireDecodingProbe(ContractModel):
+    """Exercise intentional JSON-mode conversion independently of schemas."""
+
+    occurred_at: UtcTimestamp
+    status: SmokeTestStatus
+    path: Path
 
 
 @pytest.mark.parametrize(
@@ -159,6 +173,134 @@ def test_duplicate_mapping_keys_fail_before_contract_validation(
 
     assert f"{path}:{pointer}" in str(captured.value)
     assert f"duplicate mapping key {duplicate_key!r}" in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    ("keys", "value", "pointer"),
+    (
+        (
+            ("providers", "pdb_sequence", "enabled"),
+            "false",
+            "/providers/pdb_sequence/enabled",
+        ),
+        (
+            ("search_limits", "max_first_copy_jobs"),
+            "200",
+            "/search_limits/max_first_copy_jobs",
+        ),
+        (
+            ("search_limits", "max_first_copy_jobs"),
+            200.0,
+            "/search_limits/max_first_copy_jobs",
+        ),
+    ),
+)
+def test_contract_loader_rejects_wire_type_coercion(
+    tmp_path: Path,
+    keys: tuple[str, ...],
+    value: object,
+    pointer: str,
+) -> None:
+    document = yaml.safe_load(
+        (REPOSITORY / "examples/config.yaml").read_text(encoding="utf-8")
+    )
+    target = document
+    for key in keys[:-1]:
+        target = target[key]
+    target[keys[-1]] = value
+    path = tmp_path / "coercion.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ContractValidationError) as captured:
+        load_contract(path, "pipeline-config", progress=False)
+
+    assert f"{path}:{pointer}" in str(captured.value)
+
+
+@pytest.mark.parametrize("constant", ("NaN", "Infinity", "-Infinity"))
+def test_contract_loader_rejects_non_standard_json_numbers(
+    tmp_path: Path, constant: str
+) -> None:
+    source = (
+        REPOSITORY / "tests/fixtures/stubs/first_copy_phaser/normalised_mr_result.json"
+    ).read_text(encoding="utf-8")
+    path = tmp_path / "non-finite.json"
+    path.write_text(
+        source.replace('"llg": null', f'"llg": {constant}'),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ContractLoadError, match="non-standard JSON numeric constant"):
+        load_contract(path, "normalised-mr-result", progress=False)
+
+
+@pytest.mark.parametrize("constant", (".nan", ".inf", "-.inf"))
+def test_contract_loader_rejects_non_finite_yaml_numbers(
+    tmp_path: Path, constant: str
+) -> None:
+    document = json.loads(
+        (
+            REPOSITORY
+            / "tests/fixtures/stubs/first_copy_phaser/normalised_mr_result.json"
+        ).read_text(encoding="utf-8")
+    )
+    text = yaml.safe_dump(document).replace("llg: null", f"llg: {constant}")
+    path = tmp_path / "non-finite.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(ContractLoadError) as captured:
+        load_contract(path, "normalised-mr-result", progress=False)
+
+    assert f"{path}:/llg" in str(captured.value)
+    assert "non-finite numeric value" in str(captured.value)
+
+
+@pytest.mark.parametrize("value", ("4", 4.0))
+def test_direct_jsonl_result_rejects_non_integer_wire_values(value: object) -> None:
+    document = json.loads(
+        (REPOSITORY / "tests/fixtures/stubs/sequence_groups.jsonl").read_text(
+            encoding="utf-8"
+        )
+    )
+    document["length_aa"] = value
+
+    with pytest.raises(ValidationError, match="valid integer"):
+        SequenceGroupRecord.model_validate_json(json.dumps(document))
+
+
+def test_direct_jsonl_result_rejects_string_boolean() -> None:
+    document = json.loads(
+        (REPOSITORY / "tests/fixtures/stubs/additional_copy_result.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    document["top_solution_packed"] = "true"
+
+    with pytest.raises(ValidationError, match="valid boolean"):
+        AdditionalCopyResult.model_validate_json(json.dumps(document))
+
+
+@pytest.mark.parametrize("constant", ("NaN", "Infinity", "-Infinity"))
+def test_direct_jsonl_result_rejects_non_finite_metrics(constant: str) -> None:
+    source = (
+        REPOSITORY / "tests/fixtures/stubs/first_copy_phaser/normalised_mr_result.json"
+    ).read_text(encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="finite number"):
+        NormalisedMrResult.model_validate_json(
+            source.replace('"llg": null', f'"llg": {constant}')
+        )
+
+
+def test_strict_json_wire_mode_preserves_supported_string_decoding() -> None:
+    model = _JsonWireDecodingProbe.model_validate_json(
+        '{"occurred_at":"2026-08-18T12:34:56+02:00",'
+        '"status":"not_run","path":"relative/input.mtz"}'
+    )
+
+    assert model.occurred_at.isoformat() == "2026-08-18T10:34:56+00:00"
+    assert model.status is SmokeTestStatus.NOT_RUN
+    assert model.path == Path("relative/input.mtz")
 
 
 def test_tsv_error_includes_row_and_column(tmp_path: Path) -> None:
