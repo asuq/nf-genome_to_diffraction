@@ -845,9 +845,6 @@ def prepare_m6_inputs(
                 "search_limits": {
                     "max_structural_hypotheses": 100,
                     "max_first_copy_jobs": 25,
-                    "max_refinement_finalists": 10,
-                    "max_sequence_map_finalists": 5,
-                    "max_concurrent_mr_jobs": 4,
                 },
                 "review": {
                     "primary_shortlist_size": 10,

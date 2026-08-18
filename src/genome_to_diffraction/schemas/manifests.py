@@ -196,9 +196,6 @@ class SearchLimitsConfig(ContractModel):
 
     max_structural_hypotheses: PositiveInt
     max_first_copy_jobs: PositiveInt
-    max_refinement_finalists: PositiveInt
-    max_sequence_map_finalists: PositiveInt
-    max_concurrent_mr_jobs: PositiveInt | None = None
 
 
 class ReviewConfig(ContractModel):

@@ -8549,3 +8549,27 @@ never reuse either failed run or cache.
 Integrate this focused strict-wire commit, then inventory raw JSON/YAML
 dictionary loaders separately before claiming repository-wide entry-point
 parity.
+## 2026-08-18T21:44:46Z - Unsupported downstream caps removed from v1 contract
+
+### Contract correction and focused evidence
+
+- Removed `max_refinement_finalists`, `max_sequence_map_finalists`, and
+  `max_concurrent_mr_jobs` from the typed pipeline configuration, authoritative
+  JSON Schema, example, and generated M6 configuration. These settings had no
+  runtime consumer; refinement and sequence assessment retain every explicitly
+  approved finalist, while executor/site configuration owns concurrency.
+- Added a three-field mutation regression requiring each removed name to fail
+  as an unknown `search_limits` property. No provider cap, runtime workflow,
+  retain-all policy, site configuration, or frozen scientific criterion changed.
+- Sixty-two focused contract, retain-all, sequence-checkpoint, and M6 tests
+  pass. Schema validation, targeted Ruff format/lint, targeted `ty`, and
+  `git diff --check` pass. The combined repository-policy test could not read
+  the uninitialised nf-helper submodule in this isolated worktree; its tracked
+  scheduler assertions and files were not changed.
+
+### Next exact starting point
+
+Integrate this contract-only commit with the other R1 slices, run the complete
+locked batch gate once, and keep provider-plan caps plus unsupported toggles in
+their separately scoped remediation. Do not infer remote or M6 acceptance from
+this local contract correction.

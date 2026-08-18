@@ -119,6 +119,34 @@ def test_unknown_field_fails_at_json_pointer(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    "removed_field",
+    (
+        "max_refinement_finalists",
+        "max_sequence_map_finalists",
+        "max_concurrent_mr_jobs",
+    ),
+)
+def test_removed_pipeline_caps_fail_as_unknown_properties(
+    tmp_path: Path, removed_field: str
+) -> None:
+    config = load_contract(
+        REPOSITORY / "examples/config.yaml", "pipeline-config", progress=False
+    )
+    document = config.model_dump(mode="json")
+    search_limits = document["search_limits"]
+    assert isinstance(search_limits, dict)
+    search_limits[removed_field] = 1
+    path = tmp_path / f"removed-{removed_field}.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ContractValidationError) as captured:
+        load_contract(path, "pipeline-config", progress=False)
+
+    assert f"{path}:/search_limits" in str(captured.value)
+    assert removed_field in str(captured.value)
+
+
+@pytest.mark.parametrize(
     ("filename", "kind", "contents", "pointer", "duplicate_key"),
     (
         (

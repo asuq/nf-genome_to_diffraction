@@ -157,9 +157,7 @@
       "additionalProperties": false,
       "required": [
         "max_structural_hypotheses",
-        "max_first_copy_jobs",
-        "max_refinement_finalists",
-        "max_sequence_map_finalists"
+        "max_first_copy_jobs"
       ],
       "properties": {
         "max_structural_hypotheses": {
@@ -167,18 +165,6 @@
           "minimum": 1
         },
         "max_first_copy_jobs": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "max_refinement_finalists": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "max_sequence_map_finalists": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "max_concurrent_mr_jobs": {
           "type": "integer",
           "minimum": 1
         }
