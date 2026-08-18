@@ -26,7 +26,8 @@ process M6_PLAN_TRACK {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/track_plan' m6_track_plan
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/track_plan' m6_track_plan
     """
 }
 
@@ -52,7 +53,8 @@ process M6_IMPORT_CATALOGUE {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/catalogue_bundle' m6_catalogue_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/catalogue_bundle' m6_catalogue_bundle
     """
 }
 
@@ -80,7 +82,8 @@ process M6_BUILD_SEARCH_BATCHES {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/batch_plan' m6_batch_plan
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/batch_plan' m6_batch_plan
     """
 }
 
@@ -114,7 +117,8 @@ process M6_SEARCH_PDB {
     else
         sleep 1
     fi
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/pdb_bundle' m6_pdb_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/pdb_bundle' m6_pdb_bundle
     """
 }
 
@@ -148,7 +152,8 @@ process M6_SEARCH_FOLDSEEK {
     else
         sleep 1
     fi
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/foldseek_bundle' m6_foldseek_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/foldseek_bundle' m6_foldseek_bundle
     """
 }
 
@@ -185,7 +190,8 @@ process M6_PARTITION_DISCOVERY {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/discovery_partition' m6_discovery_partition
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/discovery_partition' m6_discovery_partition
     """
 }
 
@@ -211,9 +217,11 @@ process M6_PREFLIGHT_CASE {
     stub:
     """
     if [[ '${item[0]}' == M6C057 ]]; then
-        cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/early_preflight_bundle' m6_preflight_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+            '${projectDir}/tests/fixtures/stubs/m6_nextflow/early_preflight_bundle' m6_preflight_bundle
     else
-        cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/preflight_bundle' m6_preflight_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+            '${projectDir}/tests/fixtures/stubs/m6_nextflow/preflight_bundle' m6_preflight_bundle
     fi
     """
 }
@@ -243,7 +251,8 @@ process M6_APPLY_POLICY {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/policy_bundle' m6_policy_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/policy_bundle' m6_policy_bundle
     """
 }
 
@@ -271,7 +280,8 @@ process M6_PREPARE_ACTIVE_CASE {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/case_bundle' m6_case_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/case_bundle' m6_case_bundle
     """
 }
 
@@ -298,7 +308,8 @@ process M6_PREPARE_EARLY_CASE {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/empty_case_bundle' m6_case_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/empty_case_bundle' m6_case_bundle
     """
 }
 
@@ -330,7 +341,8 @@ process M6_FIRST_COPY {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/first_copy_phaser' m6_first_copy_result
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/first_copy_phaser' m6_first_copy_result
     """
 }
 
@@ -356,7 +368,8 @@ process M6_SELECT_SEEDS {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/seed_bundle' m6_seed_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/seed_bundle' m6_seed_bundle
     """
 }
 
@@ -380,7 +393,8 @@ process M6_EMPTY_SEEDS {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/empty_seed_bundle' m6_seed_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/empty_seed_bundle' m6_seed_bundle
     """
 }
 
@@ -408,7 +422,8 @@ process M6_ADDITIONAL_COPY {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/add_copy_bundle' m6_add_copy_result
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/add_copy_bundle' m6_add_copy_result
     """
 }
 
@@ -435,7 +450,8 @@ process M6_SELECT_FINALISTS {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/finalist_bundle' m6_finalist_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/finalist_bundle' m6_finalist_bundle
     """
 }
 
@@ -460,7 +476,8 @@ process M6_EMPTY_FINALISTS {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/empty_finalist_bundle' m6_finalist_bundle
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/empty_finalist_bundle' m6_finalist_bundle
     """
 }
 
@@ -487,7 +504,8 @@ process M6_REFINEMENT {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/refinement_bundle' m6_refinement_result
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/refinement_bundle' m6_refinement_result
     """
 }
 
@@ -514,7 +532,8 @@ process M6_ASSEMBLE_CASE {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/case_evidence' m6_case_evidence
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/case_evidence' m6_case_evidence
     """
 }
 
@@ -539,7 +558,8 @@ process M6_ASSEMBLE_EMPTY_CASE {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/case_evidence' m6_case_evidence
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/case_evidence' m6_case_evidence
     """
 }
 
@@ -575,6 +595,7 @@ process M6_AGGREGATE_TRACK {
 
     stub:
     """
-    cp -R '${projectDir}/tests/fixtures/stubs/m6_nextflow/track_output' m6_scientific
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/track_output' m6_scientific
     """
 }

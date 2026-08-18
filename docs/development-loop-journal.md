@@ -8336,3 +8336,70 @@ Commit and push this review correction, watch one CI run, rebuild the local
 controller, deploy the reviewed dispatcher, and prove `logs` plus `collect` on
 the retained failed Marmic run without raw SSH. Only then cherry-pick the
 focused writable-stub commit and stage one replacement Marmic smoke.
+## 2026-08-18T19:07:25Z - Read-only M6 stub copies made portable
+
+### Observed failure and focused correction
+
+- The Marmic source archive correctly hardens fixture directories and files.
+  Plain recursive-copy stubs preserved those modes in task outputs, leaving
+  Nextflow unable to clean or stage out the copied directory tree.
+- Added one test-only fixture-copy helper. It requires a new destination,
+  copies hidden and nested content, and makes destination directories and files
+  owner-writable. Source-archive hardening removes executable bits, so every
+  stub invokes the readable helper through `/bin/bash`. Its exit trap also
+  repairs a partially copied destination before Nextflow cleanup.
+- Routed all 20 M6 directory-copy stub blocks, comprising 21 conditional copy
+  sites, through the helper. Scientific commands, fixtures, process inputs and
+  outputs, cache identities, and normal execution paths are unchanged.
+
+### Focused evidence
+
+- A mode-0400 helper and hardened fixture regression preserves exact file
+  digests and empty/hidden directory structure, verifies owner-write and
+  traversal permissions, and removes the resulting tree successfully. A forced
+  partial-copy failure proves the exit trap repairs the tree without hiding the
+  original failure, and a wiring regression rejects direct recursive copies;
+  all three tests pass.
+- One focused M6 stub run completed all 25 tasks with no failure, and every
+  published result directory and file was owner-writable. Bash syntax, Ruff
+  format/lint, Nextflow syntax, and `git diff --check` pass. No complete suite
+  or remote operation was run.
+
+### Next exact starting point
+
+Integrate the focused commit, push it once, and use its single CI run as the
+batch gate. After green CI, deploy the reviewed tools and submit one fresh
+Marmic M6 smoke; retain and classify the failed permission run separately.
+
+## 2026-08-18T20:11:39Z - Wrapper-only diagnosis proven and stub fix integrated
+
+### Immutable and local evidence
+
+- Actions run `32177984113`, job `95844195308`, passed hardened diagnostic
+  commit `d0ac6dc586a9defa024e5cb97172b96ccc0d868f` in 6m0s. The installed
+  controller checksum is
+  `d03420d2200cdf4353e9cc0f373270867e049789244f97fbae14607a07d88d1a`,
+  and checksum-gated recovery deployed dispatcher
+  `2b0601371ed8f230dd0b86096c4a73c72be03a5269b96b64c84844ec135683cb`.
+- The reviewed `logs` operation on retained failed Slurm job `629472` returned
+  the exact `.command.log` and its scratch permission-denied lines. `collect`
+  added all seven fixed Nextflow task files while preserving failure signature
+  `0d7564d00d12009af1c5c1b6e96dcc007f02f9916ef84c20e07f2bd7259dfded`.
+  No SSH or arbitrary path input was used for this proof.
+- Integrated the isolated writable-stub slice. All 21 M6 fixture-copy sites
+  invoke the mode-0400-readable helper via `/bin/bash`; the helper preserves
+  content, repairs owner permissions on success or partial failure, and retains
+  the original failing exit status.
+- Three focused helper/wiring regressions and a direct 25-task M6 stub pass.
+  One complete `pixi run --locked check` passes Ruff format/lint, `ty`, 476
+  unit tests, 67 contract tests, 67 integration tests, schemas, public-panel
+  validation, documentation links, actionlint, Nextflow syntax and complete
+  stub/resume coverage, and all Bash wrapper checks.
+
+### Next exact starting point
+
+Push the integrated writable-stub commit once and watch one CI run. After green
+CI, stage that exact SHA through the reviewed Marmic source-archive boundary,
+verify the fixed Marmic policy and run-owned cache, submit exactly one
+replacement M6 Nextflow smoke, and rebind the existing heartbeat rather than
+creating another.
