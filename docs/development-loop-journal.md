@@ -7650,3 +7650,97 @@ roadmap/review dispositions, and this journal evidence.
 
 Run final staged-diff checks, commit the R0A evidence-contract correction, push
 once, and watch exactly one CI run.
+
+## 2026-08-17T20:10:10Z - R0A correction deployed and smoke submitted
+
+### Accomplishments and immutable evidence
+
+- Created and pushed coherent commit
+  `7de1b5c8d25c0972956e55bfdc2eb57e8ffa3ada`. The sole GitHub Actions run
+  `32063494568`, job `95489937445`, passed under Pixi 0.76.2 in 6m33s.
+- Built and installed the matching local controller with SHA-256
+  `f8b35bc89937ccde49e5f3d42bef536865e69fe782355af6b8d1b4a2479b5a4a`;
+  the previous controller was checksum-preserved in ignored local evidence.
+- Deployed the exact revision. Dispatcher, job-wrapper, and recovery SHA-256
+  values remain
+  `5aa8979ec1218c8187c4ed5f5fd0e67ac130beb8956354d82d314580446a8076`,
+  `be2abafdd0a988614fdaf3f0d75d32abc7cdb140bea5b16f4a947c9802f2ee3b`,
+  and `0db4c5f3542ce4d387ac019e33717d5e405ac957efb216b05c52828a851808f4`.
+- Staged and submitted exactly one corrected non-acceptance smoke as
+  `gtd-m6-nextflow-smoke-20260817T200853Z-7de1b5c8d25c-0cd67106`, Slurm job
+  `10941052`, from source `7de1b5c8d25c0972956e55bfdc2eb57e8ffa3ada`
+  and nf-helper `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`. Initial state is `PENDING`,
+  terminal false.
+- Rebound the existing 30-minute heartbeat in place to this run and this
+  thread. No duplicate monitor, CI watch, or Viper job was created.
+
+### Unresolved work
+
+- Monitor only job `10941052`. At terminal state, retrieve bounded logs and
+  collect, then verify the corrected two-catalogue/four-batch partition,
+  identity/edge evidence, complete child inventory, resource bounds, canonical
+  resume, truthless store reuse, checksums, and executor-scope warnings.
+- This smoke cannot authorise operational or leakage M6 science. On success,
+  continue with the R1--R3 shared contract/cache/crystallographic foundations;
+  on demonstrated software failure, apply only one focused regression and
+  minimal correction before an unchanged replacement smoke.
+
+### Next exact starting point
+
+Run `nf-gtd-hpc-test --no-progress status --run-id
+gtd-m6-nextflow-smoke-20260817T200853Z-7de1b5c8d25c-0cd67106` at the next
+30-minute heartbeat.
+
+## 2026-08-18T11:08:19Z - Multi-item smoke exposes stale wrapper cardinality
+
+### Classification and immutable evidence
+
+- Corrected R0A smoke
+  `gtd-m6-nextflow-smoke-20260817T200853Z-7de1b5c8d25c-0cd67106`, Slurm job
+  `10941052`, finished `FAILED` with exit code 4 and `test_failure`. Bounded
+  logs and collection completed before any source edit.
+- Both operational Nextflow executions succeeded. The first trace contains
+  25/25 completed children: exactly two catalogue imports, two MMseqs2 jobs,
+  two Foldseek jobs, two catalogue partitions, the active M6C001 chain, and
+  the typed-empty M6C057 chain. The resume trace contains 19/19 cached tasks;
+  the six omitted tasks are exactly the two imports and four shared-store
+  database searches.
+- Search children used four distinct native IDs `10941552`--`10941555`, each
+  requesting 32 CPUs, 16 GB, and 24 hours. All child IDs were native numeric
+  Slurm IDs; per-job bounds passed. Observed peaks were one running job,
+  32 aggregate CPUs, 16 GB, and one Phenix job.
+- The deterministic failure is in the qualification wrapper, not the
+  scientific workflow or infrastructure. It still required three stored
+  tasks and two search jobs after R0A expanded the fixed profile to six stored
+  tasks and four search jobs, so it returned 4 before the leakage phase.
+- First-trace, resume-trace, resource-evidence, and application-log SHA-256
+  values are
+  `906d958a1208301d784b4787b7b7c35458034acdd60bf7ab30558f45580487d1`,
+  `bc66d27622501846447f86e3c935053a8cf7f5d3f08477adb0e979bf98edbfa4`,
+  `127b5574ff96fb571c9a03c2c5ccc04cafa7bc1278f987c53b840db6fd4ae847`,
+  and `61860f2ab08a5e2aa9e9ed5b401c06f2c7a7bf33ea2b2c49a15c2227cd5366a`.
+  Cross-track reuse, byte-identical scientific outputs, v2 identity/edge
+  payloads, and final checksums remain unverified because leakage never began.
+
+### Correction and local evidence
+
+- Added a focused controller regression that reproduced the stale three/two
+  assumptions, then changed only the job-body qualification logic. Stored-task
+  cardinality is derived from the exact two-import/two-MMseqs2/two-Foldseek
+  first trace, and resource validation now requires two jobs of each search
+  kind, four distinct native IDs, completed children, and 32-CPU/16-GB/24-hour
+  requests.
+- The focused regression now passes. Bash syntax, the reviewed-wrapper check,
+  Ruff, and `git diff --check` pass. No M6 adapter, scientific criterion,
+  schema, model, cache key, or retained remote run changed.
+- The complete affected dispatcher suite passes 46 tests. One complete
+  `pixi run --locked check` passes Ruff format/lint, `ty`, 468 unit tests,
+  59 contract tests, 51 integration tests, schemas, public-panel validation,
+  documentation links, actionlint, Nextflow syntax and expanded cached-resume
+  stub, and all reviewed-wrapper syntax checks.
+
+### Next exact starting point
+
+Stage and commit only the wrapper regression, minimal correction, and material
+journal evidence. Push once, watch exactly one CI run, deploy checksummed tools,
+and submit exactly one unchanged replacement smoke.

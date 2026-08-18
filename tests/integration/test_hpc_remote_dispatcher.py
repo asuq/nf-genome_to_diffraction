@@ -698,6 +698,21 @@ def test_m6_nextflow_smoke_uses_real_child_slurm_boundaries(tmp_path: Path) -> N
     assert "managed-slurm" in body
     assert "m6-nextflow-smoke-resource-evidence.json" in body
     assert 'job["requested_cpus"] != 32' in body
+    assert 'job["requested_memory_gb"] != 16.0' in body
+    assert 'job["requested_time_hours"] != 24.0' in body
+    assert "catalogue_imports" in body
+    assert "pdb_searches" in body
+    assert "foldseek_searches" in body
+    assert "catalogue_partitions" in body
+    assert (
+        "store_expected=$((catalogue_imports + pdb_searches + foldseek_searches))"
+        in body
+    )
+    assert '"M6_SEARCH_PDB": 2' in body
+    assert '"M6_SEARCH_FOLDSEEK": 2' in body
+    assert 'len({job["native_job_id"] for job in search}) != 4' in body
+    assert '"$stored" -eq 3' not in body
+    assert "len(search) != 2" not in body
     assert '"acceptance_evidence": false' in body
     assert "cross_track_truthless_store_reuse" in body
 
