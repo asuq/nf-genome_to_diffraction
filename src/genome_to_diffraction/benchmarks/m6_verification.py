@@ -12,7 +12,6 @@ valid bundle plus checksum and policy failure paths; Viper execution validates
 the real Pixi/Gemmi environment and the staged 63-case archive.
 """
 
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +31,7 @@ from genome_to_diffraction.schemas.base import (
     PositiveInt,
     Sha256Hex,
 )
+from genome_to_diffraction.schemas.io import load_json_document
 from genome_to_diffraction.schemas.manifests import PipelineConfig
 from genome_to_diffraction.time import utc_now_iso
 
@@ -135,16 +135,16 @@ class M6RunnerVerificationResult:
 
 def _load_manifest(path: Path) -> M6RunnerInventorySpec:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = load_json_document(path)
         return M6RunnerInventorySpec.model_validate(payload)
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+    except (OSError, ValueError) as error:
         raise PublicControlError(f"invalid M6 runner manifest: {error}") from error
 
 
 def _verify_json(path: Path) -> dict[str, object]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        payload = load_json_document(path)
+    except (OSError, ValueError) as error:
         raise PublicControlError(
             f"invalid M6 JSON object {path.name}: {error}"
         ) from error

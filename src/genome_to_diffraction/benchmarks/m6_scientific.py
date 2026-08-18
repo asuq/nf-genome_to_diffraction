@@ -7,7 +7,6 @@ collectable, and verifies the identity-bearing Nextflow v2 aggregate.
 """
 
 import gzip
-import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Literal, cast
@@ -25,6 +24,11 @@ from genome_to_diffraction.benchmarks.m6_identity import (
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.ids import canonical_digest
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_json_document,
+    parse_json_document,
+)
 
 M6ScientificTrack = Literal["operational", "leakage"]
 _LEGACY_ADAPTER_VERSION = "m6-scientific-run-v3"
@@ -62,9 +66,11 @@ def m6_track_case_ids(track: M6ScientificTrack) -> tuple[str, ...]:
 
 def _json_object(path: Path) -> dict[str, object]:
     try:
-        value: object = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise PublicControlError(f"invalid M6 scientific object: {path}") from error
+        value = load_json_document(path)
+    except ContractLoadError as error:
+        raise PublicControlError(
+            f"invalid M6 scientific object {path}: {error}"
+        ) from error
     if not isinstance(value, dict):
         raise PublicControlError(f"M6 scientific object is not a mapping: {path}")
     return cast(dict[str, object], value)
@@ -72,16 +78,18 @@ def _json_object(path: Path) -> dict[str, object]:
 
 def _jsonl_objects(path: Path) -> tuple[dict[str, object], ...]:
     rows: list[dict[str, object]] = []
-    for line_number, line in enumerate(
-        path.read_text(encoding="utf-8").splitlines(), start=1
-    ):
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as error:
+        raise PublicControlError(f"cannot read M6 scientific JSONL: {path}") from error
+    for line_number, line in enumerate(lines, start=1):
         if not line:
             continue
         try:
-            value: object = json.loads(line)
-        except json.JSONDecodeError as error:
+            value = parse_json_document(line, label=f"{path}:{line_number}")
+        except ContractLoadError as error:
             raise PublicControlError(
-                f"invalid M6 scientific JSONL at line {line_number}: {path}"
+                f"invalid M6 scientific JSONL at line {line_number}: {error}"
             ) from error
         if not isinstance(value, dict):
             raise PublicControlError(

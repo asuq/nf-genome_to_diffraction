@@ -8835,3 +8835,36 @@ This commit intentionally adds the reusable boundary only. Inventory and
 migrate genuine M6 operator/evidence document entry points separately; leave
 external-tool log parsing and canonical in-memory serialization unchanged.
 Do not claim repository-wide raw-loader parity from this foundation alone.
+
+## 2026-08-18T23:32:05Z - Bounded M6 authority loaders use strict raw documents
+
+### Focused migration and evidence
+
+- Migrated the frozen M6 protocol and execution-policy YAML, preparation and
+  runner manifests, evaluation evidence, collection manifest/private truth,
+  scientific summary/JSONL evidence, runner verification JSON, and model-policy
+  JSON object loaders to the shared strict raw-document boundary. Existing
+  typed model validation and `PublicControlError` domain boundaries remain.
+- Added a 24-case mutation/equivalence corpus covering duplicate mapping keys
+  and non-finite values for all eleven migrated loader families. The frozen
+  protocol, both site policies, and frozen scientific fixtures remain
+  semantically unchanged.
+- Eighty focused M6 benchmark, identity, family, edge, and raw-loader tests
+  pass. Targeted Ruff formatting/lint, `ty`, and `git diff --check` pass. No
+  full suite, remote execution, cache, protocol criterion, or scientific
+  threshold changed.
+
+### Deliberately remaining boundary
+
+- Leave `m6_collection.py` JSONL aggregation, all `m6_nextflow.py` raw
+  task/evidence reads, and the raw JSON observations in `m6_edge.py` for a
+  separately bounded migration. Typed `ContractModel.model_validate_json`
+  readers already enforce strict wire input and were not rewritten.
+- Non-M6 runtime JSON/YAML inventory entries and external-service/tool output
+  parsers were inspected but remain outside this M6 authority slice.
+
+### Next exact starting point
+
+Integrate this commit after its strict-loader foundation. Then migrate the
+remaining M6 edge/Nextflow/collection JSONL reads in one bounded task without
+changing aggregation, scientific models, or frozen acceptance criteria.

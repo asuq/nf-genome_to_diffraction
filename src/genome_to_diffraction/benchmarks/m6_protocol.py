@@ -12,7 +12,6 @@ scientifically inconsistent protocols fail before any expensive work begins.
 from pathlib import Path
 from typing import Literal, Self
 
-import yaml
 from pydantic import Field, model_validator
 
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
@@ -25,6 +24,7 @@ from genome_to_diffraction.schemas.base import (
     Sha256Hex,
     UtcTimestamp,
 )
+from genome_to_diffraction.schemas.io import load_yaml_document
 
 M6CaseKind = Literal[
     "operational_positive",
@@ -463,7 +463,7 @@ def load_m6_protocol(path: Path) -> M6BenchmarkProtocol:
     if not resolved.is_file():
         raise PublicControlError(f"M6 protocol is not a file: {path}")
     try:
-        payload = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+        payload = load_yaml_document(resolved)
         return M6BenchmarkProtocol.model_validate(payload)
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (OSError, ValueError) as error:
         raise PublicControlError(f"invalid M6 protocol {resolved}: {error}") from error

@@ -40,7 +40,7 @@ from genome_to_diffraction.checksums import (
 )
 from genome_to_diffraction.databases.common import tool_version
 from genome_to_diffraction.ids import canonical_digest, canonical_json_text
-from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.io import load_contract, load_json_document
 from genome_to_diffraction.schemas.manifests import DatabaseManifest
 from genome_to_diffraction.schemas.results import (
     SequenceGroupRecord,
@@ -99,9 +99,9 @@ def _read_jsonl[T: BaseModel](path: Path, model: type[T], label: str) -> tuple[T
 def _object(path: Path, label: str) -> dict[str, object]:
     resolved = path.resolve(strict=True)
     try:
-        value: object = json.loads(resolved.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise PublicControlError(f"cannot read {label}: {resolved}") from error
+        value = load_json_document(resolved)
+    except (OSError, ValueError) as error:
+        raise PublicControlError(f"cannot read {label} {resolved}: {error}") from error
     if not isinstance(value, dict):
         raise PublicControlError(f"{label} must be a JSON object: {resolved}")
     return cast(dict[str, object], value)

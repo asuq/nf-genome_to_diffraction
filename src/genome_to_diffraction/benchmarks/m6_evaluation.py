@@ -10,7 +10,6 @@ candidate-deletion gates here or in the runner.  A failed gate produces an
 explicit hold; it is never rounded, relabelled, or silently excluded.
 """
 
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +38,7 @@ from genome_to_diffraction.schemas.base import (
     PositiveInt,
     Sha256Hex,
 )
+from genome_to_diffraction.schemas.io import load_json_document
 
 NonNegativeInt = Annotated[int, Field(ge=0)]
 
@@ -218,9 +218,9 @@ def load_m6_evidence(path: Path) -> M6CollectedEvidence:
 
     resolved = path.resolve(strict=True)
     try:
-        payload = json.loads(resolved.read_text(encoding="utf-8"))
+        payload = load_json_document(resolved)
         return M6CollectedEvidence.model_validate(payload)
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+    except (OSError, ValueError) as error:
         raise PublicControlError(f"invalid M6 evidence {resolved}: {error}") from error
 
 

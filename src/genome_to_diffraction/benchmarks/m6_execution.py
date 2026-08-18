@@ -18,7 +18,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, Self
 
-import yaml
 from pydantic import model_validator
 
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
@@ -29,6 +28,7 @@ from genome_to_diffraction.schemas.base import (
     PositiveFloat,
     PositiveInt,
 )
+from genome_to_diffraction.schemas.io import load_yaml_document
 
 _MEMORY = re.compile(r"^([0-9]+(?:\.[0-9]+)?)\s*([KMGT]B)$", re.I)
 
@@ -174,9 +174,9 @@ def load_m6_execution_policy(path: Path) -> M6ExecutionPolicy:
     """Load the separately approved resource and orchestration policy."""
 
     try:
-        payload = yaml.safe_load(path.resolve(strict=True).read_text(encoding="utf-8"))
+        payload = load_yaml_document(path.resolve(strict=True))
         return M6ExecutionPolicy.model_validate(payload)
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (OSError, ValueError) as error:
         raise PublicControlError(f"invalid M6 execution policy: {error}") from error
 
 

@@ -61,6 +61,10 @@ from genome_to_diffraction.schemas.base import (
     PositiveInt,
     Sha256Hex,
 )
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_json_document,
+)
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -153,11 +157,11 @@ class _CollectedTrack:
 
 def _json_object(path: Path, label: str) -> dict[str, object]:
     try:
-        value: object = json.loads(
-            path.resolve(strict=True).read_text(encoding="utf-8")
-        )
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise PublicControlError(f"invalid collected M6 {label}: {path}") from error
+        value = load_json_document(path.resolve(strict=True))
+    except (OSError, ContractLoadError) as error:
+        raise PublicControlError(
+            f"invalid collected M6 {label} {path}: {error}"
+        ) from error
     if not isinstance(value, dict):
         raise PublicControlError(f"collected M6 {label} is not an object: {path}")
     return cast(dict[str, object], value)
@@ -173,16 +177,15 @@ def _load_private_truth(
 
     resolved = path.resolve(strict=True)
     try:
-        truth = _M6PrivateTruthMap.model_validate(
-            json.loads(resolved.read_text(encoding="utf-8"))
-        )
+        truth = _M6PrivateTruthMap.model_validate(load_json_document(resolved))
     except (
         OSError,
-        UnicodeDecodeError,
-        json.JSONDecodeError,
+        ContractLoadError,
         ValidationError,
     ) as error:
-        raise PublicControlError(f"invalid M6 private truth map: {resolved}") from error
+        raise PublicControlError(
+            f"invalid M6 private truth map {resolved}: {error}"
+        ) from error
     if (
         truth.protocol_id != protocol.protocol_id
         or truth.protocol_sha256 != protocol_sha256

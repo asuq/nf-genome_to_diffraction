@@ -10,7 +10,6 @@ changed, symlinked, or truth-bearing inputs fail closed.  The archive checksum i
 the cache key used by the remote runner.
 """
 
-import json
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +32,7 @@ from genome_to_diffraction.schemas.base import (
     PositiveInt,
     Sha256Hex,
 )
+from genome_to_diffraction.schemas.io import load_json_document
 
 
 class M6PreparedObjectSpec(ContractModel):
@@ -118,9 +118,9 @@ def load_m6_preparation_manifest(path: Path) -> M6PreparationManifest:
 
     resolved = path.resolve(strict=True)
     try:
-        payload = json.loads(resolved.read_text(encoding="utf-8"))
+        payload = load_json_document(resolved)
         return M6PreparationManifest.model_validate(payload)
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+    except (OSError, ValueError) as error:
         raise PublicControlError(
             f"invalid M6 preparation manifest {resolved}: {error}"
         ) from error
@@ -183,13 +183,17 @@ def _scan_truth_tokens(root: Path, tokens: tuple[bytes, ...]) -> None:
                     "truth-isolation failure: a forbidden truth token is present "
                     f"in runner object {path.relative_to(root)}"
                 )
-    manifest = json.loads((root / "runner_manifest.json").read_text(encoding="utf-8"))
-    serialised_keys = {
-        str(key)
-        for case in manifest["cases"]
-        for item in case["objects"]
-        for key in item
-    }
+    manifest = load_json_document(root / "runner_manifest.json")
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("cases"), list):
+        raise PublicControlError("runner manifest case inventory is invalid")
+    serialised_keys: set[str] = set()
+    for case in manifest["cases"]:
+        if not isinstance(case, dict) or not isinstance(case.get("objects"), list):
+            raise PublicControlError("runner manifest case object list is invalid")
+        for item in case["objects"]:
+            if not isinstance(item, dict):
+                raise PublicControlError("runner manifest object record is invalid")
+            serialised_keys.update(str(key) for key in item)
     if any("expected" in key or "truth" in key for key in serialised_keys):
         raise PublicControlError("runner manifest exposes a truth-bearing field")
 
