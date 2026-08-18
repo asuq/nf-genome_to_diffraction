@@ -15,6 +15,9 @@ from genome_to_diffraction.schemas.io import (
     contract_json_schema,
     contract_kinds,
     load_contract,
+    load_json_document,
+    load_yaml_document,
+    parse_json_document,
 )
 from genome_to_diffraction.schemas.manifests import (
     CatalogueManifest,
@@ -323,6 +326,90 @@ def test_contract_loader_rejects_non_finite_yaml_numbers(
 
     assert f"{path}:/llg" in str(captured.value)
     assert "non-finite numeric value" in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    ("loader", "filename", "contents", "pointer", "diagnostic"),
+    (
+        (
+            "json-path",
+            "duplicate.json",
+            '{"cases":[{"enabled":true,"enabled":false}]}',
+            "/cases/0/enabled",
+            "duplicate mapping key 'enabled'",
+        ),
+        (
+            "json-path",
+            "non-finite.json",
+            '{"cases":[{"score":NaN}]}',
+            "/cases/0/score",
+            "non-standard JSON numeric constant 'NaN'",
+        ),
+        (
+            "json-text",
+            "evidence.jsonl:7",
+            '{"cases":[{"rank":1,"rank":2}]}',
+            "/cases/0/rank",
+            "duplicate mapping key 'rank'",
+        ),
+        (
+            "json-text",
+            "evidence.jsonl:8",
+            '{"cases":[{"score":Infinity}]}',
+            "/cases/0/score",
+            "non-standard JSON numeric constant 'Infinity'",
+        ),
+        (
+            "yaml-path",
+            "duplicate.yaml",
+            "cases:\n  - enabled: true\n    enabled: false\n",
+            "/cases/0/enabled",
+            "duplicate mapping key 'enabled'",
+        ),
+        (
+            "yaml-path",
+            "non-finite.yaml",
+            "cases:\n  - score: .nan\n",
+            "/cases/0/score",
+            "non-finite numeric value",
+        ),
+    ),
+)
+def test_raw_document_loaders_share_strict_mutation_boundary(
+    tmp_path: Path,
+    loader: str,
+    filename: str,
+    contents: str,
+    pointer: str,
+    diagnostic: str,
+) -> None:
+    path = tmp_path / filename
+    if loader != "json-text":
+        path.write_text(contents, encoding="utf-8")
+
+    with pytest.raises(ContractLoadError) as captured:
+        if loader == "json-path":
+            load_json_document(path)
+        elif loader == "yaml-path":
+            load_yaml_document(path)
+        else:
+            parse_json_document(contents, label=filename)
+
+    expected_label = filename if loader == "json-text" else str(path)
+    assert f"{expected_label}:{pointer}" in str(captured.value)
+    assert diagnostic in str(captured.value)
+
+
+def test_raw_document_loaders_preserve_valid_wire_values(tmp_path: Path) -> None:
+    expected = {"cases": [{"enabled": True, "rank": 2, "score": 1.25}]}
+    json_path = tmp_path / "valid.json"
+    yaml_path = tmp_path / "valid.yaml"
+    json_path.write_text(json.dumps(expected), encoding="utf-8")
+    yaml_path.write_text(yaml.safe_dump(expected), encoding="utf-8")
+
+    assert load_json_document(json_path) == expected
+    assert load_yaml_document(yaml_path) == expected
+    assert parse_json_document(json.dumps(expected), label="valid.jsonl:1") == expected
 
 
 @pytest.mark.parametrize("value", ("4", 4.0))

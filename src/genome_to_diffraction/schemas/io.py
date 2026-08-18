@@ -75,6 +75,13 @@ class _MappingPairs:
     entries: tuple[tuple[object, object], ...]
 
 
+@dataclass(frozen=True)
+class _JsonNumericConstant:
+    """Non-standard JSON numeric constant retained until its path is known."""
+
+    value: str
+
+
 class _PairsSafeLoader(yaml.SafeLoader):
     """Safe YAML loader that preserves mapping pairs for strict validation."""
 
@@ -348,6 +355,11 @@ def _normalise_mapping_pairs(
             _normalise_mapping_pairs(item, label=label, parts=(*parts, index))
             for index, item in enumerate(value)
         ]
+    if isinstance(value, _JsonNumericConstant):
+        raise ContractLoadError(
+            f"{label}:{_json_pointer(parts)}: non-standard JSON numeric constant "
+            f"{value.value!r} is not allowed"
+        )
     if isinstance(value, float) and not math.isfinite(value):
         raise ContractLoadError(
             f"{label}:{_json_pointer(parts)}: non-finite numeric value is not allowed"
@@ -356,15 +368,10 @@ def _normalise_mapping_pairs(
 
 
 def _read_json(handle: IO[str], label: str | Path) -> object:
-    def reject_constant(value: str) -> object:
-        raise ContractLoadError(
-            f"{label}:/: non-standard JSON numeric constant {value!r} is not allowed"
-        )
-
     document = json.load(
         handle,
         object_pairs_hook=_preserve_json_pairs,
-        parse_constant=reject_constant,
+        parse_constant=_JsonNumericConstant,
     )
     return _normalise_mapping_pairs(document, label=label)
 
@@ -372,6 +379,39 @@ def _read_json(handle: IO[str], label: str | Path) -> object:
 def _read_yaml(handle: IO[str], label: str | Path) -> object:
     document = yaml.load(handle, Loader=_PairsSafeLoader)
     return _normalise_mapping_pairs(document, label=label)
+
+
+def parse_json_document(payload: str, *, label: str | Path) -> object:
+    """Parse one finite JSON document with duplicate-key path diagnostics."""
+
+    try:
+        return _read_json(io.StringIO(payload), label)
+    except json.JSONDecodeError as error:
+        raise ContractLoadError(f"{label}:/: invalid JSON document: {error}") from error
+
+
+def load_json_document(path: Path) -> object:
+    """Load one finite JSON document without applying a scientific schema."""
+
+    try:
+        with path.open(encoding="utf-8") as handle:
+            return _read_json(handle, path)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ContractLoadError(
+            f"{path}:/: cannot load JSON document: {error}"
+        ) from error
+
+
+def load_yaml_document(path: Path) -> object:
+    """Load one finite YAML document without applying a scientific schema."""
+
+    try:
+        with path.open(encoding="utf-8") as handle:
+            return _read_yaml(handle, path)
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as error:
+        raise ContractLoadError(
+            f"{path}:/: cannot load YAML document: {error}"
+        ) from error
 
 
 def _decode_tsv(path: Path) -> str:
@@ -489,11 +529,10 @@ def _read_document(
                     f"{path}: TSV is not supported for this contract kind"
                 )
             return _read_tsv(path, spec, progress=progress)
-        with path.open(encoding="utf-8") as handle:
-            if input_format == "json":
-                return _read_json(handle, path)
-            if input_format == "yaml":
-                return _read_yaml(handle, path)
+        if input_format == "json":
+            return load_json_document(path)
+        if input_format == "yaml":
+            return load_yaml_document(path)
     except (OSError, json.JSONDecodeError, yaml.YAMLError) as error:
         raise ContractLoadError(f"{path}: cannot parse input: {error}") from error
     raise AssertionError(f"unhandled input format: {input_format}")

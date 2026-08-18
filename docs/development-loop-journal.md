@@ -8814,3 +8814,24 @@ Review and commit only the workflow, regression, and this journal evidence;
 push once, watch one CI run, deploy checksum-reviewed tools, and submit exactly
 one fresh Marmic replacement smoke. Never resume, clean, or reuse run `629533`
 or its cache.
+
+## 2026-08-18T23:24:55Z - Strict raw-document loader foundation added
+
+### Focused boundary
+
+- Added shared JSON text/path and YAML path loaders that preserve duplicate
+  mapping pairs until path-aware validation and reject JSON `NaN`/`Infinity`
+  plus YAML non-finite values at their exact document pointers.
+- Central typed contract loading now delegates to the same raw-document
+  primitives; valid booleans, integers, finite floats, arrays, and mappings are
+  unchanged.
+- Six raw JSON/YAML mutation routes plus valid round trips pass within the full
+  98-test typed-contract file. Ruff import/format/lint, `ty`, and
+  `git diff --check` pass.
+
+### Remaining work and next exact starting point
+
+This commit intentionally adds the reusable boundary only. Inventory and
+migrate genuine M6 operator/evidence document entry points separately; leave
+external-tool log parsing and canonical in-memory serialization unchanged.
+Do not claim repository-wide raw-loader parity from this foundation alone.
