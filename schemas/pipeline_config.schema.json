@@ -143,12 +143,6 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1
-        },
-        "reference_backend": {
-          "enum": [
-            "phenix_xtriage",
-            "none"
-          ]
         }
       }
     },
@@ -175,9 +169,7 @@
       "additionalProperties": false,
       "required": [
         "primary_shortlist_size",
-        "extended_shortlist_size",
-        "require_mr_seed_checkpoint",
-        "require_sequence_checkpoint"
+        "extended_shortlist_size"
       ],
       "properties": {
         "primary_shortlist_size": {
@@ -187,12 +179,6 @@
         "extended_shortlist_size": {
           "type": "integer",
           "minimum": 1
-        },
-        "require_mr_seed_checkpoint": {
-          "type": "boolean"
-        },
-        "require_sequence_checkpoint": {
-          "type": "boolean"
         }
       }
     },
@@ -201,8 +187,7 @@
       "additionalProperties": false,
       "required": [
         "max_full_artifact_finalists",
-        "retain_all_logs",
-        "retain_all_normalised_results"
+        "retain_all_logs"
       ],
       "properties": {
         "max_full_artifact_finalists": {
@@ -210,9 +195,6 @@
           "minimum": 1
         },
         "retain_all_logs": {
-          "type": "boolean"
-        },
-        "retain_all_normalised_results": {
           "type": "boolean"
         }
       }

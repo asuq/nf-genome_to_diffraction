@@ -178,7 +178,6 @@ class MatthewsConfig(ContractModel):
     max_hypotheses_per_candidate: PositiveInt
     min_solvent_fraction: float = Field(ge=0, le=1)
     max_solvent_fraction: float = Field(ge=0, le=1)
-    reference_backend: Literal["phenix_xtriage", "none"] | None = None
 
     @model_validator(mode="after")
     def _ordered_bounds(self) -> Self:
@@ -203,8 +202,6 @@ class ReviewConfig(ContractModel):
 
     primary_shortlist_size: PositiveInt
     extended_shortlist_size: PositiveInt
-    require_mr_seed_checkpoint: bool
-    require_sequence_checkpoint: bool
 
     @model_validator(mode="after")
     def _ordered_shortlists(self) -> Self:
@@ -220,7 +217,6 @@ class RetentionConfig(ContractModel):
 
     max_full_artifact_finalists: PositiveInt
     retain_all_logs: bool
-    retain_all_normalised_results: bool
 
 
 class PipelineConfig(ContractModel):

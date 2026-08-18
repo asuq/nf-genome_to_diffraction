@@ -8573,3 +8573,33 @@ Integrate this contract-only commit with the other R1 slices, run the complete
 locked batch gate once, and keep provider-plan caps plus unsupported toggles in
 their separately scoped remediation. Do not infer remote or M6 acceptance from
 this local contract correction.
+## 2026-08-18T21:45:14Z - Declaration-only pipeline toggles removed
+
+### Discovery and correction
+
+- Confirmed that `matthews.reference_backend`, both `review.require_*`
+  checkpoint flags, and `retention.retain_all_normalised_results` had no
+  runtime branch or configurable effect. Their presence falsely implied that
+  required checkpoints and normalised-result retention could be disabled.
+- Removed exactly those four fields from the typed pipeline configuration,
+  authoritative schema, public example, M6-generated configuration, and test
+  fixture. The M6 verifier now relies on the mandatory retain-all candidate
+  policy plus retained logs rather than an inert normalised-result flag.
+- The MR-seed and sequence checkpoints remain mandatory workflow stages, and
+  normalised results remain unconditionally retained. Provider settings,
+  runtime caps, scientific policy, and workflow modules were not changed.
+
+### Focused evidence
+
+- Four mutation tests prove the removed names fail as unknown fields. Contract
+  and repository-schema tests pass 59 cases; mandatory MR/sequence checkpoint
+  tests pass 18 cases; and the two focused M6 retain-all qualification tests
+  pass.
+- Ruff formatting, Ruff lint, `ty`, and `git diff --check` pass. No complete
+  suite, remote operation, scientific execution, or threshold change occurred.
+
+### Next exact starting point
+
+Integrate this focused dead-toggle commit, then continue reviewing the
+remaining declared caps separately without changing checkpoint or retention
+semantics.

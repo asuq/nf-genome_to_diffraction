@@ -269,7 +269,6 @@ def verify_m6_runner_bundle(
         retained = (
             policy.get("candidate_policy") == "retain_all"
             and config.retention.retain_all_logs
-            and config.retention.retain_all_normalised_results
         )
         score_ok = policy.get("score_policy") == "llg_tfz_annotations_only"
         all_retained = all_retained and retained

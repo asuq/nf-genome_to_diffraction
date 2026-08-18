@@ -1562,7 +1562,6 @@ def _prepared_manifest(
                 "max_hypotheses_per_candidate": 4,
                 "min_solvent_fraction": 0.1,
                 "max_solvent_fraction": 0.9,
-                "reference_backend": "phenix_xtriage",
             },
             "search_limits": {
                 "max_structural_hypotheses": 100,
@@ -1571,13 +1570,10 @@ def _prepared_manifest(
             "review": {
                 "primary_shortlist_size": 10,
                 "extended_shortlist_size": 25,
-                "require_mr_seed_checkpoint": True,
-                "require_sequence_checkpoint": True,
             },
             "retention": {
                 "max_full_artifact_finalists": 25,
                 "retain_all_logs": True,
-                "retain_all_normalised_results": True,
             },
         },
     )

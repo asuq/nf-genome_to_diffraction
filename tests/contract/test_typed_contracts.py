@@ -147,6 +147,38 @@ def test_removed_pipeline_caps_fail_as_unknown_properties(
 
 
 @pytest.mark.parametrize(
+    ("section", "field", "value"),
+    (
+        ("matthews", "reference_backend", "phenix_xtriage"),
+        ("review", "require_mr_seed_checkpoint", True),
+        ("review", "require_sequence_checkpoint", True),
+        ("retention", "retain_all_normalised_results", True),
+    ),
+)
+def test_removed_declaration_only_toggles_fail_as_unknown_fields(
+    tmp_path: Path,
+    section: str,
+    field: str,
+    value: object,
+) -> None:
+    config = load_contract(
+        REPOSITORY / "examples/config.yaml", "pipeline-config", progress=False
+    )
+    document = config.model_dump(mode="json")
+    section_document = document[section]
+    assert isinstance(section_document, dict)
+    section_document[field] = value
+    path = tmp_path / f"removed-{field}.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ContractValidationError) as captured:
+        load_contract(path, "pipeline-config", progress=False)
+
+    assert f"{path}:/{section}" in str(captured.value)
+    assert field in str(captured.value)
+
+
+@pytest.mark.parametrize(
     ("filename", "kind", "contents", "pointer", "duplicate_key"),
     (
         (
