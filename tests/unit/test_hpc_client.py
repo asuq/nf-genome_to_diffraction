@@ -14,6 +14,7 @@ import pytest
 
 from genome_to_diffraction.hpc.client import (
     DATABASE_STAGE_TIMEOUT_SECONDS,
+    MAX_LOG_BYTES,
     P0_STAGE_TIMEOUT_SECONDS,
     SSH_COLLECTION_TIMEOUT_SECONDS,
     SSH_CONNECT_TIMEOUT_SECONDS,
@@ -82,6 +83,7 @@ class FakeTransport:
     deploy_error: RemoteOperationError | None = None
     stage_error: RemoteOperationError | None = None
     stage_site_id: str = "marmic"
+    log_payload: bytes = b"line one\nline two\n"
 
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         self.calls.append((operation, tuple(arguments)))
@@ -94,7 +96,7 @@ class FakeTransport:
         if operation == "logs":
             return {
                 "run_id": arguments[0],
-                "content_base64": base64.b64encode(b"line one\nline two\n").decode(),
+                "content_base64": base64.b64encode(self.log_payload).decode(),
             }
         response = {
             "run_id": arguments[0] if arguments else "",
@@ -970,6 +972,15 @@ def test_all_owned_operations_use_the_recorded_capability(tmp_path: Path) -> Non
         if operation in {"submit", "status", "logs", "cancel", "clean"}
     }
     assert len(owner_values) == 1
+
+
+def test_remote_log_payload_has_a_local_byte_limit(tmp_path: Path) -> None:
+    transport = FakeTransport(log_payload=b"x" * (MAX_LOG_BYTES + 1))
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+
+    with pytest.raises(RemoteOperationError, match="local byte limit"):
+        controller.logs(run_id, 200)
 
 
 @pytest.mark.parametrize("site_id", ["marmic", "viper-cpu"])

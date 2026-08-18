@@ -101,6 +101,7 @@ DATABASE_STAGE_TIMEOUT_SECONDS = 6 * 60 * 60
 P0_INPUT_STAGE_TIMEOUT_SECONDS = 15 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
 SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS = 30 * 60
+MAX_LOG_BYTES = 2 * 1024 * 1024
 MAX_P0_PATHS_BYTES = 4096
 MAX_SOURCE_ARCHIVE_BYTES = 64 * 1024 * 1024
 FAILURE_SIGNATURE_LOG_BYTES = 64 * 1024
@@ -2308,14 +2309,18 @@ class HpcController:
         result = self.transport.run("logs", [run_id, record.owner_id, str(lines)])
         encoded = result.pop("content_base64", "")
         try:
-            content = base64.b64decode(encoded, validate=True).decode(
-                "utf-8", errors="replace"
-            )
+            payload = base64.b64decode(encoded, validate=True)
         except ValueError as error:
             raise RemoteOperationError(
                 "remote log content was not valid base64",
                 failure_class=FailureClass.TRANSFER_FAILURE,
             ) from error
+        if len(payload) > MAX_LOG_BYTES:
+            raise RemoteOperationError(
+                "remote log content exceeded the local byte limit",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        content = payload.decode("utf-8", errors="replace")
         return {**result, "operation": "logs", "log": content}
 
     def collect(self, run_id: str) -> dict[str, object]:

@@ -8301,3 +8301,38 @@ the checksum-reviewed dispatcher, and re-run `logs` plus `collect` on this
 already-terminal run to prove diagnosis without raw SSH. Then integrate the
 separately focused writable-stub correction and submit exactly one replacement
 Marmic smoke.
+
+## 2026-08-18T19:39:33Z - Nextflow diagnostics fail closed and remain collectable
+
+### Review findings and correction
+
+- Commit `969e8372a87e601ba7463acb0c4b25f36bf0c437` passed Actions run
+  `32175903779`, but it was not deployed. Independent review found that its
+  first diagnostic resolver did not reject a symlinked run cache, bounded
+  lines but not bytes, let an oversized optional diagnostic abort core
+  collection, preferred an empty command log over useful stderr, and allowed
+  mutable non-terminal diagnostics.
+- The resolver now requires canonical owned run and cache directories, a
+  recorded terminal failure, and the final complete Nextflow work-directory
+  marker. It rejects a truncated later marker and derives a fixed relative
+  cache member before collection.
+- Remote and locally decoded log payloads are capped at 2 MiB. A readable,
+  non-empty `.command.log` is preferred, then `.command.err`. Optional task
+  files have a separate 2 MiB cap; oversized, unreadable, unsafe, or
+  total-budget-exceeding files are omitted without blocking core artifacts and
+  produce a deterministic omission TSV.
+- Nine focused dispatcher compatibility/security tests and two focused client
+  tests pass, including cache-symlink escape, active/truncated markers,
+  multi-megabyte one-line logs, stderr fallback, and oversized diagnostic
+  collection.
+- One complete `pixi run --locked check` passes Ruff format/lint, `ty`, 476
+  unit tests, 67 contract tests, 64 integration tests, schemas, public-panel
+  validation, documentation links, actionlint, Nextflow syntax and full
+  stub/resume coverage, and all Bash wrapper checks.
+
+### Next exact starting point
+
+Commit and push this review correction, watch one CI run, rebuild the local
+controller, deploy the reviewed dispatcher, and prove `logs` plus `collect` on
+the retained failed Marmic run without raw SSH. Only then cherry-pick the
+focused writable-stub commit and stage one replacement Marmic smoke.

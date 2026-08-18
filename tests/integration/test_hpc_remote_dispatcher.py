@@ -971,6 +971,7 @@ def test_failed_nextflow_task_diagnostics_are_bounded_and_collected(
     (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
     (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
     (state / "phase").write_text("completed\n", encoding="ascii")
+    (state / "failure-class").write_text("test_failure\n", encoding="ascii")
     task = run / "cache/m6-nextflow-smoke-operational/work/a7" / ("1" * 32)
     task.mkdir(parents=True)
     diagnostic_files = {
@@ -1035,6 +1036,8 @@ def test_failed_nextflow_task_diagnostics_reject_an_escaped_path(
     logs.mkdir()
     (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
     (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
+    (state / "phase").write_text("completed\n", encoding="ascii")
+    (state / "failure-class").write_text("test_failure\n", encoding="ascii")
     escaped = tmp_path / "outside/work/a7" / ("2" * 32)
     escaped.mkdir(parents=True)
     (escaped / ".command.log").write_text("must not be returned\n", encoding="ascii")
@@ -1069,6 +1072,195 @@ def test_failed_nextflow_task_diagnostics_reject_an_escaped_path(
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
         names = set(collected.getnames())
     assert not any(name.startswith("cache/") for name in names)
+
+
+def test_failed_nextflow_task_diagnostics_reject_a_symlinked_cache(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID
+    state = run / "state"
+    logs = run / "logs"
+    state.mkdir(parents=True)
+    logs.mkdir()
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
+    (state / "phase").write_text("completed\n", encoding="ascii")
+    (state / "failure-class").write_text("test_failure\n", encoding="ascii")
+    outside_cache = tmp_path / "outside-cache"
+    task = outside_cache / "m6-nextflow-smoke-operational/work/a7" / ("3" * 32)
+    task.mkdir(parents=True)
+    (task / ".command.log").write_text("outside cache\n", encoding="ascii")
+    (run / "cache").symlink_to(outside_cache, target_is_directory=True)
+    application = logs / "m6-nextflow-smoke.log"
+    application.write_text(
+        f"Nextflow task failed\nWork dir:\n  {task}\n",
+        encoding="ascii",
+    )
+
+    result = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                M6_NEXTFLOW_SMOKE_RUN_ID,
+                OWNER_ID,
+                "20",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert result["diagnostic_log_path"] == ""
+
+    archive = _run(
+        [str(dispatcher), "collect", M6_NEXTFLOW_SMOKE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    assert not any(name.startswith("cache/") for name in names)
+
+
+def test_nextflow_diagnostics_require_a_complete_terminal_failure_marker(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID
+    state = run / "state"
+    logs = run / "logs"
+    state.mkdir(parents=True)
+    logs.mkdir()
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
+    (state / "phase").write_text("submitted\n", encoding="ascii")
+    (state / "failure-class").write_text("test_failure\n", encoding="ascii")
+    task = run / "cache/m6-nextflow-smoke-operational/work/a7" / ("4" * 32)
+    task.mkdir(parents=True)
+    (task / ".command.log").write_text("diagnostic\n", encoding="ascii")
+    application = logs / "m6-nextflow-smoke.log"
+    application.write_text(
+        f"Nextflow task failed\nWork dir:\n  {task}\n",
+        encoding="ascii",
+    )
+
+    active = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                M6_NEXTFLOW_SMOKE_RUN_ID,
+                OWNER_ID,
+                "20",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert active["diagnostic_log_path"] == ""
+
+    (state / "phase").write_text("completed\n", encoding="ascii")
+    application.write_text(
+        f"First failure\nWork dir:\n  {task}\nLater task\nWork dir:\n",
+        encoding="ascii",
+    )
+    truncated = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                M6_NEXTFLOW_SMOKE_RUN_ID,
+                OWNER_ID,
+                "20",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert truncated["diagnostic_log_path"] == ""
+
+
+def test_nextflow_logs_are_byte_bounded_and_prefer_nonempty_error(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID
+    state = run / "state"
+    logs = run / "logs"
+    state.mkdir(parents=True)
+    logs.mkdir()
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
+    (state / "phase").write_text("completed\n", encoding="ascii")
+    (state / "failure-class").write_text("test_failure\n", encoding="ascii")
+    task = run / "cache/m6-nextflow-smoke-operational/work/a7" / ("5" * 32)
+    task.mkdir(parents=True)
+    (task / ".command.log").write_text("", encoding="ascii")
+    (task / ".command.err").write_text("useful error\n", encoding="ascii")
+    application = logs / "m6-nextflow-smoke.log"
+    application.write_text(
+        ("x" * (2 * 1024 * 1024 + 4096)) + f"\nWork dir:\n  {task}\n",
+        encoding="ascii",
+    )
+
+    result = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                M6_NEXTFLOW_SMOKE_RUN_ID,
+                OWNER_ID,
+                "20",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    content = base64.b64decode(result["content_base64"])
+    assert result["diagnostic_log_path"] == str(task / ".command.err")
+    assert len(content) <= 2 * 1024 * 1024
+    assert b"useful error" in content
+
+
+def test_oversized_nextflow_diagnostic_does_not_block_core_collection(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID
+    state = run / "state"
+    logs = run / "logs"
+    state.mkdir(parents=True)
+    logs.mkdir()
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
+    (state / "phase").write_text("completed\n", encoding="ascii")
+    (state / "failure-class").write_text("test_failure\n", encoding="ascii")
+    task = run / "cache/m6-nextflow-smoke-operational/work/a7" / ("6" * 32)
+    task.mkdir(parents=True)
+    (task / ".command.sh").write_text("small command\n", encoding="ascii")
+    (task / ".command.log").write_bytes(b"z" * (2 * 1024 * 1024 + 1))
+    application = logs / "m6-nextflow-smoke.log"
+    application.write_text(
+        f"Nextflow task failed\nWork dir:\n  {task}\n",
+        encoding="ascii",
+    )
+
+    archive = _run(
+        [str(dispatcher), "collect", M6_NEXTFLOW_SMOKE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+        omission = collected.extractfile("state/nextflow-diagnostic-omissions.tsv")
+        assert omission is not None
+        omission_text = omission.read().decode()
+    task_relative = task.relative_to(run).as_posix()
+    assert "logs/m6-nextflow-smoke.log" in names
+    assert f"{task_relative}/.command.sh" in names
+    assert f"{task_relative}/.command.log" not in names
+    assert ".command.log\t2097153\tper_file_limit" in omission_text
 
 
 def test_remote_dispatcher_stages_checksum_verified_source_archive(

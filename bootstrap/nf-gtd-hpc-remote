@@ -14,6 +14,8 @@ BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 MAX_FILE_BYTES=$((20 * 1024 * 1024))
 MAX_TOTAL_BYTES=$((100 * 1024 * 1024))
+MAX_LOG_BYTES=$((2 * 1024 * 1024))
+MAX_NEXTFLOW_DIAGNOSTIC_BYTES=$((2 * 1024 * 1024))
 MAX_REVIEW_FILE_BYTES=$((128 * 1024 * 1024))
 MAX_REVIEW_TOTAL_BYTES=$((512 * 1024 * 1024))
 MAX_P0_INPUT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
@@ -2568,11 +2570,22 @@ nextflow_failure_workdir() {
     [[ "$#" -eq 2 ]] || return 1
     local run="$1"
     local application_log="$2"
-    local line candidate="" expect_path=false cache_root resolved relative
+    local line candidate="" expect_path=false run_resolved cache_path cache_root
+    local resolved relative phase failure_class
     [[ -f "$application_log" && ! -L "$application_log" && \
        -O "$application_log" ]] || return 1
+    [[ -f "$run/state/phase" && ! -L "$run/state/phase" && \
+       -O "$run/state/phase" && \
+       -f "$run/state/failure-class" && \
+       ! -L "$run/state/failure-class" && \
+       -O "$run/state/failure-class" ]] || return 1
+    phase="$(<"$run/state/phase")"
+    failure_class="$(<"$run/state/failure-class")"
+    [[ "$phase" == completed && -n "$failure_class" && \
+       "$failure_class" != success ]] || return 1
     while IFS= read -r line; do
         if [[ "$line" == "Work dir:" ]]; then
+            candidate=""
             expect_path=true
             continue
         fi
@@ -2582,7 +2595,14 @@ nextflow_failure_workdir() {
         fi
     done < "$application_log"
     [[ -n "$candidate" && "$candidate" =~ $SAFE_PATH_RE ]] || return 1
-    cache_root="$(realpath -e "$run/cache" 2>"$DISCARD")" || return 1
+    run_resolved="$(realpath -e "$run" 2>"$DISCARD")" || return 1
+    [[ "$run_resolved" == "$run" && -d "$run" && ! -L "$run" && \
+       -O "$run" ]] || return 1
+    cache_path="$run/cache"
+    [[ -d "$cache_path" && ! -L "$cache_path" && -O "$cache_path" ]] || \
+        return 1
+    cache_root="$(realpath -e "$cache_path" 2>"$DISCARD")" || return 1
+    [[ "$cache_root" == "$cache_path" ]] || return 1
     resolved="$(realpath -e "$candidate" 2>"$DISCARD")" || return 1
     [[ "$resolved" == "$candidate" && -d "$candidate" && \
        ! -L "$candidate" && -O "$candidate" ]] || return 1
@@ -2698,11 +2718,13 @@ logs_run() {
     elif [[ -n "$log_path" && -f "$log_path" ]]; then
         diagnostic_dir="$(nextflow_failure_workdir "$run" "$log_path" || true)"
         if [[ -n "$diagnostic_dir" ]]; then
-            if [[ -f "$diagnostic_dir/.command.log" && \
+            if [[ -s "$diagnostic_dir/.command.log" && \
+                  -r "$diagnostic_dir/.command.log" && \
                   ! -L "$diagnostic_dir/.command.log" && \
                   -O "$diagnostic_dir/.command.log" ]]; then
                 diagnostic_log="$diagnostic_dir/.command.log"
-            elif [[ -f "$diagnostic_dir/.command.err" && \
+            elif [[ -s "$diagnostic_dir/.command.err" && \
+                    -r "$diagnostic_dir/.command.err" && \
                     ! -L "$diagnostic_dir/.command.err" && \
                     -O "$diagnostic_dir/.command.err" ]]; then
                 diagnostic_log="$diagnostic_dir/.command.err"
@@ -2711,7 +2733,10 @@ logs_run() {
     fi
     if [[ -n "$diagnostic_log" ]]; then
         if (( lines == 1 )); then
-            content="$(tail -n 1 -- "$diagnostic_log" | base64 | tr -d '\n')"
+            content="$(
+                tail -n 1 -- "$diagnostic_log" | \
+                    tail -c "$MAX_LOG_BYTES" | base64 | tr -d '\n'
+            )"
         else
             main_lines=$((lines / 2))
             diagnostic_lines=$((lines - main_lines - 1))
@@ -2719,10 +2744,13 @@ logs_run() {
                 tail -n "$main_lines" -- "$log_path"
                 printf '%s\n' "--- $diagnostic_header ---"
                 tail -n "$diagnostic_lines" -- "$diagnostic_log"
-            } | base64 | tr -d '\n')"
+            } | tail -c "$MAX_LOG_BYTES" | base64 | tr -d '\n')"
         fi
     elif [[ -n "$log_path" && -f "$log_path" ]]; then
-        content="$(tail -n "$lines" -- "$log_path" | base64 | tr -d '\n')"
+        content="$(
+            tail -n "$lines" -- "$log_path" | \
+                tail -c "$MAX_LOG_BYTES" | base64 | tr -d '\n'
+        )"
     fi
     emit operation logs
     emit run_id "$run_id"
@@ -2859,8 +2887,10 @@ collect_run() {
     local owner_id="$2"
     local run job_id="" candidate size total=0
     local profile="" application_log="" diagnostic_dir="" diagnostic_path=""
-    local relative="" basename=""
+    local relative="" diagnostic_relative="" basename="" omission_record=""
+    local omission_temporary="" omission_size=0
     local -a files=()
+    local -a diagnostic_omissions=()
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     if [[ -f "$run/state/job-id" ]]; then
@@ -3227,6 +3257,10 @@ collect_run() {
         fi
     fi
     if [[ -n "$diagnostic_dir" ]]; then
+        diagnostic_relative="${diagnostic_dir#"$run"/}"
+        [[ "$diagnostic_dir" == "$run"/cache/* && \
+           "$diagnostic_relative" =~ ^cache/[A-Za-z0-9._-]+/work/[0-9a-f]{2}/[0-9a-f]{6,}$ ]] || \
+            fail wrapper_failure "resolved Nextflow diagnostic path is invalid"
         for basename in \
             .command.sh \
             .command.run \
@@ -3236,19 +3270,47 @@ collect_run() {
             .command.trace \
             .exitcode; do
             diagnostic_path="$diagnostic_dir/$basename"
-            if [[ -f "$diagnostic_path" && ! -L "$diagnostic_path" && \
-                  -O "$diagnostic_path" ]]; then
-                relative="${diagnostic_path#"$run"/}"
+            if [[ -f "$diagnostic_path" && -r "$diagnostic_path" && \
+                  ! -L "$diagnostic_path" && -O "$diagnostic_path" ]]; then
                 size="$(file_size "$diagnostic_path")"
-                (( size <= MAX_FILE_BYTES )) || \
-                    fail transfer_failure \
-                        "Nextflow diagnostic exceeds per-file limit"
-                total=$((total + size))
-                (( total <= MAX_TOTAL_BYTES )) || \
-                    fail transfer_failure "artefacts exceed total limit"
-                files+=("$relative")
+                relative="$diagnostic_relative/$basename"
+                if (( size > MAX_NEXTFLOW_DIAGNOSTIC_BYTES )); then
+                    diagnostic_omissions+=(
+                        "$basename"$'\t'"$size"$'\t'"per_file_limit"
+                    )
+                elif (( total + size > MAX_TOTAL_BYTES )); then
+                    diagnostic_omissions+=(
+                        "$basename"$'\t'"$size"$'\t'"total_limit"
+                    )
+                else
+                    total=$((total + size))
+                    files+=("$relative")
+                fi
+            elif [[ -e "$diagnostic_path" || -L "$diagnostic_path" ]]; then
+                diagnostic_omissions+=(
+                    "$basename"$'\t'"0"$'\t'"unsafe_or_unreadable"
+                )
             fi
         done
+    fi
+    if ((${#diagnostic_omissions[@]} > 0)); then
+        omission_record="$run/state/nextflow-diagnostic-omissions.tsv"
+        [[ ! -L "$omission_record" && \
+           ( ! -e "$omission_record" || \
+             ( -f "$omission_record" && -O "$omission_record" ) ) ]] || \
+            fail filesystem_failure \
+                "Nextflow diagnostic omission record is unsafe"
+        omission_temporary="${omission_record}.tmp.$$"
+        {
+            printf '%s\n' $'file\tsize_bytes\treason'
+            printf '%s\n' "${diagnostic_omissions[@]}"
+        } > "$omission_temporary"
+        mv -f -- "$omission_temporary" "$omission_record"
+        omission_size="$(file_size "$omission_record")"
+        if (( total + omission_size <= MAX_TOTAL_BYTES )); then
+            total=$((total + omission_size))
+            files+=("state/nextflow-diagnostic-omissions.tsv")
+        fi
     fi
     ((${#files[@]} > 0)) || fail transfer_failure "no approved artefacts are available"
     tar -czf - -C "$run" "${files[@]}"
