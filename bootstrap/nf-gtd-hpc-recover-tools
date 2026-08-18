@@ -113,8 +113,8 @@ fi
    -x "$pixi_executable" ]] || die "recorded Pixi executable is unsafe"
 pixi_version="$("$pixi_executable" --version 2>&1)" || \
     die "Pixi version check failed"
-[[ "$pixi_version" =~ ^pixi[[:space:]]+0\.(74\.0|76\.2)$ ]] || \
-    die "Pixi 0.74.0 or 0.76.2 is required"
+[[ "$pixi_version" =~ ^pixi[[:space:]]+0\.76\.2$ ]] || \
+    die "Pixi 0.76.2 is required"
 
 mkdir -p "$locks"
 exec 9>"$locks/deploy-tools.lock"

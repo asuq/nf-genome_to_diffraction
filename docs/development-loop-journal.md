@@ -8186,3 +8186,30 @@ Commit and push the focused Pixi-path recovery, watch one CI run, then retry
 the checksum-gated deployment so the path record is created. Stage the exact
 pushed SHA through source-archive fallback; submit only if stage reports
 `site_id=marmic`, the Marmic policy ID/checksum, and a run-owned cache.
+
+## 2026-08-18T18:16:13Z - Runtime standardised on Pixi 0.76.2
+
+### Evidence and focused correction
+
+- Actions run `32169323897`, job `95816382360`, passed pushed Pixi-path
+  recovery commit `043d8c73eef0904633958c7509c98c57ac0621ec` in 6m47s under
+  Pixi 0.76.2.
+- The remaining Pixi 0.74.0 allowance was legacy Marmic-prototype
+  compatibility. The project manifest, local runtime, Marmic runtime, Viper
+  runtime, and single CI job are now all standardised on Pixi 0.76.2.
+- Recovery, readiness, database readiness, and staging now require exactly
+  Pixi 0.76.2. The fake remote runtime defaults to 0.76.2, and explicit
+  regressions prove that 0.74.0 is reported as a version mismatch and cannot
+  recover tools or create a staged run.
+- Seven focused dispatcher/recovery tests pass, including both-site M6 policy
+  staging. Bash syntax, targeted Ruff, and `git diff --check` pass. Per the
+  agreed loop cadence, the complete local suite was not repeated for this
+  narrow compatibility correction.
+
+### Next exact starting point
+
+Commit and push this exact-version correction once and use its single CI job
+as the batch gate. After green CI, rebuild and checksum the controller, deploy
+the reviewed tools to the rebuilt Marmic root, then stage the exact pushed SHA
+through source-archive fallback. Submit no job unless the staged record binds
+the Marmic site, fixed Marmic policy, and run-owned Apptainer cache.

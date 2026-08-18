@@ -261,7 +261,7 @@ readiness_p0() {
     fi
     if [[ "$pixi_bin" =~ $SAFE_PATH_RE && -x "$pixi_bin" ]]; then
         if pixi_version="$("$pixi_bin" --version 2>&1)"; then
-            if [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.(74\.0|76\.2)$ ]]; then
+            if [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.76\.2$ ]]; then
                 pixi_status=ready
             else
                 pixi_status=version_mismatch
@@ -667,7 +667,7 @@ database_readiness() {
     fi
     if [[ "$pixi_bin" =~ $SAFE_PATH_RE && -x "$pixi_bin" ]]; then
         if pixi_version="$("$pixi_bin" --version 2>&1)"; then
-            if [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.(74\.0|76\.2)$ ]]; then
+            if [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.76\.2$ ]]; then
                 pixi_status=ready
             else
                 pixi_status=version_mismatch
@@ -880,8 +880,8 @@ stage_run_common() {
     pixi_bin="$RESOLVED_PIXI"
     pixi_version="$("$pixi_bin" --version 2>&1)" || \
         fail environment_failure "Pixi version check failed"
-    [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.(74\.0|76\.2)$ ]] || \
-        fail environment_failure "Pixi 0.74.0 or qualified Viper 0.76.2 is required"
+    [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.76\.2$ ]] || \
+        fail environment_failure "Pixi 0.76.2 is required"
 
     exec 9>"$LOCKS/stage.lock"
     flock -x 9

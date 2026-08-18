@@ -240,7 +240,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         pixi,
         "#!/usr/bin/env bash\n"
         'case "${1-}" in\n'
-        "  --version) echo 'pixi 0.74.0' ;;\n"
+        '  --version) echo "pixi ${FAKE_PIXI_VERSION:-0.76.2}" ;;\n'
         "  install)\n"
         '    [[ "${FAKE_PIXI_INSTALL_FAIL:-0}" != 1 ]] || exit 4\n'
         "    previous=\n"
@@ -1164,6 +1164,38 @@ def test_recovery_script_replaces_only_checksum_verified_tools(tmp_path: Path) -
     )
     assert b"dispatcher path is invalid" in injected.stderr
     assert not (tmp_path / "touch").exists()
+
+
+def test_recovery_script_rejects_legacy_pixi(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    source_bootstrap = tmp_path / "source-origin" / "bootstrap"
+    recovery = source_bootstrap / "nf-gtd-hpc-recover-tools"
+    dispatcher_source = source_bootstrap / dispatcher.name
+    job_source = source_bootstrap / smoke_job.name
+    dispatcher_digest = hashlib.sha256(dispatcher_source.read_bytes()).hexdigest()
+    job_digest = hashlib.sha256(job_source.read_bytes()).hexdigest()
+    legacy_environment = dict(environment)
+    legacy_environment["FAKE_PIXI_VERSION"] = "0.74.0"
+
+    rejected = _run(
+        [
+            str(recovery),
+            str(dispatcher),
+            commit,
+            dispatcher_digest,
+            job_digest,
+            str(dispatcher_source.stat().st_size),
+            str(job_source.stat().st_size),
+        ],
+        cwd=tmp_path,
+        environment=legacy_environment,
+        input_data=dispatcher_source.read_bytes() + job_source.read_bytes(),
+        success=False,
+    )
+
+    assert b"Pixi 0.76.2 is required" in rejected.stderr
+    assert hashlib.sha256(dispatcher.read_bytes()).hexdigest() == dispatcher_digest
+    assert hashlib.sha256(smoke_job.read_bytes()).hexdigest() == job_digest
 
 
 def test_recovery_script_bootstraps_an_absent_fixed_tool_directory(
@@ -2166,7 +2198,7 @@ def test_p0_readiness_is_sanitised_and_creates_no_run(tmp_path: Path) -> None:
         "profile": "p0",
         "ready": "false",
         "pixi_status": "ready",
-        "pixi_version": "pixi 0.74.0",
+        "pixi_version": "pixi 0.76.2",
         "p0_config_status": "absent_or_unsafe",
         "p0_config_sha256": "",
         "scope": "staging_prerequisites_only",
@@ -2203,6 +2235,54 @@ def test_p0_readiness_is_sanitised_and_creates_no_run(tmp_path: Path) -> None:
     assert unsafe_fields["ready"] == "false"
     assert unsafe_fields["p0_config_status"] == "unsafe_path"
     assert not (tmp_path / "bad").exists()
+
+
+def test_remote_dispatcher_rejects_legacy_pixi(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    legacy_environment = dict(environment)
+    legacy_environment["FAKE_PIXI_VERSION"] = "0.74.0"
+
+    readiness = _decode_protocol(
+        _run(
+            [str(dispatcher), "readiness", "p0"],
+            cwd=tmp_path,
+            environment=legacy_environment,
+        ).stdout
+    )
+    database_readiness = _decode_protocol(
+        _run(
+            [str(dispatcher), "database-readiness"],
+            cwd=tmp_path,
+            environment=legacy_environment,
+        ).stdout
+    )
+    assert readiness["pixi_status"] == "version_mismatch"
+    assert readiness["pixi_version"] == "pixi 0.74.0"
+    assert readiness["ready"] == "false"
+    assert database_readiness["pixi_status"] == "version_mismatch"
+    assert database_readiness["ready"] == "false"
+
+    lock_checksum = hashlib.sha256(
+        (tmp_path / "source-origin" / "pixi.lock").read_bytes()
+    ).hexdigest()
+    rejected = _run(
+        [
+            str(dispatcher),
+            "stage",
+            RUN_ID,
+            commit,
+            lock_checksum,
+            OWNER_ID,
+            "1",
+            "smoke",
+        ],
+        cwd=tmp_path,
+        environment=legacy_environment,
+        success=False,
+    )
+    assert _decode_protocol(rejected.stdout)["failure_class"] == "environment_failure"
+    assert not (remote_root / "runs" / RUN_ID).exists()
 
 
 def test_p0_input_bundle_is_checksum_gated_immutable_and_configurable(
