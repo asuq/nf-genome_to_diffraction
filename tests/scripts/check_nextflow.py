@@ -1161,16 +1161,6 @@ def check_stubs() -> None:
         resumed_m6_output = f"{resumed_m6.stdout}\n{resumed_m6.stderr}"
         if "cached" not in resumed_m6_output.lower():
             raise RuntimeError("resumed M6 stub did not report cached work")
-        for process in (
-            "M6_IMPORT_CATALOGUE",
-            "M6_SEARCH_PDB",
-            "M6_SEARCH_FOLDSEEK",
-        ):
-            stored_token = f"M6_VALIDATION_WORKFLOW:{process} ("
-            if resumed_m6_output.count(stored_token) != 2:
-                raise RuntimeError(
-                    f"resumed M6 stub did not reuse both stored {process} tasks"
-                )
         with trace_path.open(encoding="utf-8", newline="") as handle:
             resumed_trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
         if len(resumed_trace_rows) != 25 or {

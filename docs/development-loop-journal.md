@@ -8668,3 +8668,82 @@ point passes one mutation corpus.
 Integrate these local commits onto current main after preserving the active-run
 journal. Push once and watch one CI run for the combined R1 batch. Then close
 the remaining raw-loader parity slice without mixing in R2 provider behavior.
+## 2026-08-18T21:23:22Z - Permanent-store Marmic replay is running
+
+### Immutable execution evidence
+
+- Actions run `32186626570`, job `95871628833`, passed commit
+  `b847873ba387508de6c692b6fd5b29f2baa4aa13` in 6m35s under Pixi 0.76.2.
+- Checksum-gated deployment rebound the unchanged reviewed tools to that
+  source. Source-archive staging completed with the fixed Marmic policy,
+  nf-helper `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, and run-owned
+  Apptainer cache.
+- Submitted exactly one replay:
+  `gtd-m6-nextflow-smoke-20260818T212114Z-b847873ba387-343ceb8d`, Slurm
+  `629503`. Its first structured state is `RUNNING`, terminal false.
+- The existing heartbeat is rebound and `ACTIVE`; it monitors only this run
+  through status/logs/collect. Both earlier failed runs and caches remain
+  retained but excluded from monitoring, resume, reuse, and cleanup.
+
+### Next exact starting point
+
+While non-terminal, leave the run untouched and continue independent R1
+contract work in isolated worktrees. At terminal, collect and classify through
+the wrapper before any run-related source change. Do not stage M6 science.
+
+## 2026-08-18T22:10:14Z - Third Marmic run isolates the storeDir defect
+
+### Terminal evidence
+
+- Run `gtd-m6-nextflow-smoke-20260818T212114Z-b847873ba387-343ceb8d`,
+  Slurm `629503`, terminated `FAILED`, `test_failure`, with signature
+  `647db6e89242fcdd5e04127089fa690bf58f4dd884dd67d42de772b81275534b`.
+  Wrapper-only logs and collection retained the seven fixed task diagnostics.
+- The collected generated runner proves the Marmic `withName` selector applied:
+  `NXF_SCRATCH=''`. The task and writable helper exited zero with empty logs,
+  but Nextflow still copied the directory from the ordinary shared work
+  directory into `storeDir` and immediately reported it missing. This rules out
+  source permissions and scratch as the remaining cause and isolates Marmic
+  directory-output `storeDir` registration/visibility.
+- The heartbeat is paused on this already-terminal run. All three failed runs
+  and caches remain retained but excluded from resume, reuse, and cleanup.
+
+### Parallel R1 state and next exact starting point
+
+- The six core R1 contract/configuration corrections are integrated on main
+  and passed their combined complete locked gate before integration. The
+  active-run journal was restored after the cherry-pick sequence.
+- A separate `m6-shared-resume-cache` worktree is replacing `storeDir` with one
+  standard shared Nextflow work/cache: operational resume must be 25/25 cached,
+  while leakage resume may reuse exactly six truthless discovery tasks and
+  must execute 19 track-specific tasks.
+- Do not stage another Marmic run until that topology has focused evidence,
+  one complete integration gate, one CI run, and reviewed tool deployment.
+
+## 2026-08-18T22:55:33Z - R1 and standard M6 resume cache pass combined gate
+
+### Integrated evidence
+
+- Actions run `32191546405`, job `95886758470`, passed the combined R1
+  contract/configuration batch at `72b3a14a39e3b1b4e5cfd89c5c5a8163b89c8f2d`
+  in 5m49s.
+- Integrated removal of M6 `storeDir` and its unused parameter. Explicit
+  content files plus `cache 'deep'` bind the three truthless processes; track
+  salt prevents every other process from reusing across operational/leakage.
+  Separate real scientific tracks recompute discovery.
+- The focused three-pass graph proves 25 newly completed operational tasks,
+  25 cached operational-resume tasks, and exactly six truthless cached plus 19
+  newly completed leakage tasks.
+- The complete combined gate passes Ruff format/lint, `ty`, 488 unit tests,
+  106 contract tests, 68 integration tests, schemas, public-panel validation,
+  documentation links, actionlint, Nextflow syntax, and all Bash wrapper
+  checks. Its first full stub sweep found one stale textual `storeDir` reuse
+  assertion; removing that obsolete assertion leaves the trace-based topology
+  checks authoritative, and the complete stub/resume sweep then passes.
+
+### Next exact starting point
+
+Commit the stale-assertion cleanup with this evidence, push once, and watch one
+CI run. After green CI, deploy reviewed tools and submit exactly one Marmic
+shared-resume smoke. Rebind and resume the existing heartbeat only after
+submission; never reuse the three failed runs or caches.
