@@ -75,6 +75,17 @@ schedule this development task to reactivate after 30 minutes. On reactivation:
    the retained result before changing source; and
 4. never infer failure from silence, issue implicit `cancel`, or run `clean`.
 
+For a terminal Nextflow failure, the same reviewed `logs` operation derives the
+failed task work directory from Nextflow's own `Work dir:` record. It accepts
+only a canonical owned directory below that run's fixed `cache/*/work/HH/HASH`
+tree and appends a bounded `.command.log` tail; callers cannot supply a path.
+The normal `collect` operation adds only `.command.sh`, `.command.run`,
+`.command.log`, `.command.out`, `.command.err`, `.command.trace`, and
+`.exitcode` from that validated directory. Symlinks, escaped paths, foreign
+ownership, and unlisted siblings are ignored. This is the complete supported
+failure-diagnostic boundary; routine monitoring and diagnosis must not fall
+back to raw SSH or arbitrary remote file reads.
+
 Before each pause or hand-off, update the tracked development-loop journal with
 the current immutable commit, job state, accomplished checkpoints, unresolved
 work, and exact reactivation action. Run IDs and machine-specific paths remain

@@ -959,6 +959,118 @@ def test_m6_nextflow_smoke_collects_v2_and_resume_evidence(tmp_path: Path) -> No
     assert "artifacts/m6-nextflow-smoke/operational/private.txt" not in names
 
 
+def test_failed_nextflow_task_diagnostics_are_bounded_and_collected(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID
+    state = run / "state"
+    logs = run / "logs"
+    state.mkdir(parents=True)
+    logs.mkdir()
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
+    (state / "phase").write_text("completed\n", encoding="ascii")
+    task = run / "cache/m6-nextflow-smoke-operational/work/a7" / ("1" * 32)
+    task.mkdir(parents=True)
+    diagnostic_files = {
+        ".command.sh": "#!/bin/bash\ncopy fixture\n",
+        ".command.run": "generated runner\n",
+        ".command.log": "permission denied while copying output\n",
+        ".command.out": "",
+        ".command.err": "",
+        ".command.trace": "nextflow.trace/v2\n",
+        ".exitcode": "0",
+    }
+    for name, content in diagnostic_files.items():
+        (task / name).write_text(content, encoding="ascii")
+    (task / "private.env").write_text("not collected\n", encoding="ascii")
+    application = logs / "m6-nextflow-smoke.log"
+    application.write_text(
+        f"Nextflow task failed\nWork dir:\n  {task}\n",
+        encoding="ascii",
+    )
+
+    result = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                M6_NEXTFLOW_SMOKE_RUN_ID,
+                OWNER_ID,
+                "20",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    content = base64.b64decode(result["content_base64"]).decode()
+    assert result["diagnostic_log_path"] == str(task / ".command.log")
+    assert "--- failed command log ---" in content
+    assert "permission denied while copying output" in content
+    assert len(content.splitlines()) <= 20
+
+    archive = _run(
+        [str(dispatcher), "collect", M6_NEXTFLOW_SMOKE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    task_relative = task.relative_to(run).as_posix()
+    expected = {f"{task_relative}/{name}" for name in diagnostic_files}
+    assert expected <= names
+    assert f"{task_relative}/private.env" not in names
+
+
+def test_failed_nextflow_task_diagnostics_reject_an_escaped_path(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID
+    state = run / "state"
+    logs = run / "logs"
+    state.mkdir(parents=True)
+    logs.mkdir()
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (state / "profile").write_text("m6-nextflow-smoke\n", encoding="ascii")
+    escaped = tmp_path / "outside/work/a7" / ("2" * 32)
+    escaped.mkdir(parents=True)
+    (escaped / ".command.log").write_text("must not be returned\n", encoding="ascii")
+    application = logs / "m6-nextflow-smoke.log"
+    application.write_text(
+        f"Nextflow task failed\nWork dir:\n  {escaped}\n",
+        encoding="ascii",
+    )
+
+    result = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                M6_NEXTFLOW_SMOKE_RUN_ID,
+                OWNER_ID,
+                "20",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    content = base64.b64decode(result["content_base64"]).decode()
+    assert result["diagnostic_log_path"] == ""
+    assert "must not be returned" not in content
+
+    archive = _run(
+        [str(dispatcher), "collect", M6_NEXTFLOW_SMOKE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    assert not any(name.startswith("cache/") for name in names)
+
+
 def test_remote_dispatcher_stages_checksum_verified_source_archive(
     tmp_path: Path,
 ) -> None:

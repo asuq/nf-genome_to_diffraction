@@ -8237,3 +8237,67 @@ Commit and push this one-branch controller correction and watch its single CI
 job. After green CI, rebuild and verify the controller checksum, retry the same
 reviewed Marmic deployment, and then stage the exact pushed SHA through the
 source-archive boundary. Do not submit unless all fixed Marmic state is bound.
+
+## 2026-08-18T18:37:00Z - Marmic site-validation smoke submitted
+
+### Immutable evidence
+
+- Actions run `32170847319`, job `95821360004`, passed controller recovery
+  commit `2592061740e03892b90bba1a9bf13236bb68004e` in 6m43s under
+  Pixi 0.76.2. The installed controller checksum is
+  `a729afe769ac21ebe8c4045df0fd963105f948a05a5a632171fb25b12d560e9b`.
+- Direct version inspection showed the Marmic user-local Pixi remained 0.74.0.
+  The user supplied the Mamba environment root; its fixed executable reports
+  Pixi 0.76.2 and was atomically recorded in the rebuilt tool directory.
+- Checksum-gated recovery deployed dispatcher
+  `e1ff791bfd5067465bb9ae59bce2b51258630d912d28378dfd9ce11bf15ee628`,
+  job wrapper
+  `4f1c6a8da0ee3a77f4fbe775e3dd034da3601cf832f5c44679b09fe1b113f2f2`,
+  and recovery
+  `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Source-archive staging completed for
+  `gtd-m6-nextflow-smoke-20260818T183126Z-2592061740e0-cffe35fb`, binding
+  site `marmic`, the fixed Marmic execution policy, and the run-owned
+  Apptainer cache. Slurm job `629472` was submitted and its first status was
+  `RUNNING`, terminal false. This remains site/orchestration evidence only.
+
+### Next exact starting point
+
+Monitor only this exact run through the reviewed wrapper. At terminal, collect
+bounded logs and artifacts, verify the complete R0A evidence contract and
+Marmic resource/provenance bindings, and classify before any source edit. Do
+not create a duplicate run or treat this site-validation smoke as M6 science.
+
+## 2026-08-18T19:12:43Z - Wrapper-only Nextflow failure diagnostics restored
+
+### Failure evidence and correction
+
+- Marmic run `gtd-m6-nextflow-smoke-20260818T183126Z-2592061740e0-cffe35fb`,
+  Slurm `629472`, terminated `FAILED` with signature
+  `0d7564d00d12009af1c5c1b6e96dcc007f02f9916ef84c20e07f2bd7259dfded`.
+  Bounded logs and collection showed the first synthetic catalogue-import
+  output was not registered; no scientific M6 work ran.
+- The existing wrapper returned the application log but omitted the failed
+  Nextflow task's retained `.command.log`, so exact permission evidence was not
+  available through the approved interface. The dispatcher now derives the
+  task directory only from Nextflow's `Work dir:` record, requires a canonical
+  owned path below the run cache with the fixed Nextflow hash layout, and
+  rejects escaped paths and symlinks.
+- `logs` appends a bounded failed-command tail. `collect` includes only seven
+  fixed task files and excludes unlisted siblings. Five focused compatibility,
+  positive, and escape tests pass.
+- One complete `pixi run --locked check` passes Ruff format/lint, `ty`, 475
+  unit tests, 67 contract tests, 60 integration tests, schemas, public-panel
+  validation, documentation links, actionlint, Nextflow syntax and full
+  stub/resume coverage, and all Bash wrapper checks.
+- The roadmap now records the Marmic hold and the v0.2 target of exactly two
+  public root Nextflow entrypoints while preserving the v0.1 historical
+  interface in its immutable tag.
+
+### Next exact starting point
+
+Commit and push the wrapper diagnostic boundary once, watch one CI run, deploy
+the checksum-reviewed dispatcher, and re-run `logs` plus `collect` on this
+already-terminal run to prove diagnosis without raw SSH. Then integrate the
+separately focused writable-stub correction and submit exactly one replacement
+Marmic smoke.

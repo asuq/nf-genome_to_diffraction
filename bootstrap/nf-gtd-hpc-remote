@@ -2564,6 +2564,35 @@ database_diagnostic_log() {
     printf '%s' "$candidate"
 }
 
+nextflow_failure_workdir() {
+    [[ "$#" -eq 2 ]] || return 1
+    local run="$1"
+    local application_log="$2"
+    local line candidate="" expect_path=false cache_root resolved relative
+    [[ -f "$application_log" && ! -L "$application_log" && \
+       -O "$application_log" ]] || return 1
+    while IFS= read -r line; do
+        if [[ "$line" == "Work dir:" ]]; then
+            expect_path=true
+            continue
+        fi
+        if [[ "$expect_path" == true ]]; then
+            candidate="${line#"${line%%[![:space:]]*}"}"
+            expect_path=false
+        fi
+    done < "$application_log"
+    [[ -n "$candidate" && "$candidate" =~ $SAFE_PATH_RE ]] || return 1
+    cache_root="$(realpath -e "$run/cache" 2>"$DISCARD")" || return 1
+    resolved="$(realpath -e "$candidate" 2>"$DISCARD")" || return 1
+    [[ "$resolved" == "$candidate" && -d "$candidate" && \
+       ! -L "$candidate" && -O "$candidate" ]] || return 1
+    path_within_root "$cache_root" "$resolved" || return 1
+    relative="${resolved#"$cache_root"/}"
+    [[ "$relative" =~ ^[A-Za-z0-9._-]+/work/[0-9a-f]{2}/[0-9a-f]{6,}$ ]] || \
+        return 1
+    printf '%s' "$resolved"
+}
+
 require_database_retained_staging() {
     [[ "$#" -eq 2 ]] || \
         fail wrapper_failure "retained-staging resolver expects a log and mode"
@@ -2637,6 +2666,7 @@ logs_run() {
     local owner_id="$2"
     local lines="$3"
     local run job_id="" log_path="" diagnostic_log="" content="" profile="" phase=""
+    local diagnostic_dir="" diagnostic_header="failed command log"
     local main_lines diagnostic_lines
     require_owned_run "$run_id" "$owner_id"
     [[ "$lines" =~ $INTEGER_RE ]] || fail wrapper_failure "log line count is invalid"
@@ -2664,6 +2694,20 @@ logs_run() {
     fi
     if [[ "$profile" == database && "$log_path" == "$run/logs/database.log" ]]; then
         diagnostic_log="$(database_diagnostic_log "$log_path" || true)"
+        diagnostic_header="failed database command log"
+    elif [[ -n "$log_path" && -f "$log_path" ]]; then
+        diagnostic_dir="$(nextflow_failure_workdir "$run" "$log_path" || true)"
+        if [[ -n "$diagnostic_dir" ]]; then
+            if [[ -f "$diagnostic_dir/.command.log" && \
+                  ! -L "$diagnostic_dir/.command.log" && \
+                  -O "$diagnostic_dir/.command.log" ]]; then
+                diagnostic_log="$diagnostic_dir/.command.log"
+            elif [[ -f "$diagnostic_dir/.command.err" && \
+                    ! -L "$diagnostic_dir/.command.err" && \
+                    -O "$diagnostic_dir/.command.err" ]]; then
+                diagnostic_log="$diagnostic_dir/.command.err"
+            fi
+        fi
     fi
     if [[ -n "$diagnostic_log" ]]; then
         if (( lines == 1 )); then
@@ -2673,7 +2717,7 @@ logs_run() {
             diagnostic_lines=$((lines - main_lines - 1))
             content="$({
                 tail -n "$main_lines" -- "$log_path"
-                printf '%s\n' "--- failed database command log ---"
+                printf '%s\n' "--- $diagnostic_header ---"
                 tail -n "$diagnostic_lines" -- "$diagnostic_log"
             } | base64 | tr -d '\n')"
         fi
@@ -2814,6 +2858,8 @@ collect_run() {
     local run_id="$1"
     local owner_id="$2"
     local run job_id="" candidate size total=0
+    local profile="" application_log="" diagnostic_dir="" diagnostic_path=""
+    local relative="" basename=""
     local -a files=()
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
@@ -3168,6 +3214,41 @@ collect_run() {
             (( total <= MAX_TOTAL_BYTES )) || fail transfer_failure "artefacts exceed total limit"
             files+=("$candidate")
         fi
+    fi
+    if [[ -f "$run/state/profile" ]]; then
+        profile="$(<"$run/state/profile")"
+        validate_profile "$profile"
+        application_log="$run/logs/${profile}.log"
+        if [[ -f "$application_log" && ! -L "$application_log" && \
+              -O "$application_log" ]]; then
+            diagnostic_dir="$(
+                nextflow_failure_workdir "$run" "$application_log" || true
+            )"
+        fi
+    fi
+    if [[ -n "$diagnostic_dir" ]]; then
+        for basename in \
+            .command.sh \
+            .command.run \
+            .command.log \
+            .command.out \
+            .command.err \
+            .command.trace \
+            .exitcode; do
+            diagnostic_path="$diagnostic_dir/$basename"
+            if [[ -f "$diagnostic_path" && ! -L "$diagnostic_path" && \
+                  -O "$diagnostic_path" ]]; then
+                relative="${diagnostic_path#"$run"/}"
+                size="$(file_size "$diagnostic_path")"
+                (( size <= MAX_FILE_BYTES )) || \
+                    fail transfer_failure \
+                        "Nextflow diagnostic exceeds per-file limit"
+                total=$((total + size))
+                (( total <= MAX_TOTAL_BYTES )) || \
+                    fail transfer_failure "artefacts exceed total limit"
+                files+=("$relative")
+            fi
+        done
     fi
     ((${#files[@]} > 0)) || fail transfer_failure "no approved artefacts are available"
     tar -czf - -C "$run" "${files[@]}"
