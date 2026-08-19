@@ -4,6 +4,7 @@ Contracts are strict because misspelled scientific fields must fail loudly. Path
 remain serialised as strings; execution layers resolve and checksum them before use.
 """
 
+import json
 from datetime import UTC, datetime
 from typing import Annotated, Any, Self
 
@@ -49,12 +50,34 @@ class ContractModel(BaseModel):
         by_alias: bool | None = None,
         by_name: bool | None = None,
     ) -> Self:
-        """Validate JSON wire data without coercing booleans or numbers."""
+        """Validate one unambiguous finite JSON wire document in JSON mode."""
 
         if strict is False:
             raise ValueError("contract JSON validation cannot disable strict mode")
+        from genome_to_diffraction.schemas.io import (
+            ContractLoadError,
+            parse_json_document,
+        )
+
+        try:
+            payload = (
+                json_data
+                if isinstance(json_data, str)
+                else bytes(json_data).decode("utf-8")
+            )
+        except UnicodeDecodeError as error:
+            raise ContractLoadError(
+                f"{cls.__name__}:/: contract JSON is not valid UTF-8"
+            ) from error
+        document = parse_json_document(payload, label=cls.__name__)
+        normalised = json.dumps(
+            document,
+            ensure_ascii=True,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
         return super().model_validate_json(
-            json_data,
+            normalised,
             strict=True,
             extra=extra,
             context=context,

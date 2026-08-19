@@ -9131,3 +9131,32 @@ Amend the unpushed final R1 commit with this journal/roadmap evidence, review
 the complete diff/status, push the three-commit batch once, and watch exactly
 one CI run. Then continue R2 provider-plan routing and typed empty/no-model
 bundles with focused tests; do not stage M6 science.
+
+## 2026-08-19T01:31:02Z - Direct typed JSON closes the final R1 parser gap
+
+### Observed gap and correction
+
+- Final review found that raw path/text readers used the central duplicate-key
+  parser, but direct `ContractModel.model_validate_json` calls still delegated
+  JSON tokenisation to Pydantic. Strict scalar/non-finite validation was active,
+  but duplicate mapping keys could retain the last value.
+- `ContractModel.model_validate_json` now decodes UTF-8 and passes the document
+  through the same path-aware duplicate/non-finite parser, then reserializes
+  finite unambiguous JSON before Pydantic's strict JSON-mode validation. This
+  preserves supported datetime, enum, and path decoding without coercing
+  booleans or numbers.
+- A direct `SequenceGroupRecord` JSONL duplicate-key regression fails at
+  `SequenceGroupRecord:/source_record_count`. Existing direct non-finite tests
+  now assert the shared raw-parser diagnostic.
+
+### Final evidence and next exact starting point
+
+- The focused typed-contract file passes 101 tests. One complete locked gate
+  passes Ruff format/lint, `ty`, 606 unit tests, 116 contract tests, 68
+  integration tests, schemas, public-panel and documentation checks,
+  actionlint, the full Nextflow syntax/stub-resume sweep, and all Bash wrapper
+  syntax checks.
+- R1 is now complete for raw path/text and direct typed JSON/JSONL entry points.
+  Commit this correction with the updated roadmap, push once after the already
+  running prior CI concludes, and watch exactly one new CI run. Then resume R2
+  provider-plan routing; do not stage M6 science.

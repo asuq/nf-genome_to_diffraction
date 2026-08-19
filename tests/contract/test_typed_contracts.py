@@ -438,13 +438,30 @@ def test_direct_jsonl_result_rejects_string_boolean() -> None:
         AdditionalCopyResult.model_validate_json(json.dumps(document))
 
 
+def test_direct_jsonl_result_rejects_duplicate_mapping_keys() -> None:
+    source = (REPOSITORY / "tests/fixtures/stubs/sequence_groups.jsonl").read_text(
+        encoding="utf-8"
+    )
+    duplicate = source.replace(
+        '"source_record_count":1',
+        '"source_record_count":1,"source_record_count":2',
+    )
+    assert duplicate != source
+
+    with pytest.raises(ContractLoadError) as captured:
+        SequenceGroupRecord.model_validate_json(duplicate)
+
+    assert "SequenceGroupRecord:/source_record_count" in str(captured.value)
+    assert "duplicate mapping key" in str(captured.value)
+
+
 @pytest.mark.parametrize("constant", ("NaN", "Infinity", "-Infinity"))
 def test_direct_jsonl_result_rejects_non_finite_metrics(constant: str) -> None:
     source = (
         REPOSITORY / "tests/fixtures/stubs/first_copy_phaser/normalised_mr_result.json"
     ).read_text(encoding="utf-8")
 
-    with pytest.raises(ValidationError, match="finite number"):
+    with pytest.raises(ContractLoadError, match="numeric constant"):
         NormalisedMrResult.model_validate_json(
             source.replace('"llg": null', f'"llg": {constant}')
         )
