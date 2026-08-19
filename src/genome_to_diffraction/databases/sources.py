@@ -15,7 +15,6 @@ Unit tests cover fixed URL selection, reuse, interruption, tampering, and unsafe
 staging entries; integration tests cover the login-node/Slurm hand-off.
 """
 
-import json
 import logging
 import os
 import re
@@ -38,6 +37,7 @@ from genome_to_diffraction.databases.network import (
     download_public_resource,
 )
 from genome_to_diffraction.ids import canonical_digest
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.databases")
@@ -277,9 +277,11 @@ def _read_manifest(path: Path) -> object:
     if not path.is_absolute() or path.is_symlink() or not path.is_file():
         raise DatabaseError("database source manifest is missing or unsafe")
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise DatabaseError("database source manifest is not valid JSON") from error
+        return load_json_document(path)
+    except ContractLoadError as error:
+        raise DatabaseError(
+            f"database source manifest is not valid strict JSON: {error}"
+        ) from error
 
 
 def load_source_bundle(

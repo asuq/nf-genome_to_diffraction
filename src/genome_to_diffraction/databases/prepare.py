@@ -9,7 +9,6 @@ loudly; there is no scientific no-hit state at this administrative boundary.
 
 import gzip
 import hashlib
-import json
 import logging
 import math
 import os
@@ -65,6 +64,11 @@ from genome_to_diffraction.databases.sources import (
     load_source_bundle,
 )
 from genome_to_diffraction.ids import canonical_digest, content_id
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_json_document,
+    parse_json_document,
+)
 from genome_to_diffraction.schemas.manifests import (
     DatabaseManifest,
     DatabaseResource,
@@ -93,6 +97,15 @@ _PDB_SEQRES_TARGET = re.compile(
     r"(?:-assembly(?P<assembly_number>[1-9][0-9]*))?"
     r"_(?P<seqres_token>[^\s\t]+)$"
 )
+
+
+def _load_json_document(path: Path, label: str) -> object:
+    try:
+        return load_json_document(path)
+    except ContractLoadError as error:
+        raise DatabaseError(f"invalid {label} {path}: {error}") from error
+
+
 _DECLARED_LENGTH = re.compile(r"(?:^|\s)length:(?P<length>[0-9]+)(?:\s|$)")
 _PROTEIN_ALPHABET = frozenset("ABCDEFGHIKLMNPQRSTVWXYZOUJ")
 _STAGING_NAME = re.compile(r"^\.staging-[0-9a-f]{32}$")
@@ -495,9 +508,9 @@ def _load_resource(
         )
     sidecar = _resource_sidecar(root)
     try:
-        document = json.loads(sidecar.read_text(encoding="utf-8"))
+        document = _load_json_document(sidecar, "database resource sidecar")
         resource = DatabaseResource.model_validate(document)
-    except (OSError, json.JSONDecodeError, ValidationError) as error:
+    except ValidationError as error:
         raise DatabaseError(
             f"invalid database resource sidecar {sidecar}: {error}"
         ) from error
@@ -625,9 +638,9 @@ def _load_expected_manifest(
     try:
         payload = path.read_bytes()
         actual_digest = hashlib.sha256(payload).hexdigest()
-        document = json.loads(payload)
+        document = parse_json_document(payload.decode("utf-8"), label=path)
         manifest = DatabaseManifest.model_validate(document)
-    except (OSError, json.JSONDecodeError, ValidationError) as error:
+    except (OSError, UnicodeDecodeError, ContractLoadError, ValidationError) as error:
         raise DatabaseError(
             f"invalid expected database manifest {path}: {error}"
         ) from error
@@ -667,9 +680,12 @@ def _finish_immutable_resource(
         shutil.rmtree(staging)
         try:
             existing = DatabaseResource.model_validate(
-                json.loads(_resource_sidecar(final_root).read_text(encoding="utf-8"))
+                _load_json_document(
+                    _resource_sidecar(final_root),
+                    "existing content-addressed resource sidecar",
+                )
             )
-        except (OSError, json.JSONDecodeError, ValidationError) as error:
+        except ValidationError as error:
             raise DatabaseError(
                 f"existing content-addressed resource is invalid: {final_root}: {error}"
             ) from error
@@ -2131,8 +2147,10 @@ def _esm_atlas_connectivity(
                 f"{metadata.content_type}"
             )
         try:
-            document = json.loads(response_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
+            document = _load_json_document(
+                response_path, "ESM Atlas connectivity response"
+            )
+        except DatabaseError as error:
             raise DatabaseError(
                 f"ESM Atlas connectivity probe returned invalid JSON: {error}"
             ) from error

@@ -6,7 +6,6 @@ lock, temporary-download, metadata, and digest-index layout.
 """
 
 import fcntl
-import json
 import logging
 import os
 import re
@@ -23,11 +22,19 @@ from tqdm import tqdm
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.databases.common import DatabaseError
 from genome_to_diffraction.ids import canonical_digest
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 
 _LOGGER = logging.getLogger("genome_to_diffraction.databases")
 _PROVIDERS = ("pdb", "afdb", "esm_atlas")
 _PDB_ID = re.compile(r"^[0-9][A-Za-z0-9]{3}$")
 _AFDB_MODEL_ID = re.compile(r"^AF-[A-Za-z0-9][A-Za-z0-9._-]{1,198}$")
+
+
+def _load_json_document(path: Path, label: str) -> object:
+    try:
+        return load_json_document(path)
+    except ContractLoadError as error:
+        raise DatabaseError(f"invalid {label} {path}: {error}") from error
 
 
 @dataclass(frozen=True)
@@ -131,12 +138,7 @@ def initialise_coordinate_cache(
         (root / "digest_index").mkdir(exist_ok=True)
         layout = _layout()
         if layout_path.exists():
-            try:
-                existing = json.loads(layout_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as error:
-                raise DatabaseError(
-                    f"invalid coordinate-cache layout: {error}"
-                ) from error
+            existing = _load_json_document(layout_path, "coordinate-cache layout")
             if existing != layout:
                 raise DatabaseError(
                     f"coordinate-cache layout differs from policy: {layout_path}"
@@ -171,10 +173,7 @@ def verify_coordinate_cache(root: Path) -> tuple[str, int, int]:
         raise DatabaseError(
             "coordinate-cache directories are missing: " + ", ".join(missing)
         )
-    try:
-        existing = json.loads(layout_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise DatabaseError(f"invalid coordinate-cache layout: {error}") from error
+    existing = _load_json_document(layout_path, "coordinate-cache layout")
     layout = _layout()
     if existing != layout:
         raise DatabaseError(
@@ -277,14 +276,9 @@ def publish_pdb_coordinate(
             },
         )
         if metadata_path.exists():
-            try:
-                existing_metadata = json.loads(
-                    metadata_path.read_text(encoding="utf-8")
-                )
-            except (OSError, json.JSONDecodeError) as error:
-                raise DatabaseError(
-                    f"invalid cached PDB coordinate metadata: {metadata_path}"
-                ) from error
+            existing_metadata = _load_json_document(
+                metadata_path, "cached PDB coordinate metadata"
+            )
             if existing_metadata != metadata:
                 raise DatabaseError(
                     f"cached PDB coordinate metadata collision: {metadata_path}"
@@ -404,25 +398,15 @@ def publish_afdb_coordinate(
             "size_bytes": size_bytes,
         }
         if index_path.exists():
-            try:
-                existing_index = json.loads(index_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as error:
-                raise DatabaseError(
-                    f"invalid coordinate digest index: {index_path}"
-                ) from error
+            existing_index = _load_json_document(index_path, "coordinate digest index")
             if existing_index != expected_index:
                 raise DatabaseError(f"coordinate digest index collision: {index_path}")
         else:
             atomic_write_json(index_path, expected_index)
         if metadata_path.exists():
-            try:
-                existing_metadata = json.loads(
-                    metadata_path.read_text(encoding="utf-8")
-                )
-            except (OSError, json.JSONDecodeError) as error:
-                raise DatabaseError(
-                    f"invalid cached AFDB coordinate metadata: {metadata_path}"
-                ) from error
+            existing_metadata = _load_json_document(
+                metadata_path, "cached AFDB coordinate metadata"
+            )
             if existing_metadata != metadata:
                 raise DatabaseError(
                     f"cached AFDB coordinate metadata collision: {metadata_path}"
@@ -582,10 +566,9 @@ def verify_cached_pdb_coordinate(
         raise DatabaseError("cached PDB coordinate metadata is missing or unsafe")
     if sha256_file(metadata_path, progress=False) != record.metadata_sha256:
         raise DatabaseError("cached PDB coordinate metadata checksum mismatch")
-    try:
-        actual_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise DatabaseError("cached PDB coordinate metadata is invalid") from error
+    actual_metadata = _load_json_document(
+        metadata_path, "cached PDB coordinate metadata"
+    )
     if actual_metadata != expected_metadata_document:
         raise DatabaseError("cached PDB coordinate metadata is inconsistent")
     expected_index = {
@@ -597,10 +580,7 @@ def verify_cached_pdb_coordinate(
     }
     if not index_path.is_file() or index_path.is_symlink():
         raise DatabaseError("cached PDB coordinate digest index is missing or unsafe")
-    try:
-        actual_index = json.loads(index_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise DatabaseError("cached PDB coordinate digest index is invalid") from error
+    actual_index = _load_json_document(index_path, "cached PDB coordinate digest index")
     if actual_index != expected_index:
         raise DatabaseError("cached PDB coordinate digest index is inconsistent")
     if (
@@ -633,12 +613,7 @@ def find_cached_pdb_coordinates(
     for metadata_path in sorted(metadata_root.glob("*.json")):
         if metadata_path.is_symlink() or not metadata_path.is_file():
             raise DatabaseError(f"cached PDB metadata is unsafe: {metadata_path}")
-        try:
-            document = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
-            raise DatabaseError(
-                f"invalid cached PDB coordinate metadata: {metadata_path}"
-            ) from error
+        document = _load_json_document(metadata_path, "cached PDB coordinate metadata")
         if not isinstance(document, dict):
             raise DatabaseError(
                 f"invalid cached PDB coordinate metadata: {metadata_path}"

@@ -6,7 +6,6 @@ preserved log, and is terminated if the configured project storage cap or
 free-space headroom is crossed within its declared write roots.
 """
 
-import json
 import logging
 import os
 import shutil
@@ -24,6 +23,7 @@ from tqdm import tqdm
 
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.ids import canonical_digest
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.status import InfrastructureError, ToolExecutionError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.databases")
@@ -57,6 +57,13 @@ class DatabaseCommandError(ToolExecutionError):
         self.command = tuple(command)
         self.returncode = returncode
         self.log_path = log_path
+
+
+def _load_json_document(path: Path, label: str) -> object:
+    try:
+        return load_json_document(path)
+    except ContractLoadError as error:
+        raise DatabaseError(f"cannot read {label} {path}: {error}") from error
 
 
 @dataclass(frozen=True)
@@ -386,12 +393,9 @@ def copy_inventoried_resource(
     if any(destination.iterdir()):
         raise DatabaseError(f"resource copy destination is not empty: {destination}")
     inventory_path = source / ".gtd-inventory.json"
-    try:
-        inventory_document = json.loads(inventory_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise DatabaseError(
-            f"cannot read scratch resource inventory {inventory_path}: {error}"
-        ) from error
+    inventory_document = _load_json_document(
+        inventory_path, "scratch resource inventory"
+    )
     if canonical_digest(inventory_document) != expected_digest:
         raise DatabaseError(f"scratch resource inventory digest mismatch: {source}")
     expected_inventory = {
@@ -536,12 +540,9 @@ def verify_inventory(
     """Verify a stored inventory using sizes and optional full SHA-256 checks."""
 
     inventory_path = root / ".gtd-inventory.json"
-    try:
-        document = json.loads(inventory_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise DatabaseError(
-            f"cannot read resource inventory {inventory_path}: {error}"
-        ) from error
+    document = _load_json_document(inventory_path, "resource inventory")
+    if not isinstance(document, dict):
+        raise DatabaseError(f"resource inventory is not an object: {inventory_path}")
     if canonical_digest(document) != expected_digest:
         raise DatabaseError(f"inventory digest mismatch for {root}")
     raw_records = document.get("files")

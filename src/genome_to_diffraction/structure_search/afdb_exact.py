@@ -35,7 +35,11 @@ from genome_to_diffraction.ids import (
     sequence_digest,
 )
 from genome_to_diffraction.schemas.base import ContractModel
-from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_contract,
+    parse_json_document,
+)
 from genome_to_diffraction.schemas.manifests import (
     DatabaseManifest,
     DatabaseResource,
@@ -399,9 +403,11 @@ def _parse_metadata(
     raw_response_sha256: str,
 ) -> tuple[tuple[_AfdbCandidate, ...], tuple[dict[str, JsonValue], ...]]:
     try:
-        payload: Any = json.loads(body)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ResultParseError("AFDB metadata response is not valid JSON") from error
+        payload = parse_json_document(body.decode("utf-8"), label="AFDB metadata")
+    except (UnicodeDecodeError, ContractLoadError) as error:
+        raise ResultParseError(
+            f"AFDB metadata response is not valid strict JSON: {error}"
+        ) from error
     if not isinstance(payload, list):
         raise ResultParseError("AFDB metadata response must be a JSON array")
     candidates: list[_AfdbCandidate] = []

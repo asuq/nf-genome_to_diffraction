@@ -2,7 +2,6 @@
 
 import hashlib
 import http.client
-import json
 import logging
 import os
 import re
@@ -25,6 +24,7 @@ from genome_to_diffraction.databases.common import (
     enforce_free_space,
     enforce_storage_limit,
 )
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 
 _LOGGER = logging.getLogger("genome_to_diffraction.databases")
 _CONTENT_RANGE = re.compile(
@@ -103,9 +103,9 @@ def _parse_nonnegative_integer(value: object, *, label: str) -> int | None:
 
 def _load_partial_state(path: Path, *, requested_url: str) -> _PartialState:
     try:
-        raw: Any = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise DatabaseError("invalid partial-download state") from error
+        raw = load_json_document(path)
+    except ContractLoadError as error:
+        raise DatabaseError(f"invalid partial-download state: {error}") from error
     if not isinstance(raw, dict) or raw.get("schema_version") != "1.0":
         raise DatabaseError("invalid partial-download state")
     allowed = {

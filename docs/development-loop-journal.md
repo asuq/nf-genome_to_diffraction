@@ -9038,3 +9038,96 @@ retained evidence before run-related source edits. Do not stage M6 science.
 - Review and commit this HPC-owned state slice separately. Then migrate the
   repository-owned database metadata/cache documents with focused cache and
   database tests; keep external response parsing as an explicit final class.
+
+## 2026-08-19T00:57:41Z - Database and external JSON boundaries are strict
+
+### Final direct-decoder migration
+
+- Migrated database resource sidecars/manifests, source bundles, resumable
+  download state, coordinate-cache layouts/metadata/indexes, resource
+  inventories, the ESM Atlas probe response, and AFDB metadata responses to the
+  shared duplicate-key and non-finite-number rejecting JSON grammar.
+- Repository-owned file loaders retain path-aware `DatabaseError` diagnostics.
+  External ESM Atlas/AFDB responses retain their separate parse-failure
+  semantics and raw evidence; no request, endpoint, cap, cache identity, or
+  provider policy changed.
+- Twelve focused mutation routes and all existing touched database,
+  cache/network, source-bundle, storage, and AFDB suites pass 113 tests.
+  Targeted Ruff format/lint, targeted `ty`, and `git diff --check` pass.
+
+### R1 parser boundary and next exact starting point
+
+- No direct `json.loads`, `json.load`, or `yaml.safe_load` call remains outside
+  the central `schemas/io.py` implementation; all repository entry points now
+  pass through that strict document boundary, while canonical serialization
+  stays unchanged.
+- Review and commit this final direct-decoder slice without a full suite or
+  push. Integrate commits `85484ae`, `f7fdb5a`, and this commit onto main while
+  preserving the terminal Marmic/roadmap evidence. Run one complete locked gate
+  for the combined R1 boundary, push once, and watch one CI run.
+
+## 2026-08-19T00:56:15Z - Marmic standard-resume smoke passes all R0 gates
+
+### Terminal collected evidence
+
+- Run `gtd-m6-nextflow-smoke-20260819T000318Z-8326afb66805-b63c878f`,
+  Slurm `629614`, completed successfully on immutable source
+  `8326afb668054a481eac03b74f71857cd8daf72b`, nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb`, Pixi 0.76.2, lock SHA-256
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`,
+  and Marmic policy SHA-256
+  `696f9e7d1153af664e6cb5cc818cd618287f80d759dc9dda15b2c7819b466623`.
+- The first operational trace contains exactly 25 `COMPLETED` tasks and 25
+  distinct native child IDs. Operational resume contains exactly 25 `CACHED`
+  tasks with byte-identical ten-file digest manifests. Leakage resume contains
+  exactly six cached truthless tasks--two catalogue imports, two PDB searches,
+  and two Foldseek searches--plus 19 completed track-specific tasks.
+- The four search children have distinct native IDs and each requested 32 CPUs,
+  16 GB, and 24 hours. Per-job bounds pass; observed peak concurrency is one,
+  so no aggregate queue/rate-limit enforcement claim is made.
+- Collected v2 evidence contains both the active `M6C001` and typed-empty
+  `M6C057` cases with checksum-bound identity decisions and edge-observation
+  lists. All seven final qualification checksum entries verify, the exact ten
+  allow-listed scientific outputs are present, and terminal state is
+  `COMPLETED`/exit zero/`success` with no failure signature.
+- Static-typing-preview and redundant-`first` warnings remain retained. The run
+  is a two-case stub and explicitly `acceptance_evidence=false`.
+
+### Classification and next exact starting point
+
+- R0 and the Marmic migration are accepted as orchestration evidence. R0A's
+  corrected evaluator/fan-out contracts remain accepted from the prior
+  evidence-complete Viper smoke. No operational/leakage M6 science was run and
+  Gate 1 remains blocked behind R1--R4.
+- Never query, resume, recollect, clean, or reuse run `629614` or its cache.
+  Rebind the existing heartbeat from run monitoring to the R1--R3 development
+  loop. Integrate the focused raw-loader slices, then continue the remaining R2
+  foundations; do not stage M6 science.
+
+## 2026-08-19T01:09:49Z - R1 strict contract foundation passes final gate
+
+### Integrated R1 evidence
+
+- Actions run `32201700388`, job `95916697573`, passed the preceding
+  raw-loader/provider-plan batch at `f879a9a0a4a13a1c6fd726c8a66d50bf5b026654`
+  in 6m53s under Pixi 0.76.2.
+- Integrated three further focused commits covering every remaining
+  scientific/operator, HPC-owned, database/cache, and external-response JSON or
+  YAML entry point. Outside the central `schemas/io.py` parser implementation,
+  `src/` contains no direct `json.loads`, `json.load`, or `yaml.safe_load` call.
+- The integrated focused mutation/contract corpus passes 162 tests and schema
+  validation. One complete locked gate passes Ruff format/lint, `ty`, 606 unit
+  tests, 115 contract tests, 68 integration tests, schemas, public-panel and
+  documentation checks, actionlint, the full Nextflow syntax/stub-resume sweep,
+  and all Bash wrapper syntax checks.
+- Together with the already integrated strict scalar/finite models, duplicate
+  scientific-ID diagnostics, authoritative schema export, TSV taxonomy, and
+  removed/bound configuration caps, this closes R1's source/runtime gate. No
+  scientific policy, threshold, provider request, or M6 criterion changed.
+
+### Next exact starting point
+
+Amend the unpushed final R1 commit with this journal/roadmap evidence, review
+the complete diff/status, push the three-commit batch once, and watch exactly
+one CI run. Then continue R2 provider-plan routing and typed empty/no-model
+bundles with focused tests; do not stage M6 science.
