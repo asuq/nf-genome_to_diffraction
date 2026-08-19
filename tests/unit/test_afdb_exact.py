@@ -97,7 +97,7 @@ def _write_inputs(
                         "root_path": str(cache_root),
                         "prepared_with": {
                             "tool": "genome-to-diffraction",
-                            "version": "0.1.0.dev0",
+                            "version": "0.1.0",
                         },
                         "parameters": {},
                         "prepared_at": "2026-08-10T00:00:00Z",

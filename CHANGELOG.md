@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.1.0 - 2026-08-19
+
+This is an archival, incomplete research-prototype release. It preserves the
+single-component baseline before prototype-first heteromer development; it is
+not a production or M6-validated release.
+
+### Known limitations
+
+- M6 scientific acceptance is held. The successful Marmic M6 Nextflow smoke is
+  orchestration evidence only.
+- The main implementation is single-component and has no heteromer
+  reconstruction.
+- The 7L6G control placed three copies rather than its declared six.
+- Same-component copy placement retains legacy sequential behaviour in the
+  released path.
+- Crystallographic-context propagation, Free-R identity, cache/network/retry
+  hardening, and the full M6 measurement apparatus remain incomplete.
+- Outputs are research candidates and do not constitute an automatically
+  validated structure or protein identity.
+
 ### Changed
 
 - M6 acceptance now uses checksum-bound runner identity decisions, verified

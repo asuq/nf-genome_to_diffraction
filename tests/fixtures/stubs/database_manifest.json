@@ -12,7 +12,7 @@
       "root_path": "tests/fixtures/stubs/database_root",
       "prepared_with": {
         "tool": "foundation_stub",
-        "version": "0.1.0.dev0"
+        "version": "0.1.0"
       },
       "parameters": {},
       "prepared_at": "2026-07-31T00:00:00Z",

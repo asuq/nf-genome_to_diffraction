@@ -19,7 +19,11 @@ When documents conflict, use the earlier item in this order. Do not silently rec
 
 ## 2. Scope that must not change without explicit user approval
 
-The first prototype identifies candidates under the model `ASU = nA`, where one protein species may occur in one or more copies. Do not implement heteromer reconstruction yet.
+The user approved bounded two-component heteromer development on 2026-08-19.
+The active v0.2 prototype may implement `ASU = nA + mB` for exactly two protein
+components. Start with an explicit known `1A + 1B` control, fix the placed A
+solution, and search for B. Three-or-more-component reconstruction, AF3 complex
+logic, and general assembly inference remain out of scope.
 
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
@@ -74,6 +78,10 @@ Use local PDB and ProstT5 resources for the prototype. Use the public ESM Atlas 
 ## 7. Engineering policy
 
 - Follow KISS, DRY, YAGNI mindset
+- Optimise the active v0.2 work for the smallest end-to-end scientific path that
+  runs. Do not add a general schema, adapter, driver, retry framework, provider
+  abstraction, or validation matrix unless the current heteromer vertical
+  slice requires it.
 - Use current Nextflow DSL2 with syntax parser v2 and typed workflow interfaces.
 - Use Python 3.14 and modern typing. No backward-compatibility shims are required.
 - Use Pixi and commit `pixi.lock`.
@@ -129,6 +137,10 @@ Every process adapter requires:
 - a failure-path test;
 - a stub mode suitable for `nextflow -stub-run` where practical.
 
+For the prototype-first v0.2 path, use focused tests while iterating. Run the
+complete locked repository gate only at a named end-to-end milestone or release
+boundary, not after every edit.
+
 After an observed failure has one focused regression test and the required
 repository gate passes, prioritise the next real-data prototype run over
 polishing synthetic tests. Add further test cases only when they protect a
@@ -138,21 +150,27 @@ do not delay real-data feedback in pursuit of perfect test coverage.
 Do not claim a Phenix integration is complete without testing it against a real installed Phenix runtime.
 
 The three frozen operator MTZ datasets are unknown-composition feasibility
-inputs, not M5 or M6 acceptance data. Defer them until after M6; they must not
-gate Prototype 0.2, calibrate scientific heuristics, or support a validation
-claim. M5 uses the fixed truth-labelled 23-case operational matrix, and M6 uses
-an independently reviewable leakage-controlled benchmark.
+inputs, not validation data. Defer them until the known heteromer control works;
+they must not calibrate scientific heuristics or support a validation claim.
+M6 remains an independently reviewable robustness benchmark, but it no longer
+gates experimental heteromer implementation.
 
 ## 10. Development sequencing
 
-M0–M5 are accepted. Prototype 0.2 was accepted on 2026-08-17 with the explicit
-limitation that 7L6G supports three rather than its declared six copies; do not
-rerun, relabel, fabricate, or hide that limitation. The independently
-reviewable M6 protocol and predeclared criteria in
-`benchmarks/m6/protocol.yaml` are user-approved. Execute M6 through the tracked
-truth-isolated runner/evaluator boundary. Do not start heteromer logic, AF3
-complex logic, local ESM Atlas deployment, or the three unknown operator
-crystals before the monomer/domain internal-release gate is resolved.
+M0–M5 are accepted. Preserve the explicit limitation that 7L6G supports three
+rather than its declared six copies; do not rerun, relabel, fabricate, or hide
+it. The user authorised an archival v0.1 release even though M6 is held and the
+software is incomplete. Label that release honestly; do not claim production or
+M6 scientific acceptance.
+
+After preserving v0.1, implement the smallest heteromer path before additional
+hardening: known fixed-A/one-B placement on 6RTZ, end-to-end 6RTZ, then explicit
+`nA + mB` and a small positive/negative control slice. Fix only defects that
+block or scientifically invalidate that path. Unfinished R2–R4 hardening, M6,
+localisation filtering, unknown operator crystals, and broader validation move
+to the post-prototype backlog. Do not start R3 as an independent hardening
+programme unless the user explicitly resumes it or a required heteromer result
+demonstrates that a specific R3 defect is blocking execution.
 
 At the start of each new development loop, read the newest entry in
 `docs/development-loop-journal.md` before changing code or running a new remote

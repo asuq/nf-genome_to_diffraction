@@ -14,7 +14,7 @@ def test_version_flag_exits_successfully(
     with pytest.raises(SystemExit) as error:
         main(["--version"])
     assert error.value.code == 0
-    assert capsys.readouterr().out.strip() == "0.1.0.dev0"
+    assert capsys.readouterr().out.strip() == "0.1.0"
 
 
 def test_schema_check_reports_missing_schema_directory(

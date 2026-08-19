@@ -1,429 +1,221 @@
-# Full-program roadmap
+# Full programme roadmap: prototype first, harden later
 
-## Purpose
+## Programme decision
 
-This document makes the programme hierarchy explicit. It covers the path from
-the current Task 05 implementation through:
+The programme now prioritises a working structural-biology prototype over a
+fully hardened platform.
 
-1. the approved single-component prototype and internal release;
-2. a gated heteromer-capable research prototype;
-3. advanced crystallographic and biological-assembly interpretation;
-4. calibrated checkpoint automation and scaled operation; and
-5. a final maintainable internal research platform.
+The former dependency `corrected M6 -> Gate 1 -> v0.1 -> heteromer` is retired.
+The user authorised:
 
-The detailed, currently approved implementation plan is the
-[single-component prototype roadmap](single-component-prototype-roadmap.md).
-Later phases in this document are programme plans, not authorisation to implement
-them. Before each expansion, its scope, contracts, benchmark, resources, failure
-semantics, and scientific acceptance criteria require explicit approval.
+- an incomplete archival v0.1 release;
+- immediate bounded two-component heteromer development; and
+- postponement of broad robustness work until the scientific path runs.
 
-The dependency-ordered plan for release-gate remediation, software v0.2 joint
-component search, and the bounded two-component endpoint is the
-[software v0.2 roadmap](v0.2-roadmap.md). It does not authorise implementation
-before Gate 1 and a user-published v0.1 release.
+This does not erase earlier evidence or known defects. It changes their order.
 
-## What “final full development” means
+## Guiding principles
 
-The programme target is an internal research platform that can narrow and test
-protein identities and compositions for prokaryotic crystals when the supplied
-catalogue is the identity universe. It should support:
+1. Prove the scientific operation on one known control before generalising it.
+2. Keep failures honest: no hit, no model, tool failure, and parse failure stay
+   distinguishable.
+3. Preserve raw crystallographic evidence and component identity.
+4. Add only the contract and workflow surface required by the next control.
+5. Use focused tests while iterating and real Phenix feedback early.
+6. Run broad validation and hardening after the prototype demonstrates value.
 
-- single-component monomer/domain and homomer hypotheses `ASU = nA`;
-- bounded multi-component hypotheses such as `ASU = nA + mB` and later a small
-  number of additional protein components;
-- human-reviewable molecular-replacement, placement, refinement, map, and
-  sequence evidence;
-- explicit open-set, partial-solution, and assumption-violation outcomes;
-- advanced branches for selected symmetry/tNCS/twinning/special-position
-  problems after preflight evidence justifies them;
-- separation of crystallographic ASU composition from physiological biological
-  assembly;
-- optional calibrated automation that writes the same review contracts as a
-  person and can abstain; and
-- reproducible operation across local and Slurm/HPC environments with immutable
-  software, databases, inputs, caches, decisions, and reports.
-
-“Full” does not mean unlimited structural biology automation. Unless separately
-chartered, the final platform still excludes raw diffraction-image processing,
-genome annotation/genetic-code inference, unrestricted annotation merging,
-general ligand identification, nucleic-acid-complex reconstruction,
-publication-quality final refinement/deposition, and a guaranteed exact
-sequence, locus, stoichiometry, or physiological assembly.
-
-## Programme structure
+## Programme phases
 
 ```mermaid
 flowchart LR
-    C["Current Task 05 boundary"] --> P1["Phase I: single-component nA"]
-    P1 --> G1["Gate 1: validated single-component release"]
-    G1 --> P2["Phase II: heteromer nA + mB"]
-    P2 --> G2["Gate 2: validated heteromer release"]
-    G2 --> P3["Phase III: advanced crystallography and assembly"]
-    P3 --> G3["Gate 3: validated advanced branches"]
-    G3 --> P4["Phase IV: calibrated automation and scale"]
-    P4 --> G4["Gate 4: automation safety accepted"]
-    G4 --> P5["Phase V: final research platform"]
+    A["v0.1 archival snapshot"] --> B["v0.2 known 1A+1B"]
+    B --> C["Explicit nA+mB"]
+    C --> D["Catalogue partner search"]
+    D --> E["Small heteromer control slice"]
+    E --> F["Experimental v0.2 release"]
+    F --> G["Generalisation and localisation"]
+    G --> H["Robustness, M6, and platform hardening"]
+    H --> I["Advanced crystallography and 3+ components"]
 ```
 
-The phases are sequential because each changes what the system may claim. Code
-within a phase may be parallelised only after shared contracts and controls are
-reviewed.
+### Phase 0 — Archival v0.1
 
-## Programme summary
+Purpose: preserve the working single-component baseline without pretending it
+is complete.
 
-Effort ranges are exploratory active-engineering ranges for one primary
-developer. They exclude licences, database transfers, Slurm queueing, dataset
-curation, crystallographer review, and iteration on scientifically negative
-results. Phase II onward must be re-estimated from measured Phase I results.
+Deliverables:
 
-| Phase | Scientific capability | Indicative effort | Release gate |
-| --- | --- | ---: | --- |
-| I — Single-component prototype | Monomer/domain and homomer `nA`, two human checkpoints, top-10/25 | 26–44 weeks | Validated internal single-component release |
-| II — Heteromer prototype | Bounded `nA + mB`, residual-content search, multi-component review | 18–32 weeks | Known positive heteromers recovered without unacceptable false composition |
-| III — Advanced crystallography and assembly | Evidence-triggered symmetry/tNCS/twinning/special-position branches; ASU-versus-assembly interpretation | 12–24 weeks | Each branch validated independently and does not degrade ordinary cases |
-| IV — Calibrated automation and scale | Optional automated reviews, open-set control, larger benchmarks, throughput optimisation | 12–24 weeks | Predeclared safety/abstention/resource criteria met |
-| V — Final research platform | Stable release, migrations, operations, governance, maintenance | 8–16 weeks | Reproducible multi-site release accepted |
+- tagged source and lock file;
+- dated changelog and release notes;
+- visible 7L6G three-of-six limitation;
+- visible M6 hold and orchestration-only status;
+- explicit absence of heteromer reconstruction; and
+- explicit research-snapshot/non-production label.
 
-Indicative whole-programme range: 76–140 active developer-weeks. The wide range
-is intentional; heteromer detectability and advanced crystallographic branches
-must be tested experimentally before they can be estimated responsibly.
+This release is a rollback/reference point, not a validation gate.
 
-## Phase I — Approved single-component pipeline
+### Phase I — v0.2 heteromer happy path
 
-### Scope
+Purpose: demonstrate the requested operation with the least new machinery.
 
-Complete `ASU = nA` from real-site qualification through structural discovery,
-model preparation, first-copy Phaser, same-component sequential placement,
-brief refinement/maps, sequence-from-map, final reporting, fixed truth-labelled
-operational control acceptance, independent validation, and an internal
-research release. The three frozen unknown-composition operator crystals are a
-post-M6 exploratory application track, not a Phase I acceptance gate.
+Order:
 
-### Authority and detailed plan
+1. fixed known A + one B adapter;
+2. real 6RTZ HisF/HisH `1A+1B` adapter-isolation run;
+3. end-to-end 6RTZ using A from the component workflow;
+4. explicit `nA+mB` copy counts;
+5. one multi-copy positive such as 3U7Q `2A+2B`;
+6. minimal catalogue B search; and
+7. small positive/negative/non-regression slice.
 
-Follow the [single-component prototype roadmap](single-component-prototype-roadmap.md).
-Its milestones M0–M6, prototype 0.1/0.2 gates, tests, risk controls, and immediate
-real-site qualification dossier remain the only authorised scientific
-implementation sequence.
+Deliverable: experimental v0.2 source release that can recover known
+two-component compositions and report honest failures.
 
-### Gate 1 — Required before heteromer development
+### Phase II — Useful generalisation
 
-- real Phenix and database boundaries are qualified on the target site;
-- known positive monomer/homomer controls retain the true family, sequence
-  group, and copy hypothesis at the declared gates;
-- same-component sequential copies and map-based sequence narrowing work;
-- open-set/no-hit and `ASU != nA` cases abstain or flag rather than force a hit;
-- resource costs and failure classes are measured;
-- the three-pilot results and an independent benchmark are reviewed; and
-- the user approves a heteromer scope and benchmark charter.
+Start only after the known controls work.
 
-The [2026-08-17 adversarial review](adverse-code-review-2026-08-17.md)
-identified release-decision stop gates in the current M6 evaluator and
-enduring pipeline. A completed orchestration smoke cannot clear Gate 1. The
-review's P0/P1 remediation, corrected multi-item smoke, fresh operational and
-leakage tracks, and truth-side evaluation must finish before Gate 1 can be
-accepted.
+Possible additions:
 
-## Phase II — Heteromer-capable research prototype
-
-The implementation-ready Phase II sequence, schema-v2 state model, automatic
-packed-partial expansion policy, joint-copy strategy, control/holdout panels,
-and local/CI/Viper loops are specified in the
-[software v0.2 roadmap](v0.2-roadmap.md). This broader programme section remains
-context for later phases and does not override that bounded v0.2 scope.
-
-For v0.2 specifically, automatic expansion replaces the generalized H0/H1
-human A-seed requirement, and each fixed-A attempt searches all requested B
-copies jointly rather than extending a general beam one copy at a time. The
-human composition checkpoint remains mandatory. The reviewed beam/DAG and
-arbitrary later-component behaviour below are future Phase II extensions, not
-v0.2 requirements.
-
-### Scientific model
-
-Begin with a bounded two-component model:
-
-\[
-\mathrm{ASU}=nA+mB,\qquad n,m\geq1
-\]
-
-Do not begin with arbitrary many-component exhaustive enumeration. The identity
-universe remains the supplied catalogue. A placed PDB/AFDB/Atlas/AF3-derived
-model can propose a component or pose but cannot become a reportable identity
-without mapping to a supplied catalogue sequence.
-
-### H0 — Scope, state, and benchmark design
-
-Define and review:
-
-- a content-addressed partial-solution state containing crystal identity,
-  symmetry hypothesis, placed component/copy identities, model/coordinate
-  digests, parent state, MR/refinement/map evidence, residual-content evidence,
-  remaining budgets, and status;
-- a beam/DAG contract that makes parentage, pruning, deduplication, and terminal
-  outcomes inspectable;
-- the meaning of residual mass/density and how uncertainty is represented;
-- hard component, copy, model, branch, depth, CPU, storage, and walltime caps;
-- human checkpoints for accepting a partial solution and a multi-component
-  composition;
-- known positive and negative heteromer controls, including target-absent and
-  misleading-partner cases; and
-- explicit protection against train/test or model-database leakage.
-
-No heteromer process starts until these contracts and controls are accepted.
-
-### H1 — Residual-content evidence and partner proposals
-
-Starting only from a reviewed credible Phase I partial solution:
-
-1. refine/calculate maps under a standard controlled policy;
-2. quantify connected residual protein-like density without claiming an
-   identity;
-3. compare supported placed mass with broad ASU/Matthews expectations;
-4. use multiple SDS bands only as soft component-level priors;
-5. propose candidate `B` sequence groups from catalogue-wide structural,
-   sequence, map, and optional biological-context evidence;
-6. preserve independent evidence families and every proposal/rejection reason;
-7. represent “partial solution, partner unresolved” as a valid terminal state.
-
-Residual density can trigger a search but must not be converted directly into a
-hard component mass or exact sequence.
-
-### H2 — Bounded multi-component beam/DAG controller
-
-Implement an ordered incremental search:
-
-```text
-approved partial state
-    -> propose a bounded, diverse set of next component/model/copy hypotheses
-    -> place one component or one additional copy
-    -> evaluate independent MR, packing, refinement, and map evidence
-    -> retain a small number of distinct supported child states
-    -> stop on composition support, budget exhaustion, ambiguity, or no progress
-```
-
-Required safeguards:
-
-- never form the unrestricted Cartesian product of catalogue proteins, models,
-  and copy counts;
-- deduplicate exact states while preserving alternate conformations, registers,
-  and biologically distinct sequence groups;
-- keep likelihood, packing, map, sequence, and prior evidence separate;
-- correct for the much larger number of tested hypotheses when setting
-  credibility/automation thresholds;
-- retain parent states when additions fail;
-- prevent one weak component from invalidating a credible partial component;
-- allow `nA + mB` ambiguity and family-level partner results; and
-- record every pruning decision and actual compute cost.
-
-### H3 — Partner-model and complex-proposal providers
-
-Potential providers are added separately with independent benchmarks:
-
-- PDB partner/co-occurrence and experimentally observed complex models;
-- selected AlphaFold DB or Atlas monomer models mapped exactly to catalogue
-  sequences;
-- local exact-sequence predictions for a small narrowed set;
-- AF3 complex predictions for selected pairs/stoichiometries; and
-- later PISA/EPPIC/ProtCID context.
-
-AF3 and assembly databases are proposal/context mechanisms. Acceptance still
-requires diffraction, packing, refinement, map, and sequence evidence. To limit
-model bias, benchmark AF3-proposed poses against unrestricted MR controls and
-pre-insertion/omit or equivalent independent map evidence.
-
-### H4 — Multi-component refinement, maps, and review
-
-- use conservative comparable refinement across retained states;
-- validate interfaces, occupancy, clashes, B factors, alternate conformations,
-  chain IDs, and copy/sequence mapping;
-- preserve per-component sequence-from-map evidence and unresolved regions;
-- distinguish ASU composition from physiological oligomer/assembly;
-- publish ranked compositions, component equivalence groups, copy counts,
-  residual content, alternatives, and no-supported-composition outcomes; and
-- require a human composition checkpoint in the first version.
-
-### Gate 2 — Heteromer release acceptance
-
-- predefined known positive heteromers recover the correct component families
-  and compatible copy hypotheses within bounded review sets;
-- missing-component/open-set controls do not invent an exact catalogue partner;
-- misleading AF3/PDB/context proposals are rejected or remain explicitly
-  ambiguous when diffraction evidence is absent;
-- monomer/homomer regression performance does not materially degrade;
-- branch count, multiple-testing burden, CPU/storage, and resume behaviour are
-  measured and bounded;
-- partial solutions remain valid when later components cannot be identified;
+- automatic membrane/exported-protein exclusion using reviewed localisation
+  tools rather than annotation-string heuristics;
+- SDS-PAGE and native-PAGE evidence entry/import;
+- residual-content triggers and more automatic A-state selection;
+- better model variants and domain handling;
+- broader partner ranking and budget allocation;
+- application to the three unknown operator crystals as exploratory samples;
   and
-- an independent crystallographer reviews the benchmark and limitations.
+- additional two-component stoichiometries and conformational states.
 
-## Phase III — Advanced crystallography and assembly interpretation
+Unknown crystals remain applications, not validation truth, until their
+composition is independently established.
 
-These capabilities are independent evidence-triggered plugins, not one broad
-“difficult crystal” switch.
+### Phase III — Reliability and scientific hardening
 
-### A1 — Alternative-space-group hypotheses
+This phase absorbs the unfinished adverse-review and M6 work after the
+prototype is scientifically useful.
 
-- trigger only from preflight/symmetry evidence or explicit operator request;
-- assign separate immutable crystal/symmetry identities and Free-R handling;
-- prevent cache reuse across incompatible symmetry hypotheses;
-- compare branches without hiding the increased hypothesis count; and
-- benchmark ordinary, pseudosymmetric, and known indexing/space-group cases.
+Work packages:
 
-### A2 — tNCS, twinning, anisotropy, and related policies
+- complete raw-input, database, tool, adapter, and cache invalidation identity;
+- canonical network/site mapping and offline-worker refusal;
+- classified bounded infrastructure retries;
+- full catalogue/crystal/hypothesis/seed/finalist fan-out;
+- space-group and resolution propagation into every Phaser/refinement command;
+- validated and identity-bound Free-R membership;
+- placed/packed/refined/supported semantics and parent uncertainty;
+- attempt-owned transactional outputs;
+- required final Rwork/Rfree and typed sequence-map failures;
+- repaired M6 preparation/runner/collector/evaluator apparatus;
+- operational then leakage M6 rerun under the unchanged protocol; and
+- packaging/wheel/install/schema parity.
 
-- preserve Xtriage metrics/logs and select only documented tool-specific
-  responses;
-- keep detection, correction, MR strategy, and refinement treatment separate;
-- add fixtures and known real controls per condition; and
-- avoid universal automatic correction based on one warning flag.
+Deliverable: a validated research release. This phase may produce v0.3 or a
+later version; it is not required for the first heteromer demonstration.
 
-### A3 — Special-position and occupancy-aware composition
+### Phase IV — Advanced crystallography and composition
 
-- extend composition/copy contracts beyond the general-position assumption;
-- represent fractional crystallographic occupancy without confusing it with
-  biological stoichiometry;
-- detect/validate proximity to special positions from placed models; and
-- benchmark known special-position structures before automated branching.
+Only after two-component behaviour is understood:
 
-### A4 — Biological-assembly interpretation
+- translational NCS and difficult symmetry branches;
+- twinning/anisotropy/special-position-aware diagnostics;
+- fragment/construct mismatch handling;
+- nucleic acid, ligand, cofactor, or modified components;
+- three-or-more protein components;
+- AF3 or other complex-model providers;
+- alternative conformational states and assemblies; and
+- calibrated automatic composition search.
 
-PISA, EPPIC, ProtCID, interface recurrence, conservation, and AF3 complexes may
-annotate possible physiological assemblies only after the crystallographic ASU
-composition is established. Reports must label ASU contents and biological
-assembly hypotheses separately and retain contradictory evidence.
+### Phase V — Maintained platform
 
-### Gate 3
+Only if the prototype becomes a sustained tool:
 
-Each plugin requires its own positive/negative benchmark and must show that:
+- stable public APIs and migrations;
+- minimal supported entrypoints and removal of temporary launchers;
+- reproducible binary/container distribution where licensing permits;
+- multi-site HPC profiles and resource policies;
+- database compatibility and update regression;
+- observability, rollback, maintenance, and governance; and
+- independent release benchmarks.
 
-- it activates only under its evidence/approval gate;
-- it does not silently alter ordinary-case results;
-- cache/provenance identities include the changed crystallographic hypothesis;
-- its false-warning/false-branch rate and resource cost are acceptable; and
-- the report distinguishes observation, correction, and interpretation.
+## Phase-I scientific contract
 
-## Phase IV — Calibrated automation and scaled operation
+The first heteromer implementation is deliberately bounded:
 
-### Automated checkpoints
+- exactly two protein components, A and B;
+- explicit positive copy counts `n` and `m`;
+- one retained A state fixed before B search;
+- joint requested B-copy search where supported;
+- one best available model per component initially;
+- raw Phaser LLG/TFZ/packing/placement evidence retained;
+- B-specific TFZ and incremental LLG used for partner ranking;
+- primary `LLG > 100` and `TFZ > 10`, then fallback `LLG > 50` and
+  `TFZ > 5` only when the primary cohort has no hit; and
+- no complete-composition claim for unsupported three-component cases.
 
-The automated reviewer must write the same immutable approval files as a human.
-Before it can approve rather than merely rank, require:
+Packing is search evidence, not final scientific support. Missing gel evidence
+is neutral. Coverage, model quality, Matthews probability, and moderate
+sequence identity rank candidates rather than acting as automatic exclusions.
 
-- a substantially larger versioned benchmark with independent hold-outs;
-- empirical null/open-set distributions;
-- resolution-, model-quality-, and candidate-count-aware calibration;
-- control of exact false assignments and multi-component false additions;
-- explicit abstention and escalation-to-human policies;
-- monitoring for tool/database/version drift; and
-- audit logs that explain the evidence and policy version behind every decision.
+## Phase-I control ladder
 
-Human review remains available and may be mandatory for assumption violations,
-novel branches, close paralogues, or low-discrimination maps.
-
-### Scale and provider evolution
-
-- profile catalogue-wide joins, structural searches, coordinate/model caches,
-  Phaser throughput, and map/sequence stages before optimising;
-- batch/vectorise with Python/Polars/Arrow first;
-- add a standalone Rust CLI only after a written profile-backed decision and
-  parity benchmark;
-- promote local ESMAtlas30 only after measured remote benefit, throughput, data
-  policy, and storage justify it;
-- support local exact-sequence predictors behind a provider contract, without
-  binding the scientific core to AF3 or one GPU platform;
-- add multi-crystal scheduling, preemption/retry, cache integrity checks,
-  database-update regression, and project quotas; and
-- retain fixed safe local/HPC operations rather than persistent raw SSH.
-
-### Gate 4
-
-- automated decisions meet predeclared false-assignment and abstention criteria
-  on independent data;
-- performance/resource targets are met without weakening provenance or caps;
-- manual and automated approval paths are downstream-contract equivalent;
-- provider outages/drift degrade to explicit statuses; and
-- security, privacy, licence, and remote-submission reviews pass.
-
-## Phase V — Final internal research platform
-
-### Productisation work
-
-- freeze versioned public contracts and publish migration tooling for deliberate
-  schema/configuration changes;
-- establish semantic releases, changelog/release notes, long-term-support pins,
-  database compatibility matrices, deprecation policy, and reproducible release
-  archives;
-- maintain foundation CI, real-site integration, scientific regression,
-  benchmark, performance, security, licence, and disaster-recovery tiers;
-- provide local, Slurm, and approved container/site profiles while keeping
-  licensed Phenix outside redistributable environments;
-- implement resumable cache/database backup, integrity audit, and recovery
-  procedures;
-- write operator, administrator, developer, troubleshooting, scientific-method,
-  interpretation, benchmark, privacy, and citation documentation;
-- generate per-release software/database bills of materials and provenance;
-- monitor tool/provider/database drift and rerun release benchmarks before
-  upgrades; and
-- define maintainer ownership, issue severity, scientific-correction, and
-  release rollback procedures.
-
-### Final acceptance
-
-- monomer/homomer and heteromer capabilities pass independent predeclared
-  benchmarks and retain honest open-set/partial/ambiguous outcomes;
-- advanced branches pass their own gates and do not contaminate ordinary cases;
-- automated decisions, when enabled, satisfy reviewed safety/abstention criteria;
-- fixed runs are reproducible from source, locks, Phenix/database manifests,
-  inputs, configuration, reviews, and checksums;
-- execution is bounded, resumable, observable, and recoverable at realistic
-  scale;
-- reports never confuse catalogue identity, coordinate model, diffraction
-  evidence, ASU composition, or biological assembly;
-- licences, privacy, remote sequence submission, and sensitive data handling are
-  auditable; and
-- maintainers and scientific reviewers accept the documented capabilities and
-  limitations.
-
-## Cross-programme test strategy
-
-| Layer | Phase I | Phase II | Phases III–V |
-| --- | --- | --- | --- |
-| Contracts/unit tests | Single sequence/model/copy states | Multi-component parent/child/DAG states | Versioned branch and migration contracts |
-| Parser/adapter fixtures | Structural search and Phenix monomer path | Partner/complex providers and multi-component results | Advanced-condition/provider/version variations |
-| Real-site integration | P0–P4 on Marmic | Bounded heteromer smoke/pilot | Evidence-triggered advanced branches and scale |
-| Positive controls | Known monomer/homomer | Known heteromers and stoichiometries | Known symmetry/tNCS/twin/special-position cases |
-| Negative/open set | Missing/wrong catalogue, no MR solution | Missing partner, wrong partner, misleading complex | False branch triggers and automation nulls |
-| Regression | Identity/copy/shortlist and resources | Preserve Phase I plus composition/branch metrics | Preserve earlier phases plus migrations/operations |
-
-All phases must test malformed, empty, duplicated, truncated, corrupted, huge,
-partially written, and version-drifted inputs; paths with spaces; cache
-invalidation; interruption/resume; and scientifically distinct missing,
-zero/no-hit, filtered, deferred, and failed states.
-
-## Programme decisions and ownership
-
-| Decision | Earliest gate | Required evidence/owner |
+| Step | Control | Purpose |
 | --- | --- | --- |
-| Begin heteromer scope | Gate 1 | User plus crystallographic review of Phase I benchmarks/resources |
-| Heteromer state/beam policy | H0 | Scientific design review, bounded synthetic tests, positive controls |
-| AF3 complex provider | H3 | Predictor/version/resource/proposal-bias benchmark and user approval |
-| Assembly providers | Phase III | Licence/API review and ASU-versus-assembly scientific controls |
-| Advanced crystallographic branch | Per A1–A3 plugin | Known positive/negative condition-specific datasets and crystallographer approval |
-| Automated approval | Gate 4 | Independent calibration, false-assignment/abstention criteria, scientific owner |
-| Local ESMAtlas30 | Phase IV | Measured provider value/policy need, storage/GPU plan, frozen snapshot/licence |
-| Rust | Phase IV | Profile, alternatives comparison, parity benchmark, maintenance decision |
-| Final release | Phase V | Maintainer, scientific reviewer, HPC/site owner, licence/privacy acceptance |
+| H0 | Unit command/parser fixtures | Verify fixed-A/B command and B-specific metrics. |
+| H1 | 6RTZ with reviewed A parent | Isolate partner-placement defects. |
+| H2 | End-to-end 6RTZ | Exercise upstream A state plus B search. |
+| H3 | 3U7Q or another known multi-copy heteromer | Exercise explicit `nA+mB`. |
+| H4 | Missing/wrong B | Prevent false complete-composition claims. |
+| H5 | Homomer control | Protect existing single-component behaviour. |
+| H6 | 9ECN | Require `unsupported_component_count`; retain valid partial A+B evidence. |
 
-## Immediate programme status
+Do not begin with a large matrix or unknown samples.
 
-Only Phase I is active. M0–M5 are complete, and Prototype 0.2 is accepted with
-the explicit limitation that 7L6G supports three rather than its declared six
-copies. The independent 63-case M6 benchmark manifest and criteria were
-approved on 2026-08-17, but the adversarial review holds scientific submission
-and acceptance until its stop gates are corrected. The active two-case smoke
-is orchestration evidence only. The three unknown operator crystals remain
-post-M6 exploratory applications. Phase II planning may be refined while Phase
-I runs, but heteromer schemas, processes, or provider integrations must not be
-implemented before corrected M6 evidence, explicit Gate 1 acceptance, and the
-user-published v0.1 release.
+## Development and HPC policy
+
+- One focused regression or command/parser test per observed defect.
+- Focused touched-module tests during implementation.
+- One complete locked gate at meaningful end-to-end milestones, not each edit.
+- One CI run per pushed milestone.
+- Real Phenix as soon as H1 is runnable.
+- One fixed reviewed Marmic smoke after local/adapter evidence; no generic case
+  or command injection.
+- Reuse the existing reviewed remote wrapper. Do not build another monitoring
+  framework for Phase I.
+
+## Decision gates
+
+### Gate A — v0.1 archive
+
+The tag, source, lock, changelog, and limitations agree. Scientific completeness
+is not required.
+
+### Gate B — Heteromer adapter works
+
+6RTZ B is searched with A fixed, the combined result is retained, and the
+metrics are component-specific and inspectable.
+
+### Gate C — End-to-end heteromer works
+
+The workflow obtains A, fixes it, searches B, and emits a complete reviewable
+result without manual file substitution inside the scheduled task.
+
+### Gate D — Experimental v0.2
+
+Known positives work, negative controls do not create false complete
+compositions, the homomer path still runs, and limitations are documented.
+
+### Gate E — Validated platform
+
+Deferred Phase-III hardening and independent benchmark evidence pass. This gate
+is intentionally after the experimental heteromer release.
+
+## Current hand-off
+
+- Current preserved source before roadmap/release edits:
+  `14c9d5e70e59b1215368dfe5ec15fb29cccc1819`.
+- R1 is complete; R2 provider routing is green; remaining R2 and all R3/R4 work
+  are backlog unless a known control proves a blocker.
+- Marmic run `629614` is terminal, collected, and orchestration-only. Never
+  query, resume, recollect, reuse, or clean it.
+- The next programme action is Gate A, then Phase-I H0/H1.

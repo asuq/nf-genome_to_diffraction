@@ -1,5 +1,15 @@
 # Single-component prototype roadmap
 
+> **Historical v0.1 record.** This document preserves the original
+> single-component/M6 plan and its evidence. On 2026-08-19 the user authorised
+> an incomplete archival v0.1 release and removed M6/Gate 1 as a prerequisite
+> for bounded two-component heteromer development. Where this historical plan
+> says heteromer work is forbidden until M6, the active
+> [v0.2 prototype-first roadmap](v0.2-roadmap.md),
+> [full-program roadmap](full-program-roadmap.md), and `AGENTS.md` supersede it.
+> Do not rewrite or relabel the historical M0--M6 results or the 7L6G
+> three-of-six limitation.
+
 ## Purpose and definition of completion
 
 This roadmap carries `nf-genome_to_diffraction` from its validated Task 05

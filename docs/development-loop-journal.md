@@ -9307,3 +9307,79 @@ M6 science.
   heartbeat may inspect a newly active authorised Marmic run and fix observed
   R2 defects, but it must not re-query terminal run `629614`, start R3, or stage
   M6 science.
+
+## 2026-08-19T02:33:53Z - R2 provider-routing checkpoint is paused
+
+### Immutable CI evidence
+
+- Actions run `32208595324`, job `95936568909`, passed source
+  `14c9d5e70e59b1215368dfe5ec15fb29cccc1819` in 6m21s under Pixi
+  0.76.2. The exact pushed four-commit provider-routing batch is therefore green
+  locally and in CI.
+- Main is otherwise clean. There is no active Marmic/Viper job; terminal smoke
+  `629614` remains collected and excluded from further query, resume, reuse, or
+  cleanup.
+
+### Pause boundary and next exact starting point
+
+- Pause at R2. Remaining R2 work is complete raw-input/cache identity,
+  canonical network-site refusal, classified retry policy, and remaining
+  complete tuple/channel fan-out. Do not start any of those as a new slice
+  until the user resumes development; only fix an evidence-backed bug in the
+  completed R2 checkpoint or a newly authorised Marmic test.
+- R3, R4, M6 science, joint-copy, heteromer, and unknown-crystal work remain
+  prohibited. The existing heartbeat is paused after this hand-off.
+
+## 2026-08-19T10:53:48Z - Programme pivots to a prototype-first heteromer path
+
+### User-approved scope change
+
+- The user approved publishing v0.1 despite its known incompleteness and
+  explicitly authorised bounded two-component `nA + mB` development before
+  corrected M6/R2--R4 hardening.
+- Rewrote `AGENTS.md`, the active v0.2 roadmap, and the full-program roadmap so
+  the next scientific target is a minimal fixed-A/one-B 6RTZ control, followed
+  by end-to-end 6RTZ, explicit `nA + mB`, minimal catalogue partner search, and
+  a small control slice.
+- The historical single-component roadmap now carries a supersession banner;
+  historical M0--M6 evidence and the 7L6G three-of-six limitation remain
+  unchanged. The documentation index identifies the active versus historical
+  plans.
+- Unfinished adverse-review, R2--R4, M6, localisation, unknown-crystal, and
+  advanced-composition work is retained as post-prototype debt. A deferred item
+  moves forward only when a known heteromer control demonstrates a blocking or
+  scientifically answer-changing defect.
+
+### Next exact starting point
+
+Prepare and publish an explicitly incomplete archival v0.1 release: finalise
+version metadata, dated changelog, and release notes; run focused documentation/
+version checks plus one release boundary gate; commit, push, tag, and publish
+the source release. Then begin v0.2 P1 without resuming the former R3/M6
+hardening sequence.
+
+## 2026-08-19T11:06:26Z - Archival v0.1.0 release candidate passes gate
+
+### Release preparation and evidence
+
+- Set Python, Pixi, and Nextflow release metadata to `0.1.0`; updated active
+  version assertions and the stub software manifest. `pixi.lock` remained
+  unchanged at SHA-256
+  `a31c520126e559154433546f45b92d2617bc622f89ffd6b0422c0579c0dda66b`.
+- Added dated changelog and release notes that explicitly label v0.1.0 as an
+  incomplete archival research snapshot with M6 held, no heteromer support,
+  the 7L6G three-of-six limitation, sequential copy placement, and deferred
+  crystallographic/robustness debt.
+- Focused version/CLI/integration checks pass 13 tests; CLI reports `0.1.0`;
+  schema and documentation checks pass.
+- One complete release-boundary gate passes Ruff format/lint, `ty`, 630 unit
+  tests, 116 contract tests, 68 integration tests, schemas, public-panel and
+  documentation checks, actionlint, full Nextflow syntax/stub-resume coverage,
+  and Bash wrapper syntax.
+
+### Next exact starting point
+
+Review and commit the authority/roadmap/release diff, push once, and watch one
+CI run. After green CI, create and push annotated tag `v0.1.0`, publish the
+GitHub release from `docs/releases/v0.1.0.md`, and verify the remote tag/release.
+Do not start v0.2 implementation before the archival tag is immutable.

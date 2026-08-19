@@ -7,7 +7,7 @@ from genome_to_diffraction.time import utc_now, utc_now_iso
 
 
 def test_version_is_foundation_release() -> None:
-    assert __version__ == "0.1.0.dev0"
+    assert __version__ == "0.1.0"
 
 
 def test_utc_now_is_timezone_aware() -> None:

@@ -6,19 +6,17 @@ remain authoritative for scientific policy and interface contracts.
 
 ## Available documents
 
+- [v0.1.0 release notes](releases/v0.1.0.md): explicit archival release scope,
+  included capabilities, known incompleteness, and the v0.2 pivot.
 - [Full-program roadmap](full-program-roadmap.md): programme phases from the
-  active single-component prototype through heteromer search, advanced
-  crystallographic/assembly support, calibrated automation, and the final
-  internal research platform.
-- [Software v0.2 roadmap](v0.2-roadmap.md): dependency-ordered M6/core
-  remediation, joint-copy component search, bounded `nA + mB` development,
-  immutable HPC loops, validation gates, and all adversarial-review finding
-  dispositions.
+  incomplete archival v0.1 baseline through the prototype-first heteromer path,
+  later generalisation, deferred robustness, and the optional final platform.
+- [Software v0.2 roadmap](v0.2-roadmap.md): active minimal 6RTZ `1A + 1B`
+  implementation, explicit `nA + mB`, small controls, milestone testing, and
+  deferred robustness backlog.
 - [Single-component prototype roadmap](single-component-prototype-roadmap.md):
-  detailed current maturity and authorised milestones from real-site
-  qualification through structural discovery, MR, sequence narrowing,
-  operational-control acceptance, independent validation, and the first
-  internal release.
+  historical v0.1/M6 plan and preserved single-component evidence; it is no
+  longer the active heteromer gate.
 - [M6 validation protocol](m6-validation.md): approved 63-case truth-isolated
   benchmark, leakage boundary, evaluator gates, runner artefacts, failure
   semantics, resource profile, and test coverage.
@@ -60,8 +58,9 @@ remain authoritative for scientific policy and interface contracts.
   read-first hand-off record of discoveries, accomplishments, immutable
   evidence, unresolved work, and the next exact starting point.
 - [Adversarial code review](adverse-code-review-2026-08-17.md): 34 finding
-  baseline covering enduring pipeline and temporary M6/HPC code, including
-  the release-decision stop gates that precede v0.1 acceptance.
+  baseline covering enduring pipeline and temporary M6/HPC code. Unfinished
+  findings remain tracked as post-prototype debt unless a known control exposes
+  a blocking scientific defect.
 - [Public methanogen and methanotroph control panel](public-control-panel.md):
   ten frozen X-ray structures, catalogue-to-construct mappings, reproducible
   source/MTZ preparation, runnable-control order, and one deliberate heteromer
