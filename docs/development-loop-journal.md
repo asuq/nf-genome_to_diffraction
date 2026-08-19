@@ -9184,3 +9184,27 @@ bundles with focused tests; do not stage M6 science.
 - Commit this Python/CLI contract slice. Next, pass provider entries into each
   enabled adapter so effective caps/resources are verified there, then route
   enabled versus disabled entries in Nextflow and prove exact process counts.
+
+## 2026-08-19T01:40:11Z - Enabled routes authenticate aggregate provider plans
+
+### Second R2 routing slice
+
+- Added one shared enabled-route verifier that loads the aggregate provider
+  plan, provider entry, and database manifest through authoritative contracts.
+  It requires the expected provider and adapter, an enabled route, exact entry
+  file checksum/inventory equality, the aggregate database-manifest checksum,
+  and unchanged ready resource IDs/manifests.
+- Disabled entries, entry-byte drift, database-manifest drift, and adapter
+  version drift fail before provider execution.
+
+### Focused evidence and next exact starting point
+
+- Twenty-seven provider-plan, route-authentication, disabled-bundle, CLI,
+  determinism, and tamper cases pass. Targeted `ty` and `git diff --check`
+  pass; the only lint finding was one line-length correction made before this
+  hand-off. No full suite, provider request, Nextflow route, or remote action
+  ran.
+- Commit this route-verification slice. Then add optional plan/entry inputs to
+  the three existing search adapters for the normal workflow, resolve hit caps
+  from the authenticated entry, and retain the frozen legacy/M6 callers until
+  their separately versioned route is changed.

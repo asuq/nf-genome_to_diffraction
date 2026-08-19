@@ -17,6 +17,7 @@ from genome_to_diffraction.schemas.providers import (
 from genome_to_diffraction.structure_search.provider_plan import (
     ProviderPlanError,
     ProviderPlanRequest,
+    load_enabled_provider_route,
     resolve_provider_plan,
 )
 
@@ -249,3 +250,77 @@ def test_provider_plan_cli_writes_canonical_files(
     assert "providerplan_" in capsys.readouterr().out
     assert (output / "provider_plan.json").is_file()
     assert len(tuple((output / "entries").glob("*.json"))) == 4
+
+
+def test_enabled_provider_route_authenticates_plan_entry_and_database(
+    tmp_path: Path,
+) -> None:
+    output = _resolve(tmp_path)
+
+    route = load_enabled_provider_route(
+        provider_plan_json=output.plan_json,
+        provider_entry_json=output.entry_json[ProviderKey.PDB_SEQUENCE],
+        database_manifest=DATABASE,
+        expected_provider=ProviderKey.PDB_SEQUENCE,
+        expected_adapter_version="pdb-sequence-mmseqs-v2",
+    )
+
+    assert route.plan == output.plan
+    assert route.entry.provider is ProviderKey.PDB_SEQUENCE
+    assert route.entry.effective_max_hits == 3
+
+
+def test_enabled_provider_route_rejects_disabled_entry(tmp_path: Path) -> None:
+    output = _resolve(tmp_path)
+
+    with pytest.raises(ProviderPlanError, match="route is disabled"):
+        load_enabled_provider_route(
+            provider_plan_json=output.plan_json,
+            provider_entry_json=output.entry_json[ProviderKey.ESM_ATLAS],
+            database_manifest=DATABASE,
+            expected_provider=ProviderKey.ESM_ATLAS,
+            expected_adapter_version="unsupported",
+        )
+
+
+def test_enabled_provider_route_rejects_entry_checksum_drift(tmp_path: Path) -> None:
+    output = _resolve(tmp_path)
+    entry = output.entry_json[ProviderKey.PDB_SEQUENCE]
+    entry.write_text(f"{entry.read_text(encoding='utf-8')}\n", encoding="utf-8")
+
+    with pytest.raises(ProviderPlanError, match="checksum differs"):
+        load_enabled_provider_route(
+            provider_plan_json=output.plan_json,
+            provider_entry_json=entry,
+            database_manifest=DATABASE,
+            expected_provider=ProviderKey.PDB_SEQUENCE,
+            expected_adapter_version="pdb-sequence-mmseqs-v2",
+        )
+
+
+def test_enabled_provider_route_rejects_database_manifest_drift(tmp_path: Path) -> None:
+    output = _resolve(tmp_path)
+    database = tmp_path / "database-drift.json"
+    database.write_text(f"{DATABASE.read_text(encoding='utf-8')}\n", encoding="utf-8")
+
+    with pytest.raises(ProviderPlanError, match="database manifest checksum"):
+        load_enabled_provider_route(
+            provider_plan_json=output.plan_json,
+            provider_entry_json=output.entry_json[ProviderKey.PDB_SEQUENCE],
+            database_manifest=database,
+            expected_provider=ProviderKey.PDB_SEQUENCE,
+            expected_adapter_version="pdb-sequence-mmseqs-v2",
+        )
+
+
+def test_enabled_provider_route_rejects_adapter_version_drift(tmp_path: Path) -> None:
+    output = _resolve(tmp_path)
+
+    with pytest.raises(ProviderPlanError, match="adapter version"):
+        load_enabled_provider_route(
+            provider_plan_json=output.plan_json,
+            provider_entry_json=output.entry_json[ProviderKey.PDB_SEQUENCE],
+            database_manifest=DATABASE,
+            expected_provider=ProviderKey.PDB_SEQUENCE,
+            expected_adapter_version="wrong-adapter",
+        )

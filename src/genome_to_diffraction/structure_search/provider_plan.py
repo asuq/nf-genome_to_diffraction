@@ -62,6 +62,14 @@ class ProviderPlanOutput:
 
 
 @dataclass(frozen=True)
+class EnabledProviderRoute:
+    """One aggregate-plan-authenticated enabled provider entry."""
+
+    plan: ProviderExecutionPlan
+    entry: ProviderPlanEntry
+
+
+@dataclass(frozen=True)
 class _ProviderCapability:
     result_provider: str
     execution_class: ProviderExecutionClass | None
@@ -123,6 +131,82 @@ def _resource_index(manifest: DatabaseManifest) -> dict[str, DatabaseResource]:
             )
         by_name[resource.name] = resource
     return by_name
+
+
+def load_enabled_provider_route(
+    *,
+    provider_plan_json: Path,
+    provider_entry_json: Path,
+    database_manifest: Path,
+    expected_provider: ProviderKey,
+    expected_adapter_version: str,
+) -> EnabledProviderRoute:
+    """Authenticate one enabled route against its aggregate plan and databases."""
+
+    plan_path = provider_plan_json.resolve(strict=True)
+    entry_path = provider_entry_json.resolve(strict=True)
+    database_path = database_manifest.resolve(strict=True)
+    plan = load_contract(plan_path, "provider-execution-plan", progress=False)
+    database = load_contract(database_path, "database-manifest", progress=False)
+    if not isinstance(plan, ProviderExecutionPlan) or not isinstance(
+        database, DatabaseManifest
+    ):
+        raise AssertionError("provider-route contract registry returned wrong models")
+    try:
+        entry = ProviderPlanEntry.model_validate_json(entry_path.read_bytes())
+    except (OSError, ValueError) as error:
+        raise ProviderPlanError(
+            f"invalid provider entry {entry_path}: {error}"
+        ) from error
+    if entry.provider is not expected_provider:
+        raise ProviderPlanError(
+            f"provider entry is {entry.provider.value}, expected "
+            f"{expected_provider.value}"
+        )
+    planned = next(
+        (item for item in plan.entries if item.provider is expected_provider), None
+    )
+    if planned is None or entry != planned:
+        raise ProviderPlanError(
+            f"provider entry differs from aggregate plan: {expected_provider.value}"
+        )
+    if sha256_file(entry_path) != plan.entry_sha256[expected_provider]:
+        raise ProviderPlanError(
+            f"provider entry checksum differs from aggregate plan: "
+            f"{expected_provider.value}"
+        )
+    if sha256_file(database_path) != plan.database_manifest_sha256:
+        raise ProviderPlanError(
+            "database manifest checksum differs from aggregate provider plan"
+        )
+    if not entry.enabled:
+        raise ProviderPlanError(
+            f"provider route is disabled: {expected_provider.value}"
+        )
+    if entry.provider_adapter_version != expected_adapter_version:
+        raise ProviderPlanError(
+            f"provider adapter version differs from route: {expected_provider.value}"
+        )
+
+    resources = _resource_index(database)
+    for binding in entry.database_resources:
+        resource = resources.get(binding.resource_name)
+        if resource is None:
+            raise ProviderPlanError(
+                f"provider route resource is absent: {binding.resource_name}"
+            )
+        if resource.status is not DatabaseResourceStatus.READY:
+            raise ProviderPlanError(
+                f"provider route resource is not ready: {binding.resource_name}"
+            )
+        if (
+            resource.database_id != binding.database_id
+            or resource.manifest_sha256 != binding.resource_manifest_sha256
+        ):
+            raise ProviderPlanError(
+                f"provider route resource identity changed: {binding.resource_name}"
+            )
+    return EnabledProviderRoute(plan=plan, entry=entry)
 
 
 def _database_bindings(

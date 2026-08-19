@@ -29,9 +29,11 @@ from genome_to_diffraction.structure_search.provider_empty import (
     emit_disabled_provider_bundle,
 )
 from genome_to_diffraction.structure_search.provider_plan import (
+    EnabledProviderRoute,
     ProviderPlanError,
     ProviderPlanOutput,
     ProviderPlanRequest,
+    load_enabled_provider_route,
     resolve_provider_plan,
 )
 from genome_to_diffraction.structure_search.qualification import (
@@ -45,6 +47,7 @@ __all__ = [
     "DisabledProviderBundleError",
     "DisabledProviderBundleOutput",
     "DisabledProviderBundleRequest",
+    "EnabledProviderRoute",
     "P1QualificationRequest",
     "PdbCoordinateInputError",
     "PdbCoordinateParseError",
@@ -58,6 +61,7 @@ __all__ = [
     "ProviderPlanOutput",
     "ProviderPlanRequest",
     "emit_disabled_provider_bundle",
+    "load_enabled_provider_route",
     "qualify_p1_search",
     "register_pdb_coordinates",
     "resolve_provider_plan",
