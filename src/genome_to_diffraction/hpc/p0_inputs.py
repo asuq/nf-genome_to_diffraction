@@ -15,7 +15,6 @@ import os
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any
 
 from pydantic import BaseModel
 from tqdm import tqdm
@@ -23,7 +22,12 @@ from tqdm import tqdm
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.hpc.models import ValidationError
 from genome_to_diffraction.ids import canonical_digest
-from genome_to_diffraction.schemas.io import ContractError, load_contract
+from genome_to_diffraction.schemas.io import (
+    ContractError,
+    ContractLoadError,
+    load_contract,
+    parse_json_document,
+)
 from genome_to_diffraction.schemas.manifests import (
     CatalogueEntry,
     CatalogueManifest,
@@ -108,10 +112,10 @@ def _load_spec(path: Path, confirmation: str) -> tuple[str, str, str]:
             "P0 input specification confirmation must exactly equal its SHA-256"
         )
     try:
-        document: Any = json.loads(payload)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        document = parse_json_document(payload.decode("utf-8"), label=path)
+    except (UnicodeDecodeError, ContractLoadError) as error:
         raise ValidationError(
-            "P0 input specification must be valid UTF-8 JSON"
+            f"P0 input specification must be valid strict UTF-8 JSON: {error}"
         ) from error
     if not isinstance(document, dict) or set(document) != _SPEC_KEYS:
         raise ValidationError(

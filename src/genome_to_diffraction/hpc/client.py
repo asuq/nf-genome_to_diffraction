@@ -4,7 +4,6 @@ import base64
 import binascii
 import hashlib
 import io
-import json
 import logging
 import os
 import re
@@ -67,6 +66,11 @@ from genome_to_diffraction.hpc.p0_inputs import (
 from genome_to_diffraction.review import (
     SequenceCheckpointRequest,
     build_sequence_checkpoint,
+)
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_json_document,
+    parse_json_document,
 )
 
 _TERMINAL_STATES = frozenset(
@@ -2619,9 +2623,9 @@ def _safe_local_evidence_file(root: Path, relative: PurePosixPath) -> Path:
 
 def _json_mapping(path: Path, label: str) -> Mapping[str, object]:
     try:
-        value: object = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ValidationError(f"{label} is not valid JSON") from error
+        value = load_json_document(path)
+    except ContractLoadError as error:
+        raise ValidationError(f"{label} is not valid strict JSON: {error}") from error
     if not isinstance(value, Mapping):
         raise ValidationError(f"{label} must be a JSON object")
     return value
@@ -2768,14 +2772,14 @@ def _jsonl_mappings(path: Path, label: str) -> list[Mapping[str, object]]:
         ):
             if not line.strip():
                 continue
-            value: object = json.loads(line)
+            value = parse_json_document(line, label=f"{path}:{line_number}")
             if not isinstance(value, Mapping):
                 raise ValidationError(
                     f"{label} record {line_number} must be a JSON object"
                 )
             records.append(value)
-    except (OSError, json.JSONDecodeError) as error:
-        raise ValidationError(f"{label} is not valid JSONL") from error
+    except (OSError, UnicodeDecodeError, ContractLoadError) as error:
+        raise ValidationError(f"{label} is not valid strict JSONL: {error}") from error
     if not records:
         raise ValidationError(f"{label} contains no records")
     return records
@@ -3023,10 +3027,10 @@ def _validate_inspectable_review_result(path: Path, label: str) -> None:
             failure_class=FailureClass.TRANSFER_FAILURE,
         )
     try:
-        result: object = json.loads(lines[0])
-    except json.JSONDecodeError as error:
+        result = parse_json_document(lines[0], label=path)
+    except ContractLoadError as error:
         raise RemoteOperationError(
-            f"inspectable review result is invalid JSON: {label}",
+            f"inspectable review result is invalid strict JSON: {label}: {error}",
             failure_class=FailureClass.TRANSFER_FAILURE,
         ) from error
     if not isinstance(result, Mapping):
@@ -3068,8 +3072,8 @@ def _failure_signature(destination: Path) -> str | None:
     if not result_path.is_file():
         return None
     try:
-        value: object = json.loads(result_path.read_text(encoding="utf-8"))
-    except OSError, json.JSONDecodeError:
+        value = load_json_document(result_path)
+    except ContractLoadError:
         return None
     if not isinstance(value, Mapping):
         return None

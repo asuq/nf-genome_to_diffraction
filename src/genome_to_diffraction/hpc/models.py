@@ -1,6 +1,5 @@
 """Validated configuration and run-state types for fixed multi-site HPC tests."""
 
-import json
 import re
 from dataclasses import dataclass
 from enum import StrEnum
@@ -8,6 +7,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 
 RUN_ID_PATTERN = re.compile(
     r"^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
@@ -117,11 +117,11 @@ class HpcConfig:
     def load(cls, path: Path) -> HpcConfig:
         """Load and strictly validate a JSON configuration file."""
 
+        if not path.is_file():
+            raise ConfigurationError(f"HPC configuration not found: {path}")
         try:
-            raw: Any = json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError as error:
-            raise ConfigurationError(f"HPC configuration not found: {path}") from error
-        except (OSError, json.JSONDecodeError) as error:
+            raw = load_json_document(path)
+        except ContractLoadError as error:
             raise ConfigurationError(
                 f"cannot read HPC configuration {path}: {error}"
             ) from error
@@ -288,11 +288,11 @@ def load_local_run(root: Path, run_id: str) -> LocalRunRecord:
 
     validate_run_id(run_id)
     path = root / run_id / "run.json"
+    if not path.is_file():
+        raise ValidationError(f"local run record not found: {run_id}")
     try:
-        value: object = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as error:
-        raise ValidationError(f"local run record not found: {run_id}") from error
-    except (OSError, json.JSONDecodeError) as error:
+        value = load_json_document(path)
+    except ContractLoadError as error:
         raise ValidationError(
             f"cannot read local run record {run_id}: {error}"
         ) from error

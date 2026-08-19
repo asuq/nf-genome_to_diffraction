@@ -9013,3 +9013,28 @@ retained evidence before run-related source edits. Do not stage M6 science.
 - Review and commit this scientific/operator slice without pushing or running a
   full suite. Continue with a separately bounded HPC-owned manifest/state slice
   while CI for `f879a9a` and Marmic smoke `629614` remain independent.
+
+## 2026-08-19T00:48:48Z - HPC-owned JSON state uses the strict boundary
+
+### Bounded R1 migration
+
+- Migrated fixed P0 input specifications, local HPC configuration/run records,
+  collected review JSON/JSONL, inspectable result records, optional failure
+  signatures, and the fixed M4 import evidence loader to the shared strict JSON
+  boundary. Dispatcher protocol, transport commands, remote scripts, limits,
+  and state transitions did not change.
+- Duplicate keys and non-finite numbers now fail with their exact path/pointer.
+  Optional failure-signature construction deliberately fails closed to no
+  signature when its diagnostic job-result document is malformed.
+- Sixteen focused mutation cases and all existing touched HPC model/client/CLI
+  suites pass 94 tests. Targeted Ruff format/lint, targeted `ty`, and
+  `git diff --check` pass. No remote operation or full suite ran.
+
+### Remaining boundary and next exact starting point
+
+- Direct JSON decoding is now confined to database/cache/network modules and
+  the AFDB HTTP response parser. Separate repository-owned database manifests
+  and sidecars from external HTTP response bodies before migration.
+- Review and commit this HPC-owned state slice separately. Then migrate the
+  repository-owned database metadata/cache documents with focused cache and
+  database tests; keep external response parsing as an explicit final class.

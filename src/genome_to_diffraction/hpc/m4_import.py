@@ -7,7 +7,6 @@ original run/job provenance.  The Viper dispatcher adds its fixed Phenix
 manifest after transfer because that licensed installation is site-local.
 """
 
-import json
 import logging
 import tarfile
 from dataclasses import dataclass
@@ -18,6 +17,7 @@ from tqdm import tqdm
 
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.hpc.models import ValidationError
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 
 _LOGGER = logging.getLogger("genome_to_diffraction.hpc.m4_import")
 
@@ -50,9 +50,9 @@ class M4ImportBundle:
 
 def _load_object(path: Path, label: str) -> dict[str, object]:
     try:
-        value: object = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ValidationError(f"cannot read {label}: {path}") from error
+        value = load_json_document(path)
+    except ContractLoadError as error:
+        raise ValidationError(f"cannot read {label}: {error}") from error
     if not isinstance(value, dict):
         raise ValidationError(f"{label} must be a JSON object")
     return cast(dict[str, object], value)
