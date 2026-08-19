@@ -9406,3 +9406,24 @@ Do not start v0.2 implementation before the archival tag is immutable.
 Start v0.2 P1 only when requested: bump development metadata to `0.2.0.dev0`
 and implement the minimal fixed-A/one-B Phaser adapter for a known 6RTZ control.
 Use focused tests and real Phenix early; do not resume R3/M6 hardening first.
+
+## 2026-08-19T13:23:02Z - v0.2 development line is open
+
+### Completed boundary
+
+- Preserved the immutable archival `v0.1.0` tag at
+  `cab4cb7628faa26b18349e5440ebb8bb29fb7780` and changed only the active
+  development line.
+- Set the Python project, Pixi workspace, Nextflow manifest, and runtime package
+  version to `0.2.0.dev0`; updated the direct CLI/package assertions and marked
+  roadmap P0 complete.
+- Five focused package/CLI/integration tests pass. The documentation link check
+  passes, and resolved Nextflow configuration reports
+  `manifest.version = '0.2.0.dev0'`. A full repository gate was intentionally
+  not run for this metadata-only milestone.
+
+### Next exact starting point
+
+Begin P1 with the smallest fixed-A/one-B Phaser adapter and focused
+command/parser/failure tests. Do not resume broad R2--R4 or M6 hardening unless
+the known 6RTZ control exposes a specific blocker.

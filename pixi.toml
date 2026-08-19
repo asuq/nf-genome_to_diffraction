@@ -1,6 +1,6 @@
 [workspace]
 name = "nf-genome_to_diffraction"
-version = "0.1.0"
+version = "0.2.0.dev0"
 description = "Foundation for genome-to-diffraction protein candidate identification"
 authors = ["Akito Shima"]
 channels = ["conda-forge", "bioconda"]

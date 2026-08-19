@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+### Changed
+
+- Started the `0.2.0.dev0` development line for the bounded two-component
+  heteromer prototype. The immutable `v0.1.0` archival release remains
+  unchanged.
+
 ## 0.1.0 - 2026-08-19
 
 This is an archival, incomplete research-prototype release. It preserves the
