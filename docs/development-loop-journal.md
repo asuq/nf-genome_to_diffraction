@@ -9236,3 +9236,74 @@ bundles with focused tests; do not stage M6 science.
   bundle processes to `PDB_SEQUENCE_DISCOVERY`, route each provider on its
   typed entry, expose the ESM disabled bundle, and prove enabled/disabled
   process cardinality plus cached resume in the focused Nextflow stub.
+
+## 2026-08-19T02:08:33Z - Provider plan is authoritative in Nextflow discovery
+
+### Fourth R2 routing slice
+
+- Added fixed Nextflow processes for provider-plan resolution, typed disabled
+  bundles, and deterministic PDB/Foldseek hit aggregation. The discovery graph
+  reads each typed plan entry, runs only enabled adapters, and emits a total
+  bundle for every disabled route including ESM Atlas.
+- Removed duplicate root/Nextflow PDB and Foldseek hit-cap parameters; their
+  values now come only from the authenticated provider entries. Existing
+  e-value, coverage, length, query-count, GPU, and AFDB request controls remain
+  explicit.
+- Added a typed merge adapter so both PDB sequence and ProstT5/Foldseek hits
+  reach coordinate registration. It does not cross-rank or filter providers;
+  it validates provider ownership, rejects duplicate hit IDs, sorts
+  deterministically, and records both input checksums.
+
+### Focused local evidence
+
+- Fifty-five provider-plan/bundle/adapter/merge/qualification tests pass.
+  Nextflow syntax, schema validation, targeted Ruff format/lint, targeted `ty`,
+  and `git diff --check` pass.
+- Default discovery runs exactly six processes: resolver, three enabled
+  adapters, disabled ESM, and hit merge; resume is 6/6 cached. An all-disabled
+  fixture runs resolver, four disabled bundles, and hit merge; resume is also
+  6/6 cached, with every result `skipped_policy`/`not_interpretable`.
+- Integrated `main.nf --analysis_stage first_copy` completes 17 processes and
+  resumes 17/17 cached with merged hits feeding coordinate registration. One
+  initial focused run exposed and then fixed a same-basename staging collision
+  by assigning provider-specific staged filenames.
+
+### Next exact starting point
+
+Commit this routing slice without pushing or running a full suite. Integrate
+the four ordered R2 commits onto current main after the final R1 CI is green,
+run one complete locked gate, push once, and watch one CI run. Then continue R2
+with canonical network-site refusal and classified retry policy; do not stage
+M6 science.
+
+## 2026-08-19T02:25:35Z - R2 provider routing passes complete integration gate
+
+### Integrated evidence
+
+- Actions run `32205271905`, job `95927183890`, passed the final R1 direct-JSON
+  correction at `8bab00e89c1aa3e844d086d53937422f4d437ac4` in 6m5s under
+  Pixi 0.76.2.
+- Integrated four R2 commits establishing typed disabled bundles, aggregate
+  plan/entry/database authentication for enabled routes, plan-derived PDB and
+  Foldseek caps, versioned plan-bound adapter identities, Nextflow enabled/
+  disabled routing, and deterministic PDB/Foldseek hit aggregation.
+- Focused evidence covers default routing, every-provider-disabled routing,
+  both 6/6 cached resumes, and integrated first-copy execution with 17/17
+  cached resume. One observed same-basename staging collision was reproduced
+  and fixed with provider-specific staged filenames.
+- One complete locked gate passes Ruff format/lint, `ty`, 630 unit tests, 116
+  contract tests, 68 integration tests, schemas, public-panel and documentation
+  checks, actionlint, the full Nextflow syntax/stub-resume sweep including both
+  provider route matrices, and all Bash wrapper syntax checks.
+
+### R2 pause boundary and next exact starting point
+
+- R2 remains in progress: complete raw-input/cache identities, canonical
+  network-site refusal, classified retries, and remaining complete tuple/
+  channel fan-out still require their named slices. R3 is explicitly paused by
+  the user and must not start without a new instruction.
+- Amend the unpushed routing commit with this evidence and roadmap state, review
+  status/diff, push the four-commit R2 batch once, and watch one CI run. The
+  heartbeat may inspect a newly active authorised Marmic run and fix observed
+  R2 defects, but it must not re-query terminal run `629614`, start R3, or stage
+  M6 science.

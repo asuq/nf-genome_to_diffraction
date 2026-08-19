@@ -46,11 +46,9 @@
       "default": false,
       "description": "Skip Xtriage and force review status; intended only for preparation/tests."
     },
-    "maximum_hits_per_query": { "type": "integer", "minimum": 1, "default": 25 },
     "maximum_evalue": { "type": "number", "minimum": 0, "default": 1e-5 },
     "minimum_query_coverage": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.5 },
     "maximum_query_length": { "type": "integer", "minimum": 1, "default": 10000 },
-    "prostt5_maximum_hits_per_query": { "type": "integer", "minimum": 1, "default": 3 },
     "prostt5_maximum_evalue": { "type": "number", "minimum": 0, "default": 1e-3 },
     "prostt5_minimum_query_coverage": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.5 },
     "prostt5_maximum_query_length": { "type": "integer", "minimum": 1, "default": 10000 },

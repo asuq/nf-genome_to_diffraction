@@ -9,6 +9,8 @@ process RETRIEVE_AFDB_EXACT {
     sequence_groups: Path
     source_records: Path
     database_manifest: Path
+    provider_plan: Path
+    provider_entry: Path
     accession_map: Path?
     request_timeout_seconds: Float
     retry_count: Integer
@@ -22,6 +24,8 @@ process RETRIEVE_AFDB_EXACT {
         --sequence-groups '${sequence_groups}'
         --source-records '${source_records}'
         --database-manifest '${database_manifest}'
+        --provider-plan '${provider_plan}'
+        --provider-entry '${provider_entry}'
         --outdir afdb_exact_search
         --request-timeout-seconds '${request_timeout_seconds}'
         --retry-count '${retry_count}'

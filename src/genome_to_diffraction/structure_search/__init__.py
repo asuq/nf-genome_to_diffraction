@@ -28,6 +28,12 @@ from genome_to_diffraction.structure_search.provider_empty import (
     DisabledProviderBundleRequest,
     emit_disabled_provider_bundle,
 )
+from genome_to_diffraction.structure_search.provider_hits import (
+    ProviderHitMergeError,
+    ProviderHitMergeOutput,
+    ProviderHitMergeRequest,
+    merge_pdb_provider_hits,
+)
 from genome_to_diffraction.structure_search.provider_plan import (
     EnabledProviderRoute,
     ProviderPlanError,
@@ -57,11 +63,15 @@ __all__ = [
     "PdbSequenceSearchRequest",
     "ProstT5FoldseekSearchOutput",
     "ProstT5FoldseekSearchRequest",
+    "ProviderHitMergeError",
+    "ProviderHitMergeOutput",
+    "ProviderHitMergeRequest",
     "ProviderPlanError",
     "ProviderPlanOutput",
     "ProviderPlanRequest",
     "emit_disabled_provider_bundle",
     "load_enabled_provider_route",
+    "merge_pdb_provider_hits",
     "qualify_p1_search",
     "register_pdb_coordinates",
     "resolve_provider_plan",

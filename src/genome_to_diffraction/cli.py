@@ -172,8 +172,10 @@ from genome_to_diffraction.structure_search import (
     PdbCoordinateRegistrationRequest,
     PdbSequenceSearchRequest,
     ProstT5FoldseekSearchRequest,
+    ProviderHitMergeRequest,
     ProviderPlanRequest,
     emit_disabled_provider_bundle,
+    merge_pdb_provider_hits,
     qualify_p1_search,
     register_pdb_coordinates,
     resolve_provider_plan,
@@ -1216,6 +1218,15 @@ def _build_parser() -> argparse.ArgumentParser:
     disabled_provider_parser.add_argument("--provider-entry", type=Path, required=True)
     disabled_provider_parser.add_argument("--sequence-groups", type=Path, required=True)
     disabled_provider_parser.add_argument("--outdir", type=Path, required=True)
+    merge_provider_hits_parser = search_actions.add_parser(
+        "merge-pdb-provider-hits",
+        help="combine typed PDB-sequence and Foldseek hit evidence",
+    )
+    merge_provider_hits_parser.add_argument(
+        "--pdb-sequence-hits", type=Path, required=True
+    )
+    merge_provider_hits_parser.add_argument("--foldseek-hits", type=Path, required=True)
+    merge_provider_hits_parser.add_argument("--outdir", type=Path, required=True)
     pdb_sequence_parser = search_actions.add_parser(
         "pdb-sequence",
         help="search exact catalogue sequences against the local PDB SEQRES database",
@@ -1949,6 +1960,16 @@ def _run_structure_search(args: argparse.Namespace) -> int:
             f"Emitted {len(disabled.results)} disabled-provider results: "
             f"{disabled.search_manifest}"
         )
+        return 0
+    if args.structure_search_action == "merge-pdb-provider-hits":
+        merged = merge_pdb_provider_hits(
+            ProviderHitMergeRequest(
+                pdb_sequence_hits_jsonl=args.pdb_sequence_hits,
+                foldseek_hits_jsonl=args.foldseek_hits,
+                output_directory=args.outdir,
+            )
+        )
+        print(f"Merged {len(merged.hits)} PDB provider hits: {merged.manifest_json}")
         return 0
     if args.structure_search_action == "qualify-p1":
         report = qualify_p1_search(

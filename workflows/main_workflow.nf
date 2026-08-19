@@ -30,11 +30,9 @@ workflow MAIN_WORKFLOW {
     analysis_stage: String
     approved_mr_seeds: Path?
     skip_xtriage: Boolean
-    maximum_hits_per_query: Integer
     maximum_evalue: Float
     minimum_query_coverage: Float
     maximum_query_length: Integer
-    prostt5_maximum_hits_per_query: Integer
     prostt5_maximum_evalue: Float
     prostt5_minimum_query_coverage: Float
     prostt5_maximum_query_length: Integer
@@ -87,12 +85,11 @@ workflow MAIN_WORKFLOW {
         discovery = PDB_SEQUENCE_DISCOVERY(
             sequence_groups,
             source_records,
+            pipeline_config,
             database_manifest,
-            maximum_hits_per_query,
             maximum_evalue,
             minimum_query_coverage,
             maximum_query_length,
-            prostt5_maximum_hits_per_query,
             prostt5_maximum_evalue,
             prostt5_minimum_query_coverage,
             prostt5_maximum_query_length,
@@ -102,7 +99,7 @@ workflow MAIN_WORKFLOW {
             afdb_request_timeout_seconds,
             afdb_retry_count
         )
-        direct_pdb_hits = discovery.pdb_sequence_search.map { Path bundle ->
+        direct_pdb_hits = discovery.pdb_provider_hits.map { Path bundle ->
             bundle.resolve('structural_hits.jsonl')
         }
         pdb_registration = REGISTER_PDB_COORDINATES(

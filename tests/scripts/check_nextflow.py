@@ -252,6 +252,7 @@ def check_stubs() -> None:
         integrated_t12_out = temporary_root / "integrated-t12-results"
         database_out = temporary_root / "database-results"
         discovery_out = temporary_root / "discovery-results"
+        disabled_discovery_out = temporary_root / "disabled-discovery-results"
         coordinate_out = temporary_root / "coordinate-results"
         pdb_model_out = temporary_root / "pdb-model-results"
         model_out = temporary_root / "model-results"
@@ -549,8 +550,10 @@ def check_stubs() -> None:
             "tests/fixtures/stubs/sequence_groups.jsonl",
             "--source_records",
             "tests/fixtures/stubs/source_records.jsonl",
+            "--config",
+            "examples/config.yaml",
             "--database_manifest",
-            "tests/fixtures/stubs/database_manifest.json",
+            "tests/fixtures/stubs/provider_plan_database_manifest.json",
             "--outdir",
             str(discovery_out),
             "--cache_root",
@@ -569,12 +572,48 @@ def check_stubs() -> None:
                 "foldseek.log",
                 "coordinate_sources.jsonl",
                 "http.log",
+                "provider_plan.json",
+                "esm_atlas.json",
+                "disabled.log",
+                "provider_hit_merge_manifest.json",
                 "report.html",
                 "timeline.html",
                 "trace.tsv",
                 "dag.html",
             },
         )
+        discovery_trace = discovery_out / "pipeline_info" / "trace.tsv"
+        with discovery_trace.open(encoding="utf-8", newline="") as handle:
+            discovery_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+        discovery_process_counts = Counter(
+            row["process"].split(":")[-1] for row in discovery_rows
+        )
+        expected_discovery_processes = {
+            "RESOLVE_PROVIDER_PLAN": 1,
+            "SEARCH_PDB_SEQUENCES": 1,
+            "SEARCH_FOLDSEEK_PROSTT5": 1,
+            "RETRIEVE_AFDB_EXACT": 1,
+            "EMIT_DISABLED_ESM": 1,
+            "MERGE_PDB_PROVIDER_HITS": 1,
+        }
+        if discovery_process_counts != expected_discovery_processes:
+            raise RuntimeError(
+                "structural-discovery provider routing changed: "
+                f"{dict(sorted(discovery_process_counts.items()))}"
+            )
+        esm_results = tuple(
+            json.loads(line)
+            for line in (discovery_out / "esm_atlas_search/search_results.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line
+        )
+        if not esm_results or any(
+            row.get("execution_status") != "skipped_policy"
+            or row.get("scientific_status") != "not_interpretable"
+            for row in esm_results
+        ):
+            raise RuntimeError("disabled ESM route did not emit typed skipped results")
         discovery_resumed = _run(
             [*discovery_command, "-resume"], environment=environment
         )
@@ -586,6 +625,75 @@ def check_stubs() -> None:
                 "resumed structural-discovery stub did not report cached work:\n"
                 + discovery_resumed_output
             )
+        with discovery_trace.open(encoding="utf-8", newline="") as handle:
+            discovery_resume_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+        if len(discovery_resume_rows) != 6 or {
+            row["status"] for row in discovery_resume_rows
+        } != {"CACHED"}:
+            raise RuntimeError(
+                "structural-discovery provider route was not fully cached"
+            )
+
+        disabled_discovery_command = list(discovery_command)
+        disabled_discovery_command[disabled_discovery_command.index("--config") + 1] = (
+            "tests/fixtures/stubs/config_all_providers_disabled.yaml"
+        )
+        disabled_discovery_command[disabled_discovery_command.index("--outdir") + 1] = (
+            str(disabled_discovery_out)
+        )
+        disabled_discovery_command[
+            disabled_discovery_command.index("--cache_root") + 1
+        ] = str(cache_root / "disabled-discovery")
+        _run(disabled_discovery_command, environment=environment)
+        disabled_trace = disabled_discovery_out / "pipeline_info" / "trace.tsv"
+        with disabled_trace.open(encoding="utf-8", newline="") as handle:
+            disabled_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+        disabled_process_counts = Counter(
+            row["process"].split(":")[-1] for row in disabled_rows
+        )
+        expected_disabled_processes = {
+            "RESOLVE_PROVIDER_PLAN": 1,
+            "EMIT_DISABLED_PDB": 1,
+            "EMIT_DISABLED_FOLDSEEK": 1,
+            "EMIT_DISABLED_AFDB": 1,
+            "EMIT_DISABLED_ESM": 1,
+            "MERGE_PDB_PROVIDER_HITS": 1,
+        }
+        if disabled_process_counts != expected_disabled_processes:
+            raise RuntimeError(
+                "all-disabled provider routing changed: "
+                f"{dict(sorted(disabled_process_counts.items()))}"
+            )
+        for bundle_name in (
+            "pdb_sequence_search",
+            "prostt5_foldseek_search",
+            "afdb_exact_search",
+            "esm_atlas_search",
+        ):
+            rows = tuple(
+                json.loads(line)
+                for line in (
+                    disabled_discovery_out / bundle_name / "search_results.jsonl"
+                )
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line
+            )
+            if not rows or any(
+                row.get("execution_status") != "skipped_policy"
+                or row.get("scientific_status") != "not_interpretable"
+                for row in rows
+            ):
+                raise RuntimeError(
+                    f"disabled provider bundle is not typed: {bundle_name}"
+                )
+        _run([*disabled_discovery_command, "-resume"], environment=environment)
+        with disabled_trace.open(encoding="utf-8", newline="") as handle:
+            disabled_resume_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+        if len(disabled_resume_rows) != 6 or {
+            row["status"] for row in disabled_resume_rows
+        } != {"CACHED"}:
+            raise RuntimeError("all-disabled provider route was not fully cached")
 
         coordinate_command = [
             "nextflow",

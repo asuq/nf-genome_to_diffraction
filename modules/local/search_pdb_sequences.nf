@@ -8,7 +8,8 @@ process SEARCH_PDB_SEQUENCES {
     input:
     sequence_groups: Path
     database_manifest: Path
-    maximum_hits_per_query: Integer
+    provider_plan: Path
+    provider_entry: Path
     maximum_evalue: Float
     minimum_query_coverage: Float
     maximum_query_length: Integer
@@ -24,9 +25,10 @@ process SEARCH_PDB_SEQUENCES {
         structure-search pdb-sequence \
         --sequence-groups '${sequence_groups}' \
         --database-manifest '${database_manifest}' \
+        --provider-plan '${provider_plan}' \
+        --provider-entry '${provider_entry}' \
         --outdir pdb_sequence_search \
         --threads ${task.cpus} \
-        --maximum-hits-per-query ${maximum_hits_per_query} \
         --maximum-evalue ${maximum_evalue} \
         --minimum-query-coverage ${minimum_query_coverage} \
         --maximum-query-length ${maximum_query_length}

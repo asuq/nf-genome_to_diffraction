@@ -8,7 +8,8 @@ process SEARCH_FOLDSEEK_PROSTT5 {
     input:
     sequence_groups: Path
     database_manifest: Path
-    maximum_hits_per_query: Integer
+    provider_plan: Path
+    provider_entry: Path
     maximum_evalue: Float
     minimum_query_coverage: Float
     maximum_query_length: Integer
@@ -23,9 +24,10 @@ process SEARCH_FOLDSEEK_PROSTT5 {
     args=(
         --sequence-groups '${sequence_groups}'
         --database-manifest '${database_manifest}'
+        --provider-plan '${provider_plan}'
+        --provider-entry '${provider_entry}'
         --outdir prostt5_foldseek_search
         --threads '${task.cpus}'
-        --maximum-hits-per-query '${maximum_hits_per_query}'
         --maximum-evalue '${maximum_evalue}'
         --minimum-query-coverage '${minimum_query_coverage}'
         --maximum-query-length '${maximum_query_length}'
