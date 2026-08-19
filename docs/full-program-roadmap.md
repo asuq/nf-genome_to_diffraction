@@ -212,10 +212,10 @@ is intentionally after the experimental heteromer release.
 
 ## Current hand-off
 
-- Current preserved source before roadmap/release edits:
-  `14c9d5e70e59b1215368dfe5ec15fb29cccc1819`.
+- Archival v0.1.0 is published at tag `v0.1.0`, commit
+  `cab4cb7628faa26b18349e5440ebb8bb29fb7780`.
 - R1 is complete; R2 provider routing is green; remaining R2 and all R3/R4 work
   are backlog unless a known control proves a blocker.
 - Marmic run `629614` is terminal, collected, and orchestration-only. Never
   query, resume, recollect, reuse, or clean it.
-- The next programme action is Gate A, then Phase-I H0/H1.
+- Gate A is complete. The next programme action is Phase-I H0/H1.

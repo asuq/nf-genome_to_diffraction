@@ -9383,3 +9383,26 @@ Review and commit the authority/roadmap/release diff, push once, and watch one
 CI run. After green CI, create and push annotated tag `v0.1.0`, publish the
 GitHub release from `docs/releases/v0.1.0.md`, and verify the remote tag/release.
 Do not start v0.2 implementation before the archival tag is immutable.
+
+## 2026-08-19T12:28:47Z - Incomplete archival v0.1.0 is published
+
+### Immutable release evidence
+
+- Release commit `cab4cb7628faa26b18349e5440ebb8bb29fb7780` passed Actions
+  run `32246051614`, job `96046684140`, in 7m26s under Pixi 0.76.2.
+- Annotated tag `v0.1.0` points to that exact commit and was pushed to the
+  private remote.
+- GitHub release `v0.1.0 — archival incomplete research prototype` was
+  published at
+  `https://github.com/asuq/nf-genome_to_diffraction/releases/tag/v0.1.0`.
+  It is neither a draft nor a prerelease; its text explicitly records the M6
+  hold, missing heteromer support, 7L6G three-of-six result, sequential copy
+  placement, and deferred hardening.
+- The release tag remains immutable. These post-release hand-off edits are not
+  part of v0.1.0 and remain uncommitted for the first v0.2 milestone.
+
+### Next exact starting point
+
+Start v0.2 P1 only when requested: bump development metadata to `0.2.0.dev0`
+and implement the minimal fixed-A/one-B Phaser adapter for a known 6RTZ control.
+Use focused tests and real Phenix early; do not resume R3/M6 hardening first.
