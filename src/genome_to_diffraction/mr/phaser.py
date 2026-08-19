@@ -19,7 +19,6 @@ approve them. Final packing, placed-copy checks, raw metrics, and advisories are
 preserved independently for human review.
 """
 
-import json
 import logging
 import re
 import subprocess
@@ -47,6 +46,7 @@ from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
     validate_manifest_environment,
 )
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import (
     MrHypothesis,
     MrHypothesisStatus,
@@ -193,10 +193,10 @@ def _one_by_id[T](
 def _load_manifest(path: Path) -> tuple[Path, dict[str, object]]:
     resolved = path.resolve(strict=True)
     try:
-        document: object = json.loads(resolved.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        document = load_json_document(resolved)
+    except ContractLoadError as error:
         raise PhaserInputError(
-            f"cannot load model-preparation manifest: {resolved}"
+            f"cannot load model-preparation manifest: {error}"
         ) from error
     if not isinstance(document, dict):
         raise PhaserInputError("model-preparation manifest must be a JSON object")

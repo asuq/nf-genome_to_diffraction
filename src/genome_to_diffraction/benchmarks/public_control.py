@@ -16,7 +16,6 @@ from typing import Literal, Protocol, Self
 from urllib.parse import urlparse
 
 import gemmi
-import yaml
 from Bio.SeqIO.FastaIO import SimpleFastaParser
 from pydantic import Field, model_validator
 from tqdm import tqdm
@@ -41,6 +40,7 @@ from genome_to_diffraction.schemas.base import (
     PositiveInt,
     Sha256Hex,
 )
+from genome_to_diffraction.schemas.io import ContractLoadError, load_yaml_document
 from genome_to_diffraction.schemas.manifests import (
     CatalogueEntry,
     CatalogueManifest,
@@ -291,9 +291,9 @@ def load_public_control_spec(path: Path) -> PublicControlSpec:
     if not resolved.is_file():
         raise PublicControlError(f"public-control specification is not a file: {path}")
     try:
-        payload = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+        payload = load_yaml_document(resolved)
         return PublicControlSpec.model_validate(payload)
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (ContractLoadError, ValueError) as error:
         raise PublicControlError(
             f"invalid public-control specification {resolved}: {error}"
         ) from error

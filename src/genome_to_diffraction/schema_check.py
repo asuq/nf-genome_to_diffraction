@@ -1,16 +1,20 @@
 """Repository-level JSON Schema and example validation."""
 
 import csv
-import json
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-import yaml
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
 
-from genome_to_diffraction.schemas.io import ContractError, load_contract
+from genome_to_diffraction.schemas.io import (
+    ContractError,
+    ContractLoadError,
+    load_contract,
+    load_json_document,
+    load_yaml_document,
+)
 from genome_to_diffraction.schemas.manifests import (
     CatalogueManifest,
     CrystalManifest,
@@ -64,10 +68,9 @@ _TYPED_FIXTURES = (
 
 
 def _load_document(path: Path) -> Any:
-    with path.open(encoding="utf-8") as handle:
-        if path.suffix in {".yaml", ".yml"}:
-            return yaml.safe_load(handle)
-        return json.load(handle)
+    if path.suffix in {".yaml", ".yml"}:
+        return load_yaml_document(path)
+    return load_json_document(path)
 
 
 def _format_validation_error(error: ValidationError) -> str:
@@ -120,7 +123,7 @@ def validate_repository(repository: Path) -> list[str]:
         try:
             schema = _load_document(schema_path)
             Draft202012Validator.check_schema(schema)
-        except (OSError, json.JSONDecodeError, SchemaError) as error:
+        except (ContractLoadError, SchemaError) as error:
             errors.append(f"{schema_path}: invalid schema: {error}")
             continue
 
@@ -130,7 +133,7 @@ def validate_repository(repository: Path) -> list[str]:
         fixture_path = repository / fixture_relative
         try:
             instance = _load_document(fixture_path)
-        except (OSError, json.JSONDecodeError, yaml.YAMLError) as error:
+        except ContractLoadError as error:
             errors.append(f"{fixture_path}: cannot load fixture: {error}")
             continue
 
@@ -148,7 +151,7 @@ def validate_repository(repository: Path) -> list[str]:
     try:
         nextflow_schema = _load_document(nextflow_schema_path)
         Draft202012Validator.check_schema(nextflow_schema)
-    except (OSError, json.JSONDecodeError, SchemaError) as error:
+    except (ContractLoadError, SchemaError) as error:
         errors.append(f"{nextflow_schema_path}: invalid schema: {error}")
 
     errors.extend(_validate_review_tsvs(repository))

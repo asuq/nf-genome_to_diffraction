@@ -39,6 +39,7 @@ from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
     validate_manifest_environment,
 )
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import (
     AdditionalCopyResult,
     MrHypothesis,
@@ -146,9 +147,9 @@ class _Resolved:
 def _json_object(path: Path, *, label: str) -> dict[str, object]:
     resolved = path.resolve(strict=True)
     try:
-        document: object = json.loads(resolved.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise PhaserInputError(f"cannot load {label}: {resolved}") from error
+        document = load_json_document(resolved)
+    except ContractLoadError as error:
+        raise PhaserInputError(f"cannot load {label}: {error}") from error
     if not isinstance(document, dict):
         raise PhaserInputError(f"{label} must be a JSON object")
     return cast(dict[str, object], document)

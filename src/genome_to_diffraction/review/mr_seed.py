@@ -14,7 +14,6 @@ edited identifiers before any same-component copy-placement work can start.
 import csv
 import html
 import io
-import json
 import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
@@ -42,7 +41,11 @@ from genome_to_diffraction.mr.policy import (
     SCORE_GATE_TFZ,
     passes_provisional_score_gate,
 )
-from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_contract,
+    load_json_document,
+)
 from genome_to_diffraction.schemas.manifests import PipelineConfig
 from genome_to_diffraction.schemas.results import (
     MatthewsHypothesis,
@@ -239,9 +242,9 @@ def _load_json_object(path: Path, *, label: str) -> dict[str, object]:
     if not resolved.is_file():
         raise MrSeedReviewError(f"{label} is not a regular file: {resolved}")
     try:
-        value = json.loads(resolved.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise MrSeedReviewError(f"invalid {label}: {resolved}") from error
+        value = load_json_document(resolved)
+    except ContractLoadError as error:
+        raise MrSeedReviewError(f"invalid {label}: {error}") from error
     if not isinstance(value, dict):
         raise MrSeedReviewError(f"{label} must contain a JSON object: {resolved}")
     return cast(dict[str, object], value)

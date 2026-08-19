@@ -8,7 +8,6 @@ filters or automatic decisions.  The approval template is intentionally empty.
 import csv
 import html
 import io
-import json
 import logging
 import os
 import shutil
@@ -31,6 +30,7 @@ from genome_to_diffraction.matthews.enumerate import (
     physical_status,
     prior_score,
 )
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import (
     BriefRefinementResult,
     MtzPreflightRecord,
@@ -216,9 +216,9 @@ def _load_object(path: Path, label: str) -> dict[str, object]:
     if path.is_symlink() or not path.is_file():
         raise SequenceCheckpointError(f"{label} is absent or unsafe")
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (UnicodeError, json.JSONDecodeError) as error:
-        raise SequenceCheckpointError(f"{label} is not valid JSON") from error
+        value = load_json_document(path)
+    except ContractLoadError as error:
+        raise SequenceCheckpointError(f"{label} is not valid JSON: {error}") from error
     if not isinstance(value, dict):
         raise SequenceCheckpointError(f"{label} must be a JSON object")
     return value

@@ -9,7 +9,6 @@ performs molecular replacement or makes a scientific selection.
 """
 
 import csv
-import json
 import logging
 import re
 import shutil
@@ -29,6 +28,7 @@ from genome_to_diffraction.review.mr_seed import (
     MrSeedApprovalRequest,
     validate_mr_seed_approvals,
 )
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import MrHypothesis
 from genome_to_diffraction.status import ExecutionStatus
 
@@ -86,9 +86,9 @@ class LiveAddCopyStageOutput:
 
 def _load_object(path: Path, label: str) -> dict[str, object]:
     try:
-        value: object = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise ValueError(f"cannot load {label}: {path}") from error
+        value = load_json_document(path)
+    except ContractLoadError as error:
+        raise ValueError(f"cannot load {label}: {error}") from error
     if not isinstance(value, dict):
         raise ValueError(f"{label} must be a JSON object")
     return cast(dict[str, object], value)

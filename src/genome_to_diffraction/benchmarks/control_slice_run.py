@@ -52,6 +52,7 @@ from genome_to_diffraction.refinement.brief import (
     T12RunRequest,
     run_t12_candidate,
 )
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.manifests import PrototypeProfile
 from genome_to_diffraction.schemas.results import (
     MrHypothesis,
@@ -110,7 +111,10 @@ class ControlSliceRunOutput:
 
 def _object(path: Path) -> dict[str, object]:
     resolved = path.resolve(strict=True)
-    value: object = json.loads(resolved.read_text(encoding="utf-8"))
+    try:
+        value = load_json_document(resolved)
+    except ContractLoadError as error:
+        raise ControlSliceRunError(f"cannot load JSON object: {error}") from error
     if not isinstance(value, dict):
         raise ControlSliceRunError(f"expected JSON object: {resolved}")
     return cast(dict[str, object], value)

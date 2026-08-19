@@ -1,7 +1,6 @@
 """Fail-loud qualification of one real P1 direct-PDB discovery run."""
 
 import csv
-import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -14,6 +13,7 @@ from genome_to_diffraction.benchmarks.public_control import (
     load_public_control_spec,
 )
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import (
     SequenceGroupRecord,
     StructuralSearchHit,
@@ -121,12 +121,10 @@ def _read_hits(path: Path, *, progress: bool) -> list[StructuralSearchHit]:
 
 def _load_manifest(path: Path) -> dict[str, Any]:
     try:
-        value: object = json.loads(
-            path.resolve(strict=True).read_text(encoding="utf-8")
-        )
-    except (OSError, json.JSONDecodeError) as error:
+        value = load_json_document(path.resolve(strict=True))
+    except ContractLoadError as error:
         raise ResultParseError(
-            f"cannot load structural-search manifest: {path}"
+            f"cannot load structural-search manifest: {error}"
         ) from error
     if not isinstance(value, dict):
         raise ResultParseError("structural-search manifest must be a JSON object")

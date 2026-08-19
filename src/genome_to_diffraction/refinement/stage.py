@@ -9,7 +9,6 @@ files remain copied provenance rather than refinement observations.
 """
 
 import csv
-import json
 import logging
 import os
 import re
@@ -28,6 +27,7 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.ids import content_id
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import (
     AdditionalCopyResult,
     MrHypothesis,
@@ -121,9 +121,9 @@ class _CopySeries:
 
 def _load_object(path: Path, label: str) -> dict[str, Any]:
     try:
-        value: object = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise T12StageError(f"cannot read {label}: {path}") from error
+        value = load_json_document(path)
+    except ContractLoadError as error:
+        raise T12StageError(f"cannot read {label}: {error}") from error
     if not isinstance(value, dict):
         raise T12StageError(f"{label} must be a JSON object")
     return value

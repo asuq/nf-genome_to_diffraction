@@ -8987,3 +8987,29 @@ retained evidence before run-related source edits. Do not stage M6 science.
   four-commit batch once, and watch exactly one CI run. Continue focused R1/R2
   work while the independent Marmic smoke remains non-terminal; do not stage
   M6 science.
+
+## 2026-08-19T00:44:22Z - Scientific and operator raw loaders are strict
+
+### Bounded R1 migration
+
+- Migrated the remaining non-M6 scientific/operator document readers for MR,
+  additional-copy staging, refinement staging, candidate funnels, public
+  controls/panels, review checkpoints, structure-search qualification, and
+  repository schema checks to the shared duplicate-key and non-finite-number
+  rejecting JSON/YAML boundary.
+- Domain-specific errors now preserve the exact input path and JSON pointer
+  from the strict loader. Existing typed models, symlink checks, scientific
+  semantics, serializers, and external-tool parsing remain unchanged.
+- Added 34 mutation routes covering every migrated JSON/YAML entry point.
+  The mutation tests and all existing touched-adapter suites pass 243 tests.
+  Targeted Ruff format/lint, targeted `ty`, and `git diff --check` pass.
+
+### Remaining boundary and next exact starting point
+
+- Remaining direct JSON decoders are confined to database/cache/network code,
+  AFDB HTTP response parsing, and fixed HPC controller/run-state code. Classify
+  external response bodies separately from repository-owned manifests before
+  migrating them; do not fold those operational boundaries into this commit.
+- Review and commit this scientific/operator slice without pushing or running a
+  full suite. Continue with a separately bounded HPC-owned manifest/state slice
+  while CI for `f879a9a` and Marmic smoke `629614` remain independent.

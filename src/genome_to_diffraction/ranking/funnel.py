@@ -12,7 +12,6 @@ broader experimental/model-diversity funnel.
 
 import csv
 import io
-import json
 import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -29,7 +28,11 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
-from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_contract,
+    load_json_document,
+)
 from genome_to_diffraction.schemas.manifests import PipelineConfig, PrototypeProfile
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
@@ -188,9 +191,9 @@ def _unique_index[T](
 def _load_object(path: Path, *, label: str) -> tuple[Path, dict[str, object]]:
     resolved = path.resolve(strict=True)
     try:
-        document: object = json.loads(resolved.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise FunnelInputError(f"cannot load {label}: {resolved}") from error
+        document = load_json_document(resolved)
+    except ContractLoadError as error:
+        raise FunnelInputError(f"cannot load {label}: {error}") from error
     if not isinstance(document, dict):
         raise FunnelInputError(f"{label} must be a JSON object: {resolved}")
     return resolved, cast(dict[str, object], document)

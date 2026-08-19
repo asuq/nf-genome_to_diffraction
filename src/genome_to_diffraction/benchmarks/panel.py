@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Literal, Self
 
 import gemmi
-import yaml
 from pydantic import Field, model_validator
 from tqdm import tqdm
 
@@ -38,6 +37,7 @@ from genome_to_diffraction.schemas.base import (
     Sha256Hex,
     UtcTimestamp,
 )
+from genome_to_diffraction.schemas.io import ContractLoadError, load_yaml_document
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.benchmarks.panel")
@@ -261,9 +261,9 @@ def load_homomer_workflow_suite(
 
     resolved = path.resolve(strict=True)
     try:
-        payload = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+        payload = load_yaml_document(resolved)
         suite = HomomerWorkflowSuiteSpec.model_validate(payload)
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (ContractLoadError, ValueError) as error:
         raise PublicControlError(
             f"invalid homomer workflow suite {resolved}: {error}"
         ) from error
@@ -368,9 +368,9 @@ def load_homomer_workflow_slice(
 
     resolved = path.resolve(strict=True)
     try:
-        payload = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+        payload = load_yaml_document(resolved)
         smoke_slice = HomomerWorkflowSliceSpec.model_validate(payload)
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (ContractLoadError, ValueError) as error:
         raise PublicControlError(
             f"invalid homomer workflow slice {resolved}: {error}"
         ) from error
@@ -464,9 +464,9 @@ def load_public_control_panel(path: Path) -> PublicControlPanelSpec:
     if not resolved.is_file():
         raise PublicControlError(f"public-control panel is not a file: {path}")
     try:
-        payload = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+        payload = load_yaml_document(resolved)
         panel = PublicControlPanelSpec.model_validate(payload)
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (ContractLoadError, ValueError) as error:
         raise PublicControlError(
             f"invalid public-control panel {resolved}: {error}"
         ) from error

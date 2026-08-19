@@ -17,7 +17,6 @@ scheduled ``p2-control`` profile.
 """
 
 import hashlib
-import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -25,7 +24,6 @@ from pathlib import Path, PurePosixPath
 from typing import Literal, cast
 
 import gemmi
-import yaml
 from pydantic import Field, JsonValue, ValidationError, model_validator
 from tqdm import tqdm
 
@@ -46,6 +44,11 @@ from genome_to_diffraction.schemas.base import (
     PositiveFloat,
     PositiveInt,
     Sha256Hex,
+)
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_json_document,
+    load_yaml_document,
 )
 from genome_to_diffraction.schemas.manifests import DatabaseManifest, PrototypeProfile
 from genome_to_diffraction.schemas.results import (
@@ -155,9 +158,9 @@ def load_first_copy_control_pair(path: Path) -> FirstCopyControlPairSpec:
 
     resolved = path.resolve(strict=True)
     try:
-        document = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+        document = load_yaml_document(resolved)
         return FirstCopyControlPairSpec.model_validate(document)
-    except (OSError, ValueError, yaml.YAMLError) as error:
+    except (ContractLoadError, ValueError) as error:
         raise MrControlInputError(
             f"invalid first-copy control-pair specification {resolved}: {error}"
         ) from error
@@ -168,9 +171,9 @@ def _read_json(path: Path, *, label: str) -> tuple[Path, dict[str, object]]:
     if path.is_symlink() or not resolved.is_file():
         raise MrControlInputError(f"{label} is not a regular file: {path}")
     try:
-        value: object = json.loads(resolved.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise MrControlInputError(f"cannot read {label}: {resolved}") from error
+        value = load_json_document(resolved)
+    except ContractLoadError as error:
+        raise MrControlInputError(f"cannot read {label}: {error}") from error
     if not isinstance(value, dict):
         raise MrControlInputError(f"{label} must be a JSON object: {resolved}")
     return resolved, cast(dict[str, object], value)
