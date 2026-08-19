@@ -1,6 +1,7 @@
 """Mutation parity for raw M6 authority and evidence documents."""
 
 import json
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,16 @@ from genome_to_diffraction.benchmarks.m6_collection import (
     _json_object as load_collected_json_object,
 )
 from genome_to_diffraction.benchmarks.m6_collection import (
+    _jsonl_text as load_collected_jsonl_text,
+)
+from genome_to_diffraction.benchmarks.m6_collection import (
     _load_private_truth,
+)
+from genome_to_diffraction.benchmarks.m6_edge import (
+    _json_integer as load_edge_json_integer,
+)
+from genome_to_diffraction.benchmarks.m6_edge import (
+    _json_object as load_edge_json_object,
 )
 from genome_to_diffraction.benchmarks.m6_evaluation import load_m6_evidence
 from genome_to_diffraction.benchmarks.m6_execution import (
@@ -19,6 +29,15 @@ from genome_to_diffraction.benchmarks.m6_execution import (
 )
 from genome_to_diffraction.benchmarks.m6_model_policy import (
     _object as load_model_policy_object,
+)
+from genome_to_diffraction.benchmarks.m6_nextflow import (
+    _json_integer as load_nextflow_json_integer,
+)
+from genome_to_diffraction.benchmarks.m6_nextflow import (
+    _json_object as load_nextflow_json_object,
+)
+from genome_to_diffraction.benchmarks.m6_nextflow import (
+    _jsonl_dicts as load_nextflow_jsonl_dicts,
 )
 from genome_to_diffraction.benchmarks.m6_protocol import (
     M6BenchmarkProtocol,
@@ -77,6 +96,14 @@ def _invoke_loader(family: str, path: Path) -> None:
         load_model_policy_object(path, "M6 model policy")
     elif family == "collection-json":
         load_collected_json_object(path, "collection manifest")
+    elif family == "collection-jsonl":
+        load_collected_jsonl_text(path.read_text(encoding="utf-8"), path, "fixture")
+    elif family == "edge-json":
+        load_edge_json_object(path, "edge fixture")
+    elif family == "nextflow-json":
+        load_nextflow_json_object(path, "Nextflow fixture")
+    elif family == "nextflow-jsonl":
+        load_nextflow_jsonl_dicts(path, required=True)
     elif family == "private-truth-json":
         protocol = load_m6_protocol(PROTOCOL)
         _load_private_truth(
@@ -101,6 +128,10 @@ def _invoke_loader(family: str, path: Path) -> None:
         ("verification-json", "json"),
         ("model-policy-json", "json"),
         ("collection-json", "json"),
+        ("collection-jsonl", "jsonl"),
+        ("edge-json", "json"),
+        ("nextflow-json", "json"),
+        ("nextflow-jsonl", "jsonl"),
         ("private-truth-json", "json"),
     ),
 )
@@ -135,7 +166,7 @@ def test_m6_raw_loader_families_reject_ambiguous_numeric_documents(
             contents = f"{contents}\n"
     path.write_text(contents, encoding="utf-8")
 
-    with pytest.raises(PublicControlError) as captured:
+    with pytest.raises((PublicControlError, ValueError)) as captured:
         _invoke_loader(family, path)
 
     assert f"{path}" in str(captured.value)
@@ -168,3 +199,12 @@ def test_valid_frozen_m6_scientific_documents_are_semantically_unchanged() -> No
     assert load_model_policy_object(SCIENTIFIC_FIXTURE, "fixture") == expected_summary
     assert load_collected_json_object(SCIENTIFIC_FIXTURE, "fixture") == expected_summary
     assert load_scientific_jsonl_objects(SCIENTIFIC_JSONL_FIXTURE) == expected_rows
+
+
+@pytest.mark.parametrize("value", ("1", True, 1.0, None, -1))
+@pytest.mark.parametrize("loader", (load_edge_json_integer, load_nextflow_json_integer))
+def test_m6_raw_integer_fields_reject_coercion_and_negative_values(
+    loader: Callable[[Mapping[str, object], str, str], int], value: object
+) -> None:
+    with pytest.raises((PublicControlError, ValueError)):
+        loader({"count": value}, "count", "fixture")

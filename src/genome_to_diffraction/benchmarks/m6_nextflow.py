@@ -21,6 +21,7 @@ import gzip
 import json
 import shutil
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal, Self, cast
@@ -94,6 +95,11 @@ from genome_to_diffraction.schemas.base import (
     ContractModel,
     PositiveInt,
     Sha256Hex,
+)
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_json_document,
+    parse_json_document,
 )
 from genome_to_diffraction.schemas.results import (
     AdditionalCopyResult,
@@ -311,6 +317,60 @@ class M6TrackPlanOutput:
     plan_manifest: Path
     catalogue_task_count: int
     case_task_count: int
+
+
+def _json_object(path: Path, label: str) -> dict[str, object]:
+    try:
+        value = load_json_document(path)
+    except ContractLoadError as error:
+        raise PublicControlError(f"invalid M6 {label} {path}: {error}") from error
+    if not isinstance(value, dict):
+        raise PublicControlError(f"M6 {label} is not an object: {path}")
+    return cast(dict[str, object], value)
+
+
+def _jsonl_dicts(path: Path, *, required: bool = False) -> list[dict[str, object]]:
+    if not path.is_file():
+        if required:
+            raise PublicControlError(f"required M6 JSONL is missing: {path}")
+        return []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as error:
+        raise PublicControlError(f"cannot read M6 JSONL: {path}") from error
+    rows: list[dict[str, object]] = []
+    for line_number, line in enumerate(lines, start=1):
+        if not line:
+            continue
+        try:
+            value = parse_json_document(line, label=f"{path}:{line_number}")
+        except ContractLoadError as error:
+            raise PublicControlError(
+                f"invalid M6 JSONL line {line_number}: {error}"
+            ) from error
+        if not isinstance(value, dict):
+            raise PublicControlError(
+                f"M6 JSONL row is not an object at {path}:{line_number}"
+            )
+        rows.append(cast(dict[str, object], value))
+    return rows
+
+
+def _json_integer(
+    document: Mapping[str, object],
+    key: str,
+    label: str,
+    *,
+    minimum: int = 0,
+) -> int:
+    value = document.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise PublicControlError(f"M6 {label} {key} is not an integer")
+    if value < minimum:
+        raise PublicControlError(
+            f"M6 {label} {key} is below the minimum {minimum}: {value}"
+        )
+    return value
 
 
 def _load_inventory(root: Path) -> M6RunnerInventorySpec:
@@ -1037,13 +1097,10 @@ def partition_m6_discovery_task(
 
     catalogue, task = _load_catalogue_bundle(catalogue_bundle)
     plan = batch_plan.resolve(strict=True)
-    membership = json.loads(
-        (plan / "catalogue_membership" / f"{task.catalogue_key}.json").read_text(
-            encoding="utf-8"
-        )
+    membership = _json_object(
+        plan / "catalogue_membership" / f"{task.catalogue_key}.json",
+        "catalogue membership",
     )
-    if not isinstance(membership, dict):
-        raise PublicControlError("M6 catalogue membership is invalid")
     group_ids = frozenset(cast(list[str], membership["sequence_group_ids"]))
     pdb_search, pdb_hits, pdb_manifests = _batch_search_records(
         pdb_results, "pdb_sequence"
@@ -1124,10 +1181,9 @@ def partition_m6_discovery_task(
 def _fault(case_root: Path, task: M6CaseTask) -> dict[str, object]:
     if task.fault_control_sha256 is None:
         return {}
-    value = json.loads((case_root / "fault_control.json").read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise PublicControlError(f"M6 fault control is invalid: {task.case_id}")
-    return cast(dict[str, object], value)
+    return _json_object(
+        case_root / "fault_control.json", f"fault control for {task.case_id}"
+    )
 
 
 def _write_catalogue_manifest(path: Path, catalogue: Path) -> None:
@@ -1233,9 +1289,9 @@ def run_m6_preflight_task(
     phenix = phenix_manifest.resolve(strict=True)
     output = output_directory.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    policy = json.loads((case_root / "model_policy.json").read_text(encoding="utf-8"))
-    if not isinstance(policy, dict):
-        raise PublicControlError(f"M6 model policy is invalid: {task.case_id}")
+    policy = _json_object(
+        case_root / "model_policy.json", f"model policy for {task.case_id}"
+    )
     fault = _fault(case_root, task)
     stimulus = edge_stimulus(fault)
     crystal_manifest = output / "crystal_manifest.json"
@@ -1243,7 +1299,7 @@ def run_m6_preflight_task(
         crystal_manifest,
         case_id=task.case_id,
         reflections=case_root / "reflections.mtz",
-        policy=cast(dict[str, object], policy),
+        policy=policy,
         allow_remote_sequence_submission=stimulus == "remote_rate_limited",
     )
     try:
@@ -1381,13 +1437,7 @@ def _write_selected_inputs(
     policy: Path,
     output: Path,
 ) -> tuple[Path, Path, Path]:
-    ranking = [
-        json.loads(line)
-        for line in (policy / "policy/candidate_ranking.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
-        if line
-    ]
+    ranking = _jsonl_dicts(policy / "policy/candidate_ranking.jsonl", required=True)
     selected_ids = {cast(str, row["sequence_group_id"]) for row in ranking[:25]}
     groups = _jsonl(catalogue / "catalogue/sequence_groups.jsonl", SequenceGroupRecord)
     sources = _jsonl(catalogue / "catalogue/source_records.jsonl", SourceProteinRecord)
@@ -1678,12 +1728,10 @@ def run_m6_select_seeds_task(
         {}
         if not ranking_path.is_file()
         else {
-            cast(str, row["sequence_group_id"]): int(row["rank"])
-            for row in (
-                json.loads(line)
-                for line in ranking_path.read_text(encoding="utf-8").splitlines()
-                if line
+            cast(str, row["sequence_group_id"]): _json_integer(
+                row, "rank", "candidate ranking", minimum=1
             )
+            for row in _jsonl_dicts(ranking_path, required=True)
         }
     )
     packed: list[tuple[PhaserRunOutput, MrHypothesis]] = []
@@ -1932,18 +1980,14 @@ def run_m6_select_finalists_task(
 
     case = case_bundle.resolve(strict=True)
     seeds = seed_bundle.resolve(strict=True)
-    seed_plan = json.loads((seeds / "seed_plan.json").read_text(encoding="utf-8"))
-    if not isinstance(seed_plan, dict):
-        raise PublicControlError("M6 seed plan is invalid")
-    expected = int(seed_plan["selected_seed_count"])
+    seed_plan = _json_object(seeds / "seed_plan.json", "seed plan")
+    expected = _json_integer(seed_plan, "selected_seed_count", "seed plan")
     if len(add_copy_results) != expected:
         raise PublicControlError("M6 additional-copy result count changed")
     by_seed: dict[str, Path] = {}
     for path in add_copy_results:
         root = path.resolve(strict=True)
-        parent = json.loads((root / "best_parent.json").read_text(encoding="utf-8"))
-        if not isinstance(parent, dict):
-            raise PublicControlError("M6 best-parent record is invalid")
+        parent = _json_object(root / "best_parent.json", "best-parent record")
         seed_id = cast(str, parent["seed_solution_id"])
         if seed_id in by_seed:
             raise PublicControlError(f"duplicate M6 add-copy result: {seed_id}")
@@ -1968,13 +2012,18 @@ def run_m6_select_finalists_task(
     rows: list[dict[str, object]] = []
     for seed_id, add in sorted(by_seed.items()):
         seed = _seed_task(seeds, seed_id)
-        parent = json.loads((add / "best_parent.json").read_text(encoding="utf-8"))
+        parent = _json_object(add / "best_parent.json", "best-parent record")
         task = M6FinalistTask(
             schema_version="1.0",
             case_id=seed.case_id,
             seed_solution_id=seed_id,
             sequence_group_id=seed.sequence_group_id,
-            input_copy_count=int(parent["best_supported_copy_count"]),
+            input_copy_count=_json_integer(
+                parent,
+                "best_supported_copy_count",
+                "best-parent record",
+                minimum=1,
+            ),
             parent_coordinate_sha256=cast(str, parent["parent_coordinate_sha256"]),
             parent_mtz_sha256=sha256_file(case / "reflections.mtz"),
             observation_labels=preflight.selected_observation_labels,
@@ -2012,8 +2061,8 @@ def run_m6_empty_finalists_task(
 
     case = case_bundle.resolve(strict=True)
     seeds = seed_bundle.resolve(strict=True)
-    seed_plan = json.loads((seeds / "seed_plan.json").read_text(encoding="utf-8"))
-    if not isinstance(seed_plan, dict) or int(seed_plan["selected_seed_count"]) != 0:
+    seed_plan = _json_object(seeds / "seed_plan.json", "seed plan")
+    if _json_integer(seed_plan, "selected_seed_count", "seed plan") != 0:
         raise PublicControlError("M6 empty-finalist branch received selected seeds")
     output = output_directory.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -2098,20 +2147,6 @@ def _duplicate_locus_outcome(
     return None
 
 
-def _jsonl_dicts(path: Path) -> list[dict[str, object]]:
-    if not path.is_file():
-        return []
-    rows: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line:
-            continue
-        value = json.loads(line)
-        if not isinstance(value, dict):
-            raise PublicControlError(f"M6 JSONL row is not an object: {path}")
-        rows.append(cast(dict[str, object], value))
-    return rows
-
-
 def run_m6_assemble_case_task(
     case_bundle: Path,
     finalist_bundle: Path,
@@ -2123,13 +2158,11 @@ def run_m6_assemble_case_task(
     case = case_bundle.resolve(strict=True)
     finalists = finalist_bundle.resolve(strict=True)
     case_plan = _case_plan(case)
-    finalist_plan = json.loads(
-        (finalists / "finalist_plan.json").read_text(encoding="utf-8")
-    )
-    if not isinstance(finalist_plan, dict):
-        raise PublicControlError("M6 case/finalist plan is invalid")
+    finalist_plan = _json_object(finalists / "finalist_plan.json", "case/finalist plan")
     case_id = case_plan.case_id
-    expected_refinements = int(finalist_plan["finalist_count"])
+    expected_refinements = _json_integer(
+        finalist_plan, "finalist_count", "case/finalist plan"
+    )
     if len(refinement_results) != expected_refinements:
         raise PublicControlError("M6 refinement result count changed")
     groups = _jsonl(case / "all_sequence_groups.jsonl", SequenceGroupRecord)
@@ -2142,10 +2175,7 @@ def run_m6_assemble_case_task(
     fault = (
         {}
         if not (case / "fault_control.json").is_file()
-        else cast(
-            dict[str, object],
-            json.loads((case / "fault_control.json").read_text(encoding="utf-8")),
-        )
+        else _json_object(case / "fault_control.json", "fault control")
     )
     hypotheses = _hypotheses(case)
     seed_bundle = finalists / "seed_bundle"
@@ -2248,7 +2278,7 @@ def run_m6_assemble_case_task(
         }
         for item in sequences
     ]
-    seed_plan = json.loads((seed_bundle / "seed_plan.json").read_text(encoding="utf-8"))
+    seed_plan = _json_object(seed_bundle / "seed_plan.json", "seed plan")
     typed_outcome = cast(str | None, seed_plan.get("typed_outcome"))
     scientific_status = "abstained"
     execution_status = "completed"
@@ -2429,10 +2459,9 @@ def run_m6_aggregate_track_task(
         policies,
         "".join(
             json.dumps(
-                json.loads(
-                    (by_id[case_id] / "model_policy_report.json").read_text(
-                        encoding="utf-8"
-                    )
+                _json_object(
+                    by_id[case_id] / "model_policy_report.json",
+                    "model policy report",
                 ),
                 sort_keys=True,
             )
@@ -2465,7 +2494,7 @@ def run_m6_aggregate_track_task(
     protocol_path = protocol.resolve(strict=True)
     database = database_manifest.resolve(strict=True)
     phenix = phenix_manifest.resolve(strict=True)
-    phenix_document = json.loads(phenix.read_text(encoding="utf-8"))
+    phenix_document = _json_object(phenix, "Phenix manifest")
     phenix_release = phenix_document.get("phenix_version")
     if not isinstance(phenix_release, str) or not phenix_release:
         raise PublicControlError("M6 Phenix manifest lacks its release identifier")

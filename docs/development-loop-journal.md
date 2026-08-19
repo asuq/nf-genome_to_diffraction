@@ -8868,3 +8868,33 @@ Do not claim repository-wide raw-loader parity from this foundation alone.
 Integrate this commit after its strict-loader foundation. Then migrate the
 remaining M6 edge/Nextflow/collection JSONL reads in one bounded task without
 changing aggregation, scientific models, or frozen acceptance criteria.
+
+## 2026-08-19T00:16:26Z - Remaining M6 raw readers use the strict boundary
+
+### Bounded correction
+
+- Migrated M6 collection JSONL aggregation, edge-observation manifests, and
+  Nextflow task/evidence JSON and JSONL reads to the shared duplicate-key and
+  non-finite-number rejecting loaders. No external-tool output parser or
+  canonical serializer changed.
+- Internal count/rank fields now require real JSON integers and reject booleans,
+  strings, and values below their declared minimum rather than coercing them
+  with `int(...)`.
+- Extended the mutation corpus to four remaining M6 loader families:
+  collection JSONL, edge JSON, Nextflow JSON, and Nextflow JSONL.
+
+### Focused evidence and remaining boundary
+
+- The combined focused corpus passes 187 M6, edge, raw-loader, and typed-contract
+  tests. Targeted Ruff format/lint, `ty`, and `git diff --check` pass.
+- This closes the identified M6 raw authority/evidence readers. Non-M6 runtime
+  JSON/YAML inventory entries and external-service/tool output parsers remain a
+  separately reviewed R1 inventory; do not claim repository-wide entry-point
+  parity yet.
+
+### Next exact starting point
+
+Review and commit this final M6 reader slice without pushing or running a full
+suite. Integrate the three ordered raw-loader commits onto current main while
+preserving the active-run journal, then run focused integration checks before
+the next coherent full gate.

@@ -19,7 +19,6 @@ canonical replay, contradictions, raw HTTP parsing, and tamper rejection.
 """
 
 import hashlib
-import json
 import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
@@ -42,6 +41,7 @@ from genome_to_diffraction.schemas.base import (
     NonEmptyString,
     Sha256Hex,
 )
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.manifests import (
     CrystalManifest,
     PipelineConfig,
@@ -64,6 +64,29 @@ M6EdgeKind = Literal[
     "remote_rate_limited",
     "missing_phenix",
 ]
+
+
+def _json_object(path: Path, label: str) -> dict[str, object]:
+    try:
+        value = load_json_document(path)
+    except ContractLoadError as error:
+        raise ValueError(f"invalid M6 {label} {path}: {error}") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"M6 {label} is not a JSON object: {path}")
+    return cast(dict[str, object], value)
+
+
+def _json_integer(
+    document: Mapping[str, object], key: str, label: str, *, minimum: int = 0
+) -> int:
+    value = document.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"M6 {label} {key} is not an integer")
+    if value < minimum:
+        raise ValueError(f"M6 {label} {key} is below the minimum {minimum}: {value}")
+    return value
+
+
 M6EdgeMeasurementStatus = Literal["measured", "unavailable", "contradicted"]
 
 _EDGE_ADAPTER = "m6-edge-observation-v1"
@@ -553,8 +576,8 @@ def observe_mtz_preflight(
 def _remote_guard(
     analysis_config: Path, crystal_manifest: Path
 ) -> tuple[bool, bool, bool, str]:
-    config_document = json.loads(analysis_config.read_text(encoding="utf-8"))
-    crystal_document = json.loads(crystal_manifest.read_text(encoding="utf-8"))
+    config_document = _json_object(analysis_config, "analysis configuration")
+    crystal_document = _json_object(crystal_manifest, "crystal manifest")
     config = PipelineConfig.model_validate(config_document)
     crystals = CrystalManifest.model_validate(crystal_document)
     if len(crystals.crystals) != 1:
@@ -653,7 +676,7 @@ def observe_rate_limit_fixture(
     config_path = analysis_config.resolve(strict=True)
     crystal_path = crystal_manifest.resolve(strict=True)
     fault_path = fault_control.resolve(strict=True)
-    fault = json.loads(fault_path.read_text(encoding="utf-8"))
+    fault = _json_object(fault_path, "fault control")
     enabled, consent, denied, _ = _remote_guard(config_path, crystal_path)
     raw = fault.get("local_http_response") if isinstance(fault, dict) else None
     if not isinstance(raw, str):
@@ -706,9 +729,7 @@ def observe_isolated_missing_phenix(
     """Validate one real-manifest-derived runtime whose environment is absent."""
 
     supplied = supplied_manifest.resolve(strict=True)
-    document = json.loads(supplied.read_text(encoding="utf-8"))
-    if not isinstance(document, dict):
-        raise ValueError("M6 Phenix manifest is not a JSON object")
+    document = _json_object(supplied, "Phenix manifest")
     missing_root = Path("/nonexistent/nf-gtd-m6-isolated-missing-phenix")
     if missing_root.exists():
         raise ValueError("fixed isolated missing-Phenix path unexpectedly exists")
@@ -792,11 +813,9 @@ def observe_missing_model(
                 reason_code="model_route_evidence_missing",
             ),
         )
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if not isinstance(manifest, dict):
-        raise ValueError("M6 missing-model route manifest is invalid")
-    bundle_manifest = json.loads(
-        (case_bundle / "bundle_manifest.json").read_text(encoding="utf-8")
+    manifest = _json_object(manifest_path, "missing-model route manifest")
+    bundle_manifest = _json_object(
+        case_bundle / "bundle_manifest.json", "case bundle manifest"
     )
     bundle_outputs = (
         bundle_manifest.get("output_sha256")
@@ -830,7 +849,9 @@ def observe_missing_model(
         accepted_hits_sha256=sha256_file(accepted_hits),
         coordinate_sources_sha256=sha256_file(coordinates),
         processed_models_sha256=sha256_file(models),
-        accepted_hit_count=int(manifest["accepted_hit_count"]),
+        accepted_hit_count=_json_integer(
+            manifest, "accepted_hit_count", "missing-model route manifest"
+        ),
         coordinate_source_count=sum(
             1 for line in coordinates.read_text(encoding="utf-8").splitlines() if line
         ),
@@ -907,10 +928,9 @@ def observe_case_edge(
             )
             evidence = observation.evidence
             isolated = case / "preflight_bundle/isolated_missing_phenix_manifest.json"
-            bundle = json.loads(
-                (case / "preflight_bundle/bundle_manifest.json").read_text(
-                    encoding="utf-8"
-                )
+            bundle = _json_object(
+                case / "preflight_bundle/bundle_manifest.json",
+                "preflight bundle manifest",
             )
             outputs = bundle.get("output_sha256") if isinstance(bundle, dict) else None
             if (

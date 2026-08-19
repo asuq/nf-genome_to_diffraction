@@ -20,7 +20,6 @@ edge assessment joins.
 
 import gzip
 import hashlib
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -64,6 +63,7 @@ from genome_to_diffraction.schemas.base import (
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
     load_json_document,
+    parse_json_document,
 )
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -294,10 +294,10 @@ def _jsonl_text(text: str, path: Path, label: str) -> tuple[dict[str, object], .
         if not line:
             continue
         try:
-            value: object = json.loads(line)
-        except json.JSONDecodeError as error:
+            value = parse_json_document(line, label=f"{path}:{line_number}")
+        except ContractLoadError as error:
             raise PublicControlError(
-                f"invalid collected M6 {label} line {line_number}: {path}"
+                f"invalid collected M6 {label} line {line_number}: {error}"
             ) from error
         if not isinstance(value, dict):
             raise PublicControlError(f"collected M6 {label} row is not an object")
