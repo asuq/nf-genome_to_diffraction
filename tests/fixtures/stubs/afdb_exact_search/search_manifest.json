@@ -1,5 +1,5 @@
 {
-  "adapter_version": "afdb-exact-v1",
+  "adapter_version": "afdb-exact-v2",
   "coordinate_cache_database_id": "db_stub_coordinate_cache",
   "coordinate_source_count": 0,
   "created_at": "2026-08-10T00:00:00Z",

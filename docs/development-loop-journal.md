@@ -9208,3 +9208,31 @@ bundles with focused tests; do not stage M6 science.
   the three existing search adapters for the normal workflow, resolve hit caps
   from the authenticated entry, and retain the frozen legacy/M6 callers until
   their separately versioned route is changed.
+
+## 2026-08-19T01:48:31Z - Enabled adapters bind provider-plan identities
+
+### Third R2 routing slice
+
+- Added optional aggregate-plan and entry inputs to PDB MMseqs2, ProstT5/
+  Foldseek, and exact AFDB requests. When present, each adapter authenticates
+  the complete route before provider execution. Supplying only one route file
+  fails closed; legacy/frozen callers remain readable until their separately
+  versioned workflow route is changed.
+- PDB and Foldseek ignore caller hit-cap values on the planned route and use
+  the authenticated entry's effective cap. Plan and entry checksums enter
+  cache identities and output manifests; AFDB authenticates the enabled route
+  and retains its fixed one-model policy.
+- Bumped adapter versions to `pdb-sequence-mmseqs-v3`,
+  `prostt5-foldseek-pdb-v5`, and `afdb-exact-v2`; regenerated the canonical
+  provider-plan example and updated checksum-bound stubs.
+
+### Focused evidence and next exact starting point
+
+- Forty-nine provider-plan, route-binding, disabled-bundle, PDB/Foldseek/AFDB,
+  qualification, fixture-integrity, and CLI tests pass. Targeted Ruff
+  format/lint, targeted `ty`, and `git diff --check` pass. No real provider,
+  Nextflow, full-suite, or remote operation ran.
+- Commit this adapter slice. Next add the provider-plan resolver and disabled
+  bundle processes to `PDB_SEQUENCE_DISCOVERY`, route each provider on its
+  typed entry, expose the ESM disabled bundle, and prove enabled/disabled
+  process cardinality plus cached resume in the focused Nextflow stub.

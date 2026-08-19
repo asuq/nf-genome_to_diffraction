@@ -7,7 +7,7 @@ import os
 import shlex
 import subprocess
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -27,6 +27,7 @@ from genome_to_diffraction.schemas.manifests import (
     DatabaseResourceStatus,
     SmokeTestStatus,
 )
+from genome_to_diffraction.schemas.providers import ProviderKey
 from genome_to_diffraction.schemas.results import (
     EligibilityStatus,
     SearchScientificStatus,
@@ -40,10 +41,13 @@ from genome_to_diffraction.status import (
     ResultParseError,
     ToolExecutionError,
 )
+from genome_to_diffraction.structure_search.provider_plan import (
+    load_enabled_provider_route,
+)
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.pdb_sequence")
-_ADAPTER_VERSION = "pdb-sequence-mmseqs-v2"
+_ADAPTER_VERSION = "pdb-sequence-mmseqs-v3"
 _PROVIDER = "pdb_sequence_mmseqs"
 _STANDARD_AMINO_ACIDS = frozenset("ACDEFGHIKLMNPQRSTVWY")
 _RESULT_FIELDS = (
@@ -69,6 +73,8 @@ class PdbSequenceSearchRequest:
     sequence_groups_jsonl: Path
     database_manifest: Path
     output_directory: Path
+    provider_plan_json: Path | None = None
+    provider_entry_json: Path | None = None
     threads: int = 4
     maximum_hits_per_query: int = 25
     maximum_evalue: float = 1.0e-5
@@ -111,6 +117,23 @@ class _TargetMapping:
     token: str
     sequence_length: int
     sequence_sha256: str
+
+
+def _bind_provider_route(request: PdbSequenceSearchRequest) -> PdbSequenceSearchRequest:
+    if request.provider_plan_json is None and request.provider_entry_json is None:
+        return request
+    if request.provider_plan_json is None or request.provider_entry_json is None:
+        raise InputContractError(
+            "PDB sequence search requires both provider plan and provider entry"
+        )
+    route = load_enabled_provider_route(
+        provider_plan_json=request.provider_plan_json,
+        provider_entry_json=request.provider_entry_json,
+        database_manifest=request.database_manifest,
+        expected_provider=ProviderKey.PDB_SEQUENCE,
+        expected_adapter_version=_ADAPTER_VERSION,
+    )
+    return replace(request, maximum_hits_per_query=route.entry.effective_max_hits)
 
 
 def _validate_request(request: PdbSequenceSearchRequest) -> None:
@@ -463,6 +486,7 @@ def search_pdb_sequences(
 ) -> PdbSequenceSearchOutput:
     """Search every eligible exact sequence once and retain explicit no-hits."""
 
+    request = _bind_provider_route(request)
     _validate_request(request)
     sequence_groups = _load_sequence_groups(
         request.sequence_groups_jsonl, progress=request.progress
@@ -505,6 +529,16 @@ def search_pdb_sequences(
 
     identity_payload = {
         "adapter_version": _ADAPTER_VERSION,
+        "provider_plan_sha256": (
+            None
+            if request.provider_plan_json is None
+            else sha256_file(request.provider_plan_json, progress=False)
+        ),
+        "provider_entry_sha256": (
+            None
+            if request.provider_entry_json is None
+            else sha256_file(request.provider_entry_json, progress=False)
+        ),
         "database_id": resource.database_id,
         "sequence_groups_sha256": sha256_file(
             request.sequence_groups_jsonl, progress=request.progress, logger=_LOGGER
@@ -691,6 +725,8 @@ def search_pdb_sequences(
             "schema_version": "1.0",
             "provider": _PROVIDER,
             "adapter_version": _ADAPTER_VERSION,
+            "provider_plan_sha256": identity_payload["provider_plan_sha256"],
+            "provider_entry_sha256": identity_payload["provider_entry_sha256"],
             "database_id": resource.database_id,
             "tool": "mmseqs",
             "tool_version": mmseqs_version,

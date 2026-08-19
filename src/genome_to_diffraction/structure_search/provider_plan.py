@@ -83,7 +83,7 @@ _CAPABILITIES = {
         result_provider="afdb_exact",
         execution_class=ProviderExecutionClass.NEEDS_INTERNET,
         support_status=ProviderSupportStatus.AVAILABLE,
-        provider_adapter_version="afdb-exact-v1",
+        provider_adapter_version="afdb-exact-v2",
         required_resource_names=("coordinate_cache",),
     ),
     ProviderKey.ESM_ATLAS: _ProviderCapability(
@@ -97,7 +97,7 @@ _CAPABILITIES = {
         result_provider="foldseek_prostt5_pdb",
         execution_class=ProviderExecutionClass.LOCAL_COMPUTE,
         support_status=ProviderSupportStatus.AVAILABLE,
-        provider_adapter_version="prostt5-foldseek-pdb-v4",
+        provider_adapter_version="prostt5-foldseek-pdb-v5",
         required_resource_names=(
             "coordinate_cache",
             "pdb_foldseek",
@@ -109,7 +109,7 @@ _CAPABILITIES = {
         result_provider="pdb_sequence_mmseqs",
         execution_class=ProviderExecutionClass.LOCAL_COMPUTE,
         support_status=ProviderSupportStatus.AVAILABLE,
-        provider_adapter_version="pdb-sequence-mmseqs-v2",
+        provider_adapter_version="pdb-sequence-mmseqs-v3",
         required_resource_names=("coordinate_cache", "pdb_sequences"),
     ),
 }

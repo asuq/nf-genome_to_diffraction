@@ -83,7 +83,7 @@ This exact mapping is deliberately narrow. The unrelated UniProt proteome
 
 ## What this qualifies
 
-- the current API field names used by adapter version `afdb-exact-v1`;
+- the current API field names used by adapter version `afdb-exact-v2`;
 - accession-only metadata retrieval from an official AFDB host;
 - safe advertised-mmCIF download and current AFDB v6 parsing;
 - exact source/API/coordinate sequence equality;

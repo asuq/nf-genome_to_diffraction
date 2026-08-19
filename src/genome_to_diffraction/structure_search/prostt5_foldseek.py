@@ -8,7 +8,7 @@ import re
 import shlex
 import subprocess
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -28,6 +28,7 @@ from genome_to_diffraction.schemas.manifests import (
     DatabaseResourceStatus,
     SmokeTestStatus,
 )
+from genome_to_diffraction.schemas.providers import ProviderKey
 from genome_to_diffraction.schemas.results import (
     EligibilityStatus,
     SearchScientificStatus,
@@ -41,10 +42,13 @@ from genome_to_diffraction.status import (
     ResultParseError,
     ToolExecutionError,
 )
+from genome_to_diffraction.structure_search.provider_plan import (
+    load_enabled_provider_route,
+)
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.prostt5_foldseek")
-_ADAPTER_VERSION = "prostt5-foldseek-pdb-v4"
+_ADAPTER_VERSION = "prostt5-foldseek-pdb-v5"
 _PROVIDER = "foldseek_prostt5_pdb"
 _RAW_HIT_LIMIT = 1000
 _FAILURE_LOG_TAIL_BYTES = 16 * 1024
@@ -87,6 +91,8 @@ class ProstT5FoldseekSearchRequest:
     sequence_groups_jsonl: Path
     database_manifest: Path
     output_directory: Path
+    provider_plan_json: Path | None = None
+    provider_entry_json: Path | None = None
     threads: int = 4
     maximum_hits_per_query: int = 3
     maximum_evalue: float = 1.0e-3
@@ -157,6 +163,25 @@ class _TargetMapping(_SequenceMapping):
     foldseek_chain: str
     assembly_number: int | None
     operator_indices: tuple[int, ...]
+
+
+def _bind_provider_route(
+    request: ProstT5FoldseekSearchRequest,
+) -> ProstT5FoldseekSearchRequest:
+    if request.provider_plan_json is None and request.provider_entry_json is None:
+        return request
+    if request.provider_plan_json is None or request.provider_entry_json is None:
+        raise InputContractError(
+            "ProstT5/Foldseek search requires both provider plan and provider entry"
+        )
+    route = load_enabled_provider_route(
+        provider_plan_json=request.provider_plan_json,
+        provider_entry_json=request.provider_entry_json,
+        database_manifest=request.database_manifest,
+        expected_provider=ProviderKey.FOLDSEEK_PROSTT5_PDB,
+        expected_adapter_version=_ADAPTER_VERSION,
+    )
+    return replace(request, maximum_hits_per_query=route.entry.effective_max_hits)
 
 
 def _validate_request(request: ProstT5FoldseekSearchRequest) -> None:
@@ -607,6 +632,7 @@ def search_prostt5_foldseek(
 ) -> ProstT5FoldseekSearchOutput:
     """Search every eligible exact sequence and retain explicit no-hits."""
 
+    request = _bind_provider_route(request)
     _validate_request(request)
     sequence_groups = _load_sequence_groups(
         request.sequence_groups_jsonl, progress=request.progress
@@ -691,6 +717,16 @@ def search_prostt5_foldseek(
     }
     identity_payload = {
         "adapter_version": _ADAPTER_VERSION,
+        "provider_plan_sha256": (
+            None
+            if request.provider_plan_json is None
+            else sha256_file(request.provider_plan_json, progress=False)
+        ),
+        "provider_entry_sha256": (
+            None
+            if request.provider_entry_json is None
+            else sha256_file(request.provider_entry_json, progress=False)
+        ),
         "resources": resource_ids,
         "sequence_groups_sha256": sha256_file(
             request.sequence_groups_jsonl, progress=request.progress, logger=_LOGGER
@@ -930,6 +966,8 @@ def search_prostt5_foldseek(
             "schema_version": "1.0",
             "provider": _PROVIDER,
             "adapter_version": _ADAPTER_VERSION,
+            "provider_plan_sha256": identity_payload["provider_plan_sha256"],
+            "provider_entry_sha256": identity_payload["provider_entry_sha256"],
             "database_id": resources.pdb_foldseek.database_id,
             "resource_ids": resource_ids,
             "tool": "foldseek",

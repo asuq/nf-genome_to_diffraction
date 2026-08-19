@@ -1222,6 +1222,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     pdb_sequence_parser.add_argument("--sequence-groups", type=Path, required=True)
     pdb_sequence_parser.add_argument("--database-manifest", type=Path, required=True)
+    pdb_sequence_parser.add_argument("--provider-plan", type=Path)
+    pdb_sequence_parser.add_argument("--provider-entry", type=Path)
     pdb_sequence_parser.add_argument("--outdir", type=Path, required=True)
     pdb_sequence_parser.add_argument("--threads", type=int, default=4)
     pdb_sequence_parser.add_argument("--maximum-hits-per-query", type=int, default=25)
@@ -1262,6 +1264,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     prostt5_parser.add_argument("--sequence-groups", type=Path, required=True)
     prostt5_parser.add_argument("--database-manifest", type=Path, required=True)
+    prostt5_parser.add_argument("--provider-plan", type=Path)
+    prostt5_parser.add_argument("--provider-entry", type=Path)
     prostt5_parser.add_argument("--outdir", type=Path, required=True)
     prostt5_parser.add_argument("--threads", type=int, default=4)
     prostt5_parser.add_argument("--maximum-hits-per-query", type=int, default=3)
@@ -1289,6 +1293,8 @@ def _build_parser() -> argparse.ArgumentParser:
     afdb_parser.add_argument("--sequence-groups", type=Path, required=True)
     afdb_parser.add_argument("--source-records", type=Path, required=True)
     afdb_parser.add_argument("--database-manifest", type=Path, required=True)
+    afdb_parser.add_argument("--provider-plan", type=Path)
+    afdb_parser.add_argument("--provider-entry", type=Path)
     afdb_parser.add_argument("--outdir", type=Path, required=True)
     afdb_parser.add_argument(
         "--accession-map",
@@ -1965,6 +1971,8 @@ def _run_structure_search(args: argparse.Namespace) -> int:
                 source_records_jsonl=args.source_records,
                 database_manifest=args.database_manifest,
                 output_directory=args.outdir,
+                provider_plan_json=args.provider_plan,
+                provider_entry_json=args.provider_entry,
                 accession_map_tsv=args.accession_map,
                 request_timeout_seconds=args.request_timeout_seconds,
                 retry_count=args.retry_count,
@@ -1983,6 +1991,8 @@ def _run_structure_search(args: argparse.Namespace) -> int:
                 sequence_groups_jsonl=args.sequence_groups,
                 database_manifest=args.database_manifest,
                 output_directory=args.outdir,
+                provider_plan_json=args.provider_plan,
+                provider_entry_json=args.provider_entry,
                 threads=args.threads,
                 maximum_hits_per_query=args.maximum_hits_per_query,
                 maximum_evalue=args.maximum_evalue,
@@ -2030,6 +2040,8 @@ def _run_structure_search(args: argparse.Namespace) -> int:
             sequence_groups_jsonl=args.sequence_groups,
             database_manifest=args.database_manifest,
             output_directory=args.outdir,
+            provider_plan_json=args.provider_plan,
+            provider_entry_json=args.provider_entry,
             threads=args.threads,
             maximum_hits_per_query=args.maximum_hits_per_query,
             maximum_evalue=args.maximum_evalue,

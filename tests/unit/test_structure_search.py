@@ -174,7 +174,7 @@ def test_pdb_sequence_search_preserves_hit_no_hit_and_ineligible_states(
     assert manifest["query_count"] == 3
     assert manifest["eligible_query_count"] == 2
     assert manifest["hit_count"] == 1
-    assert manifest["adapter_version"] == "pdb-sequence-mmseqs-v2"
+    assert manifest["adapter_version"] == "pdb-sequence-mmseqs-v3"
     command_log = (output.search_manifest.parent / "raw" / "mmseqs.log").read_text(
         encoding="utf-8"
     )
@@ -351,7 +351,7 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
     assert hit.raw_metrics["foldseek_target_chain"] == "A-2"
     assert hit.raw_metrics["biological_assembly_number"] == 1
     assert hit.raw_metrics["assembly_operator_indices"] == [2]
-    assert manifest["adapter_version"] == "prostt5-foldseek-pdb-v4"
+    assert manifest["adapter_version"] == "prostt5-foldseek-pdb-v5"
     assert "prob" not in manifest["parameters"]["output_fields"]
     assert manifest["resource_ids"] == {
         "pdb_foldseek": "db_test_pdb_foldseek",

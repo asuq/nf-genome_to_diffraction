@@ -46,6 +46,7 @@ from genome_to_diffraction.schemas.manifests import (
     DatabaseResourceStatus,
     SmokeTestStatus,
 )
+from genome_to_diffraction.schemas.providers import ProviderKey
 from genome_to_diffraction.schemas.results import (
     CoordinateSourceRecord,
     EligibilityStatus,
@@ -61,10 +62,13 @@ from genome_to_diffraction.status import (
     InputContractError,
     ResultParseError,
 )
+from genome_to_diffraction.structure_search.provider_plan import (
+    load_enabled_provider_route,
+)
 from genome_to_diffraction.time import utc_now, utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.afdb_exact")
-_ADAPTER_VERSION = "afdb-exact-v1"
+_ADAPTER_VERSION = "afdb-exact-v2"
 _PROVIDER = "afdb_exact"
 _TOOL = "AlphaFold DB prediction API"
 _TOOL_VERSION = "2026-06-field-contract"
@@ -98,6 +102,8 @@ class AfdbExactRequest:
     source_records_jsonl: Path
     database_manifest: Path
     output_directory: Path
+    provider_plan_json: Path | None = None
+    provider_entry_json: Path | None = None
     accession_map_tsv: Path | None = None
     request_timeout_seconds: float = 60.0
     retry_count: int = 3
@@ -148,6 +154,23 @@ class _GroupOutcome:
     execution_status: ExecutionStatus
     scientific_status: SearchScientificStatus
     warnings: tuple[str, ...]
+
+
+def _bind_provider_route(request: AfdbExactRequest) -> AfdbExactRequest:
+    if request.provider_plan_json is None and request.provider_entry_json is None:
+        return request
+    if request.provider_plan_json is None or request.provider_entry_json is None:
+        raise InputContractError(
+            "AFDB exact search requires both provider plan and provider entry"
+        )
+    load_enabled_provider_route(
+        provider_plan_json=request.provider_plan_json,
+        provider_entry_json=request.provider_entry_json,
+        database_manifest=request.database_manifest,
+        expected_provider=ProviderKey.AFDB_EXACT,
+        expected_adapter_version=_ADAPTER_VERSION,
+    )
+    return request
 
 
 def _validate_request(request: AfdbExactRequest) -> None:
@@ -547,6 +570,7 @@ def _jsonl(records: tuple[Any, ...] | list[Any]) -> str:
 def search_afdb_exact(request: AfdbExactRequest) -> AfdbExactOutput:
     """Retrieve at most one sequence-exact AFDB monomer per sequence group."""
 
+    request = _bind_provider_route(request)
     _validate_request(request)
     groups = _load_jsonl_records(
         request.sequence_groups_jsonl,
@@ -846,6 +870,16 @@ def search_afdb_exact(request: AfdbExactRequest) -> AfdbExactOutput:
         else None
     )
     parameters = {
+        "provider_plan_sha256": (
+            None
+            if request.provider_plan_json is None
+            else sha256_file(request.provider_plan_json, progress=False)
+        ),
+        "provider_entry_sha256": (
+            None
+            if request.provider_entry_json is None
+            else sha256_file(request.provider_entry_json, progress=False)
+        ),
         "metadata_endpoint": _METADATA_URL,
         "metadata_contract": _TOOL_VERSION,
         "maximum_models_per_sequence_group": 1,
