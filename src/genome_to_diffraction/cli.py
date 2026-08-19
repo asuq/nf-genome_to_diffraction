@@ -167,11 +167,13 @@ from genome_to_diffraction.schemas.io import (
 from genome_to_diffraction.status import GenomeToDiffractionError
 from genome_to_diffraction.structure_search import (
     AfdbExactRequest,
+    DisabledProviderBundleRequest,
     P1QualificationRequest,
     PdbCoordinateRegistrationRequest,
     PdbSequenceSearchRequest,
     ProstT5FoldseekSearchRequest,
     ProviderPlanRequest,
+    emit_disabled_provider_bundle,
     qualify_p1_search,
     register_pdb_coordinates,
     resolve_provider_plan,
@@ -1207,6 +1209,13 @@ def _build_parser() -> argparse.ArgumentParser:
     provider_plan_parser.add_argument("--config", type=Path, required=True)
     provider_plan_parser.add_argument("--database-manifest", type=Path, required=True)
     provider_plan_parser.add_argument("--outdir", type=Path, required=True)
+    disabled_provider_parser = search_actions.add_parser(
+        "emit-disabled-provider",
+        help="emit typed skipped-policy results for one disabled provider entry",
+    )
+    disabled_provider_parser.add_argument("--provider-entry", type=Path, required=True)
+    disabled_provider_parser.add_argument("--sequence-groups", type=Path, required=True)
+    disabled_provider_parser.add_argument("--outdir", type=Path, required=True)
     pdb_sequence_parser = search_actions.add_parser(
         "pdb-sequence",
         help="search exact catalogue sequences against the local PDB SEQRES database",
@@ -1920,6 +1929,19 @@ def _run_structure_search(args: argparse.Namespace) -> int:
         print(
             f"Resolved provider plan {provider_plan.plan.plan_id}: "
             f"{provider_plan.plan_json}"
+        )
+        return 0
+    if args.structure_search_action == "emit-disabled-provider":
+        disabled = emit_disabled_provider_bundle(
+            DisabledProviderBundleRequest(
+                provider_entry_json=args.provider_entry,
+                sequence_groups_jsonl=args.sequence_groups,
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            f"Emitted {len(disabled.results)} disabled-provider results: "
+            f"{disabled.search_manifest}"
         )
         return 0
     if args.structure_search_action == "qualify-p1":

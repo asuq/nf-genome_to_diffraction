@@ -22,6 +22,12 @@ from genome_to_diffraction.structure_search.prostt5_foldseek import (
     ProstT5FoldseekSearchRequest,
     search_prostt5_foldseek,
 )
+from genome_to_diffraction.structure_search.provider_empty import (
+    DisabledProviderBundleError,
+    DisabledProviderBundleOutput,
+    DisabledProviderBundleRequest,
+    emit_disabled_provider_bundle,
+)
 from genome_to_diffraction.structure_search.provider_plan import (
     ProviderPlanError,
     ProviderPlanOutput,
@@ -36,6 +42,9 @@ from genome_to_diffraction.structure_search.qualification import (
 __all__ = [
     "AfdbExactOutput",
     "AfdbExactRequest",
+    "DisabledProviderBundleError",
+    "DisabledProviderBundleOutput",
+    "DisabledProviderBundleRequest",
     "P1QualificationRequest",
     "PdbCoordinateInputError",
     "PdbCoordinateParseError",
@@ -48,6 +57,7 @@ __all__ = [
     "ProviderPlanError",
     "ProviderPlanOutput",
     "ProviderPlanRequest",
+    "emit_disabled_provider_bundle",
     "qualify_p1_search",
     "register_pdb_coordinates",
     "resolve_provider_plan",

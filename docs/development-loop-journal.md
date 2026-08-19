@@ -9160,3 +9160,27 @@ bundles with focused tests; do not stage M6 science.
   Commit this correction with the updated roadmap, push once after the already
   running prior CI concludes, and watch exactly one new CI run. Then resume R2
   provider-plan routing; do not stage M6 science.
+
+## 2026-08-19T01:37:21Z - Disabled provider routes emit typed total bundles
+
+### First R2 routing slice
+
+- Added a deterministic disabled-provider adapter and CLI consuming one
+  checksum-bound disabled `ProviderPlanEntry` plus the complete sequence-group
+  catalogue. It executes no provider software and makes no network request.
+- Every sequence group receives an explicit `skipped_policy` /
+  `not_interpretable` result. Search results, empty structural hits, empty
+  coordinate sources, raw reason/log files, and one checksum-bound manifest are
+  always emitted, so downstream channels remain total. This state is distinct
+  from an executed scientific no-hit.
+- Enabled, tampered, duplicate-sequence, and empty-sequence inputs fail before
+  output creation. Repeated runs are byte-identical.
+
+### Focused evidence and next exact starting point
+
+- Twenty-two provider-plan, disabled-bundle, tamper, determinism, and CLI tests
+  pass. Targeted Ruff format/lint, targeted `ty`, and `git diff --check` pass.
+  No full suite, provider request, Nextflow route, or remote operation ran.
+- Commit this Python/CLI contract slice. Next, pass provider entries into each
+  enabled adapter so effective caps/resources are verified there, then route
+  enabled versus disabled entries in Nextflow and prove exact process counts.
