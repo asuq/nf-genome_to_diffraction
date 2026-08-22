@@ -9933,3 +9933,34 @@ terminal, collected, and classified.
   existing SDS/native/composition/model evidence, cap the first wave at 25,
   and retain tested/untested counts and reasons. Do not add localisation tools,
   unknown crystals, a new root workflow, or a new HPC profile first.
+
+## 2026-08-22T23:16:01Z - P5 deterministic catalogue selector is locally green
+
+### Smallest completed slice
+
+- Added one typed `ranking partner-plan` operation. It consumes an explicit
+  parent sequence/copy count, requested B copy count, supplied catalogue
+  sequence groups, existing Matthews/SDS rows, MTZ preflight/config, and one
+  aggregate checksum-bound model registry. It performs no Phaser work and
+  makes no identity claim.
+- Every non-A sequence group is retained. Searchable rows are ordered by SDS
+  label (`strong`, `compatible`, missing-neutral, `weak`), combined physical
+  status/Matthews prior, then model identity, retained fraction, coordinate
+  error, structural class, and immutable IDs. Native-PAGE evidence is explicitly
+  `unavailable` and neutral in this first slice.
+- The first wave is fixed at 25. Selected, cap-deferred, model-less, mass-less,
+  and physically impossible rows are distinct statuses; selected/deferred and
+  unsearchable counts are validated against the complete retained candidate
+  table. Only physical impossibility, unusable mass, or no MR model prevents an
+  attempt.
+- Three focused tests pass: 28-candidate ordering/cap/counts plus byte-identical
+  repeat, changed-model checksum rejection, and the fixed CLI surface. The 21
+  partner/ranking tests, schema check, targeted Ruff, `ty`, and diff checks pass.
+
+### Next exact starting point
+
+Review and commit/push this selector slice, watch one CI run, then connect only
+the selected rows to independent fixed-A/joint-B Nextflow items using the
+existing adapter. Retain all result states and plan counts. Qualify P5 on the
+fixed 6RTZ full catalogue before beginning the P6 control slice; do not add a
+root workflow/profile or localisation integration.

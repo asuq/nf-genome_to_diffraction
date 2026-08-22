@@ -9,6 +9,12 @@ from genome_to_diffraction.ranking.funnel import (
     build_diverse_first_copy_funnel,
     build_exact_predicted_funnel,
 )
+from genome_to_diffraction.ranking.partner import (
+    PartnerPlanInputError,
+    PartnerPlanOutput,
+    PartnerPlanRequest,
+    build_partner_search_plan,
+)
 
 __all__ = [
     "DiverseFirstCopyFunnelOutput",
@@ -16,6 +22,10 @@ __all__ = [
     "ExactPredictedFunnelOutput",
     "ExactPredictedFunnelRequest",
     "FunnelInputError",
+    "PartnerPlanInputError",
+    "PartnerPlanOutput",
+    "PartnerPlanRequest",
     "build_diverse_first_copy_funnel",
     "build_exact_predicted_funnel",
+    "build_partner_search_plan",
 ]

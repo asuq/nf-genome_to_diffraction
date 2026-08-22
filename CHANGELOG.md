@@ -37,6 +37,10 @@ All notable changes to this project are documented here.
 - Real Marmic/Phenix qualification now retains green 6RTZ `1A + 1B` and 3U7Q
   `2A + 2B` results from one fixed 32 GB profile; P4 explicit-copy support is
   accepted.
+- A deterministic catalogue B planner retains every non-A sequence group,
+  reuses existing SDS/Matthews/model-registry evidence, treats missing gel data
+  neutrally, schedules at most 25 searchable candidates, and records every
+  deferred or unsearchable reason without executing Phaser.
 
 ## 0.1.0 - 2026-08-19
 

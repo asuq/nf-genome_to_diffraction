@@ -733,6 +733,126 @@ class PartnerSearchResult(ContractModel):
         return self
 
 
+class PartnerCandidateSelectionStatus(StrEnum):
+    """Why one B candidate is or is not scheduled for partner MR."""
+
+    SELECTED = "selected"
+    DEFERRED_CAP = "deferred_cap"
+    UNSEARCHABLE_NO_MODEL = "unsearchable_no_model"
+    EXCLUDED_PHYSICAL_IMPOSSIBLE = "excluded_physical_impossible"
+    UNSEARCHABLE_MASS = "unsearchable_mass"
+
+
+class PartnerCandidateRanking(ContractModel):
+    """One fully retained catalogue B candidate in deterministic plan order."""
+
+    schema_version: Literal["1.0"]
+    candidate_id: NonEmptyString
+    rank: PositiveInt
+    sequence_group_id: NonEmptyString
+    selection_status: PartnerCandidateSelectionStatus
+    model_id: NonEmptyString | None = None
+    model_path: NonEmptyString | None = None
+    model_sha256: Sha256Hex | None = None
+    structural_class: NonEmptyString | None = None
+    model_retained_fraction: float | None = Field(default=None, gt=0, le=1)
+    model_sequence_identity: float | None = Field(default=None, ge=0, le=1)
+    estimated_coordinate_error: float | None = Field(default=None, ge=0)
+    sds_page_prior_label: Literal["strong", "compatible", "weak", "unavailable"]
+    sds_page_fractional_difference: float | None = Field(default=None, ge=0)
+    native_page_prior_label: Literal["unavailable"] = "unavailable"
+    combined_physical_status: PhysicalStatus | None = None
+    combined_solvent_fraction_lower: float | None = None
+    combined_solvent_fraction_upper: float | None = None
+    combined_matthews_prior: float | None = Field(default=None, ge=0, le=1)
+    ordering_reasons: tuple[NonEmptyString, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_searchability(self) -> Self:
+        model_fields = (
+            self.model_id,
+            self.model_path,
+            self.model_sha256,
+            self.structural_class,
+            self.model_retained_fraction,
+        )
+        if any(value is None for value in model_fields) != all(
+            value is None for value in model_fields
+        ):
+            raise ValueError("partner model fields must be supplied together")
+        if (
+            self.selection_status
+            in {
+                PartnerCandidateSelectionStatus.SELECTED,
+                PartnerCandidateSelectionStatus.DEFERRED_CAP,
+            }
+            and self.model_id is None
+        ):
+            raise ValueError("searchable partner candidate lacks a model")
+        if (
+            self.selection_status
+            is PartnerCandidateSelectionStatus.EXCLUDED_PHYSICAL_IMPOSSIBLE
+            and self.combined_physical_status is not PhysicalStatus.IMPOSSIBLE
+        ):
+            raise ValueError("physical exclusion lacks impossible composition")
+        solvent = (
+            self.combined_solvent_fraction_lower,
+            self.combined_solvent_fraction_upper,
+        )
+        if (solvent[0] is None) != (solvent[1] is None):
+            raise ValueError("combined solvent bounds must be paired")
+        if (
+            solvent[0] is not None
+            and solvent[1] is not None
+            and solvent[0] > solvent[1]
+        ):
+            raise ValueError("combined solvent lower bound exceeds upper bound")
+        return self
+
+
+class PartnerSearchPlan(ContractModel):
+    """Bounded, deterministic catalogue B selection for one retained A state."""
+
+    schema_version: Literal["1.0"]
+    plan_id: NonEmptyString
+    adapter_version: NonEmptyString
+    crystal_id: NonEmptyString
+    parent_sequence_group_id: NonEmptyString
+    parent_copy_count: PositiveInt
+    partner_copy_count: PositiveInt
+    candidate_count: int = Field(ge=0)
+    searchable_candidate_count: int = Field(ge=0)
+    selected_attempt_count: int = Field(ge=0, le=25)
+    deferred_cap_count: int = Field(ge=0)
+    unsearchable_candidate_count: int = Field(ge=0)
+    selection_cap: Literal[25] = 25
+    cap_reason: Literal["prototype_first_wave_25"] = "prototype_first_wave_25"
+    candidates: tuple[PartnerCandidateRanking, ...]
+
+    @model_validator(mode="after")
+    def _validate_counts_and_order(self) -> Self:
+        if self.candidate_count != len(self.candidates):
+            raise ValueError("partner candidate count does not match rows")
+        statuses = [candidate.selection_status for candidate in self.candidates]
+        selected = statuses.count(PartnerCandidateSelectionStatus.SELECTED)
+        deferred = statuses.count(PartnerCandidateSelectionStatus.DEFERRED_CAP)
+        searchable = selected + deferred
+        if (
+            selected != self.selected_attempt_count
+            or deferred != self.deferred_cap_count
+            or searchable != self.searchable_candidate_count
+            or self.candidate_count - searchable != self.unsearchable_candidate_count
+        ):
+            raise ValueError("partner plan counts do not match candidate statuses")
+        if [candidate.rank for candidate in self.candidates] != list(
+            range(1, self.candidate_count + 1)
+        ):
+            raise ValueError("partner candidate ranks must be contiguous")
+        if self.selected_attempt_count != min(self.selection_cap, searchable):
+            raise ValueError("partner plan did not fill its bounded first wave")
+        return self
+
+
 class CopyCountAssessment(ContractModel):
     """Matthews-intended and empirically supported count for one retained seed."""
 

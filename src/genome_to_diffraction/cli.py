@@ -139,8 +139,10 @@ from genome_to_diffraction.phenix.runtime import (
 from genome_to_diffraction.ranking import (
     DiverseFirstCopyFunnelRequest,
     ExactPredictedFunnelRequest,
+    PartnerPlanRequest,
     build_diverse_first_copy_funnel,
     build_exact_predicted_funnel,
+    build_partner_search_plan,
 )
 from genome_to_diffraction.refinement import (
     LiveT12StageRequest,
@@ -1019,6 +1021,20 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         help="optional additional hard cap applied after configured profile limits",
     )
+    partner_plan_parser = ranking_actions.add_parser(
+        "partner-plan",
+        help="select the fixed first wave of at most 25 catalogue B candidates",
+    )
+    partner_plan_parser.add_argument("--crystal-id", required=True)
+    partner_plan_parser.add_argument("--parent-sequence-group-id", required=True)
+    partner_plan_parser.add_argument("--parent-copy-count", type=int, required=True)
+    partner_plan_parser.add_argument("--partner-copy-count", type=int, required=True)
+    partner_plan_parser.add_argument("--sequence-groups", type=Path, required=True)
+    partner_plan_parser.add_argument("--matthews", type=Path, required=True)
+    partner_plan_parser.add_argument("--preflight", type=Path, required=True)
+    partner_plan_parser.add_argument("--config", type=Path, required=True)
+    partner_plan_parser.add_argument("--model-registry", type=Path, required=True)
+    partner_plan_parser.add_argument("--outdir", type=Path, required=True)
 
     mr_parser = subparsers.add_parser(
         "mr", help="execute bounded molecular-replacement hypotheses"
@@ -2273,6 +2289,28 @@ def _run_model(args: argparse.Namespace) -> int:
 
 
 def _run_ranking(args: argparse.Namespace) -> int:
+    if args.ranking_action == "partner-plan":
+        partner_plan = build_partner_search_plan(
+            PartnerPlanRequest(
+                crystal_id=args.crystal_id,
+                parent_sequence_group_id=args.parent_sequence_group_id,
+                parent_copy_count=args.parent_copy_count,
+                partner_copy_count=args.partner_copy_count,
+                sequence_groups_jsonl=args.sequence_groups,
+                matthews_hypotheses_jsonl=args.matthews,
+                mtz_preflight_jsonl=args.preflight,
+                pipeline_config=args.config,
+                model_registry_directory=args.model_registry,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Selected {partner_plan.plan.selected_attempt_count} of "
+            f"{partner_plan.plan.candidate_count} catalogue B candidate(s): "
+            f"{partner_plan.plan_json}"
+        )
+        return 0
     if args.ranking_action == "diverse-first-copy-funnel":
         diverse_result = build_diverse_first_copy_funnel(
             DiverseFirstCopyFunnelRequest(
