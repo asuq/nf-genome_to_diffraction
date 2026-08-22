@@ -34,6 +34,9 @@ All notable changes to this project are documented here.
 - Phaser PDB LLG parsing now accepts scientific notation, preventing values such
   as `2.47e+05` from being truncated to `2.47` during partner-score
   normalisation.
+- Real Marmic/Phenix qualification now retains green 6RTZ `1A + 1B` and 3U7Q
+  `2A + 2B` results from one fixed 32 GB profile; P4 explicit-copy support is
+  accepted.
 
 ## 0.1.0 - 2026-08-19
 

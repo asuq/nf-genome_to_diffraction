@@ -9897,3 +9897,39 @@ terminal, collected, and classified.
   and stage exactly one fresh 32 GB successor. After submission, restore a
   30-minute thread heartbeat rather than continuous polling. Do not start P5
   until the parser-fixed run is terminal, collected, and classified.
+
+## 2026-08-22T22:58:00Z - P4 explicit 2A+2B gate accepted
+
+### Immutable acceptance evidence
+
+- Source `437dad7de44a8d67b1b618f2cad36c82b02870ca` passed Actions run
+  `32600401614`, job `97097697201`, in 7m34s. The deployed Marmic dispatcher,
+  job-wrapper, and recovery identities remained
+  `2cb33092f0af64fcf8e29620f751d68bb0e54cbe9e9b99a65b4c1f7bfd70e9b0`,
+  `e5ff5a05191afef2160cc25016ad86e2296fdeb29cee68fa71998a4b9554c8a1`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Marmic run `gtd-heteromer-smoke-20260822T215112Z-437dad7de44a-1ac7eb95`,
+  Slurm `632835`, completed with scheduler `COMPLETED`, exit 0, and
+  `failure_class=success` under the fixed 8-CPU/32-GB/24-hour profile.
+- The 6RTZ normal-workflow checkpoint regression remained green: parent LLG
+  1566.207, partner incremental LLG 5054.654, B TFZ 71.2, one fixed-parent and
+  one searched-partner marker, packing, and primary cohort.
+- 3U7Q Xtriage passed at 1.000 A in `P 1 21 1`. Joint A MR retained exactly two
+  packed placements at LLG 17887.289 and TFZ 127.4. Fixed-A/joint-B MR retained
+  exactly two B placements, combined LLG 247000, incremental LLG 229112.711,
+  B TFZ 371.4, packing, and primary cohort. The PDB contains one fixed-parent
+  and exactly two search-partner remarks.
+- All 18 final checksum entries verify locally. The run-owned Phenix 2.1-6048
+  manifest is verified and contains SHA-256 identities for all seven required
+  executables. The P4 heartbeat was deleted after terminal collection.
+
+### Milestone decision and next exact starting point
+
+- Accept P4 explicit positive `nA + mB` support and the 3U7Q `2A + 2B` control.
+  This remains a known exact/construct-model positive control, not proof of
+  genome-wide partner identification.
+- Commit and push this evidence update. Begin P5 with one focused deterministic
+  catalogue-selection contract and test: order supplied B candidates by
+  existing SDS/native/composition/model evidence, cap the first wave at 25,
+  and retain tested/untested counts and reasons. Do not add localisation tools,
+  unknown crystals, a new root workflow, or a new HPC profile first.

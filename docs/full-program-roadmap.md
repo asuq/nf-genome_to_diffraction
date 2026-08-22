@@ -223,6 +223,5 @@ is intentionally after the experimental heteromer release.
   are backlog unless a known control proves a blocker.
 - Marmic run `629614` is terminal, collected, and orchestration-only. Never
   query, resume, recollect, reuse, or clean it.
-- Gates A--C are complete. The active programme action is H3/P4: qualify the
-  frozen 3U7Q `2A + 2B` joint-copy control while retaining the green 6RTZ
-  checkpoint path.
+- Gates A--C are complete. H3/P4 is accepted by Marmic run `632835`; the active
+  programme action is P5 deterministic capped catalogue partner search.
