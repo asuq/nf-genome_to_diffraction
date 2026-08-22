@@ -9612,3 +9612,37 @@ Commit and push this one correction, watch exactly one CI run, deploy the exact
 successor tools through the explicit Marmic configuration, restore the
 checksum-confirmed P0/Phenix paths, require readiness, and then stage and submit
 exactly one `heteromer-smoke`.
+
+## 2026-08-22T17:18:01Z - Heteromer smoke no longer depends on obsolete P0 inputs
+
+### Evidence-backed scope reduction
+
+- Source `4dd67d9524703d32a8090517a4caabaa1919da7b` passed Actions run
+  `32586642486`, job `97063896607`, in 7m36s and deployed successfully through
+  checksum-gated recovery. The successor dispatcher SHA-256 is
+  `dc60443f435edbdc428521a8c68cf1c5a776b9eade77f16e18bdc93cba3f539c`;
+  the job-wrapper and recovery identities remain unchanged.
+- Recreated the fixed configuration parent, but the preserved seven-line P0
+  candidate correctly failed readiness because cleanup removed historical P0
+  inputs. Attempting to rebuild that bundle stopped locally because its private
+  pipeline configuration contains declaration-only fields removed by the
+  current strict schema. No invalid bundle was uploaded.
+- The heteromer control needs none of the old catalogue, unknown MTZ, pipeline
+  config, or database state. Requiring complete P0 readiness was therefore an
+  unnecessary dependency, not a reason to resurrect obsolete inputs.
+- Narrowed staging to bind only the preserved private Phenix-manifest path and
+  the independently frozen Phenix SHA-256 from the fixed local P0 identity
+  specification. The CLI still exposes no path or checksum argument: the
+  controller resolves both fixed local records internally, and the dispatcher
+  verifies the remote regular file and checksum before recording it for the
+  job.
+- The focused controller-binding regression and complete fake Marmic
+  `heteromer-smoke` lifecycle pass; targeted Ruff, `ty`, Bash syntax, and diff
+  checks pass.
+
+### Next exact starting point
+
+Commit/push this dependency reduction, watch one CI run, deploy the matching
+tools, and stage exactly one `heteromer-smoke` through the explicit Marmic
+configuration. Submit only that owned staged run, then monitor, collect, and
+classify before any further feature work.

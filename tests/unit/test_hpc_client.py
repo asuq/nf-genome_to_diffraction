@@ -983,6 +983,52 @@ def test_remote_log_payload_has_a_local_byte_limit(tmp_path: Path) -> None:
         controller.logs(run_id, 200)
 
 
+def test_heteromer_stage_binds_only_the_preserved_phenix_identity(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    qualification = tmp_path / ".untracked/m0-qualification"
+    qualification.mkdir(parents=True)
+    phenix_path = "/approved/site/phenix/manifest.json"
+    paths = qualification / "hpc-p0.paths"
+    paths.write_text(
+        "\n".join(
+            [
+                "/approved/site",
+                "/approved/site/catalogues.json",
+                "/approved/site/crystals.json",
+                "/approved/site/config.yaml",
+                "/approved/site/databases",
+                "/approved/site/database_manifest.json",
+                phenix_path,
+            ]
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    paths.chmod(0o600)
+    phenix_sha256 = "a" * 64
+    (qualification / "p0-inputs.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "database_manifest_sha256": "b" * 64,
+                "phenix_manifest_sha256": phenix_sha256,
+            }
+        )
+        + "\n",
+        encoding="ascii",
+    )
+
+    staged = controller.stage("heteromer-smoke", "HEAD")
+
+    assert staged["profile"] == "heteromer-smoke"
+    operation, arguments = transport.calls[-1]
+    assert operation == "stage"
+    assert arguments[5:] == ("heteromer-smoke", phenix_path, phenix_sha256)
+
+
 @pytest.mark.parametrize("site_id", ["marmic", "viper-cpu"])
 def test_m6_nextflow_smoke_staging_uses_the_fixed_configured_site(
     tmp_path: Path, site_id: str

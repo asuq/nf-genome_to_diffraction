@@ -3965,7 +3965,10 @@ def test_heteromer_smoke_runs_one_fixed_6rtz_parent_partner_chain(
 ) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = dispatcher.parent.parent
-    _write_p0_paths(remote_root)
+    p0_paths = _write_p0_paths(remote_root)
+    phenix_manifest = Path(p0_paths.read_text(encoding="ascii").splitlines()[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    p0_paths.unlink()
 
     staged = _decode_protocol(
         _run(
@@ -3978,6 +3981,8 @@ def test_heteromer_smoke_runs_one_fixed_6rtz_parent_partner_chain(
                 OWNER_ID,
                 "1",
                 "heteromer-smoke",
+                str(phenix_manifest),
+                phenix_sha256,
             ],
             cwd=tmp_path,
             environment=environment,

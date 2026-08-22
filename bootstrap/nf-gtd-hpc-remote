@@ -818,8 +818,8 @@ EOF
 }
 
 stage_run_common() {
-    [[ "$#" -eq 6 || "$#" -eq 9 ]] || \
-        fail wrapper_failure "stage expects six or nine fixed arguments"
+    [[ "$#" -eq 6 || "$#" -eq 8 || "$#" -eq 9 || "$#" -eq 11 ]] || \
+        fail wrapper_failure "stage argument count is outside fixed profiles"
     local run_id="$1"
     local commit="$2"
     local expected_lock="$3"
@@ -842,17 +842,38 @@ stage_run_common() {
     local p2_control_root p2_control_catalogue p2_control_checksums p2_control_tmp
     local heteromer_sha256="" heteromer_json="null"
     local heteromer_root heteromer_checksums heteromer_tmp
+    local heteromer_phenix_manifest="" heteromer_phenix_sha256=""
+    local heteromer_phenix_json="null"
     local candidate coordinate_count hit_count
     local source_archive=false source_archive_sha256="" source_archive_size=""
     local expected_submodule_commit="" source_archive_json="null"
     local m6_site_contract_json="null"
     local -a p0_values=()
 
-    if [[ "$#" -eq 9 ]]; then
+    if [[ "$profile" == heteromer-smoke ]]; then
+        [[ "$#" -eq 8 || "$#" -eq 11 ]] || \
+            fail wrapper_failure "heteromer stage expects its fixed Phenix binding"
+        heteromer_phenix_manifest="$7"
+        heteromer_phenix_sha256="$8"
+        [[ "$heteromer_phenix_manifest" =~ $SAFE_PATH_RE && \
+           "$heteromer_phenix_sha256" =~ $CHECKSUM_RE ]] || \
+            fail wrapper_failure "invalid fixed heteromer Phenix binding"
+    else
+        [[ "$#" -eq 6 || "$#" -eq 9 ]] || \
+            fail wrapper_failure "non-heteromer stage received extra arguments"
+    fi
+
+    if [[ "$#" -eq 9 || "$#" -eq 11 ]]; then
         source_archive=true
-        source_archive_sha256="$7"
-        source_archive_size="$8"
-        expected_submodule_commit="$9"
+        if [[ "$profile" == heteromer-smoke ]]; then
+            source_archive_sha256="$9"
+            source_archive_size="${10}"
+            expected_submodule_commit="${11}"
+        else
+            source_archive_sha256="$7"
+            source_archive_size="$8"
+            expected_submodule_commit="$9"
+        fi
         [[ "$source_archive_sha256" =~ $CHECKSUM_RE ]] || \
             fail wrapper_failure "invalid source archive checksum"
         [[ "$source_archive_size" =~ $BYTE_COUNT_RE ]] || \
@@ -1034,9 +1055,25 @@ stage_run_common() {
         append_event "$run" "stage_m6_site_policy_bound"
     fi
 
+    if [[ "$profile" == heteromer-smoke ]]; then
+        [[ "$SITE_ID" == marmic ]] || \
+            fail environment_failure \
+                "fixed heteromer smoke is currently qualified only on Marmic"
+        [[ -f "$heteromer_phenix_manifest" && \
+           ! -L "$heteromer_phenix_manifest" ]] || \
+            fail environment_failure "fixed heteromer Phenix manifest is absent"
+        [[ "$(sha256sum "$heteromer_phenix_manifest" | awk '{print $1}')" == \
+           "$heteromer_phenix_sha256" ]] || \
+            fail environment_failure "fixed heteromer Phenix manifest changed"
+        atomic_text "$run/state/phenix-manifest" "$heteromer_phenix_manifest"
+        atomic_text "$run/state/phenix-manifest-sha256" \
+            "$heteromer_phenix_sha256"
+        heteromer_phenix_json="\"$heteromer_phenix_sha256\""
+        append_event "$run" "stage_heteromer_phenix_bound"
+    fi
+
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
-          "$profile" == heteromer-smoke || \
           ( "$profile" == m4-copy && "${M4_CROSS_SITE_IMPORT:-false}" != true ) ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
@@ -1408,13 +1445,6 @@ stage_run_common() {
     fi
 
     if [[ "$profile" == heteromer-smoke ]]; then
-        [[ "$SITE_ID" == marmic ]] || {
-            atomic_text "$run/state/phase" "stage_failed"
-            atomic_text "$run/state/failure-class" "environment_failure"
-            append_event "$run" "stage_heteromer_wrong_site"
-            fail environment_failure \
-                "fixed heteromer smoke is currently qualified only on Marmic"
-        }
         heteromer_root="$run/artifacts/heteromer-smoke/inputs"
         mkdir -p "$run/artifacts/heteromer-smoke"
         printf 'phase=heteromer_prepare_6rtz profile=%s\n' "$profile" \
@@ -1491,6 +1521,7 @@ stage_run_common() {
   "p2_diverse_login_stage_sha256": $p2_diverse_json,
   "p2_control_login_stage_sha256": $p2_control_json,
   "heteromer_login_stage_sha256": $heteromer_json,
+  "heteromer_phenix_manifest_sha256": $heteromer_phenix_json,
   "m6_site_contract": $m6_site_contract_json,
   "source_archive_sha256": $source_archive_json,
   "staged_at": "$(now_utc)",
@@ -1512,15 +1543,16 @@ EOF
 }
 
 stage_run() {
-    [[ "$#" -eq 6 ]] || fail wrapper_failure "stage expects six fixed arguments"
+    [[ "$#" -eq 6 || ( "$#" -eq 8 && "$6" == heteromer-smoke ) ]] || \
+        fail wrapper_failure "stage received an invalid fixed argument set"
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
     stage_run_common "$@"
 }
 
 stage_archive_run() {
-    [[ "$#" -eq 9 ]] || \
-        fail wrapper_failure "stage-archive expects nine fixed arguments"
+    [[ "$#" -eq 9 || ( "$#" -eq 11 && "$6" == heteromer-smoke ) ]] || \
+        fail wrapper_failure "stage-archive received an invalid fixed argument set"
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
     stage_run_common "$@"

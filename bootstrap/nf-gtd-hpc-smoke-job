@@ -1661,10 +1661,18 @@ run_heteromer_smoke() {
     local partner_result="$partner/partner_search_result.json"
     local parent_hypothesis_id parent_sequence_group_id partner_sequence_group_id
     local parent_llg parent_coordinate_relative parent_coordinate_sha256
-    local parent_coordinate partner_model_sha256 gate_passed
+    local parent_coordinate partner_model_sha256 gate_passed expected_phenix_sha256
     local -a preparation_values=() parent_values=()
 
-    load_p0_config
+    [[ -f "$RUN/state/phenix-manifest" && \
+       -f "$RUN/state/phenix-manifest-sha256" ]] || return 2
+    PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
+    expected_phenix_sha256="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$PHENIX_MANIFEST" =~ $SAFE_PATH_RE && \
+       -f "$PHENIX_MANIFEST" && ! -L "$PHENIX_MANIFEST" && \
+       "$expected_phenix_sha256" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$PHENIX_MANIFEST" | awk '{print $1}')" == \
+       "$expected_phenix_sha256" ]] || return 2
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
     [[ -x "$GTD" && -x "$PYTHON" ]] || return 2

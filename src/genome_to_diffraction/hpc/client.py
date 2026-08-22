@@ -197,6 +197,8 @@ _T12_ASSET_BASENAMES = (
     "brief_refine_mFo-DFc.ccp4",
     "sequence_from_map.pdb",
 )
+_P0_QUALIFICATION_RELATIVE = Path(".untracked/m0-qualification")
+_P0_INPUT_SPEC_NAME = "p0-inputs.json"
 
 
 def _validated_p0_paths_payload(path: Path) -> bytes:
@@ -229,6 +231,29 @@ def _validated_p0_paths_payload(path: Path) -> bytes:
     for index, value in enumerate(lines, start=1):
         validate_remote_path(value, f"P0 paths line {index}")
     return payload
+
+
+def _fixed_heteromer_phenix_binding(repository: Path) -> tuple[str, str]:
+    """Return the preserved Marmic Phenix path and independently frozen digest."""
+
+    qualification = repository / _P0_QUALIFICATION_RELATIVE
+    paths = qualification / P0_PATHS_FILENAME
+    lines = _validated_p0_paths_payload(paths).decode("ascii").splitlines()
+    phenix_manifest = lines[6]
+    validate_remote_path(phenix_manifest, "fixed heteromer Phenix manifest")
+    spec_path = qualification / _P0_INPUT_SPEC_NAME
+    try:
+        spec = load_json_document(spec_path)
+    except (OSError, ContractLoadError) as error:
+        raise ValidationError(
+            f"cannot read fixed P0 identity specification: {spec_path}"
+        ) from error
+    if not isinstance(spec, dict):
+        raise ValidationError("fixed P0 identity specification must be an object")
+    digest = spec.get("phenix_manifest_sha256")
+    if not isinstance(digest, str) or re.fullmatch(r"[a-f0-9]{64}", digest) is None:
+        raise ValidationError("fixed heteromer Phenix checksum is invalid")
+    return phenix_manifest, digest
 
 
 def _inspect_m6_runner_archive(
@@ -1351,6 +1376,11 @@ class HpcController:
         )
         local_path = record.write(self.config.local_state_root)
         arguments = [run_id, commit, lock_checksum, owner_id, str(iteration), profile]
+        if profile == "heteromer-smoke":
+            phenix_manifest, phenix_sha256 = _fixed_heteromer_phenix_binding(
+                self.config.repository
+            )
+            arguments.extend((phenix_manifest, phenix_sha256))
         try:
             remote = self.transport.run("stage", arguments)
         except RemoteOperationError as error:
