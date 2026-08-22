@@ -23,6 +23,10 @@ All notable changes to this project are documented here.
 - A path-closed Marmic `heteromer-smoke` profile. It prepares the two frozen
   public files on the login node and runs one sequential 8-CPU/16-GB Slurm job:
   real Xtriage, exact HisF first-copy, then fixed-HisF/HisH partner search.
+- A normal-workflow `analysis_stage=heteromer` bridge that consumes the existing
+  explicit MR-seed checkpoint, revalidates one approved A state and its parent
+  LLG, stages the full fixed 6RTZ preparation directory, and invokes the
+  accepted B-search adapter without manual file substitution.
 
 ## 0.1.0 - 2026-08-19
 

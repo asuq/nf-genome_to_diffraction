@@ -9686,3 +9686,71 @@ classify before any further feature work.
 - Commit/push this correction, watch one CI run, deploy matching tools, and
   stage/submit exactly one fresh `heteromer-smoke`. Collect/classify it before
   any end-to-end or `nA + mB` work.
+
+## 2026-08-22T17:49:58Z - Real 6RTZ fixed-A/one-B gate passes
+
+### Immutable execution and collected evidence
+
+- Source `092a898d426d585c30973f50b652d315a12e216a` passed Actions run
+  `32588181601`, job `97067630752`, in 7m23s. Matching deployed dispatcher,
+  job-wrapper, and recovery SHA-256 values were
+  `73572eb97beffe27d42c0093f10400ef09fc73a789ac707597ebb6f5de9cac20`,
+  `23a0de5aa83222f627f7a2a1701634a0eeba1ef299ceb9dd7e4507713e626bec`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Staged run `gtd-heteromer-smoke-20260822T174312Z-092a898d426d-083c796f`
+  through the checksum-gated source-archive fallback and submitted Slurm job
+  `632767` with 8 CPUs, 16 GB, and a 24-hour limit. It completed with exit 0,
+  scheduler `COMPLETED`, and `failure_class=success`.
+- The run-owned refreshed Phenix 2.1-6048 manifest validates and contains
+  SHA-256 identities for all seven required executables. Real Xtriage passed
+  the derived 6RTZ MTZ in space group `P 32 2 1` at 2.771 A with the selected
+  `F(+),SIGF(+),F(-),SIGF(-)` observations and no warning codes.
+- Exact HisF first-copy completed packed with one placed copy, LLG 1566.207,
+  and TFZ 42.2. The fixed-A/HisH search completed packed with combined LLG
+  6620.861, incremental LLG 5054.654, B-specific TFZ 71.2, and the primary
+  score cohort. The combined PDB contains exactly one `fixed_parent` and one
+  `search_partner` placement marker.
+- Every entry in `heteromer-smoke-checksums.sha256` verifies locally. The
+  collected typed results, commands, PHIL, raw logs, PDBs, MTZs, preflight,
+  summary, and refreshed manifest all agree; `gate_passed=true` and no failure
+  signature was emitted.
+
+### Milestone decision and next exact starting point
+
+- Accept P1 (minimal fixed-A/one-B adapter) and P2 (6RTZ adapter-isolation
+  smoke). This is a known exact-model positive control, not evidence for
+  genome-wide partner identification or unknown-crystal performance.
+- Begin P3 only: obtain A through the existing normal component workflow,
+  retain an explicit composition review decision, then search B without manual
+  file substitution inside the scheduled task. Preserve run `632767`; do not
+  clean it, rerun the isolated gate, or start general `nA + mB` first.
+
+## 2026-08-22T18:05:56Z - P3 approved-seed bridge is locally wired
+
+### Completed local vertical slice
+
+- Added a narrow approved-partner bridge that consumes the existing
+  `stage-approved-seeds` output and MR review package. It requires exactly one
+  approved one-copy A row, rechecks the stage/validation checksums, review-owned
+  coordinate/result assets, packing, placed count, and parent LLG, then binds
+  the fixed B model from the complete checksum-bearing 6RTZ preparation.
+- Added `analysis_stage=heteromer` to the existing `main.nf` entry point rather
+  than creating another root workflow. It reuses discovery, model preparation,
+  diverse first-copy MR, review-package generation, and explicit MR approval,
+  then runs one internal approved-partner process. Same-component additional
+  copy and T12 branches remain unchanged.
+- The control preparation is staged as a directory, not a lone manifest, so
+  the referenced B model is present and checksum-verifiable in the process
+  work directory.
+- Focused bridge tests reject changed parent evidence and verify the exact
+  A-LLG/B-model hand-off. The direct `analysis_stage=heteromer` Nextflow stub
+  reaches all 19 expected processes and publishes the approved stage plus
+  partner result. Targeted Ruff, `ty`, schema, Nextflow syntax, and diff checks
+  pass; the full all-entrypoint stub was not rerun locally.
+
+### Next exact starting point
+
+Review and commit this local P3 bridge without pushing unless separately
+authorised. P3 remains open until a real normal-workflow 6RTZ run obtains A,
+crosses an explicit composition decision, and searches B with no manual file
+substitution. Do not start general `nA + mB` first.

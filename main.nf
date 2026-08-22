@@ -16,6 +16,7 @@ params {
     review_mode: String = 'prepare'
     approved_mr_seeds: Path? = null
     approved_sequence_groups: Path? = null
+    heteromer_control_preparation: Path? = null
     profile_mode: String = 'smoke'
     analysis_stage: String = 'task05'
     skip_xtriage: Boolean = false
@@ -42,15 +43,22 @@ workflow {
         'discovery',
         'first_copy',
         'additional_copy',
+        'heteromer',
         't12'
     ])) {
         error "Unsupported analysis_stage: ${params.analysis_stage}"
     }
     if (
-        params.analysis_stage in ['additional_copy', 't12'] &&
+        params.analysis_stage in ['additional_copy', 'heteromer', 't12'] &&
         params.approved_mr_seeds == null
     ) {
         error "analysis_stage=${params.analysis_stage} requires --approved_mr_seeds"
+    }
+    if (
+        params.analysis_stage == 'heteromer' &&
+        params.heteromer_control_preparation == null
+    ) {
+        error 'analysis_stage=heteromer requires --heteromer_control_preparation'
     }
     MAIN_WORKFLOW(
         params.catalogues,
@@ -63,6 +71,7 @@ workflow {
         params.profile_mode,
         params.analysis_stage,
         params.approved_mr_seeds,
+        params.heteromer_control_preparation,
         params.skip_xtriage,
         params.maximum_evalue.toFloat(),
         params.minimum_query_coverage.toFloat(),

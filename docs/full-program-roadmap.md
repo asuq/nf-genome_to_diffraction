@@ -192,6 +192,8 @@ is not required.
 
 ### Gate B — Heteromer adapter works
 
+Status: accepted on 2026-08-22 by real 6RTZ/Phenix run `632767`.
+
 6RTZ B is searched with A fixed, the combined result is retained, and the
 metrics are component-specific and inspectable.
 

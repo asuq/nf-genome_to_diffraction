@@ -105,12 +105,14 @@ from genome_to_diffraction.model_registry import (
 )
 from genome_to_diffraction.mr import (
     AddCopyRunRequest,
+    ApprovedPartnerSearchRequest,
     CopyCountReportRequest,
     PartnerSearchRequest,
     PhaserRunRequest,
     build_copy_count_report,
     run_additional_copy_phaser,
     run_additional_copy_series,
+    run_approved_partner_search,
     run_first_copy_phaser,
     run_partner_search,
 )
@@ -1069,6 +1071,22 @@ def _build_parser() -> argparse.ArgumentParser:
     partner_parser.add_argument(
         "--partner-model-identity-fraction", type=float, required=True
     )
+    approved_partner_parser = mr_actions.add_parser(
+        "approved-partner",
+        help="search fixed 6RTZ B from one explicitly approved workflow A seed",
+    )
+    approved_partner_parser.add_argument("--approved-stage", type=Path, required=True)
+    approved_partner_parser.add_argument("--review-package", type=Path, required=True)
+    approved_partner_parser.add_argument(
+        "--control-preparation", type=Path, required=True
+    )
+    approved_partner_parser.add_argument("--sequence-groups", type=Path, required=True)
+    approved_partner_parser.add_argument("--preflight", type=Path, required=True)
+    approved_partner_parser.add_argument("--mtz", type=Path, required=True)
+    approved_partner_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    approved_partner_parser.add_argument("--outdir", type=Path, required=True)
+    approved_partner_parser.add_argument("--threads", type=int, default=1)
+    approved_partner_parser.add_argument("--timeout-seconds", type=float)
     partner_parser.add_argument("--preflight", type=Path, required=True)
     partner_parser.add_argument("--mtz", type=Path, required=True)
     partner_parser.add_argument("--phenix-manifest", type=Path, required=True)
@@ -2359,6 +2377,28 @@ def _run_mr(args: argparse.Namespace) -> int:
         )
         print(
             "Partner MR "
+            f"{partner_output.result.execution_status.value}: "
+            f"{partner_output.result_json}"
+        )
+        return 0
+    if args.mr_action == "approved-partner":
+        partner_output = run_approved_partner_search(
+            ApprovedPartnerSearchRequest(
+                approved_stage=args.approved_stage,
+                review_package=args.review_package,
+                control_preparation_manifest=args.control_preparation,
+                sequence_groups_jsonl=args.sequence_groups,
+                preflight_jsonl=args.preflight,
+                mtz=args.mtz,
+                phenix_manifest=args.phenix_manifest,
+                output_directory=args.outdir,
+                threads=args.threads,
+                timeout_seconds=args.timeout_seconds,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            "Approved partner MR "
             f"{partner_output.result.execution_status.value}: "
             f"{partner_output.result_json}"
         )

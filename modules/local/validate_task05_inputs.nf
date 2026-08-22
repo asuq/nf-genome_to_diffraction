@@ -29,7 +29,9 @@ process VALIDATE_TASK05_INPUTS {
                     ? 'first_copy_mr_and_review_requested'
                     : analysis_stage == 'additional_copy'
                         ? 'approved_seed_sequential_copy_requested'
-                        : 'approved_seed_t12_refinement_requested'
+                        : analysis_stage == 'heteromer'
+                            ? 'approved_heteromer_partner_requested'
+                            : 'approved_seed_t12_refinement_requested'
     )
     """
     genome-to-diffraction --no-progress contract validate catalogue-manifest '${catalogues}'

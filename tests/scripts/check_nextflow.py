@@ -249,6 +249,7 @@ def check_stubs() -> None:
         main_out = temporary_root / "main-results"
         integrated_out = temporary_root / "integrated-first-copy-results"
         post_checkpoint_out = temporary_root / "integrated-additional-copy-results"
+        heteromer_out = temporary_root / "integrated-heteromer-results"
         integrated_t12_out = temporary_root / "integrated-t12-results"
         database_out = temporary_root / "database-results"
         discovery_out = temporary_root / "discovery-results"
@@ -448,6 +449,50 @@ def check_stubs() -> None:
             raise RuntimeError(
                 "resumed post-checkpoint workflow did not report cached work"
             )
+
+        heteromer_command = [
+            "nextflow",
+            "run",
+            "main.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "-params-file",
+            "tests/fixtures/stubs/main_params.yaml",
+            "--analysis_stage",
+            "heteromer",
+            "--approved_mr_seeds",
+            "examples/approvals/approved_mr_seeds.tsv",
+            "--heteromer_control_preparation",
+            "tests/fixtures/stubs/approved_partner_search",
+            "--outdir",
+            str(heteromer_out),
+            "--cache_root",
+            str(temporary_root / "heteromer-cache"),
+        ]
+        _run(heteromer_command, environment=environment)
+        _assert_files(
+            heteromer_out,
+            {
+                "pipeline_scope.json",
+                "mr_seed_review_manifest.json",
+                "validated_mr_seed_decisions.json",
+                "live_m4_stage_manifest.json",
+                "partner_search_result.json",
+                "partner_search_result.jsonl",
+                "partner_search.eff",
+                "phaser_command.json",
+                "report.html",
+                "timeline.html",
+                "trace.tsv",
+                "dag.html",
+            },
+        )
+        heteromer_scope = json.loads(
+            (heteromer_out / "scope/pipeline_scope.json").read_text(encoding="utf-8")
+        )
+        if heteromer_scope.get("analysis_stage") != "heteromer":
+            raise RuntimeError("heteromer workflow lost its stage identity")
 
         integrated_t12_command = [
             "nextflow",

@@ -8,6 +8,7 @@ include { MTZ_PREFLIGHT } from '../modules/local/mtz_preflight'
 include { PREPARE_EXPERIMENTAL_MODELS } from '../modules/local/prepare_experimental_models'
 include { PREPARE_PREDICTED_MODELS } from '../modules/local/prepare_predicted_models'
 include { REGISTER_PDB_COORDINATES } from '../modules/local/register_pdb_coordinates'
+include { RUN_APPROVED_PARTNER_PHASER } from '../modules/local/run_approved_partner_phaser'
 include { SELECT_SINGLE_CRYSTAL } from '../modules/local/select_single_crystal'
 include { STAGE_APPROVED_MR_SEEDS } from '../modules/local/stage_approved_mr_seeds'
 include { STAGE_LIVE_T12 } from '../modules/local/stage_live_t12'
@@ -29,6 +30,7 @@ workflow MAIN_WORKFLOW {
     profile_mode: String
     analysis_stage: String
     approved_mr_seeds: Path?
+    heteromer_control_preparation: Path?
     skip_xtriage: Boolean
     maximum_evalue: Float
     minimum_query_coverage: Float
@@ -75,7 +77,7 @@ workflow MAIN_WORKFLOW {
         catalogue_bundle
     )
 
-    if (analysis_stage in ['discovery', 'first_copy', 'additional_copy', 't12']) {
+    if (analysis_stage in ['discovery', 'first_copy', 'additional_copy', 'heteromer', 't12']) {
         sequence_groups = catalogue_bundle.map { Path bundle ->
             bundle.resolve('sequence_groups.jsonl')
         }
@@ -129,7 +131,7 @@ workflow MAIN_WORKFLOW {
             sequence_groups
         )
 
-        if (analysis_stage in ['first_copy', 'additional_copy', 't12']) {
+        if (analysis_stage in ['first_copy', 'additional_copy', 'heteromer', 't12']) {
             crystal_dispatch = SELECT_SINGLE_CRYSTAL(crystals, preflight_bundle)
             crystal_id = crystal_dispatch.map { Path bundle ->
                 bundle.resolve('crystal_id.txt').toFile().text.trim()
@@ -166,7 +168,7 @@ workflow MAIN_WORKFLOW {
                 matthews_jsonl,
                 pipeline_config
             )
-            if (analysis_stage in ['additional_copy', 't12']) {
+            if (analysis_stage in ['additional_copy', 'heteromer', 't12']) {
                 if (approved_mr_seeds == null) {
                     error "${analysis_stage} stage requires approved MR seeds"
                 }
@@ -178,6 +180,21 @@ workflow MAIN_WORKFLOW {
                     approved_mr_seeds,
                     first_copy_hypotheses
                 )
+                if (analysis_stage == 'heteromer') {
+                    if (heteromer_control_preparation == null) {
+                        error 'heteromer stage requires fixed control preparation'
+                    }
+                    RUN_APPROVED_PARTNER_PHASER(
+                        approved_stage,
+                        mr_seed_review,
+                        heteromer_control_preparation,
+                        sequence_groups,
+                        preflight_jsonl,
+                        selected_mtz,
+                        phenix_manifest
+                    )
+                }
+                if (analysis_stage in ['additional_copy', 't12']) {
                 additional_seeds = approved_stage.map { Path bundle ->
                     bundle.resolve('additional_copy_seeds.tsv')
                 }
@@ -235,6 +252,7 @@ workflow MAIN_WORKFLOW {
                         live_t12_stage,
                         t12_results
                     )
+                }
                 }
             }
         }

@@ -27,7 +27,12 @@
     "approved_mr_seeds": {
       "type": ["string", "null"],
       "format": "file-path",
-      "description": "Explicit human MR-seed decisions required when analysis_stage=additional_copy or t12."
+      "description": "Explicit human MR-seed decisions required when analysis_stage=additional_copy, heteromer, or t12."
+    },
+    "heteromer_control_preparation": {
+      "type": ["string", "null"],
+      "format": "directory-path",
+      "description": "Fixed checksum-bearing 6RTZ control preparation directory required only when analysis_stage=heteromer."
     },
     "approved_sequence_groups": { "type": ["string", "null"] },
     "profile_mode": {
@@ -37,9 +42,9 @@
     },
     "analysis_stage": {
       "type": "string",
-      "enum": ["task05", "discovery", "first_copy", "additional_copy", "t12"],
+      "enum": ["task05", "discovery", "first_copy", "additional_copy", "heteromer", "t12"],
       "default": "task05",
-      "description": "Highest normal-workflow boundary to execute. First-copy stops at the retain-all MR-seed checkpoint; additional-copy requires explicit decisions and searches one same-component copy at a time without score filtering; t12 retains every approved best-supported copy state for refinement, maps, and sequence narrowing."
+      "description": "Highest normal-workflow boundary to execute. First-copy stops at the retain-all MR-seed checkpoint; additional-copy searches the same component; heteromer consumes one explicit approved A seed and the fixed 6RTZ B control; t12 advances approved same-component states to refinement and sequence narrowing."
     },
     "skip_xtriage": {
       "type": "boolean",
