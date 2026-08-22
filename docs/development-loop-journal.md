@@ -9495,3 +9495,33 @@ Classify that result before adding end-to-end Nextflow or general `nA + mB`.
   these public sources and execute A-first-copy followed by fixed-A/one-B on
   Marmic. Keep it sequential, single-job, and non-Nextflow for adapter
   isolation. Then request explicit push authority before remote staging.
+
+## 2026-08-22T15:30:41Z - Fixed Marmic heteromer smoke is locally ready
+
+### Closed local profile
+
+- Added one path-closed `heteromer-smoke` profile across the local controller,
+  remote dispatcher, job body, resource mapping, bounded collection, and run-ID
+  contract. It accepts only a pushed revision and an owned run ID; no arbitrary
+  case, path, Phaser flag, or command is exposed.
+- Login staging invokes the fixed public preparer in download mode, so only the
+  two protocol-frozen 6RTZ RCSB objects are fetched and verified before compute.
+- One sequential Marmic job requests 8 CPUs, 16 GB, and 24 hours. It verifies
+  Phenix, runs real Xtriage, places exact HisF as the one-copy A parent, then
+  fixes that checksum-bound result and searches exact HisH as B. This adapter
+  isolation deliberately adds no Nextflow entry point.
+- The profile writes a compact gate summary plus exact input, preflight,
+  parent, partner, command, log, coordinate, MTZ, and checksum artefacts. A
+  primary or fallback score cohort is accepted only with a packed output and
+  explicit fixed-A/B placement markers.
+
+### Evidence and next exact starting point
+
+- The complete fake Marmic stage, 8-CPU/16-GB/24-hour submit, sequential job,
+  result gate, and bounded collect lifecycle passes. The broader focused set is
+  130 tests green; targeted Ruff, `ty`, Bash syntax, and wrapper checks pass.
+- The actual preparer download path also completed against RCSB and reproduced
+  both frozen SHA-256 values. No real Phenix execution has occurred yet.
+- Review and commit this profile slice. The local branch is then four coherent
+  v0.2 commits ahead of `origin/main`; request explicit authority before one
+  push, CI, wrapper deployment, or Marmic submission.

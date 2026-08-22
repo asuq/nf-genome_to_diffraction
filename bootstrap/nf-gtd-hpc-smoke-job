@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -32,6 +32,10 @@ if [[ "$PROFILE" == database ]]; then
         printf 'database build job requires exactly 4 allocated CPUs\n' >&2
         exit 2
     fi
+fi
+if [[ "$PROFILE" == heteromer-smoke && "${SLURM_CPUS_PER_TASK:-}" != 8 ]]; then
+    printf 'heteromer smoke requires exactly 8 allocated CPUs\n' >&2
+    exit 2
 fi
 [[ "$ROOT" =~ $SAFE_PATH_RE && -d "$ROOT/runs" && -d "$ROOT/_locks" ]] || {
     printf 'invalid managed run root\n' >&2
@@ -163,6 +167,9 @@ finalise() {
     elif [[ "$PROFILE" == p2-control ]]; then
         reports_json='["artifacts/qualification/p2-control-summary.json","artifacts/qualification/p2-control-resume-check.json"]'
         retained_json='["artifacts/p2-control","artifacts/qualification"]'
+    elif [[ "$PROFILE" == heteromer-smoke ]]; then
+        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/heteromer-smoke/partner/partner_search_result.json"]'
+        retained_json='["artifacts/heteromer-smoke","artifacts/qualification"]'
     elif [[ "$PROFILE" == control-slice ]]; then
         reports_json='["artifacts/qualification/control-slice-summary.json","artifacts/qualification/control-slice-case-results.jsonl","artifacts/qualification/control-slice-first-copy-results.jsonl","artifacts/qualification/control-slice-copy-two-results.jsonl","artifacts/qualification/control-slice-refinement-results.jsonl","artifacts/qualification/control-slice-sequence-results.jsonl"]'
         retained_json='["artifacts/control-slice-inputs","artifacts/control-slice","artifacts/qualification"]'
@@ -1643,6 +1650,205 @@ EOF
     printf 'p2_control_status=both_retained_and_positive_outranks_unrelated_negative\n'
 }
 
+run_heteromer_smoke() {
+    local inputs="$RUN/artifacts/heteromer-smoke/inputs"
+    local preflight="$RUN/artifacts/heteromer-smoke/preflight"
+    local parent="$RUN/artifacts/heteromer-smoke/parent"
+    local partner="$RUN/artifacts/heteromer-smoke/partner"
+    local qualification="$RUN/artifacts/qualification"
+    local preparation="$inputs/preparation_manifest.json"
+    local parent_result="$parent/normalised_mr_result.json"
+    local partner_result="$partner/partner_search_result.json"
+    local parent_hypothesis_id parent_sequence_group_id partner_sequence_group_id
+    local parent_llg parent_coordinate_relative parent_coordinate_sha256
+    local parent_coordinate partner_model_sha256 gate_passed
+    local -a preparation_values=() parent_values=()
+
+    load_p0_config
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$GTD" && -x "$PYTHON" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    mkdir -p "$preflight" "$parent" "$partner" "$qualification"
+    cd "$RUN/source"
+
+    PHASE=preflight
+    printf 'phase=heteromer_stage_verify profile=heteromer-smoke\n'
+    [[ -f "$RUN/state/heteromer-login-stage.sha256" ]] || return 2
+    sha256sum -c "$RUN/state/heteromer-login-stage.sha256"
+    printf 'phase=heteromer_phenix_verify profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress phenix verify \
+        --manifest "$PHENIX_MANIFEST" \
+        --verification-log "$qualification/heteromer-smoke-phenix-verification.log" \
+        --no-command-timeout
+
+    PHASE=test
+    printf 'phase=heteromer_mtz_preflight profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress diffraction preflight \
+        --crystals "$inputs/crystals.json" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --no-xtriage-timeout \
+        --outdir "$preflight"
+    mapfile -t preparation_values < <(
+        "$PYTHON" - "$preparation" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+values = (
+    document.get("parent_hypothesis_id"),
+    document.get("parent_sequence_group_id"),
+    document.get("partner_sequence_group_id"),
+)
+patterns = (r"^mrhyp_[a-f0-9]{64}$", r"^seq_[a-f0-9]{64}$", r"^seq_[a-f0-9]{64}$")
+if any(not isinstance(value, str) or re.fullmatch(pattern, value) is None for value, pattern in zip(values, patterns, strict=True)):
+    raise SystemExit("invalid fixed 6RTZ preparation identities")
+print(*values, sep="\n")
+PY
+    )
+    [[ "${#preparation_values[@]}" -eq 3 ]] || return 4
+    parent_hypothesis_id="${preparation_values[0]}"
+    parent_sequence_group_id="${preparation_values[1]}"
+    partner_sequence_group_id="${preparation_values[2]}"
+
+    PHASE=software
+    printf 'phase=heteromer_parent_A profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress mr first-copy \
+        --hypotheses "$inputs/mr_hypotheses.jsonl" \
+        --hypothesis-id "$parent_hypothesis_id" \
+        --sequence-groups "$inputs/sequence_groups.jsonl" \
+        --processed-models "$inputs/processed_models.jsonl" \
+        --model-preparation-manifest "$inputs/model_preparation_manifest.json" \
+        --preflight "$preflight/mtz_preflight.jsonl" \
+        --mtz "$inputs/derived/6RTZ.mtz" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --threads "${SLURM_CPUS_PER_TASK:-1}" \
+        --outdir "$parent"
+    mapfile -t parent_values < <(
+        "$PYTHON" - "$parent_result" <<'PY'
+import json
+import math
+import re
+import sys
+from pathlib import Path, PurePosixPath
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+llg = document.get("llg")
+relative = document.get("solution_coordinate_path")
+sha256 = document.get("solution_coordinate_sha256")
+packing = document.get("packing_summary")
+if (
+    document.get("execution_status") != "completed_hit"
+    or isinstance(llg, bool)
+    or not isinstance(llg, (int, float))
+    or not math.isfinite(float(llg))
+    or document.get("placed_copy_count") != 1
+    or not isinstance(packing, dict)
+    or packing.get("top_solution_packed") is not True
+    or not isinstance(relative, str)
+    or PurePosixPath(relative).name != relative
+    or not isinstance(sha256, str)
+    or re.fullmatch(r"[a-f0-9]{64}", sha256) is None
+):
+    raise SystemExit("fixed 6RTZ A parent did not produce one packed solution")
+print(f"{float(llg):.12g}")
+print(relative)
+print(sha256)
+PY
+    )
+    [[ "${#parent_values[@]}" -eq 3 ]] || return 4
+    parent_llg="${parent_values[0]}"
+    parent_coordinate_relative="${parent_values[1]}"
+    parent_coordinate_sha256="${parent_values[2]}"
+    [[ "$parent_llg" =~ ^-?[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?$ && \
+       "$parent_coordinate_sha256" =~ $CHECKSUM_RE ]] || return 4
+    parent_coordinate="$parent/$parent_coordinate_relative"
+    [[ -f "$parent_coordinate" && \
+       "$(sha256sum "$parent_coordinate" | awk '{print $1}')" == \
+       "$parent_coordinate_sha256" ]] || return 4
+    partner_model_sha256="$(sha256sum "$inputs/models/component_B.pdb" | awk '{print $1}')"
+    [[ "$partner_model_sha256" =~ $CHECKSUM_RE ]] || return 4
+
+    printf 'phase=heteromer_partner_B profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress mr search-partner \
+        --crystal-id 6RTZ \
+        --parent-solution-id "$parent_hypothesis_id" \
+        --parent-sequence-group-id "$parent_sequence_group_id" \
+        --partner-sequence-group-id "$partner_sequence_group_id" \
+        --sequence-groups "$inputs/sequence_groups.jsonl" \
+        --parent-coordinate "$parent_coordinate" \
+        --expected-parent-coordinate-sha256 "$parent_coordinate_sha256" \
+        --parent-llg "$parent_llg" \
+        --partner-model "$inputs/models/component_B.pdb" \
+        --expected-partner-model-sha256 "$partner_model_sha256" \
+        --partner-model-identity-fraction 1.0 \
+        --preflight "$preflight/mtz_preflight.jsonl" \
+        --mtz "$inputs/derived/6RTZ.mtz" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --threads "${SLURM_CPUS_PER_TASK:-1}" \
+        --outdir "$partner"
+
+    PHASE=test
+    printf 'phase=heteromer_gate profile=heteromer-smoke\n'
+    gate_passed="$("$PYTHON" - "$partner_result" \
+        "$qualification/heteromer-smoke-summary.json" <<'PY'
+import json
+import math
+import sys
+from pathlib import Path
+
+result_path = Path(sys.argv[1])
+summary_path = Path(sys.argv[2])
+result = json.loads(result_path.read_text(encoding="utf-8"))
+delta = result.get("incremental_llg")
+tfz = result.get("partner_tfz")
+gate = (
+    result.get("execution_status") == "completed_hit"
+    and result.get("top_solution_packed") is True
+    and result.get("partner_placement_observed") is True
+    and result.get("score_cohort") in {"primary", "fallback"}
+    and isinstance(delta, (int, float))
+    and not isinstance(delta, bool)
+    and math.isfinite(float(delta))
+    and isinstance(tfz, (int, float))
+    and not isinstance(tfz, bool)
+    and math.isfinite(float(tfz))
+)
+summary = {
+    "schema_version": "1.0",
+    "profile": "heteromer-smoke",
+    "control": "6RTZ_HisF_HisH_1A_1B",
+    "execution_status": result.get("execution_status"),
+    "incremental_llg": delta,
+    "partner_tfz": tfz,
+    "score_cohort": result.get("score_cohort"),
+    "top_solution_packed": result.get("top_solution_packed"),
+    "partner_placement_observed": result.get("partner_placement_observed"),
+    "gate_passed": gate,
+    "result": "artifacts/heteromer-smoke/partner/partner_search_result.json",
+}
+summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+print("true" if gate else "false")
+PY
+    )"
+    (
+        cd "$RUN"
+        sha256sum \
+            artifacts/heteromer-smoke/inputs/preparation_manifest.json \
+            artifacts/heteromer-smoke/preflight/mtz_preflight.jsonl \
+            artifacts/heteromer-smoke/parent/normalised_mr_result.json \
+            artifacts/heteromer-smoke/parent/phaser_command.json \
+            artifacts/heteromer-smoke/partner/partner_search_result.json \
+            artifacts/heteromer-smoke/partner/phaser_command.json \
+            artifacts/qualification/heteromer-smoke-summary.json \
+            > artifacts/qualification/heteromer-smoke-checksums.sha256
+    )
+    [[ "$gate_passed" == true ]] || return 4
+    printf 'heteromer_smoke_status=passed\n'
+}
+
 run_control_slice() {
     local qualification="$RUN/artifacts/qualification"
     local import_root="$RUN/artifacts/control-slice-inputs"
@@ -3058,6 +3264,7 @@ case "$PROFILE" in
     p2) run_p2 ;;
     p2-diverse) run_p2_diverse ;;
     p2-control) run_p2_control ;;
+    heteromer-smoke) run_heteromer_smoke ;;
     control-slice) run_control_slice ;;
     control-matrix) run_control_matrix ;;
     m6-inputs) run_m6_inputs ;;

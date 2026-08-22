@@ -92,6 +92,18 @@ def test_review_collection_accepts_only_an_owned_run_identifier() -> None:
     assert t12_review.run_id == "RUN_ID"
 
 
+def test_heteromer_smoke_has_only_fixed_stage_and_submit_arguments() -> None:
+    parser = _build_parser()
+
+    staged = parser.parse_args(["stage", "heteromer-smoke", "--revision", "HEAD"])
+    submitted = parser.parse_args(["submit", "heteromer-smoke", "--run-id", "RUN_ID"])
+
+    assert staged.profile == "heteromer-smoke"
+    assert vars(staged)["revision"] == "HEAD"
+    assert not {"case", "path", "command", "coordinates"} & vars(staged).keys()
+    assert submitted.profile == "heteromer-smoke"
+
+
 def test_m4_copy_uses_explicit_checksum_gated_stage() -> None:
     parser = _build_parser()
 

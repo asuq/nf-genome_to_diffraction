@@ -20,6 +20,9 @@ All notable changes to this project are documented here.
   frozen protocol, maps HisF/entity 1/chain A and HisH/entity 2/chain B, and
   writes only the exact-model A-first-copy and B-partner inputs needed by the
   adapter-isolation control.
+- A path-closed Marmic `heteromer-smoke` profile. It prepares the two frozen
+  public files on the login node and runs one sequential 8-CPU/16-GB Slurm job:
+  real Xtriage, exact HisF first-copy, then fixed-HisF/HisH partner search.
 
 ## 0.1.0 - 2026-08-19
 

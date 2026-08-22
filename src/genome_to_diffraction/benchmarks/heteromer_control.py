@@ -17,12 +17,17 @@ The real Phenix control remains a separate scheduled operation.
 import hashlib
 import os
 import tempfile
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
 import gemmi
 
-from genome_to_diffraction.benchmarks.m6_protocol import load_m6_protocol
+from genome_to_diffraction.benchmarks.m6_protocol import (
+    M6FrozenResourceSpec,
+    load_m6_protocol,
+)
 from genome_to_diffraction.catalogue.mass import MASS_METHOD, assess_mass
 from genome_to_diffraction.checksums import (
     atomic_write_bytes,
@@ -66,9 +71,10 @@ class HeteromerControlPreparationRequest:
     """Inputs for the fixed 6RTZ preparation operation."""
 
     protocol: Path
-    coordinates: Path
-    structure_factors: Path
     output_directory: Path
+    coordinates: Path | None = None
+    structure_factors: Path | None = None
+    download_missing: bool = False
     progress: bool = True
 
 
@@ -106,6 +112,55 @@ def _verify_source(path: Path, *, sha256: str, size: int, label: str) -> Path:
             f"{label} does not match the frozen 6RTZ source"
         )
     return resolved
+
+
+def _download_source(resource: M6FrozenResourceSpec, destination: Path) -> Path:
+    if destination.exists():
+        return _verify_source(
+            destination,
+            sha256=resource.sha256,
+            size=resource.size_bytes,
+            label=f"downloaded {resource.role}",
+        )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            try:
+                with urllib.request.urlopen(resource.url, timeout=120) as response:
+                    total = 0
+                    while chunk := response.read(1024 * 1024):
+                        total += len(chunk)
+                        if total > resource.size_bytes:
+                            raise HeteromerControlPreparationError(
+                                f"downloaded {resource.role} exceeds frozen size"
+                            )
+                        handle.write(chunk)
+            except (OSError, urllib.error.URLError) as error:
+                raise HeteromerControlPreparationError(
+                    f"cannot download fixed {resource.role}: {error}"
+                ) from error
+            handle.flush()
+            os.fsync(handle.fileno())
+        _verify_source(
+            temporary,
+            sha256=resource.sha256,
+            size=resource.size_bytes,
+            label=f"downloaded {resource.role}",
+        )
+        os.replace(temporary, destination)
+        return destination
+    except BaseException:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise
 
 
 def _control_spec(protocol_path: Path):
@@ -271,18 +326,35 @@ def prepare_6rtz_heteromer_control(
             f"6RTZ preparation output is not empty: {output}"
         )
     control = _control_spec(request.protocol)
-    coordinates = _verify_source(
-        request.coordinates,
-        sha256=control.source.coordinates.sha256,
-        size=control.source.coordinates.size_bytes,
-        label="6RTZ coordinates",
-    )
-    structure_factors = _verify_source(
-        request.structure_factors,
-        sha256=control.source.structure_factors.sha256,
-        size=control.source.structure_factors.size_bytes,
-        label="6RTZ structure factors",
-    )
+    if request.download_missing:
+        if request.coordinates is not None or request.structure_factors is not None:
+            raise HeteromerControlPreparationError(
+                "download mode does not accept caller-supplied source paths"
+            )
+        source_directory = output / "sources"
+        coordinates = _download_source(
+            control.source.coordinates, source_directory / "6RTZ.cif"
+        )
+        structure_factors = _download_source(
+            control.source.structure_factors, source_directory / "6RTZ-sf.cif"
+        )
+    else:
+        if request.coordinates is None or request.structure_factors is None:
+            raise HeteromerControlPreparationError(
+                "supply both source paths or enable fixed download mode"
+            )
+        coordinates = _verify_source(
+            request.coordinates,
+            sha256=control.source.coordinates.sha256,
+            size=control.source.coordinates.size_bytes,
+            label="6RTZ coordinates",
+        )
+        structure_factors = _verify_source(
+            request.structure_factors,
+            sha256=control.source.structure_factors.sha256,
+            size=control.source.structure_factors.size_bytes,
+            label="6RTZ structure factors",
+        )
     sequences = _entity_sequences(coordinates)
     expected = tuple(control.proteins)
     for entity_id, protein in zip((1, 2), expected, strict=True):

@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -835,6 +835,8 @@ stage_run_common() {
     local p2_diverse_tmp mapping_count source_count
     local p2_control_sha256="" p2_control_json="null"
     local p2_control_root p2_control_catalogue p2_control_checksums p2_control_tmp
+    local heteromer_sha256="" heteromer_json="null"
+    local heteromer_root heteromer_checksums heteromer_tmp
     local candidate coordinate_count hit_count
     local source_archive=false source_archive_sha256="" source_archive_size=""
     local expected_submodule_commit="" source_archive_json="null"
@@ -1029,6 +1031,7 @@ stage_run_common() {
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
+          "$profile" == heteromer-smoke || \
           ( "$profile" == m4-copy && "${M4_CROSS_SITE_IMPORT:-false}" != true ) ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
@@ -1095,6 +1098,7 @@ stage_run_common() {
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
+          "$profile" == heteromer-smoke || \
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-inputs || "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
@@ -1398,6 +1402,68 @@ stage_run_common() {
         append_event "$run" "stage_p2_control_login_ready"
     fi
 
+    if [[ "$profile" == heteromer-smoke ]]; then
+        [[ "$SITE_ID" == marmic ]] || {
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "environment_failure"
+            append_event "$run" "stage_heteromer_wrong_site"
+            fail environment_failure \
+                "fixed heteromer smoke is currently qualified only on Marmic"
+        }
+        heteromer_root="$run/artifacts/heteromer-smoke/inputs"
+        mkdir -p "$run/artifacts/heteromer-smoke"
+        printf 'phase=heteromer_prepare_6rtz profile=%s\n' "$profile" \
+            > "$run/logs/heteromer-smoke-login-stage.log"
+        if ! PATH="$hpc_path" "$gtd" --log-format json --no-progress \
+            benchmark prepare-6rtz-heteromer-control \
+            --protocol "$run/source/benchmarks/m6/protocol.yaml" \
+            --download \
+            --outdir "$heteromer_root" \
+            >> "$run/logs/heteromer-smoke-login-stage.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_heteromer_inputs_failed"
+            fail transfer_failure "fixed 6RTZ input preparation failed"
+        fi
+        for candidate in \
+            "$heteromer_root/preparation_manifest.json" \
+            "$heteromer_root/crystals.json" \
+            "$heteromer_root/sequence_groups.jsonl" \
+            "$heteromer_root/processed_models.jsonl" \
+            "$heteromer_root/model_preparation_manifest.json" \
+            "$heteromer_root/mr_hypotheses.jsonl" \
+            "$heteromer_root/derived/6RTZ.mtz" \
+            "$heteromer_root/models/component_A.pdb" \
+            "$heteromer_root/models/component_B.pdb"; do
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || {
+                atomic_text "$run/state/phase" "stage_failed"
+                atomic_text "$run/state/failure-class" "filesystem_failure"
+                append_event "$run" "stage_heteromer_output_invalid"
+                fail filesystem_failure \
+                    "fixed 6RTZ staging output is missing or unsafe"
+            }
+        done
+        heteromer_checksums="$run/state/heteromer-login-stage.sha256"
+        heteromer_tmp="${heteromer_checksums}.tmp.$$"
+        sha256sum \
+            "$heteromer_root/preparation_manifest.json" \
+            "$heteromer_root/crystals.json" \
+            "$heteromer_root/sequence_groups.jsonl" \
+            "$heteromer_root/processed_models.jsonl" \
+            "$heteromer_root/model_preparation_manifest.json" \
+            "$heteromer_root/mr_hypotheses.jsonl" \
+            "$heteromer_root/derived/6RTZ.mtz" \
+            "$heteromer_root/models/component_A.pdb" \
+            "$heteromer_root/models/component_B.pdb" \
+            > "$heteromer_tmp"
+        mv -f -- "$heteromer_tmp" "$heteromer_checksums"
+        heteromer_sha256="$(sha256sum "$heteromer_checksums" | awk '{print $1}')"
+        [[ "$heteromer_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "fixed 6RTZ staging checksum failed"
+        heteromer_json="\"$heteromer_sha256\""
+        append_event "$run" "stage_heteromer_inputs_ready"
+    fi
+
     manifest_tmp="$run/manifest.json.tmp.$$"
     cat > "$manifest_tmp" <<EOF
 {
@@ -1419,6 +1485,7 @@ stage_run_common() {
   "p1_login_prefetch_sha256": $p1_prefetch_json,
   "p2_diverse_login_stage_sha256": $p2_diverse_json,
   "p2_control_login_stage_sha256": $p2_control_json,
+  "heteromer_login_stage_sha256": $heteromer_json,
   "m6_site_contract": $m6_site_contract_json,
   "source_archive_sha256": $source_archive_json,
   "staged_at": "$(now_utc)",
@@ -2363,6 +2430,10 @@ submit_run() {
         cpus=8
         memory=32G
     fi
+    if [[ "$profile" == heteromer-smoke ]]; then
+        cpus=8
+        memory=16G
+    fi
     if [[ "$profile" == m6-inputs ]]; then
         cpus=1
         memory=4G
@@ -2375,6 +2446,7 @@ submit_run() {
     [[ "$profile" != p0 ]] || walltime=24:00:00
     if [[ "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
+          "$profile" == heteromer-smoke || \
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
@@ -2907,6 +2979,7 @@ collect_run() {
         state/p1-login-prefetch.sha256 \
         state/p2-diverse-login-stage.sha256 \
         state/p2-control-login-stage.sha256 \
+        state/heteromer-login-stage.sha256 \
         state/control-slice-archive-sha256 \
         state/control-slice-manifest-sha256 \
         state/control-slice-case-count \
@@ -2926,6 +2999,7 @@ collect_run() {
         logs/p1-login-prefetch.log \
         logs/p2-diverse-login-stage.log \
         logs/p2-control-login-stage.log \
+        logs/heteromer-smoke-login-stage.log \
         logs/m4-copy-stage.log \
         logs/m4-import-stage.log \
         logs/control-slice-stage.log \
@@ -2946,6 +3020,7 @@ collect_run() {
         logs/p2.log \
         logs/p2-diverse.log \
         logs/p2-control.log \
+        logs/heteromer-smoke.log \
         logs/m4-copy.log \
         logs/database.log \
         logs/nextflow-first.log \
@@ -3047,6 +3122,9 @@ collect_run() {
         artifacts/qualification/p2-control-log-tails.txt \
         artifacts/qualification/p2-control-resume-check.json \
         artifacts/qualification/p2-control-phenix-verification.log \
+        artifacts/qualification/heteromer-smoke-summary.json \
+        artifacts/qualification/heteromer-smoke-checksums.sha256 \
+        artifacts/qualification/heteromer-smoke-phenix-verification.log \
         artifacts/qualification/control-slice-summary.json \
         artifacts/qualification/control-slice-case-results.jsonl \
         artifacts/qualification/control-slice-first-copy-results.jsonl \
@@ -3224,6 +3302,32 @@ collect_run() {
         artifacts/p2-control/control-bundle/model_preparation_manifest.json \
         artifacts/p2-control/control-bundle/processed_models.jsonl \
         artifacts/p2-control/control-bundle/mr_hypotheses.jsonl \
+        artifacts/heteromer-smoke/inputs/preparation_manifest.json \
+        artifacts/heteromer-smoke/inputs/crystals.json \
+        artifacts/heteromer-smoke/inputs/sequence_groups.jsonl \
+        artifacts/heteromer-smoke/inputs/processed_models.jsonl \
+        artifacts/heteromer-smoke/inputs/model_preparation_manifest.json \
+        artifacts/heteromer-smoke/inputs/mr_hypotheses.jsonl \
+        artifacts/heteromer-smoke/inputs/derived/6RTZ.mtz \
+        artifacts/heteromer-smoke/inputs/models/component_A.pdb \
+        artifacts/heteromer-smoke/inputs/models/component_B.pdb \
+        artifacts/heteromer-smoke/preflight/mtz_preflight.jsonl \
+        artifacts/heteromer-smoke/preflight/xtriage/6RTZ.log \
+        artifacts/heteromer-smoke/parent/normalised_mr_result.json \
+        artifacts/heteromer-smoke/parent/normalised_mr_result.jsonl \
+        artifacts/heteromer-smoke/parent/phaser_command.json \
+        artifacts/heteromer-smoke/parent/PHASER.log \
+        artifacts/heteromer-smoke/parent/phenix.phaser.capture.log \
+        artifacts/heteromer-smoke/parent/PHASER.1.pdb \
+        artifacts/heteromer-smoke/parent/PHASER.1.mtz \
+        artifacts/heteromer-smoke/partner/partner_search_result.json \
+        artifacts/heteromer-smoke/partner/partner_search_result.jsonl \
+        artifacts/heteromer-smoke/partner/phaser_command.json \
+        artifacts/heteromer-smoke/partner/partner_search.eff \
+        artifacts/heteromer-smoke/partner/PHASER.log \
+        artifacts/heteromer-smoke/partner/phenix.phaser.capture.log \
+        artifacts/heteromer-smoke/partner/PHASER.1.pdb \
+        artifacts/heteromer-smoke/partner/PHASER.1.mtz \
         artifacts/p2/first-copy/exact_predicted_funnel/funnel_manifest.json \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.jsonl \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.tsv; do

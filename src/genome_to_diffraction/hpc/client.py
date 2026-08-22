@@ -2243,6 +2243,7 @@ class HpcController:
                             "p2",
                             "p2-diverse",
                             "p2-control",
+                            "heteromer-smoke",
                             "control-slice",
                             "control-matrix",
                             "m4-copy",

@@ -88,6 +88,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "p2",
             "p2-diverse",
             "p2-control",
+            "heteromer-smoke",
             "m6-nextflow-smoke",
         ),
     )
@@ -104,6 +105,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "p2",
             "p2-diverse",
             "p2-control",
+            "heteromer-smoke",
             "control-slice",
             "control-matrix",
             "m6-inputs",

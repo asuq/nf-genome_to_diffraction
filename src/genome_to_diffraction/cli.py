@@ -493,9 +493,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="prepare the fixed public 6RTZ 1A+1B adapter-isolation inputs",
     )
     heteromer_control_parser.add_argument("--protocol", type=Path, required=True)
-    heteromer_control_parser.add_argument("--coordinates", type=Path, required=True)
+    heteromer_control_parser.add_argument("--coordinates", type=Path)
+    heteromer_control_parser.add_argument("--structure-factors", type=Path)
     heteromer_control_parser.add_argument(
-        "--structure-factors", type=Path, required=True
+        "--download",
+        action="store_true",
+        help="download only the two protocol-frozen RCSB files",
     )
     heteromer_control_parser.add_argument("--outdir", type=Path, required=True)
     control_bundle_parser = benchmark_actions.add_parser(
@@ -1577,6 +1580,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
                 coordinates=args.coordinates,
                 structure_factors=args.structure_factors,
                 output_directory=args.outdir,
+                download_missing=args.download,
                 progress=not args.no_progress,
             )
         )

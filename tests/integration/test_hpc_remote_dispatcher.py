@@ -24,6 +24,7 @@ P1_RUN_ID = "gtd-p1-20260802T120000Z-0123456789ab-01234567"
 P2_RUN_ID = "gtd-p2-20260802T120000Z-0123456789ab-01234567"
 P2_DIVERSE_RUN_ID = "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567"
 P2_CONTROL_RUN_ID = "gtd-p2-control-20260802T120000Z-0123456789ab-01234567"
+HETEROMER_RUN_ID = "gtd-heteromer-smoke-20260802T120000Z-0123456789ab-01234567"
 CONTROL_MATRIX_RUN_ID = "gtd-control-matrix-20260802T120000Z-0123456789ab-01234567"
 M6_INPUTS_RUN_ID = "gtd-m6-inputs-20260802T120000Z-0123456789ab-01234567"
 M6_NEXTFLOW_SMOKE_RUN_ID = (
@@ -148,6 +149,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     for name in (
         "execution-nextflow-v1.yaml",
         "execution-nextflow-marmic-v1.yaml",
+        "protocol.yaml",
     ):
         shutil.copy2(REPOSITORY / "benchmarks" / "m6" / name, m6_benchmarks / name)
     controls = source / "benchmarks" / "public-controls"
@@ -261,17 +263,24 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "previous=\n"
         "output=\n"
         "outdir=\n"
+        "verification_log=\n"
         'case " $* " in\n'
         '  *" catalogue import "*) mode=catalogue ;;\n'
         '  *" structure-search afdb-exact "*) mode=afdb ;;\n'
         '  *" structure-search pdb-sequence "*) mode=pdb ;;\n'
         '  *" structure-search register-pdb-coordinates "*) mode=register ;;\n'
         '  *" benchmark prepare-public-control "*) mode=public_control ;;\n'
+        '  *" benchmark prepare-6rtz-heteromer-control "*) mode=heteromer ;;\n'
+        '  *" phenix verify "*) mode=phenix_verify ;;\n'
+        '  *" diffraction preflight "*) mode=preflight ;;\n'
+        '  *" mr first-copy "*) mode=first_copy ;;\n'
+        '  *" mr search-partner "*) mode=partner ;;\n'
         '  *" databases stage-sources "*) mode=database ;;\n'
         "esac\n"
         'for argument in "$@"; do\n'
         '  [[ "$previous" != --manifest ]] || output="$argument"\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
+        '  [[ "$previous" != --verification-log ]] || verification_log="$argument"\n'
         '  previous="$argument"\n'
         "done\n"
         'if [[ "$mode" == catalogue ]]; then\n'
@@ -333,6 +342,64 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"$outdir/derived/8OOX-autoproc-deposited.mtz"\n'
         "  printf 'fake pdb\\n' > "
         '"$outdir/models/8OOW-chain-A-polymer.pdb"\n'
+        'elif [[ "$mode" == heteromer ]]; then\n'
+        '  mkdir -p "$outdir/derived" "$outdir/models"\n'
+        "  parent_seq=\"seq_$(printf 'a%.0s' {1..64})\"\n"
+        "  partner_seq=\"seq_$(printf 'b%.0s' {1..64})\"\n"
+        "  hypothesis=\"mrhyp_$(printf 'c%.0s' {1..64})\"\n"
+        '  printf \'{"parent_hypothesis_id":"%s",'
+        '"parent_sequence_group_id":"%s",'
+        '"partner_sequence_group_id":"%s"}\\n\' '
+        '"$hypothesis" "$parent_seq" "$partner_seq" '
+        '> "$outdir/preparation_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/crystals.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/sequence_groups.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/processed_models.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/model_preparation_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mr_hypotheses.jsonl"\n'
+        '  printf "fake 6RTZ mtz\\n" > "$outdir/derived/6RTZ.mtz"\n'
+        '  printf "fake A pdb\\n" > "$outdir/models/component_A.pdb"\n'
+        '  printf "fake B pdb\\n" > "$outdir/models/component_B.pdb"\n'
+        'elif [[ "$mode" == phenix_verify ]]; then\n'
+        '  [[ -n "$verification_log" ]] || exit 17\n'
+        '  mkdir -p "$(dirname "$verification_log")"\n'
+        '  printf "fake Phenix verified\\n" > "$verification_log"\n'
+        'elif [[ "$mode" == preflight ]]; then\n'
+        '  mkdir -p "$outdir/xtriage"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mtz_preflight.jsonl"\n'
+        '  printf "fake xtriage\\n" > "$outdir/xtriage/6RTZ.log"\n'
+        'elif [[ "$mode" == first_copy ]]; then\n'
+        '  mkdir -p "$outdir"\n'
+        '  printf "REMARK ENSEMBLE parent\\nATOM\\n" > "$outdir/PHASER.1.pdb"\n'
+        '  printf "fake parent mtz\\n" > "$outdir/PHASER.1.mtz"\n'
+        '  parent_sha="$(sha256sum "$outdir/PHASER.1.pdb" | awk \'{print $1}\')"\n'
+        '  printf \'{"execution_status":"completed_hit","llg":120.0,'
+        '"placed_copy_count":1,"packing_summary":'
+        '{"top_solution_packed":true},'
+        '"solution_coordinate_path":"PHASER.1.pdb",'
+        '"solution_coordinate_sha256":"%s"}\\n\' "$parent_sha" '
+        '> "$outdir/normalised_mr_result.json"\n'
+        '  cp "$outdir/normalised_mr_result.json" '
+        '"$outdir/normalised_mr_result.jsonl"\n'
+        "  printf '{}\\n' > \"$outdir/phaser_command.json\"\n"
+        '  printf "fake parent log\\n" > "$outdir/PHASER.log"\n'
+        '  printf "fake parent capture\\n" > "$outdir/phenix.phaser.capture.log"\n'
+        'elif [[ "$mode" == partner ]]; then\n'
+        '  mkdir -p "$outdir"\n'
+        '  printf "fake combined pdb\\n" > "$outdir/PHASER.1.pdb"\n'
+        '  printf "fake combined mtz\\n" > "$outdir/PHASER.1.mtz"\n'
+        '  printf \'{"execution_status":"completed_hit",'
+        '"incremental_llg":150.0,"partner_tfz":12.0,'
+        '"score_cohort":"primary","top_solution_packed":true,'
+        '"partner_placement_observed":true}\\n\' '
+        '> "$outdir/partner_search_result.json"\n'
+        '  cp "$outdir/partner_search_result.json" '
+        '"$outdir/partner_search_result.jsonl"\n'
+        "  printf '{}\\n' > \"$outdir/phaser_command.json\"\n"
+        '  printf "phaser {}\\n" > "$outdir/partner_search.eff"\n'
+        '  printf "fake partner log\\n" > "$outdir/PHASER.log"\n'
+        '  printf "fake partner capture\\n" > "$outdir/phenix.phaser.capture.log"\n'
         "else\n"
         "  exit 9\n"
         "fi\n"
@@ -3861,6 +3928,83 @@ def test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile(
     assert "artifacts/qualification/p2-control-summary.json" in names
     assert "artifacts/qualification/p2-control-commands.jsonl" in names
     assert "artifacts/qualification/p2-control-artifact-sha256.tsv" in names
+
+
+def test_heteromer_smoke_runs_one_fixed_6rtz_parent_partner_chain(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    _write_p0_paths(remote_root)
+
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                HETEROMER_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "heteromer-smoke",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert staged["profile"] == "heteromer-smoke"
+    run = remote_root / "runs" / HETEROMER_RUN_ID
+    assert (run / "state/heteromer-login-stage.sha256").is_file()
+    assert (
+        run / "artifacts/heteromer-smoke/inputs/preparation_manifest.json"
+    ).is_file()
+
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", HETEROMER_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert submitted["profile"] == "heteromer-smoke"
+    arguments = (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    assert "--cpus-per-task=8" in arguments
+    assert "--mem=16G" in arguments
+    assert "--time=24:00:00" in arguments
+
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "123"
+    job_environment["SLURM_CPUS_PER_TASK"] = "8"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "slurm-tmp")
+    _run(
+        [str(smoke_job), HETEROMER_RUN_ID, str(remote_root), "heteromer-smoke"],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
+
+    summary = json.loads(
+        (run / "artifacts/qualification/heteromer-smoke-summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert summary["gate_passed"] is True
+    assert summary["incremental_llg"] == 150.0
+    assert summary["partner_tfz"] == 12.0
+    log = (run / "logs/heteromer-smoke.log").read_text(encoding="utf-8")
+    assert "phase=heteromer_parent_A profile=heteromer-smoke" in log
+    assert "phase=heteromer_partner_B profile=heteromer-smoke" in log
+
+    archive = _run(
+        [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    assert "artifacts/qualification/heteromer-smoke-summary.json" in names
+    assert "artifacts/heteromer-smoke/parent/normalised_mr_result.json" in names
+    assert "artifacts/heteromer-smoke/partner/partner_search_result.json" in names
 
 
 def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(

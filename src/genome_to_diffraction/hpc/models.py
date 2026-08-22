@@ -10,7 +10,7 @@ from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 
 RUN_ID_PATTERN = re.compile(
-    r"^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}$"
 )
@@ -43,6 +43,7 @@ PROFILES = frozenset(
         "p2",
         "p2-diverse",
         "p2-control",
+        "heteromer-smoke",
         "control-slice",
         "control-matrix",
         "m6-inputs",
