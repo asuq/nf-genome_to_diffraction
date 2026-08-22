@@ -31,6 +31,9 @@ All notable changes to this project are documented here.
   adapters. The 3U7Q control records its deposited NifD Q440E construct as
   distinct from the frozen catalogue sequence, searches two A copies jointly,
   fixes that state, and searches two B copies jointly.
+- Phaser PDB LLG parsing now accepts scientific notation, preventing values such
+  as `2.47e+05` from being truncated to `2.47` during partner-score
+  normalisation.
 
 ## 0.1.0 - 2026-08-19
 

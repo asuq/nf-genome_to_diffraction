@@ -86,7 +86,11 @@ _NO_SOLUTION = re.compile(r"^\s*(?:\*\*\s+)?Sorry\s+-\s+No solutions?\s*$", re.I
 _PACKING = re.compile(
     r"(\d+) accepted of (\d+) solutions\s+(\d+) pack of (\d+) accepted solutions"
 )
-_PDB_LLG = re.compile(r"^REMARK Log-Likelihood Gain:\s*(-?[0-9]+(?:\.[0-9]+)?)", re.M)
+_PDB_LLG = re.compile(
+    r"^REMARK Log-Likelihood Gain:\s*"
+    r"(-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?)",
+    re.M,
+)
 _PDB_TFZ = re.compile(r"\bTFZ==(-?[0-9]+(?:\.[0-9]+)?)")
 _PDB_PAK = re.compile(r"\bPAK=(-?[0-9]+(?:\.[0-9]+)?)")
 _PDB_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)

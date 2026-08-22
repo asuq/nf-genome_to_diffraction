@@ -9862,3 +9862,38 @@ Run the focused fake Marmic lifecycle, first-copy logger test, wrapper syntax,
 and diff checks; commit/push this narrow correction, watch one CI run, deploy
 matching tools, and stage one fresh 32 GB successor. Do not start P5 until it is
 terminal, collected, and classified.
+
+## 2026-08-22T21:42:12Z - 3U7Q 2A+2B completes; exponent parser causes false gate
+
+### Terminal evidence and classification
+
+- Source `3245ee42d2c5564a68f0a4f6c587625d9a54bb86` passed corrective Actions
+  run `32597225648`, job `97090002745`, in 6m59s. Matching Marmic dispatcher,
+  job-wrapper, and recovery SHA-256 values were
+  `2cb33092f0af64fcf8e29620f751d68bb0e54cbe9e9b99a65b4c1f7bfd70e9b0`,
+  `e5ff5a05191afef2160cc25016ad86e2296fdeb29cee68fa71998a4b9554c8a1`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Marmic run `gtd-heteromer-smoke-20260822T204506Z-3245ee42d2c5-4e566dc9`,
+  Slurm `632825`, completed both Phenix searches under 32 GB but ended exit 4
+  because the fixed scientific gate consumed a misparsed metric. Preserve the
+  run; do not resume, clean, or reinterpret its normalised result.
+- The 6RTZ checkpoint regression passed unchanged. 3U7Q Xtriage passed at
+  1.000 A in `P 1 21 1`; the parent jointly placed two A copies at LLG
+  17887.289 and TFZ 127.4. Joint partner MR then completed successfully with
+  one fixed-parent marker, exactly two B markers, packing, and TFZ 371.4.
+- Phaser wrote combined PDB LLG `2.47e+05`. `_PDB_LLG` matched only the decimal
+  prefix and normalised it as `2.47`, creating incremental LLG `-17884.819` and
+  a false `below_threshold` cohort. The native log independently reports final
+  LLG about 246594 and explicitly says the partner placement will be correct.
+  All eighteen retained checksums pass.
+
+### Smallest correction and next exact starting point
+
+- Extend only the PDB LLG numeric token to accept an optional exponent. A
+  focused regression parses `2.47e+05` as 247000; replay against the collected
+  real PDB returns LLG 247000, TFZ 371.4, three total placement markers, and
+  PAK 0. All 34 focused first-copy/partner tests plus Ruff and `ty` pass.
+- Commit/push the parser correction, watch one CI run, deploy matching tools,
+  and stage exactly one fresh 32 GB successor. After submission, restore a
+  30-minute thread heartbeat rather than continuous polling. Do not start P5
+  until the parser-fixed run is terminal, collected, and classified.

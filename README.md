@@ -11,9 +11,9 @@ scientific acceptance is held, heteromer reconstruction is absent, and the
 release is not production validated. The v0.2 fixed-A/partner adapter and its
 normal-workflow checkpoint have passed the real 6RTZ HisF/HisH `1A + 1B`
 control with Phenix 2.1-6048. Explicit joint `nA + mB` support is now being
-qualified on the frozen 3U7Q `2A + 2B` control. Its first real run placed both A
-copies but showed that the original 16 GB profile was too small for the joint B
-search; the replacement uses 32 GB. See the
+qualified on the frozen 3U7Q `2A + 2B` control. A 32 GB run completed both joint
+searches and placed two A plus two B copies; a parser correction is being
+replayed because the PDB wrote its combined LLG in scientific notation. See the
 [prototype-first roadmap](docs/v0.2-roadmap.md).
 
 This repository contains the completed foundation, typed data contracts, an

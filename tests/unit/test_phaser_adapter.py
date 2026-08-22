@@ -16,6 +16,7 @@ from genome_to_diffraction.mr import (
     PhaserParseError,
     PhaserRunRequest,
     parse_phaser_log,
+    read_phaser_solution_metrics,
     run_first_copy_phaser,
 )
 from genome_to_diffraction.schemas.io import load_contract
@@ -266,6 +267,26 @@ def test_parser_accepts_phenix_single_solution_summary() -> None:
     assert parsed.accepted_solution_count == 1
     assert parsed.packed_solution_count == 1
     assert parsed.parser_warnings == ("single_solution_packing_inferred_from_top_llg",)
+
+
+def test_solution_pdb_llg_accepts_scientific_notation(tmp_path: Path) -> None:
+    coordinate = tmp_path / "PHASER.1.pdb"
+    coordinate.write_text(
+        "REMARK Log-Likelihood Gain: 2.47e+05\n"
+        "REMARK PAK=0 LLG=246594 TFZ==371.4\n"
+        "REMARK ENSEMBLE fixed_parent EULER 0 0 0 FRAC 0 0 0\n"
+        "REMARK ENSEMBLE search_partner EULER 1 2 3 FRAC 0.1 0.2 0.3\n",
+        encoding="ascii",
+    )
+
+    llg, tfz, placed_count, pak = read_phaser_solution_metrics(
+        parse_phaser_log(POSITIVE_LOG), coordinate
+    )
+
+    assert llg == pytest.approx(247000.0)
+    assert tfz == pytest.approx(371.4)
+    assert placed_count == 2
+    assert pak == pytest.approx(0.0)
 
 
 def test_parser_retains_top_solution_tfz_when_tncs_omits_refined_value() -> None:
