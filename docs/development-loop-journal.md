@@ -9525,3 +9525,33 @@ Classify that result before adding end-to-end Nextflow or general `nA + mB`.
 - Review and commit this profile slice. The local branch is then four coherent
   v0.2 commits ahead of `origin/main`; request explicit authority before one
   push, CI, wrapper deployment, or Marmic submission.
+
+## 2026-08-22T15:42:38Z - P1 source is green; Marmic transfer is unavailable
+
+### Immutable source and CI evidence
+
+- With explicit user authority, pushed the four v0.2 commits through
+  `b45416a40bbe05575fccba7e7906decacac0d1b3`; local `main` and `origin/main`
+  agree at that exact source.
+- GitHub Actions run `32582065724`, job `97052827065`, passed the complete
+  locked foundation gate in 7m28s under Pixi 0.76.2.
+- The reviewed deployment inputs are dispatcher SHA-256
+  `132c9c0ac7da6da28bc23613256e11dc83b0ee68ff40002705730a41cc46ae7c`,
+  job-wrapper SHA-256
+  `4847e0b77540e053c6d9cf288848f04f8d6f79dcb806bd7e81c49d315482929f`,
+  and recovery SHA-256
+  `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+
+### External blocker and exact restart
+
+- The checksum-bound `deploy-tools` operation was attempted twice through the
+  normal managed wrapper and once with explicit external-network permission.
+  Every attempt ended before dispatcher execution with `Connection closed by
+  UNKNOWN port 65535`, classified as `transfer_failure`.
+- No remote tool deployment was confirmed, no run directory was staged, and no
+  Slurm job was submitted. Do not infer a software defect, create a replacement
+  run, or use raw SSH from this evidence.
+- When the Marmic SSH endpoint is reachable, retry only `deploy-tools` for exact
+  pushed source `b45416a40bbe05575fccba7e7906decacac0d1b3`. After checksum
+  confirmation, stage and submit exactly one `heteromer-smoke`, then monitor,
+  collect, and classify that owned run before any P2/P3 work.
