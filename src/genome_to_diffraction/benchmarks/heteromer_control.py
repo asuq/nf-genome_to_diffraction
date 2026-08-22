@@ -80,6 +80,48 @@ _ADAPTER_VERSION = "6rtz-fixed-a-one-b-inputs-v1"
 _PARENT_PROTEIN_ID = "WP_004080486.1"
 
 
+@dataclass(frozen=True)
+class _ControlDefinition:
+    control_key: str
+    crystal_id: str
+    parent_chain: str
+    partner_chain: str
+    adapter_version: str
+    parent_protein_id: str
+    parent_copy_count: int
+    partner_copy_count: int
+    molecular_system: str
+    source_sequence_sha256: tuple[str, str] | None = None
+
+
+_CONTROL_6RTZ = _ControlDefinition(
+    control_key=_CONTROL_KEY,
+    crystal_id=_CRYSTAL_ID,
+    parent_chain=_PARENT_CHAIN,
+    partner_chain=_PARTNER_CHAIN,
+    adapter_version=_ADAPTER_VERSION,
+    parent_protein_id=_PARENT_PROTEIN_ID,
+    parent_copy_count=1,
+    partner_copy_count=1,
+    molecular_system="HisF/HisH",
+)
+_CONTROL_3U7Q = _ControlDefinition(
+    control_key="A03",
+    crystal_id="3U7Q",
+    parent_chain="A",
+    partner_chain="B",
+    adapter_version="3u7q-fixed-two-a-two-b-inputs-v1",
+    parent_protein_id="3U7Q_entity_1_Q440E_construct",
+    parent_copy_count=2,
+    partner_copy_count=2,
+    molecular_system="NifD/NifK",
+    source_sequence_sha256=(
+        "1f3742d53379b781879aabd6f0335aa6e2e994a357d2fccc26a1cff14a34dba9",
+        "90d14f01041688fc46b92288b9762c0ede104bcf2ea9d941449a64cff1ac80df",
+    ),
+)
+
+
 class HeteromerControlPreparationError(ValueError):
     """The fixed public control cannot be prepared without changing identity."""
 
@@ -200,25 +242,29 @@ def _download_source(resource: M6FrozenResourceSpec, destination: Path) -> Path:
         raise
 
 
-def _control_spec(protocol_path: Path):
+def _control_spec(protocol_path: Path, definition: _ControlDefinition):
     protocol = load_m6_protocol(protocol_path)
     matches = [
         control
         for control in protocol.assumption_controls
-        if control.target_key == _CONTROL_KEY
+        if control.target_key == definition.control_key
     ]
     if len(matches) != 1:
-        raise HeteromerControlPreparationError("protocol does not uniquely define A01")
+        raise HeteromerControlPreparationError(
+            f"protocol does not uniquely define {definition.control_key}"
+        )
     control = matches[0]
     if (
-        control.source.pdb_id != _CRYSTAL_ID
+        control.source.pdb_id != definition.crystal_id
         or control.source.pdb_entity_ids != (1, 2)
         or control.asu_distinct_protein_species != 2
-        or control.asu_protein_copy_count != 2
+        or control.asu_protein_copy_count
+        != definition.parent_copy_count + definition.partner_copy_count
         or len(control.proteins) != 2
     ):
         raise HeteromerControlPreparationError(
-            "A01 no longer defines the fixed 6RTZ 1A+1B control"
+            f"{definition.control_key} no longer defines the fixed "
+            f"{definition.parent_copy_count}A+{definition.partner_copy_count}B control"
         )
     return control
 
@@ -305,7 +351,7 @@ def _extract_polymer_chain(
         gemmi.find_tabulated_residue(residue.name).one_letter_code.upper()
         for residue in polymer
     )
-    if not observed or not full_sequence.startswith(observed):
+    if not observed or observed not in full_sequence:
         raise HeteromerControlPreparationError(
             f"6RTZ chain {chain_name} coordinates do not match its entity sequence"
         )
@@ -352,17 +398,18 @@ def _convert_structure_factors(structure_factors: Path, output: Path) -> gemmi.M
     return mtz
 
 
-def prepare_6rtz_heteromer_control(
+def _prepare_heteromer_control(
     request: HeteromerControlPreparationRequest,
+    definition: _ControlDefinition,
 ) -> HeteromerControlPreparationResult:
-    """Prepare fixed exact-model inputs for the 6RTZ adapter-isolation run."""
+    """Prepare one protocol-frozen exact-model heteromer control."""
 
     output = request.output_directory.absolute()
     if output.exists() and any(output.iterdir()):
         raise HeteromerControlPreparationError(
-            f"6RTZ preparation output is not empty: {output}"
+            f"{definition.crystal_id} preparation output is not empty: {output}"
         )
-    control = _control_spec(request.protocol)
+    control = _control_spec(request.protocol, definition)
     if request.download_missing:
         if request.coordinates is not None or request.structure_factors is not None:
             raise HeteromerControlPreparationError(
@@ -370,10 +417,12 @@ def prepare_6rtz_heteromer_control(
             )
         source_directory = output / "sources"
         coordinates = _download_source(
-            control.source.coordinates, source_directory / "6RTZ.cif"
+            control.source.coordinates,
+            source_directory / f"{definition.crystal_id}.cif",
         )
         structure_factors = _download_source(
-            control.source.structure_factors, source_directory / "6RTZ-sf.cif"
+            control.source.structure_factors,
+            source_directory / f"{definition.crystal_id}-sf.cif",
         )
     else:
         if request.coordinates is None or request.structure_factors is None:
@@ -384,28 +433,48 @@ def prepare_6rtz_heteromer_control(
             request.coordinates,
             sha256=control.source.coordinates.sha256,
             size=control.source.coordinates.size_bytes,
-            label="6RTZ coordinates",
+            label=f"{definition.crystal_id} coordinates",
         )
         structure_factors = _verify_source(
             request.structure_factors,
             sha256=control.source.structure_factors.sha256,
             size=control.source.structure_factors.size_bytes,
-            label="6RTZ structure factors",
+            label=f"{definition.crystal_id} structure factors",
         )
     sequences = _entity_sequences(coordinates)
     expected = tuple(control.proteins)
+    sequence_relationships: list[dict[str, object]] = []
     for entity_id, protein in zip((1, 2), expected, strict=True):
         sequence = sequences.get(entity_id)
+        source_sha256 = (
+            hashlib.sha256(sequence.encode("ascii")).hexdigest()
+            if sequence is not None
+            else None
+        )
+        expected_source_sha256 = (
+            definition.source_sequence_sha256[entity_id - 1]
+            if definition.source_sequence_sha256 is not None
+            else protein.sequence_sha256
+        )
         if (
             sequence is None
             or len(sequence) != protein.sequence_length
-            or hashlib.sha256(sequence.encode("ascii")).hexdigest()
-            != protein.sequence_sha256
+            or source_sha256 != expected_source_sha256
         ):
             raise HeteromerControlPreparationError(
-                f"6RTZ entity {entity_id} differs from frozen protein "
+                f"{definition.crystal_id} entity {entity_id} differs from frozen "
+                "protein "
                 f"{protein.protein_id}"
             )
+        sequence_relationships.append(
+            {
+                "entity_id": entity_id,
+                "source_construct_sequence_sha256": source_sha256,
+                "catalogue_protein_id": protein.protein_id,
+                "catalogue_sequence_sha256": protein.sequence_sha256,
+                "exact_catalogue_sequence": source_sha256 == protein.sequence_sha256,
+            }
+        )
 
     output.mkdir(parents=True, exist_ok=True)
     model_directory = output / "models"
@@ -414,16 +483,16 @@ def prepare_6rtz_heteromer_control(
     parent_observed, parent_ranges = _extract_polymer_chain(
         coordinates,
         parent_model,
-        chain_name=_PARENT_CHAIN,
+        chain_name=definition.parent_chain,
         full_sequence=sequences[1],
     )
     _extract_polymer_chain(
         coordinates,
         partner_model,
-        chain_name=_PARTNER_CHAIN,
+        chain_name=definition.partner_chain,
         full_sequence=sequences[2],
     )
-    mtz_path = output / "derived" / "6RTZ.mtz"
+    mtz_path = output / "derived" / f"{definition.crystal_id}.mtz"
     mtz = _convert_structure_factors(structure_factors, mtz_path)
     observation, _, _ = select_observations(mtz, None)
     assert observation is not None
@@ -439,7 +508,7 @@ def prepare_6rtz_heteromer_control(
         "coordmap_",
         {
             "source_sha256": control.source.coordinates.sha256,
-            "chain": _PARENT_CHAIN,
+            "chain": definition.parent_chain,
             "sequence_sha256": parent_group.sha256,
         },
     )
@@ -457,7 +526,9 @@ def prepare_6rtz_heteromer_control(
     )
     model_mass = assess_mass(parent_observed)
     if model_mass.exact_da is None:
-        raise HeteromerControlPreparationError("6RTZ A model mass is not exact")
+        raise HeteromerControlPreparationError(
+            f"{definition.crystal_id} A model mass is not exact"
+        )
     model = ProcessedModelRecord(
         schema_version="1.0",
         model_id=model_id,
@@ -467,18 +538,18 @@ def prepare_6rtz_heteromer_control(
         processing_tool="gemmi",
         processing_version=getattr(gemmi, "__version__", "unknown"),
         processing_parameters={
-            "adapter_version": _ADAPTER_VERSION,
+            "adapter_version": definition.adapter_version,
             "mapping_id": mapping_id,
             "sequence_identity": 1.0,
-            "source_pdb_id": _CRYSTAL_ID,
-            "source_chain": _PARENT_CHAIN,
+            "source_pdb_id": definition.crystal_id,
+            "source_chain": definition.parent_chain,
             "observed_residue_count": len(parent_observed),
             "full_sequence_length": len(parent_group.sequence),
         },
         model_mass_da=model_mass.exact_da,
         full_candidate_sequence_group_id=parent_group.sequence_group_id,
         model_sha256=sha256_file(parent_model),
-        quality_flags=("fixed_6rtz_exact_parent_control",),
+        quality_flags=(f"fixed_{definition.crystal_id.lower()}_exact_parent_control",),
     )
     processed_models = output / "processed_models.jsonl"
     atomic_write_text(processed_models, f"{canonical_json_text(model)}\n")
@@ -487,7 +558,7 @@ def prepare_6rtz_heteromer_control(
         model_manifest,
         {
             "schema_version": "1.0",
-            "adapter_version": _ADAPTER_VERSION,
+            "adapter_version": definition.adapter_version,
             "entries": [
                 {
                     "model_id": model.model_id,
@@ -501,30 +572,30 @@ def prepare_6rtz_heteromer_control(
     hypothesis_id = content_id(
         "mrhyp_",
         {
-            "crystal_id": _CRYSTAL_ID,
+            "crystal_id": definition.crystal_id,
             "sequence_group_id": parent_group.sequence_group_id,
             "model_id": model.model_id,
             "mtz_sha256": sha256_file(mtz_path),
-            "copy_count": 1,
+            "copy_count": definition.parent_copy_count,
         },
     )
     matthews_id = content_id(
         "matthews_",
         {
-            "crystal_id": _CRYSTAL_ID,
+            "crystal_id": definition.crystal_id,
             "sequence_group_id": parent_group.sequence_group_id,
-            "copy_count": 1,
+            "copy_count": definition.parent_copy_count,
             "mtz_sha256": sha256_file(mtz_path),
         },
     )
     hypothesis = MrHypothesis(
         schema_version="1.0",
         hypothesis_id=hypothesis_id,
-        crystal_id=_CRYSTAL_ID,
+        crystal_id=definition.crystal_id,
         sequence_group_id=parent_group.sequence_group_id,
         model_id=model.model_id,
-        copy_count_expected=1,
-        copy_number_to_search=1,
+        copy_count_expected=definition.parent_copy_count,
+        copy_number_to_search=definition.parent_copy_count,
         fixed_solution_id=None,
         space_group=mtz.spacegroup.hm,
         obs_labels=observation.rendered,
@@ -535,7 +606,7 @@ def prepare_6rtz_heteromer_control(
             "structural_source_class": "experimental",
             "coordinate_mapping_id": mapping_id,
             "candidate_source_sequence_identity": 1.0,
-            "control_role": "fixed_6rtz_parent_A",
+            "control_role": f"fixed_{definition.crystal_id.lower()}_parent_A",
             "matthews_hypothesis_id": matthews_id,
         },
         status=MrHypothesisStatus.QUEUED,
@@ -547,8 +618,8 @@ def prepare_6rtz_heteromer_control(
         schema_version="1.0",
         crystals=(
             CrystalEntry(
-                crystal_id=_CRYSTAL_ID,
-                mtz="derived/6RTZ.mtz",
+                crystal_id=definition.crystal_id,
+                mtz=f"derived/{definition.crystal_id}.mtz",
                 catalogue_id=control.catalogue_id,
                 obs_labels=observation.rendered,
                 free_flag_labels=(
@@ -557,7 +628,12 @@ def prepare_6rtz_heteromer_control(
                     else None
                 ),
                 allow_remote_sequence_submission=False,
-                notes="Fixed public 6RTZ HisF/HisH 1A+1B adapter-isolation control",
+                notes=(
+                    f"Fixed public {definition.crystal_id} "
+                    f"{definition.molecular_system} "
+                    f"{definition.parent_copy_count}A+"
+                    f"{definition.partner_copy_count}B control"
+                ),
             ),
         ),
     )
@@ -577,7 +653,7 @@ def prepare_6rtz_heteromer_control(
     preparation_id = content_id(
         "heteromerprep_",
         {
-            "adapter_version": _ADAPTER_VERSION,
+            "adapter_version": definition.adapter_version,
             "source_coordinates_sha256": control.source.coordinates.sha256,
             "source_structure_factors_sha256": (
                 control.source.structure_factors.sha256
@@ -589,18 +665,22 @@ def prepare_6rtz_heteromer_control(
         preparation_manifest,
         {
             "schema_version": "1.0",
-            "adapter_version": _ADAPTER_VERSION,
+            "adapter_version": definition.adapter_version,
             "preparation_id": preparation_id,
             "created_at": utc_now_iso(),
-            "control_key": _CONTROL_KEY,
-            "crystal_id": _CRYSTAL_ID,
-            "composition": {"A": 1, "B": 1},
+            "control_key": definition.control_key,
+            "crystal_id": definition.crystal_id,
+            "composition": {
+                "A": definition.parent_copy_count,
+                "B": definition.partner_copy_count,
+            },
             "parent_sequence_group_id": parent_group.sequence_group_id,
             "partner_sequence_group_id": partner_group.sequence_group_id,
-            "parent_protein_id": _PARENT_PROTEIN_ID,
+            "parent_protein_id": definition.parent_protein_id,
             "parent_hypothesis_id": hypothesis.hypothesis_id,
             "parent_matthews_hypothesis_id": matthews_id,
             "partner_model_identity_fraction": 1.0,
+            "sequence_relationships": sequence_relationships,
             "source": {
                 "coordinates_sha256": control.source.coordinates.sha256,
                 "structure_factors_sha256": control.source.structure_factors.sha256,
@@ -629,6 +709,22 @@ def prepare_6rtz_heteromer_control(
         partner_sequence_group_id=partner_group.sequence_group_id,
         parent_hypothesis_id=hypothesis.hypothesis_id,
     )
+
+
+def prepare_6rtz_heteromer_control(
+    request: HeteromerControlPreparationRequest,
+) -> HeteromerControlPreparationResult:
+    """Prepare fixed exact-model inputs for the 6RTZ ``1A + 1B`` control."""
+
+    return _prepare_heteromer_control(request, _CONTROL_6RTZ)
+
+
+def prepare_3u7q_heteromer_control(
+    request: HeteromerControlPreparationRequest,
+) -> HeteromerControlPreparationResult:
+    """Prepare fixed exact-model inputs for the 3U7Q ``2A + 2B`` control."""
+
+    return _prepare_heteromer_control(request, _CONTROL_3U7Q)
 
 
 def _prepared_file(

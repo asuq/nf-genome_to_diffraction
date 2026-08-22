@@ -1,7 +1,10 @@
 """Tests for the fixed public 6RTZ input preparation."""
 
+import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import gemmi
 import numpy as np
@@ -11,6 +14,7 @@ from genome_to_diffraction.benchmarks import (
     HeteromerControlPreparationRequest,
     HeteromerControlReviewRequest,
     build_6rtz_control_review,
+    prepare_3u7q_heteromer_control,
     prepare_6rtz_heteromer_control,
 )
 from genome_to_diffraction.benchmarks import heteromer_control as control
@@ -218,3 +222,85 @@ def test_preparer_rejects_changed_frozen_source(tmp_path: Path) -> None:
             size=changed.stat().st_size,
             label="6RTZ coordinates",
         )
+
+
+def test_3u7q_protocol_declares_two_a_and_two_b() -> None:
+    specification = control._control_spec(PROTOCOL, control._CONTROL_3U7Q)
+
+    assert specification.source.pdb_id == "3U7Q"
+    assert specification.source.pdb_entity_ids == (1, 2)
+    assert specification.asu_protein_copy_count == 4
+
+
+def test_multicopy_preparer_requests_two_a_jointly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    coordinates = tmp_path / "3U7Q.cif"
+    structure_factors = tmp_path / "3U7Q-sf.cif"
+    coordinates.write_text("synthetic coordinates\n", encoding="ascii")
+    structure_factors.write_text("synthetic reflections\n", encoding="ascii")
+    resource = SimpleNamespace(sha256="a" * 64, size_bytes=1)
+    fake_control = SimpleNamespace(
+        source=SimpleNamespace(coordinates=resource, structure_factors=resource),
+        proteins=tuple(
+            SimpleNamespace(
+                protein_id=protein_id,
+                sequence_length=len(sequence),
+                sequence_sha256=hashlib.sha256(sequence.encode("ascii")).hexdigest(),
+            )
+            for protein_id, sequence in (
+                ("parent", PARENT_SEQUENCE),
+                ("partner", PARTNER_SEQUENCE),
+            )
+        ),
+        catalogue_id="synthetic-multicopy",
+    )
+    monkeypatch.setattr(
+        control,
+        "_CONTROL_3U7Q",
+        replace(control._CONTROL_3U7Q, source_sequence_sha256=None),
+    )
+    monkeypatch.setattr(control, "_control_spec", lambda *_: fake_control)
+    monkeypatch.setattr(
+        control, "_verify_source", lambda path, **_: path.resolve(strict=True)
+    )
+    monkeypatch.setattr(
+        control,
+        "_entity_sequences",
+        lambda _: {1: PARENT_SEQUENCE, 2: PARTNER_SEQUENCE},
+    )
+
+    def fake_extract(
+        source: Path,
+        output: Path,
+        *,
+        chain_name: str,
+        full_sequence: str,
+    ) -> tuple[str, tuple[str, ...]]:
+        del source
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(f"REMARK chain {chain_name}\nATOM\n", encoding="ascii")
+        return full_sequence[:-1], (f"{chain_name}:1-{len(full_sequence) - 1}",)
+
+    monkeypatch.setattr(control, "_extract_polymer_chain", fake_extract)
+    monkeypatch.setattr(
+        control, "_convert_structure_factors", lambda _, output: _synthetic_mtz(output)
+    )
+
+    result = prepare_3u7q_heteromer_control(
+        HeteromerControlPreparationRequest(
+            protocol=PROTOCOL,
+            coordinates=coordinates,
+            structure_factors=structure_factors,
+            output_directory=tmp_path / "prepared-3u7q",
+            progress=False,
+        )
+    )
+
+    hypothesis = MrHypothesis.model_validate_json(
+        result.hypotheses_jsonl.read_text(encoding="utf-8")
+    )
+    manifest = json.loads(result.preparation_manifest.read_text(encoding="utf-8"))
+    assert hypothesis.copy_count_expected == 2
+    assert hypothesis.copy_number_to_search == 2
+    assert manifest["composition"] == {"A": 2, "B": 2}

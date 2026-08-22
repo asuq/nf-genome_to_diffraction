@@ -1,7 +1,8 @@
-"""Tests for the minimal fixed-A/one-B Phaser adapter."""
+"""Tests for the fixed-A/joint-B Phaser adapter."""
 
 import hashlib
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -118,6 +119,7 @@ def _fake_runtime(
     returncode: int = 0,
     write_solution: bool = False,
     include_component_markers: bool = True,
+    partner_marker_count: int = 1,
     pdb_llg: float = 1622.91,
     pdb_tfz: float = 49.7,
 ) -> list[str]:
@@ -142,7 +144,8 @@ def _fake_runtime(
         if write_solution:
             markers = (
                 "REMARK ENSEMBLE fixed_parent EULER 0 0 0 FRAC 0 0 0\n"
-                "REMARK ENSEMBLE search_partner EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
+                + "REMARK ENSEMBLE search_partner EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
+                * partner_marker_count
                 if include_component_markers
                 else "REMARK ENSEMBLE unknown EULER 0 0 0 FRAC 0 0 0\n"
             )
@@ -200,6 +203,33 @@ def test_fixed_a_one_b_command_and_primary_result(
     assert "copies = 1" in text
     assert "identity = 0.42" in text
     assert "jobs = 8" in text
+
+
+def test_fixed_two_a_searches_two_b_jointly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _request(tmp_path)
+    request = replace(
+        request,
+        parent_copy_count=2,
+        partner_copy_count=2,
+    )
+    parameters = _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        partner_marker_count=2,
+    )
+
+    result = run_partner_search(request).result
+
+    assert result.parent_copy_count == 2
+    assert result.requested_partner_copy_count == 2
+    assert result.partner_placement_count == 2
+    assert result.partner_placement_observed is True
+    text = parameters[0]
+    assert text.count("num = 2") == 2
+    assert "copies = 2" in text
 
 
 def test_partner_scores_use_strict_fallback_cohort(

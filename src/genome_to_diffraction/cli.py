@@ -26,6 +26,7 @@ from genome_to_diffraction.benchmarks import (
     evaluate_m6,
     load_m6_protocol,
     load_public_control_panel,
+    prepare_3u7q_heteromer_control,
     prepare_6rtz_heteromer_control,
     prepare_m6_inputs,
     prepare_public_control,
@@ -523,6 +524,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="download only the two protocol-frozen RCSB files",
     )
     heteromer_control_parser.add_argument("--outdir", type=Path, required=True)
+    multicopy_control_parser = benchmark_actions.add_parser(
+        "prepare-3u7q-heteromer-control",
+        help="prepare the fixed public 3U7Q 2A+2B multi-copy inputs",
+    )
+    multicopy_control_parser.add_argument("--protocol", type=Path, required=True)
+    multicopy_control_parser.add_argument("--coordinates", type=Path)
+    multicopy_control_parser.add_argument("--structure-factors", type=Path)
+    multicopy_control_parser.add_argument(
+        "--download",
+        action="store_true",
+        help="download only the two protocol-frozen RCSB files",
+    )
+    multicopy_control_parser.add_argument("--outdir", type=Path, required=True)
     heteromer_review_parser = benchmark_actions.add_parser(
         "approve-6rtz-parent",
         help="build and approve the fixed HisF MR review checkpoint",
@@ -1079,11 +1093,13 @@ def _build_parser() -> argparse.ArgumentParser:
     partner_parser.add_argument("--parent-coordinate", type=Path, required=True)
     partner_parser.add_argument("--expected-parent-coordinate-sha256", required=True)
     partner_parser.add_argument("--parent-llg", type=float, required=True)
+    partner_parser.add_argument("--parent-copy-count", type=int, default=1)
     partner_parser.add_argument("--partner-model", type=Path, required=True)
     partner_parser.add_argument("--expected-partner-model-sha256", required=True)
     partner_parser.add_argument(
         "--partner-model-identity-fraction", type=float, required=True
     )
+    partner_parser.add_argument("--partner-copy-count", type=int, default=1)
     approved_partner_parser = mr_actions.add_parser(
         "approved-partner",
         help="search fixed 6RTZ B from one explicitly approved workflow A seed",
@@ -1644,6 +1660,19 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             )
         )
         print(f"Prepared fixed 6RTZ 1A+1B inputs: {prepared.preparation_manifest}")
+        return 0
+    if args.benchmark_action == "prepare-3u7q-heteromer-control":
+        prepared = prepare_3u7q_heteromer_control(
+            HeteromerControlPreparationRequest(
+                protocol=args.protocol,
+                coordinates=args.coordinates,
+                structure_factors=args.structure_factors,
+                output_directory=args.outdir,
+                download_missing=args.download,
+                progress=not args.no_progress,
+            )
+        )
+        print(f"Prepared fixed 3U7Q 2A+2B inputs: {prepared.preparation_manifest}")
         return 0
     if args.benchmark_action == "build-first-copy-controls":
         control_bundle = build_mr_control_bundle(
@@ -2387,9 +2416,11 @@ def _run_mr(args: argparse.Namespace) -> int:
                     args.expected_parent_coordinate_sha256
                 ),
                 parent_llg=args.parent_llg,
+                parent_copy_count=args.parent_copy_count,
                 partner_model=args.partner_model,
                 expected_partner_model_sha256=args.expected_partner_model_sha256,
                 partner_model_identity_fraction=(args.partner_model_identity_fraction),
+                partner_copy_count=args.partner_copy_count,
                 preflight_jsonl=args.preflight,
                 mtz=args.mtz,
                 phenix_manifest=args.phenix_manifest,

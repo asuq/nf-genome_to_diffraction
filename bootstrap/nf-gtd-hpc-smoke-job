@@ -168,7 +168,7 @@ finalise() {
         reports_json='["artifacts/qualification/p2-control-summary.json","artifacts/qualification/p2-control-resume-check.json"]'
         retained_json='["artifacts/p2-control","artifacts/qualification"]'
     elif [[ "$PROFILE" == heteromer-smoke ]]; then
-        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/heteromer-smoke/partner/partner_search_result.json"]'
+        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/qualification/heteromer-multicopy-summary.json","artifacts/heteromer-smoke/partner/partner_search_result.json","artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json"]'
         retained_json='["artifacts/heteromer-smoke","artifacts/qualification"]'
     elif [[ "$PROFILE" == control-slice ]]; then
         reports_json='["artifacts/qualification/control-slice-summary.json","artifacts/qualification/control-slice-case-results.jsonl","artifacts/qualification/control-slice-first-copy-results.jsonl","artifacts/qualification/control-slice-copy-two-results.jsonl","artifacts/qualification/control-slice-refinement-results.jsonl","artifacts/qualification/control-slice-sequence-results.jsonl"]'
@@ -1657,6 +1657,14 @@ run_heteromer_smoke() {
     local parent="" parent_evidence="$root/parent"
     local checkpoint="$root/component_checkpoint"
     local partner="$root/partner"
+    local multicopy_inputs="$inputs/multicopy"
+    local multicopy_root="$root/multicopy"
+    local multicopy_preflight="$multicopy_root/preflight"
+    local multicopy_parent="" multicopy_parent_evidence="$multicopy_root/parent"
+    local multicopy_partner="$multicopy_root/partner"
+    local multicopy_preparation="$multicopy_inputs/preparation_manifest.json"
+    local multicopy_parent_result=""
+    local multicopy_partner_result="$multicopy_partner/partner_search_result.json"
     local qualification="$RUN/artifacts/qualification"
     local preparation="$inputs/preparation_manifest.json"
     local parent_result=""
@@ -1664,8 +1672,13 @@ run_heteromer_smoke() {
     local parent_hypothesis_id parent_sequence_group_id partner_sequence_group_id
     local parent_llg parent_coordinate_relative parent_coordinate_sha256
     local parent_coordinate gate_passed expected_phenix_sha256
+    local multicopy_hypothesis_id multicopy_parent_group multicopy_partner_group
+    local multicopy_parent_copies multicopy_partner_copies multicopy_partner_sha256
+    local multicopy_identity multicopy_parent_llg multicopy_parent_relative
+    local multicopy_parent_sha256 multicopy_parent_coordinate multicopy_gate_passed
     local legacy_phenix_manifest refreshed_phenix_manifest
     local -a preparation_values=() parent_values=()
+    local -a multicopy_values=() multicopy_parent_values=()
 
     [[ -f "$RUN/state/phenix-manifest" && \
        -f "$RUN/state/phenix-manifest-sha256" ]] || return 2
@@ -1681,7 +1694,8 @@ run_heteromer_smoke() {
     PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
     [[ -x "$GTD" && -x "$PYTHON" ]] || return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
-    mkdir -p "$preflight" "$partner" "$qualification"
+    mkdir -p "$preflight" "$partner" "$multicopy_preflight" \
+        "$multicopy_partner" "$qualification"
     cd "$RUN/source"
 
     PHASE=preflight
@@ -1857,6 +1871,197 @@ summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", en
 print("true" if gate else "false")
 PY
     )"
+    [[ "$gate_passed" == true ]] || return 4
+
+    PHASE=test
+    printf 'phase=heteromer_multicopy_preflight profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress diffraction preflight \
+        --crystals "$multicopy_inputs/crystals.json" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --no-xtriage-timeout \
+        --outdir "$multicopy_preflight"
+    mapfile -t multicopy_values < <(
+        "$PYTHON" - "$multicopy_preparation" <<'PY'
+import json
+import math
+import re
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+composition = document.get("composition")
+files = document.get("files")
+partner = files.get("partner_model") if isinstance(files, dict) else None
+values = (
+    document.get("parent_hypothesis_id"),
+    document.get("parent_sequence_group_id"),
+    document.get("partner_sequence_group_id"),
+    composition.get("A") if isinstance(composition, dict) else None,
+    composition.get("B") if isinstance(composition, dict) else None,
+    partner.get("sha256") if isinstance(partner, dict) else None,
+    document.get("partner_model_identity_fraction"),
+)
+patterns = (r"^mrhyp_[a-f0-9]{64}$", r"^seq_[a-f0-9]{64}$", r"^seq_[a-f0-9]{64}$")
+if (
+    document.get("adapter_version") != "3u7q-fixed-two-a-two-b-inputs-v1"
+    or document.get("crystal_id") != "3U7Q"
+    or any(not isinstance(value, str) or re.fullmatch(pattern, value) is None for value, pattern in zip(values[:3], patterns, strict=True))
+    or values[3:5] != (2, 2)
+    or not isinstance(values[5], str)
+    or re.fullmatch(r"[a-f0-9]{64}", values[5]) is None
+    or isinstance(values[6], bool)
+    or not isinstance(values[6], (int, float))
+    or not math.isfinite(float(values[6]))
+    or not 0 < float(values[6]) <= 1
+):
+    raise SystemExit("invalid fixed 3U7Q 2A+2B preparation")
+print(*values, sep="\n")
+PY
+    )
+    [[ "${#multicopy_values[@]}" -eq 7 ]] || return 4
+    multicopy_hypothesis_id="${multicopy_values[0]}"
+    multicopy_parent_group="${multicopy_values[1]}"
+    multicopy_partner_group="${multicopy_values[2]}"
+    multicopy_parent_copies="${multicopy_values[3]}"
+    multicopy_partner_copies="${multicopy_values[4]}"
+    multicopy_partner_sha256="${multicopy_values[5]}"
+    multicopy_identity="${multicopy_values[6]}"
+    multicopy_parent="$multicopy_root/first_copy_phaser_${multicopy_hypothesis_id}"
+    multicopy_parent_result="$multicopy_parent/normalised_mr_result.json"
+    mkdir -p "$multicopy_parent" "$multicopy_parent_evidence"
+
+    PHASE=software
+    printf 'phase=heteromer_multicopy_parent_A profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress mr first-copy \
+        --hypotheses "$multicopy_inputs/mr_hypotheses.jsonl" \
+        --hypothesis-id "$multicopy_hypothesis_id" \
+        --sequence-groups "$multicopy_inputs/sequence_groups.jsonl" \
+        --processed-models "$multicopy_inputs/processed_models.jsonl" \
+        --model-preparation-manifest "$multicopy_inputs/model_preparation_manifest.json" \
+        --preflight "$multicopy_preflight/mtz_preflight.jsonl" \
+        --mtz "$multicopy_inputs/derived/3U7Q.mtz" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --threads "${SLURM_CPUS_PER_TASK:-1}" \
+        --outdir "$multicopy_parent"
+    mapfile -t multicopy_parent_values < <(
+        "$PYTHON" - "$multicopy_parent_result" "$multicopy_parent_copies" <<'PY'
+import json
+import math
+import re
+import sys
+from pathlib import Path, PurePosixPath
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+expected = int(sys.argv[2])
+llg = document.get("llg")
+relative = document.get("solution_coordinate_path")
+sha256 = document.get("solution_coordinate_sha256")
+packing = document.get("packing_summary")
+if (
+    document.get("execution_status") != "completed_hit"
+    or isinstance(llg, bool)
+    or not isinstance(llg, (int, float))
+    or not math.isfinite(float(llg))
+    or document.get("placed_copy_count") != expected
+    or not isinstance(packing, dict)
+    or packing.get("top_solution_packed") is not True
+    or not isinstance(relative, str)
+    or PurePosixPath(relative).name != relative
+    or not isinstance(sha256, str)
+    or re.fullmatch(r"[a-f0-9]{64}", sha256) is None
+):
+    raise SystemExit("fixed 3U7Q A parent did not produce two packed copies")
+print(f"{float(llg):.12g}")
+print(relative)
+print(sha256)
+PY
+    )
+    [[ "${#multicopy_parent_values[@]}" -eq 3 ]] || return 4
+    multicopy_parent_llg="${multicopy_parent_values[0]}"
+    multicopy_parent_relative="${multicopy_parent_values[1]}"
+    multicopy_parent_sha256="${multicopy_parent_values[2]}"
+    multicopy_parent_coordinate="$multicopy_parent/$multicopy_parent_relative"
+    [[ -f "$multicopy_parent_coordinate" && \
+       "$(sha256sum "$multicopy_parent_coordinate" | awk '{print $1}')" == \
+       "$multicopy_parent_sha256" ]] || return 4
+    cp "$multicopy_parent/normalised_mr_result.json" \
+        "$multicopy_parent/normalised_mr_result.jsonl" \
+        "$multicopy_parent/phaser_command.json" \
+        "$multicopy_parent/PHASER.log" \
+        "$multicopy_parent/phenix.phaser.capture.log" \
+        "$multicopy_parent/PHASER.1.pdb" \
+        "$multicopy_parent/PHASER.1.mtz" \
+        "$multicopy_parent_evidence/"
+
+    printf 'phase=heteromer_multicopy_partner_B profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress mr search-partner \
+        --crystal-id 3U7Q \
+        --parent-solution-id "joint_${multicopy_hypothesis_id}" \
+        --parent-sequence-group-id "$multicopy_parent_group" \
+        --partner-sequence-group-id "$multicopy_partner_group" \
+        --sequence-groups "$multicopy_inputs/sequence_groups.jsonl" \
+        --parent-coordinate "$multicopy_parent_coordinate" \
+        --expected-parent-coordinate-sha256 "$multicopy_parent_sha256" \
+        --parent-llg "$multicopy_parent_llg" \
+        --parent-copy-count "$multicopy_parent_copies" \
+        --partner-model "$multicopy_inputs/models/component_B.pdb" \
+        --expected-partner-model-sha256 "$multicopy_partner_sha256" \
+        --partner-model-identity-fraction "$multicopy_identity" \
+        --partner-copy-count "$multicopy_partner_copies" \
+        --preflight "$multicopy_preflight/mtz_preflight.jsonl" \
+        --mtz "$multicopy_inputs/derived/3U7Q.mtz" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --threads "${SLURM_CPUS_PER_TASK:-1}" \
+        --outdir "$multicopy_partner"
+
+    PHASE=test
+    printf 'phase=heteromer_multicopy_gate profile=heteromer-smoke\n'
+    multicopy_gate_passed="$("$PYTHON" - "$multicopy_partner_result" \
+        "$qualification/heteromer-multicopy-summary.json" <<'PY'
+import json
+import math
+import sys
+from pathlib import Path
+
+result_path = Path(sys.argv[1])
+summary_path = Path(sys.argv[2])
+result = json.loads(result_path.read_text(encoding="utf-8"))
+delta = result.get("incremental_llg")
+tfz = result.get("partner_tfz")
+gate = (
+    result.get("execution_status") == "completed_hit"
+    and result.get("parent_copy_count") == 2
+    and result.get("requested_partner_copy_count") == 2
+    and result.get("partner_placement_count") == 2
+    and result.get("top_solution_packed") is True
+    and result.get("partner_placement_observed") is True
+    and result.get("score_cohort") in {"primary", "fallback"}
+    and isinstance(delta, (int, float))
+    and not isinstance(delta, bool)
+    and math.isfinite(float(delta))
+    and isinstance(tfz, (int, float))
+    and not isinstance(tfz, bool)
+    and math.isfinite(float(tfz))
+)
+summary = {
+    "schema_version": "1.0",
+    "profile": "heteromer-smoke",
+    "control": "3U7Q_NifD_NifK_2A_2B",
+    "execution_status": result.get("execution_status"),
+    "parent_copy_count": result.get("parent_copy_count"),
+    "requested_partner_copy_count": result.get("requested_partner_copy_count"),
+    "partner_placement_count": result.get("partner_placement_count"),
+    "incremental_llg": delta,
+    "partner_tfz": tfz,
+    "score_cohort": result.get("score_cohort"),
+    "top_solution_packed": result.get("top_solution_packed"),
+    "gate_passed": gate,
+    "result": "artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json",
+}
+summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+print("true" if gate else "false")
+PY
+    )"
     (
         cd "$RUN"
         sha256sum \
@@ -1871,9 +2076,16 @@ PY
             artifacts/heteromer-smoke/partner/partner_search_result.json \
             artifacts/heteromer-smoke/partner/phaser_command.json \
             artifacts/qualification/heteromer-smoke-summary.json \
+            artifacts/heteromer-smoke/inputs/multicopy/preparation_manifest.json \
+            artifacts/heteromer-smoke/multicopy/preflight/mtz_preflight.jsonl \
+            artifacts/heteromer-smoke/multicopy/parent/normalised_mr_result.json \
+            artifacts/heteromer-smoke/multicopy/parent/phaser_command.json \
+            artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json \
+            artifacts/heteromer-smoke/multicopy/partner/phaser_command.json \
+            artifacts/qualification/heteromer-multicopy-summary.json \
             > artifacts/qualification/heteromer-smoke-checksums.sha256
     )
-    [[ "$gate_passed" == true ]] || return 4
+    [[ "$multicopy_gate_passed" == true ]] || return 4
     printf 'heteromer_smoke_status=passed\n'
 }
 

@@ -635,7 +635,7 @@ class AdditionalCopyResult(ContractModel):
 
 
 class PartnerSearchResult(ContractModel):
-    """One fixed-A Phaser attempt to place exactly one B component.
+    """One fixed-A Phaser attempt to place requested B copies.
 
     ``partner_tfz`` is component-specific because B is the only searched
     ensemble. ``incremental_llg`` compares the combined A+B solution with the
@@ -651,10 +651,10 @@ class PartnerSearchResult(ContractModel):
     parent_solution_id: NonEmptyString
     parent_component_label: Literal["A"] = "A"
     parent_sequence_group_id: NonEmptyString
-    parent_copy_count: Literal[1] = 1
+    parent_copy_count: PositiveInt = 1
     partner_component_label: Literal["B"] = "B"
     partner_sequence_group_id: NonEmptyString
-    requested_partner_copy_count: Literal[1] = 1
+    requested_partner_copy_count: PositiveInt = 1
     execution_status: ExecutionStatus
     parent_llg: float
     combined_llg: float | None = None
@@ -697,8 +697,8 @@ class PartnerSearchResult(ContractModel):
                 raise ValueError("incremental LLG does not match combined-parent LLG")
         if (self.score_cohort is None) != (self.combined_llg is None):
             raise ValueError("score cohort must be present exactly when metrics exist")
-        observed = (
-            self.fixed_parent_placement_observed and self.partner_placement_count == 1
+        observed = self.fixed_parent_placement_observed and (
+            self.partner_placement_count == self.requested_partner_copy_count
         )
         if self.partner_placement_observed != observed:
             raise ValueError("partner placement flag disagrees with coordinate markers")
@@ -729,7 +729,7 @@ class PartnerSearchResult(ContractModel):
             ExecutionStatus.FAILED_TOOL_EXECUTION,
             ExecutionStatus.FAILED_PARSE,
         }:
-            raise ValueError("unsupported fixed-A/one-B execution status")
+            raise ValueError("unsupported fixed-A/partner execution status")
         return self
 
 

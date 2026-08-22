@@ -1,4 +1,4 @@
-"""Search one B component while retaining one fixed A solution.
+"""Search explicit B copies while retaining one fixed A solution.
 
 This deliberately narrow v0.2 adapter accepts two exact catalogue sequence
 groups, one checksum-bound placed A coordinate, one checksum-bound B search
@@ -7,9 +7,9 @@ model, one preflight-qualified MTZ, and a verified Phenix installation. It runs
 only searched ensemble. The output therefore records B-specific TFZ and the
 incremental LLG relative to the supplied A-only parent value.
 
-The only supported composition is ``1A + 1B``. General ``nA + mB`` search is a
-later milestone. A completed no-solution result is distinct from tool and parse
-failure, and never claims that B is biologically absent. Packing and component
+Explicit positive ``nA + mB`` counts are supported. A completed no-solution
+result is distinct from tool and parse failure, and never claims that B is
+biologically absent. Packing and component
 markers are retained as search evidence rather than treated as proof of the
 composition. The adapter uses the installed ``phenix.phaser`` version recorded
 by the required Phenix manifest; no Phenix version is bundled. It writes
@@ -62,7 +62,7 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.partner")
-_ADAPTER_VERSION = "phenix-fixed-a-one-b-v1"
+_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v2"
 _ROOT = "PHASER"
 _PRIMARY_LLG = 100.0
 _PRIMARY_TFZ = 10.0
@@ -88,7 +88,7 @@ type _ScoreCohort = Literal["primary", "fallback", "below_threshold"]
 
 @dataclass(frozen=True)
 class PartnerSearchRequest:
-    """Immutable inputs for one checksum-bound ``1A + 1B`` Phaser search."""
+    """Immutable inputs for one checksum-bound ``nA + mB`` Phaser search."""
 
     crystal_id: str
     parent_solution_id: str
@@ -105,6 +105,8 @@ class PartnerSearchRequest:
     mtz: Path
     phenix_manifest: Path
     output_directory: Path
+    parent_copy_count: int = 1
+    partner_copy_count: int = 1
     threads: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
@@ -112,7 +114,7 @@ class PartnerSearchRequest:
 
 @dataclass(frozen=True)
 class PartnerSearchOutput:
-    """Typed result and retained files from one fixed-A/one-B attempt."""
+    """Typed result and retained files from one fixed-A/joint-B attempt."""
 
     result: PartnerSearchResult
     result_json: Path
@@ -183,6 +185,8 @@ def _resolve(request: PartnerSearchRequest) -> _Resolved:
         raise PhaserInputError("A and B must be distinct exact-sequence groups")
     if not math.isfinite(request.parent_llg):
         raise PhaserInputError("parent LLG must be finite")
+    if request.parent_copy_count < 1 or request.partner_copy_count < 1:
+        raise PhaserInputError("component copy counts must be positive")
     if not math.isfinite(request.partner_model_identity_fraction) or not (
         0 < request.partner_model_identity_fraction <= 1
     ):
@@ -264,6 +268,8 @@ def _parameters(
     parent_fasta: Path,
     partner_fasta: Path,
     identity_fraction: float,
+    parent_copy_count: int,
+    partner_copy_count: int,
     threads: int,
 ) -> str:
     mtz = json.dumps(str(resolved.mtz))
@@ -280,13 +286,13 @@ def _parameters(
       chain_type = protein
       comp_type = sequence_file
       sequence_file = {parent_sequence}
-      num = 1
+      num = {parent_copy_count}
     }}
     chain {{
       chain_type = protein
       comp_type = sequence_file
       sequence_file = {partner_sequence}
-      num = 1
+      num = {partner_copy_count}
     }}
   }}
   ensemble {{
@@ -306,7 +312,7 @@ def _parameters(
   }}
   search {{
     ensembles = search_partner
-    copies = 1
+    copies = {partner_copy_count}
   }}
   keywords {{
     general {{
@@ -349,7 +355,7 @@ def _write_output(
 
 
 def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
-    """Run one fixed-A search for exactly one B copy."""
+    """Run one fixed-A search for the explicitly requested B copies."""
 
     if request.threads < 1:
         raise ValueError("threads must be positive")
@@ -385,6 +391,8 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
             parent_fasta,
             partner_fasta,
             request.partner_model_identity_fraction,
+            request.parent_copy_count,
+            request.partner_copy_count,
             request.threads,
         ),
     )
@@ -400,8 +408,8 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         "partner_model_identity_fraction": request.partner_model_identity_fraction,
         "mtz_sha256": resolved.mtz_sha256,
         "phenix_manifest_sha256": phenix_manifest_sha256,
-        "parent_copy_count": 1,
-        "partner_copy_count": 1,
+        "parent_copy_count": request.parent_copy_count,
+        "partner_copy_count": request.partner_copy_count,
     }
     search_id = content_id("partner_", search_identity)
     arguments = ["phenix.phaser", str(parameters)]
@@ -434,7 +442,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         },
     )
     _LOGGER.info(
-        "fixed-A/one-B Phaser search started",
+        "fixed-A/joint-B Phaser search started",
         extra={
             "search_id": search_id,
             "crystal_id": request.crystal_id,
@@ -443,7 +451,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
     )
     with tqdm(
         total=1,
-        desc="Run fixed-A/one-B Phaser",
+        desc="Run fixed-A/joint-B Phaser",
         unit="composition",
         disable=not request.progress,
     ) as progress_bar:
@@ -522,8 +530,8 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
                     partner_placement_count = len(
                         _SEARCH_PARTNER_PLACEMENT.findall(coordinate_text)
                     )
-                    partner_observed = (
-                        fixed_parent_observed and partner_placement_count == 1
+                    partner_observed = fixed_parent_observed and (
+                        partner_placement_count == request.partner_copy_count
                     )
                     incremental_llg = combined_llg - request.parent_llg
                     solution_count = parsed.solution_count
@@ -561,7 +569,9 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         tool_version=tool_version,
         parent_solution_id=request.parent_solution_id,
         parent_sequence_group_id=resolved.parent_group.sequence_group_id,
+        parent_copy_count=request.parent_copy_count,
         partner_sequence_group_id=resolved.partner_group.sequence_group_id,
+        requested_partner_copy_count=request.partner_copy_count,
         execution_status=status,
         parent_llg=request.parent_llg,
         combined_llg=combined_llg,
@@ -588,7 +598,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         rejection_reason=rejection_reason,
     )
     _LOGGER.info(
-        "fixed-A/one-B Phaser search finished",
+        "fixed-A/joint-B Phaser search finished",
         extra={
             "search_id": search_id,
             "execution_status": status.value,

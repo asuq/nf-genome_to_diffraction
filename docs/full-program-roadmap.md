@@ -199,6 +199,9 @@ metrics are component-specific and inspectable.
 
 ### Gate C — End-to-end heteromer works
 
+Status: accepted on 2026-08-22 by real Marmic/Phenix run `632797` from source
+`a486ce5093b18f8fde7029d9d3a286c61beb9e76`.
+
 The workflow obtains A, fixes it, searches B, and emits a complete reviewable
 result without manual file substitution inside the scheduled task.
 
@@ -220,4 +223,6 @@ is intentionally after the experimental heteromer release.
   are backlog unless a known control proves a blocker.
 - Marmic run `629614` is terminal, collected, and orchestration-only. Never
   query, resume, recollect, reuse, or clean it.
-- Gate A is complete. The next programme action is Phase-I H0/H1.
+- Gates A--C are complete. The active programme action is H3/P4: qualify the
+  frozen 3U7Q `2A + 2B` joint-copy control while retaining the green 6RTZ
+  checkpoint path.

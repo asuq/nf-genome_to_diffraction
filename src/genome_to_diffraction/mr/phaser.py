@@ -3,8 +3,9 @@
 The adapter accepts one immutable ``MrHypothesis``, verifies its sequence,
 processed model, MTZ, preflight, and Phenix runtime, then executes
 ``phenix.phaser`` in a hypothesis-owned directory. Total composition comes from
-the full candidate sequence and expected copy count; exactly one copy is
-searched. Exact predicted models pass factual 100% sequence identity, while a
+the full candidate sequence and expected copy count; the hypothesis may search
+one copy or all declared copies jointly. Exact predicted models pass factual
+100% sequence identity, while a
 registered experimental homologue passes its verified candidate-to-source
 sequence identity. Phenix-processed model B values retain predicted coordinate
 uncertainty; cleaned PDB models retain their source-coordinate B values.
@@ -65,7 +66,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
-_ADAPTER_VERSION = "phenix-first-copy-mr-v5"
+_ADAPTER_VERSION = "phenix-first-copy-mr-v6"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -356,7 +357,7 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
     )
     if (
         hypothesis.search_stage is not MrSearchStage.FIRST_COPY
-        or hypothesis.copy_number_to_search != 1
+        or hypothesis.copy_number_to_search not in {1, hypothesis.copy_count_expected}
         or hypothesis.fixed_solution_id is not None
         or hypothesis.status is not MrHypothesisStatus.QUEUED
     ):
@@ -549,7 +550,7 @@ def _command(resolved: _ResolvedInput, sequence_fasta: Path, threads: int) -> li
         f"phaser.seq_file={sequence_fasta}",
         f"phaser.model_identity={resolved.model_identity_percent:.12g}",
         f"phaser.component_copies={hypothesis.copy_count_expected}",
-        "phaser.search_copies=1",
+        f"phaser.search_copies={hypothesis.copy_number_to_search}",
         f"phaser.keywords.general.root={_ROOT}",
         f"phaser.keywords.general.jobs={threads}",
         "phaser.keywords.sgalternative.select=none",

@@ -8,10 +8,11 @@ narrow an unidentified prokaryotic crystal to reviewable protein candidates.
 Version `0.2.0.dev0` is the active development line. The immutable `v0.1.0`
 release is an intentionally incomplete archival research snapshot: M6
 scientific acceptance is held, heteromer reconstruction is absent, and the
-release is not production validated. The v0.2 fixed-A/one-B adapter has now
-passed the real 6RTZ HisF/HisH `1A + 1B` control with Phenix 2.1-6048; the next
-milestone is the end-to-end component-workflow connection before explicit
-`nA + mB`. See the [prototype-first roadmap](docs/v0.2-roadmap.md).
+release is not production validated. The v0.2 fixed-A/partner adapter and its
+normal-workflow checkpoint have passed the real 6RTZ HisF/HisH `1A + 1B`
+control with Phenix 2.1-6048. Explicit joint `nA + mB` support is now being
+qualified on the frozen 3U7Q `2A + 2B` control. See the
+[prototype-first roadmap](docs/v0.2-roadmap.md).
 
 This repository contains the completed foundation, typed data contracts, an
 external Phenix bootstrap/runtime boundary, explicit reference-database

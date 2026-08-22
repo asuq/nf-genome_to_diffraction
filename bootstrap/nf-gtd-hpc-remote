@@ -841,7 +841,7 @@ stage_run_common() {
     local p2_control_sha256="" p2_control_json="null"
     local p2_control_root p2_control_catalogue p2_control_checksums p2_control_tmp
     local heteromer_sha256="" heteromer_json="null"
-    local heteromer_root heteromer_checksums heteromer_tmp
+    local heteromer_root heteromer_multicopy_root heteromer_checksums heteromer_tmp
     local heteromer_phenix_manifest="" heteromer_phenix_sha256=""
     local heteromer_phenix_json="null"
     local candidate coordinate_count hit_count
@@ -1446,6 +1446,7 @@ stage_run_common() {
 
     if [[ "$profile" == heteromer-smoke ]]; then
         heteromer_root="$run/artifacts/heteromer-smoke/inputs"
+        heteromer_multicopy_root="$heteromer_root/multicopy"
         mkdir -p "$run/artifacts/heteromer-smoke"
         printf 'phase=heteromer_prepare_6rtz profile=%s\n' "$profile" \
             > "$run/logs/heteromer-smoke-login-stage.log"
@@ -1460,6 +1461,19 @@ stage_run_common() {
             append_event "$run" "stage_heteromer_inputs_failed"
             fail transfer_failure "fixed 6RTZ input preparation failed"
         fi
+        printf 'phase=heteromer_prepare_3u7q profile=%s\n' "$profile" \
+            >> "$run/logs/heteromer-smoke-login-stage.log"
+        if ! PATH="$hpc_path" "$gtd" --log-format json --no-progress \
+            benchmark prepare-3u7q-heteromer-control \
+            --protocol "$run/source/benchmarks/m6/protocol.yaml" \
+            --download \
+            --outdir "$heteromer_multicopy_root" \
+            >> "$run/logs/heteromer-smoke-login-stage.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_heteromer_multicopy_inputs_failed"
+            fail transfer_failure "fixed 3U7Q input preparation failed"
+        fi
         for candidate in \
             "$heteromer_root/preparation_manifest.json" \
             "$heteromer_root/crystals.json" \
@@ -1469,7 +1483,16 @@ stage_run_common() {
             "$heteromer_root/mr_hypotheses.jsonl" \
             "$heteromer_root/derived/6RTZ.mtz" \
             "$heteromer_root/models/component_A.pdb" \
-            "$heteromer_root/models/component_B.pdb"; do
+            "$heteromer_root/models/component_B.pdb" \
+            "$heteromer_multicopy_root/preparation_manifest.json" \
+            "$heteromer_multicopy_root/crystals.json" \
+            "$heteromer_multicopy_root/sequence_groups.jsonl" \
+            "$heteromer_multicopy_root/processed_models.jsonl" \
+            "$heteromer_multicopy_root/model_preparation_manifest.json" \
+            "$heteromer_multicopy_root/mr_hypotheses.jsonl" \
+            "$heteromer_multicopy_root/derived/3U7Q.mtz" \
+            "$heteromer_multicopy_root/models/component_A.pdb" \
+            "$heteromer_multicopy_root/models/component_B.pdb"; do
             [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || {
                 atomic_text "$run/state/phase" "stage_failed"
                 atomic_text "$run/state/failure-class" "filesystem_failure"
@@ -1490,6 +1513,15 @@ stage_run_common() {
             "$heteromer_root/derived/6RTZ.mtz" \
             "$heteromer_root/models/component_A.pdb" \
             "$heteromer_root/models/component_B.pdb" \
+            "$heteromer_multicopy_root/preparation_manifest.json" \
+            "$heteromer_multicopy_root/crystals.json" \
+            "$heteromer_multicopy_root/sequence_groups.jsonl" \
+            "$heteromer_multicopy_root/processed_models.jsonl" \
+            "$heteromer_multicopy_root/model_preparation_manifest.json" \
+            "$heteromer_multicopy_root/mr_hypotheses.jsonl" \
+            "$heteromer_multicopy_root/derived/3U7Q.mtz" \
+            "$heteromer_multicopy_root/models/component_A.pdb" \
+            "$heteromer_multicopy_root/models/component_B.pdb" \
             > "$heteromer_tmp"
         mv -f -- "$heteromer_tmp" "$heteromer_checksums"
         heteromer_sha256="$(sha256sum "$heteromer_checksums" | awk '{print $1}')"
@@ -3160,6 +3192,7 @@ collect_run() {
         artifacts/qualification/p2-control-resume-check.json \
         artifacts/qualification/p2-control-phenix-verification.log \
         artifacts/qualification/heteromer-smoke-summary.json \
+        artifacts/qualification/heteromer-multicopy-summary.json \
         artifacts/qualification/heteromer-smoke-checksums.sha256 \
         artifacts/qualification/heteromer-smoke-phenix-manifest.json \
         artifacts/qualification/heteromer-smoke-phenix-verification.log \
@@ -3349,6 +3382,14 @@ collect_run() {
         artifacts/heteromer-smoke/inputs/derived/6RTZ.mtz \
         artifacts/heteromer-smoke/inputs/models/component_A.pdb \
         artifacts/heteromer-smoke/inputs/models/component_B.pdb \
+        artifacts/heteromer-smoke/inputs/multicopy/preparation_manifest.json \
+        artifacts/heteromer-smoke/inputs/multicopy/crystals.json \
+        artifacts/heteromer-smoke/inputs/multicopy/sequence_groups.jsonl \
+        artifacts/heteromer-smoke/inputs/multicopy/processed_models.jsonl \
+        artifacts/heteromer-smoke/inputs/multicopy/model_preparation_manifest.json \
+        artifacts/heteromer-smoke/inputs/multicopy/mr_hypotheses.jsonl \
+        artifacts/heteromer-smoke/inputs/multicopy/models/component_A.pdb \
+        artifacts/heteromer-smoke/inputs/multicopy/models/component_B.pdb \
         artifacts/heteromer-smoke/preflight/mtz_preflight.jsonl \
         artifacts/heteromer-smoke/preflight/xtriage/6RTZ.log \
         artifacts/heteromer-smoke/parent/normalised_mr_result.json \
@@ -3374,6 +3415,21 @@ collect_run() {
         artifacts/heteromer-smoke/partner/phenix.phaser.capture.log \
         artifacts/heteromer-smoke/partner/PHASER.1.pdb \
         artifacts/heteromer-smoke/partner/PHASER.1.mtz \
+        artifacts/heteromer-smoke/multicopy/preflight/mtz_preflight.jsonl \
+        artifacts/heteromer-smoke/multicopy/preflight/xtriage/3U7Q.log \
+        artifacts/heteromer-smoke/multicopy/parent/normalised_mr_result.json \
+        artifacts/heteromer-smoke/multicopy/parent/normalised_mr_result.jsonl \
+        artifacts/heteromer-smoke/multicopy/parent/phaser_command.json \
+        artifacts/heteromer-smoke/multicopy/parent/PHASER.log \
+        artifacts/heteromer-smoke/multicopy/parent/phenix.phaser.capture.log \
+        artifacts/heteromer-smoke/multicopy/parent/PHASER.1.pdb \
+        artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json \
+        artifacts/heteromer-smoke/multicopy/partner/partner_search_result.jsonl \
+        artifacts/heteromer-smoke/multicopy/partner/phaser_command.json \
+        artifacts/heteromer-smoke/multicopy/partner/partner_search.eff \
+        artifacts/heteromer-smoke/multicopy/partner/PHASER.log \
+        artifacts/heteromer-smoke/multicopy/partner/phenix.phaser.capture.log \
+        artifacts/heteromer-smoke/multicopy/partner/PHASER.1.pdb \
         artifacts/p2/first-copy/exact_predicted_funnel/funnel_manifest.json \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.jsonl \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.tsv; do

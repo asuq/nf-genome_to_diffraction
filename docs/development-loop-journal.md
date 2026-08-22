@@ -9785,3 +9785,45 @@ Commit/push this control-checkpoint successor, watch one CI run, deploy matching
 tools, and stage/submit exactly one fresh `heteromer-smoke`. Collect and verify
 the review package, decision, approved stage, parent/partner metrics, and
 checksums before accepting P3 or beginning explicit `nA + mB`.
+
+## 2026-08-22T19:32:12Z - P3 accepted; P4 joint-copy slice is locally green
+
+### Immutable P3 evidence
+
+- Source `a486ce5093b18f8fde7029d9d3a286c61beb9e76` passed Actions run
+  `32592306850`, job `97077913763`, in 6m26s. Marmic run
+  `gtd-heteromer-smoke-20260822T190514Z-a486ce5093b1-6f99f217`, Slurm `632797`,
+  completed with exit 0 and `failure_class=success`.
+- The collected normal MR review package contained one inspectable HisF seed;
+  the predeclared decision approved only that seed, and the checksum-bound
+  normal-workflow approved stage supplied the parent to the partner bridge.
+  No direct parent-file substitution bypassed the checkpoint.
+- The parent retained one packed copy at LLG 1566.207 and TFZ 42.2. HisH search
+  retained one fixed-parent and one search-partner marker, combined LLG
+  6620.861, incremental LLG 5054.654, B TFZ 71.2, and the primary cohort. All
+  eleven final checksum entries pass. P3 and programme Gate C are accepted.
+
+### P4 local slice
+
+- Generalised only the existing first-component and fixed-parent adapters to
+  explicit positive copy counts. A hypothesis may retain the legacy one-copy
+  search or request all declared A copies jointly; the partner command writes
+  explicit A/B composition counts and jointly searches the requested B copies.
+- Added the frozen 3U7Q `2A + 2B` preparer and extended the same fixed
+  `heteromer-smoke` profile rather than adding a profile or root workflow.
+  Real public input preparation passed locally. The deposited NifD entity is a
+  one-residue Q440E construct relative to `WP_012698832.1`; this relationship is
+  now explicit in the preparation manifest, while NifK is sequence exact.
+- Focused copy-count, preparer, CLI/client, Bash-syntax, and complete fake
+  Marmic lifecycle tests pass. The fake lifecycle retains both the accepted
+  6RTZ checkpoint result and the new two-A/two-B result.
+- The named P4 `pixi run --locked check` gate passes: 651 unit, 116 contract,
+  and 70 integration tests, plus schemas, public panel, docs, action lint,
+  Nextflow syntax/full stub-resume, and all wrapper syntax checks.
+
+### Next exact starting point
+
+Run the named P4 locked gate, inspect the complete diff, commit and push one
+coherent joint-copy milestone, watch exactly one CI run, deploy matching tools,
+and stage exactly one evolved `heteromer-smoke` on Marmic. Collect and classify
+both controls before starting P5 catalogue partner enumeration.

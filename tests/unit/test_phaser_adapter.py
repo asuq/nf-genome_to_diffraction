@@ -193,6 +193,7 @@ def _fake_runtime(
     write_solution: bool = False,
     pdb_llg: float = 1622.879,
     pdb_tfz: float = 49.7,
+    placement_count: int = 1,
 ) -> list[list[str]]:
     commands: list[list[str]] = []
 
@@ -212,11 +213,15 @@ def _fake_runtime(
         working_directory.mkdir(parents=True, exist_ok=True)
         (working_directory / "PHASER.log").write_text(log_text, encoding="utf-8")
         if write_solution:
+            placements = "".join(
+                "REMARK ENSEMBLE ense_1 EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
+                for _ in range(placement_count)
+            )
             (working_directory / "PHASER.1.pdb").write_text(
                 "REMARK Log-Likelihood Gain: "
                 f"{pdb_llg}\n"
                 f"REMARK PAK=0 LLG={pdb_llg} TFZ=={pdb_tfz}\n"
-                "REMARK ENSEMBLE ense_1 EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
+                f"{placements}"
                 "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  "
                 "1.00 20.00           C\n",
                 encoding="utf-8",
@@ -335,6 +340,30 @@ def test_adapter_runs_exact_composition_and_emits_credible_hit(
     assert "phaser.keywords.sgalternative.select=none" in command
     record = json.loads(output.command_json.read_text(encoding="utf-8"))
     assert record["model_uncertainty_source"].startswith("phenix.process")
+
+
+def test_adapter_can_search_declared_copies_jointly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _inputs(tmp_path)
+    hypothesis = MrHypothesis.model_validate_json(
+        request.hypotheses_jsonl.read_text(encoding="utf-8")
+    ).model_copy(update={"copy_number_to_search": 2})
+    request.hypotheses_jsonl.write_text(
+        f"{canonical_json_text(hypothesis)}\n", encoding="utf-8"
+    )
+    commands = _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        placement_count=2,
+    )
+
+    output = run_first_copy_phaser(request)
+
+    assert output.result.placed_copy_count == 2
+    assert "phaser.component_copies=2" in commands[0]
+    assert "phaser.search_copies=2" in commands[0]
 
 
 def test_adapter_uses_complete_solution_files_when_log_omits_count(

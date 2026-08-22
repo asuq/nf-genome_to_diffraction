@@ -272,6 +272,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  *" structure-search register-pdb-coordinates "*) mode=register ;;\n'
         '  *" benchmark prepare-public-control "*) mode=public_control ;;\n'
         '  *" benchmark prepare-6rtz-heteromer-control "*) mode=heteromer ;;\n'
+        '  *" benchmark prepare-3u7q-heteromer-control "*) '
+        "mode=heteromer_multicopy ;;\n"
         '  *" benchmark approve-6rtz-parent "*) mode=heteromer_review ;;\n'
         '  *" phenix refresh-manifest "*) mode=phenix_refresh ;;\n'
         '  *" phenix verify "*) mode=phenix_verify ;;\n'
@@ -366,6 +368,28 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  printf "fake 6RTZ mtz\\n" > "$outdir/derived/6RTZ.mtz"\n'
         '  printf "fake A pdb\\n" > "$outdir/models/component_A.pdb"\n'
         '  printf "fake B pdb\\n" > "$outdir/models/component_B.pdb"\n'
+        'elif [[ "$mode" == heteromer_multicopy ]]; then\n'
+        '  mkdir -p "$outdir/derived" "$outdir/models"\n'
+        "  parent_seq=\"seq_$(printf 'd%.0s' {1..64})\"\n"
+        "  partner_seq=\"seq_$(printf 'e%.0s' {1..64})\"\n"
+        "  hypothesis=\"mrhyp_$(printf 'f%.0s' {1..64})\"\n"
+        '  printf "fake 3U7Q mtz\\n" > "$outdir/derived/3U7Q.mtz"\n'
+        '  printf "fake A2 pdb\\n" > "$outdir/models/component_A.pdb"\n'
+        '  printf "fake B2 pdb\\n" > "$outdir/models/component_B.pdb"\n'
+        "  partner_sha=\"$(printf '0%.0s' {1..64})\"\n"
+        '  printf \'{"adapter_version":"3u7q-fixed-two-a-two-b-inputs-v1",'
+        '"crystal_id":"3U7Q","composition":{"A":2,"B":2},'
+        '"parent_hypothesis_id":"%s","parent_sequence_group_id":"%s",'
+        '"partner_sequence_group_id":"%s","partner_model_identity_fraction":1.0,'
+        '"files":{"partner_model":{"sha256":"%s"}}}\\n\' '
+        '"$hypothesis" "$parent_seq" "$partner_seq" "$partner_sha" '
+        '> "$outdir/preparation_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/crystals.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/sequence_groups.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/processed_models.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/model_preparation_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mr_hypotheses.jsonl"\n'
         'elif [[ "$mode" == heteromer_review ]]; then\n'
         '  mkdir -p "$outdir/mr_seed_review" '
         '"$outdir/approved_mr_seed_stage"\n'
@@ -391,16 +415,22 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  mkdir -p "$outdir/xtriage"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mtz_preflight.jsonl"\n'
         '  printf "fake xtriage\\n" > "$outdir/xtriage/6RTZ.log"\n'
+        '  printf "fake xtriage\\n" > "$outdir/xtriage/3U7Q.log"\n'
         'elif [[ "$mode" == first_copy ]]; then\n'
         '  mkdir -p "$outdir"\n'
-        '  printf "REMARK ENSEMBLE parent\\nATOM\\n" > "$outdir/PHASER.1.pdb"\n'
+        "  placed=1\n"
+        '  [[ "$outdir" != */multicopy/* ]] || placed=2\n'
+        '  : > "$outdir/PHASER.1.pdb"\n'
+        "  for ((i=0; i<placed; i++)); do "
+        'printf "REMARK ENSEMBLE parent\\n" >> "$outdir/PHASER.1.pdb"; done\n'
+        '  printf "ATOM\\n" >> "$outdir/PHASER.1.pdb"\n'
         '  printf "fake parent mtz\\n" > "$outdir/PHASER.1.mtz"\n'
         '  parent_sha="$(sha256sum "$outdir/PHASER.1.pdb" | awk \'{print $1}\')"\n'
         '  printf \'{"execution_status":"completed_hit","llg":120.0,'
-        '"placed_copy_count":1,"packing_summary":'
+        '"placed_copy_count":%s,"packing_summary":'
         '{"top_solution_packed":true},'
         '"solution_coordinate_path":"PHASER.1.pdb",'
-        '"solution_coordinate_sha256":"%s"}\\n\' "$parent_sha" '
+        '"solution_coordinate_sha256":"%s"}\\n\' "$placed" "$parent_sha" '
         '> "$outdir/normalised_mr_result.json"\n'
         '  cp "$outdir/normalised_mr_result.json" '
         '"$outdir/normalised_mr_result.jsonl"\n'
@@ -409,12 +439,18 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  printf "fake parent capture\\n" > "$outdir/phenix.phaser.capture.log"\n'
         'elif [[ "$mode" == partner ]]; then\n'
         '  mkdir -p "$outdir"\n'
+        "  parent_copies=1\n"
+        "  partner_copies=1\n"
+        '  [[ "$outdir" != */multicopy/* ]] || { parent_copies=2; partner_copies=2; }\n'
         '  printf "fake combined pdb\\n" > "$outdir/PHASER.1.pdb"\n'
         '  printf "fake combined mtz\\n" > "$outdir/PHASER.1.mtz"\n'
         '  printf \'{"execution_status":"completed_hit",'
+        '"parent_copy_count":%s,"requested_partner_copy_count":%s,'
+        '"partner_placement_count":%s,'
         '"incremental_llg":150.0,"partner_tfz":12.0,'
         '"score_cohort":"primary","top_solution_packed":true,'
         '"partner_placement_observed":true}\\n\' '
+        '"$parent_copies" "$partner_copies" "$partner_copies" '
         '> "$outdir/partner_search_result.json"\n'
         '  cp "$outdir/partner_search_result.json" '
         '"$outdir/partner_search_result.jsonl"\n'
@@ -3982,7 +4018,7 @@ def test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile(
     assert "artifacts/qualification/p2-control-artifact-sha256.tsv" in names
 
 
-def test_heteromer_smoke_runs_one_fixed_6rtz_parent_partner_chain(
+def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     tmp_path: Path,
 ) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
@@ -4016,6 +4052,9 @@ def test_heteromer_smoke_runs_one_fixed_6rtz_parent_partner_chain(
     assert (
         run / "artifacts/heteromer-smoke/inputs/preparation_manifest.json"
     ).is_file()
+    assert (
+        run / "artifacts/heteromer-smoke/inputs/multicopy/preparation_manifest.json"
+    ).is_file()
 
     submitted = _decode_protocol(
         _run(
@@ -4048,10 +4087,21 @@ def test_heteromer_smoke_runs_one_fixed_6rtz_parent_partner_chain(
     assert summary["gate_passed"] is True
     assert summary["incremental_llg"] == 150.0
     assert summary["partner_tfz"] == 12.0
+    multicopy = json.loads(
+        (run / "artifacts/qualification/heteromer-multicopy-summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert multicopy["gate_passed"] is True
+    assert multicopy["parent_copy_count"] == 2
+    assert multicopy["requested_partner_copy_count"] == 2
+    assert multicopy["partner_placement_count"] == 2
     log = (run / "logs/heteromer-smoke.log").read_text(encoding="utf-8")
     assert "phase=heteromer_parent_A profile=heteromer-smoke" in log
     assert "phase=heteromer_component_review profile=heteromer-smoke" in log
     assert "phase=heteromer_partner_B profile=heteromer-smoke" in log
+    assert "phase=heteromer_multicopy_parent_A profile=heteromer-smoke" in log
+    assert "phase=heteromer_multicopy_partner_B profile=heteromer-smoke" in log
 
     archive = _run(
         [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
@@ -4061,12 +4111,17 @@ def test_heteromer_smoke_runs_one_fixed_6rtz_parent_partner_chain(
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
         names = set(collected.getnames())
     assert "artifacts/qualification/heteromer-smoke-summary.json" in names
+    assert "artifacts/qualification/heteromer-multicopy-summary.json" in names
     assert "artifacts/heteromer-smoke/parent/normalised_mr_result.json" in names
     assert (
         "artifacts/heteromer-smoke/component_checkpoint/approved_mr_seed_stage/"
         "live_m4_stage_manifest.json"
     ) in names
     assert "artifacts/heteromer-smoke/partner/partner_search_result.json" in names
+    assert (
+        "artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json"
+        in names
+    )
 
 
 def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(

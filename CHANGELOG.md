@@ -27,6 +27,10 @@ All notable changes to this project are documented here.
   explicit MR-seed checkpoint, revalidates one approved A state and its parent
   LLG, stages the full fixed 6RTZ preparation directory, and invokes the
   accepted B-search adapter without manual file substitution.
+- Explicit positive A/B copy counts in the first-component and fixed-parent
+  adapters. The 3U7Q control records its deposited NifD Q440E construct as
+  distinct from the frozen catalogue sequence, searches two A copies jointly,
+  fixes that state, and searches two B copies jointly.
 
 ## 0.1.0 - 2026-08-19
 
