@@ -16,6 +16,10 @@ All notable changes to this project are documented here.
   coordinate, searches only B, retains the combined PDB/MTZ and raw evidence,
   and reports B-specific TFZ plus incremental LLG without treating a failed
   search as proof that B is absent.
+- A fixed 6RTZ input preparer that verifies the public deposition against the
+  frozen protocol, maps HisF/entity 1/chain A and HisH/entity 2/chain B, and
+  writes only the exact-model A-first-copy and B-partner inputs needed by the
+  adapter-isolation control.
 
 ## 0.1.0 - 2026-08-19
 

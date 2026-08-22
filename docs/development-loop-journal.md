@@ -9466,3 +9466,32 @@ Prepare the smallest fixed Marmic 6RTZ adapter-isolation profile, validate its
 local fake lifecycle, then push the immutable source only with explicit user
 authority and run exactly one real Phenix job through the reviewed wrapper.
 Classify that result before adding end-to-end Nextflow or general `nA + mB`.
+
+## 2026-08-22T15:18:19Z - Fixed 6RTZ public inputs prepare locally
+
+### Public-source evidence and implementation
+
+- Downloaded only the two public RCSB 6RTZ files already frozen in the tracked
+  protocol. Their observed SHA-256 values and byte sizes exactly match the
+  frozen coordinate and structure-factor identities.
+- Verified that entity 1 maps to chain A and the frozen 253-aa HisF sequence,
+  while entity 2 maps to chain B and the frozen 201-aa HisH sequence. The
+  coordinate polymers contain 252 and 200 observed residues, respectively,
+  with the frozen full sequences retained for composition.
+- Added one fixed input preparer. It converts the deposited reflections to MTZ,
+  writes polymer-only A/B PDBs and exact sequence groups, and emits only the
+  A-first-copy model/hypothesis plus B-partner inputs needed by P1.
+- The preparer ran successfully on the exact public files. Independent MTZ
+  preflight selected `F(+),SIGF(+),F(-),SIGF(-)`, `FreeR_flag`, space group
+  `P 32 2 1`, and a high-resolution limit of approximately 2.77 A with the
+  expected review warning because local Xtriage was intentionally skipped.
+
+### Local evidence and next exact starting point
+
+- Eleven focused preparer/partner tests pass; targeted Ruff and `ty` checks
+  pass. The public-source preparation and preflight were real local operations,
+  but no local Phenix installation was claimed or used.
+- Add only the fixed `heteromer-smoke` managed-wrapper profile needed to stage
+  these public sources and execute A-first-copy followed by fixed-A/one-B on
+  Marmic. Keep it sequential, single-job, and non-Nextflow for adapter
+  isolation. Then request explicit push authority before remote staging.

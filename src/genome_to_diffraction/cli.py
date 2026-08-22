@@ -9,6 +9,7 @@ from typing import cast
 
 from genome_to_diffraction import __version__
 from genome_to_diffraction.benchmarks import (
+    HeteromerControlPreparationRequest,
     M6CollectionRequest,
     M6EvaluationRequest,
     M6InputPreparationRequest,
@@ -23,6 +24,7 @@ from genome_to_diffraction.benchmarks import (
     evaluate_m6,
     load_m6_protocol,
     load_public_control_panel,
+    prepare_6rtz_heteromer_control,
     prepare_m6_inputs,
     prepare_public_control,
     prepare_public_control_panel,
@@ -486,6 +488,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     public_control_parser.add_argument("--storage-limit-mib", type=int, default=256)
     public_control_parser.add_argument("--minimum-free-mib", type=int, default=64)
+    heteromer_control_parser = benchmark_actions.add_parser(
+        "prepare-6rtz-heteromer-control",
+        help="prepare the fixed public 6RTZ 1A+1B adapter-isolation inputs",
+    )
+    heteromer_control_parser.add_argument("--protocol", type=Path, required=True)
+    heteromer_control_parser.add_argument("--coordinates", type=Path, required=True)
+    heteromer_control_parser.add_argument(
+        "--structure-factors", type=Path, required=True
+    )
+    heteromer_control_parser.add_argument("--outdir", type=Path, required=True)
     control_bundle_parser = benchmark_actions.add_parser(
         "build-first-copy-controls",
         help="build the fixed exact-positive and unrelated-negative MR bundle",
@@ -1557,6 +1569,18 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             f"Prepared public control {control_result.control_id}: "
             f"{control_result.preparation_manifest}"
         )
+        return 0
+    if args.benchmark_action == "prepare-6rtz-heteromer-control":
+        prepared = prepare_6rtz_heteromer_control(
+            HeteromerControlPreparationRequest(
+                protocol=args.protocol,
+                coordinates=args.coordinates,
+                structure_factors=args.structure_factors,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(f"Prepared fixed 6RTZ 1A+1B inputs: {prepared.preparation_manifest}")
         return 0
     if args.benchmark_action == "build-first-copy-controls":
         control_bundle = build_mr_control_bundle(

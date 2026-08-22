@@ -355,7 +355,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         raise ValueError("threads must be positive")
     if request.timeout_seconds is not None and request.timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be positive when supplied")
-    output = request.output_directory.resolve()
+    output = request.output_directory.absolute()
     if output.exists() and any(output.iterdir()):
         raise PhaserInputError(
             f"partner-search output directory is not empty: {output}"
