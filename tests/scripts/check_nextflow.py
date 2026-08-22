@@ -482,6 +482,10 @@ def check_stubs() -> None:
                 "partner_search_result.jsonl",
                 "partner_search.eff",
                 "phaser_command.json",
+                "partner_search_plan.json",
+                "partner_candidates.jsonl",
+                "selected_partner_candidate_ids.txt",
+                "partner_attempt_summary.json",
                 "report.html",
                 "timeline.html",
                 "trace.tsv",
@@ -493,6 +497,12 @@ def check_stubs() -> None:
         )
         if heteromer_scope.get("analysis_stage") != "heteromer":
             raise RuntimeError("heteromer workflow lost its stage identity")
+        planned_partner_dirs = sorted(heteromer_out.glob("planned_partner_*"))
+        if (
+            len(planned_partner_dirs) != 1
+            or not (planned_partner_dirs[0] / "partner_search_result.json").is_file()
+        ):
+            raise RuntimeError("heteromer workflow did not fan out its selected B row")
 
         integrated_t12_command = [
             "nextflow",

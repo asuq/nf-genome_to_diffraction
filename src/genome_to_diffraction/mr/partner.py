@@ -107,6 +107,9 @@ class PartnerSearchRequest:
     output_directory: Path
     parent_copy_count: int = 1
     partner_copy_count: int = 1
+    selection_plan_id: str | None = None
+    selection_plan_sha256: str | None = None
+    partner_candidate_id: str | None = None
     threads: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
@@ -187,6 +190,15 @@ def _resolve(request: PartnerSearchRequest) -> _Resolved:
         raise PhaserInputError("parent LLG must be finite")
     if request.parent_copy_count < 1 or request.partner_copy_count < 1:
         raise PhaserInputError("component copy counts must be positive")
+    selection_fields = (
+        request.selection_plan_id,
+        request.selection_plan_sha256,
+        request.partner_candidate_id,
+    )
+    if any(value is None for value in selection_fields) != all(
+        value is None for value in selection_fields
+    ):
+        raise PhaserInputError("partner selection provenance must be supplied together")
     if not math.isfinite(request.partner_model_identity_fraction) or not (
         0 < request.partner_model_identity_fraction <= 1
     ):
@@ -410,6 +422,9 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         "phenix_manifest_sha256": phenix_manifest_sha256,
         "parent_copy_count": request.parent_copy_count,
         "partner_copy_count": request.partner_copy_count,
+        "selection_plan_id": request.selection_plan_id,
+        "selection_plan_sha256": request.selection_plan_sha256,
+        "partner_candidate_id": request.partner_candidate_id,
     }
     search_id = content_id("partner_", search_identity)
     arguments = ["phenix.phaser", str(parameters)]
@@ -572,6 +587,9 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         parent_copy_count=request.parent_copy_count,
         partner_sequence_group_id=resolved.partner_group.sequence_group_id,
         requested_partner_copy_count=request.partner_copy_count,
+        selection_plan_id=request.selection_plan_id,
+        selection_plan_sha256=request.selection_plan_sha256,
+        partner_candidate_id=request.partner_candidate_id,
         execution_status=status,
         parent_llg=request.parent_llg,
         combined_llg=combined_llg,

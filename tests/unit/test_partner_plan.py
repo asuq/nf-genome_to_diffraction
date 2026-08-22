@@ -11,8 +11,10 @@ from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.cli import main
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.ranking import (
+    ApprovedPartnerPlanRequest,
     PartnerPlanInputError,
     PartnerPlanRequest,
+    build_approved_partner_search_plan,
     build_partner_search_plan,
 )
 from genome_to_diffraction.schemas.results import (
@@ -226,6 +228,7 @@ def test_partner_plan_caps_first_wave_and_retains_every_reason(tmp_path: Path) -
     assert no_model.selection_status == "unsearchable_no_model"
     assert impossible.selection_status == "excluded_physical_impossible"
     assert output.candidates_jsonl.read_text(encoding="utf-8").count("\n") == 28
+    assert output.selected_candidate_ids.read_text(encoding="utf-8").count("\n") == 25
 
     repeated = build_partner_search_plan(
         replace(request, output_directory=tmp_path / "repeated")
@@ -233,6 +236,10 @@ def test_partner_plan_caps_first_wave_and_retains_every_reason(tmp_path: Path) -
     assert output.plan_json.read_bytes() == repeated.plan_json.read_bytes()
     assert (
         output.candidates_jsonl.read_bytes() == repeated.candidates_jsonl.read_bytes()
+    )
+    assert (
+        output.selected_candidate_ids.read_bytes()
+        == repeated.selected_candidate_ids.read_bytes()
     )
 
 
@@ -280,3 +287,48 @@ def test_partner_plan_cli_keeps_the_cap_fixed(
 
     assert exit_status == 0
     assert "Selected 25 of 28 catalogue B candidate(s)" in capsys.readouterr().out
+
+
+def test_approved_partner_plan_derives_parent_state(tmp_path: Path) -> None:
+    request, _ = _request(tmp_path)
+    stage = tmp_path / "approved-stage"
+    stage.mkdir()
+    stage_manifest = stage / "live_m4_stage_manifest.json"
+    stage_manifest.write_text(
+        json.dumps(
+            {
+                "execution_status": "completed_success",
+                "approved_seed_count": 1,
+                "approved_solution_ids": ["sol_test"],
+                "model_sources": {
+                    "sol_test": {
+                        "sequence_group_id": request.parent_sequence_group_id,
+                        "expected_copy_count": 1,
+                        "requires_additional_copy": False,
+                    }
+                },
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    output = build_approved_partner_search_plan(
+        ApprovedPartnerPlanRequest(
+            approved_stage=stage,
+            crystal_id=request.crystal_id,
+            partner_copy_count=1,
+            sequence_groups_jsonl=request.sequence_groups_jsonl,
+            matthews_hypotheses_jsonl=request.matthews_hypotheses_jsonl,
+            mtz_preflight_jsonl=request.mtz_preflight_jsonl,
+            pipeline_config=request.pipeline_config,
+            model_registry_directory=request.model_registry_directory,
+            output_directory=tmp_path / "approved-plan",
+            progress=False,
+        )
+    )
+
+    assert output.plan.parent_sequence_group_id == request.parent_sequence_group_id
+    assert output.plan.parent_copy_count == 1
+    assert output.plan.parent_state_sha256 == sha256_file(stage_manifest)

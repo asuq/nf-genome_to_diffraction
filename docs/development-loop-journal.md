@@ -9963,4 +9963,38 @@ Review and commit/push this selector slice, watch one CI run, then connect only
 the selected rows to independent fixed-A/joint-B Nextflow items using the
 existing adapter. Retain all result states and plan counts. Qualify P5 on the
 fixed 6RTZ full catalogue before beginning the P6 control slice; do not add a
-root workflow/profile or localisation integration.
+  root workflow/profile or localisation integration.
+
+## 2026-08-22T23:46:41Z - P5 selected B rows fan out and aggregate locally
+
+### Completed integration slice
+
+- Generalised the approved-parent reader to complete positive A copy counts and
+  added one planned-partner driver. It verifies the approved stage/review,
+  selected candidate status, plan and plan-file identities, candidate/model
+  checksum, parent composition, and model sequence identity before delegating
+  to the accepted fixed-A/joint-B adapter. P1--P4 calls retain null selection
+  provenance; planned results carry plan ID, plan SHA-256, and candidate ID in
+  their result and search identity.
+- Added one internal partner-search workflow to the existing
+  `analysis_stage=heteromer`. The planner derives A from the approved stage,
+  writes selected IDs as a plain newline boundary, and Nextflow fans those IDs
+  into independent `process_mr` items. No Python/Bash scientific loop, new root
+  workflow, analysis stage, or HPC profile was added.
+- Added a typed partner-attempt summary. It requires the selected candidate set
+  to equal the result candidate set exactly, counts hit/no-hit/tool/parse
+  outcomes, retains deferred/unsearchable plan counts, and explicitly states
+  that a failed partner search does not prove biological absence.
+- Forty-three focused planner/approved-driver/partner tests pass, including
+  changed model, changed review, plan provenance, and incomplete result
+  inventory failures. Targeted Ruff, `ty`, and Nextflow syntax pass. A direct
+  heteromer stub executed 22 processes including plan, one selected partner,
+  and summary; the unchanged replay cached all 22 processes.
+
+### Next exact starting point
+
+Run the focused checks and inspect the complete diff, then commit/push this P5
+integration slice and watch one CI run. Next build the fixed 6RTZ full-catalogue
+control using the frozen 1,846-protein Thermotoga catalogue, require HisH in the
+selected wave, and execute/count every selected attempt before accepting P5.
+Do not add localisation tools, unknown crystals, or a new workflow/profile.

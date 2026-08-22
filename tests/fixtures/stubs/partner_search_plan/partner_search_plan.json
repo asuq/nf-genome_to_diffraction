@@ -1,0 +1,20 @@
+{
+  "adapter_version": "catalogue-partner-plan-v1",
+  "candidate_count": 1,
+  "candidates": [
+    {"candidate_id":"partnercand_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","combined_matthews_prior":0.5,"combined_physical_status":"plausible","combined_solvent_fraction_lower":0.5,"combined_solvent_fraction_upper":0.5,"estimated_coordinate_error":null,"model_id":"model_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","model_path":"models/bb/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.pdb","model_retained_fraction":0.9,"model_sequence_identity":1.0,"model_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","native_page_prior_label":"unavailable","ordering_reasons":["sds_page:unavailable","native_page:unavailable_neutral","combined_matthews:plausible","model:predicted_confidence_pruned_full","selection:selected"],"rank":1,"schema_version":"1.0","sds_page_fractional_difference":null,"sds_page_prior_label":"unavailable","selection_status":"selected","sequence_group_id":"seq_cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","structural_class":"predicted_confidence_pruned_full"}
+  ],
+  "cap_reason": "prototype_first_wave_25",
+  "crystal_id": "test_crystal_01",
+  "deferred_cap_count": 0,
+  "parent_copy_count": 1,
+  "parent_sequence_group_id": "seq_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "parent_state_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "partner_copy_count": 1,
+  "plan_id": "partnerplan_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "schema_version": "1.0",
+  "searchable_candidate_count": 1,
+  "selected_attempt_count": 1,
+  "selection_cap": 25,
+  "unsearchable_candidate_count": 0
+}

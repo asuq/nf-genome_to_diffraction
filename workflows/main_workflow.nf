@@ -17,6 +17,7 @@ include { ADDITIONAL_COPY_WORKFLOW } from './additional_copy_workflow'
 include { BRIEF_REFINEMENT_WORKFLOW } from './brief_refinement_workflow'
 include { DIVERSE_FIRST_COPY_MR_WORKFLOW } from './diverse_first_copy_mr_workflow'
 include { PDB_SEQUENCE_DISCOVERY } from './pdb_sequence_discovery_workflow'
+include { PARTNER_SEARCH_WORKFLOW } from './partner_search_workflow'
 
 workflow MAIN_WORKFLOW {
     take:
@@ -31,6 +32,7 @@ workflow MAIN_WORKFLOW {
     analysis_stage: String
     approved_mr_seeds: Path?
     heteromer_control_preparation: Path?
+    partner_copy_count: Integer
     skip_xtriage: Boolean
     maximum_evalue: Float
     minimum_query_coverage: Float
@@ -190,6 +192,22 @@ workflow MAIN_WORKFLOW {
                         heteromer_control_preparation,
                         sequence_groups,
                         preflight_jsonl,
+                        selected_mtz,
+                        phenix_manifest
+                    )
+                    partner_model_registry = first_copy.funnel.map { Path bundle ->
+                        bundle.resolve('model_registry')
+                    }
+                    PARTNER_SEARCH_WORKFLOW(
+                        approved_stage,
+                        mr_seed_review,
+                        sequence_groups,
+                        matthews_jsonl,
+                        preflight_jsonl,
+                        pipeline_config,
+                        partner_model_registry,
+                        crystal_id,
+                        partner_copy_count,
                         selected_mtz,
                         phenix_manifest
                     )

@@ -30,7 +30,11 @@ from genome_to_diffraction.mr.partner import (
 )
 from genome_to_diffraction.mr.phaser import PhaserInputError
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
-from genome_to_diffraction.schemas.results import NormalisedMrResult
+from genome_to_diffraction.schemas.results import (
+    NormalisedMrResult,
+    PartnerCandidateSelectionStatus,
+    PartnerSearchPlan,
+)
 from genome_to_diffraction.status import ExecutionStatus
 
 
@@ -52,12 +56,32 @@ class ApprovedPartnerSearchRequest:
 
 
 @dataclass(frozen=True)
+class PlannedPartnerSearchRequest:
+    """Inputs for one selected catalogue B attempt from an approved A state."""
+
+    approved_stage: Path
+    review_package: Path
+    partner_plan_json: Path
+    partner_candidate_id: str
+    sequence_groups_jsonl: Path
+    model_registry_directory: Path
+    preflight_jsonl: Path
+    mtz: Path
+    phenix_manifest: Path
+    output_directory: Path
+    threads: int = 1
+    timeout_seconds: float | None = None
+    progress: bool = True
+
+
+@dataclass(frozen=True)
 class _ApprovedParent:
     solution_id: str
     sequence_group_id: str
     coordinate: Path
     coordinate_sha256: str
     llg: float
+    copy_count: int
 
 
 def _object(path: Path, *, label: str) -> tuple[Path, dict[str, object]]:
@@ -83,9 +107,9 @@ def _owned(root: Path, relative: object, *, label: str) -> Path:
     return resolved
 
 
-def _approved_parent(request: ApprovedPartnerSearchRequest) -> _ApprovedParent:
-    stage = request.approved_stage.resolve(strict=True)
-    review = request.review_package.resolve(strict=True)
+def _approved_parent(approved_stage: Path, review_package: Path) -> _ApprovedParent:
+    stage = approved_stage.resolve(strict=True)
+    review = review_package.resolve(strict=True)
     if not stage.is_dir() or not review.is_dir():
         raise PhaserInputError("approved stage and review package must be directories")
     _, stage_manifest = _object(
@@ -113,8 +137,12 @@ def _approved_parent(request: ApprovedPartnerSearchRequest) -> _ApprovedParent:
     if len(rows) != 1 or set(rows[0]) != required:
         raise PhaserInputError("approved A table must contain exactly one fixed row")
     row = rows[0]
-    if row["expected_copy_count"] != "1" or row["requires_additional_copy"] != "false":
-        raise PhaserInputError("approved A state is not the required one-copy parent")
+    try:
+        expected_copy_count = int(row["expected_copy_count"])
+    except ValueError as error:
+        raise PhaserInputError("approved A state has an invalid copy count") from error
+    if expected_copy_count < 1 or row["requires_additional_copy"] != "false":
+        raise PhaserInputError("approved A state is not a complete retained parent")
     solution_id = row["seed_solution_id"]
     coordinate_sha256 = row["search_model_sha256"]
     if not solution_id or re.fullmatch(r"[a-f0-9]{64}", coordinate_sha256) is None:
@@ -169,17 +197,18 @@ def _approved_parent(request: ApprovedPartnerSearchRequest) -> _ApprovedParent:
         raise PhaserInputError("review A result is invalid") from error
     if (
         result.execution_status is not ExecutionStatus.COMPLETED_HIT
-        or result.placed_copy_count != 1
+        or result.placed_copy_count != expected_copy_count
         or result.packing_summary.get("top_solution_packed") is not True
         or result.llg is None
     ):
-        raise PhaserInputError("approved A result is not one packed placed copy")
+        raise PhaserInputError("approved A result does not match its packed copy count")
     return _ApprovedParent(
         solution_id=solution_id,
         sequence_group_id=sequence_group_id,
         coordinate=coordinate,
         coordinate_sha256=coordinate_sha256,
         llg=result.llg,
+        copy_count=expected_copy_count,
     )
 
 
@@ -188,7 +217,7 @@ def run_approved_partner_search(
 ) -> PartnerSearchOutput:
     """Search fixed 6RTZ B from one explicitly approved normal-workflow A seed."""
 
-    parent = _approved_parent(request)
+    parent = _approved_parent(request.approved_stage, request.review_package)
     preparation_path, preparation = _object(
         request.control_preparation_manifest, label="6RTZ control preparation"
     )
@@ -197,6 +226,7 @@ def run_approved_partner_search(
         or preparation.get("crystal_id") != "6RTZ"
         or preparation.get("composition") != {"A": 1, "B": 1}
         or preparation.get("parent_sequence_group_id") != parent.sequence_group_id
+        or parent.copy_count != 1
     ):
         raise PhaserInputError("approved A does not match fixed 6RTZ composition")
     partner_group = preparation.get("partner_sequence_group_id")
@@ -231,6 +261,7 @@ def run_approved_partner_search(
             parent_coordinate=parent.coordinate,
             expected_parent_coordinate_sha256=parent.coordinate_sha256,
             parent_llg=parent.llg,
+            parent_copy_count=parent.copy_count,
             partner_model=partner_model,
             expected_partner_model_sha256=partner_sha256,
             partner_model_identity_fraction=float(identity),
@@ -238,6 +269,85 @@ def run_approved_partner_search(
             mtz=request.mtz,
             phenix_manifest=request.phenix_manifest,
             output_directory=request.output_directory,
+            threads=request.threads,
+            timeout_seconds=request.timeout_seconds,
+            progress=request.progress,
+        )
+    )
+
+
+def run_planned_partner_search(
+    request: PlannedPartnerSearchRequest,
+) -> PartnerSearchOutput:
+    """Run one plan-selected B model from one approved retained A state."""
+
+    parent = _approved_parent(request.approved_stage, request.review_package)
+    plan_path = request.partner_plan_json.resolve(strict=True)
+    try:
+        plan = PartnerSearchPlan.model_validate_json(
+            plan_path.read_text(encoding="utf-8")
+        )
+    except (OSError, ValidationError) as error:
+        raise PhaserInputError("partner search plan is invalid") from error
+    matches = [
+        item
+        for item in plan.candidates
+        if item.candidate_id == request.partner_candidate_id
+    ]
+    if len(matches) != 1:
+        raise PhaserInputError("partner candidate is not unique in its plan")
+    candidate = matches[0]
+    if candidate.selection_status is not PartnerCandidateSelectionStatus.SELECTED:
+        raise PhaserInputError("partner candidate was not selected for execution")
+    if (
+        plan.parent_sequence_group_id != parent.sequence_group_id
+        or plan.parent_copy_count != parent.copy_count
+        or plan.parent_state_sha256
+        != sha256_file(
+            request.approved_stage.resolve(strict=True) / "live_m4_stage_manifest.json"
+        )
+    ):
+        raise PhaserInputError("partner plan parent differs from approved A state")
+    if (
+        candidate.model_path is None
+        or candidate.model_sha256 is None
+        or candidate.model_sequence_identity is None
+        or candidate.model_sequence_identity <= 0
+    ):
+        raise PhaserInputError(
+            "selected partner candidate lacks executable model evidence"
+        )
+    registry = request.model_registry_directory.resolve(strict=True)
+    partner_model = _owned(
+        registry,
+        candidate.model_path,
+        label="planned B model",
+    )
+    if sha256_file(partner_model) != candidate.model_sha256:
+        raise PhaserInputError("planned B model checksum differs")
+    plan_sha256 = sha256_file(plan_path)
+    return run_partner_search(
+        PartnerSearchRequest(
+            crystal_id=plan.crystal_id,
+            parent_solution_id=parent.solution_id,
+            parent_sequence_group_id=parent.sequence_group_id,
+            partner_sequence_group_id=candidate.sequence_group_id,
+            sequence_groups_jsonl=request.sequence_groups_jsonl,
+            parent_coordinate=parent.coordinate,
+            expected_parent_coordinate_sha256=parent.coordinate_sha256,
+            parent_llg=parent.llg,
+            parent_copy_count=parent.copy_count,
+            partner_model=partner_model,
+            expected_partner_model_sha256=candidate.model_sha256,
+            partner_model_identity_fraction=candidate.model_sequence_identity,
+            partner_copy_count=plan.partner_copy_count,
+            preflight_jsonl=request.preflight_jsonl,
+            mtz=request.mtz,
+            phenix_manifest=request.phenix_manifest,
+            output_directory=request.output_directory,
+            selection_plan_id=plan.plan_id,
+            selection_plan_sha256=plan_sha256,
+            partner_candidate_id=candidate.candidate_id,
             threads=request.threads,
             timeout_seconds=request.timeout_seconds,
             progress=request.progress,

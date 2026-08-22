@@ -111,13 +111,17 @@ from genome_to_diffraction.mr import (
     ApprovedPartnerSearchRequest,
     CopyCountReportRequest,
     PartnerSearchRequest,
+    PartnerSummaryRequest,
     PhaserRunRequest,
+    PlannedPartnerSearchRequest,
     build_copy_count_report,
     run_additional_copy_phaser,
     run_additional_copy_series,
     run_approved_partner_search,
     run_first_copy_phaser,
     run_partner_search,
+    run_planned_partner_search,
+    summarize_partner_attempts,
 )
 from genome_to_diffraction.mr.stage_add_copy import (
     AddCopyStageRequest,
@@ -137,9 +141,11 @@ from genome_to_diffraction.phenix.runtime import (
     verify_manifest,
 )
 from genome_to_diffraction.ranking import (
+    ApprovedPartnerPlanRequest,
     DiverseFirstCopyFunnelRequest,
     ExactPredictedFunnelRequest,
     PartnerPlanRequest,
+    build_approved_partner_search_plan,
     build_diverse_first_copy_funnel,
     build_exact_predicted_funnel,
     build_partner_search_plan,
@@ -1035,6 +1041,27 @@ def _build_parser() -> argparse.ArgumentParser:
     partner_plan_parser.add_argument("--config", type=Path, required=True)
     partner_plan_parser.add_argument("--model-registry", type=Path, required=True)
     partner_plan_parser.add_argument("--outdir", type=Path, required=True)
+    approved_partner_plan_parser = ranking_actions.add_parser(
+        "approved-partner-plan",
+        help="select catalogue B candidates from one approved retained A state",
+    )
+    approved_partner_plan_parser.add_argument(
+        "--approved-stage", type=Path, required=True
+    )
+    approved_partner_plan_parser.add_argument("--crystal-id", required=True)
+    approved_partner_plan_parser.add_argument(
+        "--partner-copy-count", type=int, required=True
+    )
+    approved_partner_plan_parser.add_argument(
+        "--sequence-groups", type=Path, required=True
+    )
+    approved_partner_plan_parser.add_argument("--matthews", type=Path, required=True)
+    approved_partner_plan_parser.add_argument("--preflight", type=Path, required=True)
+    approved_partner_plan_parser.add_argument("--config", type=Path, required=True)
+    approved_partner_plan_parser.add_argument(
+        "--model-registry", type=Path, required=True
+    )
+    approved_partner_plan_parser.add_argument("--outdir", type=Path, required=True)
 
     mr_parser = subparsers.add_parser(
         "mr", help="execute bounded molecular-replacement hypotheses"
@@ -1132,6 +1159,31 @@ def _build_parser() -> argparse.ArgumentParser:
     approved_partner_parser.add_argument("--outdir", type=Path, required=True)
     approved_partner_parser.add_argument("--threads", type=int, default=1)
     approved_partner_parser.add_argument("--timeout-seconds", type=float)
+    planned_partner_parser = mr_actions.add_parser(
+        "planned-partner",
+        help="run one selected catalogue B candidate from an approved A state",
+    )
+    planned_partner_parser.add_argument("--approved-stage", type=Path, required=True)
+    planned_partner_parser.add_argument("--review-package", type=Path, required=True)
+    planned_partner_parser.add_argument("--partner-plan", type=Path, required=True)
+    planned_partner_parser.add_argument("--partner-candidate-id", required=True)
+    planned_partner_parser.add_argument("--sequence-groups", type=Path, required=True)
+    planned_partner_parser.add_argument("--model-registry", type=Path, required=True)
+    planned_partner_parser.add_argument("--preflight", type=Path, required=True)
+    planned_partner_parser.add_argument("--mtz", type=Path, required=True)
+    planned_partner_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    planned_partner_parser.add_argument("--outdir", type=Path, required=True)
+    planned_partner_parser.add_argument("--threads", type=int, default=1)
+    planned_partner_parser.add_argument("--timeout-seconds", type=float)
+    partner_summary_parser = mr_actions.add_parser(
+        "summarize-partners",
+        help="require and count every terminal result from one partner plan",
+    )
+    partner_summary_parser.add_argument("--partner-plan", type=Path, required=True)
+    partner_summary_parser.add_argument(
+        "--result-directory", type=Path, action="append", default=[]
+    )
+    partner_summary_parser.add_argument("--output", type=Path, required=True)
     partner_parser.add_argument("--preflight", type=Path, required=True)
     partner_parser.add_argument("--mtz", type=Path, required=True)
     partner_parser.add_argument("--phenix-manifest", type=Path, required=True)
@@ -2289,6 +2341,26 @@ def _run_model(args: argparse.Namespace) -> int:
 
 
 def _run_ranking(args: argparse.Namespace) -> int:
+    if args.ranking_action == "approved-partner-plan":
+        partner_plan = build_approved_partner_search_plan(
+            ApprovedPartnerPlanRequest(
+                approved_stage=args.approved_stage,
+                crystal_id=args.crystal_id,
+                partner_copy_count=args.partner_copy_count,
+                sequence_groups_jsonl=args.sequence_groups,
+                matthews_hypotheses_jsonl=args.matthews,
+                mtz_preflight_jsonl=args.preflight,
+                pipeline_config=args.config,
+                model_registry_directory=args.model_registry,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Selected {partner_plan.plan.selected_attempt_count} approved-parent "
+            f"B candidate(s): {partner_plan.plan_json}"
+        )
+        return 0
     if args.ranking_action == "partner-plan":
         partner_plan = build_partner_search_plan(
             PartnerPlanRequest(
@@ -2494,6 +2566,44 @@ def _run_mr(args: argparse.Namespace) -> int:
             "Approved partner MR "
             f"{partner_output.result.execution_status.value}: "
             f"{partner_output.result_json}"
+        )
+        return 0
+    if args.mr_action == "planned-partner":
+        partner_output = run_planned_partner_search(
+            PlannedPartnerSearchRequest(
+                approved_stage=args.approved_stage,
+                review_package=args.review_package,
+                partner_plan_json=args.partner_plan,
+                partner_candidate_id=args.partner_candidate_id,
+                sequence_groups_jsonl=args.sequence_groups,
+                model_registry_directory=args.model_registry,
+                preflight_jsonl=args.preflight,
+                mtz=args.mtz,
+                phenix_manifest=args.phenix_manifest,
+                output_directory=args.outdir,
+                threads=args.threads,
+                timeout_seconds=args.timeout_seconds,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            "Planned partner MR "
+            f"{partner_output.result.execution_status.value}: "
+            f"{partner_output.result_json}"
+        )
+        return 0
+    if args.mr_action == "summarize-partners":
+        summary = summarize_partner_attempts(
+            PartnerSummaryRequest(
+                partner_plan_json=args.partner_plan,
+                result_directories=tuple(args.result_directory),
+                output_json=args.output,
+            )
+        )
+        print(
+            f"Retained {summary.result_count} of "
+            f"{summary.selected_attempt_count} selected partner result(s): "
+            f"{args.output}"
         )
         return 0
     if args.mr_action != "first-copy":

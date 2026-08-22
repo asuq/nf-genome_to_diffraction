@@ -17,6 +17,7 @@ params {
     approved_mr_seeds: Path? = null
     approved_sequence_groups: Path? = null
     heteromer_control_preparation: Path? = null
+    partner_copy_count: Integer = 1
     profile_mode: String = 'smoke'
     analysis_stage: String = 'task05'
     skip_xtriage: Boolean = false
@@ -60,6 +61,9 @@ workflow {
     ) {
         error 'analysis_stage=heteromer requires --heteromer_control_preparation'
     }
+    if (params.analysis_stage == 'heteromer' && params.partner_copy_count < 1) {
+        error 'analysis_stage=heteromer requires a positive --partner_copy_count'
+    }
     MAIN_WORKFLOW(
         params.catalogues,
         params.crystals,
@@ -72,6 +76,7 @@ workflow {
         params.analysis_stage,
         params.approved_mr_seeds,
         params.heteromer_control_preparation,
+        params.partner_copy_count,
         params.skip_xtriage,
         params.maximum_evalue.toFloat(),
         params.minimum_query_coverage.toFloat(),

@@ -41,6 +41,9 @@ All notable changes to this project are documented here.
   reuses existing SDS/Matthews/model-registry evidence, treats missing gel data
   neutrally, schedules at most 25 searchable candidates, and records every
   deferred or unsearchable reason without executing Phaser.
+- The existing `analysis_stage=heteromer` now fans only selected plan rows into
+  independent fixed-A/joint-B Nextflow processes and writes a typed summary
+  that requires one terminal result for every selected candidate.
 
 ## 0.1.0 - 2026-08-19
 

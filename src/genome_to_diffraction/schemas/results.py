@@ -655,6 +655,9 @@ class PartnerSearchResult(ContractModel):
     partner_component_label: Literal["B"] = "B"
     partner_sequence_group_id: NonEmptyString
     requested_partner_copy_count: PositiveInt = 1
+    selection_plan_id: NonEmptyString | None = None
+    selection_plan_sha256: Sha256Hex | None = None
+    partner_candidate_id: NonEmptyString | None = None
     execution_status: ExecutionStatus
     parent_llg: float
     combined_llg: float | None = None
@@ -684,6 +687,15 @@ class PartnerSearchResult(ContractModel):
 
     @model_validator(mode="after")
     def _validate_partner_transition(self) -> Self:
+        selection_fields = (
+            self.selection_plan_id,
+            self.selection_plan_sha256,
+            self.partner_candidate_id,
+        )
+        if any(value is None for value in selection_fields) != all(
+            value is None for value in selection_fields
+        ):
+            raise ValueError("partner selection provenance must be supplied together")
         metrics = (self.combined_llg, self.incremental_llg, self.partner_tfz)
         if any(value is not None for value in metrics) and any(
             value is None for value in metrics
@@ -739,6 +751,7 @@ class PartnerCandidateSelectionStatus(StrEnum):
     SELECTED = "selected"
     DEFERRED_CAP = "deferred_cap"
     UNSEARCHABLE_NO_MODEL = "unsearchable_no_model"
+    UNSEARCHABLE_MODEL_IDENTITY = "unsearchable_model_identity"
     EXCLUDED_PHYSICAL_IMPOSSIBLE = "excluded_physical_impossible"
     UNSEARCHABLE_MASS = "unsearchable_mass"
 
@@ -818,6 +831,7 @@ class PartnerSearchPlan(ContractModel):
     adapter_version: NonEmptyString
     crystal_id: NonEmptyString
     parent_sequence_group_id: NonEmptyString
+    parent_state_sha256: Sha256Hex | None = None
     parent_copy_count: PositiveInt
     partner_copy_count: PositiveInt
     candidate_count: int = Field(ge=0)
@@ -850,6 +864,55 @@ class PartnerSearchPlan(ContractModel):
             raise ValueError("partner candidate ranks must be contiguous")
         if self.selected_attempt_count != min(self.selection_cap, searchable):
             raise ValueError("partner plan did not fill its bounded first wave")
+        return self
+
+
+class PartnerAttemptSummary(ContractModel):
+    """Complete terminal result inventory for one bounded partner plan."""
+
+    schema_version: Literal["1.0"]
+    summary_id: NonEmptyString
+    plan_id: NonEmptyString
+    plan_sha256: Sha256Hex
+    candidate_count: int = Field(ge=0)
+    selected_attempt_count: int = Field(ge=0, le=25)
+    result_count: int = Field(ge=0, le=25)
+    completed_hit_count: int = Field(ge=0)
+    completed_no_hit_count: int = Field(ge=0)
+    failed_tool_execution_count: int = Field(ge=0)
+    failed_parse_count: int = Field(ge=0)
+    deferred_cap_count: int = Field(ge=0)
+    unsearchable_candidate_count: int = Field(ge=0)
+    selected_candidate_ids: tuple[NonEmptyString, ...]
+    result_candidate_ids: tuple[NonEmptyString, ...]
+    result_search_ids: tuple[NonEmptyString, ...]
+    all_selected_attempts_retained: Literal[True] = True
+    failed_search_proves_partner_absence: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _validate_attempt_inventory(self) -> Self:
+        terminal_count = (
+            self.completed_hit_count
+            + self.completed_no_hit_count
+            + self.failed_tool_execution_count
+            + self.failed_parse_count
+        )
+        if terminal_count != self.result_count:
+            raise ValueError("partner terminal-status counts do not match results")
+        if (
+            self.result_count != self.selected_attempt_count
+            or len(self.selected_candidate_ids) != self.selected_attempt_count
+            or len(self.result_candidate_ids) != self.result_count
+            or len(self.result_search_ids) != self.result_count
+            or set(self.selected_candidate_ids) != set(self.result_candidate_ids)
+        ):
+            raise ValueError("partner attempt inventory is incomplete")
+        if self.candidate_count != (
+            self.selected_attempt_count
+            + self.deferred_cap_count
+            + self.unsearchable_candidate_count
+        ):
+            raise ValueError("partner plan disposition counts do not cover candidates")
         return self
 
 

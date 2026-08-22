@@ -8,8 +8,8 @@ impossible combined composition or absence of usable mass/model evidence makes
 a candidate unsearchable.
 
 This module performs no Phaser work and infers no biological identity. Its
-outputs are ``partner_candidates.jsonl`` and a typed
-``partner_search_plan.json``. The content identity includes all input file
+outputs are ``partner_candidates.jsonl``, a typed ``partner_search_plan.json``,
+and a plain selected-ID fan-out boundary. The content identity includes all input file
 checksums, explicit A/B copy counts, the fixed cap, and the ordered candidate
 states. Focused tests cover SDS ordering, neutral missing evidence, the 25-item
 cap, physical exclusion, missing models, checksum-bound model paths, and
@@ -21,6 +21,7 @@ from collections import defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from pydantic import BaseModel, ValidationError
 
@@ -32,7 +33,11 @@ from genome_to_diffraction.checksums import (
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.matthews.enumerate import physical_status, prior_score
 from genome_to_diffraction.ranking.funnel import FunnelInputError, _manifest_model_paths
-from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_contract,
+    load_json_document,
+)
 from genome_to_diffraction.schemas.manifests import PipelineConfig
 from genome_to_diffraction.schemas.results import (
     MatthewsHypothesis,
@@ -69,16 +74,34 @@ class PartnerPlanRequest:
     pipeline_config: Path
     model_registry_directory: Path
     output_directory: Path
+    parent_state_sha256: str | None = None
+    progress: bool = True
+
+
+@dataclass(frozen=True)
+class ApprovedPartnerPlanRequest:
+    """Inputs for deriving the plan's A composition from an approved stage."""
+
+    approved_stage: Path
+    crystal_id: str
+    partner_copy_count: int
+    sequence_groups_jsonl: Path
+    matthews_hypotheses_jsonl: Path
+    mtz_preflight_jsonl: Path
+    pipeline_config: Path
+    model_registry_directory: Path
+    output_directory: Path
     progress: bool = True
 
 
 @dataclass(frozen=True)
 class PartnerPlanOutput:
-    """Typed plan and its two published representations."""
+    """Typed plan, retained rows, and selected-ID fan-out boundary."""
 
     plan: PartnerSearchPlan
     plan_json: Path
     candidates_jsonl: Path
+    selected_candidate_ids: Path
 
 
 @dataclass(frozen=True)
@@ -364,6 +387,8 @@ def _load_inputs(
                 status = PartnerCandidateSelectionStatus.EXCLUDED_PHYSICAL_IMPOSSIBLE
             elif choice is None:
                 status = PartnerCandidateSelectionStatus.UNSEARCHABLE_NO_MODEL
+            elif choice.sequence_identity is None or choice.sequence_identity <= 0:
+                status = PartnerCandidateSelectionStatus.UNSEARCHABLE_MODEL_IDENTITY
             else:
                 status = None
         candidates.append(
@@ -429,6 +454,7 @@ def build_partner_search_plan(request: PartnerPlanRequest) -> PartnerPlanOutput:
             "parent_copy_count": request.parent_copy_count,
             "partner_sequence_group_id": candidate.group.sequence_group_id,
             "partner_copy_count": request.partner_copy_count,
+            "parent_state_sha256": request.parent_state_sha256,
             "model_id": model.record.model_id if model is not None else None,
         }
         rows.append(
@@ -509,6 +535,7 @@ def build_partner_search_plan(request: PartnerPlanRequest) -> PartnerPlanOutput:
         adapter_version=_ADAPTER_VERSION,
         crystal_id=request.crystal_id,
         parent_sequence_group_id=parent.sequence_group_id,
+        parent_state_sha256=request.parent_state_sha256,
         parent_copy_count=request.parent_copy_count,
         partner_copy_count=request.partner_copy_count,
         candidate_count=len(rows),
@@ -521,9 +548,72 @@ def build_partner_search_plan(request: PartnerPlanRequest) -> PartnerPlanOutput:
     output.mkdir(parents=True, exist_ok=True)
     plan_json = output / "partner_search_plan.json"
     candidates_jsonl = output / "partner_candidates.jsonl"
+    selected_candidate_ids = output / "selected_partner_candidate_ids.txt"
     atomic_write_json(plan_json, plan.model_dump(mode="json"))
     atomic_write_text(
         candidates_jsonl,
         "".join(f"{canonical_json_text(item)}\n" for item in plan.candidates),
     )
-    return PartnerPlanOutput(plan, plan_json, candidates_jsonl)
+    atomic_write_text(
+        selected_candidate_ids,
+        "".join(
+            f"{item.candidate_id}\n"
+            for item in plan.candidates
+            if item.selection_status is PartnerCandidateSelectionStatus.SELECTED
+        ),
+    )
+    return PartnerPlanOutput(plan, plan_json, candidates_jsonl, selected_candidate_ids)
+
+
+def build_approved_partner_search_plan(
+    request: ApprovedPartnerPlanRequest,
+) -> PartnerPlanOutput:
+    """Derive one complete approved A composition and build its B plan."""
+
+    stage = request.approved_stage.resolve(strict=True)
+    manifest_path = stage / "live_m4_stage_manifest.json"
+    try:
+        document = load_json_document(manifest_path)
+    except ContractLoadError as error:
+        raise PartnerPlanInputError(f"cannot load approved A stage: {error}") from error
+    if not isinstance(document, dict):
+        raise PartnerPlanInputError("approved A stage manifest must be an object")
+    approved = document.get("approved_solution_ids")
+    sources = document.get("model_sources")
+    if (
+        document.get("execution_status") != ExecutionStatus.COMPLETED_SUCCESS.value
+        or document.get("approved_seed_count") != 1
+        or not isinstance(approved, list)
+        or len(approved) != 1
+        or not isinstance(approved[0], str)
+        or not isinstance(sources, dict)
+        or not isinstance(sources.get(approved[0]), dict)
+    ):
+        raise PartnerPlanInputError("approved A stage is not one complete seed")
+    source = cast(dict[str, object], sources[approved[0]])
+    sequence_group_id = source.get("sequence_group_id")
+    copy_count = source.get("expected_copy_count")
+    if (
+        not isinstance(sequence_group_id, str)
+        or isinstance(copy_count, bool)
+        or not isinstance(copy_count, int)
+        or copy_count < 1
+        or source.get("requires_additional_copy") is not False
+    ):
+        raise PartnerPlanInputError("approved A composition is incomplete")
+    return build_partner_search_plan(
+        PartnerPlanRequest(
+            crystal_id=request.crystal_id,
+            parent_sequence_group_id=sequence_group_id,
+            parent_copy_count=copy_count,
+            partner_copy_count=request.partner_copy_count,
+            sequence_groups_jsonl=request.sequence_groups_jsonl,
+            matthews_hypotheses_jsonl=request.matthews_hypotheses_jsonl,
+            mtz_preflight_jsonl=request.mtz_preflight_jsonl,
+            pipeline_config=request.pipeline_config,
+            model_registry_directory=request.model_registry_directory,
+            output_directory=request.output_directory,
+            parent_state_sha256=sha256_file(manifest_path),
+            progress=request.progress,
+        )
+    )

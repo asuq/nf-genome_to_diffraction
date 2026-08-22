@@ -10,11 +10,22 @@ from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.mr.approved_partner import (
     ApprovedPartnerSearchRequest,
+    PlannedPartnerSearchRequest,
     run_approved_partner_search,
+    run_planned_partner_search,
 )
 from genome_to_diffraction.mr.partner import PartnerSearchOutput, PartnerSearchRequest
+from genome_to_diffraction.mr.partner_summary import (
+    PartnerSummaryRequest,
+    summarize_partner_attempts,
+)
 from genome_to_diffraction.mr.phaser import PhaserInputError
-from genome_to_diffraction.schemas.results import NormalisedMrResult
+from genome_to_diffraction.schemas.results import (
+    NormalisedMrResult,
+    PartnerCandidateRanking,
+    PartnerSearchPlan,
+    PartnerSearchResult,
+)
 from genome_to_diffraction.status import ExecutionStatus
 
 
@@ -92,8 +103,16 @@ def _request(tmp_path: Path) -> ApprovedPartnerSearchRequest:
             {
                 "execution_status": "completed_success",
                 "approved_seed_count": 1,
+                "approved_solution_ids": [solution_id],
                 "approved_seeds_sha256": sha256_file(approved),
                 "validation_sha256": sha256_file(validation),
+                "model_sources": {
+                    solution_id: {
+                        "sequence_group_id": parent_group,
+                        "expected_copy_count": 1,
+                        "requires_additional_copy": False,
+                    }
+                },
             }
         )
         + "\n",
@@ -142,6 +161,67 @@ def _request(tmp_path: Path) -> ApprovedPartnerSearchRequest:
     )
 
 
+def _planned_request(tmp_path: Path) -> PlannedPartnerSearchRequest:
+    approved = _request(tmp_path)
+    registry = tmp_path / "partner-model-registry"
+    registry.mkdir()
+    model = registry / "partner.pdb"
+    model.write_text("ATOM\n", encoding="ascii")
+    candidate = PartnerCandidateRanking(
+        schema_version="1.0",
+        candidate_id="partnercand_" + "f" * 64,
+        rank=1,
+        sequence_group_id="seq_" + "c" * 64,
+        selection_status="selected",
+        model_id="model_" + "1" * 64,
+        model_path=model.name,
+        model_sha256=sha256_file(model),
+        structural_class="experimental_cleaned_source_chain",
+        model_retained_fraction=0.9,
+        model_sequence_identity=0.8,
+        sds_page_prior_label="compatible",
+        native_page_prior_label="unavailable",
+        combined_physical_status="plausible",
+        combined_solvent_fraction_lower=0.5,
+        combined_solvent_fraction_upper=0.5,
+        combined_matthews_prior=0.9,
+        ordering_reasons=("selection:selected",),
+    )
+    stage_manifest = approved.approved_stage / "live_m4_stage_manifest.json"
+    plan = PartnerSearchPlan(
+        schema_version="1.0",
+        plan_id="partnerplan_" + "2" * 64,
+        adapter_version="catalogue-partner-plan-v1",
+        crystal_id="6RTZ",
+        parent_sequence_group_id="seq_" + "b" * 64,
+        parent_state_sha256=sha256_file(stage_manifest),
+        parent_copy_count=1,
+        partner_copy_count=1,
+        candidate_count=1,
+        searchable_candidate_count=1,
+        selected_attempt_count=1,
+        deferred_cap_count=0,
+        unsearchable_candidate_count=0,
+        candidates=(candidate,),
+    )
+    plan_path = tmp_path / "partner_search_plan.json"
+    plan_path.write_text(f"{canonical_json_text(plan)}\n", encoding="utf-8")
+    return PlannedPartnerSearchRequest(
+        approved_stage=approved.approved_stage,
+        review_package=approved.review_package,
+        partner_plan_json=plan_path,
+        partner_candidate_id=candidate.candidate_id,
+        sequence_groups_jsonl=approved.sequence_groups_jsonl,
+        model_registry_directory=registry,
+        preflight_jsonl=approved.preflight_jsonl,
+        mtz=approved.mtz,
+        phenix_manifest=approved.phenix_manifest,
+        output_directory=tmp_path / "planned-output",
+        threads=8,
+        progress=False,
+    )
+
+
 def test_approved_seed_binds_parent_llg_and_fixed_partner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -180,3 +260,99 @@ def test_bridge_rejects_changed_review_result(tmp_path: Path) -> None:
 
     with pytest.raises(PhaserInputError, match="result checksum differs"):
         run_approved_partner_search(request)
+
+
+def test_planned_partner_binds_selection_and_approved_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _planned_request(tmp_path)
+    captured: list[PartnerSearchRequest] = []
+    sentinel = cast(PartnerSearchOutput, object())
+
+    def fake_run(partner_request: PartnerSearchRequest) -> PartnerSearchOutput:
+        captured.append(partner_request)
+        return sentinel
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.mr.approved_partner.run_partner_search", fake_run
+    )
+
+    assert run_planned_partner_search(request) is sentinel
+    assert len(captured) == 1
+    partner_request = captured[0]
+    assert partner_request.parent_sequence_group_id == "seq_" + "b" * 64
+    assert partner_request.partner_sequence_group_id == "seq_" + "c" * 64
+    assert partner_request.selection_plan_id == "partnerplan_" + "2" * 64
+    assert partner_request.selection_plan_sha256 == sha256_file(
+        request.partner_plan_json
+    )
+    assert partner_request.partner_candidate_id == request.partner_candidate_id
+    assert partner_request.partner_model_identity_fraction == 0.8
+
+
+def test_planned_partner_rejects_changed_model(tmp_path: Path) -> None:
+    request = _planned_request(tmp_path)
+    (request.model_registry_directory / "partner.pdb").write_text(
+        "changed\n", encoding="ascii"
+    )
+
+    with pytest.raises(PhaserInputError, match="model checksum differs"):
+        run_planned_partner_search(request)
+
+
+def test_partner_summary_requires_every_selected_result(tmp_path: Path) -> None:
+    request = _planned_request(tmp_path)
+    plan = PartnerSearchPlan.model_validate_json(
+        request.partner_plan_json.read_text(encoding="utf-8")
+    )
+    result_directory = tmp_path / "result"
+    result_directory.mkdir()
+    result = PartnerSearchResult(
+        schema_version="1.0",
+        search_id="partner_" + "3" * 64,
+        crystal_id=plan.crystal_id,
+        tool_version="stub",
+        parent_solution_id="sol_" + "a" * 64,
+        parent_sequence_group_id=plan.parent_sequence_group_id,
+        partner_sequence_group_id=plan.candidates[0].sequence_group_id,
+        selection_plan_id=plan.plan_id,
+        selection_plan_sha256=sha256_file(request.partner_plan_json),
+        partner_candidate_id=plan.candidates[0].candidate_id,
+        execution_status="completed_no_hit",
+        parent_llg=321.5,
+        solution_count=0,
+        top_solution_packed=False,
+        fixed_parent_placement_observed=False,
+        partner_placement_count=0,
+        partner_placement_observed=False,
+        parent_coordinate_sha256="4" * 64,
+        partner_model_sha256=plan.candidates[0].model_sha256 or "5" * 64,
+        mtz_sha256="6" * 64,
+        raw_log_pointer="PHASER.log",
+        command_pointer="phaser_command.json",
+        parameters_pointer="partner_search.eff",
+        rejection_reason="phaser_reported_no_partner_solution",
+    )
+    (result_directory / "partner_search_result.json").write_text(
+        f"{canonical_json_text(result)}\n", encoding="utf-8"
+    )
+
+    summary = summarize_partner_attempts(
+        PartnerSummaryRequest(
+            partner_plan_json=request.partner_plan_json,
+            result_directories=(result_directory,),
+            output_json=tmp_path / "summary.json",
+        )
+    )
+
+    assert summary.result_count == 1
+    assert summary.completed_no_hit_count == 1
+    assert summary.all_selected_attempts_retained is True
+    with pytest.raises(PhaserInputError, match="inventory is incomplete"):
+        summarize_partner_attempts(
+            PartnerSummaryRequest(
+                partner_plan_json=request.partner_plan_json,
+                result_directories=(),
+                output_json=tmp_path / "missing-summary.json",
+            )
+        )

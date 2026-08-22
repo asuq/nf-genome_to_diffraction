@@ -1,0 +1,20 @@
+{
+  "all_selected_attempts_retained": true,
+  "candidate_count": 1,
+  "completed_hit_count": 0,
+  "completed_no_hit_count": 1,
+  "deferred_cap_count": 0,
+  "failed_parse_count": 0,
+  "failed_search_proves_partner_absence": false,
+  "failed_tool_execution_count": 0,
+  "plan_id": "partnerplan_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "plan_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "result_candidate_ids": ["partnercand_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+  "result_count": 1,
+  "result_search_ids": ["partner_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+  "schema_version": "1.0",
+  "selected_attempt_count": 1,
+  "selected_candidate_ids": ["partnercand_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+  "summary_id": "partnersummary_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "unsearchable_candidate_count": 0
+}

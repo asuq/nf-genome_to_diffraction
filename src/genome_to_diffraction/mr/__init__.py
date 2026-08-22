@@ -9,7 +9,9 @@ from genome_to_diffraction.mr.add_copy import (
 )
 from genome_to_diffraction.mr.approved_partner import (
     ApprovedPartnerSearchRequest,
+    PlannedPartnerSearchRequest,
     run_approved_partner_search,
+    run_planned_partner_search,
 )
 from genome_to_diffraction.mr.copy_report import (
     CopyCountReportOutput,
@@ -20,6 +22,10 @@ from genome_to_diffraction.mr.partner import (
     PartnerSearchOutput,
     PartnerSearchRequest,
     run_partner_search,
+)
+from genome_to_diffraction.mr.partner_summary import (
+    PartnerSummaryRequest,
+    summarize_partner_attempts,
 )
 from genome_to_diffraction.mr.phaser import (
     ParsedPhaserLog,
@@ -43,10 +49,12 @@ __all__ = [
     "ParsedPhaserLog",
     "PartnerSearchOutput",
     "PartnerSearchRequest",
+    "PartnerSummaryRequest",
     "PhaserInputError",
     "PhaserParseError",
     "PhaserRunOutput",
     "PhaserRunRequest",
+    "PlannedPartnerSearchRequest",
     "build_copy_count_report",
     "parse_completed_phaser_outputs",
     "parse_phaser_log",
@@ -56,4 +64,6 @@ __all__ = [
     "run_approved_partner_search",
     "run_first_copy_phaser",
     "run_partner_search",
+    "run_planned_partner_search",
+    "summarize_partner_attempts",
 ]
