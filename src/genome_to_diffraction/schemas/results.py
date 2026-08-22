@@ -634,6 +634,105 @@ class AdditionalCopyResult(ContractModel):
         return self
 
 
+class PartnerSearchResult(ContractModel):
+    """One fixed-A Phaser attempt to place exactly one B component.
+
+    ``partner_tfz`` is component-specific because B is the only searched
+    ensemble. ``incremental_llg`` compares the combined A+B solution with the
+    supplied parent-A LLG, and the score cohort uses that increment rather than
+    total LLG dominated by A. Packing and coordinate markers are retained as
+    search evidence and are not treated as proof of biological composition.
+    """
+
+    schema_version: Literal["1.0"]
+    search_id: NonEmptyString
+    crystal_id: NonEmptyString
+    tool_version: NonEmptyString
+    parent_solution_id: NonEmptyString
+    parent_component_label: Literal["A"] = "A"
+    parent_sequence_group_id: NonEmptyString
+    parent_copy_count: Literal[1] = 1
+    partner_component_label: Literal["B"] = "B"
+    partner_sequence_group_id: NonEmptyString
+    requested_partner_copy_count: Literal[1] = 1
+    execution_status: ExecutionStatus
+    parent_llg: float
+    combined_llg: float | None = None
+    incremental_llg: float | None = None
+    partner_tfz: float | None = None
+    solution_count: int = Field(ge=0)
+    top_solution_packed: bool
+    fixed_parent_placement_observed: bool
+    partner_placement_count: int = Field(ge=0)
+    partner_placement_observed: bool
+    score_cohort: Literal["primary", "fallback", "below_threshold"] | None = None
+    combined_solution_id: NonEmptyString | None = None
+    combined_coordinate_path: str | None = None
+    combined_coordinate_sha256: Sha256Hex | None = None
+    output_mtz_path: str | None = None
+    output_mtz_sha256: Sha256Hex | None = None
+    parent_coordinate_sha256: Sha256Hex
+    partner_model_sha256: Sha256Hex
+    mtz_sha256: Sha256Hex
+    raw_log_pointer: NonEmptyString
+    command_pointer: NonEmptyString
+    parameters_pointer: NonEmptyString
+    parent_retained: Literal[True] = True
+    failed_search_proves_partner_absence: Literal[False] = False
+    warnings: tuple[str, ...] = ()
+    rejection_reason: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_partner_transition(self) -> Self:
+        metrics = (self.combined_llg, self.incremental_llg, self.partner_tfz)
+        if any(value is not None for value in metrics) and any(
+            value is None for value in metrics
+        ):
+            raise ValueError("partner LLG, incremental LLG, and TFZ must be paired")
+        if self.combined_llg is not None and self.incremental_llg is not None:
+            expected_delta = self.combined_llg - self.parent_llg
+            if not math.isclose(
+                self.incremental_llg, expected_delta, rel_tol=1e-10, abs_tol=1e-8
+            ):
+                raise ValueError("incremental LLG does not match combined-parent LLG")
+        if (self.score_cohort is None) != (self.combined_llg is None):
+            raise ValueError("score cohort must be present exactly when metrics exist")
+        observed = (
+            self.fixed_parent_placement_observed and self.partner_placement_count == 1
+        )
+        if self.partner_placement_observed != observed:
+            raise ValueError("partner placement flag disagrees with coordinate markers")
+        assets = (
+            self.combined_solution_id,
+            self.combined_coordinate_path,
+            self.combined_coordinate_sha256,
+            self.output_mtz_path,
+            self.output_mtz_sha256,
+        )
+        if self.execution_status is ExecutionStatus.COMPLETED_HIT:
+            if self.solution_count < 1 or any(value is None for value in assets):
+                raise ValueError("completed partner hit lacks combined solution assets")
+            if self.combined_llg is None:
+                raise ValueError("completed partner hit lacks final metrics")
+        else:
+            if self.solution_count != 0 or any(value is not None for value in assets):
+                raise ValueError(
+                    "non-hit partner result must not claim solution assets"
+                )
+            if any(value is not None for value in metrics):
+                raise ValueError("non-hit partner result must not claim final metrics")
+            if self.top_solution_packed or self.partner_placement_observed:
+                raise ValueError("non-hit partner result must not claim placement")
+        if self.execution_status not in {
+            ExecutionStatus.COMPLETED_HIT,
+            ExecutionStatus.COMPLETED_NO_HIT,
+            ExecutionStatus.FAILED_TOOL_EXECUTION,
+            ExecutionStatus.FAILED_PARSE,
+        }:
+            raise ValueError("unsupported fixed-A/one-B execution status")
+        return self
+
+
 class CopyCountAssessment(ContractModel):
     """Matthews-intended and empirically supported count for one retained seed."""
 

@@ -497,7 +497,7 @@ def parse_phaser_log(text: str) -> ParsedPhaserLog:
     )
 
 
-def _parse_completed_outputs(text: str, output: Path) -> ParsedPhaserLog:
+def parse_completed_phaser_outputs(text: str, output: Path) -> ParsedPhaserLog:
     """Parse a completed run, using final solution files when logs omit a count.
 
     Phenix 2.1-6048 can exit successfully and write the complete top PDB/MTZ
@@ -594,7 +594,7 @@ def _failure_result(
     )
 
 
-def _read_solution_metrics(
+def read_phaser_solution_metrics(
     parsed: ParsedPhaserLog,
     coordinate_path: Path,
 ) -> tuple[float | None, float | None, int, float | None]:
@@ -648,7 +648,7 @@ def _normalised_success(
         )
     if not coordinate.is_file() or not output_mtz.is_file():
         raise PhaserParseError("Phaser solution is missing PDB or MTZ output")
-    llg, tfz, placed_count, pak = _read_solution_metrics(parsed, coordinate)
+    llg, tfz, placed_count, pak = read_phaser_solution_metrics(parsed, coordinate)
     if llg is None or tfz is None or placed_count < 1:
         raise PhaserParseError("Phaser solution files lack final placement metrics")
     score_gate = passes_provisional_score_gate(llg=llg, tfz=tfz)
@@ -803,7 +803,7 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
         return _write_result(output, result, command_json)
     log_text = raw_log.read_text(encoding="utf-8", errors="replace")
     try:
-        parsed = _parse_completed_outputs(log_text, output)
+        parsed = parse_completed_phaser_outputs(log_text, output)
         tool_version = (
             f"Phenix {phenix_manifest.phenix_version}; Phaser {parsed.phaser_version}"
             if parsed.phaser_version is not None

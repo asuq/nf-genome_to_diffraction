@@ -10,6 +10,13 @@ All notable changes to this project are documented here.
   heteromer prototype. The immutable `v0.1.0` archival release remains
   unchanged.
 
+### Added
+
+- A minimal checksum-bound `1A + 1B` Phaser adapter that fixes one placed A
+  coordinate, searches only B, retains the combined PDB/MTZ and raw evidence,
+  and reports B-specific TFZ plus incremental LLG without treating a failed
+  search as proof that B is absent.
+
 ## 0.1.0 - 2026-08-19
 
 This is an archival, incomplete research-prototype release. It preserves the

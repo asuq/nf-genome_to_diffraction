@@ -104,11 +104,13 @@ from genome_to_diffraction.model_registry import (
 from genome_to_diffraction.mr import (
     AddCopyRunRequest,
     CopyCountReportRequest,
+    PartnerSearchRequest,
     PhaserRunRequest,
     build_copy_count_report,
     run_additional_copy_phaser,
     run_additional_copy_series,
     run_first_copy_phaser,
+    run_partner_search,
 )
 from genome_to_diffraction.mr.stage_add_copy import (
     AddCopyStageRequest,
@@ -1013,6 +1015,33 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     add_copy_parser.add_argument("--threads", type=int, default=1)
     add_copy_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        help="optional explicit Phaser deadline; by default no deadline is imposed",
+    )
+    partner_parser = mr_actions.add_parser(
+        "search-partner",
+        help="fix one A solution and search exactly one B component",
+    )
+    partner_parser.add_argument("--crystal-id", required=True)
+    partner_parser.add_argument("--parent-solution-id", required=True)
+    partner_parser.add_argument("--parent-sequence-group-id", required=True)
+    partner_parser.add_argument("--partner-sequence-group-id", required=True)
+    partner_parser.add_argument("--sequence-groups", type=Path, required=True)
+    partner_parser.add_argument("--parent-coordinate", type=Path, required=True)
+    partner_parser.add_argument("--expected-parent-coordinate-sha256", required=True)
+    partner_parser.add_argument("--parent-llg", type=float, required=True)
+    partner_parser.add_argument("--partner-model", type=Path, required=True)
+    partner_parser.add_argument("--expected-partner-model-sha256", required=True)
+    partner_parser.add_argument(
+        "--partner-model-identity-fraction", type=float, required=True
+    )
+    partner_parser.add_argument("--preflight", type=Path, required=True)
+    partner_parser.add_argument("--mtz", type=Path, required=True)
+    partner_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    partner_parser.add_argument("--outdir", type=Path, required=True)
+    partner_parser.add_argument("--threads", type=int, default=1)
+    partner_parser.add_argument(
         "--timeout-seconds",
         type=float,
         help="optional explicit Phaser deadline; by default no deadline is imposed",
@@ -2245,6 +2274,37 @@ def _run_mr(args: argparse.Namespace) -> int:
             "Additional-copy MR "
             f"{add_copy_output.result.execution_status.value}: "
             f"{add_copy_output.result_json}"
+        )
+        return 0
+    if args.mr_action == "search-partner":
+        partner_output = run_partner_search(
+            PartnerSearchRequest(
+                crystal_id=args.crystal_id,
+                parent_solution_id=args.parent_solution_id,
+                parent_sequence_group_id=args.parent_sequence_group_id,
+                partner_sequence_group_id=args.partner_sequence_group_id,
+                sequence_groups_jsonl=args.sequence_groups,
+                parent_coordinate=args.parent_coordinate,
+                expected_parent_coordinate_sha256=(
+                    args.expected_parent_coordinate_sha256
+                ),
+                parent_llg=args.parent_llg,
+                partner_model=args.partner_model,
+                expected_partner_model_sha256=args.expected_partner_model_sha256,
+                partner_model_identity_fraction=(args.partner_model_identity_fraction),
+                preflight_jsonl=args.preflight,
+                mtz=args.mtz,
+                phenix_manifest=args.phenix_manifest,
+                output_directory=args.outdir,
+                threads=args.threads,
+                timeout_seconds=args.timeout_seconds,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            "Partner MR "
+            f"{partner_output.result.execution_status.value}: "
+            f"{partner_output.result_json}"
         )
         return 0
     if args.mr_action != "first-copy":

@@ -9427,3 +9427,42 @@ Use focused tests and real Phenix early; do not resume R3/M6 hardening first.
 Begin P1 with the smallest fixed-A/one-B Phaser adapter and focused
 command/parser/failure tests. Do not resume broad R2--R4 or M6 hardening unless
 the known 6RTZ control exposes a specific blocker.
+
+## 2026-08-22T14:38:49Z - P1 fixed-A/one-B adapter is locally green
+
+### Completed implementation
+
+- Added one deliberately bounded `1A + 1B` adapter and CLI action. It verifies
+  the two exact-sequence groups, fixed A coordinate, B search model, MTZ
+  preflight, and Phenix manifest; fixes A with `solution_at_origin = True`; and
+  searches exactly one B ensemble.
+- Added a typed partner-search result that keeps explicit no-solution, tool
+  failure, and parse failure separate. A failed search never proves B absent,
+  and packing/component markers remain search evidence rather than biological
+  proof.
+- The adapter records the combined solution files, B-specific TFZ, and
+  `incremental_llg = LLG(A+B) - LLG(A)`. Primary/fallback classification uses
+  that increment, not total LLG dominated by A: strict `>100`/`>10`, then
+  strict `>50`/`>5`.
+- Reused the existing tested Phaser completed-output and final-coordinate
+  metric parsers instead of adding a second interpretation path. General
+  `nA + mB`, Nextflow orchestration, catalogue partner selection, and unrelated
+  hardening remain outside this slice.
+
+### Local evidence and open gate
+
+- 154 focused partner, first-copy, add-copy, CLI, and typed-contract tests pass.
+  Targeted Ruff format/lint, targeted `ty`, documentation links, and
+  `git diff --check` pass.
+- No full repository gate was run; this is an adapter milestone rather than an
+  end-to-end or release boundary.
+- P1 remains unaccepted until the same adapter runs against real installed
+  Phenix using checksum-reviewed 6RTZ A-parent, HisH B-model, sequence,
+  preflight, and parent-LLG inputs.
+
+### Next exact starting point
+
+Prepare the smallest fixed Marmic 6RTZ adapter-isolation profile, validate its
+local fake lifecycle, then push the immutable source only with explicit user
+authority and run exactly one real Phenix job through the reviewed wrapper.
+Classify that result before adding end-to-end Nextflow or general `nA + mB`.
