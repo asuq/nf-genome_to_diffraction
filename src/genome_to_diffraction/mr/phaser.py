@@ -747,7 +747,7 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
         extra={
             "hypothesis_id": resolved.hypothesis.hypothesis_id,
             "copy_count_expected": resolved.hypothesis.copy_count_expected,
-            "copy_number_to_search": 1,
+            "copy_number_to_search": resolved.hypothesis.copy_number_to_search,
             "model_identity_percent": resolved.model_identity_percent,
             "threads": request.threads,
             "output_directory": str(output),

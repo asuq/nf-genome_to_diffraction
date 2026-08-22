@@ -2501,7 +2501,7 @@ submit_run() {
     fi
     if [[ "$profile" == heteromer-smoke ]]; then
         cpus=8
-        memory=16G
+        memory=32G
     fi
     if [[ "$profile" == m6-inputs ]]; then
         cpus=1

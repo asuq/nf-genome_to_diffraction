@@ -4066,7 +4066,7 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert submitted["profile"] == "heteromer-smoke"
     arguments = (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
     assert "--cpus-per-task=8" in arguments
-    assert "--mem=16G" in arguments
+    assert "--mem=32G" in arguments
     assert "--time=24:00:00" in arguments
 
     job_environment = dict(environment)

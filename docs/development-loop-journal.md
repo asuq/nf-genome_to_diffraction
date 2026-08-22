@@ -9827,3 +9827,33 @@ Run the named P4 locked gate, inspect the complete diff, commit and push one
 coherent joint-copy milestone, watch exactly one CI run, deploy matching tools,
 and stage exactly one evolved `heteromer-smoke` on Marmic. Collect and classify
 both controls before starting P5 catalogue partner enumeration.
+
+## 2026-08-22T20:34:00Z - P4 reaches joint B search; 16 GB is insufficient
+
+### Terminal evidence and classification
+
+- Source `00b29ccd66618553bfbdc8156aa12c7669de5177` passed Actions run
+  `32594507579`, job `97083257467`, in 7m22s. Matching tools were deployed with
+  dispatcher and job-wrapper SHA-256 values
+  `71a935c065fdbebd25d966843c8a36f12c2d1bfd4c433774e49ee8e3123cc2ca`
+  and `e5ff5a05191afef2160cc25016ad86e2296fdeb29cee68fa71998a4b9554c8a1`.
+- Marmic run `gtd-heteromer-smoke-20260822T195026Z-00b29ccd6661-d2a3877c`,
+  Slurm `632812`, completed terminal `OUT_OF_MEMORY`; retained failure signature
+  is `c22e70e9c300f0a0f21efb4dab69fea4ce70c71648f61871a987bcc1b2dec548`.
+  Preserve it; do not resume, clean, or reinterpret it.
+- The unchanged 6RTZ checkpoint path passed. Real 3U7Q Xtriage passed at 1.000 A
+  in `P 1 21 1`; the joint A command requested two copies and retained exactly
+  two packed placements with LLG 17887.289 and TFZ 127.4. The fixed-A/joint-B
+  command correctly declared `2A + 2B`, but Slurm recorded a cgroup OOM and
+  Phaser exited `-9` before a B solution. All eighteen retained checksums pass.
+- This is a fixed-profile capacity defect, not a scientific no-hit or adapter
+  parse failure. Increase only `heteromer-smoke` memory from 16 to 32 GB. Also
+  correct the first-copy start log to report the actual joint search count; it
+  had logged one while the retained command correctly searched two.
+
+### Next exact starting point
+
+Run the focused fake Marmic lifecycle, first-copy logger test, wrapper syntax,
+and diff checks; commit/push this narrow correction, watch one CI run, deploy
+matching tools, and stage one fresh 32 GB successor. Do not start P5 until it is
+terminal, collected, and classified.
