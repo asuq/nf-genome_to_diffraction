@@ -9646,3 +9646,43 @@ Commit/push this dependency reduction, watch one CI run, deploy the matching
 tools, and stage exactly one `heteromer-smoke` through the explicit Marmic
 configuration. Submit only that owned staged run, then monitor, collect, and
 classify before any further feature work.
+
+## 2026-08-22T17:33:04Z - First real heteromer smoke reaches legacy Phenix boundary
+
+### Immutable run and terminal classification
+
+- Source `d53e17d274cdac0a78dc44aae1fbd7637fc0fab6` passed Actions run
+  `32587350629`, job `97065649788`, in 5m35s and deployed with dispatcher,
+  job-wrapper, and recovery SHA-256 values
+  `a333050b7a6840f2996f01212a3d37d5e5f04bdb00913ee6d60f5cb1a2623081`,
+  `8908dfca9c6e15330e6ae5defcdaffc6eb28f646c5f84e008535077473c5adc6`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Staged the one owned run
+  `gtd-heteromer-smoke-20260822T172504Z-d53e17d274cd-20eced0a` through the
+  checksum-gated source-archive fallback and submitted Slurm job `632765` with
+  the fixed 8-CPU/16-GB/24-hour profile.
+- The job terminated `FAILED`, exit 1, classified `environment_failure`.
+  Bounded logs and collection show every prepared 6RTZ input passed its staged
+  checksum. Execution stopped before Xtriage at Phenix-manifest loading because
+  the preserved Marmic manifest predates executable hashing and lacks
+  `executable_sha256` for all seven required commands. Collected failure
+  signature is
+  `06f6f220eb9c9abfb800822e3cfb74632cb6cf9cd1ce00febab6d3aa737a7674`.
+- This is a manifest-compatibility/configuration defect, not a scientific
+  no-hit, Phaser failure, scheduler failure, or damaged input. Do not resume,
+  clean, or reinterpret run `632765`.
+
+### Smallest correction and next exact starting point
+
+- Added a non-destructive `phenix refresh-manifest` operation. It requires the
+  legacy manifest to remain verified, verifies its recorded `phenix_env.sh`
+  checksum, re-probes the same installed build, hashes every resolved required
+  executable, and writes a strict run-owned successor; the site manifest and
+  licensed installation remain unchanged.
+- The heteromer job now refreshes first and uses only that run-owned successor.
+  The refreshed manifest is included in bounded collection and final checksums.
+- Focused refresh, environment-drift, partner, and complete fake Marmic
+  lifecycle tests pass; Ruff, `ty`, Bash syntax, and diff checks pass.
+- Commit/push this correction, watch one CI run, deploy matching tools, and
+  stage/submit exactly one fresh `heteromer-smoke`. Collect/classify it before
+  any end-to-end or `nA + mB` work.

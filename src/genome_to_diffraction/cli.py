@@ -128,6 +128,7 @@ from genome_to_diffraction.phenix.recovery import (
 )
 from genome_to_diffraction.phenix.runtime import (
     execute_from_manifest,
+    refresh_legacy_manifest,
     verify_manifest,
 )
 from genome_to_diffraction.ranking import (
@@ -348,6 +349,23 @@ def _build_parser() -> argparse.ArgumentParser:
         help="allow runtime probes to complete without a per-command deadline",
     )
     verify_parser.set_defaults(command_timeout_seconds=120.0)
+
+    refresh_parser = phenix_actions.add_parser(
+        "refresh-manifest",
+        help="write an executable-hashed successor for one verified legacy manifest",
+    )
+    refresh_parser.add_argument("--manifest", type=Path, required=True)
+    refresh_parser.add_argument("--output", type=Path, required=True)
+    refresh_parser.add_argument("--verification-log", type=Path)
+    refresh_timeout = refresh_parser.add_mutually_exclusive_group()
+    refresh_timeout.add_argument("--command-timeout-seconds", type=float)
+    refresh_timeout.add_argument(
+        "--no-command-timeout",
+        dest="command_timeout_seconds",
+        action="store_const",
+        const=None,
+    )
+    refresh_parser.set_defaults(command_timeout_seconds=120.0)
 
     recover_parser = phenix_actions.add_parser(
         "recover-failed",
@@ -1441,6 +1459,16 @@ def _run_phenix(args: argparse.Namespace, logger: logging.Logger) -> int:
         print(
             f"Verified Phenix {inspection.phenix_version}: {inspection.phenix_prefix}"
         )
+        return 0
+    if args.phenix_action == "refresh-manifest":
+        manifest = refresh_legacy_manifest(
+            args.manifest,
+            args.output,
+            progress=not args.no_progress,
+            timeout_seconds=args.command_timeout_seconds,
+            verification_log=args.verification_log,
+        )
+        print(f"Refreshed Phenix {manifest.phenix_version}: {args.output}")
         return 0
     if args.phenix_action == "recover-failed":
         manifest = recover_failed_install(

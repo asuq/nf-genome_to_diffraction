@@ -3161,6 +3161,7 @@ collect_run() {
         artifacts/qualification/p2-control-phenix-verification.log \
         artifacts/qualification/heteromer-smoke-summary.json \
         artifacts/qualification/heteromer-smoke-checksums.sha256 \
+        artifacts/qualification/heteromer-smoke-phenix-manifest.json \
         artifacts/qualification/heteromer-smoke-phenix-verification.log \
         artifacts/qualification/control-slice-summary.json \
         artifacts/qualification/control-slice-case-results.jsonl \

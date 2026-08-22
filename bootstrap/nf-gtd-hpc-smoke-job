@@ -1662,11 +1662,13 @@ run_heteromer_smoke() {
     local parent_hypothesis_id parent_sequence_group_id partner_sequence_group_id
     local parent_llg parent_coordinate_relative parent_coordinate_sha256
     local parent_coordinate partner_model_sha256 gate_passed expected_phenix_sha256
+    local legacy_phenix_manifest refreshed_phenix_manifest
     local -a preparation_values=() parent_values=()
 
     [[ -f "$RUN/state/phenix-manifest" && \
        -f "$RUN/state/phenix-manifest-sha256" ]] || return 2
     PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
+    legacy_phenix_manifest="$PHENIX_MANIFEST"
     expected_phenix_sha256="$(<"$RUN/state/phenix-manifest-sha256")"
     [[ "$PHENIX_MANIFEST" =~ $SAFE_PATH_RE && \
        -f "$PHENIX_MANIFEST" && ! -L "$PHENIX_MANIFEST" && \
@@ -1685,10 +1687,13 @@ run_heteromer_smoke() {
     [[ -f "$RUN/state/heteromer-login-stage.sha256" ]] || return 2
     sha256sum -c "$RUN/state/heteromer-login-stage.sha256"
     printf 'phase=heteromer_phenix_verify profile=heteromer-smoke\n'
-    "$GTD" --log-format json --no-progress phenix verify \
-        --manifest "$PHENIX_MANIFEST" \
+    refreshed_phenix_manifest="$qualification/heteromer-smoke-phenix-manifest.json"
+    "$GTD" --log-format json --no-progress phenix refresh-manifest \
+        --manifest "$legacy_phenix_manifest" \
+        --output "$refreshed_phenix_manifest" \
         --verification-log "$qualification/heteromer-smoke-phenix-verification.log" \
         --no-command-timeout
+    PHENIX_MANIFEST="$refreshed_phenix_manifest"
 
     PHASE=test
     printf 'phase=heteromer_mtz_preflight profile=heteromer-smoke\n'
@@ -1845,6 +1850,7 @@ PY
         cd "$RUN"
         sha256sum \
             artifacts/heteromer-smoke/inputs/preparation_manifest.json \
+            artifacts/qualification/heteromer-smoke-phenix-manifest.json \
             artifacts/heteromer-smoke/preflight/mtz_preflight.jsonl \
             artifacts/heteromer-smoke/parent/normalised_mr_result.json \
             artifacts/heteromer-smoke/parent/phaser_command.json \

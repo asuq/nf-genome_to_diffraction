@@ -263,6 +263,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "previous=\n"
         "output=\n"
         "outdir=\n"
+        "refreshed=\n"
         "verification_log=\n"
         'case " $* " in\n'
         '  *" catalogue import "*) mode=catalogue ;;\n'
@@ -271,6 +272,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  *" structure-search register-pdb-coordinates "*) mode=register ;;\n'
         '  *" benchmark prepare-public-control "*) mode=public_control ;;\n'
         '  *" benchmark prepare-6rtz-heteromer-control "*) mode=heteromer ;;\n'
+        '  *" phenix refresh-manifest "*) mode=phenix_refresh ;;\n'
         '  *" phenix verify "*) mode=phenix_verify ;;\n'
         '  *" diffraction preflight "*) mode=preflight ;;\n'
         '  *" mr first-copy "*) mode=first_copy ;;\n'
@@ -280,6 +282,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         'for argument in "$@"; do\n'
         '  [[ "$previous" != --manifest ]] || output="$argument"\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
+        '  [[ "$previous" != --output ]] || refreshed="$argument"\n'
         '  [[ "$previous" != --verification-log ]] || verification_log="$argument"\n'
         '  previous="$argument"\n'
         "done\n"
@@ -365,6 +368,11 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  [[ -n "$verification_log" ]] || exit 17\n'
         '  mkdir -p "$(dirname "$verification_log")"\n'
         '  printf "fake Phenix verified\\n" > "$verification_log"\n'
+        'elif [[ "$mode" == phenix_refresh ]]; then\n'
+        '  [[ -n "$verification_log" && -n "$refreshed" ]] || exit 18\n'
+        '  mkdir -p "$(dirname "$verification_log")"\n'
+        '  printf "fake Phenix refreshed\\n" > "$verification_log"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$refreshed"\n'
         'elif [[ "$mode" == preflight ]]; then\n'
         '  mkdir -p "$outdir/xtriage"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mtz_preflight.jsonl"\n'

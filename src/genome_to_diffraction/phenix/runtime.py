@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import platform
+import re
 import shutil
 import subprocess
 from collections.abc import Mapping, Sequence
@@ -19,10 +20,14 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from genome_to_diffraction.checksums import atomic_write_text, sha256_file
+from genome_to_diffraction.checksums import (
+    atomic_write_json,
+    atomic_write_text,
+    sha256_file,
+)
 from genome_to_diffraction.ids import canonical_digest
 from genome_to_diffraction.phenix.errors import PhenixRuntimeVerificationError
-from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.io import load_contract, load_json_document
 from genome_to_diffraction.schemas.manifests import (
     PhenixCommandRecord,
     PhenixInstallManifest,
@@ -626,6 +631,136 @@ def verify_manifest(
         timeout_seconds=timeout_seconds,
         verification_log=verification_log,
     )
+
+
+def refresh_legacy_manifest(
+    manifest_path: Path,
+    output_path: Path,
+    *,
+    progress: bool = True,
+    timeout_seconds: float | None = 120.0,
+    verification_log: Path | None = None,
+) -> PhenixInstallManifest:
+    """Write a strict executable-hashed successor for one verified legacy manifest.
+
+    The source manifest and installation are never modified. The legacy
+    ``phenix_env.sh`` checksum must still match before the same runtime is
+    re-probed and every required executable is hashed.
+    """
+
+    source = manifest_path.resolve(strict=True)
+    output = output_path.absolute()
+    if output.exists() or output.is_symlink():
+        raise PhenixRuntimeVerificationError(
+            f"refreshed Phenix manifest output already exists: {output}"
+        )
+    raw = load_json_document(source)
+    if not isinstance(raw, dict):
+        raise PhenixRuntimeVerificationError("legacy Phenix manifest is not an object")
+    if raw.get("schema_version") != "1.0" or raw.get("status") != "verified":
+        raise PhenixRuntimeVerificationError(
+            "legacy Phenix manifest must be schema 1.0 with verified status"
+        )
+    phenix_version = raw.get("phenix_version")
+    prefix_text = raw.get("installation_prefix")
+    environment_text = raw.get("phenix_env_sh")
+    environment_sha256 = raw.get("phenix_env_sha256")
+    installer_sha256 = raw.get("installer_sha256")
+    installed_at = raw.get("installed_at")
+    if (
+        not isinstance(phenix_version, str)
+        or not phenix_version
+        or not isinstance(prefix_text, str)
+        or not prefix_text
+        or not isinstance(environment_text, str)
+        or not environment_text
+        or not isinstance(installed_at, str)
+        or not installed_at
+    ):
+        raise PhenixRuntimeVerificationError(
+            "legacy Phenix manifest lacks required installation identity"
+        )
+    if (
+        not isinstance(environment_sha256, str)
+        or re.fullmatch(r"[a-f0-9]{64}", environment_sha256) is None
+        or not isinstance(installer_sha256, str)
+        or re.fullmatch(r"[a-f0-9]{64}", installer_sha256) is None
+    ):
+        raise PhenixRuntimeVerificationError(
+            "legacy Phenix manifest lacks valid environment/installer checksums"
+        )
+    prefix = Path(prefix_text).resolve(strict=True)
+    environment = Path(environment_text).resolve(strict=True)
+    if environment != prefix / "phenix_env.sh" or not environment.is_file():
+        raise PhenixRuntimeVerificationError(
+            "legacy Phenix environment does not match its installation prefix"
+        )
+    if sha256_file(environment) != environment_sha256:
+        raise PhenixRuntimeVerificationError(
+            "legacy phenix_env.sh checksum changed before manifest refresh"
+        )
+    requested_release = raw.get("requested_release")
+    if not isinstance(requested_release, str) or not requested_release:
+        requested_release = phenix_version.split("-", maxsplit=1)[0]
+    requested_build = raw.get("requested_build")
+    if not isinstance(requested_build, str) or not requested_build:
+        requested_build = phenix_version
+    inspection = inspect_runtime(
+        prefix,
+        expected_release=requested_release,
+        expected_build=requested_build,
+        progress=progress,
+        timeout_seconds=timeout_seconds,
+        verification_log=verification_log,
+    )
+    source_sha256 = sha256_file(source)
+    operator_notes = raw.get("operator_notes")
+    notes = (
+        tuple(item for item in operator_notes if isinstance(item, str))
+        if isinstance(operator_notes, list)
+        else ()
+    )
+    warnings = raw.get("warnings")
+    retained_warnings = (
+        tuple(item for item in warnings if isinstance(item, str))
+        if isinstance(warnings, list)
+        else ()
+    )
+    refreshed = PhenixInstallManifest.model_validate(
+        {
+            "schema_version": "1.0",
+            "status": "verified",
+            "requested_release": requested_release,
+            "requested_build": requested_build,
+            "phenix_version": inspection.phenix_version,
+            "installation_prefix": str(inspection.phenix_prefix),
+            "phenix_env_sh": str(environment),
+            "phenix_env_sha256": environment_sha256,
+            "installer_basename": raw.get("installer_basename"),
+            "installer_sha256": installer_sha256,
+            "platform": platform_record().model_dump(mode="json"),
+            "installed_at": installed_at,
+            "required_commands": [
+                command.model_dump(mode="json") for command in inspection.commands
+            ],
+            "install_log": raw.get("install_log"),
+            "verification_log": (
+                str(verification_log) if verification_log is not None else None
+            ),
+            "current_symlink": raw.get("current_symlink"),
+            "operator_notes": [
+                *notes,
+                f"refreshed_from_manifest_sha256={source_sha256}",
+            ],
+            "warnings": [
+                *retained_warnings,
+                "legacy_manifest_refreshed_with_executable_sha256",
+            ],
+        }
+    )
+    atomic_write_json(output, refreshed.model_dump(mode="json"))
+    validate_manifest_environment(output)
+    return refreshed
 
 
 def execute_from_manifest(
