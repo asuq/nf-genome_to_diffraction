@@ -9555,3 +9555,30 @@ Classify that result before adding end-to-end Nextflow or general `nA + mB`.
   pushed source `b45416a40bbe05575fccba7e7906decacac0d1b3`. After checksum
   confirmation, stage and submit exactly one `heteromer-smoke`, then monitor,
   collect, and classify that owned run before any P2/P3 work.
+
+## 2026-08-22T16:47:48Z - Marmic transport restored; home quota blocks all writes
+
+### Classification
+
+- The first resumed deployment accidentally used the current default
+  Viper-specific local configuration and reproduced the earlier connection
+  closure. Read-only local configuration inspection identified the existing
+  Marmic-specific configuration; no remote mutation occurred in that attempt.
+- Using the explicit Marmic configuration restored transport and reached the
+  site. The checksum-gated recovery then failed before deployment because it
+  could not create its temporary directory: `Disk quota exceeded`.
+- One subsequent read-only managed readiness operation reached the existing
+  dispatcher but it could not create the zero-length owned `.discard` file for
+  the same quota reason. This confirms a Marmic home-filesystem/quota blocker,
+  not a source, scientific, CI, scheduler, or network defect.
+- No tool deployment was confirmed, no run directory was staged, and no Slurm
+  job was submitted. No source change or remote cleanup is justified by this
+  evidence.
+
+### Exact restart
+
+Free a small amount of the Marmic home quota outside this workflow. Then use the
+explicit Marmic wrapper configuration to deploy exact pushed source
+`b45416a40bbe05575fccba7e7906decacac0d1b3`; after checksum confirmation, stage
+and submit exactly one `heteromer-smoke`. Do not use the default Viper
+configuration, raw SSH fallback, or unreviewed remote deletion.
