@@ -1651,17 +1651,19 @@ EOF
 }
 
 run_heteromer_smoke() {
-    local inputs="$RUN/artifacts/heteromer-smoke/inputs"
-    local preflight="$RUN/artifacts/heteromer-smoke/preflight"
-    local parent="$RUN/artifacts/heteromer-smoke/parent"
-    local partner="$RUN/artifacts/heteromer-smoke/partner"
+    local root="$RUN/artifacts/heteromer-smoke"
+    local inputs="$root/inputs"
+    local preflight="$root/preflight"
+    local parent="" parent_evidence="$root/parent"
+    local checkpoint="$root/component_checkpoint"
+    local partner="$root/partner"
     local qualification="$RUN/artifacts/qualification"
     local preparation="$inputs/preparation_manifest.json"
-    local parent_result="$parent/normalised_mr_result.json"
+    local parent_result=""
     local partner_result="$partner/partner_search_result.json"
     local parent_hypothesis_id parent_sequence_group_id partner_sequence_group_id
     local parent_llg parent_coordinate_relative parent_coordinate_sha256
-    local parent_coordinate partner_model_sha256 gate_passed expected_phenix_sha256
+    local parent_coordinate gate_passed expected_phenix_sha256
     local legacy_phenix_manifest refreshed_phenix_manifest
     local -a preparation_values=() parent_values=()
 
@@ -1679,7 +1681,7 @@ run_heteromer_smoke() {
     PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
     [[ -x "$GTD" && -x "$PYTHON" ]] || return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
-    mkdir -p "$preflight" "$parent" "$partner" "$qualification"
+    mkdir -p "$preflight" "$partner" "$qualification"
     cd "$RUN/source"
 
     PHASE=preflight
@@ -1725,6 +1727,9 @@ PY
     parent_hypothesis_id="${preparation_values[0]}"
     parent_sequence_group_id="${preparation_values[1]}"
     partner_sequence_group_id="${preparation_values[2]}"
+    parent="$root/first_copy_phaser_${parent_hypothesis_id}"
+    parent_result="$parent/normalised_mr_result.json"
+    mkdir -p "$parent" "$parent_evidence"
 
     PHASE=software
     printf 'phase=heteromer_parent_A profile=heteromer-smoke\n'
@@ -1781,22 +1786,28 @@ PY
     [[ -f "$parent_coordinate" && \
        "$(sha256sum "$parent_coordinate" | awk '{print $1}')" == \
        "$parent_coordinate_sha256" ]] || return 4
-    partner_model_sha256="$(sha256sum "$inputs/models/component_B.pdb" | awk '{print $1}')"
-    [[ "$partner_model_sha256" =~ $CHECKSUM_RE ]] || return 4
+
+    cp "$parent/normalised_mr_result.json" \
+        "$parent/normalised_mr_result.jsonl" \
+        "$parent/phaser_command.json" \
+        "$parent/PHASER.log" \
+        "$parent/phenix.phaser.capture.log" \
+        "$parent/PHASER.1.pdb" \
+        "$parent/PHASER.1.mtz" \
+        "$parent_evidence/"
+
+    printf 'phase=heteromer_component_review profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress benchmark approve-6rtz-parent \
+        --preparation-manifest "$preparation" \
+        --parent-result-directory "$parent" \
+        --outdir "$checkpoint"
 
     printf 'phase=heteromer_partner_B profile=heteromer-smoke\n'
-    "$GTD" --log-format json --no-progress mr search-partner \
-        --crystal-id 6RTZ \
-        --parent-solution-id "$parent_hypothesis_id" \
-        --parent-sequence-group-id "$parent_sequence_group_id" \
-        --partner-sequence-group-id "$partner_sequence_group_id" \
+    "$GTD" --log-format json --no-progress mr approved-partner \
+        --approved-stage "$checkpoint/approved_mr_seed_stage" \
+        --review-package "$checkpoint/mr_seed_review" \
+        --control-preparation "$preparation" \
         --sequence-groups "$inputs/sequence_groups.jsonl" \
-        --parent-coordinate "$parent_coordinate" \
-        --expected-parent-coordinate-sha256 "$parent_coordinate_sha256" \
-        --parent-llg "$parent_llg" \
-        --partner-model "$inputs/models/component_B.pdb" \
-        --expected-partner-model-sha256 "$partner_model_sha256" \
-        --partner-model-identity-fraction 1.0 \
         --preflight "$preflight/mtz_preflight.jsonl" \
         --mtz "$inputs/derived/6RTZ.mtz" \
         --phenix-manifest "$PHENIX_MANIFEST" \
@@ -1854,6 +1865,9 @@ PY
             artifacts/heteromer-smoke/preflight/mtz_preflight.jsonl \
             artifacts/heteromer-smoke/parent/normalised_mr_result.json \
             artifacts/heteromer-smoke/parent/phaser_command.json \
+            artifacts/heteromer-smoke/component_checkpoint/mr_seed_review/mr_seed_review_manifest.json \
+            artifacts/heteromer-smoke/component_checkpoint/approved_mr_seeds.tsv \
+            artifacts/heteromer-smoke/component_checkpoint/approved_mr_seed_stage/live_m4_stage_manifest.json \
             artifacts/heteromer-smoke/partner/partner_search_result.json \
             artifacts/heteromer-smoke/partner/phaser_command.json \
             artifacts/qualification/heteromer-smoke-summary.json \

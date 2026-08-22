@@ -9,15 +9,20 @@ import pytest
 
 from genome_to_diffraction.benchmarks import (
     HeteromerControlPreparationRequest,
+    HeteromerControlReviewRequest,
+    build_6rtz_control_review,
     prepare_6rtz_heteromer_control,
 )
 from genome_to_diffraction.benchmarks import heteromer_control as control
 from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.schemas.results import (
     MrHypothesis,
+    NormalisedMrResult,
     ProcessedModelRecord,
     SequenceGroupRecord,
 )
+from genome_to_diffraction.status import ExecutionStatus
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 PROTOCOL = REPOSITORY / "benchmarks/m6/protocol.yaml"
@@ -137,6 +142,66 @@ def test_preparer_writes_minimal_a_then_b_inputs(
     assert manifest["files"]["partner_model"]["sha256"] == sha256_file(
         result.partner_model
     )
+
+    parent_root = tmp_path / "parent-results"
+    parent_result = parent_root / f"first_copy_phaser_{hypothesis.hypothesis_id}"
+    parent_result.mkdir(parents=True)
+    solution = parent_result / "PHASER.1.pdb"
+    solution.write_text("REMARK ENSEMBLE parent\nATOM\n", encoding="ascii")
+    output_mtz = parent_result / "PHASER.1.mtz"
+    output_mtz.write_bytes(b"parent result MTZ")
+    normalised = NormalisedMrResult(
+        schema_version="1.0",
+        hypothesis_id=hypothesis.hypothesis_id,
+        tool_version="Phenix 2.1-6048; Phaser 2.8.4",
+        execution_status=ExecutionStatus.COMPLETED_HIT,
+        llg=1000.0,
+        tfz=30.0,
+        placed_copy_count=1,
+        packing_summary={
+            "top_solution_packed": True,
+            "score_gate_passed": True,
+            "score_gate_llg_strictly_greater_than": 50.0,
+            "score_gate_tfz_strictly_greater_than": 5.0,
+            "score_gate_operator": "or",
+        },
+        solution_coordinate_path=solution.name,
+        solution_coordinate_sha256=sha256_file(solution),
+        output_mtz_path=output_mtz.name,
+        output_mtz_sha256=sha256_file(output_mtz),
+        raw_log_pointer="PHASER.log",
+    )
+    (parent_result / "normalised_mr_result.jsonl").write_text(
+        f"{canonical_json_text(normalised)}\n", encoding="utf-8"
+    )
+    (parent_result / "phaser_command.json").write_text(
+        json.dumps(
+            {
+                "model_sha256": model.model_sha256,
+                "model_identity_percent": 100.0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (parent_result / "PHASER.log").write_text("fake log\n", encoding="ascii")
+
+    reviewed = build_6rtz_control_review(
+        HeteromerControlReviewRequest(
+            preparation_manifest=result.preparation_manifest,
+            parent_result_directory=parent_result,
+            output_directory=tmp_path / "reviewed",
+            progress=False,
+        )
+    )
+
+    assert reviewed.review_package.is_dir()
+    assert reviewed.decisions_tsv.is_file()
+    assert reviewed.approved_stage.is_dir()
+    approved_rows = (reviewed.approved_stage / "approved_seeds.tsv").read_text(
+        encoding="utf-8"
+    )
+    assert "\t1\tfalse\n" in approved_rows
 
 
 def test_preparer_rejects_changed_frozen_source(tmp_path: Path) -> None:

@@ -10,6 +10,7 @@ from typing import cast
 from genome_to_diffraction import __version__
 from genome_to_diffraction.benchmarks import (
     HeteromerControlPreparationRequest,
+    HeteromerControlReviewRequest,
     M6CollectionRequest,
     M6EvaluationRequest,
     M6InputPreparationRequest,
@@ -18,6 +19,7 @@ from genome_to_diffraction.benchmarks import (
     MrControlBundleRequest,
     PublicControlPreparationRequest,
     PublicPanelPreparationRequest,
+    build_6rtz_control_review,
     build_m6_runner_bundle,
     build_mr_control_bundle,
     collect_m6_evidence,
@@ -521,6 +523,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="download only the two protocol-frozen RCSB files",
     )
     heteromer_control_parser.add_argument("--outdir", type=Path, required=True)
+    heteromer_review_parser = benchmark_actions.add_parser(
+        "approve-6rtz-parent",
+        help="build and approve the fixed HisF MR review checkpoint",
+    )
+    heteromer_review_parser.add_argument(
+        "--preparation-manifest", type=Path, required=True
+    )
+    heteromer_review_parser.add_argument(
+        "--parent-result-directory", type=Path, required=True
+    )
+    heteromer_review_parser.add_argument("--outdir", type=Path, required=True)
     control_bundle_parser = benchmark_actions.add_parser(
         "build-first-copy-controls",
         help="build the fixed exact-positive and unrelated-negative MR bundle",
@@ -1648,6 +1661,17 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             f"Prepared first-copy controls {control_bundle.control_pair_id}: "
             f"{control_bundle.manifest_json}"
         )
+        return 0
+    if args.benchmark_action == "approve-6rtz-parent":
+        reviewed = build_6rtz_control_review(
+            HeteromerControlReviewRequest(
+                preparation_manifest=args.preparation_manifest,
+                parent_result_directory=args.parent_result_directory,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(f"Approved fixed 6RTZ HisF parent: {reviewed.approved_stage}")
         return 0
     if args.benchmark_action == "run-control-slice":
         result = run_control_slice(

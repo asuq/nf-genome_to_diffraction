@@ -272,10 +272,12 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  *" structure-search register-pdb-coordinates "*) mode=register ;;\n'
         '  *" benchmark prepare-public-control "*) mode=public_control ;;\n'
         '  *" benchmark prepare-6rtz-heteromer-control "*) mode=heteromer ;;\n'
+        '  *" benchmark approve-6rtz-parent "*) mode=heteromer_review ;;\n'
         '  *" phenix refresh-manifest "*) mode=phenix_refresh ;;\n'
         '  *" phenix verify "*) mode=phenix_verify ;;\n'
         '  *" diffraction preflight "*) mode=preflight ;;\n'
         '  *" mr first-copy "*) mode=first_copy ;;\n'
+        '  *" mr approved-partner "*) mode=partner ;;\n'
         '  *" mr search-partner "*) mode=partner ;;\n'
         '  *" databases stage-sources "*) mode=database ;;\n'
         "esac\n"
@@ -364,6 +366,18 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  printf "fake 6RTZ mtz\\n" > "$outdir/derived/6RTZ.mtz"\n'
         '  printf "fake A pdb\\n" > "$outdir/models/component_A.pdb"\n'
         '  printf "fake B pdb\\n" > "$outdir/models/component_B.pdb"\n'
+        'elif [[ "$mode" == heteromer_review ]]; then\n'
+        '  mkdir -p "$outdir/mr_seed_review" '
+        '"$outdir/approved_mr_seed_stage"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/mr_seed_review/mr_seed_review_manifest.json"\n'
+        '  printf "checkpoint\\n" > "$outdir/approved_mr_seeds.tsv"\n'
+        '  printf \'{"execution_status":"completed_success"}\\n\' > '
+        '"$outdir/approved_mr_seed_stage/live_m4_stage_manifest.json"\n'
+        '  printf "seed_solution_id\\n" > '
+        '"$outdir/approved_mr_seed_stage/approved_seeds.tsv"\n'
+        '  printf \'{"execution_status":"completed_success"}\\n\' > '
+        '"$outdir/approved_mr_seed_stage/validated_mr_seed_decisions.json"\n'
         'elif [[ "$mode" == phenix_verify ]]; then\n'
         '  [[ -n "$verification_log" ]] || exit 17\n'
         '  mkdir -p "$(dirname "$verification_log")"\n'
@@ -4036,6 +4050,7 @@ def test_heteromer_smoke_runs_one_fixed_6rtz_parent_partner_chain(
     assert summary["partner_tfz"] == 12.0
     log = (run / "logs/heteromer-smoke.log").read_text(encoding="utf-8")
     assert "phase=heteromer_parent_A profile=heteromer-smoke" in log
+    assert "phase=heteromer_component_review profile=heteromer-smoke" in log
     assert "phase=heteromer_partner_B profile=heteromer-smoke" in log
 
     archive = _run(
@@ -4047,6 +4062,10 @@ def test_heteromer_smoke_runs_one_fixed_6rtz_parent_partner_chain(
         names = set(collected.getnames())
     assert "artifacts/qualification/heteromer-smoke-summary.json" in names
     assert "artifacts/heteromer-smoke/parent/normalised_mr_result.json" in names
+    assert (
+        "artifacts/heteromer-smoke/component_checkpoint/approved_mr_seed_stage/"
+        "live_m4_stage_manifest.json"
+    ) in names
     assert "artifacts/heteromer-smoke/partner/partner_search_result.json" in names
 
 

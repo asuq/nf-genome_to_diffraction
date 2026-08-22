@@ -3358,6 +3358,14 @@ collect_run() {
         artifacts/heteromer-smoke/parent/phenix.phaser.capture.log \
         artifacts/heteromer-smoke/parent/PHASER.1.pdb \
         artifacts/heteromer-smoke/parent/PHASER.1.mtz \
+        artifacts/heteromer-smoke/component_checkpoint/approved_mr_seeds.tsv \
+        artifacts/heteromer-smoke/component_checkpoint/mr_seed_review/mr_seed_review_manifest.json \
+        artifacts/heteromer-smoke/component_checkpoint/mr_seed_review/mr_seed_candidates.tsv \
+        artifacts/heteromer-smoke/component_checkpoint/mr_seed_review/mr_seed_candidates.html \
+        artifacts/heteromer-smoke/component_checkpoint/mr_seed_review/mr_seed_approval_candidates.tsv \
+        artifacts/heteromer-smoke/component_checkpoint/approved_mr_seed_stage/approved_seeds.tsv \
+        artifacts/heteromer-smoke/component_checkpoint/approved_mr_seed_stage/validated_mr_seed_decisions.json \
+        artifacts/heteromer-smoke/component_checkpoint/approved_mr_seed_stage/live_m4_stage_manifest.json \
         artifacts/heteromer-smoke/partner/partner_search_result.json \
         artifacts/heteromer-smoke/partner/partner_search_result.jsonl \
         artifacts/heteromer-smoke/partner/phaser_command.json \

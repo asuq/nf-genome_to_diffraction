@@ -9754,3 +9754,34 @@ Review and commit this local P3 bridge without pushing unless separately
 authorised. P3 remains open until a real normal-workflow 6RTZ run obtains A,
 crosses an explicit composition decision, and searches B with no manual file
 substitution. Do not start general `nA + mB` first.
+
+## 2026-08-22T18:57:21Z - P3 real checkpoint successor is ready
+
+### Green integration boundary
+
+- The user confirmed continuing `git push origin main` authority. Pushed P3
+  bridge source `8b728c5f994b4bbec1dc6c0383981b4d8826a550`; Actions run
+  `32591430241`, job `97075780779`, passed in 7m28s under Pixi 0.76.2.
+- Kept the same fixed `heteromer-smoke` profile rather than adding another
+  profile or root Nextflow entry point. The accepted adapter-isolation evidence
+  remains immutable; a fresh successor now exercises the component checkpoint.
+- Added fixed control review support around the real A result: one typed source
+  record, one physically plausible Matthews row, a one-hypothesis funnel
+  manifest, and current strict pipeline config feed the ordinary MR review
+  builder. A predeclared control policy selects only the inspectable frozen
+  HisF sequence in an explicit decision TSV, then the existing approval
+  validator/stager produces the approved A state consumed by the P3 bridge.
+- The parent result now retains its workflow-compatible
+  `first_copy_phaser_<hypothesis>` directory identity while fixed-name evidence
+  copies remain collectable. The B search is invoked only through
+  `mr approved-partner`, not direct argument substitution.
+- Focused preparation/review tests and the complete fake Marmic stage, job,
+  checkpoint, partner gate, and bounded collection pass. Targeted Ruff, `ty`,
+  Bash syntax, and diff checks pass.
+
+### Next exact starting point
+
+Commit/push this control-checkpoint successor, watch one CI run, deploy matching
+tools, and stage/submit exactly one fresh `heteromer-smoke`. Collect and verify
+the review package, decision, approved stage, parent/partner metrics, and
+checksums before accepting P3 or beginning explicit `nA + mB`.

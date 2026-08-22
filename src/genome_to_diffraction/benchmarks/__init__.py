@@ -3,6 +3,9 @@
 from genome_to_diffraction.benchmarks.heteromer_control import (
     HeteromerControlPreparationRequest,
     HeteromerControlPreparationResult,
+    HeteromerControlReviewRequest,
+    HeteromerControlReviewResult,
+    build_6rtz_control_review,
     prepare_6rtz_heteromer_control,
 )
 from genome_to_diffraction.benchmarks.m6_collection import (
@@ -58,6 +61,8 @@ from genome_to_diffraction.benchmarks.public_control import (
 __all__ = [
     "HeteromerControlPreparationRequest",
     "HeteromerControlPreparationResult",
+    "HeteromerControlReviewRequest",
+    "HeteromerControlReviewResult",
     "M6BenchmarkProtocol",
     "M6CollectionRequest",
     "M6CollectionResult",
@@ -75,6 +80,7 @@ __all__ = [
     "PublicControlPreparationResult",
     "PublicPanelPreparationRequest",
     "PublicPanelPreparationResult",
+    "build_6rtz_control_review",
     "build_m6_runner_bundle",
     "build_mr_control_bundle",
     "collect_m6_evidence",

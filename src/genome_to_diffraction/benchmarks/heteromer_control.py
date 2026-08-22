@@ -14,13 +14,16 @@ is derived from source, derived-file, sequence, model, and hypothesis checksums.
 The real Phenix control remains a separate scheduled operation.
 """
 
+import csv
 import hashlib
+import io
 import os
 import tempfile
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import gemmi
 
@@ -41,18 +44,32 @@ from genome_to_diffraction.ids import (
     canonical_sequence,
     content_id,
 )
+from genome_to_diffraction.mr.stage_add_copy import (
+    LiveAddCopyStageRequest,
+    prepare_live_add_copy_stage,
+)
+from genome_to_diffraction.review.mr_seed import (
+    MrSeedReviewRequest,
+    build_mr_seed_review,
+)
+from genome_to_diffraction.schemas.io import load_json_document
 from genome_to_diffraction.schemas.manifests import (
     CrystalEntry,
     CrystalManifest,
+    PipelineConfig,
     PrototypeProfile,
 )
 from genome_to_diffraction.schemas.results import (
+    MatthewsHypothesis,
     MrHypothesis,
     MrHypothesisStatus,
     MrSearchStage,
+    PhysicalStatus,
     ProcessedModelRecord,
     SequenceGroupRecord,
+    SourceProteinRecord,
 )
+from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _CONTROL_KEY = "A01"
@@ -60,6 +77,7 @@ _CRYSTAL_ID = "6RTZ"
 _PARENT_CHAIN = "A"
 _PARTNER_CHAIN = "B"
 _ADAPTER_VERSION = "6rtz-fixed-a-one-b-inputs-v1"
+_PARENT_PROTEIN_ID = "WP_004080486.1"
 
 
 class HeteromerControlPreparationError(ValueError):
@@ -94,6 +112,25 @@ class HeteromerControlPreparationResult:
     parent_sequence_group_id: str
     partner_sequence_group_id: str
     parent_hypothesis_id: str
+
+
+@dataclass(frozen=True)
+class HeteromerControlReviewRequest:
+    """Inputs for the fixed explicit HisF composition-review checkpoint."""
+
+    preparation_manifest: Path
+    parent_result_directory: Path
+    output_directory: Path
+    progress: bool = True
+
+
+@dataclass(frozen=True)
+class HeteromerControlReviewResult:
+    """Review and validated approved-stage directories for the P3 bridge."""
+
+    review_package: Path
+    decisions_tsv: Path
+    approved_stage: Path
 
 
 def _regular_file(path: Path, *, label: str) -> Path:
@@ -471,6 +508,15 @@ def prepare_6rtz_heteromer_control(
             "copy_count": 1,
         },
     )
+    matthews_id = content_id(
+        "matthews_",
+        {
+            "crystal_id": _CRYSTAL_ID,
+            "sequence_group_id": parent_group.sequence_group_id,
+            "copy_count": 1,
+            "mtz_sha256": sha256_file(mtz_path),
+        },
+    )
     hypothesis = MrHypothesis(
         schema_version="1.0",
         hypothesis_id=hypothesis_id,
@@ -490,6 +536,7 @@ def prepare_6rtz_heteromer_control(
             "coordinate_mapping_id": mapping_id,
             "candidate_source_sequence_identity": 1.0,
             "control_role": "fixed_6rtz_parent_A",
+            "matthews_hypothesis_id": matthews_id,
         },
         status=MrHypothesisStatus.QUEUED,
     )
@@ -550,7 +597,9 @@ def prepare_6rtz_heteromer_control(
             "composition": {"A": 1, "B": 1},
             "parent_sequence_group_id": parent_group.sequence_group_id,
             "partner_sequence_group_id": partner_group.sequence_group_id,
+            "parent_protein_id": _PARENT_PROTEIN_ID,
             "parent_hypothesis_id": hypothesis.hypothesis_id,
+            "parent_matthews_hypothesis_id": matthews_id,
             "partner_model_identity_fraction": 1.0,
             "source": {
                 "coordinates_sha256": control.source.coordinates.sha256,
@@ -579,4 +628,276 @@ def prepare_6rtz_heteromer_control(
         parent_sequence_group_id=parent_group.sequence_group_id,
         partner_sequence_group_id=partner_group.sequence_group_id,
         parent_hypothesis_id=hypothesis.hypothesis_id,
+    )
+
+
+def _prepared_file(
+    preparation_root: Path,
+    files: object,
+    role: str,
+) -> Path:
+    if not isinstance(files, dict) or not isinstance(files.get(role), dict):
+        raise HeteromerControlPreparationError(
+            f"6RTZ preparation lacks required file role: {role}"
+        )
+    entry = cast(dict[str, object], files[role])
+    relative = entry.get("path")
+    digest = entry.get("sha256")
+    if not isinstance(relative, str) or not isinstance(digest, str):
+        raise HeteromerControlPreparationError(
+            f"6RTZ preparation file role is invalid: {role}"
+        )
+    path = (preparation_root / relative).resolve(strict=True)
+    if not path.is_file() or not path.is_relative_to(preparation_root):
+        raise HeteromerControlPreparationError(
+            f"6RTZ preparation file escaped its root: {role}"
+        )
+    if sha256_file(path) != digest:
+        raise HeteromerControlPreparationError(
+            f"6RTZ preparation file checksum differs: {role}"
+        )
+    return path
+
+
+def _control_pipeline_config() -> PipelineConfig:
+    return PipelineConfig.model_validate(
+        {
+            "schema_version": "1.0",
+            "prototype": {
+                "asu_model": "single_protein_species_multi_copy",
+                "profile": "pilot",
+            },
+            "catalogue": {
+                "min_length_aa": 30,
+                "ambiguous_residue_policy": "warn",
+                "remove_terminal_stop": True,
+            },
+            "providers": {
+                "pdb_sequence": {"enabled": True, "max_hits": 3},
+                "foldseek_prostt5_pdb": {"enabled": True, "max_hits": 3},
+                "esm_atlas": {
+                    "enabled": False,
+                    "max_hits": 0,
+                    "requests_per_minute": 10,
+                    "max_sequence_length": 1500,
+                },
+                "afdb_exact": {"enabled": False, "max_hits": 0},
+            },
+            "matthews": {
+                "min_copy_count": 1,
+                "max_copy_count": 4,
+                "max_hypotheses_per_candidate": 4,
+                "min_solvent_fraction": 0.10,
+                "max_solvent_fraction": 0.90,
+            },
+            "search_limits": {
+                "max_structural_hypotheses": 10,
+                "max_first_copy_jobs": 10,
+            },
+            "review": {
+                "primary_shortlist_size": 10,
+                "extended_shortlist_size": 10,
+            },
+            "retention": {
+                "max_full_artifact_finalists": 10,
+                "retain_all_logs": True,
+            },
+        }
+    )
+
+
+def build_6rtz_control_review(
+    request: HeteromerControlReviewRequest,
+) -> HeteromerControlReviewResult:
+    """Build and approve the fixed HisF parent through normal review adapters."""
+
+    preparation_path = request.preparation_manifest.resolve(strict=True)
+    preparation_root = preparation_path.parent
+    raw = load_json_document(preparation_path)
+    if (
+        not isinstance(raw, dict)
+        or raw.get("adapter_version") != _ADAPTER_VERSION
+        or raw.get("crystal_id") != _CRYSTAL_ID
+        or raw.get("composition") != {"A": 1, "B": 1}
+    ):
+        raise HeteromerControlPreparationError(
+            "fixed 6RTZ preparation manifest is invalid"
+        )
+    output = request.output_directory.absolute()
+    if output.exists() or output.is_symlink():
+        raise HeteromerControlPreparationError(
+            f"6RTZ review output already exists: {output}"
+        )
+    output.mkdir(parents=True)
+    files = raw.get("files")
+    hypotheses = _prepared_file(preparation_root, files, "hypotheses")
+    sequence_groups = _prepared_file(preparation_root, files, "sequence_groups")
+    mtz_path = _prepared_file(preparation_root, files, "mtz")
+    hypothesis = MrHypothesis.model_validate_json(
+        hypotheses.read_text(encoding="utf-8").strip()
+    )
+    groups = [
+        SequenceGroupRecord.model_validate_json(line)
+        for line in sequence_groups.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    parent_group = next(
+        (
+            group
+            for group in groups
+            if group.sequence_group_id == hypothesis.sequence_group_id
+        ),
+        None,
+    )
+    if parent_group is None or parent_group.molecular_mass_da is None:
+        raise HeteromerControlPreparationError(
+            "fixed 6RTZ parent sequence group is missing"
+        )
+    matthews_id = hypothesis.priority_features.get("matthews_hypothesis_id")
+    if not isinstance(matthews_id, str):
+        raise HeteromerControlPreparationError(
+            "fixed 6RTZ parent lacks Matthews provenance"
+        )
+    mtz = gemmi.read_mtz_file(str(mtz_path))
+    if mtz.spacegroup is None:
+        raise HeteromerControlPreparationError("fixed 6RTZ MTZ lacks space group")
+    asu_volume = mtz.cell.volume / len(mtz.spacegroup.operations())
+    coefficient = asu_volume / parent_group.molecular_mass_da
+    solvent_fraction = max(0.0, min(1.0, 1.0 - 1.23 / coefficient))
+    support = output / "support"
+    support.mkdir()
+    source_record = SourceProteinRecord(
+        schema_version="1.0",
+        source_record_id=content_id(
+            "source_",
+            {
+                "catalogue_id": "cat-tmaritima",
+                "protein_id": _PARENT_PROTEIN_ID,
+                "sequence_group_id": parent_group.sequence_group_id,
+            },
+        ),
+        catalogue_id="cat-tmaritima",
+        original_protein_id=_PARENT_PROTEIN_ID,
+        original_header=f"{_PARENT_PROTEIN_ID} fixed 6RTZ HisF control",
+        description="imidazole glycerol phosphate synthase subunit HisF",
+        sequence_group_id=parent_group.sequence_group_id,
+        source_annotation_provider="fixed RCSB/RefSeq 6RTZ control",
+    )
+    source_records = support / "source_records.jsonl"
+    atomic_write_text(source_records, f"{canonical_json_text(source_record)}\n")
+    matthews = MatthewsHypothesis(
+        schema_version="1.0",
+        hypothesis_id=matthews_id,
+        crystal_id=_CRYSTAL_ID,
+        sequence_group_id=parent_group.sequence_group_id,
+        copy_count=1,
+        sequence_mass_da=parent_group.molecular_mass_da,
+        total_mass_da=parent_group.molecular_mass_da,
+        v_asu_a3=asu_volume,
+        matthews_coefficient=coefficient,
+        solvent_fraction=solvent_fraction,
+        matthews_prior=1.0,
+        prior_backend="fixed_6rtz_control",
+        rank_within_candidate=1,
+        retained=True,
+        physical_status=PhysicalStatus.PLAUSIBLE,
+        sds_page_prior_label="unavailable",
+        warnings=("fixed_control_review_support",),
+    )
+    matthews_path = support / "matthews_hypotheses.jsonl"
+    atomic_write_text(matthews_path, f"{canonical_json_text(matthews)}\n")
+    config_path = support / "pipeline_config.json"
+    atomic_write_json(config_path, _control_pipeline_config().model_dump(mode="json"))
+    funnel_manifest = support / "funnel_manifest.json"
+    atomic_write_json(
+        funnel_manifest,
+        {
+            "schema_version": "1.0",
+            "funnel_id": content_id(
+                "funnel_", {"hypothesis_id": hypothesis.hypothesis_id}
+            ),
+            "adapter_version": "fixed-6rtz-parent-review-v1",
+            "selected_hypothesis_count": 1,
+            "hypotheses": [{"hypothesis_id": hypothesis.hypothesis_id}],
+            "execution_status": ExecutionStatus.COMPLETED_SUCCESS.value,
+        },
+    )
+    parent_result = request.parent_result_directory.resolve(strict=True)
+    expected_name = f"first_copy_phaser_{hypothesis.hypothesis_id}"
+    if parent_result.name != expected_name or not parent_result.is_dir():
+        raise HeteromerControlPreparationError(
+            "fixed parent result directory has the wrong workflow identity"
+        )
+    review_directory = output / "mr_seed_review"
+    review = build_mr_seed_review(
+        MrSeedReviewRequest(
+            hypotheses_jsonl=hypotheses,
+            results_jsonl=parent_result / "normalised_mr_result.jsonl",
+            result_root=parent_result.parent,
+            funnel_manifest=funnel_manifest,
+            sequence_groups_jsonl=sequence_groups,
+            source_records_jsonl=source_records,
+            matthews_hypotheses_jsonl=matthews_path,
+            pipeline_config=config_path,
+            output_directory=review_directory,
+            progress=request.progress,
+        )
+    )
+    review_document = load_json_document(review.manifest_json)
+    items = review_document.get("items") if isinstance(review_document, dict) else None
+    matches = (
+        [
+            item
+            for item in items
+            if isinstance(item, dict)
+            and item.get("sequence_group_id") == parent_group.sequence_group_id
+            and item.get("inspectable_solution") is True
+        ]
+        if isinstance(items, list)
+        else []
+    )
+    if len(matches) != 1 or not isinstance(matches[0].get("solution_id"), str):
+        raise HeteromerControlPreparationError(
+            "fixed HisF review did not yield one inspectable solution"
+        )
+    decision_buffer = io.StringIO(newline="")
+    writer = csv.writer(decision_buffer, delimiter="\t", lineterminator="\n")
+    writer.writerow(
+        (
+            "checkpoint",
+            "item_id",
+            "decision",
+            "reviewer",
+            "reviewed_at",
+            "comment",
+            "override_reason",
+        )
+    )
+    writer.writerow(
+        (
+            "mr_seed",
+            matches[0]["solution_id"],
+            "approve",
+            "fixed_6rtz_control_policy",
+            utc_now_iso(),
+            "Predeclared exact HisF parent for the known 6RTZ P3 control",
+            "",
+        )
+    )
+    decisions = output / "approved_mr_seeds.tsv"
+    atomic_write_text(decisions, decision_buffer.getvalue())
+    approved_directory = output / "approved_mr_seed_stage"
+    prepare_live_add_copy_stage(
+        LiveAddCopyStageRequest(
+            review_package=review_directory,
+            decisions=decisions,
+            hypotheses_jsonl=hypotheses,
+            output_directory=approved_directory,
+            progress=request.progress,
+        )
+    )
+    return HeteromerControlReviewResult(
+        review_package=review_directory,
+        decisions_tsv=decisions,
+        approved_stage=approved_directory,
     )
