@@ -9850,6 +9850,11 @@ both controls before starting P5 catalogue partner enumeration.
   parse failure. Increase only `heteromer-smoke` memory from 16 to 32 GB. Also
   correct the first-copy start log to report the actual joint search count; it
   had logged one while the retained command correctly searched two.
+- The first resource-fix CI run `32597071536` failed only because `caplog`
+  depended on global logger state left by earlier unit tests; stderr confirmed
+  the corrected value was two. Replaced that order-dependent assertion with a
+  direct logger-call capture. The focused regression and the complete 651-test
+  unit suite pass.
 
 ### Next exact starting point
 

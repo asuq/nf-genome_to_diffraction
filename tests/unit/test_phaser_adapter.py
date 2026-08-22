@@ -345,7 +345,6 @@ def test_adapter_runs_exact_composition_and_emits_credible_hit(
 def test_adapter_can_search_declared_copies_jointly(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     request = _inputs(tmp_path)
     hypothesis = MrHypothesis.model_validate_json(
@@ -360,19 +359,29 @@ def test_adapter_can_search_declared_copies_jointly(
         write_solution=True,
         placement_count=2,
     )
+    log_extras: list[dict[str, object]] = []
 
-    with caplog.at_level("INFO", logger="genome_to_diffraction.mr.phaser"):
-        output = run_first_copy_phaser(request)
+    def capture_info(message: str, *, extra: dict[str, object]) -> None:
+        if message == "first-copy Phaser search started":
+            log_extras.append(extra)
+
+    monkeypatch.setattr("genome_to_diffraction.mr.phaser._LOGGER.info", capture_info)
+
+    output = run_first_copy_phaser(request)
 
     assert output.result.placed_copy_count == 2
     assert "phaser.component_copies=2" in commands[0]
     assert "phaser.search_copies=2" in commands[0]
-    start = next(
-        record
-        for record in caplog.records
-        if record.getMessage() == "first-copy Phaser search started"
-    )
-    assert start.__dict__["copy_number_to_search"] == 2
+    assert log_extras == [
+        {
+            "hypothesis_id": hypothesis.hypothesis_id,
+            "copy_count_expected": 2,
+            "copy_number_to_search": 2,
+            "model_identity_percent": 100.0,
+            "threads": 4,
+            "output_directory": str(request.output_directory.absolute()),
+        }
+    ]
 
 
 def test_adapter_uses_complete_solution_files_when_log_omits_count(
