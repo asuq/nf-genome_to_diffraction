@@ -9582,3 +9582,33 @@ explicit Marmic wrapper configuration to deploy exact pushed source
 `b45416a40bbe05575fccba7e7906decacac0d1b3`; after checksum confirmation, stage
 and submit exactly one `heteromer-smoke`. Do not use the default Viper
 configuration, raw SSH fallback, or unreviewed remote deletion.
+
+## 2026-08-22T17:04:03Z - Cleanup exposed missing configuration-parent bootstrap
+
+### Observed evidence and smallest correction
+
+- The installed local controller was stale and did not recognise
+  `heteromer-smoke`; the deterministic current-source controller was therefore
+  built at SHA-256
+  `47837da784f2c033564fe045d0491279d5af29c0fb8bce2173a12fe93bf1ecec`
+  and used directly without replacing the user-owned installed binary.
+- With quota available, exact source `b45416a40bbe05575fccba7e7906decacac0d1b3`
+  and its reviewed dispatcher/job-wrapper checksums deployed successfully via
+  checksum-gated recovery.
+- Managed readiness then showed the fixed P0/Phenix configuration absent. The
+  preserved checksum-confirmed local candidate could not be restored because
+  storage cleanup had removed the fixed `_config` parent directory and the
+  create-only operation assumed that parent already existed.
+- Corrected only that observed bootstrap defect: `p0-configure` now creates its
+  one fixed owned parent directory with mode `0700` when absent, then applies
+  the existing canonical-path, ownership, containment, payload, checksum, and
+  atomic-install checks unchanged.
+- The missing-parent regression and the complete fake `heteromer-smoke`
+  lifecycle both pass. Targeted Ruff, `ty`, Bash syntax, and diff checks pass.
+
+### Next exact starting point
+
+Commit and push this one correction, watch exactly one CI run, deploy the exact
+successor tools through the explicit Marmic configuration, restore the
+checksum-confirmed P0/Phenix paths, require readiness, and then stage and submit
+exactly one `heteromer-smoke`.

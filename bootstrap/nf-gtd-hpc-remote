@@ -301,6 +301,11 @@ p0_configure() {
     [[ ! -e "$P0_CONFIG" && ! -L "$P0_CONFIG" ]] || \
         fail wrapper_failure "P0 configuration already exists"
     config_directory="$(dirname "$P0_CONFIG")"
+    if [[ ! -e "$config_directory" && ! -L "$config_directory" ]]; then
+        mkdir -p "$config_directory" || \
+            fail filesystem_failure "P0 configuration directory cannot be created"
+        chmod 0700 "$config_directory"
+    fi
     resolved="$(realpath -e "$config_directory" 2>"$DISCARD")" || \
         fail filesystem_failure "P0 configuration directory cannot be resolved"
     [[ "$resolved" == "$config_directory" && -d "$config_directory" && \

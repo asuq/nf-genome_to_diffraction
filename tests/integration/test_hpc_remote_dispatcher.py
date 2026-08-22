@@ -2705,6 +2705,36 @@ def test_p0_readiness_is_sanitised_and_creates_no_run(tmp_path: Path) -> None:
     assert not (tmp_path / "bad").exists()
 
 
+def test_p0_configure_recreates_only_its_missing_fixed_parent(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    installed = _write_p0_paths(remote_root)
+    payload = installed.read_bytes()
+    checksum = hashlib.sha256(payload).hexdigest()
+    local_candidate = tmp_path / "hpc-p0.paths"
+    local_candidate.write_bytes(payload)
+    installed.unlink()
+    installed.parent.rmdir()
+
+    configured = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "p0-configure",
+                checksum,
+                base64.b64encode(payload).decode("ascii"),
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert configured["configured"] == "true"
+    assert installed.read_bytes() == local_candidate.read_bytes()
+    assert stat.S_IMODE(installed.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(installed.stat().st_mode) == 0o600
+
+
 def test_remote_dispatcher_rejects_legacy_pixi(tmp_path: Path) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
