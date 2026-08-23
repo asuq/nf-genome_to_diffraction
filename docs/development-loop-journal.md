@@ -11562,3 +11562,38 @@ with a collapsed combined parent or a guessed command.
 - Integrate this focused commit into `dev/phase3`. Keep `DEV-P2-01` at local
   fixed status until the future operational then unchanged-protocol leakage M6
   runs retain deterministic replay and canonical collected checksums.
+
+## 2026-08-23 - Direct archival benchmark schedulers are retired
+
+### Focused DEV-P2-03 correction
+
+- `benchmark run-control-slice` and `benchmark run-control-matrix` no longer
+  contain or enter Python scientific schedulers. Both commands fail before
+  reading inputs, creating outputs, or invoking Phenix and explain that a
+  reviewed DSL2 graph must emit complete hypothesis, seed, and finalist items
+  for Nextflow/executor ownership.
+- Removed the four historical thread-pool fan-outs and their execution-only
+  result surfaces. Shared control preparation, seed-review, and copy-support
+  helpers remain intact because the Nextflow-owned M6 task module imports them.
+  Historical control evidence and fixed profile policy were not changed or
+  reinterpreted.
+- A repository policy regression rejects thread pools, process pools,
+  `concurrent.futures`, and `multiprocessing` in both retained production
+  helpers. A dynamic CLI regression replaces the standard thread executor with
+  a failing sentinel, exercises both commands with nonexistent inputs, and
+  verifies the actionable diagnostic and absence of an output directory.
+
+### Evidence, disclosure, and next exact starting point
+
+- The focused CLI, helper, and repository-policy set passes all 28 tests after
+  initialising the worktree's exact pinned `nf-helper` submodule; the first
+  attempt had 26 passes and only two unrelated missing-submodule failures.
+  Targeted Ruff format/lint, `ty`, schema, and documentation checks pass. No
+  complete repository gate was run.
+- One read-only test-inventory command accidentally piped `rg --files` into a
+  second `rg`. It made no file, network, scheduler, or external-system
+  mutation; subsequent commands returned to one shell command per tool call.
+- Integrate the focused commit into `dev/phase3` after review. Do not submit the
+  retired control-slice or control-matrix profiles. Continue with the remaining
+  PH1/PH6 gates and run operational M6 only after all documented stop gates and
+  the named integration gate pass.

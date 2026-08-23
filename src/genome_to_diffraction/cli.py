@@ -669,7 +669,7 @@ def _build_parser() -> argparse.ArgumentParser:
     control_bundle_parser.add_argument("--outdir", type=Path, required=True)
     control_slice_parser = benchmark_actions.add_parser(
         "run-control-slice",
-        help="execute the fixed six-case Viper Phenix control slice",
+        help="report migration from the retired direct six-case executor",
     )
     control_slice_parser.add_argument("--import-root", type=Path, required=True)
     control_slice_parser.add_argument("--phenix-manifest", type=Path, required=True)
@@ -677,7 +677,7 @@ def _build_parser() -> argparse.ArgumentParser:
     control_slice_parser.add_argument("--threads", type=int, default=8)
     control_matrix_parser = benchmark_actions.add_parser(
         "run-control-matrix",
-        help="run the fixed 23-case prokaryotic homomer benchmark",
+        help="report migration from the retired direct 23-case executor",
     )
     control_matrix_parser.add_argument("--import-root", type=Path, required=True)
     control_matrix_parser.add_argument("--phenix-manifest", type=Path, required=True)
@@ -2083,7 +2083,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         print(f"Approved fixed 6RTZ HisF parent: {reviewed.approved_stage}")
         return 0
     if args.benchmark_action == "run-control-slice":
-        result = run_control_slice(
+        run_control_slice(
             ControlSliceRunRequest(
                 import_root=args.import_root,
                 phenix_manifest=args.phenix_manifest,
@@ -2092,14 +2092,8 @@ def _run_benchmark(args: argparse.Namespace) -> int:
                 progress=not args.no_progress,
             )
         )
-        print(
-            f"Executed six-case control slice with "
-            f"{result.first_copy_attempt_count} first-copy attempts: "
-            f"{result.summary_json}"
-        )
-        return 0
     if args.benchmark_action == "run-control-matrix":
-        result = run_control_matrix(
+        run_control_matrix(
             ControlMatrixRunRequest(
                 import_root=args.import_root,
                 phenix_manifest=args.phenix_manifest,
@@ -2108,13 +2102,6 @@ def _run_benchmark(args: argparse.Namespace) -> int:
                 progress=not args.no_progress,
             )
         )
-        print(
-            "Completed fixed 23-case homomer matrix: "
-            f"{result.first_copy_attempt_count} first-copy, "
-            f"{result.additional_copy_attempt_count} additional-copy, "
-            f"{result.refinement_attempt_count} refinement attempts"
-        )
-        return 0
     if args.benchmark_action == "check-public-panel":
         panel = load_public_control_panel(args.panel)
         print(f"Public panel {panel.panel_id} is valid: {len(panel.entries)} entries")

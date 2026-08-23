@@ -1,32 +1,20 @@
-"""Execute the fixed 23-case prokaryotic homomer benchmark on Viper.
+"""Preparation helpers for the retired 23-case direct benchmark driver.
 
-The adapter runs one operational same-structure positive model for each of 11
-truth-labelled homomers and seven independent size-matched wrong models.  Every
-packed positive advances sequentially towards its expected ASU count (1, 2, 3,
-4, or 6), retaining each parent and attempted child.  The two target-absent,
-two wrong-catalogue, and one known-heteromer cases are typed identity or model-
-assumption boundaries and do not fabricate molecular-replacement searches.
-
-Outputs retain all raw first-copy, additional-copy, refinement, and sequence
-records plus one result per suite case.  Candidate-level tool failures remain
-evidence; malformed imports and checksum/contract failures abort.  The cache
-identity is the imported matrix manifest and Phenix manifest.  Unit tests cover
-input construction and truth classification; real acceptance requires Viper
-with the licensed Phenix runtime.
+Independent first-copy, copy-series, and refinement attempts formerly ran in
+Python thread pools. That public execution surface is retired so Nextflow can
+own scientific item fan-out, executor scheduling, retry, and resume. Shared
+preparation/classification helpers remain for the Nextflow-owned M6 graph and
+immutable historical evidence.
 """
 
-import json
 import shutil
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Never, cast
 
 from genome_to_diffraction.benchmarks.control_slice_run import (
     ControlSliceRunError,
-    _object,
     _pdb_sequence,
-    _review_seed,
     _target_fasta,
 )
 from genome_to_diffraction.benchmarks.mr_controls import _model_record
@@ -36,26 +24,8 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
-from genome_to_diffraction.diffraction.preflight import (
-    PreflightRequest,
-    preflight_crystals,
-)
 from genome_to_diffraction.ids import canonical_json_text, content_id
-from genome_to_diffraction.mr.add_copy import (
-    AddCopyRunRequest,
-    AddCopySeriesOutput,
-    run_additional_copy_series,
-)
-from genome_to_diffraction.mr.phaser import (
-    PhaserRunOutput,
-    PhaserRunRequest,
-    run_first_copy_phaser,
-)
-from genome_to_diffraction.refinement.brief import (
-    T12RunOutput,
-    T12RunRequest,
-    run_t12_candidate,
-)
+from genome_to_diffraction.mr.phaser import PhaserRunOutput
 from genome_to_diffraction.schemas.manifests import PrototypeProfile
 from genome_to_diffraction.schemas.results import (
     MrHypothesis,
@@ -67,18 +37,15 @@ from genome_to_diffraction.schemas.results import (
     SourceProteinRecord,
 )
 from genome_to_diffraction.status import ExecutionStatus
-from genome_to_diffraction.time import utc_now_iso
 
 _ADAPTER_VERSION = "public-homomer-matrix-run-v2"
 _DEFAULT_THREADS = 8
-_MAX_CONCURRENT_PHENIX_ATTEMPTS = 4
-_EXPECTED_CASE_KIND_COUNTS = {
-    "positive": 11,
-    "wrong_model_negative": 7,
-    "target_absent_negative": 2,
-    "wrong_catalogue_negative": 2,
-    "assumption_violation": 1,
-}
+_RETIRED_EXECUTION_MESSAGE = (
+    "benchmark run-control-matrix is retired because it scheduled independent "
+    "scientific attempts inside Python. Migrate the archival suite to a reviewed "
+    "DSL2 workflow that emits one complete Nextflow channel item per hypothesis, "
+    "seed, and finalist; the configured executor must own concurrency and resume."
+)
 
 
 class ControlMatrixRunError(ControlSliceRunError):
@@ -87,7 +54,7 @@ class ControlMatrixRunError(ControlSliceRunError):
 
 @dataclass(frozen=True, slots=True)
 class ControlMatrixRunRequest:
-    """Fixed imported matrix inputs and bounded Viper resources."""
+    """Legacy invocation fields retained only for the migration diagnostic."""
 
     import_root: Path
     phenix_manifest: Path
@@ -95,21 +62,6 @@ class ControlMatrixRunRequest:
     threads: int = _DEFAULT_THREADS
     progress: bool = True
     skip_xtriage: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class ControlMatrixRunOutput:
-    """Stable aggregate evidence paths for the complete matrix attempt."""
-
-    summary_json: Path
-    case_results_jsonl: Path
-    first_copy_results_jsonl: Path
-    additional_copy_results_jsonl: Path
-    refinement_results_jsonl: Path
-    sequence_results_jsonl: Path
-    first_copy_attempt_count: int
-    additional_copy_attempt_count: int
-    refinement_attempt_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -392,356 +344,8 @@ def _supported_first_copy_count(
     return 0
 
 
-def _bounded_worker_count(item_count: int) -> int:
-    """Retain the measured four-attempt Viper concurrency boundary."""
+def run_control_matrix(request: ControlMatrixRunRequest) -> Never:
+    """Refuse the retired direct scientific scheduler before reading inputs."""
 
-    return min(_MAX_CONCURRENT_PHENIX_ATTEMPTS, max(1, item_count))
-
-
-def run_control_matrix(request: ControlMatrixRunRequest) -> ControlMatrixRunOutput:
-    """Execute and retain the complete fixed 23-case benchmark matrix."""
-
-    if request.threads < 8 or request.threads > 64:
-        raise ControlMatrixRunError("control-matrix threads must be between 8 and 64")
-    root = request.import_root.resolve(strict=True)
-    manifest_path = root / "control_matrix_import_manifest.json"
-    manifest = _object(manifest_path)
-    case_ids = manifest.get("case_ids")
-    counts = manifest.get("case_kind_counts")
-    if (
-        not isinstance(case_ids, list)
-        or len(case_ids) != 23
-        or len(set(case_ids)) != 23
-        or counts != _EXPECTED_CASE_KIND_COUNTS
-    ):
-        raise ControlMatrixRunError("imported control matrix changed")
-    positives = _mapping(manifest.get("positive_controls"), label="positive controls")
-    wrong_models = _mapping(
-        manifest.get("wrong_model_controls"), label="wrong-model controls"
-    )
-    typed_cases = _mapping(
-        manifest.get("typed_boundary_cases"), label="typed boundary cases"
-    )
-    if len(positives) != 11 or len(wrong_models) != 7 or len(typed_cases) != 5:
-        raise ControlMatrixRunError("imported matrix inventory changed")
-
-    output = request.output_directory.resolve()
-    output.mkdir(parents=True, exist_ok=True)
-    crystals = output / "crystals.json"
-    atomic_write_json(
-        crystals,
-        {
-            "schema_version": "1.0",
-            "crystals": [
-                {
-                    "crystal_id": control_id,
-                    "mtz": str(root / f"controls/{control_id}/input.mtz"),
-                    "catalogue_id": str(
-                        _mapping(record, label=control_id)["catalogue_id"]
-                    ),
-                    "obs_labels": None,
-                    "free_flag_labels": None,
-                    "space_group_override": None,
-                    "high_resolution_override": None,
-                    "low_resolution_override": None,
-                    "sds_page_mass_kda": [],
-                    "sds_page_condition": None,
-                    "sds_page_band_roles": [],
-                    "sds_page_tolerance_fraction": 0.3,
-                    "allow_remote_sequence_submission": False,
-                    "notes": "truth-labelled public homomer operational control",
-                }
-                for control_id, record in positives.items()
-            ],
-        },
-    )
-    preflight = preflight_crystals(
-        PreflightRequest(
-            crystal_manifest=crystals,
-            output_directory=output / "preflight",
-            phenix_manifest=request.phenix_manifest,
-            skip_xtriage=request.skip_xtriage,
-            progress=request.progress,
-            xtriage_timeout_seconds=None,
-        )
-    )
-    runtime = _write_runtime_inputs(
-        root, manifest, preflight.records, output / "runtime"
-    )
-    hypothesis_by_id = {item.hypothesis_id: item for item in runtime.hypotheses}
-    max_workers = _bounded_worker_count(len(runtime.hypotheses))
-    threads_per_attempt = max(1, request.threads // max_workers)
-
-    def execute_first(hypothesis: MrHypothesis) -> PhaserRunOutput:
-        return run_first_copy_phaser(
-            PhaserRunRequest(
-                hypotheses_jsonl=(
-                    output / "runtime/hypotheses" / f"{hypothesis.hypothesis_id}.jsonl"
-                ),
-                hypothesis_id=hypothesis.hypothesis_id,
-                sequence_groups_jsonl=runtime.groups,
-                processed_models_jsonl=runtime.models,
-                model_preparation_manifest=runtime.model_manifest,
-                preflight_jsonl=preflight.jsonl_path,
-                mtz=root / f"controls/{hypothesis.crystal_id}/input.mtz",
-                phenix_manifest=request.phenix_manifest,
-                output_directory=output / "first-copy" / hypothesis.hypothesis_id,
-                threads=threads_per_attempt,
-                timeout_seconds=None,
-                progress=False,
-            )
-        )
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        attempts = tuple(executor.map(execute_first, runtime.hypotheses))
-    first_results = output / "first_copy_results.jsonl"
-    atomic_write_text(
-        first_results,
-        "".join(f"{canonical_json_text(item.result)}\n" for item in attempts),
-    )
-
-    packed_positive: list[
-        tuple[PhaserRunOutput, MrHypothesis, str, Path, Path, Path]
-    ] = []
-    for attempt in attempts:
-        hypothesis = hypothesis_by_id[attempt.result.hypothesis_id]
-        first_copy_count = _supported_first_copy_count(
-            attempt, expected_copy_count=hypothesis.copy_count_expected
-        )
-        if (
-            hypothesis.priority_features.get("control_role") != "known_positive"
-            or first_copy_count == 0
-        ):
-            continue
-        solution_id, validation, review_manifest, coordinate = _review_seed(
-            output, attempt
-        )
-        packed_positive.append(
-            (attempt, hypothesis, solution_id, validation, review_manifest, coordinate)
-        )
-
-    def execute_series(
-        item: tuple[PhaserRunOutput, MrHypothesis, str, Path, Path, Path],
-    ) -> AddCopySeriesOutput | None:
-        attempt, hypothesis, solution_id, validation, review_manifest, coordinate = item
-        first_copy_count = _supported_first_copy_count(
-            attempt, expected_copy_count=hypothesis.copy_count_expected
-        )
-        if hypothesis.copy_count_expected == first_copy_count:
-            return None
-        return run_additional_copy_series(
-            AddCopyRunRequest(
-                review_validation_json=validation,
-                review_package_manifest=review_manifest,
-                seed_solution_id=solution_id,
-                hypotheses_jsonl=output / "runtime/mr_hypotheses.jsonl",
-                sequence_groups_jsonl=runtime.groups,
-                preflight_jsonl=preflight.jsonl_path,
-                mtz=root / f"controls/{hypothesis.crystal_id}/input.mtz",
-                search_model=coordinate,
-                expected_search_model_sha256=sha256_file(coordinate),
-                phenix_manifest=request.phenix_manifest,
-                output_directory=output / "additional-copies" / solution_id,
-                threads=threads_per_attempt,
-                timeout_seconds=None,
-                progress=False,
-            )
-        )
-
-    with ThreadPoolExecutor(
-        max_workers=_bounded_worker_count(len(packed_positive))
-    ) as executor:
-        series_outputs = tuple(executor.map(execute_series, packed_positive))
-    series_by_hypothesis = {
-        item[1].hypothesis_id: series
-        for item, series in zip(packed_positive, series_outputs, strict=True)
-        if series is not None
-    }
-    additional_results = output / "additional_copy_results.jsonl"
-    atomic_write_text(
-        additional_results,
-        "".join(
-            f"{canonical_json_text(attempt.result)}\n"
-            for series in series_by_hypothesis.values()
-            for attempt in series.attempts
-        ),
-    )
-
-    preflight_by_id = {item.crystal_id: item for item in preflight.records}
-
-    def execute_refinement(
-        item: tuple[PhaserRunOutput, MrHypothesis, str, Path, Path, Path],
-    ) -> T12RunOutput:
-        attempt, hypothesis, solution_id, _, _, first_coordinate = item
-        parent_coordinate = first_coordinate
-        input_copy_count = _supported_first_copy_count(
-            attempt, expected_copy_count=hypothesis.copy_count_expected
-        )
-        series = series_by_hypothesis.get(hypothesis.hypothesis_id)
-        if series is not None:
-            supported = [
-                child
-                for child in series.attempts
-                if child.result.additional_copy_supported
-                and child.result.output_coordinate_path is not None
-            ]
-            if supported:
-                latest = supported[-1]
-                parent_coordinate = latest.result_json.parent / cast(
-                    str, latest.result.output_coordinate_path
-                )
-                input_copy_count = latest.result.best_supported_copy_count
-        mtz = root / f"controls/{hypothesis.crystal_id}/input.mtz"
-        pf = preflight_by_id[hypothesis.crystal_id]
-        return run_t12_candidate(
-            T12RunRequest(
-                seed_solution_id=solution_id,
-                sequence_group_id=hypothesis.sequence_group_id,
-                input_copy_count=input_copy_count,
-                parent_coordinate=parent_coordinate,
-                parent_coordinate_sha256=sha256_file(parent_coordinate),
-                parent_mtz=mtz,
-                parent_mtz_sha256=sha256_file(mtz),
-                observation_labels=cast(str, pf.selected_observation_labels),
-                sequence_groups_jsonl=runtime.groups,
-                source_records_jsonl=runtime.sources,
-                resolution=pf.resolution_high_a,
-                phenix_manifest=request.phenix_manifest,
-                output_directory=output / "t12" / solution_id,
-                threads=min(4, threads_per_attempt),
-                timeout_seconds=None,
-                progress=False,
-            )
-        )
-
-    with ThreadPoolExecutor(
-        max_workers=_bounded_worker_count(len(packed_positive))
-    ) as executor:
-        refinements = tuple(executor.map(execute_refinement, packed_positive))
-    refinement_results = output / "refinement_results.jsonl"
-    sequence_results = output / "sequence_results.jsonl"
-    atomic_write_text(
-        refinement_results,
-        "".join(f"{canonical_json_text(item.refinement)}\n" for item in refinements),
-    )
-    atomic_write_text(
-        sequence_results,
-        "".join(f"{canonical_json_text(item.sequence)}\n" for item in refinements),
-    )
-
-    attempts_by_case = {
-        cast(
-            str,
-            hypothesis_by_id[item.result.hypothesis_id].priority_features[
-                "control_case_id"
-            ],
-        ): item
-        for item in attempts
-    }
-    best_copy_by_hypothesis: dict[str, int] = {}
-    for item in packed_positive:
-        hypothesis = item[1]
-        series = series_by_hypothesis.get(hypothesis.hypothesis_id)
-        best_copy_by_hypothesis[hypothesis.hypothesis_id] = (
-            series.attempts[-1].result.best_supported_copy_count
-            if series is not None
-            else _supported_first_copy_count(
-                item[0], expected_copy_count=hypothesis.copy_count_expected
-            )
-        )
-
-    case_records: list[dict[str, object]] = []
-    for raw_case_id in case_ids:
-        case_id = cast(str, raw_case_id)
-        if case_id.startswith("POS_"):
-            attempt = attempts_by_case[case_id]
-            hypothesis = hypothesis_by_id[attempt.result.hypothesis_id]
-            best = best_copy_by_hypothesis.get(hypothesis.hypothesis_id, 0)
-            retained = (
-                _supported_first_copy_count(
-                    attempt, expected_copy_count=hypothesis.copy_count_expected
-                )
-                > 0
-                and best == hypothesis.copy_count_expected
-            )
-            outcome = (
-                "ground_truth_retained" if retained else "ground_truth_not_retained"
-            )
-            detail: dict[str, object] = {
-                "expected_asu_copy_count": hypothesis.copy_count_expected,
-                "best_supported_copy_count": best,
-                "first_copy_execution_status": attempt.result.execution_status.value,
-            }
-        elif case_id in wrong_models:
-            attempt = attempts_by_case[case_id]
-            outcome = "unrelated_model_retained_for_comparison"
-            detail = {
-                "first_copy_execution_status": attempt.result.execution_status.value,
-                "llg": attempt.result.llg,
-                "tfz": attempt.result.tfz,
-                "ground_truth_displacement_allowed": False,
-            }
-        else:
-            typed = _mapping(typed_cases[case_id], label=case_id)
-            outcome = (
-                "assumption_violation_abstained"
-                if typed["case_kind"] == "assumption_violation"
-                else "no_reportable_identity"
-            )
-            detail = {"real_mr_search_required": False}
-        case_records.append(
-            {
-                "schema_version": "1.0",
-                "case_id": case_id,
-                "outcome": outcome,
-                "all_candidates_retained": True,
-                **detail,
-            }
-        )
-    case_results = output / "control_matrix_case_results.jsonl"
-    atomic_write_text(
-        case_results,
-        "".join(json.dumps(item, sort_keys=True) + "\n" for item in case_records),
-    )
-    summary = output / "control_matrix_summary.json"
-    additional_attempt_count = sum(
-        len(series.attempts) for series in series_by_hypothesis.values()
-    )
-    atomic_write_json(
-        summary,
-        {
-            "schema_version": "1.0",
-            "adapter_version": _ADAPTER_VERSION,
-            "generated_at": utc_now_iso(),
-            "suite_id": "prokaryote_homomer_workflow_v1",
-            "case_count": 23,
-            "positive_count": 11,
-            "wrong_model_count": 7,
-            "typed_boundary_count": 5,
-            "first_copy_attempt_count": len(attempts),
-            "additional_copy_attempt_count": additional_attempt_count,
-            "refinement_attempt_count": len(refinements),
-            "positive_expected_copy_counts": [1, 2, 3, 4, 6],
-            "all_candidates_retained": True,
-            "score_policy": "LLG/TFZ_are_ranking_annotations_only",
-            "generalisation_claim": "none_operational_same_structure_controls",
-            "import_manifest_sha256": sha256_file(manifest_path),
-            "phenix_manifest_sha256": sha256_file(request.phenix_manifest),
-            "case_results_sha256": sha256_file(case_results),
-            "first_copy_results_sha256": sha256_file(first_results),
-            "additional_copy_results_sha256": sha256_file(additional_results),
-            "refinement_results_sha256": sha256_file(refinement_results),
-            "sequence_results_sha256": sha256_file(sequence_results),
-        },
-    )
-    return ControlMatrixRunOutput(
-        summary_json=summary,
-        case_results_jsonl=case_results,
-        first_copy_results_jsonl=first_results,
-        additional_copy_results_jsonl=additional_results,
-        refinement_results_jsonl=refinement_results,
-        sequence_results_jsonl=sequence_results,
-        first_copy_attempt_count=len(attempts),
-        additional_copy_attempt_count=additional_attempt_count,
-        refinement_attempt_count=len(refinements),
-    )
+    del request
+    raise ControlMatrixRunError(_RETIRED_EXECUTION_MESSAGE)

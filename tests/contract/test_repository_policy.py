@@ -325,6 +325,27 @@ def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     assert viper.count("cpus = 32") >= 2
 
 
+def test_retired_control_benchmarks_cannot_start_nested_python_schedulers() -> None:
+    """Keep archival control execution behind a Nextflow migration diagnostic."""
+
+    relative_drivers = (
+        "src/genome_to_diffraction/benchmarks/control_slice_run.py",
+        "src/genome_to_diffraction/benchmarks/control_matrix_run.py",
+    )
+    forbidden = (
+        "ThreadPoolExecutor",
+        "ProcessPoolExecutor",
+        "concurrent.futures",
+        "multiprocessing",
+    )
+
+    for relative in relative_drivers:
+        source = (REPOSITORY / relative).read_text(encoding="utf-8")
+        assert all(token not in source for token in forbidden)
+        assert "Refuse the retired direct scientific scheduler" in source
+        assert "Nextflow channel item per hypothesis" in source
+
+
 def test_m6_uses_standard_nextflow_resume_cache_without_store_dir() -> None:
     """Keep M6 reuse inside one standard Nextflow work/cache boundary."""
 

@@ -14,6 +14,20 @@ chain. Iterative placement of copy `n + 1`, for example, must wait for the
 retained result at copy `n`; independent seeds and samples still run as separate
 Nextflow tasks.
 
+## Retired direct benchmark drivers
+
+The archival `benchmark run-control-slice` and `benchmark run-control-matrix`
+commands are retained only as migration diagnostics. They fail before reading
+inputs, creating outputs, or starting Phenix because their historical Python
+thread pools scheduled independent hypotheses, seeds, and refinements outside
+Nextflow. Their immutable prior evidence remains readable, and shared
+preparation/classification helpers remain available to Nextflow-owned graphs.
+
+Any future replay of those suites must use a reviewed DSL2 entry point that
+emits one complete channel item per independent hypothesis, seed, and finalist.
+The configured executor, not Python or Bash, must own concurrency, retry,
+resume, and resource evidence.
+
 ## Driver and workers
 
 The reviewed HPC wrapper submits one small Slurm driver. The driver verifies

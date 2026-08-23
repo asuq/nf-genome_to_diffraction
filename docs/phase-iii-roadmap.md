@@ -375,6 +375,14 @@ Add a locked offline wheel build, isolated install, both entry points, packaged
 schemas, and version parity. Remove or migrate legacy nested thread-pool
 benchmark execution. Repeat the adverse review before release.
 
+Status: `DEV-P2-03` is fixed locally. The two archival public benchmark actions
+that formerly launched independent Phenix attempts through Python thread pools
+now fail before reading inputs or creating outputs with an actionable DSL2/
+Nextflow migration diagnostic. Their shared preparation and classification
+helpers remain available to current Nextflow-owned workflows, but neither
+production benchmark driver contains a thread/process-pool primitive. No
+historical control profile or evidence was reinterpreted as Phase III evidence.
+
 Status: the exact Hatchling backend is now pinned in both build metadata and
 the Pixi lock, and one fixed `offline-wheel-check` builds without isolation,
 inspects every packaged Python/schema byte, installs into a fresh virtual
