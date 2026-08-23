@@ -10099,3 +10099,68 @@ Review and commit/push the P6 slice, watch one CI run, deploy matching tools,
 and stage exactly one fresh existing `heteromer-smoke`. After submission, use a
 30-minute heartbeat for wrapper-only status. Collect and classify all six case
 outcomes before accepting P6 or beginning the v0.2 release boundary.
+
+## 2026-08-23T07:00:00Z - P6 diagnostic run passes but exposes claim-gate defects
+
+### Terminal real-Phenix evidence
+
+- Marmic `heteromer-smoke` run
+  `gtd-heteromer-smoke-20260823T055337Z-8ade88261939-90c2832b`, Slurm `632965`,
+  completed from source `8ade882619395b916f5261f904b4e4f84b8a8ad3` with exit
+  zero under Pixi 0.76.2 and the pinned nf-helper revision. Bounded wrapper
+  collection retained the fixed controls, P6 plans/results, logs, manifests,
+  and qualification records.
+- The accepted positive regressions remained stable. The full missing-B plan
+  retained 1845 non-A candidates, selected zero attempts, and emitted a
+  complete zero-result summary.
+- The deliberately wrong 3U7Q-B model nevertheless produced a packed 6RTZ
+  placement with incremental LLG 327.049 and TFZ 5.1 in the fallback cohort.
+  This is valid search evidence and strong direct evidence that packing and MR
+  scores cannot establish partner identity or a complete composition.
+
+### Classification and next exact starting point
+
+- Treat this run as diagnostic, not final P6 acceptance. The current report
+  hard-codes no-claim and 9ECN boundary statements, under-binds fixed control
+  identities, permits a vacuous missing catalogue in unit coverage, bypasses
+  the real empty-partner Nextflow channel, and incompletely checksums P6 inputs
+  and optional outputs.
+- Correct those five acceptance boundaries in one focused slice, run touched
+  Python/Nextflow/fake-Marmic checks, then commit/push/CI/deploy and replay the
+  same fixed profile once. Do not reinterpret or clean Slurm `632965`.
+
+## 2026-08-23T08:30:00Z - Corrected P6-v2 acceptance gates are locally green
+
+### Completed correction
+
+- The P6 preparation now binds the frozen protocol, exact 6RTZ and 3U7Q source
+  preparations, parent hypotheses/models, component sequence relationships,
+  MTZ/model identities, and the full 1846-sequence catalogue. The missing-B
+  universe is exactly catalogue-minus-6RTZ-A: 1845 unique sequence groups with
+  recomputed candidate IDs, zero selected attempts, and exact plan/summary
+  checksum and count equality.
+- Both positive controls are tied to their retained fixed-A parent hypothesis,
+  placed count, packing, coordinate SHA-256, and LLG. Wrong B must reuse the
+  exact 6RTZ parent/MTZ while carrying the checksum-bound 3U7Q-B model; a packed
+  wrong hit remains typed `search_evidence_only` and is never composition-claim
+  eligible.
+- P6 writes one protocol-backed component-scope decision and six typed
+  composition assessments. The 9ECN outcome is derived from observed three
+  versus supported two components rather than copied into the summary.
+- The actual partner-search Nextflow workflow now exercises an empty selected
+  channel: one 1845-row plan, zero partner processes, one zero-result summary,
+  and byte-identical cached resume. Staging, final checksums, and bounded
+  collection cover the dynamic parent-only model, scope/assessment records,
+  missing plan inventory, mandatory wrong-search evidence, and conditional
+  solution PDB/MTZ.
+
+### Focused evidence and next exact starting point
+
+- Eleven P6 scientific tests, three fake Marmic lifecycles, 29 related partner
+  tests, the focused empty-partner Nextflow stub, Ruff, `ty`, format, wrapper
+  syntax, documentation, and diff checks pass. Independent review found two
+  further release blockers; parent-solution and exact catalogue-universe
+  bindings were added and their mutation regressions pass.
+- Review the final diff, commit/push once, watch one CI run, deploy matching
+  reviewed tools, and stage one fresh `heteromer-smoke`. Accept P6 only after
+  terminal collection validates the P6-v2 report and every retained checksum.

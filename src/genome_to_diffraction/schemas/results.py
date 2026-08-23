@@ -917,6 +917,151 @@ class PartnerAttemptSummary(ContractModel):
         return self
 
 
+class ComponentScopeStatus(StrEnum):
+    """Whether an observed composition is representable by the active search."""
+
+    WITHIN_SUPPORTED_COMPONENT_COUNT = "within_supported_component_count"
+    UNSUPPORTED_COMPONENT_COUNT = "unsupported_component_count"
+
+
+class ComponentScopeDecision(ContractModel):
+    """Observed component-count boundary tied to immutable protocol evidence."""
+
+    schema_version: Literal["1.0"]
+    decision_id: NonEmptyString
+    target_key: NonEmptyString
+    crystal_id: NonEmptyString
+    protocol_id: NonEmptyString
+    protocol_sha256: Sha256Hex
+    observed_distinct_component_count: PositiveInt
+    supported_distinct_component_count: PositiveInt
+    status: ComponentScopeStatus
+    retain_partial_a_b_evidence: bool
+    complete_composition_claim_eligible: bool
+
+    @model_validator(mode="after")
+    def _derive_scope_status(self) -> Self:
+        expected_status = (
+            ComponentScopeStatus.WITHIN_SUPPORTED_COMPONENT_COUNT
+            if self.observed_distinct_component_count
+            <= self.supported_distinct_component_count
+            else ComponentScopeStatus.UNSUPPORTED_COMPONENT_COUNT
+        )
+        if self.status is not expected_status:
+            raise ValueError("component scope status disagrees with observed counts")
+        if self.complete_composition_claim_eligible != (
+            expected_status is ComponentScopeStatus.WITHIN_SUPPORTED_COMPONENT_COUNT
+        ):
+            raise ValueError(
+                "component scope claim eligibility disagrees with observed counts"
+            )
+        return self
+
+
+class CompositionAssessmentCaseKind(StrEnum):
+    """Scientific role of one typed composition assessment."""
+
+    KNOWN_POSITIVE_CONTROL = "known_positive_control"
+    MISSING_PARTNER_CONTROL = "missing_partner_control"
+    WRONG_PARTNER_CONTROL = "wrong_partner_control"
+    HOMOMER_NON_REGRESSION = "homomer_non_regression"
+    COMPONENT_SCOPE_BOUNDARY = "component_scope_boundary"
+
+
+class CompositionAssessmentStatus(StrEnum):
+    """Evidence-derived interpretation of one composition-control case."""
+
+    KNOWN_CONTROL_RECOVERED = "known_control_recovered"
+    NO_PARTNER_ATTEMPTED = "no_partner_attempted"
+    SEARCH_EVIDENCE_ONLY = "search_evidence_only"
+    ROUTE_NON_REGRESSION = "route_non_regression"
+    UNSUPPORTED_COMPONENT_COUNT = "unsupported_component_count"
+
+
+class CompositionAssessment(ContractModel):
+    """Typed separation of placement evidence from a composition claim.
+
+    P6 never emits a biological composition claim.  Eligibility is derived from
+    exact-control identity, placement, execution, and component scope; in
+    particular, a deliberately wrong partner remains search evidence even when
+    Phaser returns a packed completed hit.
+    """
+
+    schema_version: Literal["1.0"]
+    assessment_id: NonEmptyString
+    case_id: NonEmptyString
+    crystal_id: NonEmptyString
+    case_kind: CompositionAssessmentCaseKind
+    execution_status: ExecutionStatus
+    placement_observed: bool
+    exact_identity_supported: bool
+    scope_status: ComponentScopeStatus
+    scope_decision_id: NonEmptyString | None = None
+    scientific_status: CompositionAssessmentStatus
+    complete_composition_claim_eligible: bool
+    complete_composition_claimed: Literal[False] = False
+    evidence_sha256: dict[str, Sha256Hex] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _derive_composition_interpretation(self) -> Self:
+        if self.case_kind is CompositionAssessmentCaseKind.KNOWN_POSITIVE_CONTROL:
+            recovered = (
+                self.execution_status is ExecutionStatus.COMPLETED_HIT
+                and self.placement_observed
+                and self.exact_identity_supported
+                and self.scope_status
+                is ComponentScopeStatus.WITHIN_SUPPORTED_COMPONENT_COUNT
+            )
+            expected_status = (
+                CompositionAssessmentStatus.KNOWN_CONTROL_RECOVERED
+                if recovered
+                else CompositionAssessmentStatus.SEARCH_EVIDENCE_ONLY
+            )
+            expected_eligible = recovered
+        elif self.case_kind is CompositionAssessmentCaseKind.MISSING_PARTNER_CONTROL:
+            if self.placement_observed or self.exact_identity_supported:
+                raise ValueError("missing-partner control cannot retain a placement")
+            expected_status = CompositionAssessmentStatus.NO_PARTNER_ATTEMPTED
+            expected_eligible = False
+        elif self.case_kind is CompositionAssessmentCaseKind.WRONG_PARTNER_CONTROL:
+            if self.exact_identity_supported:
+                raise ValueError("wrong-partner control cannot support exact identity")
+            expected_status = CompositionAssessmentStatus.SEARCH_EVIDENCE_ONLY
+            expected_eligible = False
+        elif self.case_kind is CompositionAssessmentCaseKind.HOMOMER_NON_REGRESSION:
+            expected_status = CompositionAssessmentStatus.ROUTE_NON_REGRESSION
+            expected_eligible = False
+        else:
+            if (
+                self.scope_status
+                is not ComponentScopeStatus.UNSUPPORTED_COMPONENT_COUNT
+                or self.scope_decision_id is None
+            ):
+                raise ValueError(
+                    "component-scope boundary lacks an unsupported scope decision"
+                )
+            expected_status = CompositionAssessmentStatus.UNSUPPORTED_COMPONENT_COUNT
+            expected_eligible = False
+
+        if self.case_kind is not CompositionAssessmentCaseKind.COMPONENT_SCOPE_BOUNDARY:
+            if self.scope_decision_id is not None:
+                raise ValueError("only a component-scope boundary links a decision")
+            if (
+                self.scope_status
+                is not ComponentScopeStatus.WITHIN_SUPPORTED_COMPONENT_COUNT
+            ):
+                raise ValueError("non-boundary control unexpectedly exceeds scope")
+        if self.scientific_status is not expected_status:
+            raise ValueError(
+                "composition scientific status disagrees with observed evidence"
+            )
+        if self.complete_composition_claim_eligible != expected_eligible:
+            raise ValueError(
+                "composition claim eligibility disagrees with observed evidence"
+            )
+        return self
+
+
 class CopyCountAssessment(ContractModel):
     """Matthews-intended and empirically supported count for one retained seed."""
 

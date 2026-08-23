@@ -588,6 +588,9 @@ def _build_parser() -> argparse.ArgumentParser:
     heteromer_slice_prepare_parser.add_argument(
         "--control-3u7q-preparation", type=Path, required=True
     )
+    heteromer_slice_prepare_parser.add_argument(
+        "--catalogue-sequence-groups", type=Path, required=True
+    )
     heteromer_slice_prepare_parser.add_argument("--outdir", type=Path, required=True)
     heteromer_slice_assess_parser = benchmark_actions.add_parser(
         "assess-heteromer-control-slice",
@@ -601,6 +604,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     heteromer_slice_assess_parser.add_argument(
         "--positive-3u7q-result", type=Path, required=True
+    )
+    heteromer_slice_assess_parser.add_argument(
+        "--positive-3u7q-parent-result", type=Path, required=True
+    )
+    heteromer_slice_assess_parser.add_argument(
+        "--catalogue-sequence-groups", type=Path, required=True
     )
     heteromer_slice_assess_parser.add_argument(
         "--missing-partner-plan", type=Path, required=True
@@ -1807,6 +1816,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
                 protocol=args.protocol,
                 control_6rtz_preparation=args.control_6rtz_preparation,
                 control_3u7q_preparation=args.control_3u7q_preparation,
+                catalogue_sequence_groups=args.catalogue_sequence_groups,
                 output_directory=args.outdir,
             )
         )
@@ -1816,8 +1826,10 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         assessed = assess_heteromer_control_slice(
             HeteromerSliceAssessmentRequest(
                 preparation_manifest=args.preparation_manifest,
+                catalogue_sequence_groups=args.catalogue_sequence_groups,
                 positive_6rtz_result=args.positive_6rtz_result,
                 positive_3u7q_result=args.positive_3u7q_result,
+                positive_3u7q_parent_result=args.positive_3u7q_parent_result,
                 missing_partner_plan=args.missing_partner_plan,
                 missing_partner_summary=args.missing_partner_summary,
                 wrong_partner_result=args.wrong_partner_result,

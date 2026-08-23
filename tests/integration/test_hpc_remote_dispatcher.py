@@ -211,6 +211,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
     python = shlex.quote(sys.executable)
+    sha256sum = shutil.which("sha256sum")
+    assert sha256sum is not None
     fake_stat = (
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
@@ -265,6 +267,11 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "outdir=\n"
         "refreshed=\n"
         "verification_log=\n"
+        "protocol=\n"
+        "control_6rtz_preparation=\n"
+        "control_3u7q_preparation=\n"
+        "catalogue_sequence_groups=\n"
+        "partner_plan=\n"
         'case " $* " in\n'
         '  *" catalogue import "*) mode=catalogue ;;\n'
         '  *" structure-search afdb-exact "*) mode=afdb ;;\n'
@@ -298,6 +305,14 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
         '  [[ "$previous" != --output ]] || refreshed="$argument"\n'
         '  [[ "$previous" != --verification-log ]] || verification_log="$argument"\n'
+        '  [[ "$previous" != --protocol ]] || protocol="$argument"\n'
+        '  [[ "$previous" != --control-6rtz-preparation ]] || '
+        'control_6rtz_preparation="$argument"\n'
+        '  [[ "$previous" != --control-3u7q-preparation ]] || '
+        'control_3u7q_preparation="$argument"\n'
+        '  [[ "$previous" != --catalogue-sequence-groups ]] || '
+        'catalogue_sequence_groups="$argument"\n'
+        '  [[ "$previous" != --partner-plan ]] || partner_plan="$argument"\n'
         '  previous="$argument"\n'
         "done\n"
         'if [[ "$mode" == catalogue ]]; then\n'
@@ -364,10 +379,13 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "  parent_seq=\"seq_$(printf 'a%.0s' {1..64})\"\n"
         "  partner_seq=\"seq_$(printf 'b%.0s' {1..64})\"\n"
         "  hypothesis=\"mrhyp_$(printf 'c%.0s' {1..64})\"\n"
-        '  printf \'{"parent_hypothesis_id":"%s",'
+        "  preparation_id=\"heteromerprep_$(printf '1%.0s' {1..64})\"\n"
+        '  printf \'{"preparation_id":"%s","control_key":"A01",'
+        '"crystal_id":"6RTZ","composition":{"A":1,"B":1},'
+        '"parent_hypothesis_id":"%s",'
         '"parent_sequence_group_id":"%s",'
         '"partner_sequence_group_id":"%s"}\\n\' '
-        '"$hypothesis" "$parent_seq" "$partner_seq" '
+        '"$preparation_id" "$hypothesis" "$parent_seq" "$partner_seq" '
         '> "$outdir/preparation_manifest.json"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/crystals.json"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/sequence_groups.jsonl"\n'
@@ -383,16 +401,19 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "  parent_seq=\"seq_$(printf 'd%.0s' {1..64})\"\n"
         "  partner_seq=\"seq_$(printf 'e%.0s' {1..64})\"\n"
         "  hypothesis=\"mrhyp_$(printf 'f%.0s' {1..64})\"\n"
+        "  preparation_id=\"heteromerprep_$(printf '2%.0s' {1..64})\"\n"
         '  printf "fake 3U7Q mtz\\n" > "$outdir/derived/3U7Q.mtz"\n'
         '  printf "fake A2 pdb\\n" > "$outdir/models/component_A.pdb"\n'
         '  printf "fake B2 pdb\\n" > "$outdir/models/component_B.pdb"\n'
         "  partner_sha=\"$(printf '0%.0s' {1..64})\"\n"
         '  printf \'{"adapter_version":"3u7q-fixed-two-a-two-b-inputs-v1",'
+        '"preparation_id":"%s","control_key":"A03",'
         '"crystal_id":"3U7Q","composition":{"A":2,"B":2},'
         '"parent_hypothesis_id":"%s","parent_sequence_group_id":"%s",'
         '"partner_sequence_group_id":"%s","partner_model_identity_fraction":1.0,'
         '"files":{"partner_model":{"sha256":"%s"}}}\\n\' '
-        '"$hypothesis" "$parent_seq" "$partner_seq" "$partner_sha" '
+        '"$preparation_id" "$hypothesis" "$parent_seq" "$partner_seq" '
+        '"$partner_sha" '
         '> "$outdir/preparation_manifest.json"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/crystals.json"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/sequence_groups.jsonl"\n'
@@ -426,34 +447,150 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"$outdir/wrong_partner"\n'
         "  parent_seq=\"seq_$(printf 'a%.0s' {1..64})\"\n"
         "  wrong_seq=\"seq_$(printf 'e%.0s' {1..64})\"\n"
-        "  model_sha=\"$(printf '0%.0s' {1..64})\"\n"
-        '  printf \'{"adapter_version":"heteromer-p6-control-slice-v1",'
-        '"wrong_partner":{"parent_sequence_group_id":"%s",'
-        '"partner_sequence_group_id":"%s",'
-        '"partner_model_identity_fraction":1.0},'
-        '"files":{"wrong_partner_model":{"sha256":"%s"}}}\\n\' '
-        '"$parent_seq" "$wrong_seq" "$model_sha" '
-        '> "$outdir/preparation_manifest.json"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > '
         '"$outdir/missing_partner_model_registry/processed_models.jsonl"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > '
         '"$outdir/missing_partner_model_registry/model_preparation_manifest.json"\n'
-        '  printf "ATOM\\n" > '
-        '"$outdir/missing_partner_model_registry/models/parent.pdb"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > '
         '"$outdir/wrong_partner/sequence_groups.jsonl"\n'
         '  printf "ATOM\\n" > "$outdir/wrong_partner/model.pdb"\n'
+        '  printf "ATOM parent\\n" > "$outdir/missing-parent.pdb"\n'
+        '  missing_model_sha="$(sha256sum "$outdir/missing-parent.pdb" '
+        "| awk '{print $1}')\"\n"
+        '  missing_model_relative="missing_partner_model_registry/models/'
+        '${missing_model_sha}.pdb"\n'
+        '  mv "$outdir/missing-parent.pdb" '
+        '"$outdir/$missing_model_relative"\n'
+        '  wrong_model_sha="$(sha256sum "$outdir/wrong_partner/model.pdb" '
+        "| awk '{print $1}')\"\n"
+        '  protocol_sha="$(sha256sum "$protocol" | awk \'{print $1}\')"\n'
+        '  source_6_sha="$(sha256sum "$control_6rtz_preparation" '
+        "| awk '{print $1}')\"\n"
+        '  source_3_sha="$(sha256sum "$control_3u7q_preparation" '
+        "| awk '{print $1}')\"\n"
+        '  catalogue_sha="$(sha256sum "$catalogue_sequence_groups" '
+        "| awk '{print $1}')\"\n"
+        "  universe_sha=\"$(printf '6%.0s' {1..64})\"\n"
+        '  [[ "${FAKE_P6_PROVENANCE_MISMATCH:-0}" != 1 ]] || '
+        "protocol_sha=\"$(printf '0%.0s' {1..64})\"\n"
+        "  scope_id=\"componentscope_$(printf '3%.0s' {1..64})\"\n"
+        '  printf \'{"schema_version":"1.0","decision_id":"%s",'
+        '"target_key":"A04","crystal_id":"9ECN",'
+        '"protocol_id":"m6-frozen-v1","protocol_sha256":"%s",'
+        '"observed_distinct_component_count":3,'
+        '"supported_distinct_component_count":2,'
+        '"status":"unsupported_component_count",'
+        '"retain_partial_a_b_evidence":true,'
+        '"complete_composition_claim_eligible":false}\\n\' '
+        '"$scope_id" "$protocol_sha" > "$outdir/component_scope_decision.json"\n'
+        '  missing_models_sha="$(sha256sum '
+        '"$outdir/missing_partner_model_registry/processed_models.jsonl" '
+        "| awk '{print $1}')\"\n"
+        '  missing_manifest_sha="$(sha256sum '
+        '"$outdir/missing_partner_model_registry/model_preparation_manifest.json" '
+        "| awk '{print $1}')\"\n"
+        '  wrong_groups_sha="$(sha256sum '
+        '"$outdir/wrong_partner/sequence_groups.jsonl" '
+        "| awk '{print $1}')\"\n"
+        '  scope_sha="$(sha256sum "$outdir/component_scope_decision.json" '
+        "| awk '{print $1}')\"\n"
+        '  missing_models_size="$(wc -c < '
+        '"$outdir/missing_partner_model_registry/processed_models.jsonl")"\n'
+        '  missing_manifest_size="$(wc -c < '
+        '"$outdir/missing_partner_model_registry/model_preparation_manifest.json")"\n'
+        '  missing_model_size="$(wc -c < "$outdir/$missing_model_relative")"\n'
+        '  wrong_groups_size="$(wc -c < '
+        '"$outdir/wrong_partner/sequence_groups.jsonl")"\n'
+        '  wrong_model_size="$(wc -c < "$outdir/wrong_partner/model.pdb")"\n'
+        '  scope_size="$(wc -c < "$outdir/component_scope_decision.json")"\n'
+        '  printf \'{"adapter_version":"heteromer-p6-control-slice-v2",'
+        '"protocol":{"protocol_id":"m6-frozen-v1","sha256":"%s"},'
+        '"source_preparations":{"6RTZ":{"preparation_id":"heteromerprep_%s",'
+        '"manifest_sha256":"%s"},"3U7Q":{"preparation_id":"heteromerprep_%s",'
+        '"manifest_sha256":"%s"}},'
+        '"catalogue_sequence_groups":{"sha256":"%s",'
+        '"sequence_group_count":1846,"candidate_sequence_group_count":1845,'
+        '"candidate_universe_sha256":"%s"},'
+        '"missing_partner":{"parent_sequence_group_id":"%s",'
+        '"expected_candidate_count":1845,"candidate_universe_sha256":"%s"},'
+        '"wrong_partner":{"parent_sequence_group_id":"%s",'
+        '"partner_sequence_group_id":"%s",'
+        '"partner_model_sha256":"%s"},'
+        '"unsupported_component_control":{"scope_decision_id":"%s"},'
+        '"files":{"missing_processed_models":{"path":"missing_partner_model_registry/'
+        'processed_models.jsonl","sha256":"%s","size_bytes":%s},'
+        '"missing_model_manifest":{"path":"missing_partner_model_registry/'
+        'model_preparation_manifest.json","sha256":"%s","size_bytes":%s},'
+        '"missing_parent_model":{"path":"%s","sha256":"%s",'
+        '"size_bytes":%s},"wrong_sequence_groups":{"path":"wrong_partner/'
+        'sequence_groups.jsonl","sha256":"%s","size_bytes":%s},'
+        '"wrong_partner_model":{"path":"wrong_partner/model.pdb",'
+        '"sha256":"%s","size_bytes":%s},'
+        '"component_scope_decision":{"path":"component_scope_decision.json",'
+        '"sha256":"%s","size_bytes":%s}}}\\n\' '
+        '"$protocol_sha" "$(printf \'1%.0s\' {1..64})" "$source_6_sha" '
+        '"$(printf \'2%.0s\' {1..64})" "$source_3_sha" '
+        '"$catalogue_sha" "$universe_sha" "$parent_seq" "$universe_sha" '
+        '"$parent_seq" "$wrong_seq" "$wrong_model_sha" '
+        '"$scope_id" '
+        '"$missing_models_sha" "$missing_models_size" '
+        '"$missing_manifest_sha" "$missing_manifest_size" '
+        '"$missing_model_relative" "$missing_model_sha" "$missing_model_size" '
+        '"$wrong_groups_sha" "$wrong_groups_size" '
+        '"$wrong_model_sha" "$wrong_model_size" "$scope_sha" "$scope_size" '
+        '> "$outdir/preparation_manifest.json"\n'
         'elif [[ "$mode" == heteromer_p6_assess ]]; then\n'
         '  [[ -n "$refreshed" ]] || exit 20\n'
         '  mkdir -p "$(dirname "$refreshed")"\n'
+        '  assessments="$(dirname "$refreshed")/'
+        'heteromer-composition-assessments.jsonl"\n'
+        '  : > "$assessments"\n'
+        "  scope_id=\"componentscope_$(printf '3%.0s' {1..64})\"\n"
+        "  evidence_sha=\"$(printf '4%.0s' {1..64})\"\n"
+        "  case_ids=(6RTZ_positive_1A_1B 3U7Q_positive_2A_2B missing_B "
+        "wrong_B homomer_non_regression 9ECN_three_component_boundary)\n"
+        "  crystal_ids=(6RTZ 3U7Q 6RTZ 6RTZ 6RTZ 9ECN)\n"
+        "  case_kinds=(known_positive_control known_positive_control "
+        "missing_partner_control wrong_partner_control homomer_non_regression "
+        "component_scope_boundary)\n"
+        "  scientific_statuses=(known_control_recovered known_control_recovered "
+        "no_partner_attempted search_evidence_only route_non_regression "
+        "unsupported_component_count)\n"
+        "  for ((i=0; i<6; i++)); do\n"
+        "    eligible=false; exact=false; scope=within_supported_component_count\n"
+        "    scope_decision=null\n"
+        '    [[ "$i" -ge 2 ]] || { eligible=true; exact=true; }\n'
+        '    [[ "$i" -ne 5 ]] || { scope=unsupported_component_count; '
+        'scope_decision="\\"$scope_id\\""; }\n'
+        '    assessment_id="assessment_$(printf \'%064d\' "$((i + 1))")"\n'
+        '    printf \'{"schema_version":"1.0","assessment_id":"%s",'
+        '"case_id":"%s","crystal_id":"%s","case_kind":"%s",'
+        '"execution_status":"completed_hit","placement_observed":true,'
+        '"exact_identity_supported":%s,"scope_status":"%s",'
+        '"scope_decision_id":%s,"scientific_status":"%s",'
+        '"complete_composition_claim_eligible":%s,'
+        '"complete_composition_claimed":false,"evidence_sha256":{"result":"%s"}}\\n\' '
+        '"$assessment_id" "${case_ids[$i]}" "${crystal_ids[$i]}" '
+        '"${case_kinds[$i]}" "$exact" "$scope" "$scope_decision" '
+        '"${scientific_statuses[$i]}" "$eligible" "$evidence_sha" '
+        '>> "$assessments"\n'
+        "  done\n"
+        '  assessments_sha="$(sha256sum "$assessments" | awk \'{print $1}\')"\n'
         '  printf \'{"schema_version":"1.0","gate_passed":true,'
+        '"composition_assessments_sha256":"%s",'
         '"cases":{"missing_B":{"gate_passed":true,'
-        '"complete_composition_claimed":false},'
+        '"assessment":{"complete_composition_claim_eligible":false,'
+        '"complete_composition_claimed":false}},'
         '"wrong_B":{"gate_passed":true,'
-        '"complete_composition_claimed":false},'
+        '"assessment":{"scientific_status":"search_evidence_only",'
+        '"complete_composition_claim_eligible":false,'
+        '"complete_composition_claimed":false}},'
         '"9ECN_three_component_boundary":{"gate_passed":true,'
         '"status":"unsupported_component_count",'
-        '"complete_composition_claimed":false}}}\\n\' > "$refreshed"\n'
+        '"assessment":{"scope_decision_id":"%s",'
+        '"complete_composition_claim_eligible":false,'
+        '"complete_composition_claimed":false}}}}\\n\' '
+        '"$assessments_sha" "$scope_id" > "$refreshed"\n'
         'elif [[ "$mode" == heteromer_review ]]; then\n'
         '  mkdir -p "$outdir/mr_seed_review" '
         '"$outdir/approved_mr_seed_stage"\n'
@@ -496,11 +633,25 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "  partner_seq=\"seq_$(printf 'b%.0s' {1..64})\"\n"
         "  plan_id=\"partnerplan_$(printf '9%.0s' {1..64})\"\n"
         '  if [[ "$outdir" == */p6/missing-plan ]]; then\n'
-        '    printf \'{"plan_id":"%s","candidate_count":1845,'
+        '    printf \'{"plan_id":"%s","parent_sequence_group_id":"%s",'
+        '"candidate_count":1845,'
         '"searchable_candidate_count":0,"selected_attempt_count":0,'
         '"deferred_cap_count":0,"unsearchable_candidate_count":1845,'
-        '"candidates":[]}\\n\' "$plan_id" > "$outdir/partner_search_plan.json"\n'
+        '"candidates":[\' "$plan_id" "$parent_seq" '
+        '> "$outdir/partner_search_plan.json"\n'
         '    : > "$outdir/partner_candidates.jsonl"\n'
+        "    for ((i=1; i<=1845; i++)); do\n"
+        '      suffix="$(printf \'%064d\' "$i")"\n'
+        '      row="{\\"candidate_id\\":\\"partnercand_${suffix}\\",'
+        '\\"sequence_group_id\\":\\"seq_${suffix}\\",'
+        '\\"model_id\\":null,\\"selection_status\\":'
+        '\\"unsearchable_no_model\\"}"\n'
+        "      [[ \"$i\" -eq 1 ]] || printf ',' "
+        '>> "$outdir/partner_search_plan.json"\n'
+        '      printf \'%s\' "$row" >> "$outdir/partner_search_plan.json"\n'
+        '      printf \'%s\\n\' "$row" >> "$outdir/partner_candidates.jsonl"\n'
+        "    done\n"
+        "    printf ']}\\n' >> \"$outdir/partner_search_plan.json\"\n"
         '    : > "$outdir/selected_partner_candidate_ids.txt"\n'
         "  else\n"
         '  printf \'{"plan_id":"%s","candidate_count":1845,'
@@ -546,33 +697,55 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "  candidate_id=\"partnercand_$(printf '8%.0s' {1..64})\"\n"
         "  partner_seq=\"seq_$(printf 'b%.0s' {1..64})\"\n"
         '  [[ "$outdir" != */multicopy/* ]] || { parent_copies=2; partner_copies=2; }\n'
-        '  printf "fake combined pdb\\n" > "$outdir/PHASER.1.pdb"\n'
-        '  printf "fake combined mtz\\n" > "$outdir/PHASER.1.mtz"\n'
-        '  printf \'{"execution_status":"completed_hit",'
+        '  if [[ "$outdir" == */p6/wrong-partner && '
+        '"${FAKE_P6_WRONG_NO_SOLUTION:-0}" == 1 ]]; then\n'
+        '    printf \'{"execution_status":"completed_no_hit",'
+        '"combined_coordinate_path":null,"combined_coordinate_sha256":null,'
+        '"output_mtz_path":null,"output_mtz_sha256":null}\\n\' '
+        '> "$outdir/partner_search_result.json"\n'
+        "  else\n"
+        '    printf "fake combined pdb\\n" > "$outdir/PHASER.1.pdb"\n'
+        '    printf "fake combined mtz\\n" > "$outdir/PHASER.1.mtz"\n'
+        '    combined_sha="$(sha256sum "$outdir/PHASER.1.pdb" '
+        "| awk '{print $1}')\"\n"
+        '    output_mtz_sha="$(sha256sum "$outdir/PHASER.1.mtz" '
+        "| awk '{print $1}')\"\n"
+        '    printf \'{"execution_status":"completed_hit",'
         '"parent_copy_count":%s,"requested_partner_copy_count":%s,'
         '"partner_placement_count":%s,'
         '"selection_plan_id":"%s","partner_candidate_id":"%s",'
         '"partner_sequence_group_id":"%s",'
         '"incremental_llg":150.0,"partner_tfz":12.0,'
         '"score_cohort":"primary","top_solution_packed":true,'
-        '"partner_placement_observed":true}\\n\' '
+        '"partner_placement_observed":true,'
+        '"combined_coordinate_path":"PHASER.1.pdb",'
+        '"combined_coordinate_sha256":"%s","output_mtz_path":"PHASER.1.mtz",'
+        '"output_mtz_sha256":"%s"}\\n\' '
         '"$parent_copies" "$partner_copies" "$partner_copies" '
-        '"$plan_id" "$candidate_id" "$partner_seq" '
-        '> "$outdir/partner_search_result.json"\n'
+        '"$plan_id" "$candidate_id" "$partner_seq" "$combined_sha" '
+        '"$output_mtz_sha" > "$outdir/partner_search_result.json"\n'
+        "  fi\n"
         '  cp "$outdir/partner_search_result.json" '
         '"$outdir/partner_search_result.jsonl"\n'
         "  printf '{}\\n' > \"$outdir/phaser_command.json\"\n"
         '  printf "phaser {}\\n" > "$outdir/partner_search.eff"\n'
-        '  printf "fake partner log\\n" > "$outdir/PHASER.log"\n'
+        '  if [[ "$outdir" != */p6/wrong-partner || '
+        '"${FAKE_P6_WRONG_OMIT_NATIVE_LOG:-0}" != 1 ]]; then\n'
+        '    printf "fake partner log\\n" > "$outdir/PHASER.log"\n'
+        "  fi\n"
         '  printf "fake partner capture\\n" > "$outdir/phenix.phaser.capture.log"\n'
         'elif [[ "$mode" == partner_summary ]]; then\n'
         '  [[ -n "$refreshed" ]] || exit 19\n'
         '  mkdir -p "$(dirname "$refreshed")"\n'
         '  if [[ "$refreshed" == */p6/missing-partner-summary.json ]]; then\n'
-        '    printf \'{"all_selected_attempts_retained":true,'
+        '    plan_sha="$(sha256sum "$partner_plan" | awk \'{print $1}\')"\n'
+        "    plan_id=\"partnerplan_$(printf '9%.0s' {1..64})\"\n"
+        '    printf \'{"plan_id":"%s","plan_sha256":"%s",'
+        '"all_selected_attempts_retained":true,'
         '"candidate_count":1845,"selected_attempt_count":0,"result_count":0,'
-        '"completed_hit_count":0,"unsearchable_candidate_count":1845}\\n\' '
-        '> "$refreshed"\n'
+        '"completed_hit_count":0,"deferred_cap_count":0,'
+        '"unsearchable_candidate_count":1845}\\n\' '
+        '"$plan_id" "$plan_sha" > "$refreshed"\n'
         "  else\n"
         '  printf \'{"all_selected_attempts_retained":true,'
         '"candidate_count":1845,"selected_attempt_count":1,"result_count":1,'
@@ -585,6 +758,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "FAKE_GTD\n"
         '      chmod 0755 "$env_bin/genome-to-diffraction"\n'
         f'      ln -sf {shlex.quote(sys.executable)} "$env_bin/python"\n'
+        f'      ln -sf {shlex.quote(sha256sum)} "$env_bin/sha256sum"\n'
         "      for tool in nextflow mmseqs foldseek; do\n"
         "        printf '#!/usr/bin/env bash\\nexit 0\\n' > \"$env_bin/$tool\"\n"
         "      done\n"
@@ -4183,6 +4357,48 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert (
         run / "artifacts/heteromer-smoke/inputs/p6-control/preparation_manifest.json"
     ).is_file()
+    p6_inputs = run / "artifacts/heteromer-smoke/inputs/p6-control"
+    p6_preparation = json.loads(
+        (p6_inputs / "preparation_manifest.json").read_text(encoding="utf-8")
+    )
+    assert p6_preparation["adapter_version"] == "heteromer-p6-control-slice-v2"
+    assert (
+        p6_preparation["protocol"]["sha256"]
+        == hashlib.sha256(
+            (run / "source/benchmarks/m6/protocol.yaml").read_bytes()
+        ).hexdigest()
+    )
+    for crystal_id, relative in (
+        ("6RTZ", "../preparation_manifest.json"),
+        ("3U7Q", "../multicopy/preparation_manifest.json"),
+    ):
+        source = (p6_inputs / relative).resolve()
+        assert (
+            p6_preparation["source_preparations"][crystal_id]["manifest_sha256"]
+            == hashlib.sha256(source.read_bytes()).hexdigest()
+        )
+    missing_model_relative = p6_preparation["files"]["missing_parent_model"]["path"]
+    missing_model = p6_inputs / missing_model_relative
+    assert missing_model.is_file()
+    assert (
+        missing_model.name
+        == f"{hashlib.sha256(missing_model.read_bytes()).hexdigest()}.pdb"
+    )
+    scope_decision = json.loads(
+        (p6_inputs / "component_scope_decision.json").read_text(encoding="utf-8")
+    )
+    assert scope_decision["status"] == "unsupported_component_count"
+    assert scope_decision["complete_composition_claim_eligible"] is False
+    staged_paths = {
+        line.split(maxsplit=1)[1]
+        for line in (run / "state/heteromer-login-stage.sha256")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    }
+    assert str(missing_model) in staged_paths
+    assert str(p6_inputs / "component_scope_decision.json") in staged_paths
+    assert str(p6_inputs / "wrong_partner/sequence_groups.jsonl") in staged_paths
+    assert str(p6_inputs / "wrong_partner/model.pdb") in staged_paths
 
     submitted = _decode_protocol(
         _run(
@@ -4239,12 +4455,76 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         )
     )
     assert p6["gate_passed"] is True
-    assert p6["cases"]["missing_B"]["complete_composition_claimed"] is False
-    assert p6["cases"]["wrong_B"]["complete_composition_claimed"] is False
+    assert (
+        p6["cases"]["missing_B"]["assessment"]["complete_composition_claimed"] is False
+    )
+    assert (
+        p6["cases"]["wrong_B"]["assessment"]["scientific_status"]
+        == "search_evidence_only"
+    )
     assert (
         p6["cases"]["9ECN_three_component_boundary"]["status"]
         == "unsupported_component_count"
     )
+    missing_plan = run / "artifacts/heteromer-smoke/p6/missing-plan"
+    missing_candidates = [
+        json.loads(line)
+        for line in (missing_plan / "partner_candidates.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert len(missing_candidates) == 1845
+    assert len({row["candidate_id"] for row in missing_candidates}) == 1845
+    missing_summary = json.loads(
+        (run / "artifacts/heteromer-smoke/p6/missing-partner-summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert missing_summary["candidate_count"] == 1845
+    assert (
+        missing_summary["plan_sha256"]
+        == hashlib.sha256(
+            (missing_plan / "partner_search_plan.json").read_bytes()
+        ).hexdigest()
+    )
+    assessments = [
+        json.loads(line)
+        for line in (
+            run / "artifacts/qualification/heteromer-composition-assessments.jsonl"
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert len(assessments) == 6
+    assert all(row["complete_composition_claimed"] is False for row in assessments)
+    assert (
+        next(row for row in assessments if row["case_id"] == "wrong_B")[
+            "scientific_status"
+        ]
+        == "search_evidence_only"
+    )
+    checksum_paths = {
+        line.split(maxsplit=1)[1]
+        for line in (run / "artifacts/qualification/heteromer-smoke-checksums.sha256")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    }
+    expected_p6_checksums = {
+        "artifacts/heteromer-smoke/inputs/p6-control/component_scope_decision.json",
+        f"artifacts/heteromer-smoke/inputs/p6-control/{missing_model_relative}",
+        "artifacts/heteromer-smoke/p6/missing-plan/partner_candidates.jsonl",
+        "artifacts/heteromer-smoke/p6/wrong-partner/partner_search_result.json",
+        "artifacts/heteromer-smoke/p6/wrong-partner/partner_search_result.jsonl",
+        "artifacts/heteromer-smoke/p6/wrong-partner/phaser_command.json",
+        "artifacts/heteromer-smoke/p6/wrong-partner/partner_search.eff",
+        "artifacts/heteromer-smoke/p6/wrong-partner/PHASER.log",
+        "artifacts/heteromer-smoke/p6/wrong-partner/phenix.phaser.capture.log",
+        "artifacts/heteromer-smoke/p6/wrong-partner/PHASER.1.pdb",
+        "artifacts/heteromer-smoke/p6/wrong-partner/PHASER.1.mtz",
+        "artifacts/qualification/heteromer-control-slice-report.json",
+        "artifacts/qualification/heteromer-composition-assessments.jsonl",
+    }
+    assert expected_p6_checksums <= checksum_paths
     log = (run / "logs/heteromer-smoke.log").read_text(encoding="utf-8")
     assert "phase=heteromer_parent_A profile=heteromer-smoke" in log
     assert "phase=heteromer_component_review profile=heteromer-smoke" in log
@@ -4268,6 +4548,7 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert "artifacts/qualification/heteromer-multicopy-summary.json" in names
     assert "artifacts/qualification/heteromer-catalogue-summary.json" in names
     assert "artifacts/qualification/heteromer-control-slice-report.json" in names
+    assert "artifacts/qualification/heteromer-composition-assessments.jsonl" in names
     assert "artifacts/heteromer-smoke/parent/normalised_mr_result.json" in names
     assert (
         "artifacts/heteromer-smoke/component_checkpoint/approved_mr_seed_stage/"
@@ -4277,8 +4558,24 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert "artifacts/heteromer-smoke/p6/missing-plan/partner_search_plan.json" in names
     assert "artifacts/heteromer-smoke/p6/missing-partner-summary.json" in names
     assert (
+        "artifacts/heteromer-smoke/inputs/p6-control/component_scope_decision.json"
+        in names
+    )
+    assert (
+        f"artifacts/heteromer-smoke/inputs/p6-control/{missing_model_relative}" in names
+    )
+    assert (
         "artifacts/heteromer-smoke/p6/wrong-partner/partner_search_result.json" in names
     )
+    for relative in (
+        "phaser_command.json",
+        "partner_search.eff",
+        "PHASER.log",
+        "phenix.phaser.capture.log",
+        "PHASER.1.pdb",
+        "PHASER.1.mtz",
+    ):
+        assert f"artifacts/heteromer-smoke/p6/wrong-partner/{relative}" in names
     assert (
         "artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json"
         in names
@@ -4289,6 +4586,115 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         in names
     )
     assert "artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json" in names
+
+
+def test_heteromer_p6_no_hit_omits_only_conditional_solution_assets(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    p0_paths = _write_p0_paths(remote_root)
+    phenix_manifest = Path(p0_paths.read_text(encoding="ascii").splitlines()[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    p0_paths.unlink()
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            HETEROMER_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "heteromer-smoke",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    _run(
+        [str(dispatcher), "submit", HETEROMER_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    job_environment = dict(environment)
+    job_environment.update(
+        {
+            "FAKE_P6_WRONG_NO_SOLUTION": "1",
+            "SLURM_JOB_ID": "123",
+            "SLURM_CPUS_PER_TASK": "8",
+            "SLURM_TMPDIR": str(tmp_path / "slurm-tmp"),
+        }
+    )
+    _run(
+        [str(smoke_job), HETEROMER_RUN_ID, str(remote_root), "heteromer-smoke"],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
+    run = remote_root / "runs" / HETEROMER_RUN_ID
+    checksum_paths = {
+        line.split(maxsplit=1)[1]
+        for line in (run / "artifacts/qualification/heteromer-smoke-checksums.sha256")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    }
+    wrong_root = "artifacts/heteromer-smoke/p6/wrong-partner"
+    assert {
+        f"{wrong_root}/partner_search_result.json",
+        f"{wrong_root}/partner_search_result.jsonl",
+        f"{wrong_root}/phaser_command.json",
+        f"{wrong_root}/partner_search.eff",
+        f"{wrong_root}/PHASER.log",
+        f"{wrong_root}/phenix.phaser.capture.log",
+    } <= checksum_paths
+    assert f"{wrong_root}/PHASER.1.pdb" not in checksum_paths
+    assert f"{wrong_root}/PHASER.1.mtz" not in checksum_paths
+
+    archive = _run(
+        [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    assert f"{wrong_root}/PHASER.log" in names
+    assert f"{wrong_root}/partner_search.eff" in names
+    assert f"{wrong_root}/PHASER.1.pdb" not in names
+    assert f"{wrong_root}/PHASER.1.mtz" not in names
+
+
+def test_heteromer_stage_rejects_unbound_p6_protocol_provenance(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    p0_paths = _write_p0_paths(remote_root)
+    phenix_manifest = Path(p0_paths.read_text(encoding="ascii").splitlines()[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    p0_paths.unlink()
+    mismatched_environment = dict(environment)
+    mismatched_environment["FAKE_P6_PROVENANCE_MISMATCH"] = "1"
+
+    result = _run(
+        [
+            str(dispatcher),
+            "stage",
+            HETEROMER_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "heteromer-smoke",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=mismatched_environment,
+        success=False,
+    )
+
+    assert _decode_protocol(result.stdout)["failure_class"] == "software_failure"
 
 
 def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(

@@ -28,8 +28,14 @@ process SUMMARIZE_PARTNER_ATTEMPTS {
 
     stub:
     """
-    cp \
-        '${projectDir}/tests/fixtures/stubs/partner_attempt_summary.json' \
-        partner_attempt_summary.json
+    if [ -f '${partner_plan}/partner_attempt_summary.stub.json' ]; then
+        cp \
+            '${partner_plan}/partner_attempt_summary.stub.json' \
+            partner_attempt_summary.json
+    else
+        cp \
+            '${projectDir}/tests/fixtures/stubs/partner_attempt_summary.json' \
+            partner_attempt_summary.json
+    fi
     """
 }

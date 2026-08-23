@@ -37,8 +37,14 @@ process BUILD_PARTNER_PLAN {
 
     stub:
     """
-    cp -R \
-        '${projectDir}/tests/fixtures/stubs/partner_search_plan' \
-        partner_search_plan
+    if [ -f '${model_registry}/p6_empty_partner.stub' ]; then
+        cp -R \
+            '${model_registry}/partner_search_plan' \
+            partner_search_plan
+    else
+        cp -R \
+            '${projectDir}/tests/fixtures/stubs/partner_search_plan' \
+            partner_search_plan
+    fi
     """
 }

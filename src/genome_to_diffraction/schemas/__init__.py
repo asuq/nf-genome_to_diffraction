@@ -19,6 +19,11 @@ from genome_to_diffraction.schemas.providers import (
     ProviderSupportStatus,
 )
 from genome_to_diffraction.schemas.results import (
+    ComponentScopeDecision,
+    ComponentScopeStatus,
+    CompositionAssessment,
+    CompositionAssessmentCaseKind,
+    CompositionAssessmentStatus,
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
     MatthewsHypothesis,
@@ -43,6 +48,11 @@ from genome_to_diffraction.schemas.results import (
 
 __all__ = [
     "CatalogueManifest",
+    "ComponentScopeDecision",
+    "ComponentScopeStatus",
+    "CompositionAssessment",
+    "CompositionAssessmentCaseKind",
+    "CompositionAssessmentStatus",
     "CoordinateHitMappingRecord",
     "CoordinateSourceRecord",
     "CrystalManifest",

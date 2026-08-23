@@ -842,6 +842,8 @@ stage_run_common() {
     local p2_control_root p2_control_catalogue p2_control_checksums p2_control_tmp
     local heteromer_sha256="" heteromer_json="null"
     local heteromer_root heteromer_multicopy_root heteromer_catalogue_root
+    local heteromer_p6_root heteromer_p6_missing_model_relative
+    local heteromer_p6_scope_relative
     local heteromer_checksums heteromer_tmp
     local heteromer_phenix_manifest="" heteromer_phenix_sha256=""
     local heteromer_phenix_json="null"
@@ -849,7 +851,7 @@ stage_run_common() {
     local source_archive=false source_archive_sha256="" source_archive_size=""
     local expected_submodule_commit="" source_archive_json="null"
     local m6_site_contract_json="null"
-    local -a p0_values=()
+    local -a p0_values=() heteromer_p6_values=()
 
     if [[ "$profile" == heteromer-smoke ]]; then
         [[ "$#" -eq 8 || "$#" -eq 11 ]] || \
@@ -1509,6 +1511,7 @@ stage_run_common() {
             --protocol "$run/source/benchmarks/m6/protocol.yaml" \
             --control-6rtz-preparation "$heteromer_root/preparation_manifest.json" \
             --control-3u7q-preparation "$heteromer_multicopy_root/preparation_manifest.json" \
+            --catalogue-sequence-groups "$heteromer_catalogue_root/catalogue/sequence_groups.jsonl" \
             --outdir "$heteromer_p6_root" \
             >> "$run/logs/heteromer-smoke-login-stage.log" 2>&1; then
             atomic_text "$run/state/phase" "stage_failed"
@@ -1516,6 +1519,144 @@ stage_run_common() {
             append_event "$run" "stage_heteromer_p6_inputs_failed"
             fail software_failure "fixed P6 control preparation failed"
         fi
+        mapfile -t heteromer_p6_values < <(
+            "$run/source/.pixi/envs/hpc/bin/python" - \
+                "$heteromer_p6_root/preparation_manifest.json" \
+                "$run/source/benchmarks/m6/protocol.yaml" \
+                "$heteromer_root/preparation_manifest.json" \
+                "$heteromer_multicopy_root/preparation_manifest.json" \
+                "$heteromer_catalogue_root/catalogue/sequence_groups.jsonl" <<'PY'
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path, PurePosixPath
+
+manifest_path = Path(sys.argv[1]).resolve(strict=True)
+root = manifest_path.parent
+protocol_path = Path(sys.argv[2]).resolve(strict=True)
+source_paths = {
+    "6RTZ": Path(sys.argv[3]).resolve(strict=True),
+    "3U7Q": Path(sys.argv[4]).resolve(strict=True),
+}
+catalogue_path = Path(sys.argv[5]).resolve(strict=True)
+digest_pattern = re.compile(r"[0-9a-f]{64}")
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+document = json.loads(manifest_path.read_text(encoding="utf-8"))
+protocol = document.get("protocol")
+sources = document.get("source_preparations")
+files = document.get("files")
+catalogue = document.get("catalogue_sequence_groups")
+missing_partner = document.get("missing_partner")
+if not (
+    document.get("adapter_version") == "heteromer-p6-control-slice-v2"
+    and isinstance(protocol, dict)
+    and isinstance(protocol.get("protocol_id"), str)
+    and protocol.get("sha256") == sha256_file(protocol_path)
+    and isinstance(sources, dict)
+    and isinstance(files, dict)
+    and isinstance(catalogue, dict)
+    and catalogue.get("sha256") == sha256_file(catalogue_path)
+    and catalogue.get("sequence_group_count") == 1846
+    and catalogue.get("candidate_sequence_group_count") == 1845
+    and isinstance(catalogue.get("candidate_universe_sha256"), str)
+    and digest_pattern.fullmatch(catalogue["candidate_universe_sha256"])
+    and isinstance(missing_partner, dict)
+    and missing_partner.get("candidate_universe_sha256")
+    == catalogue.get("candidate_universe_sha256")
+):
+    raise SystemExit("fixed P6 preparation provenance is invalid")
+for crystal_id, source_path in source_paths.items():
+    source = sources.get(crystal_id)
+    source_document = json.loads(source_path.read_text(encoding="utf-8"))
+    if not (
+        isinstance(source, dict)
+        and isinstance(source.get("preparation_id"), str)
+        and source.get("preparation_id") == source_document.get("preparation_id")
+        and source.get("manifest_sha256") == sha256_file(source_path)
+    ):
+        raise SystemExit(f"fixed P6 {crystal_id} source preparation is invalid")
+
+expected_paths = {
+    "missing_processed_models": PurePosixPath(
+        "missing_partner_model_registry/processed_models.jsonl"
+    ),
+    "missing_model_manifest": PurePosixPath(
+        "missing_partner_model_registry/model_preparation_manifest.json"
+    ),
+    "wrong_sequence_groups": PurePosixPath("wrong_partner/sequence_groups.jsonl"),
+    "wrong_partner_model": PurePosixPath("wrong_partner/model.pdb"),
+    "component_scope_decision": PurePosixPath("component_scope_decision.json"),
+}
+resolved_paths: dict[str, PurePosixPath] = {}
+for role, expected in expected_paths.items():
+    record = files.get(role)
+    relative_text = record.get("path") if isinstance(record, dict) else None
+    digest = record.get("sha256") if isinstance(record, dict) else None
+    size = record.get("size_bytes") if isinstance(record, dict) else None
+    if not isinstance(relative_text, str):
+        raise SystemExit(f"fixed P6 {role} path is invalid")
+    relative = PurePosixPath(relative_text)
+    if relative != expected:
+        raise SystemExit(f"fixed P6 {role} path differs")
+    path = root.joinpath(*relative.parts).resolve(strict=True)
+    if root not in path.parents or path.is_symlink():
+        raise SystemExit(f"fixed P6 {role} path escaped its root")
+    if not (
+        isinstance(digest, str)
+        and digest_pattern.fullmatch(digest)
+        and sha256_file(path) == digest
+        and isinstance(size, int)
+        and not isinstance(size, bool)
+        and size == path.stat().st_size
+    ):
+        raise SystemExit(f"fixed P6 {role} identity differs")
+    resolved_paths[role] = relative
+
+model_record = files.get("missing_parent_model")
+model_relative_text = (
+    model_record.get("path") if isinstance(model_record, dict) else None
+)
+model_digest = model_record.get("sha256") if isinstance(model_record, dict) else None
+model_size = model_record.get("size_bytes") if isinstance(model_record, dict) else None
+if not isinstance(model_relative_text, str):
+    raise SystemExit("fixed P6 missing-parent model path is invalid")
+model_relative = PurePosixPath(model_relative_text)
+if not (
+    len(model_relative.parts) == 3
+    and model_relative.parts[:2] == ("missing_partner_model_registry", "models")
+    and model_relative.name == f"{model_digest}.pdb"
+    and isinstance(model_digest, str)
+    and digest_pattern.fullmatch(model_digest)
+):
+    raise SystemExit("fixed P6 missing-parent model path differs")
+model_path = root.joinpath(*model_relative.parts).resolve(strict=True)
+if not (
+    root in model_path.parents
+    and not model_path.is_symlink()
+    and sha256_file(model_path) == model_digest
+    and isinstance(model_size, int)
+    and not isinstance(model_size, bool)
+    and model_size == model_path.stat().st_size
+):
+    raise SystemExit("fixed P6 missing-parent model identity differs")
+print(model_relative.as_posix())
+print(resolved_paths["component_scope_decision"].as_posix())
+PY
+        )
+        [[ "${#heteromer_p6_values[@]}" -eq 2 ]] || \
+            fail software_failure "fixed P6 preparation provenance check failed"
+        heteromer_p6_missing_model_relative="${heteromer_p6_values[0]}"
+        heteromer_p6_scope_relative="${heteromer_p6_values[1]}"
         for candidate in \
             "$heteromer_root/preparation_manifest.json" \
             "$heteromer_root/crystals.json" \
@@ -1547,8 +1688,10 @@ stage_run_common() {
             "$heteromer_p6_root/preparation_manifest.json" \
             "$heteromer_p6_root/missing_partner_model_registry/processed_models.jsonl" \
             "$heteromer_p6_root/missing_partner_model_registry/model_preparation_manifest.json" \
+            "$heteromer_p6_root/$heteromer_p6_missing_model_relative" \
             "$heteromer_p6_root/wrong_partner/sequence_groups.jsonl" \
-            "$heteromer_p6_root/wrong_partner/model.pdb"; do
+            "$heteromer_p6_root/wrong_partner/model.pdb" \
+            "$heteromer_p6_root/$heteromer_p6_scope_relative"; do
             [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || {
                 atomic_text "$run/state/phase" "stage_failed"
                 atomic_text "$run/state/failure-class" "filesystem_failure"
@@ -1560,6 +1703,7 @@ stage_run_common() {
         heteromer_checksums="$run/state/heteromer-login-stage.sha256"
         heteromer_tmp="${heteromer_checksums}.tmp.$$"
         sha256sum \
+            "$run/source/benchmarks/m6/protocol.yaml" \
             "$heteromer_root/preparation_manifest.json" \
             "$heteromer_root/crystals.json" \
             "$heteromer_root/sequence_groups.jsonl" \
@@ -1590,8 +1734,10 @@ stage_run_common() {
             "$heteromer_p6_root/preparation_manifest.json" \
             "$heteromer_p6_root/missing_partner_model_registry/processed_models.jsonl" \
             "$heteromer_p6_root/missing_partner_model_registry/model_preparation_manifest.json" \
+            "$heteromer_p6_root/$heteromer_p6_missing_model_relative" \
             "$heteromer_p6_root/wrong_partner/sequence_groups.jsonl" \
             "$heteromer_p6_root/wrong_partner/model.pdb" \
+            "$heteromer_p6_root/$heteromer_p6_scope_relative" \
             > "$heteromer_tmp"
         mv -f -- "$heteromer_tmp" "$heteromer_checksums"
         heteromer_sha256="$(sha256sum "$heteromer_checksums" | awk '{print $1}')"
@@ -3100,10 +3246,16 @@ collect_run() {
     local profile="" application_log="" diagnostic_dir="" diagnostic_path=""
     local relative="" diagnostic_relative="" basename="" omission_record=""
     local omission_temporary="" omission_size=0
+    local p6_dynamic_model_root="" p6_dynamic_model_path=""
     local -a files=()
     local -a diagnostic_omissions=()
+    local -a p6_dynamic_models=()
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
+    if [[ -f "$run/state/profile" ]]; then
+        profile="$(<"$run/state/profile")"
+        validate_profile "$profile"
+    fi
     if [[ -f "$run/state/job-id" ]]; then
         job_id="$(<"$run/state/job-id")"
         [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
@@ -3264,6 +3416,8 @@ collect_run() {
         artifacts/qualification/heteromer-smoke-summary.json \
         artifacts/qualification/heteromer-multicopy-summary.json \
         artifacts/qualification/heteromer-catalogue-summary.json \
+        artifacts/qualification/heteromer-control-slice-report.json \
+        artifacts/qualification/heteromer-composition-assessments.jsonl \
         artifacts/qualification/heteromer-smoke-checksums.sha256 \
         artifacts/qualification/heteromer-smoke-phenix-manifest.json \
         artifacts/qualification/heteromer-smoke-phenix-verification.log \
@@ -3470,6 +3624,7 @@ collect_run() {
         artifacts/heteromer-smoke/inputs/catalogue-control/partner_model_registry/processed_models.jsonl \
         artifacts/heteromer-smoke/inputs/catalogue-control/partner_model_registry/model_preparation_manifest.json \
         artifacts/heteromer-smoke/inputs/p6-control/preparation_manifest.json \
+        artifacts/heteromer-smoke/inputs/p6-control/component_scope_decision.json \
         artifacts/heteromer-smoke/inputs/p6-control/missing_partner_model_registry/processed_models.jsonl \
         artifacts/heteromer-smoke/inputs/p6-control/missing_partner_model_registry/model_preparation_manifest.json \
         artifacts/heteromer-smoke/inputs/p6-control/wrong_partner/sequence_groups.jsonl \
@@ -3551,6 +3706,30 @@ collect_run() {
             files+=("$candidate")
         fi
     done
+    if [[ "$profile" == heteromer-smoke && \
+          -f "$run/artifacts/heteromer-smoke/inputs/p6-control/preparation_manifest.json" ]]; then
+        p6_dynamic_model_root="$run/artifacts/heteromer-smoke/inputs/p6-control/missing_partner_model_registry/models"
+        [[ -d "$p6_dynamic_model_root" && ! -L "$p6_dynamic_model_root" ]] || \
+            fail transfer_failure "P6 missing-partner model directory is unavailable"
+        mapfile -d '' -t p6_dynamic_models < <(
+            find "$p6_dynamic_model_root" -maxdepth 1 -type f -print0
+        )
+        [[ "${#p6_dynamic_models[@]}" -eq 1 ]] || \
+            fail transfer_failure "P6 missing-partner model inventory is incomplete"
+        p6_dynamic_model_path="${p6_dynamic_models[0]}"
+        basename="${p6_dynamic_model_path##*/}"
+        [[ "$basename" =~ ^[0-9a-f]{64}\.pdb$ && \
+           ! -L "$p6_dynamic_model_path" && -O "$p6_dynamic_model_path" ]] || \
+            fail transfer_failure "P6 missing-partner model identity is unsafe"
+        relative="${p6_dynamic_model_path#"$run"/}"
+        size="$(file_size "$p6_dynamic_model_path")"
+        (( size <= MAX_FILE_BYTES )) || \
+            fail transfer_failure "P6 missing-partner model exceeds per-file limit"
+        total=$((total + size))
+        (( total <= MAX_TOTAL_BYTES )) || \
+            fail transfer_failure "artefacts exceed total limit"
+        files+=("$relative")
+    fi
     if [[ -n "$job_id" ]]; then
         candidate="logs/slurm-${job_id}.out"
         if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then
@@ -3561,9 +3740,7 @@ collect_run() {
             files+=("$candidate")
         fi
     fi
-    if [[ -f "$run/state/profile" ]]; then
-        profile="$(<"$run/state/profile")"
-        validate_profile "$profile"
+    if [[ -n "$profile" ]]; then
         application_log="$run/logs/${profile}.log"
         if [[ -f "$application_log" && ! -L "$application_log" && \
               -O "$application_log" ]]; then

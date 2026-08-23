@@ -74,6 +74,259 @@ def _assert_files(root: Path, names: set[str]) -> None:
         raise RuntimeError(f"missing outputs under {root}: {sorted(missing)}")
 
 
+def _write_p6_empty_partner_stub_bundle(root: Path) -> Path:
+    """Create the complete 1,845-row missing-B plan used by the P6 stub."""
+
+    bundle = root / "p6-empty-partner-stub"
+    plan_directory = bundle / "partner_search_plan"
+    plan_directory.mkdir(parents=True)
+    (bundle / "p6_empty_partner.stub").write_text("p6-missing-b\n", encoding="utf-8")
+
+    candidates: list[dict[str, object]] = []
+    for rank in range(1, 1846):
+        candidate_digest = hashlib.sha256(
+            f"p6-missing-b-candidate-{rank}".encode()
+        ).hexdigest()
+        sequence_digest = hashlib.sha256(
+            f"p6-missing-b-sequence-{rank}".encode()
+        ).hexdigest()
+        candidates.append(
+            {
+                "schema_version": "1.0",
+                "candidate_id": f"partnercand_{candidate_digest}",
+                "rank": rank,
+                "sequence_group_id": f"seq_{sequence_digest}",
+                "selection_status": "unsearchable_no_model",
+                "sds_page_prior_label": "unavailable",
+                "native_page_prior_label": "unavailable",
+                "ordering_reasons": [
+                    "sds_page:unavailable",
+                    "native_page:unavailable_neutral",
+                    "selection:unsearchable_no_model",
+                ],
+            }
+        )
+
+    plan_id = "partnerplan_" + hashlib.sha256(b"p6-missing-b-plan").hexdigest()
+    plan = {
+        "schema_version": "1.0",
+        "plan_id": plan_id,
+        "adapter_version": "catalogue-partner-plan-v1",
+        "crystal_id": "6RTZ",
+        "parent_sequence_group_id": "seq_"
+        + hashlib.sha256(b"p6-missing-b-parent").hexdigest(),
+        "parent_state_sha256": hashlib.sha256(b"p6-missing-b-parent-state").hexdigest(),
+        "parent_copy_count": 1,
+        "partner_copy_count": 1,
+        "candidate_count": 1845,
+        "searchable_candidate_count": 0,
+        "selected_attempt_count": 0,
+        "deferred_cap_count": 0,
+        "unsearchable_candidate_count": 1845,
+        "selection_cap": 25,
+        "cap_reason": "prototype_first_wave_25",
+        "candidates": candidates,
+    }
+    plan_path = plan_directory / "partner_search_plan.json"
+    plan_path.write_text(
+        json.dumps(plan, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    (plan_directory / "partner_candidates.jsonl").write_text(
+        "".join(
+            json.dumps(candidate, sort_keys=True, separators=(",", ":")) + "\n"
+            for candidate in candidates
+        ),
+        encoding="utf-8",
+    )
+    (plan_directory / "selected_partner_candidate_ids.txt").write_text(
+        "", encoding="utf-8"
+    )
+
+    summary = {
+        "schema_version": "1.0",
+        "summary_id": "partnersummary_"
+        + hashlib.sha256(b"p6-missing-b-summary").hexdigest(),
+        "plan_id": plan_id,
+        "plan_sha256": hashlib.sha256(plan_path.read_bytes()).hexdigest(),
+        "candidate_count": 1845,
+        "selected_attempt_count": 0,
+        "result_count": 0,
+        "completed_hit_count": 0,
+        "completed_no_hit_count": 0,
+        "failed_tool_execution_count": 0,
+        "failed_parse_count": 0,
+        "deferred_cap_count": 0,
+        "unsearchable_candidate_count": 1845,
+        "selected_candidate_ids": [],
+        "result_candidate_ids": [],
+        "result_search_ids": [],
+        "all_selected_attempts_retained": True,
+        "failed_search_proves_partner_absence": False,
+    }
+    (plan_directory / "partner_attempt_summary.stub.json").write_text(
+        json.dumps(summary, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return bundle
+
+
+def _p6_empty_partner_command(
+    *, output: Path, cache: Path, stub_bundle: Path
+) -> list[str]:
+    """Build the fixed command for the real empty-selected workflow stub."""
+
+    stub_root = REPOSITORY / "tests/fixtures/stubs"
+    return [
+        "nextflow",
+        "-C",
+        "tests/fixtures/stubs/p6_empty_partner/nextflow.config",
+        "run",
+        "tests/fixtures/stubs/p6_empty_partner/main.nf",
+        "-stub-run",
+        "--approved_stage",
+        str(stub_root / "approved_mr_seed_stage"),
+        "--review_package",
+        str(stub_root / "mr_seed_review"),
+        "--sequence_groups",
+        str(stub_root / "sequence_groups.jsonl"),
+        "--matthews",
+        str(stub_root / "mtz_preflight.jsonl"),
+        "--preflight",
+        str(stub_root / "mtz_preflight.jsonl"),
+        "--pipeline_config",
+        str(REPOSITORY / "examples/config.yaml"),
+        "--model_registry",
+        str(stub_bundle),
+        "--mtz",
+        str(stub_root / "mtz_preflight.jsonl"),
+        "--phenix_manifest",
+        str(stub_root / "phenix_install_manifest.json"),
+        "--outdir",
+        str(output),
+        "--cache_root",
+        str(cache),
+    ]
+
+
+def _read_trace(path: Path) -> tuple[dict[str, str], ...]:
+    with path.open(encoding="utf-8", newline="") as handle:
+        return tuple(csv.DictReader(handle, delimiter="\t"))
+
+
+def check_p6_empty_partner_stub() -> None:
+    """Exercise the P6 zero-selection branch through the real workflow graph."""
+
+    with tempfile.TemporaryDirectory(
+        prefix="nf-genome-to-diffraction-p6-empty-", dir="/tmp"
+    ) as temporary:
+        temporary_root = Path(temporary)
+        environment = _environment(temporary_root / "nxf-home")
+        output = temporary_root / "results"
+        stub_bundle = _write_p6_empty_partner_stub_bundle(temporary_root)
+        command = _p6_empty_partner_command(
+            output=output,
+            cache=temporary_root / "cache",
+            stub_bundle=stub_bundle,
+        )
+        _run(command, environment=environment)
+
+        trace_path = output / "pipeline_info/trace.tsv"
+        first_rows = _read_trace(trace_path)
+        first_counts = Counter(row["process"].split(":")[-1] for row in first_rows)
+        expected_counts = Counter(
+            {
+                "BUILD_PARTNER_PLAN": 1,
+                "SUMMARIZE_PARTNER_ATTEMPTS": 1,
+            }
+        )
+        if first_counts != expected_counts:
+            raise RuntimeError(
+                "P6 empty-selected stub scheduled the wrong process set: "
+                f"{dict(sorted(first_counts.items()))}"
+            )
+        if {row["status"] for row in first_rows} != {"COMPLETED"}:
+            raise RuntimeError("P6 empty-selected stub did not complete both tasks")
+
+        plan_paths = tuple(output.rglob("partner_search_plan.json"))
+        candidate_paths = tuple(output.rglob("partner_candidates.jsonl"))
+        selected_paths = tuple(output.rglob("selected_partner_candidate_ids.txt"))
+        summary_paths = tuple(output.rglob("partner_attempt_summary.json"))
+        if not all(
+            len(paths) == 1
+            for paths in (plan_paths, candidate_paths, selected_paths, summary_paths)
+        ):
+            raise RuntimeError(
+                "P6 empty-selected outputs were not published exactly once"
+            )
+
+        plan_path = plan_paths[0]
+        candidate_path = candidate_paths[0]
+        selected_path = selected_paths[0]
+        summary_path = summary_paths[0]
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        candidate_rows = tuple(
+            json.loads(line)
+            for line in candidate_path.read_text(encoding="utf-8").splitlines()
+            if line
+        )
+        if (
+            plan.get("candidate_count") != 1845
+            or plan.get("selected_attempt_count") != 0
+            or plan.get("unsearchable_candidate_count") != 1845
+            or len(plan.get("candidates", [])) != 1845
+            or len(candidate_rows) != 1845
+            or selected_path.read_text(encoding="utf-8") != ""
+        ):
+            raise RuntimeError(
+                "P6 empty-selected plan lost its 1,845-candidate inventory"
+            )
+        if any(
+            row.get("selection_status") != "unsearchable_no_model"
+            for row in candidate_rows
+        ):
+            raise RuntimeError("P6 missing-B candidates did not remain unsearchable")
+
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        if (
+            summary.get("plan_id") != plan.get("plan_id")
+            or summary.get("plan_sha256")
+            != hashlib.sha256(plan_path.read_bytes()).hexdigest()
+            or summary.get("candidate_count") != 1845
+            or summary.get("unsearchable_candidate_count") != 1845
+            or summary.get("selected_attempt_count") != 0
+            or summary.get("result_count") != 0
+            or summary.get("selected_candidate_ids") != []
+            or summary.get("result_candidate_ids") != []
+            or summary.get("result_search_ids") != []
+            or summary.get("all_selected_attempts_retained") is not True
+        ):
+            raise RuntimeError(
+                "P6 empty-selected summary is incomplete or inconsistent"
+            )
+
+        retained_paths = (plan_path, candidate_path, selected_path, summary_path)
+        before_resume = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in retained_paths
+        }
+        _run([*command, "-resume"], environment=environment)
+        resumed_rows = _read_trace(trace_path)
+        resumed_counts = Counter(row["process"].split(":")[-1] for row in resumed_rows)
+        if resumed_counts != expected_counts or {
+            row["status"] for row in resumed_rows
+        } != {"CACHED"}:
+            raise RuntimeError(
+                "P6 empty-selected stub did not cache both tasks on resume"
+            )
+        after_resume = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in retained_paths
+        }
+        if before_resume != after_resume:
+            raise RuntimeError("P6 empty-selected resume changed retained outputs")
+
+
 def _assert_m6_fanout_trace(
     trace_rows: Sequence[dict[str, str]], *, require_cached: bool
 ) -> dict[str, tuple[dict[str, str], ...]]:
@@ -241,6 +494,7 @@ def _write_real_inputs(root: Path) -> Path:
 def check_stubs() -> None:
     """Run all stubs and real Task 05, verify outputs, and exercise resume."""
 
+    check_p6_empty_partner_stub()
     with tempfile.TemporaryDirectory(
         prefix="nf-genome-to-diffraction-stub-", dir="/tmp"
     ) as temporary:
@@ -1434,6 +1688,7 @@ def _build_parser() -> argparse.ArgumentParser:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--syntax", action="store_true")
     mode.add_argument("--stub", action="store_true")
+    mode.add_argument("--p6-empty-partner-stub", action="store_true")
     return parser
 
 
@@ -1444,8 +1699,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.syntax:
             check_syntax()
-        else:
+        elif args.stub:
             check_stubs()
+        else:
+            check_p6_empty_partner_stub()
     except (OSError, RuntimeError) as error:
         print(error, file=sys.stderr)
         return 1
