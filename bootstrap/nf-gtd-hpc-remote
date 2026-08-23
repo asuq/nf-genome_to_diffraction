@@ -3694,7 +3694,6 @@ collect_run() {
         artifacts/heteromer-smoke/p6/wrong-partner/phenix.phaser.capture.log \
         artifacts/heteromer-smoke/p6/wrong-partner/PHASER.1.pdb \
         artifacts/heteromer-smoke/p6/wrong-partner/PHASER.1.mtz \
-        artifacts/qualification/heteromer-control-slice-report.json \
         artifacts/p2/first-copy/exact_predicted_funnel/funnel_manifest.json \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.jsonl \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.tsv; do

@@ -10484,3 +10484,39 @@ integrated.
 - Integrate this focused commit into `dev/phase3`, then make the composition
   planner consume the registry lookup in a separate slice. Do not add provider
   execution, candidate search, Phaser, localisation, or unknown profiles here.
+
+## 2026-08-23T15:51:49Z - P6-v2 science passes; duplicate collection member holds acceptance
+
+### Terminal Marmic evidence and classification
+
+- The owned corrected P6-v2 `heteromer-smoke`, Slurm `633156`, completed from
+  source `24f733ca75f54e5d8bff511a7417e9daa8244d54` with exit zero under Pixi
+  0.76.2 and the pinned nf-helper revision. The application log ends with
+  `heteromer_smoke_status=passed`, `profile_status=success`, and successful
+  scratch cleanup.
+- The collected scientific records show exact 6RTZ `1A+1B` and 3U7Q `2A+2B`
+  recovery, an 1846-group catalogue and exact 1845-candidate missing-B
+  universe, zero selected missing-B attempts, six composition assessments, and
+  the protocol-bound 9ECN `unsupported_component_count` scope. The deliberately
+  wrong B again packed with incremental LLG 327.049 and TFZ 5.1 but remained
+  `search_evidence_only`, ineligible for and making no composition claim. All
+  seven required Phenix command probes passed.
+- Bounded collection then failed as `transfer_failure` on an unsafe second
+  archive member named `heteromer-control-slice-report.json`. This is a local
+  collection-contract defect, not a scientific, Phenix, scheduler, or
+  infrastructure failure. The reviewed dispatcher listed that exact report
+  twice; GNU tar represented the duplicate as a non-regular linked member,
+  which the local safe extractor correctly refused.
+
+### Smallest correction and next exact starting point
+
+- Removed only the duplicate allow-list entry and added a focused uniqueness
+  regression while retaining the extractor's fail-closed regular-file policy.
+  The focused regression, wrapper syntax, Ruff, formatting, and diff checks
+  pass. The long fake lifecycle was intentionally interrupted after it became a
+  bottleneck; no full-gate claim is made from that interrupted run.
+- Review and commit this two-file collection fix, push once, watch one CI run,
+  deploy the matching dispatcher, then re-run only bounded `collect` for the
+  already completed retained run. Do not submit or resume another scientific
+  job. Accept P6 only after the corrected collection succeeds and all retained
+  checksums are independently verified.
