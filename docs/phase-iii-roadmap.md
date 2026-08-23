@@ -60,6 +60,10 @@ Before unknown samples:
    emit typed sequence-map failures, and refuse credible-report promotion when
    crystal identity, copy support, final metrics, or review evidence is absent.
 
+Status: the final-Rwork/Rfree boundary is implemented on `dev/phase3` with a
+zero-exit/missing-metrics regression. The remaining PH1 boundaries are still
+open or partial as recorded in the finding ledger.
+
 ### PH2 - General component contracts and bounded search
 
 New schema-v2 writes use:

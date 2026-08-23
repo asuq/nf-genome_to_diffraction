@@ -25,7 +25,7 @@ open among the original 34 findings.
 | `PIPE-P1-10` | Fixed | Duplicate JSON/YAML keys fail through every loader. |
 | `PIPE-P1-11` | Fixed | Strict wire types and non-finite rejection cover every runtime loader. |
 | `PIPE-P1-12` | Fixed | Duplicate Matthews/preflight/group/source identities fail. |
-| `PIPE-P2-01` | Open | Zero-exit refinement without parsed final Rwork/Rfree becomes `failed_parse`. |
+| `PIPE-P2-01` | Fixed on `dev/phase3`; integration evidence pending | Zero-exit refinement without parsed final Rwork/Rfree becomes `failed_parse`; completed result contracts require both final values. |
 | `PIPE-P2-02` | Open | Malformed sequence-map outputs are typed per candidate and siblings continue. |
 | `PIPE-P2-03` | Fixed | Runtime, tracked, and packaged schemas are byte/semantic parity checked. |
 | `PIPE-P2-04` | Fixed | Duplicate headers and ragged TSV rows produce typed diagnostics. |

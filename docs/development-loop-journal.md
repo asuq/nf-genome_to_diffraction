@@ -10196,6 +10196,11 @@ outcomes before accepting P6 or beginning the v0.2 release boundary.
 - Eleven focused gel-contract tests, the authoritative schema check, targeted
   Ruff, targeted `ty`, documentation links, and diff checks pass. Localisation
   adapters and ranking consumption remain deliberately separate slices.
+- Closed the local `PIPE-P2-01` boundary: a zero-exit `phenix.refine` run is no
+  longer publishable when final Rwork or Rfree cannot be parsed, and completed
+  refinement contracts require both final values. The typed outcome is
+  `failed_parse`; existing model/map files are not promoted as completed
+  scientific evidence. Seven focused completion/status tests pass.
 
 ### Next exact starting point
 

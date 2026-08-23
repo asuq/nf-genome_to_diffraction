@@ -367,6 +367,28 @@ def _write_result(path: Path, result: BaseModel) -> tuple[Path, Path]:
     return path, jsonl
 
 
+def _assess_refinement_completion(
+    *,
+    returncode: int,
+    required_assets_present: bool,
+    coefficients_valid: bool,
+    final_r_work: float | None,
+    final_r_free: float | None,
+) -> tuple[bool, tuple[str, ...]]:
+    """Classify a zero-exit refinement only after final evidence is parsed."""
+
+    if returncode != 0:
+        return False, ()
+    warnings: list[str] = []
+    if not required_assets_present:
+        warnings.append("phenix_refine_completed_without_required_assets")
+    if required_assets_present and not coefficients_valid:
+        warnings.append("refined_mtz_lacks_required_2mfo_dfc_or_mfo_dfc_coefficients")
+    if final_r_work is None or final_r_free is None:
+        warnings.append("phenix_refine_log_lacks_final_r_work_or_r_free")
+    return not warnings, tuple(warnings)
+
+
 def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     """Run one retained finalist through fixed refinement, map, and sequence steps."""
 
@@ -481,10 +503,20 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         _refinement_metrics(refine_text)
     )
     required_assets = (refined_model, refined_mtz, map_path, difference_map_path)
-    refinement_success = completed.returncode == 0 and all(
-        path.is_file() for path in required_assets
+    required_assets_present = all(path.is_file() for path in required_assets)
+    coefficients_valid = (
+        completed.returncode == 0
+        and required_assets_present
+        and _has_required_map_coefficients(refined_mtz)
     )
-    refinement_warnings: list[str] = []
+    refinement_success, completion_warnings = _assess_refinement_completion(
+        returncode=completed.returncode,
+        required_assets_present=required_assets_present,
+        coefficients_valid=coefficients_valid,
+        final_r_work=final_rw,
+        final_r_free=final_rf,
+    )
+    refinement_warnings = list(completion_warnings)
     if (
         refinement_success
         and final_rf is not None
@@ -492,16 +524,6 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         and final_rf > initial_rf
     ):
         refinement_warnings.append("r_free_increased_during_brief_refinement")
-    if completed.returncode == 0 and not refinement_success:
-        refinement_warnings.append("phenix_refine_completed_without_required_assets")
-    coefficients_valid = refinement_success and _has_required_map_coefficients(
-        refined_mtz
-    )
-    if refinement_success and not coefficients_valid:
-        refinement_success = False
-        refinement_warnings.append(
-            "refined_mtz_lacks_required_2mfo_dfc_or_mfo_dfc_coefficients"
-        )
     refinement = BriefRefinementResult(
         schema_version="1.0",
         refinement_id=refinement_id,

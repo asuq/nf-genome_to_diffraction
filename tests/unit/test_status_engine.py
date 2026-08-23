@@ -59,6 +59,8 @@ def _write_inputs(root: Path, decisions: str) -> StatusRequest:
                 "input_copy_count": 2,
                 "tool_version": "2.1-6048",
                 "execution_status": "completed_success",
+                "final_r_work": 0.24,
+                "final_r_free": 0.28,
                 "refined_model_path": "brief_refine_001.pdb",
                 "refined_model_sha256": "1" * 64,
                 "refined_mtz_path": "brief_refine_001.mtz",

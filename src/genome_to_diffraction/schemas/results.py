@@ -1142,6 +1142,8 @@ class BriefRefinementResult(ContractModel):
             ExecutionStatus.COMPLETED_WARNING,
         }:
             required = (
+                self.final_r_work,
+                self.final_r_free,
                 self.refined_model_path,
                 self.refined_model_sha256,
                 self.refined_mtz_path,
@@ -1150,7 +1152,9 @@ class BriefRefinementResult(ContractModel):
                 self.map_sha256,
             )
             if any(value is None for value in required):
-                raise ValueError("completed refinement lacks required model/map assets")
+                raise ValueError(
+                    "completed refinement lacks final R values or model/map assets"
+                )
         return self
 
 
