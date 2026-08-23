@@ -21,7 +21,7 @@ open among the original 34 findings.
 | `PIPE-P1-06` | Open | Space-group/resolution overrides reach and are verified in every Phaser/refinement command. |
 | `PIPE-P1-07` | Open | Free-R identity changes with selection; malformed flags fail; exact HKL membership survives refinement. |
 | `PIPE-P1-08` | Open | Parent uncertainty is preserved; placed/packed does not become scientific support. |
-| `PIPE-P1-09` | Open | Pre-existing T12 files cannot be published when the current attempt writes nothing. |
+| `PIPE-P1-09` | Fixed on `dev/phase3`; integration evidence pending | T12 accepts only a new or empty attempt-owned directory; stale files fail before tool execution and cannot be published. |
 | `PIPE-P1-10` | Fixed | Duplicate JSON/YAML keys fail through every loader. |
 | `PIPE-P1-11` | Fixed | Strict wire types and non-finite rejection cover every runtime loader. |
 | `PIPE-P1-12` | Fixed | Duplicate Matthews/preflight/group/source identities fail. |

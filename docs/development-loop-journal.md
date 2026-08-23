@@ -10205,6 +10205,10 @@ outcomes before accepting P6 or beginning the v0.2 release boundary.
   identity in successful `phenix.sequence_from_map` output now emits a typed
   candidate-level `failed_parse` result rather than raising out of the process.
   The raw log remains retained and independent finalist processes can continue.
+- Closed the local `PIPE-P1-09` stale-output boundary for T12. Every candidate
+  now owns a new or empty output directory; a symlink, non-directory, or any
+  pre-existing file fails before external execution, so a zero-output current
+  attempt cannot publish a prior attempt's model, MTZ, or maps.
 
 ### Next exact starting point
 

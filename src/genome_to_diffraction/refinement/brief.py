@@ -229,6 +229,22 @@ def _refinement_output_paths(outdir: Path) -> tuple[Path, Path, Path, Path]:
     )
 
 
+def _prepare_attempt_directory(path: Path) -> Path:
+    """Create or verify one empty attempt-owned output directory."""
+
+    if path.is_symlink():
+        raise T12InputError("T12 output directory cannot be a symlink")
+    resolved = path.resolve()
+    if resolved.exists():
+        if not resolved.is_dir():
+            raise T12InputError("T12 output path is not a directory")
+        if any(resolved.iterdir()):
+            raise T12InputError("T12 output directory is not empty")
+    else:
+        resolved.mkdir(parents=True)
+    return resolved
+
+
 def _has_required_map_coefficients(path: Path) -> bool:
     """Return whether the refined MTZ contains both review-map coefficient pairs."""
 
@@ -479,8 +495,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         raise T12InputError("complete sequence catalogue and source crosswalk differ")
     manifest_path = request.phenix_manifest.resolve(strict=True)
     manifest = validate_manifest_environment(manifest_path)
-    outdir = request.output_directory.resolve()
-    outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _prepare_attempt_directory(request.output_directory)
     catalogue_fasta = outdir / "exact_sequence_catalogue.fasta"
     _write_catalogue_fasta(groups, catalogue_fasta, progress=request.progress)
     refinement_id = content_id(

@@ -1,13 +1,16 @@
 """Focused final-metric and sequence-parse gates for brief refinement."""
 
 import hashlib
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from genome_to_diffraction.refinement.brief import (
+    T12InputError,
     _assess_refinement_completion,
     _classify_sequence_output,
+    _prepare_attempt_directory,
 )
 from genome_to_diffraction.schemas.results import (
     BriefRefinementResult,
@@ -16,6 +19,15 @@ from genome_to_diffraction.schemas.results import (
 )
 
 _SHA = "a" * 64
+
+
+def test_t12_attempt_directory_refuses_stale_outputs(tmp_path: Path) -> None:
+    attempt = _prepare_attempt_directory(tmp_path / "attempt")
+    assert attempt.is_dir()
+    (attempt / "brief_refine_001.pdb").write_text("stale\n", encoding="utf-8")
+
+    with pytest.raises(T12InputError, match="output directory is not empty"):
+        _prepare_attempt_directory(attempt)
 
 
 def test_zero_exit_without_final_r_values_is_failed_parse_evidence() -> None:
