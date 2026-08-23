@@ -70,10 +70,11 @@ nextflow-stub = "python tests/scripts/check_nextflow.py --stub"
 composition-attempt-stub = "python tests/scripts/check_composition_attempt_fanout.py"
 localisation-wave-stub = "python tests/scripts/check_nextflow.py --localisation-wave-stub"
 unknown-pass1-screen-stub = "python -m tests.scripts.check_unknown_pass1_screen"
+provider-empty-graph-stub = "python -m tests.scripts.check_provider_empty_graph"
 hpc-wrapper-check = "bash -n bootstrap/nf-gtd-hpc-remote bootstrap/nf-gtd-hpc-smoke-job bootstrap/nf-gtd-hpc-recover-tools"
 build-hpc-test = "python bootstrap/build_hpc_test_app.py --output dist/nf-gtd-hpc-test"
 prepare-project-layout = "bootstrap/prepare_project_layout.sh"
 prepare-public-control = "genome-to-diffraction benchmark prepare-public-control --specification benchmarks/public-controls/pdb_8oox.yaml"
 public-panel-check = "genome-to-diffraction benchmark check-public-panel --panel benchmarks/public-controls/panel.yaml"
 prepare-public-panel = "genome-to-diffraction benchmark prepare-public-panel --panel benchmarks/public-controls/panel.yaml --outdir .untracked/public-controls/panel-v2"
-check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "public-panel-check", "docs-check", "actionlint-check", "nextflow-check", "nextflow-stub", "composition-attempt-stub", "localisation-wave-stub", "unknown-pass1-screen-stub", "hpc-wrapper-check"] }
+check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "public-panel-check", "docs-check", "actionlint-check", "nextflow-check", "nextflow-stub", "composition-attempt-stub", "localisation-wave-stub", "unknown-pass1-screen-stub", "provider-empty-graph-stub", "hpc-wrapper-check"] }

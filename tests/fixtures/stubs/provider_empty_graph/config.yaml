@@ -1,0 +1,45 @@
+schema_version: "1.0"
+
+prototype:
+  asu_model: single_protein_species_multi_copy
+  profile: pilot
+
+catalogue:
+  min_length_aa: 30
+  ambiguous_residue_policy: warn
+  remove_terminal_stop: true
+
+providers:
+  pdb_sequence:
+    enabled: true
+    max_hits: 3
+  foldseek_prostt5_pdb:
+    enabled: false
+    max_hits: 3
+  esm_atlas:
+    enabled: false
+    max_hits: 2
+    requests_per_minute: 10
+    max_sequence_length: 1500
+  afdb_exact:
+    enabled: false
+    max_hits: 1
+
+matthews:
+  min_copy_count: 1
+  max_copy_count: 16
+  max_hypotheses_per_candidate: 4
+  min_solvent_fraction: 0.10
+  max_solvent_fraction: 0.90
+
+search_limits:
+  max_structural_hypotheses: 100
+  max_first_copy_jobs: 200
+
+review:
+  primary_shortlist_size: 10
+  extended_shortlist_size: 25
+
+retention:
+  max_full_artifact_finalists: 20
+  retain_all_logs: true

@@ -11191,3 +11191,27 @@ with a collapsed combined parent or a guessed command.
 - Next, consume these assessment records from the owned unknown-run collector
   and portable report boundary after those exact evidence inventories exist.
   Do not infer missing reviews or promote historical unknown-crystal results.
+
+## 2026-08-23 - Plan-driven provider empty graph is focused-green
+
+### Completed local foundation
+
+- Added one fixed four-route completion boundary over the existing provider
+  plan and adapters. One enabled local no-hit, two configured-disabled routes,
+  and one unsupported/provider-unavailable route retain every catalogue query
+  and finish as a content-addressed `completed_no_model` all-model registry.
+- The completion refuses plan/config mismatch, missing or duplicate branches,
+  non-empty hit/coordinate outputs, incomplete query coverage, and enabled
+  network routes. The enabled test route is stub-only; normal execution exits
+  before any provider executable or network request.
+- Five focused tests pass for exact outcomes, deterministic bytes, plan/config
+  mismatch, missing coverage, and duplicate coverage. The dedicated six-task
+  Nextflow stub passes, resumes all six tasks from cache without output-byte
+  changes, and proves the non-stub refusal. No provider, remote service, private
+  input, HPC profile, or scientific analysis ran.
+
+### Next exact starting point
+
+- Integrate this focused commit into `dev/phase3`. Real provider no-hit
+  qualification and wiring into the application graph remain separate gates;
+  do not treat the stub terminal as scientific evidence.

@@ -98,6 +98,10 @@ from genome_to_diffraction.diffraction import (
     preflight_crystals,
     prepare_crystal_dispatch,
 )
+from genome_to_diffraction.execution import (
+    ProviderEmptyGraphRequest,
+    complete_provider_empty_graph,
+)
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.localisation import (
     build_catalogue_localisation_tasks,
@@ -1577,6 +1581,21 @@ def _build_parser() -> argparse.ArgumentParser:
     disabled_provider_parser.add_argument("--provider-entry", type=Path, required=True)
     disabled_provider_parser.add_argument("--sequence-groups", type=Path, required=True)
     disabled_provider_parser.add_argument("--outdir", type=Path, required=True)
+    provider_empty_graph_parser = search_actions.add_parser(
+        "complete-provider-empty-graph",
+        help="close the fixed provider graph after complete empty branches",
+    )
+    provider_empty_graph_parser.add_argument("--config", type=Path, required=True)
+    provider_empty_graph_parser.add_argument(
+        "--provider-plan", type=Path, required=True
+    )
+    provider_empty_graph_parser.add_argument(
+        "--sequence-groups", type=Path, required=True
+    )
+    provider_empty_graph_parser.add_argument(
+        "--bundle", type=Path, action="append", required=True
+    )
+    provider_empty_graph_parser.add_argument("--outdir", type=Path, required=True)
     merge_provider_hits_parser = search_actions.add_parser(
         "merge-pdb-provider-hits",
         help="combine typed PDB-sequence and Foldseek hit evidence",
@@ -2467,6 +2486,21 @@ def _run_structure_search(args: argparse.Namespace) -> int:
         print(
             f"Emitted {len(disabled.results)} disabled-provider results: "
             f"{disabled.search_manifest}"
+        )
+        return 0
+    if args.structure_search_action == "complete-provider-empty-graph":
+        completion = complete_provider_empty_graph(
+            ProviderEmptyGraphRequest(
+                pipeline_config=args.config,
+                provider_plan_json=args.provider_plan,
+                sequence_groups_jsonl=args.sequence_groups,
+                provider_bundle_directories=tuple(args.bundle),
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            f"Completed empty provider graph {completion.completion.completion_id}: "
+            f"{completion.completion_json}"
         )
         return 0
     if args.structure_search_action == "merge-pdb-provider-hits":

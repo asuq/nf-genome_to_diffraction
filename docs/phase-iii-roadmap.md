@@ -137,6 +137,14 @@ per-component uncertainties, candidate evidence, and parent LLG. It proves one
 and byte-identical cached resume, but remains stub-only. Integration into the application graph and the
 hypothesis/seed/finalist levels remain pending.
 
+The authoritative provider plan now also drives a fixed local typed-empty graph.
+One enabled local scientific no-hit, two configured-disabled routes, and one
+unsupported/provider-unavailable route retain every catalogue query and finish
+as one content-addressed `completed_no_model` all-model registry. Its dedicated
+stub resumes byte-identically and the normal enabled route fails before provider
+or network execution. Real provider no-hit qualification and integration into
+the live application graph remain separate pending gates.
+
 ### PH2 - General component contracts and bounded search
 
 New schema-v2 writes use:
