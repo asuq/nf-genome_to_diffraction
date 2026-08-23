@@ -18,12 +18,13 @@ import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 import gemmi
 import numpy as np
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
+from pydantic import Field, model_validator
 
 from genome_to_diffraction.benchmarks.m6_edge import M6_RATE_LIMIT_HTTP_FIXTURE
 from genome_to_diffraction.benchmarks.m6_protocol import (
@@ -40,7 +41,13 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.diffraction.preflight import select_observations
-from genome_to_diffraction.ids import canonical_sequence, sequence_digest
+from genome_to_diffraction.ids import canonical_sequence, content_id, sequence_digest
+from genome_to_diffraction.schemas.base import (
+    ContractModel,
+    NonEmptyString,
+    PositiveInt,
+    Sha256Hex,
+)
 
 M6MtzVariation = Literal[
     "ordinary",
@@ -48,6 +55,60 @@ M6MtzVariation = Literal[
     "equivalent_observation_arrays",
     "conflicting_observation_arrays",
 ]
+M6ObservationType = Literal["intensity", "amplitude"]
+
+_M6_HKL_DIGEST_DOMAIN = b"nf-gtd/m6/sanitised-hkl/v1\0"
+_M6_FREE_R_DIGEST_DOMAIN = b"nf-gtd/m6/sanitised-hkl-free-r/v1\0"
+_FREE_R_LABELS = frozenset(
+    {
+        "FREE",
+        "FREER",
+        "FREERFLAG",
+        "FREERFLAGS",
+        "RFREE",
+        "RFREEFLAG",
+        "RFREEFLAGS",
+    }
+)
+_M6_MTZ_VARIATION_BY_CASE_KIND: dict[str, M6MtzVariation] = {
+    "map_only_mtz": "map_only",
+    "ambiguous_columns_equivalent": "equivalent_observation_arrays",
+    "ambiguous_columns_conflicting": "conflicting_observation_arrays",
+}
+
+
+class M6MtzSanitisationRecord(ContractModel):
+    """Path-free proof that one ordinary runner MTZ contains only safe arrays."""
+
+    schema_version: Literal["1.0"]
+    sanitisation_id: str = Field(pattern=r"^m6mtz_[a-f0-9]{64}$")
+    contract: Literal["ordinary_observations_free_r_only_v1"]
+    output_mtz_sha256: Sha256Hex
+    output_mtz_size_bytes: PositiveInt
+    reflection_count: PositiveInt
+    output_column_labels: tuple[NonEmptyString, ...] = Field(min_length=6)
+    observation_dataset_id: PositiveInt
+    observation_labels: tuple[NonEmptyString, ...] = Field(min_length=2, max_length=4)
+    observation_type: M6ObservationType
+    free_r_dataset_id: PositiveInt
+    free_r_label: NonEmptyString
+    hkl_set_sha256: Sha256Hex
+    hkl_to_free_r_membership_sha256: Sha256Hex
+
+    @model_validator(mode="after")
+    def _validate_content_address(self) -> Self:
+        identity = self.model_dump(mode="json", exclude={"sanitisation_id"})
+        expected = content_id("m6mtz_", identity)
+        if self.sanitisation_id != expected:
+            raise ValueError("M6 MTZ sanitisation ID differs from its content")
+        expected_columns = ("H", "K", "L", *self.observation_labels, self.free_r_label)
+        if self.output_column_labels != expected_columns:
+            raise ValueError(
+                "ordinary M6 output columns must be HKL, observations, and Free-R"
+            )
+        if self.free_r_dataset_id != self.observation_dataset_id:
+            raise ValueError("ordinary M6 observations and Free-R must share a dataset")
+        return self
 
 
 @dataclass(frozen=True)
@@ -434,6 +495,280 @@ def _sanitise_mtz(mtz: gemmi.Mtz, opaque_id: str) -> None:
     mtz.update_reso()
 
 
+def _normalise_mtz_label(label: str) -> str:
+    return "".join(character for character in label.upper() if character.isalnum())
+
+
+def _exact_integer_array(values: np.ndarray, *, label: str) -> np.ndarray:
+    numeric = np.asarray(values, dtype=np.float64)
+    if not np.all(np.isfinite(numeric)):
+        raise PublicControlError(f"M6 {label} contains non-finite values")
+    rounded = np.rint(numeric)
+    if not np.array_equal(numeric, rounded):
+        raise PublicControlError(f"M6 {label} must be exactly integral")
+    return rounded.astype(np.int64)
+
+
+def _digest_integer_rows(rows: np.ndarray, *, domain: bytes) -> str:
+    digest = hashlib.sha256()
+    digest.update(domain)
+    digest.update(len(rows).to_bytes(8, byteorder="big", signed=False))
+    digest.update(np.asarray(rows, dtype=">i8").tobytes(order="C"))
+    return digest.hexdigest()
+
+
+def _free_r_column(
+    mtz: gemmi.Mtz,
+    *,
+    observation_dataset_id: int,
+) -> gemmi.Mtz.Column:
+    recognised = [
+        column
+        for column in mtz.columns
+        if column.type == "I" and _normalise_mtz_label(column.label) in _FREE_R_LABELS
+    ]
+    inferred = mtz.rfree_column()
+    if inferred is not None and not any(
+        column.label == inferred.label and column.dataset_id == inferred.dataset_id
+        for column in recognised
+    ):
+        recognised.append(inferred)
+    if len(recognised) != 1:
+        raise PublicControlError(
+            "ordinary M6 MTZ must contain exactly one recognised Free-R array"
+        )
+    selected = recognised[0]
+    if selected.type != "I":
+        raise PublicControlError("ordinary M6 Free-R array must use MTZ type I")
+    if selected.dataset_id != observation_dataset_id:
+        raise PublicControlError(
+            "ordinary M6 Free-R and observations belong to different MTZ datasets"
+        )
+    return selected
+
+
+def _hkl_free_r_digests(
+    mtz: gemmi.Mtz,
+    *,
+    free_r_dataset_id: int,
+    free_r_label: str,
+) -> tuple[str, str]:
+    matching = tuple(
+        column
+        for column in mtz.columns
+        if column.dataset_id == free_r_dataset_id and column.label == free_r_label
+    )
+    if len(matching) != 1:
+        raise PublicControlError(
+            "ordinary M6 Free-R array is missing or ambiguous after selection"
+        )
+    flags = _exact_integer_array(
+        np.asarray(matching[0].array),
+        label="Free-R array",
+    )
+    if len(np.unique(flags)) < 2:
+        raise PublicControlError("ordinary M6 Free-R array is constant")
+    hkl = _exact_integer_array(
+        np.asarray(mtz.make_miller_array()),
+        label="Miller indices",
+    )
+    if hkl.ndim != 2 or hkl.shape[1] != 3:
+        raise PublicControlError("ordinary M6 Miller indices do not have H,K,L shape")
+    if len(hkl) != len(flags) or len(flags) != mtz.nreflections:
+        raise PublicControlError(
+            "ordinary M6 HKL and Free-R arrays cover different reflections"
+        )
+    mapping = np.column_stack((hkl, flags)).astype(np.int64, copy=False)
+    order = np.lexsort((mapping[:, 3], mapping[:, 2], mapping[:, 1], mapping[:, 0]))
+    sorted_mapping = mapping[order]
+    if len(sorted_mapping) > 1 and np.any(
+        np.all(sorted_mapping[1:, :3] == sorted_mapping[:-1, :3], axis=1)
+    ):
+        raise PublicControlError(
+            "ordinary M6 MTZ contains duplicate HKL rows with ambiguous "
+            "Free-R membership"
+        )
+    return (
+        _digest_integer_rows(
+            sorted_mapping[:, :3],
+            domain=_M6_HKL_DIGEST_DOMAIN,
+        ),
+        _digest_integer_rows(
+            sorted_mapping,
+            domain=_M6_FREE_R_DIGEST_DOMAIN,
+        ),
+    )
+
+
+def _column_in_dataset(
+    mtz: gemmi.Mtz,
+    *,
+    dataset_id: int,
+    label: str,
+) -> gemmi.Mtz.Column:
+    matching = tuple(
+        column
+        for column in mtz.columns
+        if column.dataset_id == dataset_id and column.label == label
+    )
+    if len(matching) != 1:
+        raise PublicControlError(
+            "ordinary M6 selected column is missing or ambiguous: "
+            f"dataset_id={dataset_id}; label={label!r}"
+        )
+    return matching[0]
+
+
+def _ordinary_mtz(
+    source: gemmi.Mtz,
+    *,
+    opaque_id: str,
+) -> tuple[gemmi.Mtz, tuple[str, ...], M6ObservationType, int, str, str]:
+    observation, _, warnings = select_observations(source, None)
+    if observation is None:
+        reason = ",".join(warnings) or "missing_observation_arrays"
+        raise PublicControlError(
+            f"ordinary M6 MTZ lacks one unambiguous observation selection: {reason}"
+        )
+    free_r = _free_r_column(
+        source,
+        observation_dataset_id=observation.dataset_id,
+    )
+    source_hkl_sha256, source_membership_sha256 = _hkl_free_r_digests(
+        source,
+        free_r_dataset_id=free_r.dataset_id,
+        free_r_label=free_r.label,
+    )
+    retained = tuple(
+        (
+            column.label,
+            column.type,
+            np.asarray(column.array),
+        )
+        for column in (
+            *(
+                _column_in_dataset(
+                    source,
+                    dataset_id=observation.dataset_id,
+                    label=label,
+                )
+                for label in observation.labels
+            ),
+            free_r,
+        )
+    )
+    result = _subset_mtz(source, retained, opaque_id)
+    expected_labels = ("H", "K", "L", *observation.labels, free_r.label)
+    observed_labels = tuple(column.label for column in result.columns)
+    if observed_labels != expected_labels:
+        raise PublicControlError(
+            "ordinary M6 MTZ retained a column outside HKL, observations, and Free-R"
+        )
+    result_hkl_sha256, result_membership_sha256 = _hkl_free_r_digests(
+        result,
+        free_r_dataset_id=result.datasets[-1].id,
+        free_r_label=free_r.label,
+    )
+    if result_hkl_sha256 != source_hkl_sha256:
+        raise PublicControlError("ordinary M6 sanitisation changed the exact HKL set")
+    if result_membership_sha256 != source_membership_sha256:
+        raise PublicControlError(
+            "ordinary M6 sanitisation changed exact HKL-to-Free-R membership"
+        )
+    for label in observation.labels:
+        source_values = np.asarray(
+            _column_in_dataset(
+                source,
+                dataset_id=observation.dataset_id,
+                label=label,
+            ).array
+        )
+        result_values = np.asarray(
+            _column_in_dataset(
+                result,
+                dataset_id=result.datasets[-1].id,
+                label=label,
+            ).array
+        )
+        if not np.array_equal(source_values, result_values, equal_nan=True):
+            raise PublicControlError(
+                f"ordinary M6 sanitisation changed selected observation {label!r}"
+            )
+    return (
+        result,
+        observation.labels,
+        observation.observation_type,
+        result.datasets[-1].id,
+        result_hkl_sha256,
+        result_membership_sha256,
+    )
+
+
+def verify_m6_ordinary_mtz_sanitisation(
+    path: Path,
+    record: M6MtzSanitisationRecord,
+) -> Path:
+    """Revalidate one ordinary MTZ against its path-free sanitisation record."""
+
+    try:
+        resolved = path.resolve(strict=True)
+        if not resolved.is_file():
+            raise OSError("path is not a regular file")
+        mtz = gemmi.read_mtz_file(str(resolved))
+    except (OSError, RuntimeError) as error:
+        raise PublicControlError(
+            f"cannot read ordinary M6 sanitised MTZ {path}: {error}"
+        ) from error
+    if (
+        sha256_file(resolved) != record.output_mtz_sha256
+        or resolved.stat().st_size != record.output_mtz_size_bytes
+    ):
+        raise PublicControlError(
+            "ordinary M6 sanitisation record differs from the prepared MTZ object"
+        )
+    if mtz.nreflections != record.reflection_count:
+        raise PublicControlError("ordinary M6 sanitisation reflection count changed")
+    if tuple(column.label for column in mtz.columns) != record.output_column_labels:
+        raise PublicControlError(
+            "ordinary M6 prepared MTZ contains a column outside its whitelist"
+        )
+    observation, _, _ = select_observations(mtz, None)
+    if observation is None or (
+        observation.dataset_id,
+        observation.labels,
+        observation.observation_type,
+    ) != (
+        record.observation_dataset_id,
+        record.observation_labels,
+        record.observation_type,
+    ):
+        raise PublicControlError(
+            "ordinary M6 prepared MTZ changed its selected observations"
+        )
+    free_r = _free_r_column(
+        mtz,
+        observation_dataset_id=observation.dataset_id,
+    )
+    if (free_r.dataset_id, free_r.label) != (
+        record.free_r_dataset_id,
+        record.free_r_label,
+    ):
+        raise PublicControlError("ordinary M6 prepared MTZ changed its Free-R identity")
+    hkl_sha256, membership_sha256 = _hkl_free_r_digests(
+        mtz,
+        free_r_dataset_id=free_r.dataset_id,
+        free_r_label=free_r.label,
+    )
+    if (
+        hkl_sha256 != record.hkl_set_sha256
+        or membership_sha256 != record.hkl_to_free_r_membership_sha256
+    ):
+        raise PublicControlError(
+            "ordinary M6 prepared MTZ changed its HKL/Free-R membership"
+        )
+    return resolved
+
+
 def _converted_observation_mtz(structure_factors: Path, opaque_id: str) -> gemmi.Mtz:
     try:
         blocks = gemmi.as_refln_blocks(gemmi.cif.read_file(str(structure_factors)))
@@ -545,12 +880,28 @@ def write_m6_mtz_variant(
     *,
     opaque_id: str,
     variation: M6MtzVariation,
-) -> None:
+) -> M6MtzSanitisationRecord | None:
     """Write one sanitised ordinary or predeclared MTZ edge-case variant."""
 
+    ordinary_details: (
+        tuple[tuple[str, ...], M6ObservationType, int, str, str] | None
+    ) = None
     if variation == "ordinary":
-        result = source
-        _sanitise_mtz(result, opaque_id)
+        (
+            result,
+            observation_labels,
+            observation_type,
+            output_dataset_id,
+            hkl_set_sha256,
+            membership_sha256,
+        ) = _ordinary_mtz(source, opaque_id=opaque_id)
+        ordinary_details = (
+            observation_labels,
+            observation_type,
+            output_dataset_id,
+            hkl_set_sha256,
+            membership_sha256,
+        )
     elif variation == "map_only":
         result = _subset_mtz(source, _map_columns(source), opaque_id)
     elif variation == "equivalent_observation_arrays":
@@ -581,6 +932,76 @@ def write_m6_mtz_variant(
         if temporary is not None:
             temporary.unlink(missing_ok=True)
         raise
+    if ordinary_details is None:
+        return None
+
+    try:
+        written = gemmi.read_mtz_file(str(output.resolve(strict=True)))
+    except (OSError, RuntimeError) as error:
+        raise PublicControlError(
+            f"cannot re-read ordinary M6 sanitised MTZ {output}: {error}"
+        ) from error
+    (
+        observation_labels,
+        observation_type,
+        output_dataset_id,
+        hkl_set_sha256,
+        membership_sha256,
+    ) = ordinary_details
+    written_labels = tuple(column.label for column in written.columns)
+    expected_labels = ("H", "K", "L", *observation_labels)
+    if len(written_labels) != len(expected_labels) + 1:
+        raise PublicControlError(
+            "ordinary M6 sanitised MTZ column count changed after writing"
+        )
+    free_r_label = written_labels[-1]
+    if written_labels != (*expected_labels, free_r_label):
+        raise PublicControlError(
+            "ordinary M6 sanitised MTZ column order changed after writing"
+        )
+    written_hkl_sha256, written_membership_sha256 = _hkl_free_r_digests(
+        written,
+        free_r_dataset_id=output_dataset_id,
+        free_r_label=free_r_label,
+    )
+    if (
+        written_hkl_sha256 != hkl_set_sha256
+        or written_membership_sha256 != membership_sha256
+    ):
+        raise PublicControlError(
+            "ordinary M6 sanitised MTZ changed HKL/Free-R membership on disk"
+        )
+    identity = {
+        "schema_version": "1.0",
+        "contract": "ordinary_observations_free_r_only_v1",
+        "output_mtz_sha256": sha256_file(output),
+        "output_mtz_size_bytes": output.stat().st_size,
+        "reflection_count": written.nreflections,
+        "output_column_labels": written_labels,
+        "observation_dataset_id": output_dataset_id,
+        "observation_labels": observation_labels,
+        "observation_type": observation_type,
+        "free_r_dataset_id": output_dataset_id,
+        "free_r_label": free_r_label,
+        "hkl_set_sha256": written_hkl_sha256,
+        "hkl_to_free_r_membership_sha256": written_membership_sha256,
+    }
+    return M6MtzSanitisationRecord(
+        schema_version="1.0",
+        sanitisation_id=content_id("m6mtz_", identity),
+        contract="ordinary_observations_free_r_only_v1",
+        output_mtz_sha256=sha256_file(output),
+        output_mtz_size_bytes=output.stat().st_size,
+        reflection_count=written.nreflections,
+        output_column_labels=written_labels,
+        observation_dataset_id=output_dataset_id,
+        observation_labels=observation_labels,
+        observation_type=observation_type,
+        free_r_dataset_id=output_dataset_id,
+        free_r_label=free_r_label,
+        hkl_set_sha256=written_hkl_sha256,
+        hkl_to_free_r_membership_sha256=written_membership_sha256,
+    )
 
 
 def _target_maps(
@@ -605,13 +1026,13 @@ def _case_catalogue_id(
 
 
 def _mtz_variation(case: M6CaseSpec) -> M6MtzVariation:
-    if case.case_kind == "map_only_mtz":
-        return "map_only"
-    if case.case_kind == "ambiguous_columns_equivalent":
-        return "equivalent_observation_arrays"
-    if case.case_kind == "ambiguous_columns_conflicting":
-        return "conflicting_observation_arrays"
-    return "ordinary"
+    return _M6_MTZ_VARIATION_BY_CASE_KIND.get(case.case_kind, "ordinary")
+
+
+def is_m6_ordinary_case_kind(case_kind: str) -> bool:
+    """Return whether one frozen case uses the ordinary MTZ contract."""
+
+    return case_kind not in _M6_MTZ_VARIATION_BY_CASE_KIND
 
 
 def _fault_control(case: M6CaseSpec) -> dict[str, object] | None:
@@ -755,7 +1176,10 @@ def prepare_m6_inputs(
     catalogue_cache: dict[
         tuple[str, str, str | None], tuple[Path, tuple[_OpaqueRecord, ...]]
     ] = {}
-    mtz_cache: dict[tuple[str, M6MtzVariation], Path] = {}
+    mtz_cache: dict[
+        tuple[str, M6MtzVariation],
+        tuple[Path, M6MtzSanitisationRecord | None],
+    ] = {}
     prepared_cases: list[dict[str, object]] = []
     private_cases: list[dict[str, object]] = []
     for case in protocol.cases:
@@ -795,16 +1219,18 @@ def prepare_m6_inputs(
 
         variation = _mtz_variation(case)
         mtz_key = (case.target_key, variation)
-        mtz_path = mtz_cache.get(mtz_key)
-        if mtz_path is None:
+        mtz_entry = mtz_cache.get(mtz_key)
+        if mtz_entry is None:
             mtz_path = output_root / "reflections" / f"{case.case_id}.mtz"
-            write_m6_mtz_variant(
+            sanitisation_record = write_m6_mtz_variant(
                 base_mtz[case.target_key],
                 mtz_path,
                 opaque_id=case.case_id,
                 variation=variation,
             )
-            mtz_cache[mtz_key] = mtz_path
+            mtz_entry = (mtz_path, sanitisation_record)
+            mtz_cache[mtz_key] = mtz_entry
+        mtz_path, sanitisation_record = mtz_entry
 
         sds_mass = []
         if case.case_kind == "wrong_sds_mass":
@@ -897,7 +1323,15 @@ def prepare_m6_inputs(
             objects.append(
                 _prepared_object("fault_control", fault_path, "application/json")
             )
-        prepared_cases.append({"case_id": case.case_id, "objects": objects})
+        prepared_case: dict[str, object] = {
+            "case_id": case.case_id,
+            "objects": objects,
+        }
+        if sanitisation_record is not None:
+            prepared_case["reflection_sanitisation"] = sanitisation_record.model_dump(
+                mode="json"
+            )
+        prepared_cases.append(prepared_case)
 
         target_digests: tuple[str, ...]
         expected_copy_count: int | None

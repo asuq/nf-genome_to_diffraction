@@ -86,6 +86,29 @@ to remove the exact deposition and enforce the approved all-route leakage
 threshold. Truth-side case assessment occurs only after both collected result
 checksums are fixed.
 
+For ordinary cases, the trusted preparer applies a strict Gemmi whitelist
+before the reflection object reaches the runner. It reuses the deterministic
+preflight observation selection, retains only `H,K,L`, that selected
+value/sigma pair (or anomalous quartet), and exactly one recognised integral,
+non-constant Free-R array from the same MTZ dataset. Missing or conflicting
+observations, missing or ambiguous Free-R columns, non-finite/non-integral or
+constant flags, duplicate HKLs, and changed HKL-to-flag membership abort
+preparation. FWT/PHWT, FC/PHIC, other map/phase columns, and all other source
+columns are therefore absent from ordinary runner objects and cannot affect the
+runner archive/cache identity. The two frozen `map_only_mtz` edge cases remain
+deliberate exceptions because their purpose is to exercise typed no-observation
+handling; they are not ordinary scientific inputs.
+
+Each ordinary local preparation case must carry a content-addressed, path-free
+sanitisation record binding the output MTZ checksum, exact retained labels,
+reflection count, selected observation identity, and sorted HKL and
+HKL-to-Free-R digests. The runner builder requires and independently validates
+that record against the prepared reflection object but deliberately does not
+serialise it into the blind runner manifest. Original coordinate and
+structure-factor resource checksums,
+sizes, PDB-source provenance, and the unchanged frozen protocol remain in the
+trusted `source_inventory.json`/private boundary outside the runner.
+
 Each fresh runner case emits a checksum-bound identity decision:
 `reported`, `ambiguous`, or `abstained`. It also emits typed edge observations
 whose success is derived from actual Matthews, MTZ, provider-authorisation,
@@ -262,6 +285,10 @@ archives, byte-level rejection of a truth-bearing runner object, all-route
 model exclusion, compact truth joins, output-checksum replay, cache
 invalidation, deterministic query batching, Nextflow fan-out, child-job
 resource evidence, cross-track truthless Nextflow-cache isolation, and the fixed Viper
-resource profiles. A two-case Viper `-stub-run` must then prove real child Slurm
+resource profiles. The MTZ regression additionally proves FWT/PHWT/FC/PHIC are
+omitted, HKL/observations/Free-R are exact, target-derived coefficient mutations
+do not change sanitised bytes or identity, invalid arrays fail closed, and the
+runner-visible MTZ cannot recover the omitted columns. A two-case Viper
+`-stub-run` must then prove real child Slurm
 submission without generating acceptance evidence. The complete locked
 repository gate remains required before an immutable Viper candidate is staged.

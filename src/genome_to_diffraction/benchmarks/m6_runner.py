@@ -17,6 +17,11 @@ from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
+from genome_to_diffraction.benchmarks.m6_prepare import (
+    M6MtzSanitisationRecord,
+    is_m6_ordinary_case_kind,
+    verify_m6_ordinary_mtz_sanitisation,
+)
 from genome_to_diffraction.benchmarks.m6_protocol import (
     M6BenchmarkProtocol,
     load_m6_protocol,
@@ -61,6 +66,7 @@ class M6PreparedCaseSpec(ContractModel):
 
     case_id: str = Field(pattern=r"^M6C[0-9]{3}$")
     objects: tuple[M6PreparedObjectSpec, ...] = Field(min_length=2)
+    reflection_sanitisation: M6MtzSanitisationRecord | None = None
 
     @model_validator(mode="after")
     def _validate_roles(self) -> Self:
@@ -71,6 +77,18 @@ class M6PreparedCaseSpec(ContractModel):
             raise ValueError(
                 "prepared case requires catalogue, reflections, and analysis_config"
             )
+        if self.reflection_sanitisation is not None:
+            reflections = next(
+                item for item in self.objects if item.role == "reflections"
+            )
+            if (
+                reflections.sha256 != self.reflection_sanitisation.output_mtz_sha256
+                or reflections.size_bytes
+                != self.reflection_sanitisation.output_mtz_size_bytes
+            ):
+                raise ValueError(
+                    "reflection sanitisation does not bind the prepared MTZ object"
+                )
         return self
 
 
@@ -252,10 +270,28 @@ def build_m6_runner_bundle(
     object_root.mkdir()
     object_records: dict[str, dict[str, object]] = {}
     case_records: list[dict[str, object]] = []
+    ordinary_case_ids = {
+        case.case_id
+        for case in protocol.cases
+        if is_m6_ordinary_case_kind(case.case_kind)
+    }
     for case in sorted(preparation.cases, key=lambda item: item.case_id):
+        if case.case_id in ordinary_case_ids and case.reflection_sanitisation is None:
+            raise PublicControlError(
+                f"ordinary M6 case requires reflection sanitisation: {case.case_id}"
+            )
         case_objects: list[dict[str, object]] = []
         for spec in sorted(case.objects, key=lambda item: item.role):
             source = _verify_prepared_object(spec)
+            if (
+                spec.role == "reflections"
+                and case.case_id in ordinary_case_ids
+                and case.reflection_sanitisation is not None
+            ):
+                verify_m6_ordinary_mtz_sanitisation(
+                    source,
+                    case.reflection_sanitisation,
+                )
             object_name = spec.sha256
             destination = object_root / object_name
             if not destination.exists():

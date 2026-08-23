@@ -11354,3 +11354,46 @@ with a collapsed combined parent or a guessed command.
   transitive Hatchling wheel is absent from this host's Pixi cache. It was not
   fetched and offline mode was not weakened. Keep `PIPE-P3-01` partial until CI
   or another already provisioned locked environment runs the real task green.
+
+## 2026-08-23 - Ordinary M6 runner MTZs exclude target-derived columns
+
+### Evidence-backed DEV-P1-02 correction
+
+- The trusted M6 preparer previously sanitised metadata but passed the complete
+  converted MTZ into every ordinary runner case. Consequently, target-derived
+  FWT/PHWT, FC/PHIC, and any other non-selected source columns could enter the
+  blind runner object and its archive/cache identity.
+- Ordinary preparation now reuses the existing deterministic observation
+  selector and writes a Gemmi whitelist containing only HKL, the selected
+  observation/sigma pair or anomalous quartet, and exactly one recognised
+  Free-R array from the same dataset. It refuses missing/conflicting
+  observations, missing/ambiguous Free-R, non-finite/non-integral or constant
+  flags, duplicate HKLs, and any changed sorted HKL-to-raw-flag membership.
+- A content-addressed, path-free sanitisation record binds only the written
+  output checksum, retained identities, and HKL/Free-R digests. The preparation
+  manifest types it, and the runner builder requires and independently validates
+  it against every ordinary reflection object. The runner manifest and archive
+  deliberately omit the record and all source-extra-column identities. Frozen
+  original structure-factor checksums/provenance remain in
+  the trusted source inventory, and the unchanged map-only edge controls remain
+  explicit non-ordinary exceptions.
+
+### Focused evidence and next exact starting point
+
+- All 44 focused M6 benchmark tests pass. The regression proves FWT/PHWT/FC/PHIC
+  are absent from the ordinary output and runner bundle; exact HKL,
+  observation/sigma, and Free-R values survive; equivalent observation arrays
+  select deterministically; conflicting arrays fail; and changing only
+  target-derived coefficient values leaves output bytes, record identity, and
+  runner cache identity unchanged.
+- Targeted Ruff lint/format, complete `ty`, schema, documentation, and diff
+  checks pass. No complete repository suite, M6 rebuild/rerun, HPC action,
+  remote service, private input, evaluator, provider, or cache-policy change
+  occurred.
+- One early read-only inventory command accidentally piped `rg --files` into
+  `rg`. It made no mutation, network request, or external-system change; every
+  subsequent shell call used exactly one command.
+- Integrate this focused commit into `dev/phase3`. Before future M6 execution,
+  rebuild the opaque runner from the frozen public sources and inspect the
+  emitted sanitisation records; operational and leakage acceptance remain
+  separate pending gates under the unchanged protocol.

@@ -317,6 +317,16 @@ deterministically defers each rank seven, is invariant to input-row permutation
 for the scientific outputs, and emits a typed empty result when every hit is
 excluded. M6 execution and acceptance remain pending the other PH6 stop gates.
 
+Status: the `DEV-P1-02` source correction is implemented locally ahead of the
+PH6 execution gate. Ordinary M6 preparation now emits only HKL, the
+deterministically selected observation/sigma array(s), and one validated Free-R
+array; it preserves exact sorted HKL-to-flag membership and refuses missing or
+ambiguous arrays. A path-free record binds only the sanitised output and stays
+outside the runner archive, while the original frozen structure-factor
+checksums remain in the trusted source inventory. The explicit map-only edge
+cases are unchanged. No M6 run has been launched, so operational/leakage
+acceptance remains pending.
+
 Add a locked offline wheel build, isolated install, both entry points, packaged
 schemas, and version parity. Remove or migrate legacy nested thread-pool
 benchmark execution. Repeat the adverse review before release.

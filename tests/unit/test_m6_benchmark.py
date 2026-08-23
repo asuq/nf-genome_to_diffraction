@@ -1520,12 +1520,13 @@ def _prepared_manifest(
     config = tmp_path / "config.json"
     policy = tmp_path / "policy.json"
     catalogue.write_text(f">loc_{'a' * 64}\nACDEFGHIK\n", encoding="ascii")
-    write_m6_mtz_variant(
+    sanitisation = write_m6_mtz_variant(
         _m6_source_mtz(),
         reflections,
         opaque_id="M6C001",
         variation="ordinary",
     )
+    assert sanitisation is not None
     _write_json(
         config,
         {
@@ -1603,7 +1604,12 @@ def _prepared_manifest(
             "protocol_id": protocol.protocol_id,
             "protocol_sha256": sha256_file(PROTOCOL),
             "cases": [
-                {"case_id": case.case_id, "objects": objects} for case in protocol.cases
+                {
+                    "case_id": case.case_id,
+                    "objects": objects,
+                    "reflection_sanitisation": sanitisation.model_dump(mode="json"),
+                }
+                for case in protocol.cases
             ],
         },
     )
@@ -1640,6 +1646,49 @@ def test_m6_runner_bundle_is_truth_isolated_and_deterministic(
     assert "8GKV" not in manifest_text
     assert "NP_414916.1" not in manifest_text
     assert "expected_asu_copy_count" not in manifest_text
+    assert "reflection_sanitisation" not in manifest_text
+    runner_manifest = json.loads(manifest_text)
+    first_case = next(
+        case for case in runner_manifest["cases"] if case["case_id"] == "M6C001"
+    )
+    reflections = next(
+        item for item in first_case["objects"] if item["role"] == "reflections"
+    )
+    runner_mtz = gemmi.read_mtz_file(
+        str(first.runner_manifest.parent / "objects" / reflections["object"])
+    )
+    assert tuple(column.label for column in runner_mtz.columns) == (
+        "H",
+        "K",
+        "L",
+        "FP",
+        "SIGFP",
+        "FreeR_flag",
+    )
+
+
+def test_m6_runner_requires_sanitisation_for_every_ordinary_case(
+    tmp_path: Path,
+) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    preparation = _prepared_manifest(tmp_path, protocol)
+    payload = json.loads(preparation.read_text(encoding="utf-8"))
+    first = next(case for case in payload["cases"] if case["case_id"] == "M6C001")
+    first.pop("reflection_sanitisation")
+    _write_json(preparation, payload)
+
+    with pytest.raises(
+        PublicControlError,
+        match="ordinary M6 case requires reflection sanitisation: M6C001",
+    ):
+        build_m6_runner_bundle(
+            M6RunnerBundleRequest(
+                protocol=PROTOCOL,
+                preparation_manifest=preparation,
+                output_directory=tmp_path / "runner",
+                archive=tmp_path / "runner.tar",
+            )
+        )
 
 
 def test_m6_nextflow_plan_emits_case_and_unique_catalogue_tasks(
@@ -2565,27 +2614,47 @@ def test_m6_leakage_filters_before_cap_deterministically_and_types_empty(
     assert operational_report["filter_applied_before_accepted_hit_cap"] is False
 
 
-def _m6_source_mtz() -> gemmi.Mtz:
+def _m6_source_mtz(
+    *,
+    target_derived_scale: float = 1.0,
+    include_observations: bool = True,
+    free_r_mode: str = "valid",
+) -> gemmi.Mtz:
     mtz = gemmi.Mtz(with_base=True)
     mtz.spacegroup = gemmi.find_spacegroup_by_name("P 21 21 21")
     mtz.set_cell_for_all(gemmi.UnitCell(50, 60, 70, 90, 90, 90))
     mtz.add_dataset("8GKV truth-bearing dataset")
-    for label, column_type in (
-        ("FreeR_flag", "I"),
-        ("FP", "F"),
-        ("SIGFP", "Q"),
-        ("FWT", "F"),
-        ("PHWT", "P"),
-    ):
-        mtz.add_column(label, column_type)
-    rows = np.asarray(
-        [
-            [index, 1, 1, 0, index * 10, index, index * 8, index * 5]
-            for index in range(1, 11)
-        ],
-        dtype=np.float32,
+    columns: list[tuple[str, str]] = []
+    if free_r_mode != "missing":
+        columns.append(("FreeR_flag", "I"))
+    if free_r_mode == "duplicate":
+        columns.append(("R-free-flags", "I"))
+    if include_observations:
+        columns.extend((("FP", "F"), ("SIGFP", "Q")))
+    columns.extend(
+        (
+            ("FWT", "F"),
+            ("PHWT", "P"),
+            ("FC", "F"),
+            ("PHIC", "P"),
+        )
     )
-    mtz.set_data(rows)
+    for label, column_type in columns:
+        mtz.add_column(label, column_type)
+    rows: list[list[float]] = []
+    for index in range(1, 11):
+        values: dict[str, float] = {
+            "FreeR_flag": 0 if free_r_mode == "constant" else index % 2,
+            "R-free-flags": (index + 1) % 2,
+            "FP": index * 10,
+            "SIGFP": index,
+            "FWT": index * 8 * target_derived_scale,
+            "PHWT": index * 5 * target_derived_scale,
+            "FC": index * 7 * target_derived_scale,
+            "PHIC": index * 3 * target_derived_scale,
+        }
+        rows.append([index, 1, 1, *(values[label] for label, _ in columns)])
+    mtz.set_data(np.asarray(rows, dtype=np.float32))
     mtz.update_reso()
     return mtz
 
@@ -2627,3 +2696,124 @@ def test_m6_mtz_variants_are_sanitised_and_typed(
     assert warning is None or warning in warnings
     assert "8GKV" not in mtz.title
     assert all("8GKV" not in item.dataset_name for item in mtz.datasets)
+
+
+def test_m6_ordinary_mtz_whitelists_runner_arrays_and_is_deterministic(
+    tmp_path: Path,
+) -> None:
+    source = _m6_source_mtz()
+    source_hkl = np.asarray(source.make_miller_array()).copy()
+    source_fp = np.asarray(source.column_with_label("FP").array).copy()
+    source_sigfp = np.asarray(source.column_with_label("SIGFP").array).copy()
+    source_free_r = np.asarray(source.column_with_label("FreeR_flag").array).copy()
+    first = tmp_path / "first.mtz"
+    second = tmp_path / "second.mtz"
+    changed_extras = tmp_path / "changed-extras.mtz"
+
+    first_record = write_m6_mtz_variant(
+        source,
+        first,
+        opaque_id="M6C001",
+        variation="ordinary",
+    )
+    second_record = write_m6_mtz_variant(
+        _m6_source_mtz(),
+        second,
+        opaque_id="M6C001",
+        variation="ordinary",
+    )
+    changed_record = write_m6_mtz_variant(
+        _m6_source_mtz(target_derived_scale=97.0),
+        changed_extras,
+        opaque_id="M6C001",
+        variation="ordinary",
+    )
+
+    assert first_record is not None
+    assert first_record == second_record == changed_record
+    assert first.read_bytes() == second.read_bytes() == changed_extras.read_bytes()
+    output = gemmi.read_mtz_file(str(first))
+    assert tuple(column.label for column in output.columns) == (
+        "H",
+        "K",
+        "L",
+        "FP",
+        "SIGFP",
+        "FreeR_flag",
+    )
+    assert np.array_equal(np.asarray(output.make_miller_array()), source_hkl)
+    assert np.array_equal(np.asarray(output.column_with_label("FP").array), source_fp)
+    assert np.array_equal(
+        np.asarray(output.column_with_label("SIGFP").array),
+        source_sigfp,
+    )
+    assert np.array_equal(
+        np.asarray(output.column_with_label("FreeR_flag").array),
+        source_free_r,
+    )
+    serialised = canonical_json_text(first_record.model_dump(mode="json"))
+    assert "/" not in serialised
+    assert all(label not in serialised for label in ("FWT", "PHWT", "FC", "PHIC"))
+
+
+def test_m6_ordinary_mtz_selects_equivalent_arrays_and_refuses_conflicts(
+    tmp_path: Path,
+) -> None:
+    equivalent_source = tmp_path / "equivalent-source.mtz"
+    conflicting_source = tmp_path / "conflicting-source.mtz"
+    write_m6_mtz_variant(
+        _m6_source_mtz(),
+        equivalent_source,
+        opaque_id="M6C059",
+        variation="equivalent_observation_arrays",
+    )
+    write_m6_mtz_variant(
+        _m6_source_mtz(),
+        conflicting_source,
+        opaque_id="M6C060",
+        variation="conflicting_observation_arrays",
+    )
+
+    selected = tmp_path / "selected.mtz"
+    record = write_m6_mtz_variant(
+        gemmi.read_mtz_file(str(equivalent_source)),
+        selected,
+        opaque_id="M6C059",
+        variation="ordinary",
+    )
+
+    assert record is not None
+    assert record.observation_labels == ("FX", "SIGFX")
+    assert tuple(
+        column.label for column in gemmi.read_mtz_file(str(selected)).columns
+    ) == ("H", "K", "L", "FX", "SIGFX", "FreeR_flag")
+    with pytest.raises(PublicControlError, match="observation selection"):
+        write_m6_mtz_variant(
+            gemmi.read_mtz_file(str(conflicting_source)),
+            tmp_path / "refused.mtz",
+            opaque_id="M6C060",
+            variation="ordinary",
+        )
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    (
+        (_m6_source_mtz(include_observations=False), "observation selection"),
+        (_m6_source_mtz(free_r_mode="missing"), "Free-R array"),
+        (_m6_source_mtz(free_r_mode="duplicate"), "exactly one"),
+        (_m6_source_mtz(free_r_mode="constant"), "constant"),
+    ),
+)
+def test_m6_ordinary_mtz_fails_closed_on_missing_or_ambiguous_arrays(
+    tmp_path: Path,
+    source: gemmi.Mtz,
+    message: str,
+) -> None:
+    with pytest.raises(PublicControlError, match=message):
+        write_m6_mtz_variant(
+            source,
+            tmp_path / "invalid.mtz",
+            opaque_id="M6C001",
+            variation="ordinary",
+        )
