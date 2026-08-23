@@ -128,6 +128,15 @@ Use local PDB and ProstT5 resources for the prototype. Use the public ESM Atlas 
   source in response to an infrastructure failure without evidence of a
   software cause.
 
+## 8.1 Command approval discipline
+
+- Use only command forms already covered by the user's persistent approvals.
+  If a required command is outside those approvals, stop and ask the user
+  instead of requesting or assuming a new command approval.
+- Issue exactly one shell command per tool call. Do not combine commands with
+  pipes, `&&`, `||`, semicolons, command substitution, subshells, or multi-line
+  command sequences.
+
 ## 9. Testing policy
 
 Every process adapter requires:
