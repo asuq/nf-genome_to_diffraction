@@ -47,6 +47,7 @@ from genome_to_diffraction.schemas.v2.execution import (
 )
 from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewCheckpoint,
+    PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
     PhaseIIIReviewDecisionValue,
 )
@@ -114,7 +115,7 @@ class UnknownPass1SharedPreparation(_ContentAddressedContract):
 
 
 class UnknownPass1ReviewBinding(_ContentAddressedContract):
-    """Verified file-stage provenance retained without machine paths."""
+    """Verified single-crystal file-stage provenance without machine paths."""
 
     _identity_field: ClassVar[str] = "review_binding_id"
     _identity_prefix: ClassVar[str] = "unknownreview_"
@@ -122,8 +123,11 @@ class UnknownPass1ReviewBinding(_ContentAddressedContract):
     schema_version: Literal["2.0"]
     review_binding_id: UnknownPass1ReviewBindingIdentifier
     checkpoint: Literal[PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC]
+    crystal_id: OperatorIdentifier
     stage_id: NonEmptyString
     stage_manifest_sha256: Sha256Hex
+    review_package_id: NonEmptyString
+    review_package_manifest_sha256: Sha256Hex
     decision_file_id: NonEmptyString
     canonical_decision_sha256: Sha256Hex
     owned_parent_run_id: NonEmptyString
@@ -293,8 +297,14 @@ class UnknownPass1ScreenInventory(_ContentAddressedContract):
     inventory_id: UnknownPass1ScreenInventoryIdentifier
     execution_identity: PhaseIIIExecutionIdentity
     shared_preparation: UnknownPass1SharedPreparation
-    review_binding: UnknownPass1ReviewBinding
-    review_decisions: PhaseIIIReviewDecisionFile
+    review_bindings: tuple[UnknownPass1ReviewBinding, ...] = Field(
+        min_length=3,
+        max_length=3,
+    )
+    review_decisions: tuple[PhaseIIIReviewDecisionFile, ...] = Field(
+        min_length=3,
+        max_length=3,
+    )
     crystal_count: Literal[3]
     ready_count: int = Field(ge=0, le=3)
     held_count: int = Field(ge=0, le=3)
@@ -312,28 +322,63 @@ class UnknownPass1ScreenInventory(_ContentAddressedContract):
         execution_id = self.execution_identity.execution_identity_id
         if self.shared_preparation.execution_identity_id != execution_id:
             raise ValueError("shared preparation uses another execution identity")
+        binding_by_crystal = {
+            binding.crystal_id: binding for binding in self.review_bindings
+        }
         if (
-            self.review_binding.checkpoint
-            is not PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC
+            len(binding_by_crystal) != 3
+            or tuple(binding_by_crystal) != tuple(sorted(binding_by_crystal))
+            or any(
+                binding.checkpoint is not PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC
+                for binding in self.review_bindings
+            )
         ):
-            raise ValueError("unknown pass 1 requires crystallographic review")
-        decisions = self.review_decisions
-        if (
-            decisions.checkpoint is not PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC
-            or decisions.decision_file_id != self.review_binding.decision_file_id
-            or decisions.owned_parent_run_id != self.review_binding.owned_parent_run_id
-        ):
-            raise ValueError("review decisions do not match the staged review binding")
+            raise ValueError(
+                "unknown pass 1 requires three ordered crystallographic bindings"
+            )
+        parent_runs = {
+            (
+                binding.owned_parent_run_id,
+                binding.parent_profile,
+                binding.parent_phase,
+            )
+            for binding in self.review_bindings
+        }
+        if len(parent_runs) != 1:
+            raise ValueError("crystallographic bindings must share one owned parent")
+        decision_by_crystal: dict[str, PhaseIIIReviewDecision] = {}
+        for decisions in self.review_decisions:
+            if (
+                decisions.checkpoint is not PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC
+                or len(decisions.decisions) != 1
+            ):
+                raise ValueError(
+                    "each crystallographic package requires exactly one decision"
+                )
+            decision = decisions.decisions[0]
+            binding = binding_by_crystal.get(decision.crystal_id)
+            if (
+                binding is None
+                or decision.crystal_id in decision_by_crystal
+                or decisions.decision_file_id != binding.decision_file_id
+                or decisions.owned_parent_run_id != binding.owned_parent_run_id
+                or decisions.review_package_id != binding.review_package_id
+                or decisions.review_package_manifest_sha256
+                != binding.review_package_manifest_sha256
+            ):
+                raise ValueError(
+                    "review decisions do not match their single-crystal bindings"
+                )
+            decision_by_crystal[decision.crystal_id] = decision
+        if tuple(decision_by_crystal) != tuple(sorted(decision_by_crystal)):
+            raise ValueError("crystallographic decision files must be crystal-sorted")
 
         crystal_ids = tuple(item.crystal_id for item in self.crystals)
         if crystal_ids != tuple(sorted(crystal_ids)):
             raise ValueError("unknown-screen crystal items must be sorted")
         if len(set(crystal_ids)) != 3:
             raise ValueError("unknown screen requires three distinct crystals")
-        decision_by_target = {
-            (item.crystal_id, item.item_id): item for item in decisions.decisions
-        }
-        if len(decision_by_target) != 3:
+        if set(decision_by_crystal) != set(crystal_ids):
             raise ValueError("unknown screen requires one review decision per crystal")
 
         mtz_by_crystal = {
@@ -344,16 +389,21 @@ class UnknownPass1ScreenInventory(_ContentAddressedContract):
         if set(mtz_by_crystal) != set(crystal_ids):
             raise ValueError("execution identity MTZ inventory differs from crystals")
         for item in self.crystals:
-            decision = decision_by_target.get((item.crystal_id, item.review_item_id))
+            decision = decision_by_crystal.get(item.crystal_id)
+            binding = binding_by_crystal[item.crystal_id]
             artifact = mtz_by_crystal[item.crystal_id]
-            if decision is None or decision.decision is not item.review_decision:
+            if (
+                decision is None
+                or decision.item_id != item.review_item_id
+                or decision.decision is not item.review_decision
+            ):
                 raise ValueError("crystal item differs from its review decision")
             if (
                 item.mtz_artifact_id != artifact.artifact_id
                 or item.mtz_sha256 != artifact.sha256
                 or item.execution_identity_id != execution_id
                 or item.shared_preparation_id != self.shared_preparation.preparation_id
-                or item.review_binding_id != self.review_binding.review_binding_id
+                or item.review_binding_id != binding.review_binding_id
             ):
                 raise ValueError("crystal item lacks an exact complete identity")
 
@@ -402,7 +452,7 @@ class UnknownPass1ScreenInventory(_ContentAddressedContract):
                 or task.mtz_sha256 != item.mtz_sha256
                 or task.execution_identity_id != execution_id
                 or task.shared_preparation_id != self.shared_preparation.preparation_id
-                or task.review_binding_id != self.review_binding.review_binding_id
+                or task.review_binding_id != item.review_binding_id
             ):
                 raise ValueError("A task differs from its complete selected row")
         return self

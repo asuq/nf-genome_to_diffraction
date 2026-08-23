@@ -77,22 +77,27 @@ process PREPARE_SHARED_UNKNOWN_LOCALISATION_FIXTURE {
 
 
 process PREPARE_CRYSTALLOGRAPHIC_REVIEW_STAGE_FIXTURE {
-    tag 'unknown-pass1-crystallographic-review-stage'
+    tag "unknown-pass1-crystallographic-review-stage:${item[0]}"
 
     input:
-    seed: Path
+    item: Tuple
 
     output:
-    stage: Path = file('crystallographic_review_stage')
+    stage: Tuple = tuple(
+        item[0],
+        file("crystallographic_review_stage_${item[0]}")
+    )
 
     script:
+    def outputName = "crystallographic_review_stage_${item[0]}"
     """
-    cp -R '${seed}' crystallographic_review_stage
+    cp -R '${item[1]}' '${outputName}'
     """
 
     stub:
+    def outputName = "crystallographic_review_stage_${item[0]}"
     """
-    cp -R '${seed}' crystallographic_review_stage
+    cp -R '${item[1]}' '${outputName}'
     """
 }
 
@@ -109,9 +114,14 @@ workflow {
     localisation = PREPARE_SHARED_UNKNOWN_LOCALISATION_FIXTURE(
         channel.value(file("${inputRoot}/localisation_preparation.json"))
     )
-    review = PREPARE_CRYSTALLOGRAPHIC_REVIEW_STAGE_FIXTURE(
-        channel.value(file("${inputRoot}/review_stage"))
-    )
+    reviewSeedItems = channel
+        .fromPath(
+            "${inputRoot}/review_stage/*",
+            checkIfExists: true,
+            type: 'dir'
+        )
+        .map { stage -> tuple(stage.name, stage) }
+    review = PREPARE_CRYSTALLOGRAPHIC_REVIEW_STAGE_FIXTURE(reviewSeedItems)
     crystalRecordItems = channel
         .fromPath("${inputRoot}/crystal_items/*.json", checkIfExists: true)
         .map { record ->

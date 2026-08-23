@@ -14,7 +14,7 @@ workflow UNKNOWN_PASS1_SCREEN_WORKFLOW {
     take:
     inventory: Path
     execution_identity: Path
-    crystallographic_review_stage: Path
+    crystallographic_review_stages: Channel<Tuple>
     shared_catalogue: Path
     shared_provider: Path
     shared_localisation: Path
@@ -24,11 +24,12 @@ workflow UNKNOWN_PASS1_SCREEN_WORKFLOW {
     model_items: Channel<Tuple>
 
     main:
-    crystal_bundles = crystal_record_items.join(mtz_items, by: 0)
+    crystal_bundles = crystal_record_items
+        .join(mtz_items, by: 0)
+        .join(crystallographic_review_stages, by: 0)
     crystal_inputs = crystal_bundles
         .combine(inventory)
         .combine(execution_identity)
-        .combine(crystallographic_review_stage)
         .combine(shared_catalogue)
         .combine(shared_provider)
         .combine(shared_localisation)
@@ -36,7 +37,6 @@ workflow UNKNOWN_PASS1_SCREEN_WORKFLOW {
             crystal,
             screenInventory,
             executionIdentity,
-            reviewStage,
             catalogue,
             provider,
             localisation ->
@@ -47,7 +47,7 @@ workflow UNKNOWN_PASS1_SCREEN_WORKFLOW {
                 crystal[3],
                 screenInventory,
                 executionIdentity,
-                reviewStage,
+                crystal[4],
                 catalogue,
                 provider,
                 localisation

@@ -381,23 +381,34 @@ def _environment(nxf_home: Path) -> dict[str, str]:
 
 
 def _run(
-    command: Sequence[str], environment: dict[str, str]
+    command: Sequence[str],
+    environment: dict[str, str],
+    *,
+    retry_nextflow_concurrent_modification: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        command,
-        cwd=REPOSITORY,
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=300,
-    )
-    if result.returncode != 0:
+    for attempt in range(2):
+        result = subprocess.run(
+            command,
+            cwd=REPOSITORY,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
+        if result.returncode == 0:
+            return result
         combined = f"{result.stdout}\n{result.stderr}"
+        if (
+            attempt == 0
+            and retry_nextflow_concurrent_modification
+            and "java.util.ConcurrentModificationException" in combined
+        ):
+            continue
         raise RuntimeError(
             f"command failed ({result.returncode}): {' '.join(command)}\n{combined}"
         )
-    return result
+    raise AssertionError("bounded Nextflow retry loop did not return")
 
 
 def _read_trace(path: Path) -> tuple[dict[str, str], ...]:
@@ -504,7 +515,11 @@ def _check_ready(root: Path, environment: dict[str, str]) -> None:
     before_resume = _output_digests(output)
     first_identities = {(row["process"], row["tag"]): row["hash"] for row in first_rows}
     resume_command = [*command[:5], "-resume", *command[5:]]
-    _run(resume_command, environment)
+    _run(
+        resume_command,
+        environment,
+        retry_nextflow_concurrent_modification=True,
+    )
     resumed_rows = _read_trace(trace_path)
     if Counter(row["process"].split(":")[-1] for row in resumed_rows) != Counter(
         {expected_process: 25}

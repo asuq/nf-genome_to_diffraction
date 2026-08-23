@@ -13,6 +13,11 @@ from genome_to_diffraction.execution.unknown_screen import (
     build_unknown_pass1_screen_inventory,
     write_unknown_pass1_screen_inventory,
 )
+from genome_to_diffraction.review.phase3_package import (
+    PhaseIIIReviewEvidenceSource,
+    PhaseIIIReviewPackageRequest,
+    build_phase3_review_package,
+)
 from genome_to_diffraction.review.phase3_stage import (
     OwnedPhaseIIIParentRun,
     PhaseIIIReviewStageRequest,
@@ -27,8 +32,6 @@ from genome_to_diffraction.schemas.v2 import (
     PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
     PhaseIIIReviewDecisionValue,
-    PhaseIIIReviewPackageManifest,
-    PhaseIIIReviewPackageTarget,
     UnknownPass1AHypothesis,
     UnknownPass1AHypothesisDisposition,
     UnknownPass1ScreenInventory,
@@ -230,62 +233,77 @@ def materialise_unknown_pass1_public_fixture(
         profile="unknown-screen-local-stub",
         phase="unknown-pass1-crystallographic-review",
     )
-    package = PhaseIIIReviewPackageManifest(
-        schema_version="2.0",
-        review_package_id="public-crystallographic-review-package",
-        checkpoint=PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
-        owned_parent_run_id=parent.run_id,
-        parent_profile=parent.profile,
-        parent_phase=parent.phase,
-        created_at=created_at,
-        permitted_targets=tuple(
-            PhaseIIIReviewPackageTarget(
-                crystal_id=crystal_id,
-                item_id="crystallographic-dataset",
-            )
-            for crystal_id in PUBLIC_STUB_CRYSTAL_IDS
-        ),
-    )
-    package_path = input_root / "review_package.json"
-    atomic_write_json(package_path, package.model_dump(mode="json"))
     decision_values = (
         PhaseIIIReviewDecisionValue.PROCEED,
         PhaseIIIReviewDecisionValue.HOLD,
         PhaseIIIReviewDecisionValue.PROCEED,
     )
-    decisions = PhaseIIIReviewDecisionFile.from_content(
-        checkpoint=PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
-        owned_parent_run_id=parent.run_id,
-        review_package_id=package.review_package_id,
-        review_package_manifest_sha256=sha256_file(package_path, progress=False),
-        decisions=tuple(
-            PhaseIIIReviewDecision(
-                crystal_id=crystal_id,
-                item_id="crystallographic-dataset",
-                decision=decision,
-                reviewer="synthetic-public-stub-reviewer",
-                reviewed_at=created_at + timedelta(minutes=index),
-                reason="exercise a typed public-fixture review branch",
-            )
-            for index, (crystal_id, decision) in enumerate(
-                zip(PUBLIC_STUB_CRYSTAL_IDS, decision_values, strict=True),
-                start=1,
-            )
-        ),
-    )
-    decisions_path = input_root / "review_decisions.json"
-    atomic_write_json(decisions_path, decisions.model_dump(mode="json"))
+    package_root = input_root / "review_packages"
+    package_root.mkdir()
+    decisions_root = input_root / "review_decisions"
+    decisions_root.mkdir()
     review_stage = input_root / "review_stage"
-    stage_phase3_review_decisions(
-        PhaseIIIReviewStageRequest(
-            parent=parent,
-            checkpoint=PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
-            review_package_manifest=package_path,
-            decisions=decisions_path,
-            confirmed_decisions_sha256=sha256_file(decisions_path, progress=False),
-            output_directory=review_stage,
+    review_stage.mkdir()
+    for index, (crystal_id, decision_value) in enumerate(
+        zip(PUBLIC_STUB_CRYSTAL_IDS, decision_values, strict=True),
+        start=1,
+    ):
+        package_directory = package_root / crystal_id
+        package_directory.mkdir()
+        package = build_phase3_review_package(
+            PhaseIIIReviewPackageRequest(
+                checkpoint=PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+                owned_parent_run_id=parent.run_id,
+                parent_profile=parent.profile,
+                parent_phase=parent.phase,
+                execution_identity_id=execution.execution_identity_id,
+                crystal_id=crystal_id,
+                target_item_ids=("crystallographic-dataset",),
+                created_at=created_at,
+                input_root=input_root,
+                evidence_sources=(
+                    PhaseIIIReviewEvidenceSource(
+                        role="diffraction_data",
+                        relative_path=f"crystal_mtz/{crystal_id}.mtz",
+                    ),
+                ),
+                output_directory=package_directory,
+            )
         )
-    )
+        decisions = PhaseIIIReviewDecisionFile.from_content(
+            checkpoint=PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+            owned_parent_run_id=parent.run_id,
+            review_package_id=package.review_package_id,
+            review_package_manifest_sha256=sha256_file(
+                package.manifest,
+                progress=False,
+            ),
+            decisions=(
+                PhaseIIIReviewDecision(
+                    crystal_id=crystal_id,
+                    item_id="crystallographic-dataset",
+                    decision=decision_value,
+                    reviewer="synthetic-public-stub-reviewer",
+                    reviewed_at=created_at + timedelta(minutes=index),
+                    reason="exercise a typed public-fixture review branch",
+                ),
+            ),
+        )
+        decisions_path = decisions_root / f"{crystal_id}.json"
+        atomic_write_json(decisions_path, decisions.model_dump(mode="json"))
+        stage_phase3_review_decisions(
+            PhaseIIIReviewStageRequest(
+                parent=parent,
+                checkpoint=PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+                review_package_manifest=package.manifest,
+                decisions=decisions_path,
+                confirmed_decisions_sha256=sha256_file(
+                    decisions_path,
+                    progress=False,
+                ),
+                output_directory=review_stage / crystal_id,
+            )
+        )
 
     catalogue_preparation = input_root / "catalogue_preparation.json"
     catalogue_preparation.write_text(

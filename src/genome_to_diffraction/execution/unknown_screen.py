@@ -2,8 +2,8 @@
 
 Scientific purpose
 ------------------
-This local adapter binds a complete global execution identity, the exact
-checksum-verified crystallographic review stage, one shared
+This local adapter binds a complete global execution identity, three exact
+checksum-verified single-crystal crystallographic review stages, one shared
 catalogue/provider/localisation preparation, and exactly three synthetic or
 operator-owned crystal inputs before Nextflow scheduling.  It selects nothing
 scientifically and executes no crystallographic software.
@@ -11,7 +11,8 @@ scientifically and executes no crystallographic software.
 Inputs and outputs
 ------------------
 Inputs are regular local files for the execution identity, three shared
-preparation records, the two-file review-stage directory, and three
+preparation records, a root containing three canonical two-file review-stage
+directories, and three
 ``UnknownPass1CrystalInput`` values containing MTZ paths plus complete ranked A
 hypothesis inventories.  The output is one canonical JSON
 ``UnknownPass1ScreenInventory``.  Paths are resolved and checksummed locally but
@@ -172,6 +173,50 @@ def _load_review_stage(
     return manifest, decisions, sha256_file(manifest_path, progress=False)
 
 
+def _load_review_stages(
+    directory: Path,
+) -> tuple[
+    tuple[PhaseIIIReviewStageManifest, PhaseIIIReviewDecisionFile, str],
+    ...,
+]:
+    """Load exactly three single-crystal crystallographic review stages."""
+
+    try:
+        if directory.is_symlink():
+            raise UnknownPass1ScreenError("review-stage root must not be a symlink")
+        resolved = directory.resolve(strict=True)
+    except OSError as error:
+        raise UnknownPass1ScreenError(
+            "review-stage root is absent or unreadable"
+        ) from error
+    if not resolved.is_dir():
+        raise UnknownPass1ScreenError("review-stage root must be a directory")
+    try:
+        children = tuple(resolved.iterdir())
+    except OSError as error:
+        raise UnknownPass1ScreenError(
+            "review-stage root cannot be enumerated"
+        ) from error
+    if len(children) != 3 or any(
+        child.is_symlink() or not child.is_dir() for child in children
+    ):
+        raise UnknownPass1ScreenError(
+            "review-stage root must contain exactly three stage directories"
+        )
+    loaded = tuple(_load_review_stage(child) for child in children)
+    if any(len(decisions.decisions) != 1 for _, decisions, _ in loaded):
+        raise UnknownPass1ScreenError(
+            "each crystallographic review stage must contain one crystal decision"
+        )
+    ordered = tuple(sorted(loaded, key=lambda item: item[1].decisions[0].crystal_id))
+    crystal_ids = tuple(item[1].decisions[0].crystal_id for item in ordered)
+    if len(set(crystal_ids)) != 3:
+        raise UnknownPass1ScreenError(
+            "review stages must cover three distinct crystals"
+        )
+    return ordered
+
+
 def _shared_preparation(
     execution_identity_id: str,
     request: UnknownPass1SharedPreparationInput,
@@ -238,12 +283,17 @@ def _shared_preparation(
 
 def _review_binding(
     manifest: PhaseIIIReviewStageManifest,
+    decisions: PhaseIIIReviewDecisionFile,
     stage_manifest_sha256: str,
 ) -> UnknownPass1ReviewBinding:
+    decision = decisions.decisions[0]
     return UnknownPass1ReviewBinding.from_content(
         checkpoint=PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+        crystal_id=decision.crystal_id,
         stage_id=manifest.stage_id,
         stage_manifest_sha256=stage_manifest_sha256,
+        review_package_id=manifest.review_package_id,
+        review_package_manifest_sha256=manifest.review_package_manifest_sha256,
         decision_file_id=manifest.decision_file_id,
         canonical_decision_sha256=manifest.canonical_decision_sha256,
         owned_parent_run_id=manifest.owned_parent_run_id,
@@ -281,19 +331,27 @@ def build_unknown_pass1_screen_inventory(
     """Validate exact local bytes and build the three-crystal task inventory."""
 
     execution = _load_execution_identity(execution_identity_path)
-    stage, decisions, stage_sha256 = _load_review_stage(review_stage_directory)
+    review_stages = _load_review_stages(review_stage_directory)
     shared = _shared_preparation(
         execution.execution_identity_id,
         shared_preparation_input,
     )
-    review_binding = _review_binding(stage, stage_sha256)
+    review_bindings = tuple(
+        _review_binding(stage, decisions, stage_sha256)
+        for stage, decisions, stage_sha256 in review_stages
+    )
+    review_decisions = tuple(decisions for _, decisions, _ in review_stages)
 
     if len(crystals) != 3:
         raise UnknownPass1ScreenError("unknown pass 1 requires exactly three crystals")
     crystal_by_id = {item.crystal_id: item for item in crystals}
     if len(crystal_by_id) != 3:
         raise UnknownPass1ScreenError("unknown pass 1 crystal IDs must be unique")
-    decision_by_crystal = {item.crystal_id: item for item in decisions.decisions}
+    decision_by_crystal = {
+        decisions.decisions[0].crystal_id: decisions.decisions[0]
+        for decisions in review_decisions
+    }
+    binding_by_crystal = {binding.crystal_id: binding for binding in review_bindings}
     if len(decision_by_crystal) != 3 or set(decision_by_crystal) != set(crystal_by_id):
         raise UnknownPass1ScreenError(
             "crystallographic review must contain exactly one decision per crystal"
@@ -314,6 +372,7 @@ def build_unknown_pass1_screen_inventory(
         for crystal_id in sorted(crystal_by_id):
             source = crystal_by_id[crystal_id]
             decision = decision_by_crystal[crystal_id]
+            review_binding = binding_by_crystal[crystal_id]
             mtz = _regular_file(source.mtz, label=f"{crystal_id} MTZ")
             artifact = mtz_artifacts[crystal_id]
             if (
@@ -420,8 +479,8 @@ def build_unknown_pass1_screen_inventory(
         return UnknownPass1ScreenInventory.from_content(
             execution_identity=execution,
             shared_preparation=shared,
-            review_binding=review_binding,
-            review_decisions=decisions,
+            review_bindings=review_bindings,
+            review_decisions=review_decisions,
             crystal_count=3,
             ready_count=sum(
                 item.branch is UnknownPass1CrystalBranch.READY for item in ordered_items

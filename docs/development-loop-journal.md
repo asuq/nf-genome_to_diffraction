@@ -11059,9 +11059,10 @@ with a collapsed combined parent or a guessed command.
   contract suite, and 74-test integration suite pass. The contract suite first
   exposed only an uninitialised pinned nf-helper submodule; after checking out
   exact commit `82431e4`, it passed unchanged.
-- The dedicated stub schedules exactly one catalogue, provider, localisation,
-  and review-stage preparation, three crystal items, and 25 A tasks. Resume
-  caches all 32 exact task hashes and preserves every retained output byte.
+- The integrated review boundary strengthens the dedicated stub to schedule
+  exactly one catalogue, one provider, one localisation, three single-crystal
+  review-stage preparations, three crystal items, and 25 A tasks. Resume
+  caches all 34 exact task hashes and preserves every retained output byte.
   Locked Ruff lint/format, `ty`, schema, documentation, and Nextflow syntax
   checks pass. No real Phenix, provider, localisation, operator input, remote
   service, HPC profile, or scientific analysis ran.
@@ -11104,3 +11105,47 @@ with a collapsed combined parent or a guessed command.
   allow-list. Define composition and sequence packages only after their exact
   evidence inventories exist; do not infer them from the current generic target
   worksheet.
+
+## 2026-08-23T20:26:07Z - Unknown-screen uses three content-bound review stages
+
+### Integration defect and smallest correction
+
+- The combined type gate correctly rejected the unknown-screen fixture because
+  it still instantiated the superseded multi-crystal, under-specified review
+  manifest. The new review-package contract intentionally binds exactly one
+  checkpoint and crystal, so weakening that contract would have hidden the
+  stale fixture rather than fixing the graph.
+- The fixture now generates three content-addressed crystallographic packages,
+  three one-decision files, and three canonical two-file review stages. The
+  screen builder requires exactly three single-crystal stage directories,
+  binds each package and decision to its crystal item, and rejects duplicate,
+  missing, or cross-crystal bindings.
+- Nextflow now fans out three keyed review-stage preparation items and joins
+  each stage only to its matching complete crystal item. The fixed stub retains
+  one shared catalogue, provider, and offline-localisation preparation, three
+  review stages, three crystal items, and 25 A tasks: 34 exact tasks are cached
+  byte-identically on resume.
+
+### Focused evidence, disclosure, and next exact starting point
+
+- Fifty-two affected unknown/review package/stage/decision tests pass; the
+  dedicated 34-task cached stub, full type check, Ruff lint/format, docs, and
+  Nextflow syntax checks pass. No Phenix, remote service, HPC job, or operator
+  data ran.
+- The named integration gate passed 864 unit, 128 contract, and 75 integration
+  tests plus schemas, the public panel, docs, actionlint, the all-workflow
+  Nextflow stub, localisation, unknown-screen, and wrapper checks. Its first
+  composition-resume invocation hit a Nextflow
+  `java.util.ConcurrentModificationException`; the same exact stub passed on
+  immediate rerun. Because this transient has now been observed twice, the
+  checker retries exactly once only for that Java exception and no scientific,
+  parser, or other process failure. The bounded checker and all remaining gate
+  tasks pass individually; CI must confirm the complete pushed gate.
+- One read-only integration inventory command accidentally piped one `rg`
+  invocation into another. It made no mutation, network request, or external
+  action; command discipline was corrected immediately.
+- Run the single complete locked gate reserved for this Phase III integration
+  milestone. If green, commit the focused integration correction, publish the
+  immutable `dev/phase3` head after persistent approval, watch its one CI run,
+  deploy matching reviewed tools, and run exactly one fixed no-data Phaser
+  interface probe on Marmic.

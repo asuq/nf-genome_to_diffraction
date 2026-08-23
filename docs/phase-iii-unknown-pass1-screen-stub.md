@@ -21,16 +21,18 @@ The local builder consumes:
   catalogue, three synthetic MTZ identities, one database identity, source and
   environment identities, all seven required Phenix tool identities, adapter
   versions, and both remote/network booleans fixed false;
-- one output from the existing two-file Phase III review stager at the
-  `crystallographic` checkpoint, with one `proceed|hold` decision per crystal;
+- three outputs from the existing two-file Phase III review stager at the
+  `crystallographic` checkpoint, each bound to one content-addressed
+  single-crystal package and one `proceed|hold` decision;
 - one checksum-verified catalogue preparation, provider preparation, and
   offline-localisation preparation shared across all crystals;
 - exactly three local MTZ files; and
 - complete ranked A-hypothesis inventories plus every model-backed hypothesis
   file.
 
-The builder resolves and checksums every local file, verifies the exact review
-stage allow-list and its canonical decision checksum, compares each MTZ to its
+The builder resolves and checksums every local file, verifies the exact three-
+directory review-stage root and each canonical decision checksum, compares each
+MTZ to its
 execution artifact, compares every model to its hypothesis checksum, and writes
 one content-addressed `UnknownPass1ScreenInventory`. No machine path is retained
 in that inventory.
@@ -63,9 +65,9 @@ threshold.
 The screen inventory, crystal items, A hypotheses, and A tasks are independently
 content-addressed. Nextflow task hashes additionally consume all exact file
 bytes. The dedicated stub requires the first run to schedule one catalogue,
-provider, localisation, and review-stage preparation, three crystal items, and
-25 A tasks. Resume must cache all 32 tasks with unchanged hashes and
-byte-identical retained outputs.
+one provider, one localisation, three crystal-bound review-stage preparations,
+three crystal items, and 25 A tasks. Resume must cache all 34 tasks with
+unchanged hashes and byte-identical retained outputs.
 
 ## Test command and boundary
 

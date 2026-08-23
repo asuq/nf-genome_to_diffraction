@@ -255,15 +255,17 @@ Phase III execution identity, complete targets, copied evidence roles/relative
 paths/checksums/sizes, and a checksum-qualified complete target worksheet; it
 rejects source mutation, symlinks, escape, duplicate roles/paths, incomplete
 coverage, and non-empty publication targets. Composition/sequence package
-generation, trusted local-run-registry wiring, Nextflow/HPC profiles, and remote
+generation, trusted local-run-registry wiring, fixed HPC profiles, and remote
 staging remain pending rather than inferred.
 
 A fixed local stub now binds one synthetic public-fixture
-`PhaseIIIExecutionIdentity`, an actual checksum-verified output of the local
-crystallographic review stager, one catalogue/provider/offline-localisation
+`PhaseIIIExecutionIdentity`, three checksum-verified single-crystal packages and
+outputs of the local crystallographic review stager, one
+catalogue/provider/offline-localisation
 preparation, exact MTZ/model bytes, three complete crystal items, and an exact
-25-task A inventory. It retains one hold and one proceeding empty-no-model
-branch and proves byte-identical cached resume. The stub exposes no scientific
+25-task A inventory. It fans out three review-stage preparation items, retains
+one hold and one proceeding empty-no-model branch, and proves byte-identical
+cached resume. The stub exposes no scientific
 paths, crystal selectors, thresholds, remote profile, or live Phaser execution;
 it is not an operator-data analysis or an unknown-screen qualification.
 

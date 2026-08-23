@@ -18,6 +18,8 @@ from genome_to_diffraction.schemas.v2 import (
     UnknownPass1AHypothesis,
     UnknownPass1AHypothesisDisposition,
     UnknownPass1CrystalBranch,
+    UnknownPass1ReviewBinding,
+    UnknownPass1ScreenInventory,
 )
 
 from ..support.unknown_pass1_fixture import (
@@ -42,6 +44,10 @@ def test_builds_exact_three_crystal_and_25_task_inventory(tmp_path: Path) -> Non
     inventory = _build(materialise_unknown_pass1_public_fixture(tmp_path))
 
     assert inventory.crystal_count == 3
+    assert tuple(binding.crystal_id for binding in inventory.review_bindings) == (
+        PUBLIC_STUB_CRYSTAL_IDS
+    )
+    assert len(inventory.review_decisions) == 3
     assert inventory.ready_count == 1
     assert inventory.held_count == 1
     assert inventory.empty_no_model_count == 1
@@ -123,7 +129,11 @@ def test_mtz_model_or_review_stage_mutation_fails_closed(tmp_path: Path) -> None
     review_root = tmp_path / "review-mutation"
     review_root.mkdir()
     fixture = materialise_unknown_pass1_public_fixture(review_root)
-    decision = fixture.review_stage / "phase3_review_decision.json"
+    decision = (
+        fixture.review_stage
+        / PUBLIC_STUB_CRYSTAL_IDS[0]
+        / "phase3_review_decision.json"
+    )
     decision.write_bytes(decision.read_bytes() + b" \n")
     with pytest.raises(UnknownPass1ScreenError, match="exact crystallographic"):
         _build(fixture)
@@ -192,3 +202,24 @@ def test_content_mutation_cannot_reuse_inventory_identity(tmp_path: Path) -> Non
 
     with pytest.raises(UnknownPass1ScreenError, match="typed contract"):
         load_unknown_pass1_screen_inventory(path)
+
+
+def test_review_bindings_cannot_mix_owned_parent_runs(tmp_path: Path) -> None:
+    inventory = _build(materialise_unknown_pass1_public_fixture(tmp_path))
+    binding_payload = inventory.review_bindings[0].model_dump(
+        mode="python",
+        exclude={"review_binding_id"},
+    )
+    binding_payload["owned_parent_run_id"] = "another-owned-parent"
+    changed = UnknownPass1ReviewBinding.from_content(**binding_payload)
+    inventory_payload = inventory.model_dump(
+        mode="python",
+        exclude={"inventory_id"},
+    )
+    inventory_payload["review_bindings"] = (
+        changed,
+        *inventory.review_bindings[1:],
+    )
+
+    with pytest.raises(ValidationError, match="share one owned parent"):
+        UnknownPass1ScreenInventory.from_content(**inventory_payload)
