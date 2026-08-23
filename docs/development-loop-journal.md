@@ -10308,3 +10308,31 @@ slice.
   not reinterpret the singular-parent record as granting 25 attempts per
   parent. Phaser, Nextflow, localisation, unknown profiles, and scientific
   assessment remain intentionally outside this slice.
+
+## 2026-08-23 - Phase III offline localisation contracts are focused-green
+
+### Completed focused slice
+
+- Added a checksum- and version-bound standalone PSORTb 3.0.6 adapter for one
+  sequence group using the officially documented archaeal terse command. The
+  attempt retains its input FASTA, version probe, resolved command, stdout,
+  stderr, and typed result without public sequence submission.
+- Normalised archaeal PSORTb results as membrane, surface, extracellular,
+  soluble, or unknown. Tool and parser failures remain typed failed outcomes;
+  incompatible informative observations resolve to conflicting rather than to
+  an exclusion.
+- Added a user-image and one-FASTA DeepTMHMM 1.0 runtime/input contract. The
+  official documentation does not specify a stable local image entrypoint,
+  arguments, or output wire format, so executable invocation remains explicitly
+  blocked with an empty command. The image is checksum-bound, never
+  redistributed, and no result is fabricated.
+- Twenty focused command, parser, stub, failure, mutation, provenance, input,
+  and outcome-resolution tests pass. Targeted Ruff, formatting, `ty`,
+  documentation, and staged-diff checks pass.
+
+### Next exact starting point
+
+Inspect the user-provided DeepTMHMM image before defining any executable command
+or raw-output parser. Integrate this contract slice into `dev/phase3` after
+review; keep Nextflow fan-out, catalogue-wide localisation, first-wave policy,
+and candidate ranking in later focused slices.

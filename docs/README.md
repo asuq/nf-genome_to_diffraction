@@ -20,6 +20,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III finding ledger](phase-iii-finding-ledger.md): original and newer
   defects, dependency gates, required regressions, and final-disposition rules
   for v0.3.0.
+- [Phase III offline localisation adapters](localisation-adapters.md):
+  checksum-bound PSORTb 3.0.6 archaeal execution and the explicitly blocked
+  DeepTMHMM 1.0 user-image runtime/input contract.
 - [Single-component prototype roadmap](single-component-prototype-roadmap.md):
   historical v0.1/M6 plan and preserved single-component evidence; it is no
   longer the active heteromer gate.
