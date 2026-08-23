@@ -10738,3 +10738,37 @@ profile or unknown-crystal analysis.
 Integrate the execution identity into the selected composition-attempt fan-out
 and later unknown-screen items. Do not claim cache invalidation from an identity
 record that a process does not yet consume.
+
+## 2026-08-23 - Multi-component Phaser execution input is explicit; command blocked
+
+### Evidence boundary and completed contract
+
+- Retained repository evidence qualifies one `solution_at_origin = True` fixed
+  ensemble plus one search ensemble. It does not establish official or
+  real-runtime syntax for several independently uncertain fixed components.
+  Constructing a depth-three-or-higher command would therefore require a guess.
+- Added the content-addressed `ComponentExpansionExecutionInput` boundary. It
+  binds one selected authoritative depth-plan candidate to a packed parent,
+  distinct component-only fixed coordinates and original Phaser identity/error
+  evidence for every parent component, one registry-resolved candidate
+  model/copy count, exact parent LLG evidence, `DiffractionSelection`, and
+  `FreeRIdentity`.
+- The validator rejects missing or reordered fixed components, combined-parent
+  reuse, duplicate collapsed component coordinates, unavailable or mismatched
+  registry resolutions, mutated model identity, and diffraction/Free-R drift.
+  Its machine-readable command boundary prevents an input record from being
+  treated as an executable Phaser command.
+
+### Focused evidence and next exact starting point
+
+- Five dedicated depth-two `A+B` to `C` regressions preserve distinct 35% and
+  82% parent uncertainties and cover content mutation and failure paths. The
+  focused composition/registry/Free-R slice passes 36 tests, the complete unit
+  suite passes 802 tests, and Ruff lint/format, `ty`, schemas, documentation,
+  and diff checks pass.
+- Before implementing a command or parser, verify the exact multi-fixed partial
+  syntax against official Phaser documentation and the installed target
+  runtime. Then checksum each fixed component and candidate file before command
+  construction and record component TFZ, incremental LLG, requested/observed
+  copies, packing, markers, all identities, and only `search_evidence_only`.
+  Do not add Nextflow, HPC, or control execution from this contract-only slice.

@@ -108,6 +108,15 @@ model identity/error source in Phaser, command/result records, and cache
 identity. Placement no longer silently resets a lower-identity A model to 100%
 for the B-F searches.
 
+The schema-v2 component-expansion execution input now binds one authoritative
+selected depth candidate to a packed parent, component-only fixed coordinates
+and distinct original error models for every existing component, the exact
+parent LLG, a registry-resolved candidate model/copy count, diffraction
+selection, and Free-R identity. It rejects combined-coordinate or duplicate
+coordinate collapse. The command/parser adapter remains deliberately blocked:
+retained evidence qualifies only one fixed-at-origin ensemble, not the
+multi-fixed partial syntax required for a depth-two-or-higher parent.
+
 The isolated complete-item workflow now proves three crystal items can reuse
 one catalogue and one provider preparation through a byte-identical cached
 resume. Integration into the application graph and the hypothesis/seed/finalist

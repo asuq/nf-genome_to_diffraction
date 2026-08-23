@@ -25,6 +25,10 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III all-eligible model registry](phase-iii-all-model-registry.md):
   cap-independent processed-model universe, content identity, typed absence,
   checksum validation, and authoritative schema-v2 B--F planner binding.
+- [Phase III component-expansion execution input](phase-iii-component-expansion-input.md):
+  component-specific fixed-coordinate/error evidence, selected candidate,
+  diffraction and Free-R binding, and the explicit unqualified multi-fixed
+  Phaser syntax boundary.
 - [Phase III offline localisation adapters](localisation-adapters.md):
   checksum-bound PSORTb 3.0.6 archaeal execution and the explicitly blocked
   DeepTMHMM 1.0 user-image runtime/input contract.
