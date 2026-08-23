@@ -10208,3 +10208,29 @@ Review and integrate each focused branch only after its regressions pass. Keep
 the documentation changes uncommitted until combined with the first coherent
 Phase III code slice. Continue wrapper-only P6 polling through its existing
 heartbeat; do not duplicate the Marmic run or monitoring loop.
+
+## 2026-08-23T15:30:00Z - Phase III composition-v2 contract slice is focused-green
+
+### Completed contract foundation
+
+- Added an opt-in `genome_to_diffraction.schemas.v2` namespace without changing
+  the existing v1 P6 records. The six Phase III public records describe arbitrary
+  ordered component lists, component-specific placement evidence, retained
+  composition states, bounded expansion plans, scope decisions, and scientific
+  assessments.
+- Every v2 record is frozen and content-addressed over its complete canonical
+  payload. Packing remains search evidence until identity and review support are
+  present; claim eligibility is derived separately, and component depths beyond
+  the validated depth remain provisional.
+- Focused mutation coverage verifies content identities, ordering, evidence
+  promotions, sequence-group uniqueness, deterministic plan inventories and
+  budgets, provisional-depth claim refusal, final-review requirements, and
+  continued v1 readability. The focused 18-test contract/package/ID slice, Ruff,
+  and `ty` pass.
+
+### Next exact starting point
+
+Integrate this contract-only commit into `dev/phase3` after review. Build the
+planner and Nextflow fan-out against these records in a separate slice; do not add
+search execution, localisation, unknown-crystal profiles, or reinterpret v1 data
+while integrating the contracts.

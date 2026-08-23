@@ -1,0 +1,751 @@
+"""Phase III contracts for bounded multi-component composition search.
+
+The records in this module describe scientific state; they do not execute Phaser,
+refinement, map calculation, or any other external command.  Inputs and outputs are
+strict immutable JSON-compatible records.  Invalid state transitions fail Pydantic
+validation, while scientific no-hit and unresolved-identity outcomes remain typed
+records rather than execution failures.
+
+Every top-level record and expansion candidate is content-addressed over its complete
+canonical payload except for its own identifier.  Therefore any change to identity,
+ordering, evidence, status, or warning changes the identifier and invalidates a cache
+key.  Focused validation and mutation coverage lives in
+``tests/unit/test_composition_contracts_v2.py``.
+
+Version-1 contracts remain in :mod:`genome_to_diffraction.schemas.results`.  They are
+not widened or reinterpreted here; callers opt into these records through the
+``genome_to_diffraction.schemas.v2`` namespace.
+"""
+
+from enum import StrEnum
+from typing import Annotated, Any, ClassVar, Literal, Self
+
+from pydantic import Field, ValidationInfo, model_validator
+
+from genome_to_diffraction.ids import content_id
+from genome_to_diffraction.schemas.base import (
+    ContractModel,
+    NonEmptyString,
+    PositiveFloat,
+    PositiveInt,
+    Sha256Hex,
+)
+from genome_to_diffraction.status import ExecutionStatus
+
+ComponentLabel = Annotated[
+    str,
+    Field(pattern=r"^[A-Z][A-Z0-9_]*$", min_length=1),
+]
+SequenceGroupIdentifier = Annotated[
+    str,
+    Field(pattern=r"^seq_[a-f0-9]{64}$"),
+]
+ComponentSpecIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compspec_[a-f0-9]{64}$"),
+]
+ComponentPlacementIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compplace_[a-f0-9]{64}$"),
+]
+CompositionStateIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compstate_[a-f0-9]{64}$"),
+]
+ExpansionCandidateIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compexpandcand_[a-f0-9]{64}$"),
+]
+ExpansionPlanIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compexpand_[a-f0-9]{64}$"),
+]
+ScopeDecisionIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compscope_[a-f0-9]{64}$"),
+]
+CompositionAssessmentIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compassess_[a-f0-9]{64}$"),
+]
+
+_CONTENT_BUILD_TOKEN = object()
+
+
+class _ContentAddressedContract(ContractModel):
+    """Validate a full RFC-8785 content identifier for a frozen record."""
+
+    _identity_field: ClassVar[str]
+    _identity_prefix: ClassVar[str]
+
+    @classmethod
+    def from_content(cls, **values: Any) -> Self:
+        """Validate content, derive its identifier, then validate the final record."""
+
+        raw = dict(values)
+        raw.setdefault("schema_version", "2.0")
+        raw[cls._identity_field] = f"{cls._identity_prefix}{'0' * 64}"
+        provisional = cls.model_validate(
+            raw,
+            context={
+                "content_build_token": _CONTENT_BUILD_TOKEN,
+                "content_build_type": cls,
+            },
+        )
+        complete = provisional.model_dump(mode="python")
+        payload = {
+            key: value for key, value in complete.items() if key != cls._identity_field
+        }
+        complete[cls._identity_field] = content_id(cls._identity_prefix, payload)
+        return cls.model_validate(complete)
+
+    @model_validator(mode="after")
+    def _validate_content_identity(self, info: ValidationInfo) -> Self:
+        if (
+            info.context is not None
+            and info.context.get("content_build_token") is _CONTENT_BUILD_TOKEN
+            and info.context.get("content_build_type") is type(self)
+        ):
+            return self
+        payload = self.model_dump(
+            mode="python",
+            exclude={self._identity_field},
+        )
+        expected = content_id(self._identity_prefix, payload)
+        if getattr(self, self._identity_field) != expected:
+            raise ValueError(
+                f"{self._identity_field} does not match canonical record content"
+            )
+        return self
+
+
+class ComponentIdentitySupport(StrEnum):
+    """Sequence-level interpretation of one placed component."""
+
+    UNRESOLVED = "unresolved"
+    SEQUENCE_EQUIVALENCE_GROUP = "sequence_equivalence_group_supported"
+    EXACT_SEQUENCE = "exact_sequence_supported"
+
+
+class ComponentSpec(_ContentAddressedContract):
+    """One ordered composition component and its requested copy hypothesis."""
+
+    _identity_field = "component_spec_id"
+    _identity_prefix = "compspec_"
+
+    schema_version: Literal["2.0"]
+    component_spec_id: ComponentSpecIdentifier
+    label: ComponentLabel
+    sequence_group_id: SequenceGroupIdentifier
+    sequence_sha256: Sha256Hex
+    model_id: NonEmptyString
+    model_sha256: Sha256Hex
+    requested_copy_count: PositiveInt
+    sequence_mass_da: PositiveFloat
+    mass_evidence_sha256: Sha256Hex
+    model_evidence_sha256: Sha256Hex
+    warnings: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _validate_sequence_group_identity(self) -> Self:
+        if self.sequence_group_id != f"seq_{self.sequence_sha256}":
+            raise ValueError(
+                "sequence_group_id does not match the exact sequence digest"
+            )
+        return self
+
+
+class ComponentPlacement(_ContentAddressedContract):
+    """Terminal evidence for placing one component into a composition state."""
+
+    _identity_field = "placement_id"
+    _identity_prefix = "compplace_"
+
+    schema_version: Literal["2.0"]
+    placement_id: ComponentPlacementIdentifier
+    component_spec_id: ComponentSpecIdentifier
+    component_label: ComponentLabel
+    sequence_group_id: SequenceGroupIdentifier
+    model_id: NonEmptyString
+    model_sha256: Sha256Hex
+    requested_copy_count: PositiveInt
+    observed_copy_count: int = Field(ge=0)
+    execution_status: ExecutionStatus
+    component_tfz: float | None = None
+    incremental_llg: float | None = None
+    packing_passed: bool
+    coordinate_sha256: Sha256Hex | None = None
+    identity_support: ComponentIdentitySupport
+    warnings: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _validate_terminal_placement(self) -> Self:
+        if self.observed_copy_count > self.requested_copy_count:
+            raise ValueError("observed copies cannot exceed requested copies")
+        if (self.component_tfz is None) != (self.incremental_llg is None):
+            raise ValueError("component TFZ and incremental LLG must be paired")
+
+        metrics_present = self.component_tfz is not None
+        if self.execution_status is ExecutionStatus.COMPLETED_HIT:
+            if (
+                self.observed_copy_count < 1
+                or self.coordinate_sha256 is None
+                or not metrics_present
+            ):
+                raise ValueError("completed placement lacks coordinates or metrics")
+        elif self.execution_status in {
+            ExecutionStatus.COMPLETED_NO_HIT,
+            ExecutionStatus.FAILED_TOOL_EXECUTION,
+            ExecutionStatus.FAILED_PARSE,
+            ExecutionStatus.FAILED_INFRASTRUCTURE,
+            ExecutionStatus.FAILED_INPUT_CONTRACT,
+        }:
+            if (
+                self.observed_copy_count != 0
+                or self.coordinate_sha256 is not None
+                or metrics_present
+                or self.packing_passed
+                or self.identity_support is not ComponentIdentitySupport.UNRESOLVED
+            ):
+                raise ValueError("non-hit placement cannot retain placement evidence")
+        else:
+            raise ValueError("component placement requires a terminal search status")
+
+        if self.packing_passed and (
+            self.observed_copy_count != self.requested_copy_count
+        ):
+            raise ValueError("packing support requires every requested copy")
+        if (
+            self.identity_support is not ComponentIdentitySupport.UNRESOLVED
+            and self.execution_status is not ExecutionStatus.COMPLETED_HIT
+        ):
+            raise ValueError("identity support requires a completed placement")
+        return self
+
+
+class CompositionSupportState(StrEnum):
+    """Ordered evidence promotions for one retained composition state."""
+
+    NO_PLACEMENT = "no_placement"
+    SEARCH_EVIDENCE_ONLY = "search_evidence_only"
+    PLACED = "placed"
+    PACKED = "packed"
+    REFINED = "refined"
+    REVIEW_SUPPORTED = "review_supported"
+    COMPOSITION_SUPPORTED = "composition_supported"
+
+
+class CompositionState(_ContentAddressedContract):
+    """One ordered, immutable A+B+C+... state and its evidence chain."""
+
+    _identity_field = "state_id"
+    _identity_prefix = "compstate_"
+
+    schema_version: Literal["2.0"]
+    state_id: CompositionStateIdentifier
+    crystal_id: NonEmptyString
+    diffraction_dataset_id: NonEmptyString
+    diffraction_sha256: Sha256Hex
+    parent_state_id: CompositionStateIdentifier | None = None
+    depth: PositiveInt
+    components: tuple[ComponentSpec, ...] = Field(min_length=1)
+    placements: tuple[ComponentPlacement, ...] = Field(min_length=1)
+    combined_coordinate_sha256: Sha256Hex | None = None
+    combined_mtz_sha256: Sha256Hex | None = None
+    refinement_evidence_sha256: Sha256Hex | None = None
+    map_evidence_sha256: Sha256Hex | None = None
+    review_evidence_sha256: Sha256Hex | None = None
+    composition_decision_sha256: Sha256Hex | None = None
+    physical_mass_lower_da: PositiveFloat
+    physical_mass_upper_da: PositiveFloat
+    support_state: CompositionSupportState
+    warnings: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _validate_ordered_state(self) -> Self:
+        if self.depth != len(self.components) or self.depth != len(self.placements):
+            raise ValueError("state depth must match components and placements")
+        if (self.depth == 1) != (self.parent_state_id is None):
+            raise ValueError("only a depth-one state may omit its parent state")
+        if self.physical_mass_lower_da > self.physical_mass_upper_da:
+            raise ValueError("physical mass lower bound exceeds upper bound")
+
+        labels = tuple(component.label for component in self.components)
+        sequence_groups = tuple(
+            component.sequence_group_id for component in self.components
+        )
+        component_ids = tuple(
+            component.component_spec_id for component in self.components
+        )
+        if len(set(labels)) != self.depth:
+            raise ValueError("component labels must be unique within a state")
+        if len(set(sequence_groups)) != self.depth:
+            raise ValueError(
+                "exact sequence-equivalence groups cannot repeat as components"
+            )
+        if len(set(component_ids)) != self.depth:
+            raise ValueError("component specification identities must be unique")
+
+        for component, placement in zip(
+            self.components,
+            self.placements,
+            strict=True,
+        ):
+            if (
+                placement.component_spec_id != component.component_spec_id
+                or placement.component_label != component.label
+                or placement.sequence_group_id != component.sequence_group_id
+                or placement.model_id != component.model_id
+                or placement.model_sha256 != component.model_sha256
+                or placement.requested_copy_count != component.requested_copy_count
+            ):
+                raise ValueError(
+                    "ordered placement identity does not match its component"
+                )
+
+        any_observed = any(
+            placement.observed_copy_count > 0 for placement in self.placements
+        )
+        fully_placed = all(
+            placement.execution_status is ExecutionStatus.COMPLETED_HIT
+            and placement.observed_copy_count == component.requested_copy_count
+            for component, placement in zip(
+                self.components,
+                self.placements,
+                strict=True,
+            )
+        )
+        fully_packed = fully_placed and all(
+            placement.packing_passed for placement in self.placements
+        )
+        identities_supported = all(
+            placement.identity_support is not ComponentIdentitySupport.UNRESOLVED
+            for placement in self.placements
+        )
+
+        if self.support_state is CompositionSupportState.NO_PLACEMENT:
+            if any_observed or self.combined_coordinate_sha256 is not None:
+                raise ValueError("no-placement state contains placement evidence")
+        elif self.support_state is CompositionSupportState.SEARCH_EVIDENCE_ONLY:
+            if not any_observed or self.combined_coordinate_sha256 is None:
+                raise ValueError(
+                    "search-evidence state requires an observed coordinate result"
+                )
+        else:
+            if not fully_placed or self.combined_coordinate_sha256 is None:
+                raise ValueError("placed state lacks every requested component copy")
+
+        if (
+            self.support_state
+            in {
+                CompositionSupportState.PACKED,
+                CompositionSupportState.REFINED,
+                CompositionSupportState.REVIEW_SUPPORTED,
+                CompositionSupportState.COMPOSITION_SUPPORTED,
+            }
+            and not fully_packed
+        ):
+            raise ValueError("packed-or-higher state lacks packing evidence")
+
+        refined_or_higher = self.support_state in {
+            CompositionSupportState.REFINED,
+            CompositionSupportState.REVIEW_SUPPORTED,
+            CompositionSupportState.COMPOSITION_SUPPORTED,
+        }
+        if refined_or_higher and (
+            self.combined_mtz_sha256 is None or self.refinement_evidence_sha256 is None
+        ):
+            raise ValueError("refined-or-higher state lacks refinement evidence")
+
+        review_or_higher = self.support_state in {
+            CompositionSupportState.REVIEW_SUPPORTED,
+            CompositionSupportState.COMPOSITION_SUPPORTED,
+        }
+        if review_or_higher and (
+            self.map_evidence_sha256 is None
+            or self.review_evidence_sha256 is None
+            or not identities_supported
+        ):
+            raise ValueError("review-supported state lacks map, review, or identity")
+
+        if self.support_state is CompositionSupportState.COMPOSITION_SUPPORTED:
+            if self.composition_decision_sha256 is None:
+                raise ValueError(
+                    "composition-supported state lacks its review decision"
+                )
+        elif self.composition_decision_sha256 is not None:
+            raise ValueError(
+                "only a composition-supported state may bind a composition decision"
+            )
+        return self
+
+
+class ExpansionDisposition(StrEnum):
+    """Complete scheduling disposition for one expansion hypothesis."""
+
+    SELECTED = "selected"
+    DEFERRED_DEPTH_BUDGET = "deferred_depth_budget"
+    DEFERRED_GLOBAL_BUDGET = "deferred_global_budget"
+    DEFERRED_REVIEWER = "deferred_reviewer"
+    UNSEARCHABLE_NO_MODEL = "unsearchable_no_model"
+    UNSEARCHABLE_MODEL_IDENTITY = "unsearchable_model_identity"
+    EXCLUDED_PHYSICAL_IMPOSSIBLE = "excluded_physical_impossible"
+
+
+class CompositionCandidateHypothesis(_ContentAddressedContract):
+    """One ranked component/copy proposal in an expansion plan."""
+
+    _identity_field = "candidate_hypothesis_id"
+    _identity_prefix = "compexpandcand_"
+
+    schema_version: Literal["2.0"]
+    candidate_hypothesis_id: ExpansionCandidateIdentifier
+    component: ComponentSpec
+    rank: PositiveInt
+    disposition: ExpansionDisposition
+    disposition_reason: NonEmptyString
+    physical_possible: bool
+    model_available: bool
+
+    @model_validator(mode="after")
+    def _validate_disposition(self) -> Self:
+        if self.disposition in {
+            ExpansionDisposition.SELECTED,
+            ExpansionDisposition.DEFERRED_DEPTH_BUDGET,
+            ExpansionDisposition.DEFERRED_GLOBAL_BUDGET,
+            ExpansionDisposition.DEFERRED_REVIEWER,
+        } and not (self.physical_possible and self.model_available):
+            raise ValueError("selected or deferred hypothesis is not searchable")
+        if (
+            self.disposition is ExpansionDisposition.UNSEARCHABLE_NO_MODEL
+            and self.model_available
+        ):
+            raise ValueError("no-model disposition contradicts model availability")
+        if (
+            self.disposition is ExpansionDisposition.EXCLUDED_PHYSICAL_IMPOSSIBLE
+            and self.physical_possible
+        ):
+            raise ValueError("physically impossible disposition is contradictory")
+        return self
+
+
+class CompositionExpansionPlan(_ContentAddressedContract):
+    """Deterministic bounded expansion from one retained parent state."""
+
+    _identity_field = "plan_id"
+    _identity_prefix = "compexpand_"
+
+    schema_version: Literal["2.0"]
+    plan_id: ExpansionPlanIdentifier
+    crystal_id: NonEmptyString
+    parent_state_id: CompositionStateIdentifier
+    parent_depth: PositiveInt
+    target_depth: PositiveInt
+    parent_component_labels: tuple[ComponentLabel, ...] = Field(min_length=1)
+    parent_sequence_group_ids: tuple[SequenceGroupIdentifier, ...] = Field(min_length=1)
+    maximum_component_depth: PositiveInt = Field(le=6)
+    beam_width: PositiveInt = Field(le=3)
+    per_depth_attempt_budget: PositiveInt = Field(le=25)
+    global_attempt_budget: PositiveInt = Field(le=100)
+    global_attempts_used_before: int = Field(ge=0)
+    ranking_policy_version: NonEmptyString
+    candidate_count: int = Field(ge=0)
+    selected_attempt_count: int = Field(ge=0)
+    deferred_candidate_count: int = Field(ge=0)
+    unsearchable_candidate_count: int = Field(ge=0)
+    candidates: tuple[CompositionCandidateHypothesis, ...]
+
+    @model_validator(mode="after")
+    def _validate_plan_inventory(self) -> Self:
+        if self.target_depth != self.parent_depth + 1:
+            raise ValueError("target depth must immediately follow parent depth")
+        if self.target_depth > self.maximum_component_depth:
+            raise ValueError("target depth exceeds the configured search depth")
+        if len(self.parent_component_labels) != self.parent_depth:
+            raise ValueError("parent labels do not match parent depth")
+        if len(self.parent_sequence_group_ids) != self.parent_depth:
+            raise ValueError("parent sequence groups do not match parent depth")
+        if len(set(self.parent_component_labels)) != self.parent_depth:
+            raise ValueError("parent component labels must be unique")
+        if len(set(self.parent_sequence_group_ids)) != self.parent_depth:
+            raise ValueError("parent sequence groups must be unique")
+        if self.global_attempts_used_before > self.global_attempt_budget:
+            raise ValueError("used attempts exceed the global budget")
+        if self.candidate_count != len(self.candidates):
+            raise ValueError("candidate count does not match candidate inventory")
+        if [candidate.rank for candidate in self.candidates] != list(
+            range(1, self.candidate_count + 1)
+        ):
+            raise ValueError("candidate ranks must be contiguous and ordered")
+
+        selected = sum(
+            candidate.disposition is ExpansionDisposition.SELECTED
+            for candidate in self.candidates
+        )
+        deferred = sum(
+            candidate.disposition
+            in {
+                ExpansionDisposition.DEFERRED_DEPTH_BUDGET,
+                ExpansionDisposition.DEFERRED_GLOBAL_BUDGET,
+                ExpansionDisposition.DEFERRED_REVIEWER,
+            }
+            for candidate in self.candidates
+        )
+        unsearchable = self.candidate_count - selected - deferred
+        if (
+            selected != self.selected_attempt_count
+            or deferred != self.deferred_candidate_count
+            or unsearchable != self.unsearchable_candidate_count
+        ):
+            raise ValueError("plan counts do not match candidate dispositions")
+
+        remaining_global = self.global_attempt_budget - self.global_attempts_used_before
+        if selected > min(self.per_depth_attempt_budget, remaining_global):
+            raise ValueError("selected attempts exceed a depth or global budget")
+
+        parent_labels = set(self.parent_component_labels)
+        parent_groups = set(self.parent_sequence_group_ids)
+        candidate_ids: set[str] = set()
+        for candidate in self.candidates:
+            if candidate.candidate_hypothesis_id in candidate_ids:
+                raise ValueError("candidate hypothesis identities must be unique")
+            candidate_ids.add(candidate.candidate_hypothesis_id)
+            if candidate.component.label in parent_labels:
+                raise ValueError("candidate component label already exists in parent")
+            if candidate.component.sequence_group_id in parent_groups:
+                raise ValueError(
+                    "candidate sequence-equivalence group already exists in parent"
+                )
+            if candidate.component.requested_copy_count > 4:
+                raise ValueError("Phase III expansion copy count exceeds four")
+        return self
+
+
+class CompositionStopReason(StrEnum):
+    """First applicable reason that automatic component expansion stopped."""
+
+    NO_PHYSICALLY_POSSIBLE_REMAINING_COMPONENT = (
+        "no_physically_possible_remaining_component"
+    )
+    NO_RETAINED_PACKED_STATE = "no_retained_packed_state"
+    MAXIMUM_COMPONENT_DEPTH_REACHED = "maximum_component_depth_reached"
+    GLOBAL_ATTEMPT_BUDGET_REACHED = "global_attempt_budget_reached"
+    INFRASTRUCTURE_OR_CONTRACT_FAILURE = "infrastructure_or_contract_failure"
+    REVIEWER_HOLD = "reviewer_hold"
+
+
+class ResidualContentState(StrEnum):
+    """Review state of diffraction content not explained by the composition."""
+
+    NOT_ASSESSED = "not_assessed"
+    NONE_DETECTED = "none_detected"
+    SUSPECTED = "suspected"
+    UNRESOLVED = "unresolved"
+
+
+class ComponentScopeStatus(StrEnum):
+    """Claim scope at the reached component depth."""
+
+    WITHIN_VALIDATED_COMPONENT_DEPTH = "within_validated_component_depth"
+    PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH = "provisional_unvalidated_component_depth"
+    SEARCH_INCOMPLETE = "search_incomplete"
+
+
+class CompositionClaimBoundary(StrEnum):
+    """Maximum scientific claim allowed by scope and stop evidence."""
+
+    COMPLETE_COMPOSITION_REVIEW_ELIGIBLE = "complete_composition_review_eligible"
+    PARTIAL_OR_RESIDUAL_ONLY = "partial_or_residual_only"
+    PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH = "provisional_unvalidated_component_depth"
+    SEARCH_INCOMPLETE = "search_incomplete"
+
+
+class ComponentScopeDecision(_ContentAddressedContract):
+    """Bound search depth, stop reason, residual state, and claim boundary."""
+
+    _identity_field = "decision_id"
+    _identity_prefix = "compscope_"
+
+    schema_version: Literal["2.0"]
+    decision_id: ScopeDecisionIdentifier
+    crystal_id: NonEmptyString
+    state_id: CompositionStateIdentifier
+    search_depth_reached: PositiveInt
+    maximum_search_depth: PositiveInt = Field(le=6)
+    validated_component_depth: PositiveInt = Field(le=3)
+    total_additional_attempt_budget: PositiveInt = Field(le=100)
+    total_additional_attempts_used: int = Field(ge=0)
+    remaining_physical_hypothesis_count: int = Field(ge=0)
+    retained_packed_state_count: int = Field(ge=0)
+    state_support_state: CompositionSupportState
+    stop_reason: CompositionStopReason
+    residual_content_state: ResidualContentState
+    scope_status: ComponentScopeStatus
+    claim_boundary: CompositionClaimBoundary
+    complete_composition_claim_eligible: bool
+    reviewer_hold_evidence_sha256: Sha256Hex | None = None
+    warnings: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _derive_scope_and_claim_boundary(self) -> Self:
+        if self.search_depth_reached > self.maximum_search_depth:
+            raise ValueError("reached depth exceeds the configured maximum")
+        if self.validated_component_depth > self.maximum_search_depth:
+            raise ValueError("validated depth exceeds maximum search depth")
+        if self.total_additional_attempts_used > self.total_additional_attempt_budget:
+            raise ValueError("used attempts exceed the global attempt budget")
+        if (
+            self.stop_reason
+            is CompositionStopReason.NO_PHYSICALLY_POSSIBLE_REMAINING_COMPONENT
+            and self.remaining_physical_hypothesis_count != 0
+        ):
+            raise ValueError("no-physical stop retains physical hypotheses")
+        if (
+            self.stop_reason is CompositionStopReason.NO_RETAINED_PACKED_STATE
+            and self.retained_packed_state_count != 0
+        ):
+            raise ValueError("no-packed-state stop retains packed states")
+        if (
+            self.stop_reason is CompositionStopReason.MAXIMUM_COMPONENT_DEPTH_REACHED
+            and self.search_depth_reached != self.maximum_search_depth
+        ):
+            raise ValueError("maximum-depth stop did not reach maximum depth")
+        if (
+            self.stop_reason is CompositionStopReason.GLOBAL_ATTEMPT_BUDGET_REACHED
+            and self.total_additional_attempts_used
+            != self.total_additional_attempt_budget
+        ):
+            raise ValueError("budget stop did not exhaust the global budget")
+        if (self.stop_reason is CompositionStopReason.REVIEWER_HOLD) != (
+            self.reviewer_hold_evidence_sha256 is not None
+        ):
+            raise ValueError("reviewer hold evidence must match the stop reason")
+
+        incomplete_stop = self.stop_reason in {
+            CompositionStopReason.GLOBAL_ATTEMPT_BUDGET_REACHED,
+            CompositionStopReason.INFRASTRUCTURE_OR_CONTRACT_FAILURE,
+            CompositionStopReason.REVIEWER_HOLD,
+        }
+        if incomplete_stop:
+            expected_scope = ComponentScopeStatus.SEARCH_INCOMPLETE
+            expected_boundary = CompositionClaimBoundary.SEARCH_INCOMPLETE
+        elif self.search_depth_reached > self.validated_component_depth:
+            expected_scope = (
+                ComponentScopeStatus.PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH
+            )
+            expected_boundary = (
+                CompositionClaimBoundary.PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH
+            )
+        else:
+            expected_scope = ComponentScopeStatus.WITHIN_VALIDATED_COMPONENT_DEPTH
+            eligible = (
+                self.state_support_state
+                is CompositionSupportState.COMPOSITION_SUPPORTED
+                and self.residual_content_state is ResidualContentState.NONE_DETECTED
+            )
+            expected_boundary = (
+                CompositionClaimBoundary.COMPLETE_COMPOSITION_REVIEW_ELIGIBLE
+                if eligible
+                else CompositionClaimBoundary.PARTIAL_OR_RESIDUAL_ONLY
+            )
+
+        expected_eligible = (
+            expected_boundary
+            is CompositionClaimBoundary.COMPLETE_COMPOSITION_REVIEW_ELIGIBLE
+        )
+        if self.scope_status is not expected_scope:
+            raise ValueError("scope status disagrees with depth and stop evidence")
+        if self.claim_boundary is not expected_boundary:
+            raise ValueError("claim boundary disagrees with scope evidence")
+        if self.complete_composition_claim_eligible != expected_eligible:
+            raise ValueError("claim eligibility disagrees with claim boundary")
+        return self
+
+
+class CompositionScientificStatus(StrEnum):
+    """Evidence-derived interpretation of one retained composition state."""
+
+    COMPOSITION_SUPPORTED = "composition_supported"
+    CREDIBLE_PARTIAL_OR_RESIDUAL = "credible_partial_or_residual"
+    SEARCH_EVIDENCE_ONLY = "search_evidence_only"
+    NO_SUPPORTED_COMPOSITION = "no_supported_composition"
+    PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH = "provisional_unvalidated_component_depth"
+    EXECUTION_FAILURE = "execution_failure"
+
+
+class CompositionAssessment(_ContentAddressedContract):
+    """Scientific status and claim eligibility derived from one scope decision."""
+
+    _identity_field = "assessment_id"
+    _identity_prefix = "compassess_"
+
+    schema_version: Literal["2.0"]
+    assessment_id: CompositionAssessmentIdentifier
+    crystal_id: NonEmptyString
+    state_id: CompositionStateIdentifier
+    scope_decision: ComponentScopeDecision
+    execution_status: ExecutionStatus
+    state_support_state: CompositionSupportState
+    scientific_status: CompositionScientificStatus
+    complete_composition_claim_eligible: bool
+    complete_composition_claimed: bool
+    final_review_decision_sha256: Sha256Hex | None = None
+    evidence_sha256: dict[NonEmptyString, Sha256Hex] = Field(min_length=1)
+    warnings: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _derive_scientific_status(self) -> Self:
+        if (
+            self.scope_decision.crystal_id != self.crystal_id
+            or self.scope_decision.state_id != self.state_id
+            or self.scope_decision.state_support_state is not self.state_support_state
+        ):
+            raise ValueError("assessment identity disagrees with its scope decision")
+
+        failure = self.execution_status in {
+            ExecutionStatus.FAILED_INPUT_CONTRACT,
+            ExecutionStatus.FAILED_TOOL_EXECUTION,
+            ExecutionStatus.FAILED_PARSE,
+            ExecutionStatus.FAILED_INFRASTRUCTURE,
+        }
+        if failure:
+            expected_status = CompositionScientificStatus.EXECUTION_FAILURE
+        elif (
+            self.scope_decision.scope_status
+            is ComponentScopeStatus.PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH
+        ):
+            expected_status = (
+                CompositionScientificStatus.PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH
+            )
+        elif (
+            self.state_support_state is CompositionSupportState.COMPOSITION_SUPPORTED
+            and self.scope_decision.complete_composition_claim_eligible
+        ):
+            expected_status = CompositionScientificStatus.COMPOSITION_SUPPORTED
+        elif self.state_support_state in {
+            CompositionSupportState.REVIEW_SUPPORTED,
+            CompositionSupportState.COMPOSITION_SUPPORTED,
+        }:
+            expected_status = CompositionScientificStatus.CREDIBLE_PARTIAL_OR_RESIDUAL
+        elif self.state_support_state is CompositionSupportState.NO_PLACEMENT:
+            expected_status = CompositionScientificStatus.NO_SUPPORTED_COMPOSITION
+        else:
+            expected_status = CompositionScientificStatus.SEARCH_EVIDENCE_ONLY
+
+        expected_eligible = (
+            not failure
+            and self.scope_decision.complete_composition_claim_eligible
+            and self.state_support_state
+            is CompositionSupportState.COMPOSITION_SUPPORTED
+        )
+        if self.scientific_status is not expected_status:
+            raise ValueError("scientific status disagrees with retained evidence")
+        if self.complete_composition_claim_eligible != expected_eligible:
+            raise ValueError("assessment claim eligibility disagrees with evidence")
+        if self.complete_composition_claimed and (
+            not expected_eligible or self.final_review_decision_sha256 is None
+        ):
+            raise ValueError(
+                "complete composition claim requires eligibility and final review"
+            )
+        return self

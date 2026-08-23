@@ -1,0 +1,37 @@
+"""Schema-v2 public contracts for Phase III composition search."""
+
+from genome_to_diffraction.schemas.v2.composition import (
+    ComponentIdentitySupport,
+    ComponentPlacement,
+    ComponentScopeDecision,
+    ComponentScopeStatus,
+    ComponentSpec,
+    CompositionAssessment,
+    CompositionCandidateHypothesis,
+    CompositionClaimBoundary,
+    CompositionExpansionPlan,
+    CompositionScientificStatus,
+    CompositionState,
+    CompositionStopReason,
+    CompositionSupportState,
+    ExpansionDisposition,
+    ResidualContentState,
+)
+
+__all__ = [
+    "ComponentIdentitySupport",
+    "ComponentPlacement",
+    "ComponentScopeDecision",
+    "ComponentScopeStatus",
+    "ComponentSpec",
+    "CompositionAssessment",
+    "CompositionCandidateHypothesis",
+    "CompositionClaimBoundary",
+    "CompositionExpansionPlan",
+    "CompositionScientificStatus",
+    "CompositionState",
+    "CompositionStopReason",
+    "CompositionSupportState",
+    "ExpansionDisposition",
+    "ResidualContentState",
+]
