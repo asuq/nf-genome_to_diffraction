@@ -12,6 +12,8 @@ Inputs and outputs
 ``build_free_r_identity`` consumes a schema-v2 diffraction selection, its exact
 source MTZ, and an explicit MTZ-internal dataset ID/label.  It returns a
 content-addressed :class:`~genome_to_diffraction.schemas.v2.FreeRIdentity`.
+``load_free_r_identity`` revalidates that content address, and
+``verify_free_r_identity_selection`` requires an exact selection binding.
 ``compare_free_r_membership`` consumes that identity and a derived/refined MTZ;
 it returns a comparison record only when the dataset-qualified label, HKL set,
 distribution, and raw HKL-to-flag mapping are unchanged.
@@ -43,6 +45,7 @@ from pathlib import Path
 import gemmi
 import numpy as np
 from numpy.typing import NDArray
+from pydantic import ValidationError
 
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.schemas.v2.diffraction import (
@@ -73,6 +76,44 @@ class _FreeRInspection:
     distribution: FreeRDistributionSummary
     hkl_set_sha256: str
     hkl_to_flag_membership_sha256: str
+
+
+def load_free_r_identity(path: Path) -> FreeRIdentity:
+    """Load one content-address-valid schema-v2 Free-R identity document."""
+
+    try:
+        resolved = path.resolve(strict=True)
+        if not resolved.is_file():
+            raise OSError("path is not a regular file")
+        return FreeRIdentity.model_validate_json(resolved.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValidationError, ValueError) as error:
+        raise FreeRIdentityError(f"invalid Free-R identity: {path}") from error
+
+
+def verify_free_r_identity_selection(
+    identity: FreeRIdentity,
+    selection: DiffractionSelection,
+) -> None:
+    """Require one Free-R identity to describe the exact diffraction selection."""
+
+    expected = (
+        selection.diffraction_selection_id,
+        selection.diffraction_dataset_id,
+        selection.crystal_id,
+        selection.mtz_sha256,
+        selection.observation_dataset_id,
+    )
+    observed = (
+        identity.diffraction_selection_id,
+        identity.diffraction_dataset_id,
+        identity.crystal_id,
+        identity.mtz_sha256,
+        identity.observation_dataset_id,
+    )
+    if observed != expected:
+        raise FreeRIdentityError(
+            "Free-R identity differs from the diffraction selection"
+        )
 
 
 def _exact_integral_values(
@@ -325,4 +366,6 @@ __all__ = [
     "FreeRIdentityError",
     "build_free_r_identity",
     "compare_free_r_membership",
+    "load_free_r_identity",
+    "verify_free_r_identity_selection",
 ]

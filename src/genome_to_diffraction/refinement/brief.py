@@ -16,10 +16,12 @@ Unit tests cover command construction, parsers, checksum rejection, and failed
 tool execution. Real Phenix qualification remains mandatory on Viper.
 
 The optional Phase III path verifies the dataset-qualified selection against
-its exact preflight and binds it into refinement and sequence command records.
-Observation labels and sequence-from-map high resolution use already qualified
-parameters. Explicit refinement space-group/resolution parameters remain typed
-as pending instead of being guessed; Free-R membership is not interpreted here.
+its exact preflight and requires a content-address-valid Free-R identity bound
+to that selection.  The command record retains the exact Free-R label and
+explicit or unresolved test-value convention.  A successful refined MTZ is
+promoted only after its raw HKL-to-Free-R mapping compares exactly with the
+source identity.  No Free-R convention, flag, or unqualified Phenix parameter
+is inferred.
 """
 
 import logging
@@ -37,6 +39,12 @@ from genome_to_diffraction.checksums import (
     atomic_write_json,
     atomic_write_text,
     sha256_file,
+)
+from genome_to_diffraction.diffraction.free_r_identity import (
+    FreeRIdentityError,
+    compare_free_r_membership,
+    load_free_r_identity,
+    verify_free_r_identity_selection,
 )
 from genome_to_diffraction.diffraction.selection import (
     build_diffraction_command_binding,
@@ -60,12 +68,14 @@ from genome_to_diffraction.schemas.v2.diffraction import (
     DiffractionCommandBinding,
     DiffractionCommandConsumer,
     DiffractionSelection,
+    FreeRIdentity,
+    FreeRMembershipComparison,
 )
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
 _PROTOCOL_VERSION = "phenix-t12-brief-v5"
-_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v6-phase3-diffraction"
+_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v7-phase3-free-r-preservation"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -113,6 +123,7 @@ class T12RunRequest:
     crystal_id: str | None = None
     diffraction_selection_json: Path | None = None
     preflight_jsonl: Path | None = None
+    free_r_identity_json: Path | None = None
     threads: int = 4
     timeout_seconds: float | None = None
     progress: bool = True
@@ -129,6 +140,9 @@ class T12RunOutput:
     sequence_json: Path
     sequence_jsonl: Path
     command_json: Path
+    free_r_comparison: FreeRMembershipComparison | None
+    free_r_comparison_json: Path | None
+    free_r_comparison_jsonl: Path | None
 
 
 def _read_jsonl[T: BaseModel](
@@ -176,22 +190,24 @@ def _normalised_observation_labels(value: str) -> tuple[str, ...]:
 
 def _resolve_phase3_diffraction(
     request: T12RunRequest,
-) -> DiffractionSelection | None:
+) -> tuple[DiffractionSelection, FreeRIdentity] | None:
     supplied = (
         request.crystal_id is not None,
         request.diffraction_selection_json is not None,
         request.preflight_jsonl is not None,
+        request.free_r_identity_json is not None,
     )
     if not any(supplied):
         return None
     if not all(supplied):
         raise T12InputError(
             "Phase III refinement requires crystal ID, diffraction selection, "
-            "and preflight"
+            "preflight, and Free-R identity"
         )
     assert request.crystal_id is not None
     assert request.diffraction_selection_json is not None
     assert request.preflight_jsonl is not None
+    assert request.free_r_identity_json is not None
     selection = load_diffraction_selection(request.diffraction_selection_json)
     if selection.crystal_id != request.crystal_id:
         raise T12InputError("Phase III refinement crystal identity differs")
@@ -225,7 +241,12 @@ def _resolve_phase3_diffraction(
         raise T12InputError(
             "refinement high-resolution limit differs from diffraction selection"
         )
-    return selection
+    try:
+        free_r_identity = load_free_r_identity(request.free_r_identity_json)
+        verify_free_r_identity_selection(free_r_identity, selection)
+    except FreeRIdentityError as error:
+        raise T12InputError(str(error)) from error
+    return selection, free_r_identity
 
 
 def _write_catalogue_fasta(
@@ -590,7 +611,12 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         raise T12InputError("threads must be between 1 and 64")
     if request.resolution <= 0:
         raise T12InputError("resolution must be positive")
-    diffraction_selection = _resolve_phase3_diffraction(request)
+    phase3_diffraction = _resolve_phase3_diffraction(request)
+    if phase3_diffraction is None:
+        diffraction_selection = None
+        free_r_identity = None
+    else:
+        diffraction_selection, free_r_identity = phase3_diffraction
     observation_label_argument = _observation_label_argument(request.observation_labels)
     parent_coordinate = _verified_file(
         request.parent_coordinate,
@@ -646,6 +672,8 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         refinement_identity["diffraction_selection_id"] = (
             diffraction_selection.diffraction_selection_id
         )
+        assert free_r_identity is not None
+        refinement_identity["free_r_identity_id"] = free_r_identity.free_r_identity_id
     refinement_id = content_id("refine_", refinement_identity)
     refined_model, refined_mtz, map_path, difference_map_path = (
         _refinement_output_paths(outdir)
@@ -684,10 +712,12 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     }
     diffraction_binding: DiffractionCommandBinding | None = None
     if diffraction_selection is not None:
+        assert free_r_identity is not None
         diffraction_binding = build_diffraction_command_binding(
             consumer=DiffractionCommandConsumer.BRIEF_REFINEMENT,
             command_owner_id=refinement_id,
             selection=diffraction_selection,
+            free_r_identity=free_r_identity,
         )
         command_record.update(
             {
@@ -702,6 +732,11 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
                 "diffraction_command_binding": diffraction_binding.model_dump(
                     mode="json"
                 ),
+                "free_r_identity": free_r_identity.model_dump(mode="json"),
+                "free_r_membership_comparison_status": (
+                    "pending_successful_refined_mtz"
+                ),
+                "free_r_membership_comparison": None,
             }
         )
     atomic_write_json(command_path, command_record)
@@ -739,6 +774,56 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         final_r_free=final_rf,
     )
     refinement_warnings = list(completion_warnings)
+    free_r_comparison: FreeRMembershipComparison | None = None
+    free_r_comparison_json: Path | None = None
+    free_r_comparison_jsonl: Path | None = None
+    if free_r_identity is not None:
+        if refinement_success:
+            try:
+                free_r_comparison = compare_free_r_membership(
+                    source=free_r_identity,
+                    derived_mtz_path=refined_mtz,
+                )
+            except FreeRIdentityError as error:
+                refinement_success = False
+                refinement_warnings.append(
+                    "refined_mtz_free_r_membership_comparison_failed"
+                )
+                command_record.update(
+                    {
+                        "free_r_membership_comparison_status": "failed_contract",
+                        "free_r_membership_comparison_error": str(error),
+                    }
+                )
+                _LOGGER.warning(
+                    "refined MTZ failed Free-R membership comparison",
+                    extra={
+                        "refinement_id": refinement_id,
+                        "free_r_identity_id": free_r_identity.free_r_identity_id,
+                        "error": str(error),
+                    },
+                )
+            else:
+                free_r_comparison_json, free_r_comparison_jsonl = _write_result(
+                    outdir / "free_r_membership_comparison.json",
+                    free_r_comparison,
+                )
+                command_record.update(
+                    {
+                        "free_r_membership_comparison_status": "preserved_exact",
+                        "free_r_membership_comparison": free_r_comparison.model_dump(
+                            mode="json"
+                        ),
+                        "free_r_membership_comparison_pointer": (
+                            free_r_comparison_json.name
+                        ),
+                    }
+                )
+        else:
+            command_record["free_r_membership_comparison_status"] = (
+                "not_attempted_refinement_incomplete"
+            )
+        atomic_write_json(command_path, command_record)
     if (
         refinement_success
         and final_rf is not None
@@ -902,4 +987,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         sequence_json=sequence_json,
         sequence_jsonl=sequence_jsonl,
         command_json=command_path,
+        free_r_comparison=free_r_comparison,
+        free_r_comparison_json=free_r_comparison_json,
+        free_r_comparison_jsonl=free_r_comparison_jsonl,
     )

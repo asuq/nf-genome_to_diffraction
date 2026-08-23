@@ -10641,3 +10641,76 @@ job or modify the accepted P6 evidence.
 - Integrate this commit into `dev/phase3` after review. Next, build each
   checkpoint-specific review package and derive the trusted parent reference
   from the local owned-run registry before adding any Nextflow/HPC consumer.
+
+## 2026-08-23 - Phase III Free-R refinement promotion gate is focused-green
+
+### Completed PIPE-P1-07 slice
+
+- Opt-in Phase III brief refinement now requires a content-address-valid
+  `FreeRIdentity` bound to the exact `DiffractionSelection`. Its refinement and
+  command identities retain the selected dataset/label plus the explicit or
+  unresolved test-value convention; no flag value is inferred or generated.
+- The command binding states explicitly that no Phenix Free-R parameter has yet
+  been qualified. After a zero-exit refinement with required assets,
+  coefficients, and final Rwork/Rfree, the refined MTZ must produce an exact
+  `FreeRMembershipComparison` before the result can complete or sequence-map
+  execution can begin. A missing or changed flag leaves files attempt-owned and
+  emits `failed_parse` without promoted asset pointers.
+- Row permutation is accepted by the existing sorted-HKL comparison. No
+  symmetry or reindexing equivalence is attempted. The version-1 request path
+  and protocol identity remain unchanged; only the Phase III protocol identity
+  advanced.
+
+### Focused evidence and next exact starting point
+
+- Thirty-seven focused refinement, Free-R, diffraction-selection, and completion
+  regressions pass, including content-ID mutation, selection mismatch,
+  missing/changed flags, row permutation, unresolved convention, explicit
+  convention command-ID mutation, and a successful synthetic derived MTZ.
+  The complete isolated unit suite passes 772 tests and the contract suite
+  passes 128 tests. Ruff format/lint, `ty`, schema, documentation, and diff
+  checks pass.
+- Qualify the exact supported Phenix Free-R label/convention parameter and the
+  comparison against a real Phenix-derived MTZ before calling PIPE-P1-07 fixed.
+  Do not infer a convention or add symmetry/reindexing equivalence while doing
+  so.
+
+## 2026-08-23T18:15:00Z - v0.2.0 is immutable and Phase III is active
+
+### Exact release evidence
+
+- Exact release commit `68d216fad6dc83ca4a66de1f0bd9a37d365f2b80`
+  passed CI run/job `32652529194` / `97226244363`, the complete locked local
+  gate, and fixed Marmic `heteromer-smoke` run
+  `gtd-heteromer-smoke-20260823T165137Z-68d216fad6dc-714eb859`, Slurm `633284`.
+- The release run completed successfully with exact source/nf-helper/Pixi
+  provenance. All 47 retained checksums, six no-claim assessments, the exact
+  1846/1845 catalogue/missing-B counts, both positive controls, wrong-B
+  `search_evidence_only`, 9ECN scope boundary, and seven Phenix executable
+  identities verified.
+- Annotated tag `v0.2.0` and the experimental GitHub release were published from
+  that exact commit. The former v0.2 goal is complete; Phase III is the active
+  goal. The `dev/phase3` history now contains the immutable v0.2 release
+  boundary without changing its preserved evidence.
+
+### Integrated Phase III foundations
+
+- The all-model registry now feeds the bounded composition planner through
+  checksum-verified per-parent/per-copy model resolutions while retaining typed
+  unavailable candidates and shared 25/100 budgets.
+- The local review stager verifies owned parent/package/checkpoint provenance,
+  decision bytes/content identity, permitted targets, chronology, and caps,
+  then publishes only canonical decision and stage manifests.
+- Phase III brief refinement binds the exact Free-R identity and blocks result
+  or sequence-map promotion unless the derived MTZ preserves the complete raw
+  HKL-to-flag mapping. The convention remains explicitly unresolved unless
+  supplied; no flag is guessed or generated.
+
+### Next exact starting point
+
+Run one focused integration set for the newly combined Phase III contracts,
+registry/planner, review staging, Free-R refinement, and preserved-parent
+uncertainty. Keep `dev/phase3` local until an approved branch-push command is
+available. Next, close the trusted owned-run-registry/package generators and
+complete-item execution wiring before defining or launching any Phase III HPC
+profile or unknown-crystal analysis.

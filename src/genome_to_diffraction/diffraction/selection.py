@@ -8,10 +8,12 @@ Scientific overrides remain explicit provenance rather than being inferred from
 warnings.  Tool adapters call :func:`verify_diffraction_selection` again before
 execution so stale selections fail before any licensed command is launched.
 
-The selection itself retains a pending Free-R propagation boundary.  Phase III
-Free-R label, distribution, and raw HKL-to-flag identities are validated in the
-separate :mod:`genome_to_diffraction.diffraction.free_r_identity` foundation so
-this builder remains independent of MTZ file access and Phenix command policy.
+The selection itself retains no inferred Free-R convention.  Phase III Free-R
+label, distribution, and raw HKL-to-flag identities are validated in the
+separate :mod:`genome_to_diffraction.diffraction.free_r_identity` foundation.
+The brief-refinement command binding requires that exact identity while stating
+that an explicit Phenix Free-R parameter still awaits real-runtime
+qualification; this builder remains independent of MTZ file access.
 """
 
 import math
@@ -19,6 +21,9 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from genome_to_diffraction.diffraction.free_r_identity import (
+    verify_free_r_identity_selection,
+)
 from genome_to_diffraction.ids import canonical_digest
 from genome_to_diffraction.schemas.manifests import CrystalEntry
 from genome_to_diffraction.schemas.results import (
@@ -32,6 +37,7 @@ from genome_to_diffraction.schemas.v2.diffraction import (
     DiffractionCommandConsumer,
     DiffractionSelection,
     DiffractionValueSource,
+    FreeRIdentity,
     diffraction_dataset_id,
 )
 from genome_to_diffraction.status import InputContractError
@@ -269,8 +275,20 @@ def build_diffraction_command_binding(
     consumer: DiffractionCommandConsumer,
     command_owner_id: str,
     selection: DiffractionSelection,
+    free_r_identity: FreeRIdentity | None = None,
 ) -> DiffractionCommandBinding:
     """Create the typed external-command propagation boundary for one selection."""
+
+    if consumer is DiffractionCommandConsumer.BRIEF_REFINEMENT:
+        if free_r_identity is None:
+            raise DiffractionSelectionError(
+                "Phase III brief refinement requires a Free-R identity"
+            )
+        verify_free_r_identity_selection(free_r_identity, selection)
+    elif free_r_identity is not None:
+        raise DiffractionSelectionError(
+            "first-copy Phaser cannot consume a brief-refinement Free-R identity"
+        )
 
     resolution_binding = (
         "verified_by_mtz_preflight_explicit_refinement_limits_pending"
@@ -296,6 +314,31 @@ def build_diffraction_command_binding(
         resolution_low_a=selection.resolution_low_a,
         resolution_high_a=selection.resolution_high_a,
         resolution_command_binding=resolution_binding,
+        free_r_identity_id=(
+            free_r_identity.free_r_identity_id if free_r_identity is not None else None
+        ),
+        free_r_dataset_id=(
+            free_r_identity.free_r_dataset_id if free_r_identity is not None else None
+        ),
+        free_r_label=(
+            free_r_identity.free_r_label if free_r_identity is not None else None
+        ),
+        free_r_convention_status=(
+            free_r_identity.convention_status if free_r_identity is not None else None
+        ),
+        free_r_test_flag_value=(
+            free_r_identity.test_flag_value if free_r_identity is not None else None
+        ),
+        free_r_command_binding=(
+            "selected_identity_recorded_explicit_phenix_parameter_not_qualified"
+            if free_r_identity is not None
+            else "not_applicable_first_copy_phaser"
+        ),
+        free_r_membership_binding=(
+            "validated_source_identity_post_refinement_exact_comparison_required"
+            if free_r_identity is not None
+            else "identity_placeholder_only_membership_validation_pending"
+        ),
     )
 
 

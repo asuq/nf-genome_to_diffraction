@@ -1351,6 +1351,14 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="required with --diffraction-selection for exact preflight verification",
     )
+    brief_parser.add_argument(
+        "--free-r-identity",
+        type=Path,
+        help=(
+            "required with --diffraction-selection; content-addressed Free-R "
+            "identity for exact post-refinement membership verification"
+        ),
+    )
     brief_parser.add_argument("--phenix-manifest", type=Path, required=True)
     brief_parser.add_argument("--outdir", type=Path, required=True)
     brief_parser.add_argument("--threads", type=int, default=4)
@@ -2960,6 +2968,7 @@ def _run_refinement(args: argparse.Namespace) -> int:
             crystal_id=args.crystal_id,
             diffraction_selection_json=args.diffraction_selection,
             preflight_jsonl=args.preflight,
+            free_r_identity_json=args.free_r_identity,
             threads=args.threads,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,

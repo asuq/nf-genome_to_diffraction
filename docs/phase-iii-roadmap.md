@@ -86,8 +86,15 @@ to the diffraction selection, rejects non-finite, non-integral, constant, and
 ambiguous arrays, records the complete raw-value distribution, and hashes the
 sorted HKL-to-raw-flag mapping. A derived-MTZ comparison fails on missing HKLs
 or changed flags and is invariant to row order. The test flag value remains
-explicitly unresolved unless supplied from reviewed external provenance;
-Phenix command propagation and real-refinement qualification remain pending.
+explicitly unresolved unless supplied from reviewed external provenance.
+Opt-in Phase III brief refinement now requires that content-address-valid
+identity from the same diffraction selection, includes the exact label and
+convention state in its command identity, and refuses completion or downstream
+sequence-map execution unless the refined MTZ preserves the exact raw mapping.
+The comparison deliberately recognises row permutation only; it does not claim
+symmetry or reindexing equivalence.
+No explicit Phenix Free-R parameter is passed yet: its exact supported form and
+preservation against a real Phenix-derived MTZ remain qualification boundaries.
 
 Fixed-component partner searches now preserve the reviewed parent's original
 model identity/error source in Phaser, command/result records, and cache

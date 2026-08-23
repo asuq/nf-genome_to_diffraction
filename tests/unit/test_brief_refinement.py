@@ -3,13 +3,21 @@
 import hashlib
 import json
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
+import gemmi
+import numpy as np
 import pytest
 
 import genome_to_diffraction.refinement.brief as brief_module
-from genome_to_diffraction.diffraction.selection import build_diffraction_selection
+from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.diffraction.free_r_identity import build_free_r_identity
+from genome_to_diffraction.diffraction.selection import (
+    build_diffraction_selection,
+    load_diffraction_selection,
+)
 from genome_to_diffraction.ids import canonical_json_text, sequence_digest
 from genome_to_diffraction.refinement.brief import (
     T12InputError,
@@ -34,9 +42,23 @@ from genome_to_diffraction.schemas.results import (
     SequenceGroupRecord,
     SourceProteinRecord,
 )
+from genome_to_diffraction.schemas.v2.diffraction import (
+    DiffractionSelection,
+    FreeRConventionStatus,
+)
+from genome_to_diffraction.status import ExecutionStatus
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 STUBS = REPOSITORY / "tests/fixtures/stubs"
+_HKL = (
+    (1, 0, 0),
+    (0, 1, 0),
+    (0, 0, 1),
+    (1, 1, 0),
+    (1, 0, 1),
+    (0, 1, 1),
+)
+_FREE_R_FLAGS = (0, 1, 0, 0, 1, 0)
 
 
 def _group(sequence: str) -> SequenceGroupRecord:
@@ -220,24 +242,72 @@ def test_checksum_mismatch_fails_before_external_execution(tmp_path: Path) -> No
         )
 
 
-def _phase3_request(tmp_path: Path) -> T12RunRequest:
+def _write_phase3_mtz(
+    path: Path,
+    *,
+    hkl: tuple[tuple[int, int, int], ...] = _HKL,
+    free_r_flags: tuple[int, ...] = _FREE_R_FLAGS,
+    include_free_r: bool = True,
+    include_map_coefficients: bool = False,
+) -> None:
+    if len(hkl) != len(free_r_flags):
+        raise ValueError("test HKL and Free-R arrays must have equal length")
+    mtz = gemmi.Mtz(with_base=True)
+    mtz.spacegroup = gemmi.find_spacegroup_by_name("P 21 21 21")
+    mtz.set_cell_for_all(gemmi.UnitCell(100, 100, 100, 90, 90, 90))
+    observations = mtz.add_dataset("observations")
+    assert observations.id == 1
+    mtz.add_column("I", "J", observations.id)
+    mtz.add_column("SIGI", "Q", observations.id)
+    if include_free_r:
+        mtz.add_column("FreeR_flag", "I", observations.id)
+    if include_map_coefficients:
+        mtz.add_column("2FOFCWT", "F", observations.id)
+        mtz.add_column("PH2FOFCWT", "P", observations.id)
+        mtz.add_column("FOFCWT", "F", observations.id)
+        mtz.add_column("PHFOFCWT", "P", observations.id)
+    rows: list[tuple[float, ...]] = []
+    for row_index, indices in enumerate(hkl):
+        values: list[float] = [
+            float(indices[0]),
+            float(indices[1]),
+            float(indices[2]),
+            float(100 + row_index),
+            float(10 + row_index),
+        ]
+        if include_free_r:
+            values.append(float(free_r_flags[row_index]))
+        if include_map_coefficients:
+            values.extend((20.0, 30.0, 5.0, 40.0))
+        rows.append(tuple(values))
+    mtz.set_data(np.asarray(rows, dtype=np.float32))
+    mtz.update_reso()
+    mtz.write_to_file(str(path))
+
+
+def _phase3_request(
+    tmp_path: Path,
+    *,
+    test_flag_value: int | None = None,
+) -> T12RunRequest:
     tmp_path.mkdir(parents=True, exist_ok=True)
     parent_coordinate = tmp_path / "parent.pdb"
     parent_coordinate.write_text("MODEL\nEND\n", encoding="ascii")
     parent_mtz = tmp_path / "parent.mtz"
-    parent_mtz.write_bytes(b"derived parent MTZ")
+    _write_phase3_mtz(parent_mtz)
     base_preflight = MtzPreflightRecord.model_validate_json(
         (STUBS / "mtz_preflight.jsonl").read_text(encoding="utf-8")
     )
     candidate = MtzObservationCandidateRecord(
-        dataset_id=3,
+        dataset_id=1,
         labels=("I", "SIGI"),
         observation_type="intensity",
     )
     payload = base_preflight.model_dump(mode="python")
     payload.update(
         {
-            "selected_observation_dataset_id": 3,
+            "mtz_sha256": sha256_file(parent_mtz, progress=False),
+            "selected_observation_dataset_id": 1,
             "observation_candidate_identities": (candidate,),
         }
     )
@@ -258,6 +328,18 @@ def _phase3_request(tmp_path: Path) -> T12RunRequest:
     )
     selection_path = tmp_path / "diffraction_selection.json"
     selection_path.write_text(canonical_json_text(selection), encoding="utf-8")
+    free_r_identity = build_free_r_identity(
+        selection=selection,
+        mtz_path=parent_mtz,
+        free_r_dataset_id=1,
+        free_r_label="FreeR_flag",
+        test_flag_value=test_flag_value,
+    )
+    free_r_identity_path = tmp_path / "free_r_identity.json"
+    free_r_identity_path.write_text(
+        canonical_json_text(free_r_identity),
+        encoding="utf-8",
+    )
     group = SequenceGroupRecord.model_validate_json(
         (STUBS / "sequence_groups.jsonl").read_text(encoding="utf-8")
     )
@@ -280,15 +362,18 @@ def _phase3_request(tmp_path: Path) -> T12RunRequest:
         crystal_id=preflight.crystal_id,
         diffraction_selection_json=selection_path,
         preflight_jsonl=preflight_path,
+        free_r_identity_json=free_r_identity_path,
         progress=False,
     )
 
 
-def test_phase3_refinement_command_records_verified_diffraction_selection(
-    tmp_path: Path,
+def _install_phase3_runtime(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    request = _phase3_request(tmp_path)
+    *,
+    derived_hkl: tuple[tuple[int, int, int], ...] = _HKL,
+    derived_free_r_flags: tuple[int, ...] = _FREE_R_FLAGS,
+    include_free_r: bool = True,
+) -> list[list[str]]:
     manifest = load_contract(
         STUBS / "phenix_install_manifest.json",
         "phenix-install-manifest",
@@ -311,7 +396,13 @@ def test_phase3_refinement_command_records_verified_diffraction_selection(
                 "MODEL\nEND\n",
                 encoding="ascii",
             )
-            (working_directory / "brief_refine_001.mtz").write_bytes(b"refined")
+            _write_phase3_mtz(
+                working_directory / "brief_refine_001.mtz",
+                hkl=derived_hkl,
+                free_r_flags=derived_free_r_flags,
+                include_free_r=include_free_r,
+                include_map_coefficients=True,
+            )
             (working_directory / "brief_refine_2mFo-DFc.ccp4").write_bytes(b"map")
             (working_directory / "brief_refine_mFo-DFc.ccp4").write_bytes(b"difference")
             output = (
@@ -328,25 +419,214 @@ def test_phase3_refinement_command_records_verified_diffraction_selection(
         lambda _path: manifest,
     )
     monkeypatch.setattr(brief_module, "capture_from_manifest", fake_capture)
-    monkeypatch.setattr(
-        brief_module,
-        "_has_required_map_coefficients",
-        lambda _path: True,
+    return commands
+
+
+def test_version_1_refinement_path_does_not_require_free_r_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = replace(
+        _phase3_request(tmp_path),
+        crystal_id=None,
+        diffraction_selection_json=None,
+        preflight_jsonl=None,
+        free_r_identity_json=None,
+    )
+    _install_phase3_runtime(monkeypatch)
+
+    output = run_t12_candidate(request)
+
+    record = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert output.refinement.execution_status is ExecutionStatus.COMPLETED_SUCCESS
+    assert output.free_r_comparison is None
+    assert record["schema_version"] == "1.0"
+    assert record["protocol_version"] == "phenix-t12-brief-v5"
+    assert "free_r_identity" not in record
+
+
+def test_phase3_refinement_requires_free_r_identity(tmp_path: Path) -> None:
+    request = replace(
+        _phase3_request(tmp_path),
+        free_r_identity_json=None,
+    )
+
+    with pytest.raises(T12InputError, match="Free-R identity"):
+        run_t12_candidate(request)
+
+
+def test_phase3_refinement_rejects_content_id_mutated_free_r_identity(
+    tmp_path: Path,
+) -> None:
+    request = _phase3_request(tmp_path)
+    assert request.free_r_identity_json is not None
+    record = json.loads(request.free_r_identity_json.read_text(encoding="utf-8"))
+    record["free_r_label"] = "mutated_without_recomputing_identity"
+    request.free_r_identity_json.write_text(json.dumps(record), encoding="utf-8")
+
+    with pytest.raises(T12InputError, match="invalid Free-R identity"):
+        run_t12_candidate(request)
+
+
+def test_phase3_refinement_rejects_free_r_selection_mismatch(tmp_path: Path) -> None:
+    request = _phase3_request(tmp_path)
+    assert request.diffraction_selection_json is not None
+    assert request.free_r_identity_json is not None
+    selection = load_diffraction_selection(request.diffraction_selection_json)
+    selection_values = selection.model_dump(
+        mode="python",
+        exclude={"diffraction_selection_id"},
+    )
+    selection_values["crystal_manifest_sha256"] = "e" * 64
+    other_selection = DiffractionSelection.from_content(**selection_values)
+    other_identity = build_free_r_identity(
+        selection=other_selection,
+        mtz_path=request.parent_mtz,
+        free_r_dataset_id=1,
+        free_r_label="FreeR_flag",
+    )
+    request.free_r_identity_json.write_text(
+        canonical_json_text(other_identity),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(T12InputError, match="differs from the diffraction selection"):
+        run_t12_candidate(request)
+
+
+def test_phase3_refinement_promotes_permuted_synthetic_mtz_after_free_r_comparison(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _phase3_request(tmp_path)
+    order = (5, 2, 0, 4, 1, 3)
+    commands = _install_phase3_runtime(
+        monkeypatch,
+        derived_hkl=tuple(_HKL[index] for index in order),
+        derived_free_r_flags=tuple(_FREE_R_FLAGS[index] for index in order),
     )
 
     output = run_t12_candidate(request)
 
     record = json.loads(output.command_json.read_text(encoding="utf-8"))
     binding = record["diffraction_command_binding"]
+    assert output.refinement.execution_status is ExecutionStatus.COMPLETED_SUCCESS
+    assert output.free_r_comparison is not None
+    assert output.free_r_comparison_json is not None
+    assert output.free_r_comparison_json.is_file()
+    assert output.free_r_comparison.preservation_status.startswith("preserved_exact")
     assert record["schema_version"] == "2.0"
     assert record["phase3_refine_command_id"].startswith("refinecmd_")
     assert record["phase3_sequence_command_id"].startswith("seqmapcmd_")
-    assert record["diffraction_selection"]["observation_dataset_id"] == 3
+    assert record["diffraction_selection"]["observation_dataset_id"] == 1
+    assert record["free_r_identity"]["free_r_label"] == "FreeR_flag"
+    assert record["free_r_identity"]["convention_status"] == (
+        "unresolved_raw_flag_values_only"
+    )
+    assert record["free_r_identity"]["test_flag_value"] is None
+    assert record["free_r_membership_comparison_status"] == "preserved_exact"
+    assert record["free_r_membership_comparison"]["comparison_id"] == (
+        output.free_r_comparison.comparison_id
+    )
     assert binding["resolution_command_binding"] == (
         "sequence_from_map_high_resolution_explicit_refinement_limits_pending"
     )
     assert binding["command_mtz_binding"].endswith("derivation_verification_pending")
+    assert binding["free_r_label"] == "FreeR_flag"
+    assert binding["free_r_convention_status"] == ("unresolved_raw_flag_values_only")
+    assert binding["free_r_test_flag_value"] is None
+    assert binding["free_r_command_binding"].endswith("parameter_not_qualified")
     assert "data_manager.miller_array.labels.name=I,SIGI" in commands[0]
+    assert not any("FreeR_flag" in argument for argument in commands[0])
     assert not any("space_group" in argument for argument in commands[0])
     assert not any("resolution" in argument for argument in commands[0])
     assert "crystal_info.resolution=2" in commands[1]
+
+
+@pytest.mark.parametrize(
+    ("include_free_r", "derived_flags", "error_fragment"),
+    (
+        (True, (1, 1, 0, 0, 1, 0), "changed the exact HKL-to-Free-R"),
+        (False, _FREE_R_FLAGS, "Free-R label is missing"),
+    ),
+    ids=("changed-flag", "missing-flag-column"),
+)
+def test_phase3_refinement_refuses_changed_or_missing_free_r_flags(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    include_free_r: bool,
+    derived_flags: tuple[int, ...],
+    error_fragment: str,
+) -> None:
+    request = _phase3_request(tmp_path)
+    commands = _install_phase3_runtime(
+        monkeypatch,
+        derived_free_r_flags=derived_flags,
+        include_free_r=include_free_r,
+    )
+
+    output = run_t12_candidate(request)
+
+    record = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert output.refinement.execution_status is ExecutionStatus.FAILED_PARSE
+    assert output.refinement.refined_mtz_path is None
+    assert output.sequence.execution_status is ExecutionStatus.SKIPPED_INELIGIBLE
+    assert output.free_r_comparison is None
+    assert output.free_r_comparison_json is None
+    assert output.refinement.warnings == (
+        "refined_mtz_free_r_membership_comparison_failed",
+    )
+    assert record["free_r_membership_comparison_status"] == "failed_contract"
+    assert error_fragment in record["free_r_membership_comparison_error"]
+    assert len(commands) == 1
+
+
+def test_phase3_refinement_command_identity_changes_with_free_r_convention(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    unresolved_request = _phase3_request(tmp_path)
+    assert unresolved_request.diffraction_selection_json is not None
+    selection = load_diffraction_selection(
+        unresolved_request.diffraction_selection_json
+    )
+    explicit_identity = build_free_r_identity(
+        selection=selection,
+        mtz_path=unresolved_request.parent_mtz,
+        free_r_dataset_id=1,
+        free_r_label="FreeR_flag",
+        test_flag_value=1,
+    )
+    explicit_identity_path = tmp_path / "free_r_identity_explicit.json"
+    explicit_identity_path.write_text(
+        canonical_json_text(explicit_identity),
+        encoding="utf-8",
+    )
+    explicit_request = replace(
+        unresolved_request,
+        free_r_identity_json=explicit_identity_path,
+        output_directory=tmp_path / "refinement_explicit",
+    )
+    _install_phase3_runtime(monkeypatch)
+
+    unresolved = run_t12_candidate(unresolved_request)
+    explicit = run_t12_candidate(explicit_request)
+
+    unresolved_record = json.loads(unresolved.command_json.read_text(encoding="utf-8"))
+    explicit_record = json.loads(explicit.command_json.read_text(encoding="utf-8"))
+    assert (
+        unresolved_record["diffraction_selection"]["diffraction_selection_id"]
+        == (explicit_record["diffraction_selection"]["diffraction_selection_id"])
+    )
+    assert (
+        unresolved_record["phase3_refine_command_id"]
+        != (explicit_record["phase3_refine_command_id"])
+    )
+    assert unresolved_record["free_r_identity"]["convention_status"] == (
+        FreeRConventionStatus.UNRESOLVED.value
+    )
+    assert unresolved_record["free_r_identity"]["test_flag_value"] is None
+    assert explicit_record["free_r_identity"]["convention_status"] == (
+        FreeRConventionStatus.EXPLICIT_TEST_VALUE.value
+    )
+    assert explicit_record["free_r_identity"]["test_flag_value"] == 1

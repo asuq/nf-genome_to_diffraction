@@ -181,17 +181,16 @@ it. The user authorised an archival v0.1 release even though M6 is held and the
 software is incomplete. Label that release honestly; do not claim production or
 M6 scientific acceptance.
 
-After preserving v0.1, implement the smallest heteromer path before additional
-hardening: known fixed-A/one-B placement on 6RTZ, end-to-end 6RTZ, then explicit
-`nA + mB` and a small positive/negative control slice. The v0.2 release remains
-isolated on `main` until its exact-source P6 and release gates close.
+After preserving v0.1, the smallest bounded two-component path was completed
+and published as experimental `v0.2.0` from exact-source Marmic-qualified
+commit `68d216f`. Preserve that tag, release notes, P6 evidence, and scientific
+limitations as immutable read-only history.
 
-Phase III foundation development may proceed in parallel only on `dev/phase3`
-or branches/worktrees derived from it. Do not reinterpret, mutate, or reuse the
-active v0.2 Marmic run as Phase III evidence. Do not launch Phase III controls,
-M6 reruns, localisation, or unknown-crystal analysis until the corresponding
-Phase III contracts and fixed profiles have passed their local integration
-gates and v0.2 has been preserved as an immutable release.
+Phase III is now the active development programme on `dev/phase3` or
+branches/worktrees derived from it. Do not reinterpret, mutate, or reuse a v0.2
+Marmic run as Phase III evidence. Do not launch Phase III controls, M6 reruns,
+localisation, or unknown-crystal analysis until the corresponding Phase III
+contracts and fixed profiles have passed their local integration gates.
 
 At the start of each new development loop, read the newest entry in
 `docs/development-loop-journal.md` before changing code or running a new remote
