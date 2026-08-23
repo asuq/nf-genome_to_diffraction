@@ -276,6 +276,10 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "mode=heteromer_multicopy ;;\n"
         '  *" benchmark prepare-6rtz-partner-catalogue "*) '
         "mode=heteromer_catalogue ;;\n"
+        '  *" benchmark prepare-heteromer-control-slice "*) '
+        "mode=heteromer_p6 ;;\n"
+        '  *" benchmark assess-heteromer-control-slice "*) '
+        "mode=heteromer_p6_assess ;;\n"
         '  *" benchmark approve-6rtz-parent "*) mode=heteromer_review ;;\n'
         '  *" phenix refresh-manifest "*) mode=phenix_refresh ;;\n'
         '  *" phenix verify "*) mode=phenix_verify ;;\n'
@@ -417,6 +421,39 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"$outdir/partner_model_registry/model_preparation_manifest.json"\n'
         '  printf "ATOM\\n" > '
         '"$outdir/partner_model_registry/models/partner.pdb"\n'
+        'elif [[ "$mode" == heteromer_p6 ]]; then\n'
+        '  mkdir -p "$outdir/missing_partner_model_registry/models" '
+        '"$outdir/wrong_partner"\n'
+        "  parent_seq=\"seq_$(printf 'a%.0s' {1..64})\"\n"
+        "  wrong_seq=\"seq_$(printf 'e%.0s' {1..64})\"\n"
+        "  model_sha=\"$(printf '0%.0s' {1..64})\"\n"
+        '  printf \'{"adapter_version":"heteromer-p6-control-slice-v1",'
+        '"wrong_partner":{"parent_sequence_group_id":"%s",'
+        '"partner_sequence_group_id":"%s",'
+        '"partner_model_identity_fraction":1.0},'
+        '"files":{"wrong_partner_model":{"sha256":"%s"}}}\\n\' '
+        '"$parent_seq" "$wrong_seq" "$model_sha" '
+        '> "$outdir/preparation_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/missing_partner_model_registry/processed_models.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/missing_partner_model_registry/model_preparation_manifest.json"\n'
+        '  printf "ATOM\\n" > '
+        '"$outdir/missing_partner_model_registry/models/parent.pdb"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/wrong_partner/sequence_groups.jsonl"\n'
+        '  printf "ATOM\\n" > "$outdir/wrong_partner/model.pdb"\n'
+        'elif [[ "$mode" == heteromer_p6_assess ]]; then\n'
+        '  [[ -n "$refreshed" ]] || exit 20\n'
+        '  mkdir -p "$(dirname "$refreshed")"\n'
+        '  printf \'{"schema_version":"1.0","gate_passed":true,'
+        '"cases":{"missing_B":{"gate_passed":true,'
+        '"complete_composition_claimed":false},'
+        '"wrong_B":{"gate_passed":true,'
+        '"complete_composition_claimed":false},'
+        '"9ECN_three_component_boundary":{"gate_passed":true,'
+        '"status":"unsupported_component_count",'
+        '"complete_composition_claimed":false}}}\\n\' > "$refreshed"\n'
         'elif [[ "$mode" == heteromer_review ]]; then\n'
         '  mkdir -p "$outdir/mr_seed_review" '
         '"$outdir/approved_mr_seed_stage"\n'
@@ -458,6 +495,14 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "  candidate_id=\"partnercand_$(printf '8%.0s' {1..64})\"\n"
         "  partner_seq=\"seq_$(printf 'b%.0s' {1..64})\"\n"
         "  plan_id=\"partnerplan_$(printf '9%.0s' {1..64})\"\n"
+        '  if [[ "$outdir" == */p6/missing-plan ]]; then\n'
+        '    printf \'{"plan_id":"%s","candidate_count":1845,'
+        '"searchable_candidate_count":0,"selected_attempt_count":0,'
+        '"deferred_cap_count":0,"unsearchable_candidate_count":1845,'
+        '"candidates":[]}\\n\' "$plan_id" > "$outdir/partner_search_plan.json"\n'
+        '    : > "$outdir/partner_candidates.jsonl"\n'
+        '    : > "$outdir/selected_partner_candidate_ids.txt"\n'
+        "  else\n"
         '  printf \'{"plan_id":"%s","candidate_count":1845,'
         '"searchable_candidate_count":1,"selected_attempt_count":1,'
         '"deferred_cap_count":0,"unsearchable_candidate_count":1844,'
@@ -471,6 +516,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '> "$outdir/partner_candidates.jsonl"\n'
         '  printf "%s\\n" "$candidate_id" > '
         '"$outdir/selected_partner_candidate_ids.txt"\n'
+        "  fi\n"
         'elif [[ "$mode" == first_copy ]]; then\n'
         '  mkdir -p "$outdir"\n'
         "  placed=1\n"
@@ -522,10 +568,17 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         'elif [[ "$mode" == partner_summary ]]; then\n'
         '  [[ -n "$refreshed" ]] || exit 19\n'
         '  mkdir -p "$(dirname "$refreshed")"\n'
+        '  if [[ "$refreshed" == */p6/missing-partner-summary.json ]]; then\n'
+        '    printf \'{"all_selected_attempts_retained":true,'
+        '"candidate_count":1845,"selected_attempt_count":0,"result_count":0,'
+        '"completed_hit_count":0,"unsearchable_candidate_count":1845}\\n\' '
+        '> "$refreshed"\n'
+        "  else\n"
         '  printf \'{"all_selected_attempts_retained":true,'
         '"candidate_count":1845,"selected_attempt_count":1,"result_count":1,'
         '"completed_hit_count":1,"unsearchable_candidate_count":1844}\\n\' '
         '> "$refreshed"\n'
+        "  fi\n"
         "else\n"
         "  exit 9\n"
         "fi\n"
@@ -4127,6 +4180,9 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         run
         / "artifacts/heteromer-smoke/inputs/catalogue-control/preparation_manifest.json"
     ).is_file()
+    assert (
+        run / "artifacts/heteromer-smoke/inputs/p6-control/preparation_manifest.json"
+    ).is_file()
 
     submitted = _decode_protocol(
         _run(
@@ -4177,6 +4233,18 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert catalogue["candidate_count"] == 1845
     assert catalogue["selected_attempt_count"] == 1
     assert catalogue["unsearchable_candidate_count"] == 1844
+    p6 = json.loads(
+        (run / "artifacts/qualification/heteromer-control-slice-report.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert p6["gate_passed"] is True
+    assert p6["cases"]["missing_B"]["complete_composition_claimed"] is False
+    assert p6["cases"]["wrong_B"]["complete_composition_claimed"] is False
+    assert (
+        p6["cases"]["9ECN_three_component_boundary"]["status"]
+        == "unsupported_component_count"
+    )
     log = (run / "logs/heteromer-smoke.log").read_text(encoding="utf-8")
     assert "phase=heteromer_parent_A profile=heteromer-smoke" in log
     assert "phase=heteromer_component_review profile=heteromer-smoke" in log
@@ -4185,6 +4253,9 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert "phase=heteromer_multicopy_partner_B profile=heteromer-smoke" in log
     assert "phase=heteromer_catalogue_plan profile=heteromer-smoke" in log
     assert "phase=heteromer_catalogue_partner profile=heteromer-smoke" in log
+    assert "phase=heteromer_p6_missing_partner profile=heteromer-smoke" in log
+    assert "phase=heteromer_p6_wrong_partner profile=heteromer-smoke" in log
+    assert "phase=heteromer_p6_gate profile=heteromer-smoke" in log
 
     archive = _run(
         [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
@@ -4196,12 +4267,18 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert "artifacts/qualification/heteromer-smoke-summary.json" in names
     assert "artifacts/qualification/heteromer-multicopy-summary.json" in names
     assert "artifacts/qualification/heteromer-catalogue-summary.json" in names
+    assert "artifacts/qualification/heteromer-control-slice-report.json" in names
     assert "artifacts/heteromer-smoke/parent/normalised_mr_result.json" in names
     assert (
         "artifacts/heteromer-smoke/component_checkpoint/approved_mr_seed_stage/"
         "live_m4_stage_manifest.json"
     ) in names
     assert "artifacts/heteromer-smoke/partner/partner_search_result.json" in names
+    assert "artifacts/heteromer-smoke/p6/missing-plan/partner_search_plan.json" in names
+    assert "artifacts/heteromer-smoke/p6/missing-partner-summary.json" in names
+    assert (
+        "artifacts/heteromer-smoke/p6/wrong-partner/partner_search_result.json" in names
+    )
     assert (
         "artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json"
         in names

@@ -47,6 +47,7 @@ workflow PARTNER_SEARCH_WORKFLOW {
     )
     partner_result_list = planned_results
         .collect()
+        .ifEmpty { [] }
         .map { results -> results as List<Path> }
     attempt_summary = SUMMARIZE_PARTNER_ATTEMPTS(
         partner_plan.first(),

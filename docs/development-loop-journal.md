@@ -10067,3 +10067,35 @@ typed controls: missing B, wrong B, homomer non-regression, and the 9ECN
 `unsupported_component_count` boundary. Reuse the existing accepted positive
 controls and workflow/profile; do not implement three-component reconstruction,
 localisation filtering, unknown crystals, or deferred hardening.
+
+## 2026-08-23T02:20:00Z - P6 control slice is locally green
+
+### Smallest completed slice
+
+- Added one fixed P6 preparation/assessment module rather than a new workflow
+  root or profile. It reuses the accepted 6RTZ and 3U7Q bundles to create a
+  parent-only model registry for missing B, one checksum-bound 3U7Q-B wrong
+  model against fixed 6RTZ-A, and the protocol-bound 9ECN three-component
+  boundary.
+- Missing B now survives the workflow as an empty selected channel and produces
+  a complete zero-attempt summary. Against the retained real 1846-protein P5
+  catalogue, all 1845 non-A rows were retained as unsearchable, with zero
+  selected searches and a valid zero-result summary.
+- The P6 assessor requires both accepted positive placements, completed
+  missing/wrong controls without any complete-composition claim, a packed
+  current-source first-copy result as the homomer-route non-regression, and
+  explicit 9ECN `unsupported_component_count` while retaining possible partial
+  A+B evidence. Tool or parse failures cannot pass the wrong-B control.
+- The existing `heteromer-smoke` now stages only these fixed inputs, runs one
+  additional wrong-B Phaser attempt, writes one six-case report, and retains
+  its commands, results, report, and checksums. Twenty-nine focused unit tests,
+  the fake Marmic lifecycle, Ruff, `ty`, Bash syntax, Nextflow syntax, and diff
+  checks pass. The complete repository gate remains deferred to the v0.2
+  release boundary.
+
+### Next exact starting point
+
+Review and commit/push the P6 slice, watch one CI run, deploy matching tools,
+and stage exactly one fresh existing `heteromer-smoke`. After submission, use a
+30-minute heartbeat for wrapper-only status. Collect and classify all six case
+outcomes before accepting P6 or beginning the v0.2 release boundary.

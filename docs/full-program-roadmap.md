@@ -223,5 +223,6 @@ is intentionally after the experimental heteromer release.
   are backlog unless a known control proves a blocker.
 - Marmic run `629614` is terminal, collected, and orchestration-only. Never
   query, resume, recollect, reuse, or clean it.
-- Gates A--C are complete. H3/P4 is accepted by Marmic run `632835`; the active
-  programme action is P5 deterministic capped catalogue partner search.
+- Gates A--C and P5 are complete. H3/P4 is accepted by Marmic run `632835`, and
+  the full-catalogue P5 search is accepted by run `632896`. The active programme
+  action is real Marmic qualification of the locally green P6 control slice.

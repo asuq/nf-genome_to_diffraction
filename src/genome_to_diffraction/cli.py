@@ -12,6 +12,8 @@ from genome_to_diffraction.benchmarks import (
     HeteromerCatalogueControlRequest,
     HeteromerControlPreparationRequest,
     HeteromerControlReviewRequest,
+    HeteromerSliceAssessmentRequest,
+    HeteromerSlicePreparationRequest,
     M6CollectionRequest,
     M6EvaluationRequest,
     M6InputPreparationRequest,
@@ -20,6 +22,7 @@ from genome_to_diffraction.benchmarks import (
     MrControlBundleRequest,
     PublicControlPreparationRequest,
     PublicPanelPreparationRequest,
+    assess_heteromer_control_slice,
     build_6rtz_control_review,
     build_m6_runner_bundle,
     build_mr_control_bundle,
@@ -30,6 +33,7 @@ from genome_to_diffraction.benchmarks import (
     prepare_3u7q_heteromer_control,
     prepare_6rtz_heteromer_control,
     prepare_6rtz_partner_catalogue_control,
+    prepare_heteromer_control_slice,
     prepare_m6_inputs,
     prepare_public_control,
     prepare_public_control_panel,
@@ -573,6 +577,44 @@ def _build_parser() -> argparse.ArgumentParser:
         "--parent-result-directory", type=Path, required=True
     )
     heteromer_review_parser.add_argument("--outdir", type=Path, required=True)
+    heteromer_slice_prepare_parser = benchmark_actions.add_parser(
+        "prepare-heteromer-control-slice",
+        help="prepare the fixed missing-B, wrong-B, and 9ECN P6 controls",
+    )
+    heteromer_slice_prepare_parser.add_argument("--protocol", type=Path, required=True)
+    heteromer_slice_prepare_parser.add_argument(
+        "--control-6rtz-preparation", type=Path, required=True
+    )
+    heteromer_slice_prepare_parser.add_argument(
+        "--control-3u7q-preparation", type=Path, required=True
+    )
+    heteromer_slice_prepare_parser.add_argument("--outdir", type=Path, required=True)
+    heteromer_slice_assess_parser = benchmark_actions.add_parser(
+        "assess-heteromer-control-slice",
+        help="assess the six fixed P6 controls",
+    )
+    heteromer_slice_assess_parser.add_argument(
+        "--preparation-manifest", type=Path, required=True
+    )
+    heteromer_slice_assess_parser.add_argument(
+        "--positive-6rtz-result", type=Path, required=True
+    )
+    heteromer_slice_assess_parser.add_argument(
+        "--positive-3u7q-result", type=Path, required=True
+    )
+    heteromer_slice_assess_parser.add_argument(
+        "--missing-partner-plan", type=Path, required=True
+    )
+    heteromer_slice_assess_parser.add_argument(
+        "--missing-partner-summary", type=Path, required=True
+    )
+    heteromer_slice_assess_parser.add_argument(
+        "--wrong-partner-result", type=Path, required=True
+    )
+    heteromer_slice_assess_parser.add_argument(
+        "--homomer-result", type=Path, required=True
+    )
+    heteromer_slice_assess_parser.add_argument("--output", type=Path, required=True)
     control_bundle_parser = benchmark_actions.add_parser(
         "build-first-copy-controls",
         help="build the fixed exact-positive and unrelated-negative MR bundle",
@@ -1759,6 +1801,32 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         )
         print(f"Prepared fixed 3U7Q 2A+2B inputs: {prepared.preparation_manifest}")
         return 0
+    if args.benchmark_action == "prepare-heteromer-control-slice":
+        prepared = prepare_heteromer_control_slice(
+            HeteromerSlicePreparationRequest(
+                protocol=args.protocol,
+                control_6rtz_preparation=args.control_6rtz_preparation,
+                control_3u7q_preparation=args.control_3u7q_preparation,
+                output_directory=args.outdir,
+            )
+        )
+        print(f"Prepared fixed P6 control slice: {prepared.preparation_manifest}")
+        return 0
+    if args.benchmark_action == "assess-heteromer-control-slice":
+        assessed = assess_heteromer_control_slice(
+            HeteromerSliceAssessmentRequest(
+                preparation_manifest=args.preparation_manifest,
+                positive_6rtz_result=args.positive_6rtz_result,
+                positive_3u7q_result=args.positive_3u7q_result,
+                missing_partner_plan=args.missing_partner_plan,
+                missing_partner_summary=args.missing_partner_summary,
+                wrong_partner_result=args.wrong_partner_result,
+                homomer_result=args.homomer_result,
+                output_json=args.output,
+            )
+        )
+        print(f"Assessed fixed P6 control slice: {assessed.report_json}")
+        return 0 if assessed.gate_passed else 4
     if args.benchmark_action == "prepare-6rtz-partner-catalogue":
         prepared = prepare_6rtz_partner_catalogue_control(
             HeteromerCatalogueControlRequest(

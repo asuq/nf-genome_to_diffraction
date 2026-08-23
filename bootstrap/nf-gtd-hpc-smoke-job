@@ -1686,10 +1686,18 @@ run_heteromer_smoke() {
     local catalogue_partner_result="$catalogue_partner/partner_search_result.json"
     local catalogue_candidate_id catalogue_parent_group catalogue_partner_group
     local catalogue_model_id catalogue_gate_passed
+    local p6_inputs="$inputs/p6-control"
+    local p6_root="$root/p6"
+    local p6_missing_plan="$p6_root/missing-plan"
+    local p6_missing_summary="$p6_root/missing-partner-summary.json"
+    local p6_wrong_partner="$p6_root/wrong-partner"
+    local p6_wrong_result="$p6_wrong_partner/partner_search_result.json"
+    local p6_report="$qualification/heteromer-control-slice-report.json"
+    local p6_parent_group p6_wrong_group p6_wrong_model_sha p6_wrong_identity
     local legacy_phenix_manifest refreshed_phenix_manifest
     local -a preparation_values=() parent_values=()
     local -a multicopy_values=() multicopy_parent_values=()
-    local -a catalogue_values=()
+    local -a catalogue_values=() p6_values=()
 
     [[ -f "$RUN/state/phenix-manifest" && \
        -f "$RUN/state/phenix-manifest-sha256" ]] || return 2
@@ -1707,7 +1715,7 @@ run_heteromer_smoke() {
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     mkdir -p "$preflight" "$partner" "$multicopy_preflight" \
         "$multicopy_partner" "$catalogue_matthews" "$catalogue_partner" \
-        "$qualification"
+        "$p6_wrong_partner" "$qualification"
     cd "$RUN/source"
 
     PHASE=preflight
@@ -2233,6 +2241,100 @@ summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", en
 print("true" if gate else "false")
 PY
     )"
+    [[ "$catalogue_gate_passed" == true ]] || return 4
+
+    PHASE=test
+    printf 'phase=heteromer_p6_missing_partner profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress ranking approved-partner-plan \
+        --approved-stage "$checkpoint/approved_mr_seed_stage" \
+        --crystal-id 6RTZ \
+        --partner-copy-count 1 \
+        --sequence-groups "$catalogue_inputs/catalogue/sequence_groups.jsonl" \
+        --matthews "$catalogue_matthews/matthews_hypotheses.jsonl" \
+        --preflight "$preflight/mtz_preflight.jsonl" \
+        --config "$catalogue_inputs/pipeline_config.json" \
+        --model-registry "$p6_inputs/missing_partner_model_registry" \
+        --outdir "$p6_missing_plan"
+    "$GTD" --log-format json --no-progress mr summarize-partners \
+        --partner-plan "$p6_missing_plan/partner_search_plan.json" \
+        --output "$p6_missing_summary"
+
+    mapfile -t p6_values < <(
+        "$PYTHON" - "$p6_inputs/preparation_manifest.json" <<'PY'
+import json
+import math
+import re
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+wrong = document.get("wrong_partner")
+files = document.get("files")
+model = files.get("wrong_partner_model") if isinstance(files, dict) else None
+values = (
+    wrong.get("parent_sequence_group_id") if isinstance(wrong, dict) else None,
+    wrong.get("partner_sequence_group_id") if isinstance(wrong, dict) else None,
+    model.get("sha256") if isinstance(model, dict) else None,
+    wrong.get("partner_model_identity_fraction") if isinstance(wrong, dict) else None,
+)
+if (
+    document.get("adapter_version") != "heteromer-p6-control-slice-v1"
+    or any(
+        not isinstance(value, str)
+        or re.fullmatch(r"seq_[a-f0-9]{64}", value) is None
+        for value in values[:2]
+    )
+    or not isinstance(values[2], str)
+    or re.fullmatch(r"[a-f0-9]{64}", values[2]) is None
+    or isinstance(values[3], bool)
+    or not isinstance(values[3], (int, float))
+    or not math.isfinite(float(values[3]))
+    or not 0 < float(values[3]) <= 1
+):
+    raise SystemExit("invalid fixed P6 wrong-partner preparation")
+print(*values, sep="\n")
+PY
+    )
+    [[ "${#p6_values[@]}" -eq 4 ]] || return 4
+    p6_parent_group="${p6_values[0]}"
+    p6_wrong_group="${p6_values[1]}"
+    p6_wrong_model_sha="${p6_values[2]}"
+    p6_wrong_identity="${p6_values[3]}"
+
+    PHASE=software
+    printf 'phase=heteromer_p6_wrong_partner profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress mr search-partner \
+        --crystal-id 6RTZ \
+        --parent-solution-id "joint_${parent_hypothesis_id}" \
+        --parent-sequence-group-id "$p6_parent_group" \
+        --partner-sequence-group-id "$p6_wrong_group" \
+        --sequence-groups "$p6_inputs/wrong_partner/sequence_groups.jsonl" \
+        --parent-coordinate "$parent_coordinate" \
+        --expected-parent-coordinate-sha256 "$parent_coordinate_sha256" \
+        --parent-llg "$parent_llg" \
+        --parent-copy-count 1 \
+        --partner-model "$p6_inputs/wrong_partner/model.pdb" \
+        --expected-partner-model-sha256 "$p6_wrong_model_sha" \
+        --partner-model-identity-fraction "$p6_wrong_identity" \
+        --partner-copy-count 1 \
+        --preflight "$preflight/mtz_preflight.jsonl" \
+        --mtz "$inputs/derived/6RTZ.mtz" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --threads "${SLURM_CPUS_PER_TASK:-1}" \
+        --outdir "$p6_wrong_partner"
+
+    PHASE=test
+    printf 'phase=heteromer_p6_gate profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress \
+        benchmark assess-heteromer-control-slice \
+        --preparation-manifest "$p6_inputs/preparation_manifest.json" \
+        --positive-6rtz-result "$partner_result" \
+        --positive-3u7q-result "$multicopy_partner_result" \
+        --missing-partner-plan "$p6_missing_plan/partner_search_plan.json" \
+        --missing-partner-summary "$p6_missing_summary" \
+        --wrong-partner-result "$p6_wrong_result" \
+        --homomer-result "$parent_result" \
+        --output "$p6_report"
     (
         cd "$RUN"
         sha256sum \
@@ -2262,9 +2364,14 @@ PY
             artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json \
             artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json \
             artifacts/qualification/heteromer-catalogue-summary.json \
+            artifacts/heteromer-smoke/inputs/p6-control/preparation_manifest.json \
+            artifacts/heteromer-smoke/p6/missing-plan/partner_search_plan.json \
+            artifacts/heteromer-smoke/p6/missing-partner-summary.json \
+            artifacts/heteromer-smoke/p6/wrong-partner/partner_search_result.json \
+            artifacts/heteromer-smoke/p6/wrong-partner/phaser_command.json \
+            artifacts/qualification/heteromer-control-slice-report.json \
             > artifacts/qualification/heteromer-smoke-checksums.sha256
     )
-    [[ "$catalogue_gate_passed" == true ]] || return 4
     printf 'heteromer_smoke_status=passed\n'
 }
 

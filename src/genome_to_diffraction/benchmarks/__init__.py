@@ -14,6 +14,14 @@ from genome_to_diffraction.benchmarks.heteromer_control import (
     prepare_3u7q_heteromer_control,
     prepare_6rtz_heteromer_control,
 )
+from genome_to_diffraction.benchmarks.heteromer_slice import (
+    HeteromerSliceAssessmentRequest,
+    HeteromerSliceAssessmentResult,
+    HeteromerSlicePreparationRequest,
+    HeteromerSlicePreparationResult,
+    assess_heteromer_control_slice,
+    prepare_heteromer_control_slice,
+)
 from genome_to_diffraction.benchmarks.m6_collection import (
     M6CollectionRequest,
     M6CollectionResult,
@@ -71,6 +79,10 @@ __all__ = [
     "HeteromerControlPreparationResult",
     "HeteromerControlReviewRequest",
     "HeteromerControlReviewResult",
+    "HeteromerSliceAssessmentRequest",
+    "HeteromerSliceAssessmentResult",
+    "HeteromerSlicePreparationRequest",
+    "HeteromerSlicePreparationResult",
     "M6BenchmarkProtocol",
     "M6CollectionRequest",
     "M6CollectionResult",
@@ -88,6 +100,7 @@ __all__ = [
     "PublicControlPreparationResult",
     "PublicPanelPreparationRequest",
     "PublicPanelPreparationResult",
+    "assess_heteromer_control_slice",
     "build_6rtz_control_review",
     "build_m6_runner_bundle",
     "build_mr_control_bundle",
@@ -102,6 +115,7 @@ __all__ = [
     "prepare_3u7q_heteromer_control",
     "prepare_6rtz_heteromer_control",
     "prepare_6rtz_partner_catalogue_control",
+    "prepare_heteromer_control_slice",
     "prepare_m6_inputs",
     "prepare_public_control",
     "prepare_public_control_panel",

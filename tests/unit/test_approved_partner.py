@@ -356,3 +356,37 @@ def test_partner_summary_requires_every_selected_result(tmp_path: Path) -> None:
                 output_json=tmp_path / "missing-summary.json",
             )
         )
+
+
+def test_partner_summary_accepts_a_missing_b_plan_with_no_attempts(
+    tmp_path: Path,
+) -> None:
+    request = _planned_request(tmp_path)
+    source = PartnerSearchPlan.model_validate_json(
+        request.partner_plan_json.read_text(encoding="utf-8")
+    )
+    plan = source.model_copy(
+        update={
+            "plan_id": "partnerplan_" + "9" * 64,
+            "candidate_count": 0,
+            "searchable_candidate_count": 0,
+            "selected_attempt_count": 0,
+            "deferred_cap_count": 0,
+            "unsearchable_candidate_count": 0,
+            "candidates": (),
+        }
+    )
+    plan_path = tmp_path / "missing-b-plan.json"
+    plan_path.write_text(f"{canonical_json_text(plan)}\n", encoding="utf-8")
+
+    summary = summarize_partner_attempts(
+        PartnerSummaryRequest(
+            partner_plan_json=plan_path,
+            result_directories=(),
+            output_json=tmp_path / "missing-b-summary.json",
+        )
+    )
+
+    assert summary.selected_attempt_count == 0
+    assert summary.result_count == 0
+    assert summary.all_selected_attempts_retained is True
