@@ -321,6 +321,19 @@ Add a locked offline wheel build, isolated install, both entry points, packaged
 schemas, and version parity. Remove or migrate legacy nested thread-pool
 benchmark execution. Repeat the adverse review before release.
 
+Status: the exact Hatchling backend is now pinned in both build metadata and
+the Pixi lock, and one fixed `offline-wheel-check` builds without isolation,
+inspects every packaged Python/schema byte, installs into a fresh virtual
+environment without dependency resolution while reusing the locked runtime,
+executes both metadata-declared entry points, and checks release-version parity
+across package, Pixi,
+CLI, Nextflow, wheel, and installed metadata. Focused missing-schema,
+missing-entry-point, and version-divergence regressions pass. The positive task
+is still pending because this host's offline cache lacks one locked transitive
+build wheel; no package-index fetch was permitted. `PIPE-P3-01` therefore
+remains partial until CI or an already provisioned locked environment records a
+green real task.
+
 ### PH7 - Unknown-dataset pass 2
 
 Reuse identical frozen inputs, gel/localisation evidence, thresholds,

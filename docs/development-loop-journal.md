@@ -11323,3 +11323,34 @@ with a collapsed combined parent or a guessed command.
 - Integrate this local commit into `dev/phase3` after review. Do not claim M6
   acceptance until the remaining PH6 stop gates, full integration gate, and
   separately collected operational then unchanged-protocol leakage runs pass.
+
+## 2026-08-23 - Locked offline wheel gate is implemented but not yet positive
+
+### Narrow packaging correction
+
+- Replaced the unbounded build requirement with exact `hatchling==1.32.0` and
+  added the same backend plus transitive artefacts to all locked Pixi
+  environments. No scientific code, workflow, M6 path, bootstrap/HPC tool, or
+  private input changed.
+- Added one project-specific purelib wheel checker. It invokes the installed
+  locked backend directly without PEP 517 isolation, validates every packaged
+  Python and authoritative schema byte, installs into a fresh temporary
+  `--system-site-packages` virtual environment without dependency resolution,
+  and loads both declared console entry points from the installed wheel for
+  `--help`. Package source, Pyproject, Pixi, Nextflow, wheel, installed package,
+  and CLI version surfaces must agree exactly.
+- The checker refuses unsafe archives, non-pure/data-scheme wheels, missing or
+  changed code/schema files, changed entry-point mappings, editable-checkout
+  import escape, and every version divergence. It makes no PyPI-readiness or
+  general production-installation claim.
+
+### Focused evidence and next exact starting point
+
+- Four focused regressions pass for a missing packaged schema, missing console
+  entry point, wheel version mismatch, and empty/equal version surfaces. Locked
+  Ruff format/lint, `ty`, schema validation, and documentation checks pass.
+- The positive `pixi run --locked --offline offline-wheel-check` remains
+  unexecuted: offline environment synchronisation proved that one exact
+  transitive Hatchling wheel is absent from this host's Pixi cache. It was not
+  fetched and offline mode was not weakened. Keep `PIPE-P3-01` partial until CI
+  or another already provisioned locked environment runs the real task green.

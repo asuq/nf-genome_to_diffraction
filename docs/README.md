@@ -36,6 +36,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III Phaser interface probe](phase-iii-phenix-interface-probe.md): fixed
   no-data Marmic capture of the installed `phenix.phaser --show_defaults`
   interface before per-ensemble output syntax is used.
+- [Phase III locked offline wheel gate](phase-iii-offline-wheel-gate.md): exact
+  locked backend, purelib wheel inspection/install, packaged schema and source
+  parity, both console entry points, and cross-surface version parity.
 - [Phase III composition-attempt fan-out](phase-iii-composition-attempt-fanout.md):
   complete immutable selected-attempt items, typed empty paths, stub-only
   Nextflow execution, and byte-identical cached-resume evidence.
