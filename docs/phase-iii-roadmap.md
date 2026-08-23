@@ -307,6 +307,16 @@ Run M6 operational first and collect/classify it before separately running the
 leakage track against the unchanged protocol. Unknown samples must not tune
 thresholds or contribute to M6.
 
+Status: the local `DEV-P1-03` ordering correction is implemented. Shared
+truthless discovery now uses a checksum-bound 25-hit/query/route envelope;
+operational policy preserves its historical first-three effective input, while
+leakage policy consumes only runner-visible amino-acid identity/coverage
+evidence before the unchanged three-hit accepted-model cap. A seven-hit-per-
+route regression retains safe direct and Foldseek ranks four through six,
+deterministically defers each rank seven, is invariant to input-row permutation
+for the scientific outputs, and emits a typed empty result when every hit is
+excluded. M6 execution and acceptance remain pending the other PH6 stop gates.
+
 Add a locked offline wheel build, isolated install, both entry points, packaged
 schemas, and version parity. Remove or migrate legacy nested thread-pool
 benchmark execution. Repeat the adverse review before release.

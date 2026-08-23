@@ -11289,3 +11289,37 @@ with a collapsed combined parent or a guessed command.
   compatibility tests pass. Phaser space-group/resolution propagation and
   parent-MTZ derivation remain pending until the installed Phaser interface
   probe is collected; do not guess those parameters locally.
+
+## 2026-08-23 - M6 leakage exclusion now precedes the model cap
+
+### Focused DEV-P1-03 correction
+
+- The shared truthless PDB-sequence and ProstT5/Foldseek searches now retain a
+  fixed envelope of at most 25 ranked hits per query and route. The changed
+  query-batch, provider-search, trusted-policy, and policy-bundle semantics have
+  new adapter/cache identities.
+- Operational cases restore the historical first-three effective route input.
+  Leakage cases evaluate the complete envelope against only the existing
+  runner-visible MMseqs2 identity and coverage evidence, then retain at most
+  three safe hits per query and route. The frozen 70% identity, 80% coverage,
+  and all other protocol values are unchanged; no private target or family
+  truth was added to runner inputs.
+- A focused seven-hit-per-route regression excludes the exact/close leading
+  trio on direct and Foldseek routes, retains safe ranks four through six,
+  annotates safe rank seven at the post-policy cap, proves byte-identical
+  accepted/rejected/ranking outputs under reversed input order, preserves the
+  operational top-three behaviour, and emits typed `completed_no_model`
+  evidence when all hits are excluded.
+
+### Scope, disclosure, and next exact starting point
+
+- No MTZ, seed-selection, staging/network, bootstrap/HPC, unknown-crystal,
+  private-input, protocol, or threshold path changed, and no M6 or remote job
+  ran. Focused tests plus Ruff, type, schema, docs, and diff checks are the only
+  local gate for this slice.
+- One early read-only document-discovery command piped one `rg` invocation to
+  another. It made no file, network, or external-system mutation; every later
+  shell call used exactly one command.
+- Integrate this local commit into `dev/phase3` after review. Do not claim M6
+  acceptance until the remaining PH6 stop gates, full integration gate, and
+  separately collected operational then unchanged-protocol leakage runs pass.

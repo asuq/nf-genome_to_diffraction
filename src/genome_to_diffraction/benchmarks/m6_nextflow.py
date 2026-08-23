@@ -47,6 +47,8 @@ from genome_to_diffraction.benchmarks.m6_identity import (
     verify_m6_identity_decision_evidence,
 )
 from genome_to_diffraction.benchmarks.m6_model_policy import (
+    M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE,
+    M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
     M6ModelPolicyRequest,
     apply_m6_model_policy,
 )
@@ -124,8 +126,10 @@ from genome_to_diffraction.structure_search import (
 
 _PLAN_ADAPTER = "m6-nextflow-plan-v1"
 _CATALOGUE_ADAPTER = "m6-nextflow-catalogue-v1"
-_PDB_ADAPTER = "m6-nextflow-pdb-search-v1"
-_FOLDSEEK_ADAPTER = "m6-nextflow-foldseek-search-v1"
+_QUERY_BATCH_ADAPTER = "m6-nextflow-query-batch-v2"
+_PDB_ADAPTER = "m6-nextflow-pdb-search-v2"
+_FOLDSEEK_ADAPTER = "m6-nextflow-foldseek-search-v2"
+_MODEL_POLICY_ADAPTER = "m6-nextflow-model-policy-v2"
 _PREFLIGHT_ADAPTER = "m6-nextflow-preflight-v1"
 _CASE_ADAPTER = "m6-nextflow-case-v1"
 _CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v2"
@@ -785,7 +789,7 @@ def build_m6_search_batches(
         for groups in batches:
             batch_id = canonical_digest(
                 {
-                    "adapter_version": "m6-nextflow-query-batch-v1",
+                    "adapter_version": _QUERY_BATCH_ADAPTER,
                     "provider": provider,
                     "sequences": [
                         {
@@ -804,7 +808,9 @@ def build_m6_search_batches(
             parameters = (
                 {
                     "threads": threads,
-                    "maximum_hits_per_query": 3,
+                    "maximum_hits_per_query": (
+                        M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE
+                    ),
                     "maximum_evalue": 1.0e-5,
                     "minimum_query_coverage": 0.5,
                     "maximum_query_length": 10_000,
@@ -812,7 +818,9 @@ def build_m6_search_batches(
                 if provider == "pdb_sequence"
                 else {
                     "threads": threads,
-                    "maximum_hits_per_query": 3,
+                    "maximum_hits_per_query": (
+                        M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE
+                    ),
                     "maximum_evalue": 1.0e-3,
                     "minimum_query_coverage": 0.5,
                     "maximum_query_length": 10_000,
@@ -871,7 +879,7 @@ def build_m6_search_batches(
         output / "batch_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-query-batch-v1",
+            "adapter_version": _QUERY_BATCH_ADAPTER,
             "catalogue_count": len(memberships),
             "catalogue_record_count": sum(len(ids) for ids in memberships.values()),
             "unique_sequence_count": len(unique_groups),
@@ -889,6 +897,12 @@ def build_m6_search_batches(
             ),
             "foldseek_maximum_residues": (
                 policy.search_batching.foldseek.maximum_residues
+            ),
+            "raw_discovery_hit_cap_per_query_route": (
+                M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE
+            ),
+            "accepted_model_hit_cap_per_query_route": (
+                M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE
             ),
             "database_manifest_sha256": database_sha256,
             "execution_policy_sha256": execution_policy_sha256,
@@ -948,7 +962,7 @@ def run_m6_pdb_search_task(
             database_manifest=database,
             output_directory=output / "search",
             threads=threads,
-            maximum_hits_per_query=3,
+            maximum_hits_per_query=M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
             maximum_evalue=1.0e-5,
             minimum_query_coverage=0.5,
             maximum_query_length=10_000,
@@ -1010,7 +1024,7 @@ def run_m6_foldseek_search_task(
             database_manifest=database,
             output_directory=output / "search",
             threads=threads,
-            maximum_hits_per_query=3,
+            maximum_hits_per_query=M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
             maximum_evalue=1.0e-3,
             minimum_query_coverage=0.5,
             maximum_query_length=10_000,
@@ -1403,7 +1417,7 @@ def run_m6_model_policy_task(
     shutil.copy2(case_root / "task.json", output / "case_task.json")
     _write_bundle_manifest(
         output,
-        adapter="m6-nextflow-model-policy-v1",
+        adapter=_MODEL_POLICY_ADAPTER,
         kind="trusted_model_policy",
         task_id=case_task.case_id,
         inputs={

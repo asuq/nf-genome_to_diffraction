@@ -14,13 +14,18 @@ route.  Proposals lacking that independent amino-acid mapping fail closed as
 model-ineligible annotations.  Catalogue candidates are never deleted.
 
 Inputs are normalised discovery JSONL, the immutable database manifest, the
-runner-visible model policy, and the truth-facing protocol.  Outputs are an
-accepted-hit JSONL for the blind MR phase, a complete rejected-model JSONL, a
-ranked retain-all candidate JSONL, and a transition report.  Missing metrics,
-changed tool versions, incompatible policy, or malformed records abort.  The
-cache identity is the checksums of all inputs plus the adapter version.  Unit
-tests cover exact-deposition removal, query-relative leakage, Foldseek
-qualification, and retain-all ranking.
+runner-visible model policy, and the truth-facing protocol.  The shared blind
+discovery envelope retains up to 25 hits per query and route.  Operational
+cases preserve the historical top-three route input.  Leakage cases apply the
+runner-visible identity/coverage policy to the deeper envelope before the same
+three-hit accepted-model cap, so excluded leading hits cannot hide a safe
+fourth hit.  Outputs are an accepted-hit JSONL for the blind MR phase, a
+complete rejected-model JSONL, a ranked retain-all candidate JSONL, and a
+transition report.  Missing metrics, changed tool versions, incompatible
+policy, or malformed records abort.  The cache identity is the checksums of all
+inputs plus the adapter version.  Unit tests cover exact-deposition removal,
+query-relative leakage, post-policy capping, deterministic permutations,
+Foldseek qualification, typed empty output, and retain-all ranking.
 """
 
 import json
@@ -48,10 +53,12 @@ from genome_to_diffraction.schemas.results import (
     StructuralSearchHit,
 )
 
-_ADAPTER_VERSION = "m6-trusted-model-policy-v2"
+_ADAPTER_VERSION = "m6-trusted-model-policy-v3"
 _DIRECT_PROVIDER = "pdb_sequence_mmseqs"
 _PROSTT5_PROVIDER = "foldseek_prostt5_pdb"
 _EXPECTED_PROVIDERS = frozenset({_DIRECT_PROVIDER, _PROSTT5_PROVIDER})
+M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE = 25
+M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,6 +190,33 @@ def _alignment_key(hit: StructuralSearchHit) -> tuple[object, ...]:
     )
 
 
+def _provider_rank_key(hit: StructuralSearchHit) -> tuple[object, ...]:
+    return (
+        hit.sequence_group_id,
+        hit.provider,
+        hit.provider_rank,
+        hit.hit_id,
+    )
+
+
+def _cap_hits_by_query_route(
+    hits: tuple[StructuralSearchHit, ...], cap: int
+) -> tuple[tuple[StructuralSearchHit, ...], tuple[StructuralSearchHit, ...]]:
+    """Split hits at a deterministic per-query/provider rank boundary."""
+
+    retained: list[StructuralSearchHit] = []
+    deferred: list[StructuralSearchHit] = []
+    counts: Counter[tuple[str, str]] = Counter()
+    for hit in sorted(hits, key=_provider_rank_key):
+        key = (hit.sequence_group_id, hit.provider)
+        if counts[key] < cap:
+            retained.append(hit)
+            counts[key] += 1
+        else:
+            deferred.append(hit)
+    return tuple(retained), tuple(deferred)
+
+
 def _qualified_foldseek_hit(
     hit: StructuralSearchHit,
     direct_by_sequence: dict[tuple[str, str], StructuralSearchHit],
@@ -299,18 +333,31 @@ def apply_m6_model_policy(request: M6ModelPolicyRequest) -> M6ModelPolicyOutput:
     if any(not _complete_alignment(hit) for hit in direct_hits):
         raise PublicControlError("M6 direct PDB hit lacks a complete MMseqs2 alignment")
 
+    policy_direct_hits = direct_hits
+    policy_foldseek_hits = foldseek_hits
+    prepolicy_deferred: tuple[StructuralSearchHit, ...] = ()
+    if mode == "operational":
+        policy_direct_hits, deferred_direct = _cap_hits_by_query_route(
+            direct_hits, M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE
+        )
+        policy_foldseek_hits, deferred_foldseek = _cap_hits_by_query_route(
+            foldseek_hits, M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE
+        )
+        prepolicy_deferred = (*deferred_direct, *deferred_foldseek)
+
     direct_by_sequence: dict[tuple[str, str], StructuralSearchHit] = {}
-    for hit in sorted(direct_hits, key=_alignment_key):
+    for hit in sorted(policy_direct_hits, key=_alignment_key):
         direct_by_sequence.setdefault(
             (hit.sequence_group_id, _target_sequence_sha256(hit)), hit
         )
 
-    accepted: list[StructuralSearchHit] = []
-    rejected: list[dict[str, object]] = []
+    eligible: list[StructuralSearchHit] = []
+    rejected_records: list[tuple[StructuralSearchHit, str]] = []
     rejected_by_group: Counter[str] = Counter()
     rejection_reasons: Counter[str] = Counter()
-    route_counts: Counter[str] = Counter()
-    for raw_hit in (*direct_hits, *foldseek_hits):
+    for raw_hit in sorted(
+        (*policy_direct_hits, *policy_foldseek_hits), key=_provider_rank_key
+    ):
         hit = raw_hit
         reason: str | None = None
         if hit.provider == _PROSTT5_PROVIDER:
@@ -336,24 +383,44 @@ def apply_m6_model_policy(request: M6ModelPolicyRequest) -> M6ModelPolicyOutput:
             ):
                 reason = "query_relative_leakage"
         if reason is None:
-            accepted.append(hit)
-            route_counts[hit.provider] += 1
+            eligible.append(hit)
             continue
         rejected_by_group[hit.sequence_group_id] += 1
         rejection_reasons[reason] += 1
-        rejected.append(
-            {
-                "schema_version": "1.0",
-                "case_id": request.case_id,
-                "hit": hit.model_dump(mode="json"),
-                "rejection_reason": reason,
-                "retained_as_annotation": True,
-            }
-        )
+        rejected_records.append((hit, reason))
 
-    accepted.sort(
-        key=lambda hit: (hit.sequence_group_id, *_alignment_key(hit), hit.provider)
+    accepted_uncanonical, cap_deferred = _cap_hits_by_query_route(
+        tuple(eligible), M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE
     )
+    for hit in cap_deferred:
+        rejected_by_group[hit.sequence_group_id] += 1
+        rejection_reasons["accepted_hit_cap"] += 1
+        rejected_records.append((hit, "accepted_hit_cap"))
+
+    accepted = tuple(
+        sorted(
+            accepted_uncanonical,
+            key=lambda hit: (
+                hit.sequence_group_id,
+                *_alignment_key(hit),
+                hit.provider,
+            ),
+        )
+    )
+    route_counts = Counter(hit.provider for hit in accepted)
+    rejected = [
+        {
+            "schema_version": "1.0",
+            "case_id": request.case_id,
+            "hit": hit.model_dump(mode="json"),
+            "rejection_reason": reason,
+            "retained_as_annotation": True,
+        }
+        for hit, reason in sorted(
+            rejected_records,
+            key=lambda item: (*_provider_rank_key(item[0]), item[1]),
+        )
+    ]
     accepted_by_group: dict[str, list[StructuralSearchHit]] = defaultdict(list)
     for hit in accepted:
         accepted_by_group[hit.sequence_group_id].append(hit)
@@ -426,7 +493,20 @@ def apply_m6_model_policy(request: M6ModelPolicyRequest) -> M6ModelPolicyOutput:
             "retained_candidate_count": len(groups),
             "all_candidates_retained": True,
             "model_proposal_count": len(direct_hits) + len(foldseek_hits),
+            "policy_considered_model_count": len(policy_direct_hits)
+            + len(policy_foldseek_hits),
+            "prepolicy_deferred_model_count": len(prepolicy_deferred),
+            "raw_discovery_hit_cap_per_query_route": (
+                M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE
+            ),
+            "accepted_hit_cap_per_query_route": (M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE),
+            "filter_applied_before_accepted_hit_cap": (
+                mode == "query_relative_leakage"
+            ),
             "accepted_model_count": len(accepted),
+            "accepted_model_status": (
+                "completed_hit" if accepted else "completed_no_model"
+            ),
             "rejected_model_count": len(rejected),
             "accepted_route_counts": dict(sorted(route_counts.items())),
             "rejection_reason_counts": dict(sorted(rejection_reasons.items())),

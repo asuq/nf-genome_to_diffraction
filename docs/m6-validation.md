@@ -57,6 +57,23 @@ identity/coverage calculation. The 8AI1 case is predeclared leakage-model-
 scarce, giving an 11-case leakage correct-family denominator. Operational
 family evidence retains the full 12-case denominator.
 
+Truthless shared discovery retains a fixed envelope of at most 25 ranked hits
+per query and model route. This is an execution bound, not a scientific
+threshold and does not alter the frozen protocol. Operational cases restore
+the historical first three hits per route before policy evaluation. Leakage
+cases instead apply the runner-visible 70% identity/80% coverage evidence to
+the complete discovery envelope and only then retain the first three safe hits
+per route. Thus an excluded leading trio cannot hide a safe fourth hit. Every
+policy exclusion and post-policy cap deferral remains a deterministic retained
+annotation; an all-excluded candidate produces a typed
+`completed_no_model` policy result.
+
+The blind search tasks do not receive target truth or the protocol. The
+query-relative filter consumes only normalised amino-acid metrics plus the
+existing checksum-bound runner model-policy object. The separately existing
+trusted exact-deposition removal still uses the narrow protocol transition; no
+new private target or family field enters runner input or search cache identity.
+
 The opaque runner archive never contains the tracked protocol or private truth
 map. A trusted preparer emits anonymised catalogue IDs, sanitised MTZ metadata,
 per-case configuration, and model-policy objects. `benchmark build-m6-runner`

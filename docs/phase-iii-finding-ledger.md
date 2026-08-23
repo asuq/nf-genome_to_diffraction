@@ -38,7 +38,7 @@ open among the original 34 findings.
 | `DEV-P0-03` | Fixed | Edge outcomes derive from observed evidence, not descriptors. |
 | `DEV-P1-01` | Fixed | Every catalogue receives complete shared batch/result values. |
 | `DEV-P1-02` | Open | Ordinary M6 MTZs retain only HKL, observations/sigma, and validated Free-R. |
-| `DEV-P1-03` | Open | Leakage filtering precedes accepted-hit truncation and retains a fourth safe hit. |
+| `DEV-P1-03` | Fixed locally; M6 integration evidence pending | Shared truthless discovery retains a fixed 25-hit/query/route envelope and binds the changed search/policy adapter identities. Operational cases recover the historical first-three effective input. Leakage cases apply only checksum-bound runner-visible amino-acid identity/coverage evidence before the unchanged three-hit accepted-model cap. A seven-ranked-hit-per-route regression retains the safe fourth through sixth direct and Foldseek hits, deterministically annotates each seventh as cap-deferred, produces byte-identical scientific outputs under row permutation, and emits typed `completed_no_model` output when all hits are excluded. The protocol and thresholds are unchanged; no private target/family truth was added to runner inputs. |
 | `DEV-P1-04` | Open | One bounded staging task obtains coordinates; case workers never perform HTTPS. |
 | `DEV-P1-05` | Superseded/deleted | Unsafe shared-store consumer path was removed in favour of standard Nextflow resume. |
 | `DEV-P1-06` | Open | Advancement does not silently prefer the largest copy hypothesis per model. |

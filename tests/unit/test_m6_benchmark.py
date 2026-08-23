@@ -1747,6 +1747,9 @@ def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> No
     assert manifest["foldseek_batch_count"] == 1
     assert manifest["pdb_threads"] == 32
     assert manifest["foldseek_threads"] == 32
+    assert manifest["adapter_version"] == "m6-nextflow-query-batch-v2"
+    assert manifest["raw_discovery_hit_cap_per_query_route"] == 25
+    assert manifest["accepted_model_hit_cap_per_query_route"] == 3
     first_batch_task = next((output / "prostt5_foldseek_batches").glob("*/task.json"))
     first_batch = json.loads(first_batch_task.read_text(encoding="utf-8"))
     changed_database = tmp_path / "changed-database.json"
@@ -2133,6 +2136,7 @@ def _policy_hit(
     *,
     hit_id: str,
     provider: str,
+    provider_rank: int = 1,
     pdb_id: str,
     target_sha256: str,
     identity: float,
@@ -2143,7 +2147,7 @@ def _policy_hit(
         hit_id=hit_id,
         sequence_group_id=group.sequence_group_id,
         provider=provider,
-        provider_rank=1,
+        provider_rank=provider_rank,
         target_id=f"{pdb_id.lower()}_A",
         model_key=f"pdb:{pdb_id}:legacy_seqres_suffix:A",
         target_chain_or_entity="A",
@@ -2351,6 +2355,214 @@ def test_m6_model_policy_filters_every_route_and_retains_candidates(
         first.sequence_group_id,
         second.sequence_group_id,
     ]
+
+
+def test_m6_leakage_filters_before_cap_deterministically_and_types_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    group = _policy_group("ACDEFGHIK")
+    groups = tmp_path / "groups.jsonl"
+    groups.write_text(f"{canonical_json_text(group)}\n", encoding="utf-8")
+    source = SourceProteinRecord(
+        schema_version="1.0",
+        source_record_id="src_candidate",
+        catalogue_id="opaque",
+        original_protein_id="loc_candidate",
+        original_header="loc_candidate",
+        sequence_group_id=group.sequence_group_id,
+        source_annotation_provider="test",
+    )
+    sources = tmp_path / "sources.jsonl"
+    sources.write_text(f"{canonical_json_text(source)}\n", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    _write_json(
+        policy,
+        {
+            "schema_version": "1.0",
+            "mode": "query_relative_leakage",
+            "maximum_model_identity_fraction": 0.7,
+            "minimum_exclusion_coverage_fraction": 0.8,
+            "exact_deposition_removed_by_trusted_transition": True,
+            "applies_to_all_model_routes": True,
+            "retain_rejected_model_annotations": True,
+            "candidate_policy": "retain_all",
+            "score_policy": "llg_tfz_annotations_only",
+        },
+    )
+    database = tmp_path / "database.json"
+    database.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        m6_model_policy_module,
+        "_mmseqs_version",
+        lambda _path: ("18.8cc5c", "db_pdb_sequences"),
+    )
+    ranked_hits = tuple(
+        _policy_hit(
+            group,
+            hit_id=hit_id,
+            provider="pdb_sequence_mmseqs",
+            provider_rank=rank,
+            pdb_id=pdb_id,
+            target_sha256=target_sha256,
+            identity=identity,
+            coverage=coverage,
+        )
+        for rank, hit_id, pdb_id, target_sha256, identity, coverage in (
+            (1, "hit_exact", "8GKV", group.sha256, 1.0, 1.0),
+            (2, "hit_close_a", "2ABC", "a" * 64, 0.90, 0.95),
+            (3, "hit_close_b", "3ABC", "b" * 64, 0.75, 0.85),
+            (4, "hit_safe_fourth", "4ABC", "c" * 64, 0.65, 1.0),
+            (5, "hit_safe_fifth", "5ABC", "d" * 64, 0.60, 1.0),
+            (6, "hit_safe_sixth", "6ABC", "e" * 64, 0.55, 1.0),
+            (7, "hit_safe_seventh", "7ABC", "f" * 64, 0.50, 1.0),
+        )
+    )
+    ranked_foldseek_hits = tuple(
+        _policy_hit(
+            group,
+            hit_id=hit.hit_id.replace("hit_", "hit_foldseek_", 1),
+            provider="foldseek_prostt5_pdb",
+            provider_rank=hit.provider_rank,
+            pdb_id=cast(str, hit.pdb_id),
+            target_sha256=cast(str, hit.raw_metrics["target_sequence_sha256"]),
+            identity=0.1,
+            coverage=0.7,
+        )
+        for hit in ranked_hits
+    )
+
+    def run_policy(
+        name: str,
+        hits: tuple[StructuralSearchHit, ...],
+        *,
+        foldseek_hits: tuple[StructuralSearchHit, ...] = (),
+        policy_path: Path = policy,
+        case_id: str = "M6C013",
+    ) -> m6_model_policy_module.M6ModelPolicyOutput:
+        pdb_hits = tmp_path / f"{name}-pdb.jsonl"
+        pdb_hits.write_text(
+            "".join(f"{canonical_json_text(hit)}\n" for hit in hits),
+            encoding="utf-8",
+        )
+        foldseek_path = tmp_path / f"{name}-foldseek.jsonl"
+        foldseek_path.write_text(
+            "".join(f"{canonical_json_text(hit)}\n" for hit in foldseek_hits),
+            encoding="utf-8",
+        )
+        return apply_m6_model_policy(
+            M6ModelPolicyRequest(
+                protocol=PROTOCOL,
+                case_id=case_id,
+                model_policy=policy_path,
+                database_manifest=database,
+                sequence_groups_jsonl=groups,
+                source_records_jsonl=sources,
+                pdb_hits_jsonl=pdb_hits,
+                prostt5_hits_jsonl=foldseek_path,
+                output_directory=tmp_path / name,
+            )
+        )
+
+    ordered = run_policy("ordered", ranked_hits, foldseek_hits=ranked_foldseek_hits)
+    permuted = run_policy(
+        "permuted",
+        tuple(reversed(ranked_hits)),
+        foldseek_hits=tuple(reversed(ranked_foldseek_hits)),
+    )
+    expected_safe = {
+        "hit_safe_fourth",
+        "hit_safe_fifth",
+        "hit_safe_sixth",
+        "hit_foldseek_safe_fourth",
+        "hit_foldseek_safe_fifth",
+        "hit_foldseek_safe_sixth",
+    }
+    assert {hit.hit_id for hit in ordered.accepted_hits} == expected_safe
+    assert {hit.hit_id for hit in permuted.accepted_hits} == expected_safe
+    assert (
+        ordered.accepted_hits_jsonl.read_bytes()
+        == permuted.accepted_hits_jsonl.read_bytes()
+    )
+    assert (
+        ordered.rejected_models_jsonl.read_bytes()
+        == permuted.rejected_models_jsonl.read_bytes()
+    )
+    assert (
+        ordered.candidate_ranking_jsonl.read_bytes()
+        == permuted.candidate_ranking_jsonl.read_bytes()
+    )
+    report = json.loads(ordered.report_json.read_text(encoding="utf-8"))
+    assert report["raw_discovery_hit_cap_per_query_route"] == 25
+    assert report["accepted_hit_cap_per_query_route"] == 3
+    assert report["filter_applied_before_accepted_hit_cap"] is True
+    assert report["accepted_model_status"] == "completed_hit"
+    assert report["rejection_reason_counts"] == {
+        "accepted_hit_cap": 2,
+        "exact_deposited_coordinates": 2,
+        "query_relative_leakage": 4,
+    }
+
+    all_excluded = run_policy(
+        "all-excluded",
+        ranked_hits[:3],
+        foldseek_hits=ranked_foldseek_hits[:3],
+    )
+    assert all_excluded.accepted_hits == ()
+    assert all_excluded.accepted_hits_jsonl.read_text(encoding="utf-8") == ""
+    empty_report = json.loads(all_excluded.report_json.read_text(encoding="utf-8"))
+    assert empty_report["accepted_model_status"] == "completed_no_model"
+    empty_ranking = [
+        json.loads(line)
+        for line in all_excluded.candidate_ranking_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    assert empty_ranking == [
+        {
+            "accepted_model_hit_count": 0,
+            "all_candidate_records_retained": True,
+            "case_id": "M6C013",
+            "rank": 1,
+            "rejected_model_hit_count": 6,
+            "schema_version": "1.0",
+            "sequence_group_id": group.sequence_group_id,
+            "sequence_sha256": group.sha256,
+            "source_record_count": 1,
+        }
+    ]
+
+    operational_policy = tmp_path / "operational-policy.json"
+    _write_json(
+        operational_policy,
+        {
+            "schema_version": "1.0",
+            "mode": "operational",
+            "maximum_model_identity_fraction": None,
+            "minimum_exclusion_coverage_fraction": None,
+            "exact_deposition_removed_by_trusted_transition": True,
+            "applies_to_all_model_routes": True,
+            "retain_rejected_model_annotations": True,
+            "candidate_policy": "retain_all",
+            "score_policy": "llg_tfz_annotations_only",
+        },
+    )
+    operational = run_policy(
+        "operational",
+        ranked_hits,
+        foldseek_hits=ranked_foldseek_hits,
+        policy_path=operational_policy,
+        case_id="M6C001",
+    )
+    assert {hit.hit_id for hit in operational.accepted_hits} == {
+        "hit_close_a",
+        "hit_close_b",
+        "hit_foldseek_close_a",
+        "hit_foldseek_close_b",
+    }
+    operational_report = json.loads(operational.report_json.read_text(encoding="utf-8"))
+    assert operational_report["policy_considered_model_count"] == 6
+    assert operational_report["prepolicy_deferred_model_count"] == 8
+    assert operational_report["filter_applied_before_accepted_hit_cap"] is False
 
 
 def _m6_source_mtz() -> gemmi.Mtz:
