@@ -1277,15 +1277,16 @@ class HpcController:
         committed_tools: dict[str, bytes] = {}
         for relative in _REMOTE_TOOL_PATHS:
             committed = self.git.read_file_at_commit(commit, relative)
-            worktree_path = self.config.repository.joinpath(*relative.parts)
-            if worktree_path.is_symlink() or not worktree_path.is_file():
-                raise ValidationError(
-                    f"remote tool must be a regular tracked file: {relative}"
-                )
-            if worktree_path.read_bytes() != committed:
-                raise ValidationError(
-                    f"worktree content differs from commit {commit}: {relative}"
-                )
+            if source_branch == "main":
+                worktree_path = self.config.repository.joinpath(*relative.parts)
+                if worktree_path.is_symlink() or not worktree_path.is_file():
+                    raise ValidationError(
+                        f"remote tool must be a regular tracked file: {relative}"
+                    )
+                if worktree_path.read_bytes() != committed:
+                    raise ValidationError(
+                        f"worktree content differs from commit {commit}: {relative}"
+                    )
             committed_tools[relative.name] = committed
             checksums[relative.name] = hashlib.sha256(committed).hexdigest()
 
@@ -1379,7 +1380,9 @@ class HpcController:
         run_id = f"gtd-{profile}-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
         owner_id = secrets.token_hex(16)
         validate_run_id(run_id)
-        lock_checksum = sha256_file(self.config.repository / "pixi.lock")
+        lock_checksum = hashlib.sha256(
+            self.git.read_file_at_commit(commit, PurePosixPath("pixi.lock"))
+        ).hexdigest()
         self.logger.info(
             "staging immutable HPC run",
             extra={

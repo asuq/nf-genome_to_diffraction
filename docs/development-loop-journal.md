@@ -11141,6 +11141,13 @@ with a collapsed combined parent or a guessed command.
   checker retries exactly once only for that Java exception and no scientific,
   parser, or other process failure. The bounded checker and all remaining gate
   tasks pass individually; CI must confirm the complete pushed gate.
+- Pre-deployment review found that the durable controller config still points
+  at the clean main worktree while Phase III is checked out separately. For the
+  literal `dev/phase3` source only, deployment now reads the reviewed wrapper
+  bytes directly from the exact remote-reachable commit instead of comparing
+  them to main's checkout; main preserves its existing equality guard. All
+  staging now hashes `pixi.lock` from the exact requested commit. Seventy-three
+  focused controller/CLI tests pass.
 - One read-only integration inventory command accidentally piped one `rg`
   invocation into another. It made no mutation, network request, or external
   action; command discipline was corrected immediately.
