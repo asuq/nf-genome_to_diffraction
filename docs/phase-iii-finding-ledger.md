@@ -14,7 +14,7 @@ open among the original 34 findings.
 | Finding | Baseline disposition | Phase III gate / required evidence |
 | --- | --- | --- |
 | `PIPE-P1-01` | Open | Independently mutate FAA, MTZ, database inventory, adapter, lock, and Phenix identity; only dependent tasks rerun. |
-| `PIPE-P1-02` | Partial | Exact complete-item fan-out for three crystals, three hypotheses, two seeds, and two finalists plus cached resume. |
+| `PIPE-P1-02` | Partial; three-crystal boundary fixed | Exact complete-item fan-out now covers three crystals with cached resume; hypotheses, seeds, and finalists remain to be integrated. |
 | `PIPE-P1-03` | Partial | Enabled-provider no-hit and disabled/no-model bundles compose without abort or network call. |
 | `PIPE-P1-04` | Open | Network work resolves only to approved staging; compute workers fail closed with sockets blocked. |
 | `PIPE-P1-05` | Fixed | Dataset-qualified duplicate-label tests reject conflicts and retain deterministic equivalent selection. |
@@ -26,11 +26,11 @@ open among the original 34 findings.
 | `PIPE-P1-11` | Fixed | Strict wire types and non-finite rejection cover every runtime loader. |
 | `PIPE-P1-12` | Fixed | Duplicate Matthews/preflight/group/source identities fail. |
 | `PIPE-P2-01` | Fixed on `dev/phase3`; integration evidence pending | Zero-exit refinement without parsed final Rwork/Rfree becomes `failed_parse`; completed result contracts require both final values. |
-| `PIPE-P2-02` | Open | Malformed sequence-map outputs are typed per candidate and siblings continue. |
+| `PIPE-P2-02` | Fixed on `dev/phase3`; integration evidence pending | Unknown or inconsistent sequence-map catalogue identities emit candidate-level `failed_parse` records instead of aborting sibling finalists. |
 | `PIPE-P2-03` | Fixed | Runtime, tracked, and packaged schemas are byte/semantic parity checked. |
 | `PIPE-P2-04` | Fixed | Duplicate headers and ragged TSV rows produce typed diagnostics. |
 | `PIPE-P2-05` | Fixed | All executed Phenix binaries are digest-bound and replacement is refused. |
-| `PIPE-P2-06` | Open | Two catalogues and three crystals fan out independently; one malformed item does not erase siblings. |
+| `PIPE-P2-06` | Partial; three-crystal boundary fixed | Three crystal items retain complete shared context; two-catalogue and malformed-sibling isolation remain open. |
 | `PIPE-P2-07` | Open | One classified transient failure retries once; scientific/parser failures execute once. |
 | `PIPE-P2-08` | Fixed | Declaration-only toggles/caps are removed; every retained cap has one runtime consumer. |
 | `PIPE-P3-01` | Open | Locked offline wheel build, isolated install, both entry points, schemas, and version parity. |
@@ -59,7 +59,7 @@ open among the original 34 findings.
 | `PH3-P1-02` B registry restricted by A cap | Open | A valid B model outside the A execution cap remains searchable in the all-model registry. |
 | `PH3-P1-03` Parent uncertainty dropped | Open; overlaps `PIPE-P1-08` | A lower-identity parent retains its model-error evidence and incremental LLG uses compatible likelihood models. |
 | `PH3-P1-04` Credible status lacks final evidence/crystal binding | Open | Missing final metrics, unsupported copies, or mismatched crystal ID cannot produce a credible report. |
-| `PH3-P1-05` General component depth unvalidated | Planned | 9ECN validates depth three; depths four to six remain explicitly provisional. |
+| `PH3-P1-05` General component depth unvalidated | Contract fixed; control validation pending | Schema-v2 enforces provisional depths above three; 9ECN must still validate depth three. |
 | `PH3-P1-06` Selected crystal status promoted globally | Open | Every result and report stays bound to one crystal item; sibling success cannot promote a held/failed crystal. |
 | `PH3-P1-07` Provider empty channels untested end to end | Open | Enabled no-hit, disabled, and no-model providers each reach a typed complete terminal record through Nextflow. |
 | `PH3-P1-08` Unknown-panel mixed outcomes cannot finalise | Open | One success, one no-hit, and one typed tool/parse failure produce three honest terminal reports. |

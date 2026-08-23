@@ -360,6 +360,58 @@ def _sequence_candidates(
     return tuple(candidates), best, mean, sd, best_z
 
 
+def _classify_sequence_output(
+    text: str,
+    *,
+    refinement_id: str,
+    groups: dict[str, SequenceGroupRecord],
+    crosswalk: dict[str, tuple[tuple[str, ...], tuple[str, ...]]],
+) -> tuple[
+    ExecutionStatus,
+    tuple[SequenceMapCandidate, ...],
+    float | None,
+    float | None,
+    float | None,
+    float | None,
+    tuple[str, ...],
+]:
+    """Turn malformed catalogue mappings into one typed candidate-level failure."""
+
+    try:
+        candidates, best, mean, sd, best_z = _sequence_candidates(
+            text,
+            refinement_id=refinement_id,
+            groups=groups,
+            crosswalk=crosswalk,
+        )
+    except T12InputError:
+        return (
+            ExecutionStatus.FAILED_PARSE,
+            (),
+            None,
+            None,
+            None,
+            None,
+            ("sequence_from_map_output_failed_catalogue_validation",),
+        )
+    warnings = (
+        ("some_catalogue_groups_received_no_score",)
+        if len(candidates) < len(groups)
+        else ()
+    )
+    return (
+        ExecutionStatus.COMPLETED_HIT
+        if candidates
+        else ExecutionStatus.COMPLETED_NO_HIT,
+        candidates,
+        best,
+        mean,
+        sd,
+        best_z,
+        warnings,
+    )
+
+
 def _write_result(path: Path, result: BaseModel) -> tuple[Path, Path]:
     atomic_write_json(path, result.model_dump(mode="json"))
     jsonl = path.with_suffix(".jsonl")
@@ -609,19 +661,21 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         if sequence_completed.returncode != 0:
             sequence_status = ExecutionStatus.FAILED_TOOL_EXECUTION
         else:
-            candidates, best, mean, sd, best_z = _sequence_candidates(
+            (
+                sequence_status,
+                candidates,
+                best,
+                mean,
+                sd,
+                best_z,
+                parsed_warnings,
+            ) = _classify_sequence_output(
                 sequence_text,
                 refinement_id=refinement_id,
                 groups=group_by_id,
                 crosswalk=crosswalk,
             )
-            sequence_status = (
-                ExecutionStatus.COMPLETED_HIT
-                if candidates
-                else ExecutionStatus.COMPLETED_NO_HIT
-            )
-            if len(candidates) < len(groups):
-                sequence_warnings.append("some_catalogue_groups_received_no_score")
+            sequence_warnings.extend(parsed_warnings)
     sequence = SequenceMapResult(
         schema_version="1.0",
         sequence_assessment_id=sequence_id,

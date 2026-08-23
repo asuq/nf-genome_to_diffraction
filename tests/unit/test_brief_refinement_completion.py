@@ -1,12 +1,18 @@
-"""Focused final-metric gates for brief refinement."""
+"""Focused final-metric and sequence-parse gates for brief refinement."""
+
+import hashlib
 
 import pytest
 from pydantic import ValidationError
 
-from genome_to_diffraction.refinement.brief import _assess_refinement_completion
+from genome_to_diffraction.refinement.brief import (
+    _assess_refinement_completion,
+    _classify_sequence_output,
+)
 from genome_to_diffraction.schemas.results import (
     BriefRefinementResult,
     ExecutionStatus,
+    SequenceGroupRecord,
 )
 
 _SHA = "a" * 64
@@ -86,3 +92,36 @@ def test_failed_parse_refinement_may_retain_no_final_metrics() -> None:
 
     assert result.final_r_work is None
     assert result.final_r_free is None
+
+
+def test_unknown_sequence_from_map_group_becomes_typed_parse_failure() -> None:
+    sequence = "ACDE"
+    digest = hashlib.sha256(sequence.encode("ascii")).hexdigest()
+    group_id = f"seq_{digest}"
+    group = SequenceGroupRecord(
+        schema_version="1.0",
+        sequence_group_id=group_id,
+        sha256=digest,
+        sequence=sequence,
+        length_aa=len(sequence),
+        mass_method="unit_test",
+        residue_policy="unit_test",
+        source_record_count=1,
+    )
+    unknown_id = f"seq_{'f' * 64}"
+    text = f"Score for sequence 1 (4 residues): 12.5 (>{unknown_id})\n"
+
+    status, candidates, best, mean, sd, best_z, warnings = _classify_sequence_output(
+        text,
+        refinement_id="refine_test",
+        groups={group_id: group},
+        crosswalk={group_id: (("source_01",), ("locus_01",))},
+    )
+
+    assert status is ExecutionStatus.FAILED_PARSE
+    assert candidates == ()
+    assert best is None
+    assert mean is None
+    assert sd is None
+    assert best_z is None
+    assert warnings == ("sequence_from_map_output_failed_catalogue_validation",)

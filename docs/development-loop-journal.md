@@ -10201,6 +10201,10 @@ outcomes before accepting P6 or beginning the v0.2 release boundary.
   refinement contracts require both final values. The typed outcome is
   `failed_parse`; existing model/map files are not promoted as completed
   scientific evidence. Seven focused completion/status tests pass.
+- Closed the local `PIPE-P2-02` boundary: an unknown or inconsistent catalogue
+  identity in successful `phenix.sequence_from_map` output now emits a typed
+  candidate-level `failed_parse` result rather than raising out of the process.
+  The raw log remains retained and independent finalist processes can continue.
 
 ### Next exact starting point
 

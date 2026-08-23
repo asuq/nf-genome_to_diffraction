@@ -60,9 +60,14 @@ Before unknown samples:
    emit typed sequence-map failures, and refuse credible-report promotion when
    crystal identity, copy support, final metrics, or review evidence is absent.
 
-Status: the final-Rwork/Rfree boundary is implemented on `dev/phase3` with a
-zero-exit/missing-metrics regression. The remaining PH1 boundaries are still
-open or partial as recorded in the finding ledger.
+Status: the final-Rwork/Rfree boundary and candidate-level typed sequence-map
+parse failure are implemented on `dev/phase3`. The remaining PH1 boundaries are
+still open or partial as recorded in the finding ledger.
+
+The isolated complete-item workflow now proves three crystal items can reuse
+one catalogue and one provider preparation through a byte-identical cached
+resume. Integration into the application graph and the hypothesis/seed/finalist
+levels remain pending.
 
 ### PH2 - General component contracts and bounded search
 
@@ -82,6 +87,10 @@ New schema-v2 writes use:
 
 Historical v0.2/v1 results remain readable and immutable. New Phase III
 execution writes schema-v2 states.
+
+Status: all six immutable schema-v2 composition records and bounded profile
+invariants are implemented. The deterministic expansion planner and execution
+adapters remain separate pending slices.
 
 Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
 After review approval of at most three A states, automatically expand through
