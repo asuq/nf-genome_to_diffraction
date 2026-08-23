@@ -1,6 +1,8 @@
 """Schema-v2 public contracts for Phase III composition search."""
 
 from genome_to_diffraction.schemas.v2.component_execution_input import (
+    ComponentCoordinateDerivationBoundary,
+    ComponentCoordinateDerivationGap,
     ComponentExpansionExecutionInput,
 )
 from genome_to_diffraction.schemas.v2.composition import (
@@ -61,6 +63,8 @@ from genome_to_diffraction.schemas.v2.review import (
 
 __all__ = [
     "AllModelRegistryIdentifier",
+    "ComponentCoordinateDerivationBoundary",
+    "ComponentCoordinateDerivationGap",
     "ComponentExpansionExecutionInput",
     "ComponentIdentitySupport",
     "ComponentPlacement",

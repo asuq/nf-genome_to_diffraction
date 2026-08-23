@@ -16,14 +16,22 @@ LLG.  Missing, collapsed, reordered, or cross-dataset evidence fails validation.
 ``execution_input_id`` covers the complete canonical payload and is the cache
 identity.  Focused tests live in
 ``tests/unit/test_component_expansion_execution_input.py``.
+
+``ComponentCoordinateDerivationBoundary`` separately checksum-binds retained
+combined-coordinate evidence that lacks the exact Phaser ``.sol`` and native
+per-placement PDBs.  It emits no coordinates or command and records the exact
+future output-adapter requirement.  Its regressions live in
+``tests/unit/test_component_coordinate_derivation_boundary.py``.
 """
 
+from enum import StrEnum
 from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import Field, model_validator
 
-from genome_to_diffraction.schemas.base import NonEmptyString, Sha256Hex
+from genome_to_diffraction.schemas.base import NonEmptyString, PositiveInt, Sha256Hex
 from genome_to_diffraction.schemas.v2.composition import (
+    ComponentLabel,
     ComponentPlacementIdentifier,
     ComponentSpecIdentifier,
     CompositionExpansionDepthCandidate,
@@ -49,6 +57,10 @@ ComponentExpansionExecutionInputIdentifier = Annotated[
     str,
     Field(pattern=r"^compexecinput_[a-f0-9]{64}$"),
 ]
+ComponentCoordinateDerivationBoundaryIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compcoordboundary_[a-f0-9]{64}$"),
+]
 
 _ORDERED_COMPONENT_LABELS = ("A", "B", "C", "D", "E", "F")
 _EXECUTABLE_PARENT_STATES = {
@@ -57,6 +69,105 @@ _EXECUTABLE_PARENT_STATES = {
     CompositionSupportState.REVIEW_SUPPORTED,
     CompositionSupportState.COMPOSITION_SUPPORTED,
 }
+
+
+class ComponentCoordinateDerivationGap(StrEnum):
+    """Missing evidence that forbids component-coordinate derivation."""
+
+    EXACT_SOLUTION_FILE = "exact_solution_file_not_retained"
+    PER_PLACEMENT_COORDINATES = "per_solu_6dim_coordinates_not_retained"
+    CHAIN_ENSEMBLE_ASSIGNMENT = "chain_to_ensemble_assignment_not_proven"
+    FULL_PRECISION_TRANSFORMS = "full_precision_transforms_not_reconstructible"
+    RECOMBINATION = "component_recombination_not_verifiable"
+
+
+_REQUIRED_DERIVATION_GAPS = (
+    ComponentCoordinateDerivationGap.EXACT_SOLUTION_FILE,
+    ComponentCoordinateDerivationGap.PER_PLACEMENT_COORDINATES,
+    ComponentCoordinateDerivationGap.CHAIN_ENSEMBLE_ASSIGNMENT,
+    ComponentCoordinateDerivationGap.FULL_PRECISION_TRANSFORMS,
+    ComponentCoordinateDerivationGap.RECOMBINATION,
+)
+
+
+class ComponentCoordinateDerivationBoundary(_ContentAddressedContract):
+    """Checksum-bound refusal to derive component coordinates from combined PDBs.
+
+    This record is emitted when retained Phaser evidence contains a combined parent
+    PDB and summary/log evidence but lacks the exact ``.sol`` file and Phaser's
+    documented per-``SOLU 6DIM`` coordinate outputs.  It carries no command and no
+    derived coordinate checksum.  Therefore it cannot be supplied as
+    :class:`FixedComponentExecutionEvidence`.
+
+    A future real-runtime adapter must retain the exact ``.sol`` plus the files
+    produced by ``XYZOUT ON ENSEMBLE ON``, bind each file ordinal to its documented
+    ``SOLU 6DIM`` entry, checksum-group placements by component, and verify exact
+    recombination against the combined parent before this boundary can be replaced.
+    """
+
+    _identity_field: ClassVar[str] = "derivation_boundary_id"
+    _identity_prefix: ClassVar[str] = "compcoordboundary_"
+
+    schema_version: Literal["2.0"]
+    derivation_boundary_id: ComponentCoordinateDerivationBoundaryIdentifier
+    crystal_id: NonEmptyString
+    source_commit: Annotated[str, Field(pattern=r"^[a-f0-9]{40}$")]
+    combined_coordinate_sha256: Sha256Hex
+    result_record_sha256: Sha256Hex
+    command_record_sha256: Sha256Hex
+    raw_log_sha256: Sha256Hex
+    retained_artifact_inventory_sha256: Sha256Hex
+    phaser_tool_version: NonEmptyString
+    parent_component_labels: tuple[ComponentLabel, ...] = Field(
+        min_length=2,
+        max_length=5,
+    )
+    observed_copy_counts: tuple[PositiveInt, ...] = Field(
+        min_length=2,
+        max_length=5,
+    )
+    derivation_status: Literal[
+        "blocked_missing_exact_sol_and_per_placement_coordinates"
+    ] = "blocked_missing_exact_sol_and_per_placement_coordinates"
+    exact_solution_file_sha256: None = None
+    per_placement_coordinate_sha256s: tuple[Sha256Hex, ...] = ()
+    derived_component_coordinate_sha256s: tuple[Sha256Hex, ...] = ()
+    chain_to_ensemble_assignment_verified: Literal[False] = False
+    full_precision_transforms_verified: Literal[False] = False
+    recombination_verified: Literal[False] = False
+    can_create_fixed_component_evidence: Literal[False] = False
+    derivation_command: tuple[str, ...] = ()
+    missing_evidence: tuple[ComponentCoordinateDerivationGap, ...] = (
+        _REQUIRED_DERIVATION_GAPS
+    )
+    future_adapter_requirement: Literal[
+        "retain_exact_sol_and_xyzout_ensemble_per_solu_6dim_pdbs_then_"
+        "checksum_group_and_recombine"
+    ] = (
+        "retain_exact_sol_and_xyzout_ensemble_per_solu_6dim_pdbs_then_"
+        "checksum_group_and_recombine"
+    )
+
+    @model_validator(mode="after")
+    def _validate_blocked_derivation(self) -> Self:
+        labels = self.parent_component_labels
+        if labels != _ORDERED_COMPONENT_LABELS[: len(labels)]:
+            raise ValueError("parent components are not the ordered A--F prefix")
+        if len(self.observed_copy_counts) != len(labels):
+            raise ValueError("copy counts do not cover every parent component")
+        if any(count > 4 for count in self.observed_copy_counts):
+            raise ValueError("parent component copy count exceeds four")
+        if self.missing_evidence != _REQUIRED_DERIVATION_GAPS:
+            raise ValueError("blocked derivation does not retain every evidence gap")
+        if (
+            self.per_placement_coordinate_sha256s
+            or self.derived_component_coordinate_sha256s
+            or self.derivation_command
+        ):
+            raise ValueError(
+                "blocked derivation cannot carry guessed outputs or command"
+            )
+        return self
 
 
 class FixedComponentExecutionEvidence(_ContentAddressedContract):
@@ -209,6 +320,8 @@ class ComponentExpansionExecutionInput(_ContentAddressedContract):
 
 
 __all__ = [
+    "ComponentCoordinateDerivationBoundary",
+    "ComponentCoordinateDerivationGap",
     "ComponentExpansionExecutionInput",
     "FixedComponentExecutionEvidence",
 ]

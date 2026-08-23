@@ -10886,3 +10886,48 @@ with a collapsed combined parent or a guessed command.
   and reopened inventories into schema-v2 composition candidate generation and
   qualify the real PSORTb runtime separately. Do not enable DeepTMHMM, define an
   unknown profile, or launch localisation/HPC work until those later gates pass.
+
+## 2026-08-23 - Component-coordinate derivation is blocked on native Phaser outputs
+
+### Retained evidence audit and completed boundary
+
+- The exact v0.2 release evidence for 6RTZ and 3U7Q retains combined Phaser
+  PDBs, command/result records, and logs, but the first-copy result records have
+  `solution_file_path: null` and no partner `.sol` was collected. The captured
+  partner inputs contain `XYZOUT ON`, not `XYZOUT ON ENSEMBLE ON`.
+- The logs reproduce only rounded `SOLU 6DIM` summaries. Combined PDB chain IDs
+  are not bound to ensemble labels, and the 3U7Q partner run represents both A
+  copies as one combined `fixed_parent` entry. Chain append order and rounded
+  transforms therefore cannot support a checksum-reconstructible split.
+- Official Phaser documentation identifies the verifiable future path:
+  `XYZOUT ON ENSEMBLE ON` writes one PDB per placed ensemble, with the second
+  filename number corresponding to a `SOLU 6DIM` entry. The exact `.sol`, every
+  native per-placement PDB, and the combined PDB must be retained together.
+- Added content-addressed `ComponentCoordinateDerivationBoundary`. It binds the
+  source commit, crystal, combined coordinate, command/result/log/inventory,
+  Phaser version, ordered components, and observed copies while requiring all
+  five evidence gaps. It cannot carry a guessed command or coordinate, cannot
+  claim chain/transform/recombination verification, and cannot create fixed
+  component evidence.
+
+### Validation, limitations, and next exact starting point
+
+- Nine focused coordinate-boundary/execution-input tests pass. The complete
+  unit suite passes 832 tests. Ruff lint, targeted Ruff format, `ty`, schemas,
+  documentation links, and diff checks pass.
+- The contract suite passes 126 tests and has two environment-only failures
+  because this isolated worktree does not contain the `external/nf-helper`
+  submodule checkout. The repository-wide format check also reports one
+  pre-existing formatting drift in
+  `tests/scripts/check_composition_attempt_fanout.py`; it was left unchanged as
+  unrelated user work.
+- One read-only inventory command accidentally used a pipe to `head` before
+  command discipline was corrected. It made no mutation, network request, or
+  external-system change; all later shell calls used exactly one command.
+- Next, qualify the exact Phenix parameter that emits documented
+  `XYZOUT ON ENSEMBLE ON` output against the installed target runtime. Extend
+  the output collector to retain the exact `.sol` and every per-`SOLU 6DIM`
+  PDB, group only documented ensemble entries from the component's introduction
+  stage, and prove exact recombination before replacing this boundary. Do not
+  infer chains from order, collapse components, or implement a multi-fixed
+  Phaser command from this result.
