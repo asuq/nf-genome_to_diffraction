@@ -297,7 +297,20 @@ def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     assert "M6_FIRST_COPY(hypothesis_tasks)" in workflow
     assert "M6_ADDITIONAL_COPY(copy_tasks)" in workflow
     assert "M6_BUILD_SEARCH_BATCHES" in workflow
+    assert "M6_STAGE_COORDINATES" in workflow
     assert "M6_SEARCH_PDB" in modules and "M6_SEARCH_FOLDSEEK" in modules
+    assert all(
+        label in modules for label in ("process_network", "needs_internet", "run_local")
+    )
+    case_process = modules.split("process M6_PREPARE_ACTIVE_CASE", 1)[1].split(
+        "process M6_PREPARE_EARLY_CASE", 1
+    )[0]
+    case_task = task_boundaries.split("def run_m6_prepare_case_task", 1)[1].split(
+        "def _phaser_output", 1
+    )[0]
+    assert "--coordinate-stage" in case_process
+    assert "--database-manifest" not in case_process
+    assert "register_pdb_coordinates" not in case_task
     assert "ThreadPoolExecutor" not in legacy
     assert "ThreadPoolExecutor" not in task_boundaries
     assert "ProcessPoolExecutor" not in task_boundaries

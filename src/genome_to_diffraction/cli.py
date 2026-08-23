@@ -60,6 +60,7 @@ from genome_to_diffraction.benchmarks.m6_nextflow import (
     run_m6_aggregate_track_task,
     run_m6_assemble_case_task,
     run_m6_catalogue_task,
+    run_m6_coordinate_stage_task,
     run_m6_empty_finalists_task,
     run_m6_empty_seeds_task,
     run_m6_foldseek_search_task,
@@ -835,8 +836,17 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_case_task.add_argument("--preflight-bundle", type=Path, required=True)
     m6_case_task.add_argument("--catalogue-bundle", type=Path, required=True)
     m6_case_task.add_argument("--policy-bundle", type=Path)
-    m6_case_task.add_argument("--database-manifest", type=Path, required=True)
+    m6_case_task.add_argument("--coordinate-stage", type=Path)
     m6_case_task.add_argument("--outdir", type=Path, required=True)
+    m6_coordinate_stage = benchmark_actions.add_parser(
+        "stage-m6-coordinates",
+        help="stage one bounded M6 PDB coordinate set for offline case preparation",
+    )
+    m6_coordinate_stage.add_argument("--task", type=Path, required=True)
+    m6_coordinate_stage.add_argument("--catalogue-bundle", type=Path, required=True)
+    m6_coordinate_stage.add_argument("--policy-bundle", type=Path, required=True)
+    m6_coordinate_stage.add_argument("--database-manifest", type=Path, required=True)
+    m6_coordinate_stage.add_argument("--outdir", type=Path, required=True)
     m6_seed_task = benchmark_actions.add_parser(
         "select-m6-seeds", help="select retained first-copy seeds for one M6 case"
     )
@@ -2261,10 +2271,20 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             args.preflight_bundle,
             args.catalogue_bundle,
             args.policy_bundle,
-            args.database_manifest,
+            args.coordinate_stage,
             args.outdir,
         )
         print(f"Completed M6 case task: {result}")
+        return 0
+    if args.benchmark_action == "stage-m6-coordinates":
+        result = run_m6_coordinate_stage_task(
+            args.task,
+            args.catalogue_bundle,
+            args.policy_bundle,
+            args.database_manifest,
+            args.outdir,
+        )
+        print(f"Staged M6 coordinates: {result}")
         return 0
     if args.benchmark_action == "select-m6-seeds":
         result = run_m6_select_seeds_task(

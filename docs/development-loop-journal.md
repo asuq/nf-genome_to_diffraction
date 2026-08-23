@@ -11488,3 +11488,37 @@ with a collapsed combined parent or a guessed command.
 - No scientific threshold, protocol value, workflow task semantics, remote
   profile, private input, HPC state, or M6 result changed. Continue with the
   separate network-staging and ordering stop gates before operational M6.
+## 2026-08-23 - M6 coordinate acquisition is isolated from case workers
+
+### Focused DEV-P1-04 correction
+
+- One dedicated login/controller-labelled Nextflow task now receives the
+  bounded policy-selected PDB hits and database manifest. It reuses the
+  existing qualified coordinate cache, materialises each checksum-addressed
+  object once, and emits portable relative coordinate records.
+- Active and early M6 case tasks no longer receive the database manifest and
+  cannot invoke coordinate registration or HTTPS. Active hits require the
+  checksum-verified stage bundle; no-hit and deliberate missing-model paths
+  remain typed `completed_no_model` outcomes.
+- Coordinate materialisation changes registration identity, while case-bundle
+  semantics use `m6-nextflow-case-v2`. Runner-visible stage metadata contains
+  local object/checksum provenance and no URL or credential authority.
+
+### Focused evidence and next exact starting point
+
+- Nine focused coordinate-registration, relative-model-input, M6 typed-empty,
+  early-case, and repository-policy tests passed. Nextflow syntax passed. The
+  existing M6-inclusive stub passed fresh, cached-resume, and cross-track
+  checks with 26 tasks: six truthless tasks cached and 20 track-specific tasks
+  completed. Ruff formatting/lint, `ty`, schema, and docs checks passed.
+- The first stub attempt failed before parsing because the isolated worktree
+  lacked the pinned nf-helper submodule; after initialising that exact commit,
+  the first execution exposed only the expected 19-to-20 trace-count update
+  from the new stage and the exact retry passed.
+- Two read-only inventory commands accidentally piped `rg` to `head`. They made
+  no file, network, scheduler, or external-system mutation; subsequent calls
+  returned to one command per tool call.
+- No M6, remote, private-data, bootstrap, or HPC action ran. Real operational
+  and leakage acceptance remains pending the other PH6 stop gates and one
+  exact-source site qualification of the stage executor and collected object
+  inventory.

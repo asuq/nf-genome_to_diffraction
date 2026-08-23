@@ -232,7 +232,13 @@ def _fake_download(monkeypatch: pytest.MonkeyPatch, *, fail: bool = False) -> li
 
 
 def _request(
-    tmp_path: Path, hits: Path, groups: Path, manifest: Path, *, suffix: str = ""
+    tmp_path: Path,
+    hits: Path,
+    groups: Path,
+    manifest: Path,
+    *,
+    suffix: str = "",
+    materialise: bool = False,
 ) -> PdbCoordinateRegistrationRequest:
     return PdbCoordinateRegistrationRequest(
         structural_hits_jsonl=hits,
@@ -242,6 +248,7 @@ def _request(
         maximum_hits_per_sequence_group=3,
         maximum_mappings=2,
         minimum_free_bytes=0,
+        materialise_coordinate_objects=materialise,
         progress=False,
     )
 
@@ -292,3 +299,37 @@ def test_registration_requires_search_snapshot_sequence_identity(
 
     with pytest.raises(PdbCoordinateInputError, match="rerun pdb-sequence adapter v2"):
         register_pdb_coordinates(_request(tmp_path, hit_path, groups, manifest))
+
+
+def test_registration_materialises_one_relative_object_for_reused_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hit_path, groups, manifest, hits = _inputs(tmp_path)
+    repeated = hits[0].model_copy(
+        update={"hit_id": "hit_first_repeated", "provider_rank": 2}
+    )
+    hit_path.write_text(
+        "".join(f"{canonical_json_text(item)}\n" for item in (hits[0], repeated)),
+        encoding="utf-8",
+    )
+    calls = _fake_download(monkeypatch)
+
+    output = register_pdb_coordinates(
+        _request(
+            tmp_path,
+            hit_path,
+            groups,
+            manifest,
+            suffix=" staged",
+            materialise=True,
+        )
+    )
+
+    assert calls == ["1abc"]
+    assert len(output.coordinate_sources) == 1
+    assert len(output.mappings) == 2
+    relative = Path(output.coordinate_sources[0].coordinate_path)
+    assert not relative.is_absolute()
+    assert (output.manifest_json.parent / relative).is_file()
+    registration = json.loads(output.manifest_json.read_text(encoding="utf-8"))
+    assert registration["parameters"]["materialise_coordinate_objects"] is True

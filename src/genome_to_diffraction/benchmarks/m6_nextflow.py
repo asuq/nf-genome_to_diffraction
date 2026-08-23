@@ -131,7 +131,8 @@ _PDB_ADAPTER = "m6-nextflow-pdb-search-v2"
 _FOLDSEEK_ADAPTER = "m6-nextflow-foldseek-search-v2"
 _MODEL_POLICY_ADAPTER = "m6-nextflow-model-policy-v2"
 _PREFLIGHT_ADAPTER = "m6-nextflow-preflight-v1"
-_CASE_ADAPTER = "m6-nextflow-case-v1"
+_COORDINATE_STAGE_ADAPTER = "m6-coordinate-stage-v1"
+_CASE_ADAPTER = "m6-nextflow-case-v2"
 _SEED_ADAPTER = "m6-nextflow-seeds-v2"
 _CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v2"
 _M6_SEED_CAP = 5
@@ -229,7 +230,7 @@ class M6HypothesisGroupTask(ContractModel):
     """One case-local dynamically sized hypothesis group for Nextflow."""
 
     schema_version: Literal["1.0"]
-    adapter_version: Literal["m6-nextflow-case-v1"]
+    adapter_version: Literal["m6-nextflow-case-v2"]
     case_id: str
     catalogue_key: Sha256Hex
     early_outcome: str | None = None
@@ -1490,12 +1491,91 @@ def _write_selected_inputs(
     return groups_path, sources_path, hits_path
 
 
+def _coordinate_stage_outcome(stimulus: str | None, hits: Path) -> str | None:
+    if stimulus == "missing_pdb_model" or not hits.read_text(encoding="utf-8").strip():
+        return "completed_no_model"
+    return None
+
+
+def run_m6_coordinate_stage_task(
+    case_task_directory: Path,
+    catalogue_bundle: Path,
+    policy_bundle: Path,
+    database_manifest: Path,
+    output_directory: Path,
+) -> Path:
+    """Resolve one bounded hit set before offline M6 case preparation."""
+
+    case_root, task = _load_case_task(case_task_directory)
+    catalogue, catalogue_task = _load_catalogue_bundle(catalogue_bundle)
+    if catalogue_task.catalogue_key != task.catalogue_key:
+        raise PublicControlError("M6 coordinate stage catalogue join changed")
+    policy = policy_bundle.resolve(strict=True)
+    policy_manifest = M6BundleManifest.model_validate_json(
+        (policy / "bundle_manifest.json").read_text(encoding="utf-8")
+    )
+    if policy_manifest.task_id != task.case_id:
+        raise PublicControlError("M6 coordinate stage policy join changed")
+    database = database_manifest.resolve(strict=True)
+    output = output_directory.resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    groups, sources, hits = _write_selected_inputs(catalogue, policy, output)
+    registration_root = output / "registration"
+    stimulus = edge_stimulus(_fault(case_root, task))
+    stage_outcome = _coordinate_stage_outcome(stimulus, hits)
+    if stage_outcome is not None:
+        registration_root.mkdir()
+        atomic_write_text(registration_root / "coordinate_sources.jsonl", "")
+        atomic_write_text(registration_root / "coordinate_hit_mappings.jsonl", "")
+        atomic_write_json(
+            registration_root / "registration_manifest.json",
+            {"schema_version": "1.0", "status": "completed_no_model"},
+        )
+    else:
+        register_pdb_coordinates(
+            PdbCoordinateRegistrationRequest(
+                structural_hits_jsonl=hits,
+                sequence_groups_jsonl=groups,
+                database_manifest=database,
+                output_directory=registration_root,
+                maximum_hits_per_sequence_group=3,
+                maximum_mappings=25,
+                materialise_coordinate_objects=True,
+                progress=False,
+            )
+        )
+    _write_bundle_manifest(
+        output,
+        adapter=_COORDINATE_STAGE_ADAPTER,
+        kind="coordinate_stage",
+        task_id=task.case_id,
+        inputs={
+            "case_task": case_root / "task.json",
+            "catalogue": catalogue / "bundle_manifest.json",
+            "policy": policy / "bundle_manifest.json",
+            "database_manifest": database,
+            "selected_sequence_groups": groups,
+            "selected_source_records": sources,
+            "selected_structural_hits": hits,
+        },
+        outputs={
+            "coordinate_sources": registration_root / "coordinate_sources.jsonl",
+            "coordinate_hit_mappings": (
+                registration_root / "coordinate_hit_mappings.jsonl"
+            ),
+            "registration": registration_root / "registration_manifest.json",
+        },
+        early_outcome=stage_outcome,
+    )
+    return output
+
+
 def run_m6_prepare_case_task(
     case_task_directory: Path,
     preflight_bundle: Path,
     catalogue_bundle: Path,
     policy_bundle: Path | None,
-    database_manifest: Path,
+    coordinate_stage_bundle: Path | None,
     output_directory: Path,
 ) -> Path:
     """Prepare one blind case and emit zero or more first-copy hypotheses."""
@@ -1565,33 +1645,76 @@ def run_m6_prepare_case_task(
     )
     fault = _fault(case_root, task)
     stimulus = edge_stimulus(fault)
+    stage_root: Path | None = None
+    stage_manifest: M6BundleManifest | None = None
+    stage_sources: Path | None = None
+    stage_mappings: Path | None = None
+    if coordinate_stage_bundle is not None:
+        stage_root = coordinate_stage_bundle.resolve(strict=True)
+        stage_manifest = M6BundleManifest.model_validate_json(
+            (stage_root / "bundle_manifest.json").read_text(encoding="utf-8")
+        )
+        if (
+            stage_manifest.adapter_version != _COORDINATE_STAGE_ADAPTER
+            or stage_manifest.task_id != task.case_id
+        ):
+            raise PublicControlError("M6 coordinate stage identity changed")
+        for name, selected in (
+            ("selected_sequence_groups", groups_path),
+            ("selected_source_records", sources_path),
+            ("selected_structural_hits", hits_path),
+        ):
+            if stage_manifest.input_sha256.get(name) != sha256_file(selected):
+                raise PublicControlError("M6 coordinate stage selected inputs changed")
+        stage_sources = stage_root / "registration/coordinate_sources.jsonl"
+        stage_mappings = stage_root / "registration/coordinate_hit_mappings.jsonl"
+        stage_registration = stage_root / "registration/registration_manifest.json"
+        if (
+            sha256_file(stage_sources)
+            != stage_manifest.output_sha256.get("coordinate_sources")
+            or sha256_file(stage_mappings)
+            != stage_manifest.output_sha256.get("coordinate_hit_mappings")
+            or sha256_file(stage_registration)
+            != stage_manifest.output_sha256.get("registration")
+        ):
+            raise PublicControlError("M6 coordinate stage outputs changed")
+        shutil.copy2(
+            stage_root / "bundle_manifest.json",
+            output / "coordinate_stage_manifest.json",
+        )
     typed_outcome: str | None = None
     hypothesis_count = 0
     hypothesis_ids: tuple[str, ...] = ()
     if stimulus == "missing_pdb_model":
+        if stage_manifest is not None and stage_manifest.early_outcome is None:
+            raise PublicControlError(
+                "M6 missing-model case has an inconsistent coordinate stage"
+            )
         write_missing_model_stimulus(
             accepted_hits=hits_path,
             output_directory=output / "missing-model-stimulus",
         )
         typed_outcome = "completed_no_model"
     elif not hits_path.read_text(encoding="utf-8").strip():
+        if stage_manifest is not None and stage_manifest.early_outcome is None:
+            raise PublicControlError(
+                "M6 no-hit case has an inconsistent coordinate stage"
+            )
         typed_outcome = "completed_no_model"
     else:
-        registration = register_pdb_coordinates(
-            PdbCoordinateRegistrationRequest(
-                structural_hits_jsonl=hits_path,
-                sequence_groups_jsonl=groups_path,
-                database_manifest=database_manifest.resolve(strict=True),
-                output_directory=output / "coordinate-registration",
-                maximum_hits_per_sequence_group=3,
-                maximum_mappings=25,
-                progress=False,
+        if (
+            stage_manifest is None
+            or stage_sources is None
+            or stage_mappings is None
+            or stage_manifest.early_outcome is not None
+        ):
+            raise PublicControlError(
+                "active M6 case lacks a ready trusted coordinate stage"
             )
-        )
         models = prepare_experimental_models(
             ExperimentalModelPreparationRequest(
-                coordinate_sources_jsonl=registration.coordinate_sources_jsonl,
-                coordinate_hit_mappings_jsonl=registration.mappings_jsonl,
+                coordinate_sources_jsonl=stage_sources,
+                coordinate_hit_mappings_jsonl=stage_mappings,
                 sequence_groups_jsonl=groups_path,
                 output_directory=output / "model-preparation",
                 progress=False,
@@ -1610,10 +1733,10 @@ def run_m6_prepare_case_task(
         )
         funnel = build_diverse_first_copy_funnel(
             DiverseFirstCopyFunnelRequest(
-                coordinate_sources_jsonl=(registration.coordinate_sources_jsonl,),
+                coordinate_sources_jsonl=(stage_sources,),
                 processed_models_jsonl=(models.records_jsonl,),
                 model_preparation_manifests=(models.manifest_json,),
-                coordinate_hit_mappings_jsonl=registration.mappings_jsonl,
+                coordinate_hit_mappings_jsonl=stage_mappings,
                 sequence_groups_jsonl=groups_path,
                 matthews_hypotheses_jsonl=matthews.jsonl_path,
                 mtz_preflight_jsonl=preflight / "preflight/mtz_preflight.jsonl",
@@ -1653,18 +1776,21 @@ def run_m6_prepare_case_task(
         outputs["missing_model_route"] = (
             output / "missing-model-stimulus/model_route_manifest.json"
         )
+    bundle_inputs = {
+        "case_task": case_root / "task.json",
+        "preflight": preflight / "bundle_manifest.json",
+        "catalogue": catalogue / "bundle_manifest.json",
+        "policy": policy / "bundle_manifest.json",
+    }
+    if stage_root is not None:
+        bundle_inputs["coordinate_stage"] = stage_root / "bundle_manifest.json"
+        outputs["coordinate_stage"] = output / "coordinate_stage_manifest.json"
     _write_bundle_manifest(
         output,
         adapter=_CASE_ADAPTER,
         kind="case_preparation",
         task_id=task.case_id,
-        inputs={
-            "case_task": case_root / "task.json",
-            "preflight": preflight / "bundle_manifest.json",
-            "catalogue": catalogue / "bundle_manifest.json",
-            "policy": policy / "bundle_manifest.json",
-            "database_manifest": database_manifest.resolve(strict=True),
-        },
+        inputs=bundle_inputs,
         outputs=outputs,
         early_outcome=typed_outcome,
         hypothesis_count=hypothesis_count,

@@ -47,6 +47,14 @@ cluster snapshots are independent partitions and are not assumed to be nested.
 Their exact target lines and frozen set differences are private truth-side
 cross-checks, not substitutes for the all-route identity calculation.
 
+Coordinate URLs remain trusted preparation metadata only. After model policy,
+one bounded login/controller-labelled stage resolves selected PDB entries
+through the qualified cache and materialises checksum-addressed local objects.
+Case workers receive only that local registration bundle; they receive neither
+the database manifest nor URL or credential authority and never perform HTTPS.
+Scientific no-hit and the deliberate missing-model control produce typed empty
+stage bundles instead of falling back to worker-side acquisition.
+
 ## Leakage and truth isolation
 
 The leakage-controlled track excludes any model chain with at least 70% target

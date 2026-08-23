@@ -366,12 +366,24 @@ def prepare_experimental_models(
                 "mapping sequence identity differs from source/group: "
                 f"{mapping.mapping_id}"
             )
+        raw_coordinate = Path(source.coordinate_path)
+        source_root = request.coordinate_sources_jsonl.resolve(strict=True).parent
         try:
-            coordinate = Path(source.coordinate_path).resolve(strict=True)
+            coordinate = (
+                raw_coordinate.resolve(strict=True)
+                if raw_coordinate.is_absolute()
+                else (source_root / raw_coordinate).resolve(strict=True)
+            )
         except FileNotFoundError as error:
             raise ExperimentalModelInputError(
                 f"registered coordinate does not exist: {source.coordinate_path}"
             ) from error
+        if not raw_coordinate.is_absolute() and not coordinate.is_relative_to(
+            source_root
+        ):
+            raise ExperimentalModelInputError(
+                f"relative coordinate escapes its registration: {source.coordinate_id}"
+            )
         if not coordinate.is_file() or coordinate.is_symlink():
             raise ExperimentalModelInputError(
                 f"registered coordinate is not a safe file: {coordinate}"

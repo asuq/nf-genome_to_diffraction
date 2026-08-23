@@ -63,6 +63,7 @@ from genome_to_diffraction.benchmarks.m6_nextflow import (
     M6CatalogueTask,
     M6HypothesisGroupTask,
     M6TrackPlanRequest,
+    _coordinate_stage_outcome,
     build_m6_search_batches,
     plan_m6_nextflow_track,
     run_m6_assemble_case_task,
@@ -2024,7 +2025,7 @@ def test_m6_nextflow_early_case_retains_catalogue_and_assembles(
         preflight,
         catalogue,
         None,
-        ROOT / "tests/fixtures/stubs/database_manifest.json",
+        None,
         tmp_path / "case",
     )
     assert (case / "all_sequence_groups.jsonl").is_file()
@@ -2049,6 +2050,15 @@ def test_m6_nextflow_early_case_retains_catalogue_and_assembles(
     assert record.typed_outcome == "completed_map_only_mtz"
     assert record.candidate_count == record.retained_candidate_count
     assert record.candidate_count > 0
+
+
+def test_m6_coordinate_stage_preserves_typed_empty_outcomes(tmp_path: Path) -> None:
+    hits = tmp_path / "selected-hits.jsonl"
+    hits.write_text("", encoding="utf-8")
+    assert _coordinate_stage_outcome(None, hits) == "completed_no_model"
+    hits.write_text("{}\n", encoding="utf-8")
+    assert _coordinate_stage_outcome("missing_pdb_model", hits) == "completed_no_model"
+    assert _coordinate_stage_outcome(None, hits) is None
 
 
 def test_m6_runner_verifier_rejects_changed_object(tmp_path: Path) -> None:

@@ -10,6 +10,7 @@ model or treat an external PDB sequence as a catalogue identity.
 
 import gzip
 import logging
+import shutil
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -84,6 +85,7 @@ class PdbCoordinateRegistrationRequest:
     hit_ids: tuple[str, ...] = ()
     storage_limit_bytes: int = 100_000_000_000
     minimum_free_bytes: int = 1_000_000_000
+    materialise_coordinate_objects: bool = False
     progress: bool = True
 
 
@@ -476,6 +478,9 @@ def register_pdb_coordinates(
             f"coordinate-registration output directory is not empty: {output}"
         )
     output.mkdir(parents=True, exist_ok=True)
+    materialised_root = output / "objects"
+    if request.materialise_coordinate_objects:
+        materialised_root.mkdir()
     cache_root = Path(cache_resource.root_path).resolve(strict=True)
     sources: dict[str, CoordinateSourceRecord] = {}
     mappings: list[CoordinateHitMappingRecord] = []
@@ -507,6 +512,27 @@ def register_pdb_coordinates(
             "source_sequence_sha256": entity.sequence_sha256,
         }
         coordinate_id = content_id("coord_", coordinate_identity)
+        coordinate_path = cache_root / cached.object_relative_path
+        if request.materialise_coordinate_objects:
+            relative_object = (
+                Path("objects")
+                / cached.object_sha256[:2]
+                / f"{cached.object_sha256}.cif.gz"
+            )
+            materialised = output / relative_object
+            materialised.parent.mkdir(parents=True, exist_ok=True)
+            if materialised.exists():
+                if sha256_file(materialised) != cached.object_sha256:
+                    raise PdbCoordinateInputError(
+                        "materialised coordinate checksum collision"
+                    )
+            else:
+                shutil.copy2(coordinate_path, materialised)
+            if sha256_file(materialised) != cached.object_sha256:
+                raise PdbCoordinateInputError(
+                    "materialised coordinate checksum mismatch"
+                )
+            coordinate_path = relative_object
         retrieved_at = datetime.fromisoformat(
             cached.retrieved_at.replace("Z", "+00:00")
         )
@@ -521,7 +547,7 @@ def register_pdb_coordinates(
                 ),
                 retrieval_date=retrieved_at,
                 source_release=f"retrieved-{retrieved_at.date().isoformat()}",
-                coordinate_path=str(cache_root / cached.object_relative_path),
+                coordinate_path=str(coordinate_path),
                 coordinate_sha256=cached.object_sha256,
                 source_sequence_sha256=entity.sequence_sha256,
                 confidence_summary={
@@ -620,6 +646,7 @@ def register_pdb_coordinates(
     manifest_identity = {
         "adapter_version": _ADAPTER_VERSION,
         "input_sha256": input_sha256,
+        "materialise_coordinate_objects": request.materialise_coordinate_objects,
         "selected_hit_ids": [item.hit_id for item in selected],
         "coordinate_ids": [item.coordinate_id for item in source_rows],
         "mapping_ids": [item.mapping_id for item in mapping_rows],
@@ -649,6 +676,9 @@ def register_pdb_coordinates(
                 ),
                 "maximum_mappings": request.maximum_mappings,
                 "explicit_hit_selection": bool(request.hit_ids),
+                "materialise_coordinate_objects": (
+                    request.materialise_coordinate_objects
+                ),
                 "selection_policy": "diversity_rounds_then_alignment_quality",
             },
             "input_hit_count": len(hits),

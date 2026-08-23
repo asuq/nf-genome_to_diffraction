@@ -348,6 +348,14 @@ derives `hold_missing_required_child` instead of accepting the unchanged
 aggregate. This is local verifier evidence only. M6 collection must still carry
 and validate the observed mutation/child inventory before scientific acceptance.
 
+Status: the local `DEV-P1-04` coordinate boundary is implemented. A dedicated
+login/controller-labelled process resolves only the bounded policy-selected
+PDB hits, reuses the qualified coordinate cache, and transports checksum-bound
+objects with relative source records. M6 case workers consume those local
+objects without receiving the database manifest or invoking HTTPS; no-hit and
+missing-model paths remain typed. A future M6 run must still qualify the real
+site executor mapping and collected coordinate-stage inventory.
+
 Add a locked offline wheel build, isolated install, both entry points, packaged
 schemas, and version parity. Remove or migrate legacy nested thread-pool
 benchmark execution. Repeat the adverse review before release.

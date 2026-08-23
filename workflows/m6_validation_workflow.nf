@@ -6,6 +6,7 @@ include {
     M6_PARTITION_DISCOVERY;
     M6_PREFLIGHT_CASE;
     M6_APPLY_POLICY;
+    M6_STAGE_COORDINATES;
     M6_PREPARE_ACTIVE_CASE;
     M6_PREPARE_EARLY_CASE;
     M6_FIRST_COPY;
@@ -179,7 +180,7 @@ workflow M6_VALIDATION_WORKFLOW {
         )
     }
     policies = M6_APPLY_POLICY(policy_inputs)
-    active_case_inputs = policies.map {
+    coordinate_stage_inputs = policies.map {
         caseId, task, catalogueBundle, preflightBundle, policyBundle ->
         tuple(
             caseId,
@@ -190,7 +191,8 @@ workflow M6_VALIDATION_WORKFLOW {
             database_manifest
         )
     }
-    active_cases = M6_PREPARE_ACTIVE_CASE(active_case_inputs)
+    coordinate_stages = M6_STAGE_COORDINATES(coordinate_stage_inputs)
+    active_cases = M6_PREPARE_ACTIVE_CASE(coordinate_stages)
 
     early_joined = preflight_early
         .map { caseId, catalogueKey, task, preflightBundle ->
@@ -199,7 +201,7 @@ workflow M6_VALIDATION_WORKFLOW {
         .join(imported, by: 0)
     early_case_inputs = early_joined.map {
         catalogueKey, caseId, task, preflightBundle, catalogueBundle ->
-        tuple(caseId, task, catalogueBundle, preflightBundle, database_manifest)
+        tuple(caseId, task, catalogueBundle, preflightBundle)
     }
     early_cases = M6_PREPARE_EARLY_CASE(early_case_inputs)
     cases = active_cases.mix(early_cases)
