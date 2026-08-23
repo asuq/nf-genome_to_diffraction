@@ -5,17 +5,15 @@ narrow an unidentified prokaryotic crystal to reviewable protein candidates.
 
 ## Current status
 
-Version `0.2.0.dev0` is the active development line. The immutable `v0.1.0`
-release is an intentionally incomplete archival research snapshot: M6
-scientific acceptance is held, heteromer reconstruction is absent, and the
-release is not production validated. The v0.2 fixed-A/partner adapter and its
-normal-workflow checkpoint have passed the real 6RTZ HisF/HisH `1A + 1B`
-control with Phenix 2.1-6048. Explicit joint `nA + mB` support is now being
-qualified on the frozen 3U7Q `2A + 2B` control. The parser-fixed 32 GB run
-completed both joint searches and placed two A plus two B copies with the
-primary score cohort. The next milestone is deterministic capped catalogue B
-enumeration. See the
-[prototype-first roadmap](docs/v0.2-roadmap.md).
+Version `0.2.0` is the experimental bounded two-component heteromer prototype.
+It fixes a retained A state and searches explicit B copies for `ASU = nA + mB`.
+Real Phenix controls cover 6RTZ `1A + 1B`, 3U7Q `2A + 2B`, and the full
+1,846-protein Thermotoga catalogue search. The small P6 control slice adds
+missing-B, wrong-B, homomer-route non-regression, and explicit 9ECN
+`unsupported_component_count` behaviour. Packing and scores remain search
+evidence, not proof of identity or composition. The release is experimental,
+M6 scientific acceptance remains held, and deferred hardening is documented in
+the [prototype-first roadmap](docs/v0.2-roadmap.md).
 
 This repository contains the completed foundation, typed data contracts, an
 external Phenix bootstrap/runtime boundary, explicit reference-database

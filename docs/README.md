@@ -6,6 +6,8 @@ remain authoritative for scientific policy and interface contracts.
 
 ## Available documents
 
+- [v0.2.0 release notes](releases/v0.2.0.md): experimental two-component scope,
+  known control outcomes, interpretation limits, and deferred hardening.
 - [v0.1.0 release notes](releases/v0.1.0.md): explicit archival release scope,
   included capabilities, known incompleteness, and the v0.2 pivot.
 - [Full-program roadmap](full-program-roadmap.md): programme phases from the
@@ -14,6 +16,12 @@ remain authoritative for scientific policy and interface contracts.
 - [Software v0.2 roadmap](v0.2-roadmap.md): active minimal 6RTZ `1A + 1B`
   implementation, explicit `nA + mB`, small controls, milestone testing, and
   deferred robustness backlog.
+- [Phase III roadmap](phase-iii-roadmap.md): approved post-v0.2 hardening,
+  general component-list search through a fixed six-component envelope, M6
+  repair, localisation/gel evidence, and two-pass unknown-crystal analysis.
+- [Phase III finding ledger](phase-iii-finding-ledger.md): current disposition
+  of all 34 original findings plus the post-v0.2 claim, application, model, and
+  component-depth findings with their acceptance regressions.
 - [Single-component prototype roadmap](single-component-prototype-roadmap.md):
   historical v0.1/M6 plan and preserved single-component evidence; it is no
   longer the active heteromer gate.

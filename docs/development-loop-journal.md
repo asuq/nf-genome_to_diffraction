@@ -10233,3 +10233,29 @@ replace the pending P6 release-note marker, review version/changelog/docs, run
 one full locked release gate, push and watch one CI run, qualify the exact
 release commit on Marmic, then publish experimental `v0.2.0`. Keep Phase III
 development isolated on `dev/phase3` until v0.2 is immutable.
+
+## 2026-08-23T16:45:00Z - Experimental v0.2.0 release candidate is locally green
+
+### Release candidate contents and validation
+
+- Synchronized package, Pixi workspace, Nextflow, CLI, and test metadata at
+  `0.2.0`; added the dated changelog section and experimental release notes.
+  The notes bind the accepted P6 run, 47 checksums, six assessments, seven
+  Phenix identities, and the wrong-B no-claim evidence. No pending evidence
+  marker remains.
+- Preserved the explicit boundaries: two protein components only, M6 scientific
+  acceptance held, no wheel/distribution claim, no unknown-crystal answer, and
+  no automatic identity or complete-composition claim from MR scores/packing.
+- After initializing the pinned nf-helper submodule in this isolated worktree,
+  one complete `pixi run --locked check` passed: 675 unit, 116 contract, and 74
+  integration tests; schema, public panel, docs, actionlint, Nextflow syntax,
+  all cached stub workflows, and wrapper syntax also passed. The earlier
+  pre-submodule gate failure was environment-only and made no source change.
+
+### Next exact starting point
+
+Review and commit the focused release diff, bring that commit onto `main`, push
+once, watch one CI run, then qualify that exact release commit through the
+fixed Marmic release boundary. Publish/tag experimental `v0.2.0` only after the
+exact-source qualification passes. Do not start another heteromer scientific
+job or modify the accepted P6 evidence.
