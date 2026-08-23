@@ -22,12 +22,17 @@ from pydantic import BaseModel, JsonValue, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
-    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.model_registry.all_eligible import (
+    AllEligibleModelRegistryError,
+    AllEligibleModelRegistryOutput,
+    ValidatedProcessedModelInput,
+    build_all_eligible_model_registry,
+)
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
     load_contract,
@@ -115,7 +120,7 @@ class DiverseFirstCopyFunnelRequest:
 
 @dataclass(frozen=True)
 class DiverseFirstCopyFunnelOutput:
-    """Selected hypotheses plus a self-contained aggregate model registry."""
+    """Selected A hypotheses plus the independent all-eligible model registry."""
 
     hypotheses: tuple[MrHypothesis, ...]
     hypotheses_jsonl: Path
@@ -1062,85 +1067,65 @@ def _select_diverse_candidates(
     return tuple(selected[:global_cap]), per_crystal_cap
 
 
-def _publish_aggregate_models(
+def _publish_all_eligible_models(
     output: Path,
-    selected: Sequence[_Candidate],
     *,
-    input_sha256: dict[str, str],
-) -> tuple[Path, dict[str, _ModelPath]]:
-    registry = output / "model_registry"
-    model_root = registry / "models"
-    model_root.mkdir(parents=True)
-    selected_by_model: dict[str, _Candidate] = {}
-    for candidate in selected:
-        selected_by_model.setdefault(candidate.model.model_id, candidate)
-    aggregate_paths: dict[str, _ModelPath] = {}
-    records: list[ProcessedModelRecord] = []
-    entries: list[dict[str, object]] = []
-    for model_id in sorted(selected_by_model):
-        candidate = selected_by_model[model_id]
-        model = candidate.model
-        relative = Path("models") / model.model_sha256[:2] / f"{model.model_sha256}.pdb"
-        destination = registry / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        payload = candidate.model_path.absolute_path.read_bytes()
-        if destination.exists():
-            if (
-                destination.is_symlink()
-                or sha256_file(destination) != model.model_sha256
-            ):
-                raise FunnelInputError(
-                    f"aggregate model target is unsafe: {destination}"
-                )
-        else:
-            atomic_write_bytes(destination, payload)
-        if sha256_file(destination) != model.model_sha256:
+    models: Sequence[ProcessedModelRecord],
+    coordinates: Sequence[CoordinateSourceRecord],
+    mappings: Sequence[CoordinateHitMappingRecord],
+    model_paths: dict[str, _ModelPath],
+    groups: Sequence[SequenceGroupRecord],
+) -> tuple[AllEligibleModelRegistryOutput, dict[str, _ModelPath]]:
+    """Publish every validated model independently of the A execution cap."""
+
+    coordinate_index = _unique_index(
+        coordinates, lambda item: item.coordinate_id, label="coordinate ID"
+    )
+    group_index = _unique_index(
+        groups, lambda item: item.sequence_group_id, label="sequence-group ID"
+    )
+    mapping_index = _unique_index(
+        mappings, lambda item: item.mapping_id, label="coordinate mapping ID"
+    )
+    registry_inputs: list[ValidatedProcessedModelInput] = []
+    for model in models:
+        coordinate = coordinate_index.get(model.coordinate_id)
+        group = group_index.get(model.full_candidate_sequence_group_id)
+        path = model_paths.get(model.model_id)
+        if coordinate is None or group is None or path is None:
             raise FunnelInputError(
-                f"aggregate model checksum mismatch: {model.model_id}"
+                f"processed model cannot enter all-model registry: {model.model_id}"
             )
-        aggregate_paths[model_id] = _ModelPath(
-            relative.as_posix(), destination, candidate.model_path.retained_fraction
+        mapping_id = model.processing_parameters.get("mapping_id")
+        mapping = mapping_index.get(mapping_id) if isinstance(mapping_id, str) else None
+        registry_inputs.append(
+            ValidatedProcessedModelInput(
+                model=model,
+                coordinate=coordinate,
+                sequence_group=group,
+                model_path=path.absolute_path,
+                retained_fraction=path.retained_fraction,
+                mapping=mapping,
+            )
         )
-        records.append(model)
-        entries.append(
-            {
-                "model_id": model.model_id,
-                "model_path": relative.as_posix(),
-                "model_sha256": model.model_sha256,
-                "retained_fraction": candidate.model_path.retained_fraction,
-                "source_manifest_model_path": candidate.model_path.relative_path,
-            }
+    try:
+        registry_output = build_all_eligible_model_registry(
+            models=registry_inputs,
+            sequence_groups=groups,
+            output_directory=output / "model_registry",
         )
-    records_path = registry / "processed_models.jsonl"
-    atomic_write_text(
-        records_path,
-        "".join(f"{canonical_json_text(item)}\n" for item in records),
-    )
-    manifest_path = registry / "model_preparation_manifest.json"
-    manifest_identity = {
-        "adapter_version": _DIVERSE_ADAPTER_VERSION,
-        "input_sha256": input_sha256,
-        "model_ids": [item.model_id for item in records],
+    except AllEligibleModelRegistryError as error:
+        raise FunnelInputError(str(error)) from error
+    aggregate_paths = {
+        entry.model_id: _ModelPath(
+            entry.model_path,
+            registry_output.registry_directory / entry.model_path,
+            entry.retained_fraction,
+        )
+        for inventory in registry_output.registry.sequence_groups
+        for entry in inventory.models
     }
-    atomic_write_json(
-        manifest_path,
-        {
-            "schema_version": "1.0",
-            "preparation_id": content_id("modelreg_", manifest_identity),
-            "created_at": utc_now_iso(),
-            "adapter_version": _DIVERSE_ADAPTER_VERSION,
-            "scope": "selected_multi_source_model_registry",
-            "processed_model_count": len(records),
-            "entries": entries,
-            "outputs": {
-                "processed_models": {
-                    "path": records_path.name,
-                    "sha256": sha256_file(records_path, progress=False),
-                }
-            },
-        },
-    )
-    return registry, aggregate_paths
+    return registry_output, aggregate_paths
 
 
 def _diverse_input_digests(
@@ -1210,9 +1195,15 @@ def build_diverse_first_copy_funnel(
         )
     output.mkdir(parents=True, exist_ok=True)
     input_sha256 = _diverse_input_digests(request)
-    registry, aggregate_paths = _publish_aggregate_models(
-        output, selected, input_sha256=input_sha256
+    registry_output, aggregate_paths = _publish_all_eligible_models(
+        output,
+        models=models,
+        coordinates=coordinates,
+        mappings=mappings,
+        model_paths=model_paths,
+        groups=groups,
     )
+    registry = registry_output.registry_directory
     hypotheses_jsonl = output / "mr_hypotheses.jsonl"
     atomic_write_text(
         hypotheses_jsonl,
@@ -1274,11 +1265,22 @@ def build_diverse_first_copy_funnel(
             ],
             "model_registry": {
                 "path": registry.name,
-                "processed_models_sha256": sha256_file(
-                    registry / "processed_models.jsonl", progress=False
+                "scope": registry_output.registry.scope,
+                "registry_id": registry_output.registry.registry_id,
+                "registry_manifest_path": registry_output.registry_json.name,
+                "registry_manifest_sha256": sha256_file(
+                    registry_output.registry_json, progress=False
                 ),
-                "manifest_sha256": sha256_file(
-                    registry / "model_preparation_manifest.json", progress=False
+                "processed_models_sha256": (
+                    registry_output.registry.processed_models_sha256
+                ),
+                "manifest_sha256": (
+                    registry_output.registry.preparation_manifest_sha256
+                ),
+                "sequence_group_count": (registry_output.registry.sequence_group_count),
+                "model_count": registry_output.registry.model_count,
+                "unavailable_sequence_group_count": (
+                    registry_output.registry.unavailable_sequence_group_count
                 ),
             },
             "hypotheses": [

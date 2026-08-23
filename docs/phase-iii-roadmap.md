@@ -65,6 +65,13 @@ candidate-level typed sequence-map parse failure are implemented on
 `dev/phase3`. The remaining PH1 boundaries are still open or partial as
 recorded in the finding ledger.
 
+The all-eligible model registry is now separated from the A-search execution
+cap. It retains every validated catalogue sequence-group/model/provider/variant
+and typed no-model inventories under one deterministic content identity. Later
+B--F planning can perform checksum-verified sequence/provider/variant lookup
+even when a model fell outside the 25-item A shortlist. Candidate ranking and
+composition execution remain separate pending slices.
+
 An opt-in schema-v2 diffraction selection now binds the MTZ dataset,
 dataset-qualified observations, space group, resolution range, overrides, and
 command identities. Observation labels and sequence-from-map high resolution

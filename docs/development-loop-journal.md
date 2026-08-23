@@ -10422,6 +10422,7 @@ integrated.
   build checkpoint-specific review packages and a local stager that verifies
   owned-run provenance, package assets/target membership, review chronology, and
   the exact transported file checksum before any Nextflow consumer is wired.
+
 ## 2026-08-23 - Phase III Free-R identity foundation is focused-green
 
 ### Completed focused slice
@@ -10453,3 +10454,33 @@ integrated.
   exact label parameter plus comparison against a real Phenix-derived MTZ.
   Until then `PIPE-P1-07` remains partial and no convention, Phenix propagation,
   or real-runtime preservation claim is made.
+## 2026-08-23T17:20:58Z - Phase III all-eligible model registry is focused-green
+
+### Completed PH3-P1-02 slice
+
+- Replaced the selected-A aggregate registry boundary with one immutable
+  all-eligible registry built from every validated processed model and every
+  supplied catalogue sequence group. The bounded first-copy shortlist remains
+  unchanged, but no longer controls which models remain available to later
+  B--F planning.
+- Each entry binds sequence, model, coordinate source, provider/accession,
+  variant, processing record, optional PDB mapping, retained fraction, quality,
+  and copied-model checksums. Deterministic inventories retain typed
+  `no_eligible_model` states; lookup also types unknown-group, unavailable-
+  provider, and unavailable-variant outcomes.
+- The registry content identity and exact bytes are invariant to input ordering
+  and A-cap changes. Independent coordinate-source and processed-model record
+  mutations change the identity. A valid B model explicitly outside a 25-item
+  A shortlist remains checksum-verified and searchable.
+- Published the canonical registry, complete processed-model JSONL,
+  content-addressed model files, and a deterministic schema-v1 compatibility
+  manifest so existing Phaser/partner readers remain usable.
+
+### Focused evidence and next exact starting point
+
+- The complete unit suite passes with 733 tests, including the new registry and
+  diverse-funnel cap-separation regressions. Ruff lint/format, `ty`, the
+  authoritative schema check, documentation links, and diff checks also pass.
+- Integrate this focused commit into `dev/phase3`, then make the composition
+  planner consume the registry lookup in a separate slice. Do not add provider
+  execution, candidate search, Phaser, localisation, or unknown profiles here.

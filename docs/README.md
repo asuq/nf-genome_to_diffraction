@@ -20,6 +20,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III finding ledger](phase-iii-finding-ledger.md): original and newer
   defects, dependency gates, required regressions, and final-disposition rules
   for v0.3.0.
+- [Phase III all-eligible model registry](phase-iii-all-model-registry.md):
+  cap-independent processed-model universe, content identity, typed absence,
+  checksum validation, and lookup boundary for later B--F planning.
 - [Phase III offline localisation adapters](localisation-adapters.md):
   checksum-bound PSORTb 3.0.6 archaeal execution and the explicitly blocked
   DeepTMHMM 1.0 user-image runtime/input contract.

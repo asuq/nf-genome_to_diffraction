@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.model_registry import load_all_eligible_model_registry
 from genome_to_diffraction.ranking import (
     DiverseFirstCopyFunnelRequest,
     ExactPredictedFunnelRequest,
@@ -362,6 +363,10 @@ def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
     assert manifest["per_crystal_first_copy_cap"] == 25
     assert manifest["per_crystal_selected_counts"] == {"test_crystal_01": 25}
     assert manifest["excluded_by_caps_count"] == 5
+    registry = load_all_eligible_model_registry(
+        result.model_registry_directory / "all_model_registry.json"
+    )
+    assert registry.manifest.model_count == 30
 
 
 def test_diverse_funnel_applies_stricter_execution_cap(tmp_path: Path) -> None:
@@ -373,3 +378,32 @@ def test_diverse_funnel_applies_stricter_execution_cap(tmp_path: Path) -> None:
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["per_crystal_first_copy_cap"] == 1
     assert manifest["requested_execution_cap"] == 1
+
+
+def test_diverse_a_cap_does_not_change_all_model_registry_identity(
+    tmp_path: Path,
+) -> None:
+    cap_one_request = replace(
+        _diverse_request(tmp_path / "cap one"), maximum_first_copy_jobs=1
+    )
+    cap_two_request = replace(
+        _diverse_request(tmp_path / "cap two"), maximum_first_copy_jobs=2
+    )
+
+    cap_one = build_diverse_first_copy_funnel(cap_one_request)
+    cap_two = build_diverse_first_copy_funnel(cap_two_request)
+    registry_one = load_all_eligible_model_registry(
+        cap_one.model_registry_directory / "all_model_registry.json"
+    )
+    registry_two = load_all_eligible_model_registry(
+        cap_two.model_registry_directory / "all_model_registry.json"
+    )
+
+    assert len(cap_one.hypotheses) == 1
+    assert len(cap_two.hypotheses) == 2
+    assert registry_one.manifest.registry_id == registry_two.manifest.registry_id
+    assert (
+        cap_one.model_registry_directory / "all_model_registry.json"
+    ).read_bytes() == (
+        cap_two.model_registry_directory / "all_model_registry.json"
+    ).read_bytes()

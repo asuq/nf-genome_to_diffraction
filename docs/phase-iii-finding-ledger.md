@@ -56,7 +56,7 @@ open among the original 34 findings.
 | `PH3-P0-02` P6 control identities under-bound | Fixed in P6-v2; real replay pending | Exact parents, MTZ/models, source preparations, catalogue-minus-A universe, and checksums match. |
 | `PH3-P0-03` Empty partner channel unexecuted | Fixed locally; real replay pending | Real Nextflow schedules zero partner tasks, one summary, and caches byte-identically. |
 | `PH3-P1-01` Control-only heteromer bridge | Open | A non-control application uses no 6RTZ preparation or fixed-control process. |
-| `PH3-P1-02` B registry restricted by A cap | Open | A valid B model outside the A execution cap remains searchable in the all-model registry. |
+| `PH3-P1-02` B registry restricted by A cap | Fixed on `dev/phase3`; execution integration pending | A valid B model outside a 25-item A shortlist remains checksum-searchable; cap mutations leave the all-model registry ID and bytes unchanged, while source/model mutations change the identity. |
 | `PH3-P1-03` Parent uncertainty dropped | Fixed on `dev/phase3`; real qualification pending | The reviewed parent command supplies its original identity/error source to the fixed ensemble, result, command, and cache identity; a 35%-identity regression remains 35%. |
 | `PH3-P1-04` Credible status lacks final evidence/crystal binding | Open | Missing final metrics, unsupported copies, or mismatched crystal ID cannot produce a credible report. |
 | `PH3-P1-05` General component depth unvalidated | Contract fixed; control validation pending | Schema-v2 enforces provisional depths above three; 9ECN must still validate depth three. |
