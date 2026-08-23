@@ -45,6 +45,7 @@ from genome_to_diffraction.schemas.v2.execution import (
     ExecutionIdentityIdentifier,
     PhaseIIIExecutionIdentity,
 )
+from genome_to_diffraction.schemas.v2.owned_run import OwnedRunRegistryIdentifier
 from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecision,
@@ -59,6 +60,10 @@ UnknownPass1SharedPreparationIdentifier = Annotated[
 UnknownPass1ReviewBindingIdentifier = Annotated[
     str,
     Field(pattern=r"^unknownreview_[a-f0-9]{64}$"),
+]
+UnknownPass1ReviewStageIndexIdentifier = Annotated[
+    str,
+    Field(pattern=r"^unknownreviewstages_[a-f0-9]{64}$"),
 ]
 UnknownPass1AHypothesisIdentifier = Annotated[
     str,
@@ -133,6 +138,55 @@ class UnknownPass1ReviewBinding(_ContentAddressedContract):
     owned_parent_run_id: NonEmptyString
     parent_profile: NonEmptyString
     parent_phase: NonEmptyString
+
+
+class UnknownPass1ReviewStageIndex(_ContentAddressedContract):
+    """Path-free index of the three registry-resolved review stages."""
+
+    _identity_field: ClassVar[str] = "stage_index_id"
+    _identity_prefix: ClassVar[str] = "unknownreviewstages_"
+
+    schema_version: Literal["2.0"]
+    adapter_version: Literal["unknown-pass1-review-stage-index-v1"]
+    stage_index_id: UnknownPass1ReviewStageIndexIdentifier
+    checkpoint: Literal[PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC]
+    owned_run_registry_id: OwnedRunRegistryIdentifier
+    owned_parent_run_id: OperatorIdentifier
+    parent_profile: OperatorIdentifier
+    parent_phase: OperatorIdentifier
+    execution_identity_id: ExecutionIdentityIdentifier
+    review_bindings: tuple[UnknownPass1ReviewBinding, ...] = Field(
+        min_length=3,
+        max_length=3,
+    )
+
+    @model_validator(mode="after")
+    def _validate_stages(self) -> Self:
+        keys = tuple(item.crystal_id for item in self.review_bindings)
+        if keys != tuple(sorted(keys)) or len(set(keys)) != 3:
+            raise ValueError("review stages must cover three unique sorted crystals")
+        for label, values in (
+            ("stage", tuple(item.stage_id for item in self.review_bindings)),
+            (
+                "package",
+                tuple(item.review_package_id for item in self.review_bindings),
+            ),
+            (
+                "decision",
+                tuple(item.decision_file_id for item in self.review_bindings),
+            ),
+        ):
+            if len(set(values)) != 3:
+                raise ValueError(f"review-stage index contains a duplicate {label}")
+        if any(
+            item.checkpoint is not self.checkpoint
+            or item.owned_parent_run_id != self.owned_parent_run_id
+            or item.parent_profile != self.parent_profile
+            or item.parent_phase != self.parent_phase
+            for item in self.review_bindings
+        ):
+            raise ValueError("review-stage binding differs from its owned-run index")
+        return self
 
 
 class UnknownPass1AHypothesis(_ContentAddressedContract):
@@ -465,6 +519,7 @@ __all__ = [
     "UnknownPass1CrystalBranch",
     "UnknownPass1CrystalItem",
     "UnknownPass1ReviewBinding",
+    "UnknownPass1ReviewStageIndex",
     "UnknownPass1ScreenInventory",
     "UnknownPass1SharedPreparation",
 ]

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.execution.unknown_screen import (
     UnknownPass1ModelInput,
     UnknownPass1ScreenError,
@@ -19,6 +20,7 @@ from genome_to_diffraction.schemas.v2 import (
     UnknownPass1AHypothesisDisposition,
     UnknownPass1CrystalBranch,
     UnknownPass1ReviewBinding,
+    UnknownPass1ReviewStageIndex,
     UnknownPass1ScreenInventory,
 )
 
@@ -34,7 +36,7 @@ from ..support.unknown_pass1_fixture import (
 def _build(fixture: UnknownPass1PublicFixture):
     return build_unknown_pass1_screen_inventory(
         execution_identity_path=fixture.execution_identity,
-        review_stage_directory=fixture.review_stage,
+        review_stage_index_path=fixture.review_stage_index,
         shared_preparation_input=fixture.shared_preparation,
         crystals=fixture.crystals,
     )
@@ -131,6 +133,7 @@ def test_mtz_model_or_review_stage_mutation_fails_closed(tmp_path: Path) -> None
     fixture = materialise_unknown_pass1_public_fixture(review_root)
     decision = (
         fixture.review_stage
+        / "stages"
         / PUBLIC_STUB_CRYSTAL_IDS[0]
         / "phase3_review_decision.json"
     )
@@ -223,3 +226,23 @@ def test_review_bindings_cannot_mix_owned_parent_runs(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError, match="share one owned parent"):
         UnknownPass1ScreenInventory.from_content(**inventory_payload)
+
+
+def test_review_stage_index_cannot_cross_execution_identity(tmp_path: Path) -> None:
+    fixture = materialise_unknown_pass1_public_fixture(tmp_path)
+    payload = fixture.inventory.model_dump(mode="python")
+    index_payload = json.loads(fixture.review_stage_index.read_text(encoding="ascii"))
+    index_payload.pop("stage_index_id")
+    index_payload["execution_identity_id"] = f"phase3exec_{'f' * 64}"
+    changed = UnknownPass1ReviewStageIndex.from_content(**index_payload)
+    atomic_write_json(
+        fixture.review_stage_index,
+        changed.model_dump(mode="json", exclude_none=False),
+    )
+
+    with pytest.raises(UnknownPass1ScreenError, match="another execution identity"):
+        _build(fixture)
+
+    assert payload["execution_identity"]["execution_identity_id"] != (
+        changed.execution_identity_id
+    )

@@ -116,7 +116,7 @@ workflow {
     )
     reviewSeedItems = channel
         .fromPath(
-            "${inputRoot}/review_stage/*",
+            "${inputRoot}/review_stage/stages/*",
             checkIfExists: true,
             type: 'dir'
         )

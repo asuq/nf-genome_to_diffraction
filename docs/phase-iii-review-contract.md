@@ -98,6 +98,29 @@ The registry is deliberately local and single-run. It does not authenticate a
 remote scheduler, discover run directories, add an HPC profile, or define
 unknown-screen execution.
 
+## Unknown-screen crystallographic staging bridge
+
+`stage_unknown_pass1_crystallographic_reviews` is the only local bridge from an
+owned-run registry into the unknown-pass-1 screen builder. The caller supplies
+one exact owned run ID and exactly three crystal-bound decision files with
+independently confirmed checksums. The checkpoint is fixed to
+`crystallographic`; no package path is accepted.
+
+The bridge sorts the crystal IDs, resolves and fully revalidates each package
+through `resolve_phase3_owned_review_package`, and passes only the resolved
+canonical manifest and parent record to `PhaseIIIReviewStageRequest`. It stages
+into a private sibling directory, revalidates the registry after all three
+stages, and atomically publishes `stages/` plus the content-addressed,
+path-free `unknown_pass1_review_stage_index.json`. The index binds the owned-run
+registry and execution identities, exact parent run/profile/phase, and three
+existing `UnknownPass1ReviewBinding` records in deterministic crystal order.
+
+The unknown-screen builder accepts only that index path. It rejects extra,
+missing, symlinked, renamed, mutated, cross-parent, or cross-execution stage
+state before creating crystal or hypothesis items. Crystal-named storage is
+only an indexed lookup key; ownership is never inferred from the directory
+name.
+
 ## Checkpoints and values
 
 | `checkpoint` | Allowed `decision` values | Retained-state rule |
@@ -171,6 +194,7 @@ exist. A successful stage contains exactly:
   decision count, and the two-file allow-list.
 
 The source TSV/JSON, review package, package assets, and arbitrary neighbouring
-files are not copied. The caller remains responsible for deriving the owned
-parent reference from its trusted local run registry. This local slice does not
-authenticate a remote run or add a Nextflow/HPC profile.
+files are not copied. Direct staging retains a caller-owned parent for focused
+tests and other checkpoints; the unknown-pass-1 path instead uses the registry
+bridge above. This local slice does not authenticate a remote run or add a
+Nextflow/HPC profile.

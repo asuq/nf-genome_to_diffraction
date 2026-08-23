@@ -11632,3 +11632,73 @@ with a collapsed combined parent or a guessed command.
   pipe (`rg --files | sort` and `rg | head`). They made no mutation, network
   request, scheduler action, or external-system change; all subsequent shell
   calls returned to exactly one uncombined command per tool call.
+
+## 2026-08-23 - Unknown-screen review staging is registry-owned locally
+
+### Focused PH3-P1-14 wiring
+
+- Added one narrow crystallographic staging bridge that accepts an exact owned
+  run ID plus exactly three crystal-bound decision files and confirmed
+  checksums. It resolves every package by exact run/crystal/checkpoint through
+  the existing owned-run registry and passes only the resolved canonical
+  manifest and parent record to the existing review stager; no package path is
+  accepted from the caller.
+- The bridge sorts crystals, stages into a private sibling directory, rechecks
+  the registry after staging, and atomically publishes three canonical stages
+  plus a content-addressed path-free index. The index reuses the existing
+  review-binding records and binds the exact registry, execution identity, and
+  parent run/profile/phase.
+- The unknown-pass-1 builder now consumes and revalidates that index and its
+  exact stage allow-list. Missing, duplicate, mutated, cross-run,
+  cross-crystal, cross-parent, or cross-execution inputs fail before crystal or
+  hypothesis fan-out; caller input order cannot change crystal order.
+
+### Focused evidence and next exact starting point
+
+- All 42 focused owned-run registry, review-stage, registry-screen wiring, and
+  unknown-screen unit tests pass. The exact three-crystal/25-hypothesis cached
+  Nextflow stub passes, as do targeted Ruff format/lint, complete `ty`, schema,
+  documentation, and diff checks.
+- No full repository gate, remote action, private input, scientific threshold,
+  Phaser execution, HPC profile, push, or unknown-crystal analysis occurred.
+  One read-only inventory command accidentally piped one `rg` invocation into
+  another; it made no mutation, network request, or external-system action, and
+  every subsequent shell call returned to one command per tool call.
+- Integrate this focused commit into `dev/phase3`. Remote owned-run collection,
+  fixed application profiles, seed-review package generation, and live unknown
+  screening remain pending; do not treat this local wiring as operator-data or
+  scientific evidence.
+
+## 2026-08-23T23:19:45Z - Local work is complete to the real-runtime boundary
+
+### Integrated local evidence
+
+- The code tranche through
+  `6720aa7` contains registry-owned three-crystal review staging and a
+  checksum-reconstructible terminal collector in addition to the earlier
+  candidate/provider/status/refinement/composition foundations and local M6
+  stop-gate corrections. The collector makes no inference beyond each typed
+  assessment and labels every report exploratory/non-validation.
+- Fifty-six combined registry/package/stage/screen/collector tests pass, and
+  the exact three-crystal cached unknown-screen stub passes. The coordinate-
+  staging M6 graph, 26-task cache-mutation closure, canonical aggregation,
+  retired nested schedulers, focused M6/diffraction tests, schemas, docs,
+  Nextflow syntax/stubs, and static checks are green in their named local gates.
+- No scientific threshold or frozen M6 protocol value changed. No operator
+  crystal, 9ECN reconstruction, M6 track, remote service, deployment, or HPC
+  job ran from this Phase III branch.
+
+### Blocking boundary and exact restart
+
+- Additional local framework work would now bypass the required real-runtime
+  feedback and conflict with the prototype-first constraint. The critical path
+  is publication of the clean immutable `dev/phase3` branch, its one full CI
+  gate (including the positive offline wheel task), and the fixed no-data
+  Phaser interface probe on Marmic.
+- The required exact command `git push origin dev/phase3` is not covered by the
+  current persistent approvals, which cover only `git push origin main`. This
+  same permission boundary has remained unresolved across three consecutive
+  goal turns. Resume only after the user grants that persistent approval; then
+  push once, watch one CI run, deploy from literal `dev/phase3`, stage/submit
+  one `phase3-phenix-probe`, create its 30-minute poll, and collect/classify it
+  before implementing native per-placement output or launching scientific data.

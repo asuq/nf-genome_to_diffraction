@@ -21,18 +21,20 @@ The local builder consumes:
   catalogue, three synthetic MTZ identities, one database identity, source and
   environment identities, all seven required Phenix tool identities, adapter
   versions, and both remote/network booleans fixed false;
-- three outputs from the existing two-file Phase III review stager at the
-  `crystallographic` checkpoint, each bound to one content-addressed
-  single-crystal package and one `proceed|hold` decision;
+- one path-free three-stage index from the owned-run crystallographic staging
+  bridge. Each indexed two-file stage is bound to one registry-resolved,
+  content-addressed single-crystal package and one `proceed|hold` decision;
 - one checksum-verified catalogue preparation, provider preparation, and
   offline-localisation preparation shared across all crystals;
 - exactly three local MTZ files; and
 - complete ranked A-hypothesis inventories plus every model-backed hypothesis
   file.
 
-The builder resolves and checksums every local file, verifies the exact three-
-directory review-stage root and each canonical decision checksum, compares each
-MTZ to its
+The bridge accepts no package path: it resolves all three packages by exact
+owned run/crystal/checkpoint, stages only their canonical manifests, and
+publishes atomically after a final registry revalidation. The builder resolves
+and checksums every local file, verifies the exact indexed three-directory
+review-stage root and each canonical decision checksum, compares each MTZ to its
 execution artifact, compares every model to its hypothesis checksum, and writes
 one content-addressed `UnknownPass1ScreenInventory`. No machine path is retained
 in that inventory.
@@ -83,7 +85,7 @@ review mutation, remote-provider/offline-localisation policy refusal, hold
 enforcement, the 26th-allocation boundary, and content-ID mutation. Repository
 Nextflow lint covers the workflow and modules.
 
-This closes only the local stub integration. Real review-package generation,
-trusted owned-run lookup, the qualified first-copy Phaser adapter, the fixed
-remote/HPC profile, seed-review packages, and all operator analyses remain
-closed.
+This closes the local registry-to-crystallographic-stage-to-screen wiring and
+stub integration. Remote owned-run collection, the qualified first-copy Phaser
+adapter, the fixed remote/HPC profile, seed-review packages, and all operator
+analyses remain closed.

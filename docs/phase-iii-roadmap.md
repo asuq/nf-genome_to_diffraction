@@ -268,12 +268,21 @@ Phase III execution identity, complete targets, copied evidence roles/relative
 paths/checksums/sizes, and a checksum-qualified complete target worksheet; it
 rejects source mutation, symlinks, escape, duplicate roles/paths, incomplete
 coverage, and non-empty publication targets. Composition/sequence package
-generation, trusted local-run-registry wiring, fixed HPC profiles, and remote
-staging remain pending rather than inferred.
+generation, fixed HPC profiles, and remote staging remain pending rather than
+inferred.
+
+The unknown-pass-1 crystallographic bridge now accepts one exact owned-run ID
+and exactly three crystal-bound decision files/checksums, resolves every
+package by run/crystal/checkpoint through the trusted registry, and passes only
+the resolved canonical package manifest to the existing stager. It atomically
+publishes a content-addressed path-free three-stage index after revalidating the
+registry. The screen builder requires that index and rejects missing, duplicate,
+mutated, cross-run, cross-crystal, cross-parent, or cross-execution state; it no
+longer accepts an arbitrary directory of caller-staged packages.
 
 A fixed local stub now binds one synthetic public-fixture
-`PhaseIIIExecutionIdentity`, three checksum-verified single-crystal packages and
-outputs of the local crystallographic review stager, one
+`PhaseIIIExecutionIdentity`, three registry-resolved checksum-verified
+single-crystal packages and their indexed crystallographic review stages, one
 catalogue/provider/offline-localisation
 preparation, exact MTZ/model bytes, three complete crystal items, and an exact
 25-task A inventory. It fans out three review-stage preparation items, retains

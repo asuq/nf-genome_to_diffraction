@@ -9,9 +9,15 @@ from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.execution.unknown_screen import (
     UnknownPass1CrystalInput,
     UnknownPass1ModelInput,
+    UnknownPass1ReviewDecisionInput,
     UnknownPass1SharedPreparationInput,
     build_unknown_pass1_screen_inventory,
+    stage_unknown_pass1_crystallographic_reviews,
     write_unknown_pass1_screen_inventory,
+)
+from genome_to_diffraction.review.owned_run import (
+    OwnedPhaseIIIReviewPackageSource,
+    register_phase3_owned_run,
 )
 from genome_to_diffraction.review.phase3_package import (
     PhaseIIIReviewEvidenceSource,
@@ -20,8 +26,6 @@ from genome_to_diffraction.review.phase3_package import (
 )
 from genome_to_diffraction.review.phase3_stage import (
     OwnedPhaseIIIParentRun,
-    PhaseIIIReviewStageRequest,
-    stage_phase3_review_decisions,
 )
 from genome_to_diffraction.schemas.v2 import (
     ExecutionArtifactIdentity,
@@ -59,7 +63,10 @@ class UnknownPass1PublicFixture:
 
     input_root: Path
     execution_identity: Path
+    owned_run_registry: Path
     review_stage: Path
+    review_stage_index: Path
+    review_decisions: tuple[UnknownPass1ReviewDecisionInput, ...]
     shared_preparation: UnknownPass1SharedPreparationInput
     crystals: tuple[UnknownPass1CrystalInput, ...]
     inventory: UnknownPass1ScreenInventory
@@ -243,7 +250,8 @@ def materialise_unknown_pass1_public_fixture(
     decisions_root = input_root / "review_decisions"
     decisions_root.mkdir()
     review_stage = input_root / "review_stage"
-    review_stage.mkdir()
+    package_sources: list[OwnedPhaseIIIReviewPackageSource] = []
+    decision_inputs: list[UnknownPass1ReviewDecisionInput] = []
     for index, (crystal_id, decision_value) in enumerate(
         zip(PUBLIC_STUB_CRYSTAL_IDS, decision_values, strict=True),
         start=1,
@@ -291,19 +299,39 @@ def materialise_unknown_pass1_public_fixture(
         )
         decisions_path = decisions_root / f"{crystal_id}.json"
         atomic_write_json(decisions_path, decisions.model_dump(mode="json"))
-        stage_phase3_review_decisions(
-            PhaseIIIReviewStageRequest(
-                parent=parent,
+        package_sources.append(
+            OwnedPhaseIIIReviewPackageSource(
+                crystal_id=crystal_id,
                 checkpoint=PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
-                review_package_manifest=package.manifest,
+                package_directory=package_directory,
+            )
+        )
+        decision_inputs.append(
+            UnknownPass1ReviewDecisionInput(
+                crystal_id=crystal_id,
                 decisions=decisions_path,
                 confirmed_decisions_sha256=sha256_file(
                     decisions_path,
                     progress=False,
                 ),
-                output_directory=review_stage / crystal_id,
             )
         )
+
+    owned_run_registry = input_root / "owned_run_registry"
+    owned_run_registry.mkdir()
+    register_phase3_owned_run(
+        parent=parent,
+        completed_at=created_at - timedelta(hours=1),
+        execution_identity=execution_path,
+        packages=tuple(package_sources),
+        output_directory=owned_run_registry,
+    )
+    review_stage_output = stage_unknown_pass1_crystallographic_reviews(
+        owned_run_registry=owned_run_registry,
+        owned_run_id=parent.run_id,
+        decisions=tuple(reversed(decision_inputs)),
+        output_directory=review_stage,
+    )
 
     catalogue_preparation = input_root / "catalogue_preparation.json"
     catalogue_preparation.write_text(
@@ -393,7 +421,7 @@ def materialise_unknown_pass1_public_fixture(
     )
     inventory = build_unknown_pass1_screen_inventory(
         execution_identity_path=execution_path,
-        review_stage_directory=review_stage,
+        review_stage_index_path=review_stage_output.index_path,
         shared_preparation_input=shared,
         crystals=crystals,
     )
@@ -419,7 +447,10 @@ def materialise_unknown_pass1_public_fixture(
     return UnknownPass1PublicFixture(
         input_root=input_root,
         execution_identity=execution_path,
+        owned_run_registry=owned_run_registry,
         review_stage=review_stage,
+        review_stage_index=review_stage_output.index_path,
+        review_decisions=tuple(decision_inputs),
         shared_preparation=shared,
         crystals=crystals,
         inventory=inventory,

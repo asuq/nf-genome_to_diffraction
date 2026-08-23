@@ -87,6 +87,7 @@ from genome_to_diffraction.schemas.v2.unknown_screen import (
     UnknownPass1CrystalBranch,
     UnknownPass1CrystalItem,
     UnknownPass1ReviewBinding,
+    UnknownPass1ReviewStageIndex,
     UnknownPass1ScreenInventory,
     UnknownPass1SharedPreparation,
 )
@@ -157,6 +158,7 @@ __all__ = [
     "UnknownPass1ResidualContentState",
     "UnknownPass1ReviewBinding",
     "UnknownPass1ReviewEvidence",
+    "UnknownPass1ReviewStageIndex",
     "UnknownPass1ScientificStatus",
     "UnknownPass1ScreenInventory",
     "UnknownPass1SharedPreparation",
