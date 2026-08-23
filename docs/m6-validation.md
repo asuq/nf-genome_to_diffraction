@@ -292,3 +292,11 @@ runner-visible MTZ cannot recover the omitted columns. A two-case Viper
 `-stub-run` must then prove real child Slurm
 submission without generating acceptance evidence. The complete locked
 repository gate remains required before an immutable Viper candidate is staged.
+
+The local full-graph cache probe separately changes one checksum-bearing
+protocol input and requires the exact nine-task downstream closure while all 16
+unaffected tasks and child outputs remain byte-identical. It also deletes one
+required child from a cached catalogue bundle and requires an explicit
+`hold_missing_required_child` verifier outcome; an unchanged published aggregate
+does not establish child completeness. This focused probe is not remote M6
+acceptance evidence.

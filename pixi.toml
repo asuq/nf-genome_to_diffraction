@@ -68,6 +68,7 @@ docs-check = "python tests/scripts/check_docs.py"
 actionlint-check = "actionlint .github/workflows/ci.yml"
 nextflow-check = "python tests/scripts/check_nextflow.py --syntax"
 nextflow-stub = "python tests/scripts/check_nextflow.py --stub"
+m6-cache-mutation-stub = "python -m tests.scripts.check_m6_cache_mutation"
 composition-attempt-stub = "python tests/scripts/check_composition_attempt_fanout.py"
 localisation-wave-stub = "python tests/scripts/check_nextflow.py --localisation-wave-stub"
 unknown-pass1-screen-stub = "python -m tests.scripts.check_unknown_pass1_screen"
@@ -79,4 +80,4 @@ prepare-project-layout = "bootstrap/prepare_project_layout.sh"
 prepare-public-control = "genome-to-diffraction benchmark prepare-public-control --specification benchmarks/public-controls/pdb_8oox.yaml"
 public-panel-check = "genome-to-diffraction benchmark check-public-panel --panel benchmarks/public-controls/panel.yaml"
 prepare-public-panel = "genome-to-diffraction benchmark prepare-public-panel --panel benchmarks/public-controls/panel.yaml --outdir .untracked/public-controls/panel-v2"
-check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "public-panel-check", "docs-check", "actionlint-check", "nextflow-check", "nextflow-stub", "composition-attempt-stub", "localisation-wave-stub", "unknown-pass1-screen-stub", "provider-empty-graph-stub", "offline-wheel-check", "hpc-wrapper-check"] }
+check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "public-panel-check", "docs-check", "actionlint-check", "nextflow-check", "nextflow-stub", "m6-cache-mutation-stub", "composition-attempt-stub", "localisation-wave-stub", "unknown-pass1-screen-stub", "provider-empty-graph-stub", "offline-wheel-check", "hpc-wrapper-check"] }

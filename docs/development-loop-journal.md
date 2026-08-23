@@ -11462,3 +11462,29 @@ with a collapsed combined parent or a guessed command.
   `dev/phase3` source, and run exactly one fixed no-data
   `phase3-phenix-probe` on Marmic. Do not launch 9ECN, unknown crystals, or M6
   before collecting and classifying that probe.
+
+## 2026-08-23 - One real M6 cache mutation and deleted-child HOLD are observed locally
+
+### Focused DEV-P1-07 evidence
+
+- A dedicated check reuses the full two-catalogue, two-batch, 25-task M6 stub
+  and standard Nextflow resume. Changing only the bytes of the staged protocol
+  reruns the exact nine-task policy-to-active-aggregate closure. The other 16
+  exact task tags remain cached with unchanged cache hashes and byte-identical
+  complete non-staged child-output inventories; published scientific outputs
+  remain byte-identical.
+- The check then removes the required cached child
+  `catalogue/source_records.jsonl`. Nextflow reuses all directory-level cache
+  entries, but the independent complete-child comparison records
+  `hold_missing_required_child` and explicitly refuses silent acceptance of the
+  unchanged aggregate. The child is restored before the temporary check exits.
+
+### Scope and next exact starting point
+
+- This is local evidence for one real input surface, not an M6 run or acceptance
+  claim. `DEV-P1-07` remains partial until production collection consumes the
+  observed task/child inventory and the remaining cache-key components receive
+  equivalent bounded qualification.
+- No scientific threshold, protocol value, workflow task semantics, remote
+  profile, private input, HPC state, or M6 result changed. Continue with the
+  separate network-staging and ordering stop gates before operational M6.
