@@ -17,11 +17,13 @@ from genome_to_diffraction.execution import (
 )
 from genome_to_diffraction.ranking.composition import (
     ComponentExpansionInput,
+    CompositionExpansionOutput,
     CompositionExpansionRequest,
     ParentExpansionInput,
     build_composition_expansion_plan,
 )
 from genome_to_diffraction.schemas.v2 import (
+    ComponentExpansionExecutionInput,
     ComponentIdentitySupport,
     ComponentPlacement,
     ComponentSpec,
@@ -39,6 +41,9 @@ from genome_to_diffraction.schemas.v2 import (
     RegistryModelResolution,
     RegistryModelResolutionScope,
     diffraction_dataset_id,
+)
+from genome_to_diffraction.schemas.v2.component_execution_input import (
+    FixedComponentExecutionEvidence,
 )
 from genome_to_diffraction.status import ExecutionStatus
 
@@ -279,14 +284,86 @@ def _inventory(*, no_model: bool = False) -> CompositionAttemptInventory:
         )
     )
     selection = _selection()
+    free_r = _free_r(selection)
+    execution_inputs = _execution_inputs(
+        output=output,
+        parents=active_parents,
+        selection=selection,
+        free_r=free_r,
+    )
     return build_composition_attempt_inventory(
         depth_plan=output.depth_plan,
         planned_attempts=output.selected_attempts,
         parent_states=tuple(parent.state for parent in active_parents),
         diffraction_selection=selection,
-        free_r_identity=_free_r(selection),
+        free_r_identity=free_r,
         execution_identity_id=EXECUTION_IDENTITY_ID,
+        execution_inputs=execution_inputs,
     )
+
+
+def _execution_inputs(
+    *,
+    output: CompositionExpansionOutput,
+    parents: tuple[ParentExpansionInput, ...],
+    selection: DiffractionSelection,
+    free_r: FreeRIdentity,
+) -> tuple[ComponentExpansionExecutionInput, ...]:
+    depth_plan = output.depth_plan
+    state_by_id = {parent.state.state_id: parent.state for parent in parents}
+    candidate_by_id = {
+        candidate.depth_candidate_id: candidate for candidate in depth_plan.candidates
+    }
+    resolution_by_key = {
+        (resolution.parent_state_id, resolution.component_spec_id): resolution
+        for resolution in depth_plan.model_resolutions
+    }
+    inputs: list[ComponentExpansionExecutionInput] = []
+    for attempt in output.selected_attempts:
+        state = state_by_id[attempt.parent_state_id]
+        candidate = candidate_by_id[attempt.depth_candidate_id]
+        fixed = tuple(
+            FixedComponentExecutionEvidence.from_content(
+                parent_state_id=state.state_id,
+                component_spec_id=component.component_spec_id,
+                placement_id=placement.placement_id,
+                fixed_coordinate_sha256=placement.coordinate_sha256,
+                source_parent_combined_coordinate_sha256=(
+                    state.combined_coordinate_sha256
+                ),
+                coordinate_derivation_evidence_sha256=_sha(1100 + index),
+                phaser_identity_fraction=0.35 + index / 10,
+                model_uncertainty_source="synthetic reviewed model identity",
+                model_uncertainty_evidence_sha256=(component.model_evidence_sha256),
+            )
+            for index, (component, placement) in enumerate(
+                zip(state.components, state.placements, strict=True)
+            )
+        )
+        component = candidate.hypothesis.component
+        inputs.append(
+            ComponentExpansionExecutionInput.from_content(
+                depth_plan_id=depth_plan.depth_plan_id,
+                selected_candidate=candidate,
+                parent_state=state,
+                fixed_components=fixed,
+                candidate_model_resolution=resolution_by_key[
+                    (state.state_id, component.component_spec_id)
+                ],
+                candidate_phaser_identity_fraction=0.8,
+                candidate_model_uncertainty_source=(
+                    "synthetic candidate model identity"
+                ),
+                candidate_model_uncertainty_evidence_sha256=(
+                    component.model_evidence_sha256
+                ),
+                diffraction_selection=selection,
+                free_r_identity=free_r,
+                parent_combined_llg=1000.0,
+                parent_score_evidence_sha256=_sha(1200 + attempt.allocation_rank),
+            )
+        )
+    return tuple(inputs)
 
 
 def _environment(nxf_home: Path) -> dict[str, str]:
@@ -379,10 +456,14 @@ def _check_ready(root: Path, environment: dict[str, str]) -> None:
     trace_path = output / "pipeline_info/trace.tsv"
     first_rows = _read_trace(trace_path)
     expected_process = "STUB_PLANNED_COMPOSITION_ATTEMPT"
-    if Counter(row["process"].split(":")[-1] for row in first_rows) != Counter(
-        {expected_process: 25}
-    ):
-        raise RuntimeError("composition stub scheduled the wrong exact task count")
+    actual_processes = Counter(
+        row["process"].split(":")[-1] for row in first_rows
+    )
+    if actual_processes != Counter({expected_process: 25}):
+        raise RuntimeError(
+            "composition stub scheduled the wrong exact task count: "
+            f"{dict(actual_processes)}"
+        )
     if {row["status"] for row in first_rows} != {"COMPLETED"}:
         raise RuntimeError("composition stub did not complete all 25 tasks")
     expected_tags = {
@@ -411,6 +492,8 @@ def _check_ready(root: Path, environment: dict[str, str]) -> None:
             or stub.get("depth_plan_id") != task.depth_plan_id
             or stub.get("parent_state_id") != task.parent_state_id
             or stub.get("depth_candidate_id") != task.depth_candidate_id
+            or stub.get("component_execution_input_id")
+            != task.component_execution_input_id
             or stub.get("candidate_model_resolution_id")
             != task.candidate_model_resolution_id
             or stub.get("diffraction_selection_id") != task.diffraction_selection_id

@@ -12,7 +12,7 @@ open among the original 34 findings.
 
 | Finding | Baseline disposition | Phase III gate / required evidence |
 | --- | --- | --- |
-| `PIPE-P1-01` | Partial; complete schema-v2 identity fixed | Raw FAA/annotation/MTZ, database inventory, source commit/tree, nf-helper, Pixi lock, execution policy, seven Phenix executables, and adapter versions now form one path-free content identity. Complete Nextflow task/cache consumption and selective-rerun evidence remain open. |
+| `PIPE-P1-01` | Partial; identity and composition-task consumption fixed | Raw FAA/annotation/MTZ, database inventory, source commit/tree, nf-helper, Pixi lock, execution policy, seven Phenix executables, and adapter versions form one path-free content identity carried by every selected composition task. Selective mutation/rerun evidence and other task-family consumption remain open. |
 | `PIPE-P1-02` | Partial; crystal and composition-attempt boundaries fixed | Exact complete-item fan-out covers three crystals and one 25-attempt/three-parent composition depth with cached resume; hypotheses, seeds, and finalists remain to be integrated. |
 | `PIPE-P1-03` | Partial | Enabled-provider no-hit and disabled/no-model bundles compose without abort or network call. |
 | `PIPE-P1-04` | Open | Network work resolves only to approved staging; compute workers fail closed with sockets blocked. |

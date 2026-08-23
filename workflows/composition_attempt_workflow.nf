@@ -28,9 +28,13 @@ workflow COMPOSITION_ATTEMPT_WORKFLOW {
             def candidateResolution = document.depth_plan.model_resolutions.find { resolution ->
                 resolution.resolution_id == attempt.candidate_model_resolution_id
             }
+            def executionInput = document.execution_inputs.find { input ->
+                input.execution_input_id == attempt.component_execution_input_id
+            }
             tuple(
                 attempt.attempt_id as String,
                 attempt,
+                executionInput,
                 parentState,
                 depthCandidate,
                 parentResolutions,
@@ -38,8 +42,7 @@ workflow COMPOSITION_ATTEMPT_WORKFLOW {
                 document.diffraction_selection,
                 document.free_r_identity,
                 document.model_registry_id as String,
-                document.execution_identity_id as String,
-                inventory
+                document.execution_identity_id as String
             )
         }
     }

@@ -28,18 +28,22 @@ The builder requires:
 - its complete ordered `PlannedCompositionAttempt` tuple;
 - every parent `CompositionState` in depth-plan rank order;
 - one matching `DiffractionSelection` and `FreeRIdentity`; and
+- one exact `ComponentExpansionExecutionInput` per selected candidate; and
 - one opaque `execution_identity_id` produced by the separate global Phase III
   execution-identity boundary.
 
 `CompositionAttemptInventory` embeds the plan, parent states, diffraction and
-Free-R records, all-model-registry identity, global execution identity, and
-compact `CompositionAttemptTask` rows. Every task has an immutable
+Free-R records, complete component-execution inputs, all-model-registry
+identity, global execution identity, and compact `CompositionAttemptTask` rows.
+Every task has an immutable
 `compattempt_...` content ID binding:
 
 - the shared depth-plan ID and allocation rank;
 - the exact parent state and selected depth candidate;
 - every parent model-resolution ID and the selected candidate model-resolution
   ID;
+- the exact component-expansion execution-input ID, including component-only
+  fixed coordinates, original uncertainties, and parent LLG evidence;
 - the diffraction-selection and Free-R identity IDs;
 - the all-model-registry ID; and
 - the global execution-identity ID.

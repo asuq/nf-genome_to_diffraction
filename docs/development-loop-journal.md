@@ -10821,3 +10821,30 @@ record that a process does not yet consume.
   contracts, rerun the combined tests, then implement a live adapter only from
   reviewed real-Phenix semantics. Keep controls, unknown profiles, and HPC
   submission closed until that boundary is qualified.
+
+## 2026-08-23 - Component execution inputs are bound to attempt fan-out
+
+### Completed integration
+
+- Every selected `CompositionAttemptTask` now binds one exact
+  `ComponentExpansionExecutionInput`; the inventory embeds the complete records
+  and validates parent, selected candidate, registry resolution, diffraction,
+  Free-R, component-only fixed coordinates/uncertainties, and parent LLG before
+  Nextflow receives an item.
+- The stub tuple carries the execution-input record and its ID. The exact
+  25-task/three-parent run and cached resume remain byte-identical; typed
+  no-model inventory still schedules zero tasks.
+- Integration exposed and corrected one rank-domain error: registry
+  `candidate_rank` ranks catalogue candidates, whereas the selected hypothesis
+  rank also enumerates copy hypotheses. Exact component-spec/model identities,
+  parent rank, and resolution scope are the valid cross-record binding.
+- Nine focused execution-input/inventory tests and the dedicated cached-resume
+  stub pass with Ruff and `ty`. Live multi-fixed Phaser command syntax remains
+  unqualified and therefore blocked.
+
+### Next exact starting point
+
+Produce component-only placed-coordinate artefacts with derivation checksums,
+then qualify the exact multi-fixed partial-solution syntax against official
+documentation and the installed Phenix runtime. Do not replace this evidence
+with a collapsed combined parent or a guessed command.

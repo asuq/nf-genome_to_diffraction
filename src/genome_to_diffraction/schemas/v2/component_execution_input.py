@@ -175,7 +175,6 @@ class ComponentExpansionExecutionInput(_ContentAddressedContract):
             or resolution.scope is not RegistryModelResolutionScope.CANDIDATE_COPY
             or resolution.parent_state_id != parent.state_id
             or resolution.parent_rank != selected.parent_rank
-            or resolution.candidate_rank != selected.hypothesis.rank
             or resolution.component_spec_id != candidate.component_spec_id
             or resolution.sequence_group_id != candidate.sequence_group_id
             or resolution.sequence_sha256 != candidate.sequence_sha256

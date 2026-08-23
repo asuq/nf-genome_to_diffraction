@@ -69,7 +69,9 @@ annotation, crystal MTZ, database inventory, source commit/tree, nf-helper,
 Pixi lock, execution policy, required Phenix executable, and adapter version
 without retaining machine paths. Independent mutation tests change the identity
 for each surface and refuse missing annotations, MTZs, or Phenix commands.
-Nextflow task/cache consumption and observed selective reruns remain pending.
+The composition-attempt fan-out now carries this identity into every selected
+task/cache item. Observed selective reruns for independent raw/tool mutations
+and consumption by the other Phase III task families remain pending.
 
 The all-eligible model registry is now separated from the A-search execution
 cap. It retains every validated catalogue sequence-group/model/provider/variant
@@ -122,9 +124,11 @@ one catalogue and one provider preparation through a byte-identical cached
 resume. The composition-attempt boundary additionally binds each selected row
 to its parent state, depth candidate, parent/candidate model resolutions,
 diffraction selection, Free-R identity, all-model registry, and global
-execution identity. It proves one 25-attempt budget shared across three parents,
-typed empty/no-model scheduling, and byte-identical cached resume, but remains
-stub-only. Integration into the application graph and the
+execution identity. Every task now also carries its exact
+`ComponentExpansionExecutionInput`, preserving component-only fixed coordinates,
+per-component uncertainties, candidate evidence, and parent LLG. It proves one
+25-attempt budget shared across three parents, typed empty/no-model scheduling,
+and byte-identical cached resume, but remains stub-only. Integration into the application graph and the
 hypothesis/seed/finalist levels remain pending.
 
 ### PH2 - General component contracts and bounded search

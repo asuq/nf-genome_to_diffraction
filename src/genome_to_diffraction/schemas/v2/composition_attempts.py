@@ -18,7 +18,11 @@ from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import Field, model_validator
 
-from genome_to_diffraction.schemas.base import NonEmptyString, PositiveInt
+from genome_to_diffraction.schemas.base import PositiveInt
+from genome_to_diffraction.schemas.v2.component_execution_input import (
+    ComponentExpansionExecutionInput,
+    ComponentExpansionExecutionInputIdentifier,
+)
 from genome_to_diffraction.schemas.v2.composition import (
     AllModelRegistryIdentifier,
     ComponentSpecIdentifier,
@@ -40,6 +44,7 @@ from genome_to_diffraction.schemas.v2.diffraction import (
     FreeRIdentity,
     FreeRIdentityIdentifier,
 )
+from genome_to_diffraction.schemas.v2.execution import ExecutionIdentityIdentifier
 
 CompositionAttemptIdentifier = Annotated[
     str,
@@ -79,7 +84,8 @@ class CompositionAttemptTask(_ContentAddressedContract):
     diffraction_selection_id: DiffractionSelectionIdentifier
     free_r_identity_id: FreeRIdentityIdentifier
     model_registry_id: AllModelRegistryIdentifier
-    execution_identity_id: NonEmptyString
+    execution_identity_id: ExecutionIdentityIdentifier
+    component_execution_input_id: ComponentExpansionExecutionInputIdentifier
 
     @model_validator(mode="after")
     def _validate_task_identity_set(self) -> Self:
@@ -87,8 +93,6 @@ class CompositionAttemptTask(_ContentAddressedContract):
             self.parent_model_resolution_ids
         ):
             raise ValueError("parent model resolution identities must be unique")
-        if self.execution_identity_id != self.execution_identity_id.strip():
-            raise ValueError("execution identity must be non-empty exact text")
         return self
 
 
@@ -112,7 +116,8 @@ class CompositionAttemptInventory(_ContentAddressedContract):
     diffraction_selection: DiffractionSelection
     free_r_identity: FreeRIdentity
     model_registry_id: AllModelRegistryIdentifier
-    execution_identity_id: NonEmptyString
+    execution_identity_id: ExecutionIdentityIdentifier
+    execution_inputs: tuple[ComponentExpansionExecutionInput, ...]
     attempt_count: int = Field(ge=0, le=25)
     unsearchable_no_model_count: int = Field(ge=0)
     attempts: tuple[CompositionAttemptTask, ...]
@@ -124,8 +129,6 @@ class CompositionAttemptInventory(_ContentAddressedContract):
             raise ValueError("execution inventory requires a registry-bound plan")
         if self.model_registry_id != plan.model_registry_id:
             raise ValueError("execution inventory uses a different model registry")
-        if self.execution_identity_id != self.execution_identity_id.strip():
-            raise ValueError("execution identity must be non-empty exact text")
 
         plan_parents = tuple(parent.parent_state_id for parent in plan.parents)
         state_ids = tuple(state.state_id for state in self.parent_states)
@@ -180,8 +183,15 @@ class CompositionAttemptInventory(_ContentAddressedContract):
             or self.attempt_count != plan.selected_attempt_count
         ):
             raise ValueError("attempt count does not match selected depth candidates")
+        if len(self.execution_inputs) != self.attempt_count:
+            raise ValueError("execution-input count does not match selected attempts")
         if len({attempt.attempt_id for attempt in self.attempts}) != len(self.attempts):
             raise ValueError("composition attempt identities must be unique")
+        execution_inputs_by_id = {
+            item.execution_input_id: item for item in self.execution_inputs
+        }
+        if len(execution_inputs_by_id) != len(self.execution_inputs):
+            raise ValueError("component execution-input identities must be unique")
 
         selected = tuple(
             sorted(
@@ -205,6 +215,11 @@ class CompositionAttemptInventory(_ContentAddressedContract):
         }
         for task, candidate in zip(self.attempts, selected, strict=True):
             state = parent_by_id[candidate.parent_state_id]
+            execution_input = execution_inputs_by_id.get(
+                task.component_execution_input_id
+            )
+            if execution_input is None:
+                raise ValueError("attempt lacks its exact component execution input")
             parent_resolution_ids = tuple(
                 _required_parent_resolution(
                     resolutions_by_parent_and_spec,
@@ -231,6 +246,16 @@ class CompositionAttemptInventory(_ContentAddressedContract):
                 or task.free_r_identity_id != free_r.free_r_identity_id
                 or task.model_registry_id != self.model_registry_id
                 or task.execution_identity_id != self.execution_identity_id
+                or execution_input.depth_plan_id != plan.depth_plan_id
+                or execution_input.selected_candidate.depth_candidate_id
+                != candidate.depth_candidate_id
+                or execution_input.parent_state.state_id != state.state_id
+                or execution_input.candidate_model_resolution.resolution_id
+                != candidate_resolution.resolution_id
+                or execution_input.diffraction_selection.diffraction_selection_id
+                != selection.diffraction_selection_id
+                or execution_input.free_r_identity.free_r_identity_id
+                != free_r.free_r_identity_id
             ):
                 raise ValueError("attempt task does not match its selected candidate")
             bound_resolutions = (

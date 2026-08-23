@@ -19,6 +19,7 @@ from genome_to_diffraction.ranking.composition import (
     build_composition_expansion_plan,
 )
 from genome_to_diffraction.schemas.v2 import (
+    ComponentExpansionExecutionInput,
     ComponentIdentitySupport,
     ComponentPlacement,
     ComponentSpec,
@@ -37,6 +38,9 @@ from genome_to_diffraction.schemas.v2 import (
     RegistryModelResolution,
     RegistryModelResolutionScope,
     diffraction_dataset_id,
+)
+from genome_to_diffraction.schemas.v2.component_execution_input import (
+    FixedComponentExecutionEvidence,
 )
 from genome_to_diffraction.status import ExecutionStatus
 
@@ -255,15 +259,86 @@ def _inventory(
         )
     )
     selection = _diffraction_selection()
+    free_r = _free_r_identity(selection)
+    execution_inputs = _execution_inputs(
+        output=output,
+        parents=parents,
+        selection=selection,
+        free_r=free_r,
+    )
     inventory = build_composition_attempt_inventory(
         depth_plan=output.depth_plan,
         planned_attempts=output.selected_attempts,
         parent_states=tuple(parent.state for parent in parents),
         diffraction_selection=selection,
-        free_r_identity=_free_r_identity(selection),
+        free_r_identity=free_r,
         execution_identity_id=EXECUTION_IDENTITY_ID,
+        execution_inputs=execution_inputs,
     )
     return output, inventory
+
+
+def _execution_inputs(
+    *,
+    output: CompositionExpansionOutput,
+    parents: tuple[ParentExpansionInput, ...],
+    selection: DiffractionSelection,
+    free_r: FreeRIdentity,
+) -> tuple[ComponentExpansionExecutionInput, ...]:
+    state_by_id = {parent.state.state_id: parent.state for parent in parents}
+    candidate_by_id = {
+        candidate.depth_candidate_id: candidate
+        for candidate in output.depth_plan.candidates
+    }
+    resolution_by_key = {
+        (resolution.parent_state_id, resolution.component_spec_id): resolution
+        for resolution in output.depth_plan.model_resolutions
+    }
+    inputs: list[ComponentExpansionExecutionInput] = []
+    for attempt in output.selected_attempts:
+        state = state_by_id[attempt.parent_state_id]
+        candidate = candidate_by_id[attempt.depth_candidate_id]
+        fixed = tuple(
+            FixedComponentExecutionEvidence.from_content(
+                parent_state_id=state.state_id,
+                component_spec_id=component.component_spec_id,
+                placement_id=placement.placement_id,
+                fixed_coordinate_sha256=placement.coordinate_sha256,
+                source_parent_combined_coordinate_sha256=(
+                    state.combined_coordinate_sha256
+                ),
+                coordinate_derivation_evidence_sha256=_sha(1100 + index),
+                phaser_identity_fraction=0.35 + index / 10,
+                model_uncertainty_source="synthetic reviewed model identity",
+                model_uncertainty_evidence_sha256=(component.model_evidence_sha256),
+            )
+            for index, (component, placement) in enumerate(
+                zip(state.components, state.placements, strict=True)
+            )
+        )
+        component = candidate.hypothesis.component
+        resolution = resolution_by_key[(state.state_id, component.component_spec_id)]
+        inputs.append(
+            ComponentExpansionExecutionInput.from_content(
+                depth_plan_id=output.depth_plan.depth_plan_id,
+                selected_candidate=candidate,
+                parent_state=state,
+                fixed_components=fixed,
+                candidate_model_resolution=resolution,
+                candidate_phaser_identity_fraction=0.8,
+                candidate_model_uncertainty_source=(
+                    "synthetic candidate model identity"
+                ),
+                candidate_model_uncertainty_evidence_sha256=(
+                    component.model_evidence_sha256
+                ),
+                diffraction_selection=selection,
+                free_r_identity=free_r,
+                parent_combined_llg=1000.0,
+                parent_score_evidence_sha256=_sha(1200 + attempt.allocation_rank),
+            )
+        )
+    return tuple(inputs)
 
 
 def test_shared_25_attempt_budget_becomes_exact_complete_items() -> None:
@@ -286,6 +361,7 @@ def test_shared_25_attempt_budget_becomes_exact_complete_items() -> None:
         diffraction_selection=inventory.diffraction_selection,
         free_r_identity=inventory.free_r_identity,
         execution_identity_id=EXECUTION_IDENTITY_ID,
+        execution_inputs=inventory.execution_inputs,
     )
 
     assert inventory == repeated
@@ -297,6 +373,10 @@ def test_shared_25_attempt_budget_becomes_exact_complete_items() -> None:
         range(1, 26)
     )
     assert len({task.attempt_id for task in inventory.attempts}) == 25
+    assert len(inventory.execution_inputs) == 25
+    assert {task.component_execution_input_id for task in inventory.attempts} == {
+        item.execution_input_id for item in inventory.execution_inputs
+    }
     assert {task.parent_state_id for task in inventory.attempts} == {
         parent.state.state_id for parent in parents
     }
@@ -327,6 +407,12 @@ def test_planned_attempt_inventory_cannot_be_omitted_or_reordered() -> None:
         "diffraction_selection": selection,
         "free_r_identity": _free_r_identity(selection),
         "execution_identity_id": EXECUTION_IDENTITY_ID,
+        "execution_inputs": _execution_inputs(
+            output=output,
+            parents=(parent,),
+            selection=selection,
+            free_r=_free_r_identity(selection),
+        ),
     }
 
     with pytest.raises(CompositionAttemptInventoryError, match="exactly match"):

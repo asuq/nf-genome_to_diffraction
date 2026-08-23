@@ -32,6 +32,7 @@ from pydantic import ValidationError
 from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.ranking.composition import PlannedCompositionAttempt
 from genome_to_diffraction.schemas.v2 import (
+    ComponentExpansionExecutionInput,
     CompositionExpansionDepthPlan,
     CompositionState,
     DiffractionSelection,
@@ -178,6 +179,7 @@ def build_composition_attempt_inventory(
     diffraction_selection: DiffractionSelection,
     free_r_identity: FreeRIdentity,
     execution_identity_id: str,
+    execution_inputs: tuple[ComponentExpansionExecutionInput, ...],
 ) -> CompositionAttemptInventory:
     """Bind one selected shared-depth plan to complete immutable task identities."""
 
@@ -192,8 +194,26 @@ def build_composition_attempt_inventory(
     state_by_id = {state.state_id: state for state in parent_states}
     if len(state_by_id) != len(parent_states):
         raise CompositionAttemptInventoryError("duplicate parent state identity")
+    execution_input_by_candidate = {
+        (
+            item.parent_state.state_id,
+            item.selected_candidate.depth_candidate_id,
+        ): item
+        for item in execution_inputs
+    }
+    if len(execution_input_by_candidate) != len(execution_inputs):
+        raise CompositionAttemptInventoryError("duplicate component execution input")
+    expected_execution_keys = {
+        (candidate.parent_state_id, candidate.depth_candidate_id)
+        for candidate in selected
+    }
+    if set(execution_input_by_candidate) != expected_execution_keys:
+        raise CompositionAttemptInventoryError(
+            "component execution inputs do not exactly match selected attempts"
+        )
 
     tasks: list[CompositionAttemptTask] = []
+    ordered_execution_inputs: list[ComponentExpansionExecutionInput] = []
     try:
         for candidate in selected:
             state = state_by_id.get(candidate.parent_state_id)
@@ -207,6 +227,10 @@ def build_composition_attempt_inventory(
             )
             if candidate.allocation_rank is None:  # pragma: no cover - schema guard
                 raise AssertionError("selected candidate lacks allocation rank")
+            execution_input = execution_input_by_candidate[
+                (state.state_id, candidate.depth_candidate_id)
+            ]
+            ordered_execution_inputs.append(execution_input)
             tasks.append(
                 CompositionAttemptTask.from_content(
                     allocation_rank=candidate.allocation_rank,
@@ -227,6 +251,7 @@ def build_composition_attempt_inventory(
                     free_r_identity_id=free_r_identity.free_r_identity_id,
                     model_registry_id=depth_plan.model_registry_id,
                     execution_identity_id=execution_identity_id,
+                    component_execution_input_id=(execution_input.execution_input_id),
                 )
             )
         no_model_count = sum(
@@ -242,6 +267,7 @@ def build_composition_attempt_inventory(
             free_r_identity=free_r_identity,
             model_registry_id=depth_plan.model_registry_id,
             execution_identity_id=execution_identity_id,
+            execution_inputs=tuple(ordered_execution_inputs),
             attempt_count=len(tasks),
             unsearchable_no_model_count=no_model_count,
             attempts=tuple(tasks),
