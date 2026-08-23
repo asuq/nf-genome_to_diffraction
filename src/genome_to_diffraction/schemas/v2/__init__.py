@@ -42,6 +42,8 @@ from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
     PhaseIIIReviewDecisionValue,
+    PhaseIIIReviewPackageManifest,
+    PhaseIIIReviewPackageTarget,
 )
 
 __all__ = [
@@ -78,6 +80,8 @@ __all__ = [
     "PhaseIIIReviewDecision",
     "PhaseIIIReviewDecisionFile",
     "PhaseIIIReviewDecisionValue",
+    "PhaseIIIReviewPackageManifest",
+    "PhaseIIIReviewPackageTarget",
     "RegistryModelResolution",
     "RegistryModelResolutionScope",
     "ResidualContentState",

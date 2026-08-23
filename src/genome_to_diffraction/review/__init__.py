@@ -15,6 +15,14 @@ from genome_to_diffraction.review.mr_seed import (
     build_mr_seed_review,
     validate_mr_seed_approvals,
 )
+from genome_to_diffraction.review.phase3_stage import (
+    OwnedPhaseIIIParentRun,
+    PhaseIIIReviewStageError,
+    PhaseIIIReviewStageManifest,
+    PhaseIIIReviewStageOutput,
+    PhaseIIIReviewStageRequest,
+    stage_phase3_review_decisions,
+)
 from genome_to_diffraction.review.resource_summary import (
     ResourceSummaryError,
     ResourceSummaryOutput,
@@ -45,6 +53,11 @@ __all__ = [
     "MrSeedReviewError",
     "MrSeedReviewOutput",
     "MrSeedReviewRequest",
+    "OwnedPhaseIIIParentRun",
+    "PhaseIIIReviewStageError",
+    "PhaseIIIReviewStageManifest",
+    "PhaseIIIReviewStageOutput",
+    "PhaseIIIReviewStageRequest",
     "ResourceSummaryError",
     "ResourceSummaryOutput",
     "ResourceSummaryRequest",
@@ -59,5 +72,6 @@ __all__ = [
     "build_resource_summary",
     "build_sequence_checkpoint",
     "build_status_record",
+    "stage_phase3_review_decisions",
     "validate_mr_seed_approvals",
 ]

@@ -9,10 +9,11 @@ package. It binds `owned_parent_run_id`, `review_package_id`, the package-manife
 SHA-256, and every crystal/item decision into `decision_file_id`.
 
 The identifier is derived from RFC-8785 canonical typed content. It is not the
-byte checksum of the entered TSV. A future staging adapter must independently
-verify parent-run ownership, the package manifest and assets, target membership,
-the transported decision-file checksum, and whether the decision timestamp is
-not older than the package. Those checks are deliberately not claimed here.
+byte checksum of the entered TSV. The local staging adapter independently
+verifies the caller-supplied owned parent run/profile/phase, exact package
+manifest, target membership, transported decision-file checksum, canonical
+content identifier, and whether every decision timestamp is not older than the
+package.
 
 Historical `review-decisions` schema-v1 files and their `mr_seed` and
 `sequence_candidate` semantics are unchanged.
@@ -57,3 +58,37 @@ same identifier.
 
 This slice defines no Nextflow process, profile, remote staging operation, or
 review-package generator.
+
+## Local staging boundary
+
+`stage_phase3_review_decisions` accepts one caller-verified
+`OwnedPhaseIIIParentRun`, the expected checkpoint, a strict schema-v2 review
+package manifest, a JSON or TSV decision file, and an independently confirmed
+SHA-256 for the exact decision-file bytes. The package manifest must bind:
+
+- `review_package_id` and checkpoint;
+- `owned_parent_run_id`, `parent_profile`, and `parent_phase`;
+- timezone-aware `created_at`; and
+- the complete permitted `(crystal_id, item_id)` target set.
+
+The stager fails with `PhaseIIIReviewStageError`, a typed input-contract error,
+when any parent/package/checkpoint binding differs, the package-manifest SHA does
+not match the decision file, the transported decision checksum differs from its
+confirmation, a canonical decision identifier is stale, a target is absent, or
+a review predates package creation. Loading the decision through the authoritative
+schema-v2 contract also re-enforces duplicate refusal and checkpoint-specific
+caps.
+
+All validation finishes before publication. The output path must not already
+exist. A successful stage contains exactly:
+
+- `phase3_review_decision.json`, the deterministic typed JSON representation; and
+- `phase3_review_stage_manifest.json`, which records the deterministic stage ID,
+  parent/package bindings, source and canonical checksums, package creation time,
+  decision count, and the two-file allow-list.
+
+The source TSV/JSON, review package, package assets, and arbitrary neighbouring
+files are not copied. The caller remains responsible for deriving the owned
+parent reference from its trusted local run registry. This local slice does not
+authenticate a remote run, generate review packages, or add a Nextflow/HPC
+profile.

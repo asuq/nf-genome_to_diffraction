@@ -10613,3 +10613,31 @@ job or modify the accepted P6 evidence.
   requests to this adapter, then wire a separate complete-item execution slice.
   Do not start Nextflow, Phaser, localisation, unknown profiles, or HPC from
   this contract-only result.
+
+## 2026-08-23T17:41:36Z - Phase III local review stager is focused-green
+
+### Completed focused slice
+
+- Added the strict minimum package manifest for one Phase III checkpoint. It
+  binds the exact package/checkpoint to an owned parent run ID, profile, phase,
+  creation time, and duplicate-free permitted crystal/item targets.
+- Added a local checksum-gated stager that revalidates the schema-v2 decision
+  content ID and checkpoint caps, independently confirms the transported file
+  checksum, verifies the exact package-manifest SHA, rejects stale parent or
+  package provenance, unknown targets, and reviews predating package creation.
+- Successful staging creates a previously absent directory containing only a
+  canonical typed decision JSON and typed stage manifest. The source operator
+  file, review package, package assets, and neighbouring files are not copied.
+  All expected failures use a dedicated input-contract exception.
+
+### Focused evidence and next exact starting point
+
+- Thirty-four review-contract/stager tests cover stale run/profile/phase,
+  wrong package and manifest, unknown target, chronology, source checksum,
+  stale content identity, mutation during validation, duplicate/cap refusal,
+  new-directory enforcement, and the two-file happy path. The complete 778-test
+  unit suite and 113-test typed-contract suite, repository Ruff lint/format,
+  repository `ty`, authoritative schema check, and documentation check pass.
+- Integrate this commit into `dev/phase3` after review. Next, build each
+  checkpoint-specific review package and derive the trusted parent reference
+  from the local owned-run registry before adding any Nextflow/HPC consumer.

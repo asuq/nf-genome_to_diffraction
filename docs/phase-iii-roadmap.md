@@ -198,8 +198,12 @@ composition, and sequence decisions is implemented and documented in
 `docs/phase-iii-review-contract.md`. It content-binds one checkpoint to an owned
 parent-run identifier and checksum-qualified review package, rejects duplicate
 or conflicting targets, and enforces the three-state A/composition limits.
-Parent ownership, package/target membership, byte-checksum confirmation,
-Nextflow wiring, and staging remain pending rather than inferred.
+The local stager now verifies caller-supplied owned parent run/profile/phase,
+exact package-manifest and transported-decision checksums, canonical decision
+identity, permitted target membership, and review chronology before publishing
+only canonical decisions plus a typed stage manifest into a new directory.
+Review-package generation, trusted local-run-registry wiring, Nextflow/HPC
+profiles, and remote staging remain pending rather than inferred.
 
 Valid pass-1 endpoints are:
 
