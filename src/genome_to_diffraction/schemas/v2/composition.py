@@ -60,6 +60,18 @@ ExpansionPlanIdentifier = Annotated[
     str,
     Field(pattern=r"^compexpand_[a-f0-9]{64}$"),
 ]
+ExpansionDepthParentIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compexpanddepthparent_[a-f0-9]{64}$"),
+]
+ExpansionDepthCandidateIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compexpanddepthcand_[a-f0-9]{64}$"),
+]
+ExpansionDepthPlanIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compexpanddepth_[a-f0-9]{64}$"),
+]
 ScopeDecisionIdentifier = Annotated[
     str,
     Field(pattern=r"^compscope_[a-f0-9]{64}$"),
@@ -518,6 +530,166 @@ class CompositionExpansionPlan(_ContentAddressedContract):
                 )
             if candidate.component.requested_copy_count > 4:
                 raise ValueError("Phase III expansion copy count exceeds four")
+        return self
+
+
+class CompositionExpansionDepthParent(_ContentAddressedContract):
+    """One parent identity retained in a globally budgeted depth batch."""
+
+    _identity_field = "depth_parent_id"
+    _identity_prefix = "compexpanddepthparent_"
+
+    schema_version: Literal["2.0"]
+    depth_parent_id: ExpansionDepthParentIdentifier
+    parent_state_id: CompositionStateIdentifier
+    parent_rank: PositiveInt = Field(le=3)
+    parent_component_labels: tuple[ComponentLabel, ...] = Field(min_length=1)
+    parent_sequence_group_ids: tuple[SequenceGroupIdentifier, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _validate_parent_inventory(self) -> Self:
+        if len(self.parent_component_labels) != len(self.parent_sequence_group_ids):
+            raise ValueError("parent labels and sequence groups differ in length")
+        if len(set(self.parent_component_labels)) != len(self.parent_component_labels):
+            raise ValueError("parent component labels must be unique")
+        if len(set(self.parent_sequence_group_ids)) != len(
+            self.parent_sequence_group_ids
+        ):
+            raise ValueError("parent sequence groups must be unique")
+        return self
+
+
+class CompositionExpansionDepthCandidate(_ContentAddressedContract):
+    """One parent-bound hypothesis in a globally budgeted depth batch."""
+
+    _identity_field = "depth_candidate_id"
+    _identity_prefix = "compexpanddepthcand_"
+
+    schema_version: Literal["2.0"]
+    depth_candidate_id: ExpansionDepthCandidateIdentifier
+    parent_state_id: CompositionStateIdentifier
+    parent_rank: PositiveInt = Field(le=3)
+    hypothesis: CompositionCandidateHypothesis
+    allocation_rank: PositiveInt | None = None
+
+    @model_validator(mode="after")
+    def _validate_allocation(self) -> Self:
+        selected = self.hypothesis.disposition is ExpansionDisposition.SELECTED
+        if selected != (self.allocation_rank is not None):
+            raise ValueError(
+                "only a selected depth candidate may carry an allocation rank"
+            )
+        return self
+
+
+class CompositionExpansionDepthPlan(_ContentAddressedContract):
+    """Authoritative one-depth budget shared across the retained parent beam.
+
+    The older :class:`CompositionExpansionPlan` remains readable as a singular-
+    parent record, but it cannot prove a shared beam budget.  Phase III
+    scheduling uses this parent-bound depth plan so the 25-attempt cap is
+    validated once across all retained parents.
+    """
+
+    _identity_field = "depth_plan_id"
+    _identity_prefix = "compexpanddepth_"
+
+    schema_version: Literal["2.0"]
+    depth_plan_id: ExpansionDepthPlanIdentifier
+    crystal_id: NonEmptyString
+    diffraction_dataset_id: NonEmptyString
+    parent_depth: PositiveInt
+    target_depth: PositiveInt
+    parents: tuple[CompositionExpansionDepthParent, ...] = Field(
+        min_length=1,
+        max_length=3,
+    )
+    maximum_component_depth: PositiveInt = Field(le=6)
+    beam_width: PositiveInt = Field(le=3)
+    per_depth_attempt_budget: PositiveInt = Field(le=25)
+    global_attempt_budget: PositiveInt = Field(le=100)
+    global_attempts_used_before: int = Field(ge=0)
+    ranking_policy_version: NonEmptyString
+    candidate_count: int = Field(ge=0)
+    physical_hypothesis_count: int = Field(ge=0)
+    selected_attempt_count: int = Field(ge=0)
+    deferred_candidate_count: int = Field(ge=0)
+    unsearchable_candidate_count: int = Field(ge=0)
+    candidates: tuple[CompositionExpansionDepthCandidate, ...]
+
+    @model_validator(mode="after")
+    def _validate_depth_batch(self) -> Self:
+        if self.target_depth != self.parent_depth + 1:
+            raise ValueError("target depth must immediately follow parent depth")
+        if self.target_depth > self.maximum_component_depth:
+            raise ValueError("target depth exceeds the configured search depth")
+        if len(self.parents) > self.beam_width:
+            raise ValueError("parent count exceeds the configured beam width")
+        if [parent.parent_rank for parent in self.parents] != list(
+            range(1, len(self.parents) + 1)
+        ):
+            raise ValueError("depth parent ranks must be contiguous and ordered")
+        parent_by_id = {parent.parent_state_id: parent for parent in self.parents}
+        if len(parent_by_id) != len(self.parents):
+            raise ValueError("depth parent state identities must be unique")
+        if self.global_attempts_used_before > self.global_attempt_budget:
+            raise ValueError("used attempts exceed the global budget")
+        if self.candidate_count != len(self.candidates):
+            raise ValueError("candidate count does not match depth inventory")
+        if len({candidate.depth_candidate_id for candidate in self.candidates}) != len(
+            self.candidates
+        ):
+            raise ValueError("depth candidate identities must be unique")
+
+        ranks_by_parent: dict[str, list[int]] = {
+            parent.parent_state_id: [] for parent in self.parents
+        }
+        allocation_ranks: list[int] = []
+        selected = deferred = physical = 0
+        for candidate in self.candidates:
+            parent = parent_by_id.get(candidate.parent_state_id)
+            if parent is None or parent.parent_rank != candidate.parent_rank:
+                raise ValueError("depth candidate refers to an unknown parent")
+            ranks_by_parent[parent.parent_state_id].append(candidate.hypothesis.rank)
+            physical += candidate.hypothesis.physical_possible
+            if (
+                candidate.hypothesis.component.label in parent.parent_component_labels
+                or candidate.hypothesis.component.sequence_group_id
+                in parent.parent_sequence_group_ids
+            ):
+                raise ValueError("depth candidate repeats a represented component")
+            if candidate.hypothesis.disposition is ExpansionDisposition.SELECTED:
+                selected += 1
+                if candidate.allocation_rank is None:  # validated by child record
+                    raise AssertionError("selected candidate lacks allocation rank")
+                allocation_ranks.append(candidate.allocation_rank)
+            elif candidate.hypothesis.disposition in {
+                ExpansionDisposition.DEFERRED_DEPTH_BUDGET,
+                ExpansionDisposition.DEFERRED_GLOBAL_BUDGET,
+                ExpansionDisposition.DEFERRED_REVIEWER,
+            }:
+                deferred += 1
+
+        for ranks in ranks_by_parent.values():
+            if ranks != list(range(1, len(ranks) + 1)):
+                raise ValueError(
+                    "candidate ranks must be contiguous within each parent"
+                )
+        if sorted(allocation_ranks) != list(range(1, selected + 1)):
+            raise ValueError("selected allocation ranks must be contiguous and unique")
+        unsearchable = self.candidate_count - selected - deferred
+        if (
+            physical != self.physical_hypothesis_count
+            or selected != self.selected_attempt_count
+            or deferred != self.deferred_candidate_count
+            or unsearchable != self.unsearchable_candidate_count
+        ):
+            raise ValueError("depth plan counts do not match candidate inventory")
+        remaining_global = self.global_attempt_budget - self.global_attempts_used_before
+        if selected > min(self.per_depth_attempt_budget, remaining_global):
+            raise ValueError(
+                "selected attempts exceed the shared depth or global budget"
+            )
         return self
 
 

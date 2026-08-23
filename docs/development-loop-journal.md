@@ -10267,3 +10267,44 @@ Integrate this boundary into the Phase III application workflow after the v0.2
 release transition. Keep the existing v0.2 single-crystal entry point unchanged;
 do not add unknown-screen profiles or general composition contracts in this
 slice.
+
+## 2026-08-23T16:20:00Z - Phase III shared-depth expansion planner is focused-green
+
+### Completed focused slice
+
+- Added a typed deterministic planner for one additional-component depth. It
+  accepts one to three ranked packed parents, excludes sequence groups already
+  represented by each parent, retains parent-specific physical eligibility for
+  explicit copy hypotheses 1--4, and treats missing localisation, gel, Matthews,
+  model-quality, and structural-diversity evidence as neutral scheduling
+  evidence.
+- Searchable hypotheses are allocated in deterministic diagonal rounds across
+  candidate and copy-count positions, with parent rank round-robin at each
+  position. One shared cap of 25 attempts applies across the complete parent
+  beam, and the remaining global cap of 100 attempts is enforced independently.
+  Selected, per-depth-deferred, globally deferred, reviewer-deferred, no-model,
+  model-identity-unsearchable, and physically impossible outcomes remain typed.
+- Corrected a contract gap discovered during implementation: the original
+  singular-parent expansion plan could not itself prove a shared depth budget.
+  Added an explicitly parent-bound depth-plan contract with parent summaries,
+  parent-bound candidates, allocation ranks, and aggregate inventory/budget
+  validation. The singular-parent v2 record remains readable but is not the
+  authoritative Phase III scheduling boundary.
+- The planner performs no search or support assessment. Selection reasons state
+  explicitly that scheduling is not scientific support; LLG, TFZ, and packing
+  are not planner inputs and cannot promote an identity or composition claim.
+
+### Focused evidence and next exact starting point
+
+- Six planner regressions cover deterministic evidence ordering, represented-
+  group exclusion, three-parent/candidate/copy fairness, distinct depth/global
+  budget dispositions, evidence mutation, missing-evidence neutrality, and the
+  zero-physical-hypothesis path. Shared-budget and parent-binding mutations fail
+  contract validation. The combined planner/contract slice passes 16 tests;
+  package/typed-contract compatibility adds 115 passing tests. Targeted Ruff,
+  `ty`, and the authoritative schema check pass.
+- Integrate this commit after the composition-v2 contract commit. Use the new
+  shared depth plan as the only scheduling authority when wiring Nextflow; do
+  not reinterpret the singular-parent record as granting 25 attempts per
+  parent. Phaser, Nextflow, localisation, unknown profiles, and scientific
+  assessment remain intentionally outside this slice.
