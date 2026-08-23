@@ -10040,3 +10040,30 @@ Review/commit/push this fixed P5 control, watch one CI run, deploy matching
 tools, and stage exactly one fresh `heteromer-smoke`. Submit only that owned
 run, then use a 30-minute thread heartbeat for wrapper-only status checks.
 Collect/classify before accepting P5 or starting P6.
+
+## 2026-08-23T01:38:15Z - P5 full-catalogue partner search accepted
+
+### Immutable Marmic evidence
+
+- The owned `heteromer-smoke` completed successfully from source
+  `19e837dcab8401a254195cca2ecb5964397ac56a` under Pixi 0.76.2 with the pinned
+  nf-helper commit. Bounded wrapper collection retained the terminal state,
+  scientific records, commands, logs, and qualification summaries.
+- The fixed Thermotoga catalogue imported 1846 source proteins as 1846 exact
+  sequence groups. The plan retained 1845 non-A candidates, selected exactly
+  one checksum-bound HisH sequence/model, deferred none, and kept 1844 typed
+  unsearchable rows.
+- The selected planned attempt completed with one packed B placement, partner
+  TFZ 71.2, incremental LLG 5054.654, and complete plan/candidate/result
+  provenance. The attempt summary retained its sole selected result.
+- The 6RTZ `1A+1B` and 3U7Q `2A+2B` controls remained green. All 26 listed
+  checksums and the SHA-256 identities of all seven required Phenix executables
+  verified. P5 is accepted; the completed-run heartbeat was removed.
+
+### Next exact starting point
+
+Commit and push this evidence update, then begin P6 with the smallest focused
+typed controls: missing B, wrong B, homomer non-regression, and the 9ECN
+`unsupported_component_count` boundary. Reuse the existing accepted positive
+controls and workflow/profile; do not implement three-component reconstruction,
+localisation filtering, unknown crystals, or deferred hardening.
