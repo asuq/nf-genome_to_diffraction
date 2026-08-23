@@ -11271,3 +11271,21 @@ with a collapsed combined parent or a guessed command.
   publish the clean immutable `dev/phase3` head after persistent approval and
   run its CI plus fixed no-data Phaser interface probe; do not launch unknown
   crystals from this synthetic command qualification alone.
+
+## 2026-08-23T21:15:55Z - Refinement symmetry and resolution propagation is explicit
+
+### Completed refinement half of PIPE-P1-06
+
+- The official and installed Phenix interfaces define
+  `refinement.crystal_symmetry.space_group` and the
+  `data_manager.fmodel.xray_data` low/high-resolution parameters. Phase III
+  brief refinement now passes the exact selected space group and both reviewed
+  limits from its checksum-bound diffraction selection.
+- The typed command binding distinguishes this explicit refinement propagation
+  from the still-pending Phaser parameter mapping. Version-1 commands remain
+  unchanged, and selected observation/Free-R identities and post-refinement
+  Free-R preservation remain mandatory.
+- Fifty-seven focused refinement, diffraction-selection, Free-R, and Phaser
+  compatibility tests pass. Phaser space-group/resolution propagation and
+  parent-MTZ derivation remain pending until the installed Phaser interface
+  probe is collected; do not guess those parameters locally.

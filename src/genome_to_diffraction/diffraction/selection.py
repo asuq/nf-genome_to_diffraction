@@ -293,7 +293,12 @@ def build_diffraction_command_binding(
     resolution_binding = (
         "verified_by_mtz_preflight_explicit_refinement_limits_pending"
         if consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
-        else "sequence_from_map_high_resolution_explicit_refinement_limits_pending"
+        else "refinement_low_high_and_sequence_map_high_explicit"
+    )
+    space_group_binding = (
+        "verified_by_mtz_preflight_explicit_parameter_pending"
+        if consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
+        else "explicit_refinement_crystal_symmetry_parameter"
     )
     command_mtz_binding = (
         "exact_selected_mtz"
@@ -311,6 +316,7 @@ def build_diffraction_command_binding(
         observation_labels=selection.observation_labels,
         observation_type=selection.observation_type,
         selected_space_group=selection.selected_space_group,
+        space_group_command_binding=space_group_binding,
         resolution_low_a=selection.resolution_low_a,
         resolution_high_a=selection.resolution_high_a,
         resolution_command_binding=resolution_binding,

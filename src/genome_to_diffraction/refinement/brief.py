@@ -393,6 +393,24 @@ def _free_r_arguments(identity: FreeRIdentity) -> tuple[str, ...]:
     return tuple(arguments)
 
 
+def _phase3_refinement_selection_arguments(
+    selection: DiffractionSelection,
+) -> tuple[str, ...]:
+    """Render qualified Phenix refinement symmetry and resolution parameters."""
+
+    if not selection.selected_space_group.strip() or "\n" in (
+        selection.selected_space_group
+    ):
+        raise T12InputError("selected space group must be one non-empty line")
+    return (
+        f"refinement.crystal_symmetry.space_group={selection.selected_space_group}",
+        "data_manager.fmodel.xray_data.low_resolution="
+        f"{selection.resolution_low_a:.12g}",
+        "data_manager.fmodel.xray_data.high_resolution="
+        f"{selection.resolution_high_a:.12g}",
+    )
+
+
 def _combined_log(completed: subprocess.CompletedProcess[bytes]) -> str:
     return (completed.stdout + completed.stderr).decode("utf-8", errors="replace")
 
@@ -712,6 +730,10 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         str(params_path),
         observation_label_argument,
     ]
+    if diffraction_selection is not None:
+        refine_args.extend(
+            _phase3_refinement_selection_arguments(diffraction_selection)
+        )
     if free_r_identity is not None:
         refine_args.extend(_free_r_arguments(free_r_identity))
     command_path = outdir / "t12_command.json"

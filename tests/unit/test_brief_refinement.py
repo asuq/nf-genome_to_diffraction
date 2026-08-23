@@ -529,7 +529,10 @@ def test_phase3_refinement_promotes_permuted_synthetic_mtz_after_free_r_comparis
         output.free_r_comparison.comparison_id
     )
     assert binding["resolution_command_binding"] == (
-        "sequence_from_map_high_resolution_explicit_refinement_limits_pending"
+        "refinement_low_high_and_sequence_map_high_explicit"
+    )
+    assert binding["space_group_command_binding"] == (
+        "explicit_refinement_crystal_symmetry_parameter"
     )
     assert binding["command_mtz_binding"].endswith("derivation_verification_pending")
     assert binding["free_r_label"] == "FreeR_flag"
@@ -543,8 +546,15 @@ def test_phase3_refinement_promotes_permuted_synthetic_mtz_after_free_r_comparis
     assert "data_manager.fmodel.xray_data.r_free_flags.required=True" in commands[0]
     assert "data_manager.fmodel.xray_data.r_free_flags.generate=False" in commands[0]
     assert not any("test_flag_value" in argument for argument in commands[0])
-    assert not any("space_group" in argument for argument in commands[0])
-    assert not any("resolution" in argument for argument in commands[0])
+    assert (
+        f"refinement.crystal_symmetry.space_group={binding['selected_space_group']}"
+        in commands[0]
+    )
+    assert any(
+        argument.startswith("data_manager.fmodel.xray_data.low_resolution=")
+        for argument in commands[0]
+    )
+    assert "data_manager.fmodel.xray_data.high_resolution=2" in commands[0]
     assert "crystal_info.resolution=2" in commands[1]
 
 
