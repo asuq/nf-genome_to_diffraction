@@ -238,7 +238,17 @@ workflow M6_VALIDATION_WORKFLOW {
     grouped_first = first_copy
         .groupTuple()
         .map { key, caseIds, bundles, results ->
-            tuple(key.groupTarget as String, bundles[0] as Path, results as List<Path>)
+            def orderedResults = (results as List<Path>).sort { left, right ->
+                def leftRecord = new groovy.json.JsonSlurper().parseText(
+                    left.resolve('normalised_mr_result.json').toFile().text
+                )
+                def rightRecord = new groovy.json.JsonSlurper().parseText(
+                    right.resolve('normalised_mr_result.json').toFile().text
+                )
+                (leftRecord.hypothesis_id as String) <=>
+                    (rightRecord.hypothesis_id as String)
+            }
+            tuple(key.groupTarget as String, bundles[0] as Path, orderedResults)
         }
     selected_seeds = M6_SELECT_SEEDS(grouped_first)
     empty_seed_inputs = empty_cases.map { caseId, bundle, count ->
@@ -282,11 +292,21 @@ workflow M6_VALIDATION_WORKFLOW {
     grouped_copy = copy_results
         .groupTuple()
         .map { key, caseIds, caseBundles, seedBundles, results ->
+            def orderedResults = (results as List<Path>).sort { left, right ->
+                def leftRecord = new groovy.json.JsonSlurper().parseText(
+                    left.resolve('best_parent.json').toFile().text
+                )
+                def rightRecord = new groovy.json.JsonSlurper().parseText(
+                    right.resolve('best_parent.json').toFile().text
+                )
+                (leftRecord.seed_solution_id as String) <=>
+                    (rightRecord.seed_solution_id as String)
+            }
             tuple(
                 key.groupTarget as String,
                 caseBundles[0] as Path,
                 seedBundles[0] as Path,
-                results as List<Path>
+                orderedResults
             )
         }
     finalists = M6_SELECT_FINALISTS(grouped_copy)
@@ -331,11 +351,21 @@ workflow M6_VALIDATION_WORKFLOW {
     grouped_refinement = refinement
         .groupTuple()
         .map { key, caseIds, caseBundles, finalistBundles, results ->
+            def orderedResults = (results as List<Path>).sort { left, right ->
+                def leftRecord = new groovy.json.JsonSlurper().parseText(
+                    left.resolve('finalist_task.json').toFile().text
+                )
+                def rightRecord = new groovy.json.JsonSlurper().parseText(
+                    right.resolve('finalist_task.json').toFile().text
+                )
+                (leftRecord.seed_solution_id as String) <=>
+                    (rightRecord.seed_solution_id as String)
+            }
             tuple(
                 key.groupTarget as String,
                 caseBundles[0] as Path,
                 finalistBundles[0] as Path,
-                results as List<Path>
+                orderedResults
             )
         }
     assembled = M6_ASSEMBLE_CASE(grouped_refinement)

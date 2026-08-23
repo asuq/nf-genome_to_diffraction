@@ -11523,3 +11523,42 @@ with a collapsed combined parent or a guessed command.
   and leakage acceptance remains pending the other PH6 stop gates and one
   exact-source site qualification of the stage executor and collected object
   inventory.
+
+## 2026-08-23 - Active M6 aggregation is completion-order invariant locally
+
+### Focused DEV-P2-01 correction
+
+- Auditing the live M6 graph found catalogue imports, provider batches,
+  provider result/hit rows, policy accepted/rejected/ranked model rows, seed
+  evidence, finalists, and final case order already canonical by immutable IDs,
+  evidence rank, or the frozen protocol case order. Those scientific ranking
+  orders remain unchanged.
+- The remaining case-evidence defect was the refinement `groupTuple`: parsed
+  refinement results, sequence results/summaries, case-record children, and
+  emitted JSONL inherited Slurm completion order. The assembler now rejects
+  duplicate seed children and sorts the paired child records by immutable seed
+  ID before every serialisation and raw-child copy.
+- All three M6 `groupTuple` boundaries now also sort completed child bundles by
+  hypothesis or seed ID before downstream process inputs are constructed. This
+  makes their command/cache identities independent of task completion order.
+  No adapter identity changed because no scientific rank, threshold, status,
+  or record meaning changed; an old non-canonical child argument order cannot
+  match the new canonical task input.
+
+### Evidence, scope, and next exact starting point
+
+- Reversing complete provider batches produces identical validated result,
+  hit, and manifest inventories. Reversing two complete refinement children
+  produces a byte-identical case-evidence tree, including case record,
+  refinement/sequence inventories, summaries, manifests, and retained raw
+  children. Existing regressions additionally cover all 720 six-seed
+  permutations and byte-identical outputs for reversed direct/Foldseek
+  model-policy input rows.
+- Four focused aggregation/seed tests, Nextflow syntax, Ruff formatting/lint,
+  `ty`, schema validation, documentation, and diff checks pass. No full suite,
+  M6 run, network/HPC action, private data, protocol, threshold, MTZ, leakage,
+  seed-selection, coordinate-staging, cache-mutation, unknown-workflow, or
+  bootstrap change occurred.
+- Integrate this focused commit into `dev/phase3`. Keep `DEV-P2-01` at local
+  fixed status until the future operational then unchanged-protocol leakage M6
+  runs retain deterministic replay and canonical collected checksums.

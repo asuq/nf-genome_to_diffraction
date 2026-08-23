@@ -356,6 +356,21 @@ objects without receiving the database manifest or invoking HTTPS; no-hit and
 missing-model paths remain typed. A future M6 run must still qualify the real
 site executor mapping and collected coordinate-stage inventory.
 
+Status: the local `DEV-P2-01` completion-order correction is implemented. The
+active discovery and policy writers already canonicalised validated provider,
+result, hit, accepted/rejected-model, and evidence-ranked candidate records;
+seed/finalist/track assembly already used evidence order with immutable-ID
+tie-breaks or fixed protocol case order. The three Nextflow `groupTuple`
+boundaries now sort their unordered child bundles by hypothesis or seed ID
+before forming a process input/cache identity. Case assembly rejects duplicate
+refinement children and orders paired refinement/sequence evidence by seed ID,
+without reordering seed ranks or sequential copy-series evidence. Reversed
+provider batches produce identical validated result/hit/manifest inventories,
+and reversed complete refinement children produce byte-identical case-evidence
+trees; existing tests cover all seed permutations and byte-identical outputs
+for reversed model-policy rows. Scientific adapter versions remain unchanged
+because no ranking, status, threshold, or record meaning changed.
+
 Add a locked offline wheel build, isolated install, both entry points, packaged
 schemas, and version parity. Remove or migrate legacy nested thread-pool
 benchmark execution. Repeat the adverse review before release.

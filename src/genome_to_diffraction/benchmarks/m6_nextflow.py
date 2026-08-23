@@ -2412,25 +2412,31 @@ def run_m6_assemble_case_task(
     if add_root.is_dir():
         for path in sorted(add_root.glob("*/additional_copy_series_results.jsonl")):
             copy_rows.extend(_jsonl(path, AdditionalCopyResult))
-    refinements: list[BriefRefinementResult] = []
-    sequences: list[SequenceMapResult] = []
-    refinement_by_seed: dict[str, Path] = {}
+    refinement_children: list[
+        tuple[M6FinalistTask, BriefRefinementResult, SequenceMapResult, Path]
+    ] = []
     for directory in refinement_results:
         root = directory.resolve(strict=True)
         task_record = M6FinalistTask.model_validate_json(
             (root / "finalist_task.json").read_text(encoding="utf-8")
         )
-        refinements.append(
-            BriefRefinementResult.model_validate_json(
-                (root / "t12/brief_refinement_result.json").read_text(encoding="utf-8")
-            )
+        refinement = BriefRefinementResult.model_validate_json(
+            (root / "t12/brief_refinement_result.json").read_text(encoding="utf-8")
         )
-        sequences.append(
-            SequenceMapResult.model_validate_json(
-                (root / "t12/sequence_map_result.json").read_text(encoding="utf-8")
-            )
+        sequence = SequenceMapResult.model_validate_json(
+            (root / "t12/sequence_map_result.json").read_text(encoding="utf-8")
         )
-        refinement_by_seed[task_record.seed_solution_id] = root
+        refinement_children.append((task_record, refinement, sequence, root))
+    seed_ids = [item[0].seed_solution_id for item in refinement_children]
+    if len(seed_ids) != len(set(seed_ids)):
+        raise PublicControlError("duplicate M6 refinement result")
+    refinement_children.sort(key=lambda item: item[0].seed_solution_id)
+    refinements = [item[1] for item in refinement_children]
+    sequences = [item[2] for item in refinement_children]
+    refinement_by_seed = {
+        task_record.seed_solution_id: root
+        for task_record, _, _, root in refinement_children
+    }
     seed_rows = _jsonl_dicts(seed_bundle / "seed_tasks.jsonl")
     selected_rows: list[dict[str, object]] = []
     first_by_hypothesis = {row.hypothesis_id: row for row in first_results}
