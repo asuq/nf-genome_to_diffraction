@@ -69,8 +69,16 @@ An opt-in schema-v2 diffraction selection now binds the MTZ dataset,
 dataset-qualified observations, space group, resolution range, overrides, and
 command identities. Observation labels and sequence-from-map high resolution
 are explicit where already qualified; Phaser/refinement space-group and
-resolution-limit flags, parent-MTZ derivation, and Free-R membership remain
-deliberately pending rather than guessed.
+resolution-limit flags, parent-MTZ derivation, and Free-R command propagation
+remain deliberately pending rather than guessed.
+
+A separate schema-v2 Free-R foundation now binds an exact label and MTZ dataset
+to the diffraction selection, rejects non-finite, non-integral, constant, and
+ambiguous arrays, records the complete raw-value distribution, and hashes the
+sorted HKL-to-raw-flag mapping. A derived-MTZ comparison fails on missing HKLs
+or changed flags and is invariant to row order. The test flag value remains
+explicitly unresolved unless supplied from reviewed external provenance;
+Phenix command propagation and real-refinement qualification remain pending.
 
 Fixed-component partner searches now preserve the reviewed parent's original
 model identity/error source in Phaser, command/result records, and cache

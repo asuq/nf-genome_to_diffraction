@@ -2,9 +2,10 @@
 
 These records bind one crystal to one checksum-qualified MTZ interpretation:
 the MTZ-internal observation dataset, observation labels/type, selected space
-group, resolution limits, and the source of every override.  They do not infer
-or validate Free-R membership; that deliberately remains an explicit pending
-boundary for a later Phase III slice.
+group, resolution limits, and the source of every override.  Free-R records are
+separate because their raw HKL-to-flag identity can be validated without
+guessing which integer value denotes the test set or claiming that a Phenix
+adapter already propagates the selection.
 
 ``DiffractionBoundHypothesis`` makes the complete legacy hypothesis payload and
 the diffraction selection part of a new Phase III identity without changing or
@@ -21,8 +22,10 @@ from pydantic import Field, model_validator
 
 from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.schemas.base import (
+    ContractModel,
     NonEmptyString,
     PositiveFloat,
+    PositiveInt,
     Sha256Hex,
 )
 from genome_to_diffraction.schemas.v2.composition import _ContentAddressedContract
@@ -43,6 +46,14 @@ DiffractionCommandBindingIdentifier = Annotated[
     str,
     Field(pattern=r"^diffbind_[a-f0-9]{64}$"),
 ]
+FreeRIdentityIdentifier = Annotated[
+    str,
+    Field(pattern=r"^freerid_[a-f0-9]{64}$"),
+]
+FreeRMembershipComparisonIdentifier = Annotated[
+    str,
+    Field(pattern=r"^freercompare_[a-f0-9]{64}$"),
+]
 
 
 class DiffractionValueSource(StrEnum):
@@ -52,6 +63,197 @@ class DiffractionValueSource(StrEnum):
     MTZ_HEADER = "mtz_header"
     MTZ_RESOLUTION_RANGE = "mtz_resolution_range"
     CRYSTAL_MANIFEST_OVERRIDE = "crystal_manifest_override"
+
+
+class FreeRConventionStatus(StrEnum):
+    """Whether a test value is unresolved or was supplied explicitly."""
+
+    UNRESOLVED = "unresolved_raw_flag_values_only"
+    EXPLICIT_TEST_VALUE = "explicit_test_value_supplied"
+
+
+class FreeRFlagCount(ContractModel):
+    """Exact count for one observed integral Free-R flag value."""
+
+    flag_value: int
+    reflection_count: PositiveInt
+
+
+class FreeRDistributionSummary(ContractModel):
+    """Complete non-constant distribution of validated integral flag values."""
+
+    validation_status: Literal["validated_finite_integral_non_constant"] = (
+        "validated_finite_integral_non_constant"
+    )
+    reflection_count: PositiveInt
+    distinct_flag_values: int = Field(ge=2)
+    flag_counts: tuple[FreeRFlagCount, ...] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def _validate_distribution(self) -> Self:
+        values = tuple(item.flag_value for item in self.flag_counts)
+        if values != tuple(sorted(set(values))):
+            raise ValueError("Free-R flag counts must be unique and sorted by value")
+        if self.distinct_flag_values != len(values):
+            raise ValueError("distinct Free-R flag count does not match distribution")
+        if sum(item.reflection_count for item in self.flag_counts) != (
+            self.reflection_count
+        ):
+            raise ValueError("Free-R flag counts do not cover every reflection")
+        return self
+
+
+class FreeRIdentity(_ContentAddressedContract):
+    """Dataset-qualified raw Free-R mapping for one selected source MTZ.
+
+    The membership digest commits the exact sorted ``(H, K, L, raw_flag)``
+    rows.  It deliberately does not convert the raw flags to work/test booleans
+    while ``convention_status`` is unresolved.
+    """
+
+    _identity_field: ClassVar[str] = "free_r_identity_id"
+    _identity_prefix: ClassVar[str] = "freerid_"
+
+    schema_version: Literal["2.0"]
+    free_r_identity_id: FreeRIdentityIdentifier
+    diffraction_selection_id: DiffractionSelectionIdentifier
+    diffraction_dataset_id: DiffractionDatasetIdentifier
+    crystal_id: NonEmptyString
+    mtz_sha256: Sha256Hex
+    observation_dataset_id: int = Field(ge=0)
+    free_r_dataset_id: int = Field(ge=0)
+    free_r_label: NonEmptyString
+    free_r_type_code: Literal["I"] = "I"
+    distribution: FreeRDistributionSummary
+    hkl_set_sha256: Sha256Hex
+    hkl_set_digest_algorithm: Literal["sha256_nf_gtd_sorted_be_int64_hkl_v1"] = (
+        "sha256_nf_gtd_sorted_be_int64_hkl_v1"
+    )
+    hkl_to_flag_membership_sha256: Sha256Hex
+    membership_digest_algorithm: Literal[
+        "sha256_nf_gtd_sorted_be_int64_hkl_flag_v1"
+    ] = "sha256_nf_gtd_sorted_be_int64_hkl_flag_v1"
+    convention_status: FreeRConventionStatus
+    test_flag_value: int | None = None
+
+    @model_validator(mode="after")
+    def _validate_free_r_identity(self) -> Self:
+        expected_dataset_id = diffraction_dataset_id(
+            crystal_id=self.crystal_id,
+            mtz_sha256=self.mtz_sha256,
+        )
+        if self.diffraction_dataset_id != expected_dataset_id:
+            raise ValueError("Free-R diffraction dataset identity is inconsistent")
+        if self.free_r_dataset_id != self.observation_dataset_id:
+            raise ValueError(
+                "Free-R and selected observation columns must share one MTZ dataset"
+            )
+        observed_values = {item.flag_value for item in self.distribution.flag_counts}
+        if self.convention_status is FreeRConventionStatus.UNRESOLVED:
+            if self.test_flag_value is not None:
+                raise ValueError(
+                    "unresolved Free-R convention cannot carry a test flag value"
+                )
+        elif self.test_flag_value is None:
+            raise ValueError(
+                "explicit Free-R convention requires a supplied test flag value"
+            )
+        elif self.test_flag_value not in observed_values:
+            raise ValueError(
+                "supplied Free-R test flag value is absent from the distribution"
+            )
+        return self
+
+
+class FreeRMembershipComparison(_ContentAddressedContract):
+    """Proof that one derived MTZ preserves a selected raw Free-R mapping."""
+
+    _identity_field: ClassVar[str] = "comparison_id"
+    _identity_prefix: ClassVar[str] = "freercompare_"
+
+    schema_version: Literal["2.0"]
+    comparison_id: FreeRMembershipComparisonIdentifier
+    source_free_r_identity_id: FreeRIdentityIdentifier
+    diffraction_selection_id: DiffractionSelectionIdentifier
+    diffraction_dataset_id: DiffractionDatasetIdentifier
+    crystal_id: NonEmptyString
+    source_mtz_sha256: Sha256Hex
+    derived_mtz_sha256: Sha256Hex
+    source_free_r_dataset_id: int = Field(ge=0)
+    derived_free_r_dataset_id: int = Field(ge=0)
+    source_free_r_label: NonEmptyString
+    derived_free_r_label: NonEmptyString
+    source_distribution: FreeRDistributionSummary
+    derived_distribution: FreeRDistributionSummary
+    source_hkl_set_sha256: Sha256Hex
+    derived_hkl_set_sha256: Sha256Hex
+    source_hkl_to_flag_membership_sha256: Sha256Hex
+    derived_hkl_to_flag_membership_sha256: Sha256Hex
+    hkl_set_digest_algorithm: Literal["sha256_nf_gtd_sorted_be_int64_hkl_v1"] = (
+        "sha256_nf_gtd_sorted_be_int64_hkl_v1"
+    )
+    membership_digest_algorithm: Literal[
+        "sha256_nf_gtd_sorted_be_int64_hkl_flag_v1"
+    ] = "sha256_nf_gtd_sorted_be_int64_hkl_flag_v1"
+    convention_status: FreeRConventionStatus
+    test_flag_value: int | None = None
+    preservation_status: Literal["preserved_exact_hkl_to_raw_flag_mapping"] = (
+        "preserved_exact_hkl_to_raw_flag_mapping"
+    )
+
+    @model_validator(mode="after")
+    def _validate_preservation_claim(self) -> Self:
+        expected_dataset_id = diffraction_dataset_id(
+            crystal_id=self.crystal_id,
+            mtz_sha256=self.source_mtz_sha256,
+        )
+        if self.diffraction_dataset_id != expected_dataset_id:
+            raise ValueError("comparison diffraction dataset identity is inconsistent")
+        expected_source_identity = FreeRIdentity.from_content(
+            diffraction_selection_id=self.diffraction_selection_id,
+            diffraction_dataset_id=self.diffraction_dataset_id,
+            crystal_id=self.crystal_id,
+            mtz_sha256=self.source_mtz_sha256,
+            observation_dataset_id=self.source_free_r_dataset_id,
+            free_r_dataset_id=self.source_free_r_dataset_id,
+            free_r_label=self.source_free_r_label,
+            distribution=self.source_distribution,
+            hkl_set_sha256=self.source_hkl_set_sha256,
+            hkl_to_flag_membership_sha256=(self.source_hkl_to_flag_membership_sha256),
+            convention_status=self.convention_status,
+            test_flag_value=self.test_flag_value,
+        )
+        if self.source_free_r_identity_id != (
+            expected_source_identity.free_r_identity_id
+        ):
+            raise ValueError("comparison source Free-R identity is inconsistent")
+        if self.source_free_r_dataset_id != self.derived_free_r_dataset_id:
+            raise ValueError("derived Free-R dataset identity changed")
+        if self.source_free_r_label != self.derived_free_r_label:
+            raise ValueError("derived Free-R label changed")
+        if self.source_distribution != self.derived_distribution:
+            raise ValueError("derived Free-R distribution changed")
+        if self.source_hkl_set_sha256 != self.derived_hkl_set_sha256:
+            raise ValueError("derived MTZ HKL set changed")
+        if (
+            self.source_hkl_to_flag_membership_sha256
+            != self.derived_hkl_to_flag_membership_sha256
+        ):
+            raise ValueError("derived Free-R HKL-to-flag membership changed")
+        if self.convention_status is FreeRConventionStatus.UNRESOLVED:
+            if self.test_flag_value is not None:
+                raise ValueError("unresolved comparison cannot carry a test flag value")
+        elif self.test_flag_value is None:
+            raise ValueError(
+                "explicit comparison convention requires a test flag value"
+            )
+        elif self.test_flag_value not in {
+            item.flag_value for item in self.source_distribution.flag_counts
+        }:
+            raise ValueError(
+                "comparison test flag value is absent from the distribution"
+            )
+        return self
 
 
 class DiffractionSelection(_ContentAddressedContract):
@@ -251,5 +453,10 @@ __all__ = [
     "DiffractionCommandConsumer",
     "DiffractionSelection",
     "DiffractionValueSource",
+    "FreeRConventionStatus",
+    "FreeRDistributionSummary",
+    "FreeRFlagCount",
+    "FreeRIdentity",
+    "FreeRMembershipComparison",
     "diffraction_dataset_id",
 ]

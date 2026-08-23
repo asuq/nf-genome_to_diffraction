@@ -8,8 +8,10 @@ Scientific overrides remain explicit provenance rather than being inferred from
 warnings.  Tool adapters call :func:`verify_diffraction_selection` again before
 execution so stale selections fail before any licensed command is launched.
 
-Free-R label convention, distribution, and exact HKL membership are outside
-this foundation.  The selection carries only the schema-v2 pending boundary.
+The selection itself retains a pending Free-R propagation boundary.  Phase III
+Free-R label, distribution, and raw HKL-to-flag identities are validated in the
+separate :mod:`genome_to_diffraction.diffraction.free_r_identity` foundation so
+this builder remains independent of MTZ file access and Phenix command policy.
 """
 
 import math

@@ -26,6 +26,11 @@ from genome_to_diffraction.schemas.v2.diffraction import (
     DiffractionCommandConsumer,
     DiffractionSelection,
     DiffractionValueSource,
+    FreeRConventionStatus,
+    FreeRDistributionSummary,
+    FreeRFlagCount,
+    FreeRIdentity,
+    FreeRMembershipComparison,
     diffraction_dataset_id,
 )
 from genome_to_diffraction.schemas.v2.review import (
@@ -58,6 +63,11 @@ __all__ = [
     "DiffractionSelection",
     "DiffractionValueSource",
     "ExpansionDisposition",
+    "FreeRConventionStatus",
+    "FreeRDistributionSummary",
+    "FreeRFlagCount",
+    "FreeRIdentity",
+    "FreeRMembershipComparison",
     "PhaseIIIReviewCheckpoint",
     "PhaseIIIReviewDecision",
     "PhaseIIIReviewDecisionFile",

@@ -19,7 +19,7 @@ open among the original 34 findings.
 | `PIPE-P1-04` | Open | Network work resolves only to approved staging; compute workers fail closed with sockets blocked. |
 | `PIPE-P1-05` | Fixed | Dataset-qualified duplicate-label tests reject conflicts and retain deterministic equivalent selection. |
 | `PIPE-P1-06` | Partial | Schema-v2 binds a dataset-qualified MTZ selection, every override source, and selection-derived first-copy/refinement command identities. Known observation-label parameters and sequence-from-map high resolution are explicit; qualified Phaser/refinement space-group and resolution-limit parameters remain pending and are typed as preflight-verified boundaries. |
-| `PIPE-P1-07` | Open | Free-R identity changes with selection; malformed flags fail; exact HKL membership survives refinement. |
+| `PIPE-P1-07` | Partial; schema-v2 identity/comparison fixed | Dataset-qualified labels, finite integral non-constant distributions, and permutation-invariant raw HKL-to-flag digests are covered by `test_free_r_identity_v2.py`; missing HKLs and changed flags fail comparison. Phenix propagation and qualification against a real refined MTZ remain open. |
 | `PIPE-P1-08` | Partial; fixed-parent uncertainty preserved | Fixed-A partner searches retain the reviewed first-copy identity/error source; composition-v2 separates search/packing from support, but execution-to-assessment integration remains pending. |
 | `PIPE-P1-09` | Fixed on `dev/phase3`; integration evidence pending | T12 accepts only a new or empty attempt-owned directory; stale files fail before tool execution and cannot be published. |
 | `PIPE-P1-10` | Fixed | Duplicate JSON/YAML keys fail through every loader. |

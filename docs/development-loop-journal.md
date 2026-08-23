@@ -10422,3 +10422,34 @@ integrated.
   build checkpoint-specific review packages and a local stager that verifies
   owned-run provenance, package assets/target membership, review chronology, and
   the exact transported file checksum before any Nextflow consumer is wired.
+## 2026-08-23 - Phase III Free-R identity foundation is focused-green
+
+### Completed focused slice
+
+- Added separate schema-v2 Free-R identity and preservation-comparison records
+  without changing the version-1 preflight record or reader. The identity binds
+  the exact diffraction selection, source MTZ checksum, MTZ-internal dataset and
+  label, full integral non-constant flag distribution, sorted HKL-set digest,
+  and sorted raw HKL-to-flag digest.
+- The Gemmi validator rejects missing or duplicate labels, observation/Free-R
+  dataset conflicts, wrong MTZ types, non-finite or non-integral flags, constant
+  distributions, duplicate HKLs, and source-checksum mismatches. It never
+  infers the test flag value: unresolved and explicitly supplied conventions
+  remain distinct content-addressed states.
+- Derived/refined MTZ comparison accepts row permutation but fails closed on a
+  missing HKL, changed raw flag, label ambiguity, or dataset change. It runs no
+  Phenix command and does not generate or modify Free-R flags.
+
+### Focused evidence and next exact starting point
+
+- Ten dedicated regressions cover distinct label identities, duplicate and
+  conflicting-dataset labels, non-integral, non-finite, constant, unresolved
+  and explicit convention states, missing HKLs, changed flags, and row-order
+  invariance. The combined Free-R, diffraction-selection, and version-1
+  diffraction slice passes 45 tests; composition-v2 compatibility adds 16.
+  Targeted Ruff and `ty`, the schema check, and the documentation check pass.
+- Integrate this foundation into `dev/phase3` after review. Next, bind the
+  selected Free-R identity to the refinement execution item and qualify the
+  exact label parameter plus comparison against a real Phenix-derived MTZ.
+  Until then `PIPE-P1-07` remains partial and no convention, Phenix propagation,
+  or real-runtime preservation claim is made.
