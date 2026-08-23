@@ -18,7 +18,7 @@ open among the original 34 findings.
 | `PIPE-P1-03` | Partial | Enabled-provider no-hit and disabled/no-model bundles compose without abort or network call. |
 | `PIPE-P1-04` | Open | Network work resolves only to approved staging; compute workers fail closed with sockets blocked. |
 | `PIPE-P1-05` | Fixed | Dataset-qualified duplicate-label tests reject conflicts and retain deterministic equivalent selection. |
-| `PIPE-P1-06` | Open | Space-group/resolution overrides reach and are verified in every Phaser/refinement command. |
+| `PIPE-P1-06` | Partial | Schema-v2 binds a dataset-qualified MTZ selection, every override source, and selection-derived first-copy/refinement command identities. Known observation-label parameters and sequence-from-map high resolution are explicit; qualified Phaser/refinement space-group and resolution-limit parameters remain pending and are typed as preflight-verified boundaries. |
 | `PIPE-P1-07` | Open | Free-R identity changes with selection; malformed flags fail; exact HKL membership survives refinement. |
 | `PIPE-P1-08` | Open | Parent uncertainty is preserved; placed/packed does not become scientific support. |
 | `PIPE-P1-09` | Fixed on `dev/phase3`; integration evidence pending | T12 accepts only a new or empty attempt-owned directory; stale files fail before tool execution and cannot be published. |
@@ -65,6 +65,9 @@ open among the original 34 findings.
 | `PH3-P1-08` Unknown-panel mixed outcomes cannot finalise | Open | One success, one no-hit, and one typed tool/parse failure produce three honest terminal reports. |
 | `PH3-P1-09` Component-specific scores obscured by parent | Open | Every expansion records component TFZ and incremental LLG separately from combined/parent LLG. |
 | `PH3-P1-10` Deeper component claims lack validation boundary | Planned | Depth three is control-validated; depths four to six are forcibly provisional regardless score/packing/refinement. |
+| `PH3-P1-11` Per-parent plans multiply the depth budget | Fixed on `dev/phase3`; execution evidence pending | One parent-bound depth plan proves a shared maximum of 25 attempts across the complete three-parent beam and a 100-attempt global bound. |
+| `PH3-P1-12` Unverified DeepTMHMM image command could be guessed | Fixed contract; runtime integration blocked | User image/input checksums are bound, but command and parser remain empty with `blocked_unverified_cli` until the supplied image is inspected. |
+| `PH3-P1-13` Conflicting localisation could become a hard exclusion | Fixed contract; ranking evidence pending | Conflicting informative tool outcomes resolve to `conflicting`; unknown and failed observations remain neutral rather than excluded. |
 
 ## Closure rule
 

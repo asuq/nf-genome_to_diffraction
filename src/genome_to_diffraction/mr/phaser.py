@@ -18,6 +18,12 @@ remain distinct. The user-defined provisional screen is strict: LLG > 50 or
 TFZ > 5. It annotates and ranks parsed solutions but does not discard them or
 approve them. Final packing, placed-copy checks, raw metrics, and advisories are
 preserved independently for human review.
+
+The opt-in Phase III path additionally verifies a schema-v2 diffraction
+selection and bound hypothesis identity. Observation labels are a qualified
+Phaser argument. Selected dataset identity, space group, and resolution remain
+checksum/preflight-verified command-record evidence; explicit Phenix parameters
+for the latter values are deliberately pending real-runtime qualification.
 """
 
 import logging
@@ -36,7 +42,13 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
-from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.diffraction.selection import (
+    bind_phase3_hypothesis,
+    build_diffraction_command_binding,
+    load_diffraction_selection,
+    verify_diffraction_selection,
+)
+from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.mr.policy import (
     SCORE_GATE_LLG,
     SCORE_GATE_OPERATOR,
@@ -58,6 +70,12 @@ from genome_to_diffraction.schemas.results import (
     ProcessedModelRecord,
     SequenceGroupRecord,
 )
+from genome_to_diffraction.schemas.v2.diffraction import (
+    DiffractionBoundHypothesis,
+    DiffractionCommandBinding,
+    DiffractionCommandConsumer,
+    DiffractionSelection,
+)
 from genome_to_diffraction.status import (
     ExecutionStatus,
     InputContractError,
@@ -67,6 +85,7 @@ from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
 _ADAPTER_VERSION = "phenix-first-copy-mr-v6"
+_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v7-phase3-diffraction"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -117,6 +136,8 @@ class PhaserRunRequest:
     mtz: Path
     phenix_manifest: Path
     output_directory: Path
+    diffraction_selection_json: Path | None = None
+    phase3_hypothesis_id: str | None = None
     threads: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
@@ -158,6 +179,9 @@ class _ResolvedInput:
     mtz_path: Path
     model_identity_percent: float
     model_uncertainty_source: str
+    diffraction_selection: DiffractionSelection | None = None
+    phase3_hypothesis: DiffractionBoundHypothesis | None = None
+    diffraction_command_binding: DiffractionCommandBinding | None = None
 
 
 def _read_jsonl[T: BaseModel](
@@ -350,6 +374,12 @@ def _model_execution_policy(
 
 
 def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
+    if (request.diffraction_selection_json is None) != (
+        request.phase3_hypothesis_id is None
+    ):
+        raise PhaserInputError(
+            "Phase III requires both diffraction selection and bound hypothesis ID"
+        )
     hypotheses = _read_jsonl(
         request.hypotheses_jsonl, MrHypothesis, label="MR hypotheses"
     )
@@ -424,6 +454,23 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
     )
     if mtz_sha256 != preflight.mtz_sha256:
         raise PhaserInputError("MTZ checksum differs from preflight")
+
+    selection: DiffractionSelection | None = None
+    phase3_hypothesis: DiffractionBoundHypothesis | None = None
+    command_binding: DiffractionCommandBinding | None = None
+    if request.diffraction_selection_json is not None:
+        selection = load_diffraction_selection(request.diffraction_selection_json)
+        verify_diffraction_selection(selection, preflight)
+        if selection.mtz_sha256 != mtz_sha256:
+            raise PhaserInputError("Phase III diffraction selection MTZ differs")
+        phase3_hypothesis = bind_phase3_hypothesis(hypothesis, selection)
+        if phase3_hypothesis.hypothesis_id != request.phase3_hypothesis_id:
+            raise PhaserInputError("Phase III bound hypothesis identity differs")
+        command_binding = build_diffraction_command_binding(
+            consumer=DiffractionCommandConsumer.FIRST_COPY_PHASER,
+            command_owner_id=phase3_hypothesis.hypothesis_id,
+            selection=selection,
+        )
     return _ResolvedInput(
         hypothesis=hypothesis,
         group=group,
@@ -433,6 +480,9 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
         mtz_path=mtz_path,
         model_identity_percent=model_identity_percent,
         model_uncertainty_source=model_uncertainty_source,
+        diffraction_selection=selection,
+        phase3_hypothesis=phase3_hypothesis,
+        diffraction_command_binding=command_binding,
     )
 
 
@@ -545,11 +595,16 @@ def parse_completed_phaser_outputs(text: str, output: Path) -> ParsedPhaserLog:
 
 def _command(resolved: _ResolvedInput, sequence_fasta: Path, threads: int) -> list[str]:
     hypothesis = resolved.hypothesis
+    observation_labels = (
+        resolved.diffraction_selection.rendered_observation_labels
+        if resolved.diffraction_selection is not None
+        else hypothesis.obs_labels
+    )
     return [
         "phenix.phaser",
         "phaser.mode=MR_AUTO",
         f"phaser.hklin={resolved.mtz_path}",
-        f"phaser.labin={hypothesis.obs_labels}",
+        f"phaser.labin={observation_labels}",
         f"phaser.model={resolved.model_path}",
         f"phaser.seq_file={sequence_fasta}",
         f"phaser.model_identity={resolved.model_identity_percent:.12g}",
@@ -559,6 +614,44 @@ def _command(resolved: _ResolvedInput, sequence_fasta: Path, threads: int) -> li
         f"phaser.keywords.general.jobs={threads}",
         "phaser.keywords.sgalternative.select=none",
     ]
+
+
+def _phase3_command_identity(
+    *,
+    arguments: list[str],
+    resolved: _ResolvedInput,
+    threads: int,
+    timeout_seconds: float | None,
+    phenix_manifest_sha256: str,
+) -> str:
+    """Return the command identity for an already verified Phase III selection."""
+
+    if (
+        resolved.diffraction_selection is None
+        or resolved.phase3_hypothesis is None
+        or resolved.diffraction_command_binding is None
+    ):
+        raise PhaserInputError("Phase III command identity lacks diffraction binding")
+    return content_id(
+        "phasercmd_",
+        {
+            "adapter_version": _PHASE3_ADAPTER_VERSION,
+            "phase3_hypothesis_id": resolved.phase3_hypothesis.hypothesis_id,
+            "diffraction_selection_id": (
+                resolved.diffraction_selection.diffraction_selection_id
+            ),
+            "diffraction_command_binding_id": (
+                resolved.diffraction_command_binding.binding_id
+            ),
+            "arguments": arguments,
+            "threads": threads,
+            "timeout_seconds": timeout_seconds,
+            "mtz_sha256": resolved.preflight.mtz_sha256,
+            "model_sha256": resolved.model.model_sha256,
+            "sequence_sha256": resolved.group.sha256,
+            "phenix_manifest_sha256": phenix_manifest_sha256,
+        },
+    )
 
 
 def _write_result(
@@ -726,26 +819,48 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
     )
     arguments = _command(resolved, sequence_fasta, request.threads)
     command_json = output / "phaser_command.json"
-    atomic_write_json(
-        command_json,
-        {
-            "schema_version": "1.0",
-            "adapter_version": _ADAPTER_VERSION,
-            "created_at": utc_now_iso(),
-            "hypothesis_id": resolved.hypothesis.hypothesis_id,
-            "arguments": arguments,
-            "threads": request.threads,
-            "timeout_seconds": request.timeout_seconds,
-            "model_identity_percent": resolved.model_identity_percent,
-            "model_uncertainty_source": resolved.model_uncertainty_source,
-            "mtz_sha256": resolved.preflight.mtz_sha256,
-            "model_sha256": resolved.model.model_sha256,
-            "sequence_sha256": resolved.group.sha256,
-            "phenix_manifest_sha256": sha256_file(
-                request.phenix_manifest.resolve(strict=True)
-            ),
-        },
-    )
+    phenix_manifest_sha256 = sha256_file(request.phenix_manifest.resolve(strict=True))
+    command_record: dict[str, object] = {
+        "schema_version": "1.0",
+        "adapter_version": _ADAPTER_VERSION,
+        "created_at": utc_now_iso(),
+        "hypothesis_id": resolved.hypothesis.hypothesis_id,
+        "arguments": arguments,
+        "threads": request.threads,
+        "timeout_seconds": request.timeout_seconds,
+        "model_identity_percent": resolved.model_identity_percent,
+        "model_uncertainty_source": resolved.model_uncertainty_source,
+        "mtz_sha256": resolved.preflight.mtz_sha256,
+        "model_sha256": resolved.model.model_sha256,
+        "sequence_sha256": resolved.group.sha256,
+        "phenix_manifest_sha256": phenix_manifest_sha256,
+    }
+    if (
+        resolved.diffraction_selection is not None
+        and resolved.phase3_hypothesis is not None
+        and resolved.diffraction_command_binding is not None
+    ):
+        command_record.update(
+            {
+                "schema_version": "2.0",
+                "adapter_version": _PHASE3_ADAPTER_VERSION,
+                "phase3_hypothesis_id": resolved.phase3_hypothesis.hypothesis_id,
+                "phase3_command_id": _phase3_command_identity(
+                    arguments=arguments,
+                    resolved=resolved,
+                    threads=request.threads,
+                    timeout_seconds=request.timeout_seconds,
+                    phenix_manifest_sha256=phenix_manifest_sha256,
+                ),
+                "diffraction_selection": (
+                    resolved.diffraction_selection.model_dump(mode="json")
+                ),
+                "diffraction_command_binding": (
+                    resolved.diffraction_command_binding.model_dump(mode="json")
+                ),
+            }
+        )
+    atomic_write_json(command_json, command_record)
     _LOGGER.info(
         "first-copy Phaser search started",
         extra={

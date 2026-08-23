@@ -65,6 +65,13 @@ candidate-level typed sequence-map parse failure are implemented on
 `dev/phase3`. The remaining PH1 boundaries are still open or partial as
 recorded in the finding ledger.
 
+An opt-in schema-v2 diffraction selection now binds the MTZ dataset,
+dataset-qualified observations, space group, resolution range, overrides, and
+command identities. Observation labels and sequence-from-map high resolution
+are explicit where already qualified; Phaser/refinement space-group and
+resolution-limit flags, parent-MTZ derivation, and Free-R membership remain
+deliberately pending rather than guessed.
+
 The isolated complete-item workflow now proves three crystal items can reuse
 one catalogue and one provider preparation through a byte-identical cached
 resume. Integration into the application graph and the hypothesis/seed/finalist
@@ -89,9 +96,11 @@ New schema-v2 writes use:
 Historical v0.2/v1 results remain readable and immutable. New Phase III
 execution writes schema-v2 states.
 
-Status: all six immutable schema-v2 composition records and bounded profile
-invariants are implemented. The deterministic expansion planner and execution
-adapters remain separate pending slices.
+Status: all six immutable schema-v2 composition records and the authoritative
+parent-bound depth plan are implemented. The deterministic planner shares one
+25-attempt budget across at most three parents, preserves every disposition,
+and enforces the 100-attempt global bound. Nextflow/Phaser execution remains a
+separate pending slice.
 
 Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
 After review approval of at most three A states, automatically expand through
@@ -119,9 +128,12 @@ automatic scientific claim is made between depths.
 
 ### PH4 - Localisation and gel evidence
 
-Status: the schema-v2 JSON/TSV gel manifest and crystal-reference validator are
-implemented on `dev/phase3`; ranking integration and both localisation adapters
-remain pending.
+Status: the schema-v2 JSON/TSV gel manifest, crystal-reference validator, and
+checksum/version-bound offline PSORTb archaeal adapter are implemented on
+`dev/phase3`. DeepTMHMM binds the user image and input but remains
+`blocked_unverified_cli` until the supplied image exposes a verifiable local
+entrypoint/output format. Catalogue-wide Nextflow and ranking integration remain
+pending.
 
 Run checksum-pinned local PSORTb 3.0.6 with its archaeal model and DeepTMHMM
 1.0 from a user-provided academic runtime image. Record runtime/image digests,
@@ -207,6 +219,20 @@ from these unknown outcomes.
 Each crystal must end in a checksum-reconstructible report with an honest
 scientific and execution status. Uncertain, partial, provisional-depth, and
 no-supported-candidate reports count as completed analyses.
+
+Each per-crystal package must retain immutable input/tool/database provenance,
+crystallographic warnings and review decisions, complete pre/post-localisation
+candidate inventories, provider/model coverage, every tested and untested A or
+multi-component hypothesis, raw LLG/TFZ/incremental-LLG/packing evidence,
+Rwork/Rfree, maps, coordinates, sequence/locus alternatives, terminal reasons,
+resource/cache/retry evidence, checksums, and a portable HTML report. The
+cross-crystal report must compare task counts, cache identity, model coverage,
+attempted/deferred/unsearchable counts, resources, scientific statuses, and the
+unchanged-threshold guarantee.
+
+No exact identity or complete composition may be reported from MR scores or
+packing alone. An honest uncertain endpoint is completion; forcing an answer is
+not.
 
 Release validated research version `v0.3.0` only when:
 

@@ -1,14 +1,19 @@
 """Focused contracts for the fixed T12 refinement/sequence adapter."""
 
+import hashlib
+import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import genome_to_diffraction.refinement.brief as brief_module
-from genome_to_diffraction.ids import sequence_digest
+from genome_to_diffraction.diffraction.selection import build_diffraction_selection
+from genome_to_diffraction.ids import canonical_json_text, sequence_digest
 from genome_to_diffraction.refinement.brief import (
     T12InputError,
+    T12RunRequest,
     _has_required_map_coefficients,
     _observation_label_argument,
     _refine_parameters,
@@ -16,11 +21,22 @@ from genome_to_diffraction.refinement.brief import (
     _refinement_output_paths,
     _sequence_candidates,
     _verified_file,
+    run_t12_candidate,
+)
+from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.manifests import (
+    CrystalEntry,
+    PhenixInstallManifest,
 )
 from genome_to_diffraction.schemas.results import (
+    MtzObservationCandidateRecord,
+    MtzPreflightRecord,
     SequenceGroupRecord,
     SourceProteinRecord,
 )
+
+REPOSITORY = Path(__file__).resolve().parents[2]
+STUBS = REPOSITORY / "tests/fixtures/stubs"
 
 
 def _group(sequence: str) -> SequenceGroupRecord:
@@ -202,3 +218,135 @@ def test_checksum_mismatch_fails_before_external_execution(tmp_path: Path) -> No
             label="parent coordinate",
             progress=False,
         )
+
+
+def _phase3_request(tmp_path: Path) -> T12RunRequest:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    parent_coordinate = tmp_path / "parent.pdb"
+    parent_coordinate.write_text("MODEL\nEND\n", encoding="ascii")
+    parent_mtz = tmp_path / "parent.mtz"
+    parent_mtz.write_bytes(b"derived parent MTZ")
+    base_preflight = MtzPreflightRecord.model_validate_json(
+        (STUBS / "mtz_preflight.jsonl").read_text(encoding="utf-8")
+    )
+    candidate = MtzObservationCandidateRecord(
+        dataset_id=3,
+        labels=("I", "SIGI"),
+        observation_type="intensity",
+    )
+    payload = base_preflight.model_dump(mode="python")
+    payload.update(
+        {
+            "selected_observation_dataset_id": 3,
+            "observation_candidate_identities": (candidate,),
+        }
+    )
+    preflight = MtzPreflightRecord.model_validate(payload)
+    preflight_path = tmp_path / "preflight.jsonl"
+    preflight_path.write_text(
+        f"{canonical_json_text(preflight)}\n",
+        encoding="utf-8",
+    )
+    selection = build_diffraction_selection(
+        crystal=CrystalEntry(
+            crystal_id=preflight.crystal_id,
+            mtz="raw.mtz",
+            catalogue_id="catalogue_test",
+        ),
+        preflight=preflight,
+        crystal_manifest_sha256="f" * 64,
+    )
+    selection_path = tmp_path / "diffraction_selection.json"
+    selection_path.write_text(canonical_json_text(selection), encoding="utf-8")
+    group = SequenceGroupRecord.model_validate_json(
+        (STUBS / "sequence_groups.jsonl").read_text(encoding="utf-8")
+    )
+    return T12RunRequest(
+        seed_solution_id="seed_test",
+        sequence_group_id=group.sequence_group_id,
+        input_copy_count=1,
+        parent_coordinate=parent_coordinate,
+        parent_coordinate_sha256=hashlib.sha256(
+            parent_coordinate.read_bytes()
+        ).hexdigest(),
+        parent_mtz=parent_mtz,
+        parent_mtz_sha256=hashlib.sha256(parent_mtz.read_bytes()).hexdigest(),
+        observation_labels="I,SIGI",
+        sequence_groups_jsonl=STUBS / "sequence_groups.jsonl",
+        source_records_jsonl=STUBS / "source_records.jsonl",
+        resolution=2.0,
+        phenix_manifest=STUBS / "phenix_install_manifest.json",
+        output_directory=tmp_path / "refinement",
+        crystal_id=preflight.crystal_id,
+        diffraction_selection_json=selection_path,
+        preflight_jsonl=preflight_path,
+        progress=False,
+    )
+
+
+def test_phase3_refinement_command_records_verified_diffraction_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _phase3_request(tmp_path)
+    manifest = load_contract(
+        STUBS / "phenix_install_manifest.json",
+        "phenix-install-manifest",
+        progress=False,
+    )
+    assert isinstance(manifest, PhenixInstallManifest)
+    commands: list[list[str]] = []
+
+    def fake_capture(
+        manifest_path: Path,
+        arguments: list[str],
+        *,
+        working_directory: Path,
+        timeout_seconds: float | None,
+    ) -> subprocess.CompletedProcess[bytes]:
+        del manifest_path, timeout_seconds
+        commands.append(arguments)
+        if arguments[0] == "phenix.refine":
+            (working_directory / "brief_refine_001.pdb").write_text(
+                "MODEL\nEND\n",
+                encoding="ascii",
+            )
+            (working_directory / "brief_refine_001.mtz").write_bytes(b"refined")
+            (working_directory / "brief_refine_2mFo-DFc.ccp4").write_bytes(b"map")
+            (working_directory / "brief_refine_mFo-DFc.ccp4").write_bytes(b"difference")
+            output = (
+                b"Start r_work = 0.40 r_free = 0.45\n"
+                b"Final R-work = 0.30 R-free = 0.35\n"
+            )
+        else:
+            output = b"Overall best Z-score: 0.0  Mean and SD of scores: 0.0 +/- 1.0\n"
+        return subprocess.CompletedProcess(arguments, 0, output, b"")
+
+    monkeypatch.setattr(
+        brief_module,
+        "validate_manifest_environment",
+        lambda _path: manifest,
+    )
+    monkeypatch.setattr(brief_module, "capture_from_manifest", fake_capture)
+    monkeypatch.setattr(
+        brief_module,
+        "_has_required_map_coefficients",
+        lambda _path: True,
+    )
+
+    output = run_t12_candidate(request)
+
+    record = json.loads(output.command_json.read_text(encoding="utf-8"))
+    binding = record["diffraction_command_binding"]
+    assert record["schema_version"] == "2.0"
+    assert record["phase3_refine_command_id"].startswith("refinecmd_")
+    assert record["phase3_sequence_command_id"].startswith("seqmapcmd_")
+    assert record["diffraction_selection"]["observation_dataset_id"] == 3
+    assert binding["resolution_command_binding"] == (
+        "sequence_from_map_high_resolution_explicit_refinement_limits_pending"
+    )
+    assert binding["command_mtz_binding"].endswith("derivation_verification_pending")
+    assert "data_manager.miller_array.labels.name=I,SIGI" in commands[0]
+    assert not any("space_group" in argument for argument in commands[0])
+    assert not any("resolution" in argument for argument in commands[0])
+    assert "crystal_info.resolution=2" in commands[1]

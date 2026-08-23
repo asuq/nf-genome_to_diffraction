@@ -10336,3 +10336,37 @@ Inspect the user-provided DeepTMHMM image before defining any executable command
 or raw-output parser. Integrate this contract slice into `dev/phase3` after
 review; keep Nextflow fan-out, catalogue-wide localisation, first-wave policy,
 and candidate ranking in later focused slices.
+
+## 2026-08-23T15:40:00Z - Phase III diffraction-selection foundation is focused-green
+
+### Completed focused slice
+
+- Added an opt-in schema-v2 diffraction selection that binds crystal and dataset
+  identity, source MTZ digest, MTZ-internal observation dataset/labels/type,
+  selected space group, low/high resolution, complete preflight/manifest
+  provenance, and the source of every override. Rendered labels duplicated
+  across MTZ datasets now fail before external execution because the qualified
+  Phenix adapters do not yet expose a dataset-qualified label parameter.
+- Bound the complete immutable v1 hypothesis payload and diffraction selection
+  into a separate Phase III hypothesis ID. First-copy Phaser and brief
+  refinement verify the selection against the exact preflight before execution
+  and retain selection-derived command IDs and typed propagation records.
+- Passed only parameters already qualified by existing adapters: observation
+  labels to Phaser/refinement and the selected high-resolution limit to
+  `phenix.sequence_from_map`. Space-group and refinement resolution-limit flags
+  remain explicitly pending behind a `verified_by_mtz_preflight` boundary; no
+  unsupported Phenix parameter was guessed. The brief-refinement parent MTZ is
+  retained separately with its derivation verification marked pending. Free-R
+  membership remains an explicit identity placeholder only.
+
+### Focused evidence and next exact starting point
+
+- Forty diffraction-selection, Phaser, and brief-refinement tests pass,
+  including duplicate-dataset, dataset/hypothesis mismatch, override, actual
+  command-record propagation, and identity-mutation regressions. Ten existing
+  composition-v2 tests and ten CLI/refinement-completion tests also pass;
+  targeted Ruff formatting/lint and `ty` pass.
+- Integrate this commit into `dev/phase3`, then qualify supported explicit
+  Phaser/refinement space-group and resolution parameters against real Phenix
+before promoting `PIPE-P1-06` from partial. Do not infer Free-R membership or
+launch unknown-crystal execution from this foundation.

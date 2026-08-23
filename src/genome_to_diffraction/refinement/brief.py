@@ -14,6 +14,12 @@ finalists. The cache identity includes input/checkpoint hashes, the complete
 catalogue, Phenix manifest, protocol version, resolution, and thread count.
 Unit tests cover command construction, parsers, checksum rejection, and failed
 tool execution. Real Phenix qualification remains mandatory on Viper.
+
+The optional Phase III path verifies the dataset-qualified selection against
+its exact preflight and binds it into refinement and sequence command records.
+Observation labels and sequence-from-map high resolution use already qualified
+parameters. Explicit refinement space-group/resolution parameters remain typed
+as pending instead of being guessed; Free-R membership is not interpreted here.
 """
 
 import logging
@@ -32,6 +38,11 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
+from genome_to_diffraction.diffraction.selection import (
+    build_diffraction_command_binding,
+    load_diffraction_selection,
+    verify_diffraction_selection,
+)
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
@@ -39,15 +50,22 @@ from genome_to_diffraction.phenix.runtime import (
 )
 from genome_to_diffraction.schemas.results import (
     BriefRefinementResult,
+    MtzPreflightRecord,
     SequenceGroupRecord,
     SequenceMapCandidate,
     SequenceMapResult,
     SourceProteinRecord,
 )
+from genome_to_diffraction.schemas.v2.diffraction import (
+    DiffractionCommandBinding,
+    DiffractionCommandConsumer,
+    DiffractionSelection,
+)
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
 _PROTOCOL_VERSION = "phenix-t12-brief-v5"
+_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v6-phase3-diffraction"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -92,6 +110,9 @@ class T12RunRequest:
     resolution: float
     phenix_manifest: Path
     output_directory: Path
+    crystal_id: str | None = None
+    diffraction_selection_json: Path | None = None
+    preflight_jsonl: Path | None = None
     threads: int = 4
     timeout_seconds: float | None = None
     progress: bool = True
@@ -142,6 +163,69 @@ def _verified_file(path: Path, expected: str, *, label: str, progress: bool) -> 
     if actual != expected:
         raise T12InputError(f"{label} checksum mismatch")
     return resolved
+
+
+def _normalised_observation_labels(value: str) -> tuple[str, ...]:
+    labels = tuple(item.strip() for item in value.split(",") if item.strip())
+    if len(labels) not in {2, 4}:
+        raise T12InputError(
+            "observation labels must be one value/sigma pair or anomalous quartet"
+        )
+    return labels
+
+
+def _resolve_phase3_diffraction(
+    request: T12RunRequest,
+) -> DiffractionSelection | None:
+    supplied = (
+        request.crystal_id is not None,
+        request.diffraction_selection_json is not None,
+        request.preflight_jsonl is not None,
+    )
+    if not any(supplied):
+        return None
+    if not all(supplied):
+        raise T12InputError(
+            "Phase III refinement requires crystal ID, diffraction selection, "
+            "and preflight"
+        )
+    assert request.crystal_id is not None
+    assert request.diffraction_selection_json is not None
+    assert request.preflight_jsonl is not None
+    selection = load_diffraction_selection(request.diffraction_selection_json)
+    if selection.crystal_id != request.crystal_id:
+        raise T12InputError("Phase III refinement crystal identity differs")
+    preflights = _read_jsonl(
+        request.preflight_jsonl,
+        MtzPreflightRecord,
+        label="MTZ preflight",
+    )
+    matching_preflights = tuple(
+        preflight
+        for preflight in preflights
+        if preflight.crystal_id == request.crystal_id
+    )
+    if len(matching_preflights) != 1:
+        raise T12InputError(
+            "Phase III refinement requires exactly one matching MTZ preflight"
+        )
+    verify_diffraction_selection(selection, matching_preflights[0])
+    if _normalised_observation_labels(request.observation_labels) != (
+        selection.observation_labels
+    ):
+        raise T12InputError(
+            "refinement observation labels differ from diffraction selection"
+        )
+    if not math.isclose(
+        request.resolution,
+        selection.resolution_high_a,
+        rel_tol=1e-12,
+        abs_tol=1e-9,
+    ):
+        raise T12InputError(
+            "refinement high-resolution limit differs from diffraction selection"
+        )
+    return selection
 
 
 def _write_catalogue_fasta(
@@ -457,6 +541,46 @@ def _assess_refinement_completion(
     return not warnings, tuple(warnings)
 
 
+def _phase3_refinement_command_identity(
+    *,
+    refinement_id: str,
+    refine_arguments: list[str],
+    binding: DiffractionCommandBinding,
+    inputs: dict[str, object],
+) -> str:
+    """Bind the verified diffraction selection into the refine command identity."""
+
+    return content_id(
+        "refinecmd_",
+        {
+            "protocol_version": _PHASE3_PROTOCOL_VERSION,
+            "refinement_id": refinement_id,
+            "refine_arguments": refine_arguments,
+            "diffraction_command_binding_id": binding.binding_id,
+            "inputs": inputs,
+        },
+    )
+
+
+def _phase3_sequence_command_identity(
+    *,
+    refinement_id: str,
+    sequence_arguments: list[str],
+    binding: DiffractionCommandBinding,
+) -> str:
+    """Bind the selected high-resolution limit into sequence-from-map identity."""
+
+    return content_id(
+        "seqmapcmd_",
+        {
+            "protocol_version": _PHASE3_PROTOCOL_VERSION,
+            "refinement_id": refinement_id,
+            "sequence_arguments": sequence_arguments,
+            "diffraction_command_binding_id": binding.binding_id,
+        },
+    )
+
+
 def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     """Run one retained finalist through fixed refinement, map, and sequence steps."""
 
@@ -466,6 +590,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         raise T12InputError("threads must be between 1 and 64")
     if request.resolution <= 0:
         raise T12InputError("resolution must be positive")
+    diffraction_selection = _resolve_phase3_diffraction(request)
     observation_label_argument = _observation_label_argument(request.observation_labels)
     parent_coordinate = _verified_file(
         request.parent_coordinate,
@@ -498,23 +623,30 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     outdir = _prepare_attempt_directory(request.output_directory)
     catalogue_fasta = outdir / "exact_sequence_catalogue.fasta"
     _write_catalogue_fasta(groups, catalogue_fasta, progress=request.progress)
-    refinement_id = content_id(
-        "refine_",
-        {
-            "protocol": _PROTOCOL_VERSION,
-            "seed_solution_id": request.seed_solution_id,
-            "sequence_group_id": request.sequence_group_id,
-            "input_copy_count": request.input_copy_count,
-            "parent_coordinate_sha256": request.parent_coordinate_sha256,
-            "parent_mtz_sha256": request.parent_mtz_sha256,
-            "observation_labels": request.observation_labels,
-            "catalogue_sha256": sha256_file(request.sequence_groups_jsonl),
-            "source_records_sha256": sha256_file(request.source_records_jsonl),
-            "phenix_manifest_sha256": sha256_file(manifest_path),
-            "resolution": request.resolution,
-            "threads": request.threads,
-        },
+    protocol_version = (
+        _PHASE3_PROTOCOL_VERSION
+        if diffraction_selection is not None
+        else _PROTOCOL_VERSION
     )
+    refinement_identity: dict[str, object] = {
+        "protocol": protocol_version,
+        "seed_solution_id": request.seed_solution_id,
+        "sequence_group_id": request.sequence_group_id,
+        "input_copy_count": request.input_copy_count,
+        "parent_coordinate_sha256": request.parent_coordinate_sha256,
+        "parent_mtz_sha256": request.parent_mtz_sha256,
+        "observation_labels": request.observation_labels,
+        "catalogue_sha256": sha256_file(request.sequence_groups_jsonl),
+        "source_records_sha256": sha256_file(request.source_records_jsonl),
+        "phenix_manifest_sha256": sha256_file(manifest_path),
+        "resolution": request.resolution,
+        "threads": request.threads,
+    }
+    if diffraction_selection is not None:
+        refinement_identity["diffraction_selection_id"] = (
+            diffraction_selection.diffraction_selection_id
+        )
+    refinement_id = content_id("refine_", refinement_identity)
     refined_model, refined_mtz, map_path, difference_map_path = (
         _refinement_output_paths(outdir)
     )
@@ -535,20 +667,43 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         observation_label_argument,
     ]
     command_path = outdir / "t12_command.json"
+    command_inputs: dict[str, object] = {
+        "parent_coordinate_sha256": request.parent_coordinate_sha256,
+        "parent_mtz_sha256": request.parent_mtz_sha256,
+        "observation_labels": request.observation_labels,
+        "catalogue_fasta_sha256": sha256_file(catalogue_fasta),
+        "phenix_manifest_sha256": sha256_file(manifest_path),
+    }
     command_record: dict[str, object] = {
         "schema_version": "1.0",
-        "protocol_version": _PROTOCOL_VERSION,
+        "protocol_version": protocol_version,
         "refinement_id": refinement_id,
         "refine_arguments": refine_args,
         "sequence_arguments": None,
-        "inputs": {
-            "parent_coordinate_sha256": request.parent_coordinate_sha256,
-            "parent_mtz_sha256": request.parent_mtz_sha256,
-            "observation_labels": request.observation_labels,
-            "catalogue_fasta_sha256": sha256_file(catalogue_fasta),
-            "phenix_manifest_sha256": sha256_file(manifest_path),
-        },
+        "inputs": command_inputs,
     }
+    diffraction_binding: DiffractionCommandBinding | None = None
+    if diffraction_selection is not None:
+        diffraction_binding = build_diffraction_command_binding(
+            consumer=DiffractionCommandConsumer.BRIEF_REFINEMENT,
+            command_owner_id=refinement_id,
+            selection=diffraction_selection,
+        )
+        command_record.update(
+            {
+                "schema_version": "2.0",
+                "phase3_refine_command_id": _phase3_refinement_command_identity(
+                    refinement_id=refinement_id,
+                    refine_arguments=refine_args,
+                    binding=diffraction_binding,
+                    inputs=command_inputs,
+                ),
+                "diffraction_selection": diffraction_selection.model_dump(mode="json"),
+                "diffraction_command_binding": diffraction_binding.model_dump(
+                    mode="json"
+                ),
+            }
+        )
     atomic_write_json(command_path, command_record)
     _LOGGER.info(
         "brief refinement started",
@@ -631,7 +786,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         outdir / "brief_refinement_result.json", refinement
     )
     sequence_id = content_id(
-        "seqmap_", {"refinement_id": refinement_id, "protocol": _PROTOCOL_VERSION}
+        "seqmap_", {"refinement_id": refinement_id, "protocol": protocol_version}
     )
     sequence_log = outdir / "phenix.sequence_from_map.log"
     sequence_output_model = outdir / "sequence_from_map.pdb"
@@ -648,6 +803,14 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
             "control.verbose=True",
         ]
         command_record["sequence_arguments"] = sequence_args
+        if diffraction_binding is not None:
+            command_record["phase3_sequence_command_id"] = (
+                _phase3_sequence_command_identity(
+                    refinement_id=refinement_id,
+                    sequence_arguments=sequence_args,
+                    binding=diffraction_binding,
+                )
+            )
         atomic_write_json(command_path, command_record)
         _LOGGER.info(
             "sequence-from-map started",

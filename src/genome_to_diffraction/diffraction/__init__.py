@@ -17,17 +17,31 @@ from genome_to_diffraction.diffraction.preflight import (
     preflight_crystals,
     select_observations,
 )
+from genome_to_diffraction.diffraction.selection import (
+    DiffractionSelectionError,
+    bind_phase3_hypothesis,
+    build_diffraction_command_binding,
+    build_diffraction_selection,
+    load_diffraction_selection,
+    verify_diffraction_selection,
+)
 
 __all__ = [
     "CrystalDispatchOutput",
     "CrystalDispatchRequest",
+    "DiffractionSelectionError",
     "FreeRGenerationRequest",
     "PreflightRequest",
     "PreflightResult",
+    "bind_phase3_hypothesis",
+    "build_diffraction_command_binding",
+    "build_diffraction_selection",
     "generate_free_r",
     "inspect_crystal",
+    "load_diffraction_selection",
     "parse_xtriage_output",
     "preflight_crystals",
     "prepare_crystal_dispatch",
     "select_observations",
+    "verify_diffraction_selection",
 ]

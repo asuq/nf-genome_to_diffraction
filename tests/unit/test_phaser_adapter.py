@@ -4,12 +4,17 @@ import hashlib
 import json
 import shutil
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from genome_to_diffraction.cli import main
+from genome_to_diffraction.diffraction.selection import (
+    bind_phase3_hypothesis,
+    build_diffraction_selection,
+)
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.mr import (
     PhaserInputError,
@@ -21,6 +26,7 @@ from genome_to_diffraction.mr import (
 )
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
+    CrystalEntry,
     PhenixInstallManifest,
     PrototypeProfile,
 )
@@ -28,6 +34,7 @@ from genome_to_diffraction.schemas.results import (
     MrHypothesis,
     MrHypothesisStatus,
     MrSearchStage,
+    MtzObservationCandidateRecord,
     MtzPreflightRecord,
     ProcessedModelRecord,
 )
@@ -77,7 +84,17 @@ def _inputs(tmp_path: Path) -> PhaserRunRequest:
         (STUBS / "mtz_preflight.jsonl").read_text(encoding="utf-8")
     )
     preflight = stub_preflight.model_copy(
-        update={"mtz_sha256": hashlib.sha256(mtz.read_bytes()).hexdigest()}
+        update={
+            "mtz_sha256": hashlib.sha256(mtz.read_bytes()).hexdigest(),
+            "selected_observation_dataset_id": 1,
+            "observation_candidate_identities": (
+                MtzObservationCandidateRecord(
+                    dataset_id=1,
+                    labels=("I", "SIGI"),
+                    observation_type="intensity",
+                ),
+            ),
+        }
     )
     preflights = tmp_path / "MTZ preflight.jsonl"
     preflights.write_text(f"{canonical_json_text(preflight)}\n", encoding="utf-8")
@@ -95,6 +112,45 @@ def _inputs(tmp_path: Path) -> PhaserRunRequest:
         output_directory=tmp_path / "Phaser output with spaces",
         threads=4,
         progress=False,
+    )
+
+
+def _phase3_inputs(
+    tmp_path: Path,
+    *,
+    resolution_high_a: float = 2.0,
+) -> PhaserRunRequest:
+    request = _inputs(tmp_path)
+    preflight = MtzPreflightRecord.model_validate_json(
+        request.preflight_jsonl.read_text(encoding="utf-8")
+    )
+    payload = preflight.model_dump(mode="python")
+    payload["resolution_high_a"] = resolution_high_a
+    preflight = MtzPreflightRecord.model_validate(payload)
+    request.preflight_jsonl.write_text(
+        f"{canonical_json_text(preflight)}\n",
+        encoding="utf-8",
+    )
+    crystal = CrystalEntry(
+        crystal_id=preflight.crystal_id,
+        mtz=str(request.mtz),
+        catalogue_id="catalogue_test",
+    )
+    selection = build_diffraction_selection(
+        crystal=crystal,
+        preflight=preflight,
+        crystal_manifest_sha256="e" * 64,
+    )
+    selection_path = tmp_path / "diffraction_selection.json"
+    selection_path.write_text(canonical_json_text(selection), encoding="utf-8")
+    hypothesis = MrHypothesis.model_validate_json(
+        request.hypotheses_jsonl.read_text(encoding="utf-8")
+    )
+    bound = bind_phase3_hypothesis(hypothesis, selection)
+    return replace(
+        request,
+        diffraction_selection_json=selection_path,
+        phase3_hypothesis_id=bound.hypothesis_id,
     )
 
 
@@ -361,6 +417,67 @@ def test_adapter_runs_exact_composition_and_emits_credible_hit(
     assert "phaser.keywords.sgalternative.select=none" in command
     record = json.loads(output.command_json.read_text(encoding="utf-8"))
     assert record["model_uncertainty_source"].startswith("phenix.process")
+
+
+def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _phase3_inputs(tmp_path)
+    commands = _fake_runtime(monkeypatch, log_text=PACKING_NO_SOLUTION_LOG)
+
+    output = run_first_copy_phaser(request)
+
+    record = json.loads(output.command_json.read_text(encoding="utf-8"))
+    binding = record["diffraction_command_binding"]
+    selection = record["diffraction_selection"]
+    assert record["schema_version"] == "2.0"
+    assert record["phase3_hypothesis_id"] == request.phase3_hypothesis_id
+    assert record["phase3_command_id"].startswith("phasercmd_")
+    assert selection["observation_dataset_id"] == 1
+    assert selection["observation_labels"] == ["I", "SIGI"]
+    assert binding["observation_command_binding"].startswith("explicit_parameter")
+    assert binding["space_group_command_binding"].endswith("parameter_pending")
+    assert binding["resolution_command_binding"].endswith("limits_pending")
+    assert binding["command_mtz_binding"] == "exact_selected_mtz"
+    assert "phaser.labin=I,SIGI" in commands[0]
+    assert not any("resolution" in argument for argument in commands[0])
+    assert not any("space_group" in argument for argument in commands[0])
+
+
+def test_phase3_adapter_rejects_bound_hypothesis_mismatch_before_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = replace(
+        _phase3_inputs(tmp_path),
+        phase3_hypothesis_id="mrhyp2_" + "0" * 64,
+    )
+    commands = _fake_runtime(monkeypatch, log_text=PACKING_NO_SOLUTION_LOG)
+
+    with pytest.raises(PhaserInputError, match="bound hypothesis identity differs"):
+        run_first_copy_phaser(request)
+
+    assert commands == []
+
+
+def test_phase3_command_record_identity_changes_with_resolution_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_request = _phase3_inputs(tmp_path / "first", resolution_high_a=2.0)
+    second_request = _phase3_inputs(tmp_path / "second", resolution_high_a=1.8)
+    _fake_runtime(monkeypatch, log_text=PACKING_NO_SOLUTION_LOG)
+
+    first = json.loads(
+        run_first_copy_phaser(first_request).command_json.read_text(encoding="utf-8")
+    )
+    second = json.loads(
+        run_first_copy_phaser(second_request).command_json.read_text(encoding="utf-8")
+    )
+
+    assert first["phase3_hypothesis_id"] != second["phase3_hypothesis_id"]
+    assert first["phase3_command_id"] != second["phase3_command_id"]
 
 
 def test_adapter_can_search_declared_copies_jointly(

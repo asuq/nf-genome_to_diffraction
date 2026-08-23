@@ -20,6 +20,14 @@ from genome_to_diffraction.schemas.v2.composition import (
     ExpansionDisposition,
     ResidualContentState,
 )
+from genome_to_diffraction.schemas.v2.diffraction import (
+    DiffractionBoundHypothesis,
+    DiffractionCommandBinding,
+    DiffractionCommandConsumer,
+    DiffractionSelection,
+    DiffractionValueSource,
+    diffraction_dataset_id,
+)
 
 __all__ = [
     "ComponentIdentitySupport",
@@ -38,6 +46,12 @@ __all__ = [
     "CompositionState",
     "CompositionStopReason",
     "CompositionSupportState",
+    "DiffractionBoundHypothesis",
+    "DiffractionCommandBinding",
+    "DiffractionCommandConsumer",
+    "DiffractionSelection",
+    "DiffractionValueSource",
     "ExpansionDisposition",
     "ResidualContentState",
+    "diffraction_dataset_id",
 ]

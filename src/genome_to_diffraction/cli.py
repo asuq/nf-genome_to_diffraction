@@ -1155,6 +1155,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     first_copy_parser.add_argument("--preflight", type=Path, required=True)
     first_copy_parser.add_argument("--mtz", type=Path, required=True)
+    first_copy_parser.add_argument(
+        "--diffraction-selection",
+        type=Path,
+        help="optional schema-v2 dataset-qualified diffraction selection",
+    )
+    first_copy_parser.add_argument(
+        "--phase3-hypothesis-id",
+        help="content identity binding the v1 hypothesis to --diffraction-selection",
+    )
     first_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
     first_copy_parser.add_argument("--outdir", type=Path, required=True)
     first_copy_parser.add_argument("--threads", type=int, default=1)
@@ -1324,6 +1333,20 @@ def _build_parser() -> argparse.ArgumentParser:
     brief_parser.add_argument("--sequence-groups", type=Path, required=True)
     brief_parser.add_argument("--source-records", type=Path, required=True)
     brief_parser.add_argument("--resolution", type=float, required=True)
+    brief_parser.add_argument(
+        "--crystal-id",
+        help="required with --diffraction-selection for Phase III refinement",
+    )
+    brief_parser.add_argument(
+        "--diffraction-selection",
+        type=Path,
+        help="optional schema-v2 dataset-qualified diffraction selection",
+    )
+    brief_parser.add_argument(
+        "--preflight",
+        type=Path,
+        help="required with --diffraction-selection for exact preflight verification",
+    )
     brief_parser.add_argument("--phenix-manifest", type=Path, required=True)
     brief_parser.add_argument("--outdir", type=Path, required=True)
     brief_parser.add_argument("--threads", type=int, default=4)
@@ -2739,6 +2762,8 @@ def _run_mr(args: argparse.Namespace) -> int:
             mtz=args.mtz,
             phenix_manifest=args.phenix_manifest,
             output_directory=args.outdir,
+            diffraction_selection_json=args.diffraction_selection,
+            phase3_hypothesis_id=args.phase3_hypothesis_id,
             threads=args.threads,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,
@@ -2926,6 +2951,9 @@ def _run_refinement(args: argparse.Namespace) -> int:
             resolution=args.resolution,
             phenix_manifest=args.phenix_manifest,
             output_directory=args.outdir,
+            crystal_id=args.crystal_id,
+            diffraction_selection_json=args.diffraction_selection,
+            preflight_jsonl=args.preflight,
             threads=args.threads,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,
