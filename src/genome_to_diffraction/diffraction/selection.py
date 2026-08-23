@@ -330,9 +330,13 @@ def build_diffraction_command_binding(
             free_r_identity.test_flag_value if free_r_identity is not None else None
         ),
         free_r_command_binding=(
-            "selected_identity_recorded_explicit_phenix_parameter_not_qualified"
-            if free_r_identity is not None
-            else "not_applicable_first_copy_phaser"
+            "not_applicable_first_copy_phaser"
+            if free_r_identity is None
+            else (
+                "selected_label_explicit_generation_disabled_test_value_automatic"
+                if free_r_identity.test_flag_value is None
+                else "selected_label_and_test_value_explicit_generation_disabled"
+            )
         ),
         free_r_membership_binding=(
             "validated_source_identity_post_refinement_exact_comparison_required"

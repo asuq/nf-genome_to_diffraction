@@ -86,9 +86,9 @@ separate pending slices.
 An opt-in schema-v2 diffraction selection now binds the MTZ dataset,
 dataset-qualified observations, space group, resolution range, overrides, and
 command identities. Observation labels and sequence-from-map high resolution
-are explicit where already qualified; Phaser/refinement space-group and
-resolution-limit flags, parent-MTZ derivation, and Free-R command propagation
-remain deliberately pending rather than guessed.
+are explicit where already qualified. Phaser/refinement space-group and
+resolution-limit flags plus parent-MTZ derivation remain deliberately pending
+rather than guessed.
 
 A separate schema-v2 Free-R foundation now binds an exact label and MTZ dataset
 to the diffraction selection, rejects non-finite, non-integral, constant, and
@@ -102,8 +102,13 @@ convention state in its command identity, and refuses completion or downstream
 sequence-map execution unless the refined MTZ preserves the exact raw mapping.
 The comparison deliberately recognises row permutation only; it does not claim
 symmetry or reindexing equivalence.
-No explicit Phenix Free-R parameter is passed yet: its exact supported form and
-preservation against a real Phenix-derived MTZ remain qualification boundaries.
+Phase III refinement now passes the officially documented second
+`miller_array.labels.name` for the exact Free-R label, requires existing flags,
+and fixes `r_free_flags.generate=False`. A reviewed explicit test value is
+passed when available; otherwise Phenix's automatic test-value selection is
+recorded as unresolved rather than fabricated. Preservation against a real
+Phenix-derived MTZ remains the qualification boundary. Parameter names follow
+the [official `phenix.refine` command-line reference](https://phenix-online.org/documentation/reference/refinement.html).
 
 Fixed-component partner searches now preserve the reviewed parent's original
 model identity/error source in Phaser, command/result records, and cache

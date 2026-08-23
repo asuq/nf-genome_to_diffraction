@@ -535,9 +535,14 @@ def test_phase3_refinement_promotes_permuted_synthetic_mtz_after_free_r_comparis
     assert binding["free_r_label"] == "FreeR_flag"
     assert binding["free_r_convention_status"] == ("unresolved_raw_flag_values_only")
     assert binding["free_r_test_flag_value"] is None
-    assert binding["free_r_command_binding"].endswith("parameter_not_qualified")
+    assert binding["free_r_command_binding"] == (
+        "selected_label_explicit_generation_disabled_test_value_automatic"
+    )
     assert "data_manager.miller_array.labels.name=I,SIGI" in commands[0]
-    assert not any("FreeR_flag" in argument for argument in commands[0])
+    assert "data_manager.miller_array.labels.name=FreeR_flag" in commands[0]
+    assert "data_manager.fmodel.xray_data.r_free_flags.required=True" in commands[0]
+    assert "data_manager.fmodel.xray_data.r_free_flags.generate=False" in commands[0]
+    assert not any("test_flag_value" in argument for argument in commands[0])
     assert not any("space_group" in argument for argument in commands[0])
     assert not any("resolution" in argument for argument in commands[0])
     assert "crystal_info.resolution=2" in commands[1]
@@ -607,7 +612,7 @@ def test_phase3_refinement_command_identity_changes_with_free_r_convention(
         free_r_identity_json=explicit_identity_path,
         output_directory=tmp_path / "refinement_explicit",
     )
-    _install_phase3_runtime(monkeypatch)
+    commands = _install_phase3_runtime(monkeypatch)
 
     unresolved = run_t12_candidate(unresolved_request)
     explicit = run_t12_candidate(explicit_request)
@@ -630,3 +635,13 @@ def test_phase3_refinement_command_identity_changes_with_free_r_convention(
         FreeRConventionStatus.EXPLICIT_TEST_VALUE.value
     )
     assert explicit_record["free_r_identity"]["test_flag_value"] == 1
+    assert (
+        unresolved_record["diffraction_command_binding"]["free_r_command_binding"]
+        == "selected_label_explicit_generation_disabled_test_value_automatic"
+    )
+    assert (
+        explicit_record["diffraction_command_binding"]["free_r_command_binding"]
+        == "selected_label_and_test_value_explicit_generation_disabled"
+    )
+    assert not any("test_flag_value" in argument for argument in commands[0])
+    assert "data_manager.fmodel.xray_data.r_free_flags.test_flag_value=1" in commands[2]

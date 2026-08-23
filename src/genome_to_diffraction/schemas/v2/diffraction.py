@@ -379,9 +379,9 @@ class DiffractionCommandBinding(_ContentAddressedContract):
     """Typed propagation boundary retained beside an external command array.
 
     First-copy Phaser retains no Free-R identity.  Phase III brief refinement
-    records the exact selected identity and convention while explicitly
-    withholding an unqualified Phenix Free-R argument; completion separately
-    requires a :class:`FreeRMembershipComparison`.
+    records the exact selected identity and convention.  The official
+    ``phenix.refine`` label-selection and R-free parameters are explicit while
+    completion separately requires a :class:`FreeRMembershipComparison`.
     """
 
     _identity_field: ClassVar[str] = "binding_id"
@@ -424,7 +424,8 @@ class DiffractionCommandBinding(_ContentAddressedContract):
     free_r_test_flag_value: int | None = None
     free_r_command_binding: Literal[
         "not_applicable_first_copy_phaser",
-        "selected_identity_recorded_explicit_phenix_parameter_not_qualified",
+        "selected_label_explicit_generation_disabled_test_value_automatic",
+        "selected_label_and_test_value_explicit_generation_disabled",
     ] = "not_applicable_first_copy_phaser"
     free_r_membership_binding: Literal[
         "identity_placeholder_only_membership_validation_pending",
@@ -480,10 +481,6 @@ class DiffractionCommandBinding(_ContentAddressedContract):
             raise ValueError(
                 "brief-refinement Free-R and observation datasets must match"
             )
-        if self.free_r_command_binding != (
-            "selected_identity_recorded_explicit_phenix_parameter_not_qualified"
-        ):
-            raise ValueError("Free-R command boundary does not match the consumer")
         if self.free_r_membership_binding != (
             "validated_source_identity_post_refinement_exact_comparison_required"
         ):
@@ -493,10 +490,19 @@ class DiffractionCommandBinding(_ContentAddressedContract):
                 raise ValueError(
                     "unresolved command binding cannot carry a Free-R test value"
                 )
+            expected_command_binding = (
+                "selected_label_explicit_generation_disabled_test_value_automatic"
+            )
         elif self.free_r_test_flag_value is None:
             raise ValueError(
                 "explicit command binding requires a Free-R test flag value"
             )
+        else:
+            expected_command_binding = (
+                "selected_label_and_test_value_explicit_generation_disabled"
+            )
+        if self.free_r_command_binding != expected_command_binding:
+            raise ValueError("Free-R command boundary does not match the convention")
         return self
 
 

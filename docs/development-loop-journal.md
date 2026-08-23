@@ -11240,3 +11240,34 @@ with a collapsed combined parent or a guessed command.
 - Next, integrate the local registry with trusted unknown-screen collection and
   pass its resolved parent/manifest into the existing decision stager. Remote
   scheduler authentication and fixed HPC profiles remain separate closed gates.
+
+## 2026-08-23T21:12:29Z - Phase III Free-R command propagation is explicit
+
+### Evidence-backed correction
+
+- The official `phenix.refine` command-line reference and exact accepted
+  Phenix 2.1 help both define repeated `miller_array.labels.name` selection and
+  the `data_manager.fmodel.xray_data.r_free_flags` scope. The Phase III command
+  therefore no longer withholds these parameters as unqualified.
+- Brief refinement now passes the exact Free-R label as a second selected
+  Miller array, requires existing flags, and fixes `generate=False`. When the
+  reviewed identity contains an explicit test value, it is passed exactly;
+  otherwise automatic value selection remains typed unresolved rather than
+  being guessed. Version-1 refinement remains unchanged.
+- The diffraction command binding distinguishes explicit-label/automatic-value
+  from explicit-label/explicit-value execution. Exact post-refinement
+  HKL-to-raw-flag comparison remains mandatory in both cases, so command
+  selection cannot replace preservation evidence.
+
+### Focused evidence and next exact starting point
+
+- Thirty focused brief-refinement, diffraction-selection, and Free-R identity
+  tests pass. They assert exact command arguments for both convention states,
+  generation-off behaviour, command-identity changes, and unchanged
+  preservation failure semantics. Ruff, `ty`, docs, and diff checks remain the
+  immediate local gate.
+- A real installed-Phenix refinement must still prove accepted parsing and
+  exact derived-MTZ flag preservation before `PIPE-P1-07` is fully fixed. First
+  publish the clean immutable `dev/phase3` head after persistent approval and
+  run its CI plus fixed no-data Phaser interface probe; do not launch unknown
+  crystals from this synthetic command qualification alone.
