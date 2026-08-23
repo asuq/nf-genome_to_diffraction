@@ -57,8 +57,10 @@ from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
     PhaseIIIReviewDecisionValue,
+    PhaseIIIReviewEvidenceArtifact,
     PhaseIIIReviewPackageManifest,
     PhaseIIIReviewPackageTarget,
+    PhaseIIIReviewTableArtifact,
 )
 from genome_to_diffraction.schemas.v2.unknown_screen import (
     UnknownPass1AHypothesis,
@@ -114,8 +116,10 @@ __all__ = [
     "PhaseIIIReviewDecision",
     "PhaseIIIReviewDecisionFile",
     "PhaseIIIReviewDecisionValue",
+    "PhaseIIIReviewEvidenceArtifact",
     "PhaseIIIReviewPackageManifest",
     "PhaseIIIReviewPackageTarget",
+    "PhaseIIIReviewTableArtifact",
     "RegistryModelResolution",
     "RegistryModelResolutionScope",
     "ResidualContentState",

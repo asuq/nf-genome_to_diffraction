@@ -21,8 +21,13 @@ from genome_to_diffraction.schemas.v2 import (
     PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
     PhaseIIIReviewDecisionValue,
+    PhaseIIIReviewEvidenceArtifact,
     PhaseIIIReviewPackageManifest,
     PhaseIIIReviewPackageTarget,
+    PhaseIIIReviewTableArtifact,
+)
+from genome_to_diffraction.schemas.v2.review import (
+    phase3_review_package_content_sha256,
 )
 
 PARENT = OwnedPhaseIIIParentRun(
@@ -30,7 +35,7 @@ PARENT = OwnedPhaseIIIParentRun(
     profile="unknown-screen",
     phase="phase3-pass1",
 )
-PACKAGE_ID = "reviewpkg_phase3_unknown"
+EXECUTION_ID = f"phase3exec_{'a' * 64}"
 PACKAGE_CREATED = datetime(2026, 8, 23, 16, 0, tzinfo=UTC)
 REVIEWED = PACKAGE_CREATED + timedelta(minutes=5)
 
@@ -41,23 +46,48 @@ def _write_package(
     *,
     parent: OwnedPhaseIIIParentRun = PARENT,
     checkpoint: PhaseIIIReviewCheckpoint = PhaseIIIReviewCheckpoint.A_SEED,
-    package_id: str = PACKAGE_ID,
-) -> tuple[Path, str]:
-    package = PhaseIIIReviewPackageManifest(
-        schema_version="2.0",
-        review_package_id=package_id,
+) -> tuple[Path, str, str]:
+    sorted_targets = tuple(sorted(targets))
+    evidence = (
+        PhaseIIIReviewEvidenceArtifact(
+            role="review_evidence",
+            relative_path="evidence/review.json",
+            sha256="b" * 64,
+            size_bytes=10,
+        ),
+    )
+    table = (
+        PhaseIIIReviewTableArtifact(
+            role="review_targets",
+            relative_path="review_targets.tsv",
+            sha256="c" * 64,
+            size_bytes=100,
+            row_count=len(sorted_targets),
+            target_item_ids=tuple(item_id for _, item_id in sorted_targets),
+        ),
+    )
+    package = PhaseIIIReviewPackageManifest.from_content(
+        adapter_version="phase3-review-package-v1",
         checkpoint=checkpoint,
         owned_parent_run_id=parent.run_id,
         parent_profile=parent.profile,
         parent_phase=parent.phase,
+        execution_identity_id=EXECUTION_ID,
+        crystal_id=sorted_targets[0][0],
         created_at=PACKAGE_CREATED,
         permitted_targets=tuple(
             PhaseIIIReviewPackageTarget(crystal_id=crystal_id, item_id=item_id)
-            for crystal_id, item_id in targets
+            for crystal_id, item_id in sorted_targets
+        ),
+        evidence_inventory=evidence,
+        review_tables=table,
+        package_content_sha256=phase3_review_package_content_sha256(
+            evidence_inventory=evidence,
+            review_tables=table,
         ),
     )
     atomic_write_json(path, package.model_dump(mode="json", exclude_none=False))
-    return path, sha256_file(path, progress=False)
+    return path, sha256_file(path, progress=False), package.review_package_id
 
 
 def _decision(
@@ -85,7 +115,7 @@ def _write_decisions(
     *,
     parent_run_id: str = PARENT.run_id,
     checkpoint: PhaseIIIReviewCheckpoint = PhaseIIIReviewCheckpoint.A_SEED,
-    package_id: str = PACKAGE_ID,
+    package_id: str,
 ) -> PhaseIIIReviewDecisionFile:
     decision_file = PhaseIIIReviewDecisionFile.from_content(
         checkpoint=checkpoint,
@@ -126,7 +156,7 @@ def _request(
 def test_happy_path_publishes_only_canonical_decision_and_stage_manifest(
     tmp_path: Path,
 ) -> None:
-    package, package_sha256 = _write_package(
+    package, package_sha256, package_id = _write_package(
         tmp_path / "review-package.json",
         (("unknown_1", "state_1"), ("unknown_1", "state_2")),
     )
@@ -138,6 +168,7 @@ def test_happy_path_publishes_only_canonical_decision_and_stage_manifest(
             _decision("state_1", PhaseIIIReviewDecisionValue.APPROVE),
             _decision("state_2", PhaseIIIReviewDecisionValue.REJECT),
         ),
+        package_id=package_id,
     )
     output_directory = tmp_path / "staged"
 
@@ -218,7 +249,7 @@ def test_stale_parent_run_profile_or_phase_fails_closed(
     current_parent: OwnedPhaseIIIParentRun,
     message: str,
 ) -> None:
-    package, package_sha256 = _write_package(
+    package, package_sha256, package_id = _write_package(
         tmp_path / "review-package.json",
         (("unknown_1", "state_1"),),
         parent=package_parent,
@@ -229,6 +260,7 @@ def test_stale_parent_run_profile_or_phase_fails_closed(
         package_sha256,
         (_decision("state_1", PhaseIIIReviewDecisionValue.APPROVE),),
         parent_run_id=package_parent.run_id,
+        package_id=package_id,
     )
 
     with pytest.raises(PhaseIIIReviewStageError, match=message):
@@ -243,7 +275,7 @@ def test_stale_parent_run_profile_or_phase_fails_closed(
 
 
 def test_decision_for_a_different_review_package_fails_closed(tmp_path: Path) -> None:
-    package, package_sha256 = _write_package(
+    package, package_sha256, _package_id = _write_package(
         tmp_path / "review-package.json",
         (("unknown_1", "state_1"),),
     )
@@ -266,7 +298,7 @@ def test_decision_for_a_different_review_package_fails_closed(tmp_path: Path) ->
 
 
 def test_decision_for_an_unknown_package_target_fails_closed(tmp_path: Path) -> None:
-    package, package_sha256 = _write_package(
+    package, package_sha256, package_id = _write_package(
         tmp_path / "review-package.json",
         (("unknown_1", "state_allowed"),),
     )
@@ -275,6 +307,7 @@ def test_decision_for_an_unknown_package_target_fails_closed(tmp_path: Path) -> 
         decisions,
         package_sha256,
         (_decision("state_unknown", PhaseIIIReviewDecisionValue.APPROVE),),
+        package_id=package_id,
     )
 
     with pytest.raises(PhaseIIIReviewStageError, match="absent from the exact"):
@@ -288,7 +321,7 @@ def test_decision_for_an_unknown_package_target_fails_closed(tmp_path: Path) -> 
 
 
 def test_decision_before_package_creation_fails_closed(tmp_path: Path) -> None:
-    package, package_sha256 = _write_package(
+    package, package_sha256, package_id = _write_package(
         tmp_path / "review-package.json",
         (("unknown_1", "state_1"),),
     )
@@ -303,6 +336,7 @@ def test_decision_before_package_creation_fails_closed(tmp_path: Path) -> None:
                 reviewed_at=PACKAGE_CREATED - timedelta(seconds=1),
             ),
         ),
+        package_id=package_id,
     )
 
     with pytest.raises(PhaseIIIReviewStageError, match="predates"):
@@ -318,7 +352,7 @@ def test_decision_before_package_creation_fails_closed(tmp_path: Path) -> None:
 def test_wrong_manifest_or_transported_decision_checksum_fails_closed(
     tmp_path: Path,
 ) -> None:
-    package, package_sha256 = _write_package(
+    package, package_sha256, package_id = _write_package(
         tmp_path / "review-package.json",
         (("unknown_1", "state_1"),),
     )
@@ -327,6 +361,7 @@ def test_wrong_manifest_or_transported_decision_checksum_fails_closed(
         decisions,
         "f" * 64,
         (_decision("state_1", PhaseIIIReviewDecisionValue.APPROVE),),
+        package_id=package_id,
     )
     with pytest.raises(PhaseIIIReviewStageError, match="manifest checksum"):
         stage_phase3_review_decisions(
@@ -341,6 +376,7 @@ def test_wrong_manifest_or_transported_decision_checksum_fails_closed(
         decisions,
         package_sha256,
         (_decision("state_1", PhaseIIIReviewDecisionValue.APPROVE),),
+        package_id=package_id,
     )
     with pytest.raises(PhaseIIIReviewStageError, match="independent confirmation"):
         stage_phase3_review_decisions(
@@ -356,7 +392,7 @@ def test_wrong_manifest_or_transported_decision_checksum_fails_closed(
 def test_stale_decision_content_id_fails_even_with_current_byte_checksum(
     tmp_path: Path,
 ) -> None:
-    package, package_sha256 = _write_package(
+    package, package_sha256, package_id = _write_package(
         tmp_path / "review-package.json",
         (("unknown_1", "state_1"),),
     )
@@ -365,6 +401,7 @@ def test_stale_decision_content_id_fails_even_with_current_byte_checksum(
         decisions,
         package_sha256,
         (_decision("state_1", PhaseIIIReviewDecisionValue.APPROVE),),
+        package_id=package_id,
     )
     document = json.loads(decisions.read_text(encoding="utf-8"))
     document["decisions"][0]["reason"] = "edited after identity derivation"
@@ -384,7 +421,7 @@ def test_decision_file_change_during_validation_fails_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    package, package_sha256 = _write_package(
+    package, package_sha256, package_id = _write_package(
         tmp_path / "review-package.json",
         (("unknown_1", "state_1"),),
     )
@@ -393,6 +430,7 @@ def test_decision_file_change_during_validation_fails_closed(
         decisions,
         package_sha256,
         (_decision("state_1", PhaseIIIReviewDecisionValue.APPROVE),),
+        package_id=package_id,
     )
     original_load = phase3_stage._load_decisions
 
@@ -437,7 +475,7 @@ def test_duplicate_or_over_cap_decision_tsv_fails_the_typed_contract(
     targets: tuple[tuple[str, str], ...],
     message: str,
 ) -> None:
-    package, package_sha256 = _write_package(
+    package, package_sha256, package_id = _write_package(
         tmp_path / "review-package.json",
         targets,
     )
@@ -448,7 +486,7 @@ def test_duplicate_or_over_cap_decision_tsv_fails_the_typed_contract(
         "reviewer\treviewed_at\treason\n"
     )
     body = "".join(
-        f"a_seed\t{PARENT.run_id}\t{PACKAGE_ID}\t{package_sha256}\t"
+        f"a_seed\t{PARENT.run_id}\t{package_id}\t{package_sha256}\t"
         f"unknown_1\t{item_id}\t{decision}\treviewer_1\t"
         "2026-08-23T16:05:00Z\tmap inspected\n"
         for item_id, decision in rows
@@ -468,7 +506,7 @@ def test_duplicate_or_over_cap_decision_tsv_fails_the_typed_contract(
 def test_stage_refuses_even_an_empty_pre_existing_output_directory(
     tmp_path: Path,
 ) -> None:
-    package, package_sha256 = _write_package(
+    package, package_sha256, package_id = _write_package(
         tmp_path / "review-package.json",
         (("unknown_1", "state_1"),),
     )
@@ -477,6 +515,7 @@ def test_stage_refuses_even_an_empty_pre_existing_output_directory(
         decisions,
         package_sha256,
         (_decision("state_1", PhaseIIIReviewDecisionValue.APPROVE),),
+        package_id=package_id,
     )
     output = tmp_path / "staged"
     output.mkdir()

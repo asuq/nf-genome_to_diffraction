@@ -2,11 +2,12 @@
 
 ## Scope
 
-The schema-v2 `phase3-review-decisions` contract records the four human
-checkpoints required by the unknown-crystal workflow without prompting inside a
-scheduled task. One decision file covers exactly one checkpoint and one review
-package. It binds `owned_parent_run_id`, `review_package_id`, the package-manifest
-SHA-256, and every crystal/item decision into `decision_file_id`.
+The schema-v2 review-package and `phase3-review-decisions` contracts record the
+evidence boundary and the four human checkpoints required by the unknown-crystal
+workflow without prompting inside a scheduled task. One decision file covers
+exactly one checkpoint and one review package. It binds `owned_parent_run_id`,
+`review_package_id`, the package-manifest SHA-256, and every crystal/item decision
+into `decision_file_id`.
 
 The identifier is derived from RFC-8785 canonical typed content. It is not the
 byte checksum of the entered TSV. The local staging adapter independently
@@ -15,8 +16,56 @@ manifest, target membership, transported decision-file checksum, canonical
 content identifier, and whether every decision timestamp is not older than the
 package.
 
-Historical `review-decisions` schema-v1 files and their `mr_seed` and
-`sequence_candidate` semantics are unchanged.
+`phase3-review-package-v1` currently generates packages only for the
+`crystallographic` and `a_seed` checkpoints. Composition and sequence decisions
+remain defined, but their package generators are deferred until those workflows
+have exact evidence inventories. Historical `review-decisions` schema-v1 files
+and their `mr_seed` and `sequence_candidate` semantics are unchanged.
+
+## Review-package generator
+
+`build_phase3_review_package` accepts exactly one checkpoint, one crystal, one
+owned parent run/profile/phase, one full `phase3exec_` execution identity, a
+complete non-empty target-item set, and an explicit evidence allow-list. Evidence
+sources have a unique logical role and a canonical path relative to one input
+root. Absolute paths, parent traversal, non-portable path segments, duplicate
+roles or paths, symlinks below the root, missing files, and non-regular files fail
+before publication.
+
+The output is an existing empty, non-symlink directory. The generator builds and
+validates a private sibling directory, then replaces the empty destination in one
+atomic rename. It never merges with or overwrites a non-empty package. Each source
+file is streamed into the private package and checksummed, then checksummed again
+at its source; mutation during the snapshot fails and leaves the destination
+empty.
+
+Every successful package contains exactly:
+
+- `phase3_review_package_manifest.json`;
+- `review_targets.tsv`; and
+- the explicitly allowed files below `evidence/`, retaining their safe relative
+  input paths.
+
+The generated table contains one canonically ordered row for every target and the
+checkpoint-specific decision vocabulary. Its decision fields are blank. It is an
+inspection worksheet, not a valid `phase3-review-decisions` file by itself; the
+operator decision adapter also requires the package ID and an independently
+calculated manifest-file SHA-256.
+
+The path-free manifest records `phase3-review-package-v1`, the exact parent and
+execution identities, checkpoint, crystal, creation time, all permitted targets,
+every evidence role/relative path/SHA-256/size, and the generated table's
+SHA-256/size/row coverage. `package_content_sha256` is the RFC-8785 digest of the
+complete evidence/table inventory. `review_package_id` is derived from the full
+canonical manifest except for that identifier, so any parent, execution, target,
+file, ordering, or timestamp change invalidates it. Package validation refuses
+unlisted or missing files, symlinks, checksum/size drift, and incomplete or
+reordered table targets.
+
+Only relative paths appear in generated metadata. Evidence payloads are copied
+byte-for-byte rather than rewritten; callers must select already review-safe
+artefacts and must not allow an artefact containing private paths or credentials
+into the explicit evidence allow-list.
 
 ## Checkpoints and values
 
@@ -56,8 +105,8 @@ package-level fields repeat on every TSV row and must be identical. The adapter
 derives the canonical `decision_file_id`; JSON input must carry and validate the
 same identifier.
 
-This slice defines no Nextflow process, profile, remote staging operation, or
-review-package generator.
+This slice defines no Nextflow process, profile, remote staging operation,
+composition package, or sequence package.
 
 ## Local staging boundary
 
@@ -66,10 +115,13 @@ review-package generator.
 package manifest, a JSON or TSV decision file, and an independently confirmed
 SHA-256 for the exact decision-file bytes. The package manifest must bind:
 
-- `review_package_id` and checkpoint;
+- content-derived `review_package_id`, `package_content_sha256`, and checkpoint;
 - `owned_parent_run_id`, `parent_profile`, and `parent_phase`;
-- timezone-aware `created_at`; and
-- the complete permitted `(crystal_id, item_id)` target set.
+- one full Phase III execution identity and exactly one crystal;
+- timezone-aware `created_at`;
+- the complete permitted `(crystal_id, item_id)` target set;
+- the explicit evidence checksum/size allow-list; and
+- the generated review-table checksum and complete target coverage.
 
 The stager fails with `PhaseIIIReviewStageError`, a typed input-contract error,
 when any parent/package/checkpoint binding differs, the package-manifest SHA does
@@ -90,5 +142,4 @@ exist. A successful stage contains exactly:
 The source TSV/JSON, review package, package assets, and arbitrary neighbouring
 files are not copied. The caller remains responsible for deriving the owned
 parent reference from its trusted local run registry. This local slice does not
-authenticate a remote run, generate review packages, or add a Nextflow/HPC
-profile.
+authenticate a remote run or add a Nextflow/HPC profile.

@@ -249,8 +249,14 @@ The local stager now verifies caller-supplied owned parent run/profile/phase,
 exact package-manifest and transported-decision checksums, canonical decision
 identity, permitted target membership, and review chronology before publishing
 only canonical decisions plus a typed stage manifest into a new directory.
-Review-package generation, trusted local-run-registry wiring, Nextflow/HPC
-profiles, and remote staging remain pending rather than inferred.
+A focused local generator now emits one content-addressed, path-free package for
+exactly one crystallographic or A-seed checkpoint/crystal. It binds the exact
+Phase III execution identity, complete targets, copied evidence roles/relative
+paths/checksums/sizes, and a checksum-qualified complete target worksheet; it
+rejects source mutation, symlinks, escape, duplicate roles/paths, incomplete
+coverage, and non-empty publication targets. Composition/sequence package
+generation, trusted local-run-registry wiring, Nextflow/HPC profiles, and remote
+staging remain pending rather than inferred.
 
 A fixed local stub now binds one synthetic public-fixture
 `PhaseIIIExecutionIdentity`, an actual checksum-verified output of the local

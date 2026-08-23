@@ -11071,3 +11071,36 @@ with a collapsed combined parent or a guessed command.
 - Integrate this commit after review. Next, generate review packages from a
   trusted owned-run registry and qualify the real first-copy adapter before
   defining any fixed unknown-screen HPC profile or analysing operator data.
+
+## 2026-08-23 - Phase III crystallographic/A-seed packages are content-bound
+
+### Completed review-package boundary
+
+- Replaced the under-specified Phase III package manifest with a schema-v2
+  content-addressed record for exactly one crystallographic or A-seed checkpoint
+  and one crystal. It binds the exact parent run/profile/phase, full Phase III
+  execution identity, complete ordered targets, explicit evidence
+  role/relative-path/SHA-256/size inventory, generated review-table coverage,
+  package-content digest, and derived package ID.
+- Added a local package generator and independent validator. The generator
+  snapshots only allow-listed regular files below one input root, rejects path
+  escape, symlinks, duplicate roles/paths, input mutation, and unsafe identifiers,
+  then atomically replaces only an existing empty destination after validating
+  the exact output inventory. Generated metadata contains no machine paths.
+- The target worksheet is deterministic and decision-neutral: every target is
+  present once with the checkpoint vocabulary and blank human fields. It is not
+  silently treated as a completed decision file. Composition and sequence
+  package generation remain deliberately deferred.
+
+### Focused evidence and next exact starting point
+
+- Forty-three focused package, local-stage, and decision-contract tests pass,
+  including content mutation, missing target coverage, duplicate role/path,
+  symlink/escape, atomic failure, both supported checkpoints, and byte-identical
+  target/evidence permutations. Targeted Ruff and `ty` checks pass. No full
+  repository suite, Nextflow profile, remote service, or HPC run was started.
+- Next, wire the generated package manifest into the trusted owned-run registry
+  boundary and unknown-screen collection without weakening its exact file
+  allow-list. Define composition and sequence packages only after their exact
+  evidence inventories exist; do not infer them from the current generic target
+  worksheet.
