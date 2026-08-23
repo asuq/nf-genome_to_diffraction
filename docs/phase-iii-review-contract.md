@@ -67,6 +67,37 @@ byte-for-byte rather than rewritten; callers must select already review-safe
 artefacts and must not allow an artefact containing private paths or credentials
 into the explicit evidence allow-list.
 
+## Trusted local owned-run registry
+
+`register_phase3_owned_run` is the local trust boundary used before decision
+staging. The caller supplies one verified `completed_success` parent run, its
+exact schema-v2 execution identity, one or more already generated review
+packages, and an existing empty directory under caller-selected ignored storage.
+The adapter does not inspect a directory name to infer ownership.
+
+For every package it verifies the content-derived manifest, complete existing
+file allow-list, parent run/profile/phase, execution identity, crystal,
+checkpoint, creation chronology, and that the execution identity contains that
+crystal's MTZ. It snapshots the package into a private directory, independently
+revalidates source and copy, then atomically publishes one path-free
+`phase3_owned_run_registry.json`, the canonical execution identity, and the
+content-addressed package directories. The run record stores each package ID,
+manifest checksum, and package-content digest; the package manifest remains the
+authoritative per-file checksum and size allow-list.
+
+`resolve_phase3_owned_review_package` accepts only the registry directory plus
+an exact run/crystal/checkpoint key. It first revalidates the canonical run and
+execution records, exact top-level/package set, every package byte, and every
+ownership binding. Only then does it return runtime-only paths and the existing
+`OwnedPhaseIIIParentRun` needed by `stage_phase3_review_decisions`. Absolute
+paths are never serialised. Missing, duplicate, stale, cross-run,
+cross-crystal/checkpoint, mutated, symlinked, or unexpected package state fails
+closed.
+
+The registry is deliberately local and single-run. It does not authenticate a
+remote scheduler, discover run directories, add an HPC profile, or define
+unknown-screen execution.
+
 ## Checkpoints and values
 
 | `checkpoint` | Allowed `decision` values | Retained-state rule |

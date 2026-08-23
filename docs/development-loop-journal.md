@@ -11215,3 +11215,28 @@ with a collapsed combined parent or a guessed command.
 - Integrate this focused commit into `dev/phase3`. Real provider no-hit
   qualification and wiring into the application graph remain separate gates;
   do not treat the stub terminal as scientific evidence.
+
+## 2026-08-23T21:02:57Z - Local owned-run review registry is focused-green
+
+### Completed trust boundary
+
+- Added one content-addressed local record for a completed Phase III run. It
+  binds the exact run/profile/phase, source commit/tree, canonical execution
+  identity, and crystallographic or A-seed package IDs, manifest checksums, and
+  package-content digests without machine paths.
+- Registration accepts only caller-declared packages, validates their existing
+  complete checksum allow-lists and parent/execution/crystal/checkpoint bindings,
+  snapshots them into caller-selected ignored storage, revalidates source and
+  copy, and atomically replaces only an existing empty output directory.
+- Lookup uses an exact run/crystal/checkpoint key and revalidates the canonical
+  run and execution records, exact package set, every retained package byte, and
+  every ownership binding. A directory name is never evidence of ownership.
+
+### Evidence and next starting point
+
+- Thirty-five focused registry, package, and review-stage tests pass. This slice
+  runs no provider, Nextflow, Phenix, remote service, HPC profile, operator data,
+  or scientific analysis.
+- Next, integrate the local registry with trusted unknown-screen collection and
+  pass its resolved parent/manifest into the existing decision stager. Remote
+  scheduler authentication and fixed HPC profiles remain separate closed gates.

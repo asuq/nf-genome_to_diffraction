@@ -52,6 +52,10 @@ from genome_to_diffraction.schemas.v2.execution import (
     ExecutionToolIdentity,
     PhaseIIIExecutionIdentity,
 )
+from genome_to_diffraction.schemas.v2.owned_run import (
+    PhaseIIIOwnedReviewPackage,
+    PhaseIIIOwnedRunRegistry,
+)
 from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecision,
@@ -120,6 +124,8 @@ __all__ = [
     "FreeRMembershipComparison",
     "ModelUnavailableReason",
     "PhaseIIIExecutionIdentity",
+    "PhaseIIIOwnedReviewPackage",
+    "PhaseIIIOwnedRunRegistry",
     "PhaseIIIReviewCheckpoint",
     "PhaseIIIReviewDecision",
     "PhaseIIIReviewDecisionFile",
