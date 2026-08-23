@@ -16,23 +16,40 @@ an opportunity before another parent receives the same candidate/copy slot.
 The output is one :class:`CompositionExpansionDepthPlan` for the complete parent
 beam plus an ordered fan-out boundary.  Its schema-v2 content identity binds
 every parent, component, ranking evidence summary, disposition, and shared
-budget.  Focused tests cover ordering, fairness, budgets, mutation, neutral
-missing evidence, and the zero-physical-hypothesis path.
+budget.  The registry-bound adapter reloads the authoritative all-eligible
+registry, verifies its records and model bytes, and binds a content-addressed
+resolution for every parent component and candidate copy.  Valid model absence
+is typed and retained as unsearchable; a malformed or checksum-corrupted
+registry fails the input contract.  No external command, provider request,
+Phaser, or refinement is run.  The depth-plan identity is the cache key.
+Focused tests cover ordering, fairness, budgets, registry/source mutation,
+typed absence, neutral missing evidence, and checksum failures.
 """
 
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path, PurePosixPath
 from typing import Annotated, Self
 
 from pydantic import Field, model_validator
 
+from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.ids import canonical_digest
+from genome_to_diffraction.model_registry.all_eligible import (
+    AllEligibleModelEntry,
+    AllEligibleModelLookupResult,
+    AllEligibleModelRegistry,
+    AllEligibleModelRegistryError,
+    load_all_eligible_model_registry,
+)
 from genome_to_diffraction.schemas.base import (
     ContractModel,
     NonEmptyString,
     PositiveInt,
 )
 from genome_to_diffraction.schemas.v2 import (
+    AllModelRegistryIdentifier,
     ComponentSpec,
     CompositionCandidateHypothesis,
     CompositionExpansionDepthCandidate,
@@ -41,6 +58,9 @@ from genome_to_diffraction.schemas.v2 import (
     CompositionState,
     CompositionSupportState,
     ExpansionDisposition,
+    ModelUnavailableReason,
+    RegistryModelResolution,
+    RegistryModelResolutionScope,
 )
 from genome_to_diffraction.schemas.v2.composition import CompositionStateIdentifier
 from genome_to_diffraction.status import InputContractError
@@ -80,16 +100,56 @@ _EVIDENCE_ORDER = {
 }
 
 
+def _resolution_matches_component(
+    resolution: RegistryModelResolution,
+    component: ComponentSpec,
+) -> bool:
+    return (
+        resolution.component_spec_id == component.component_spec_id
+        and resolution.requested_copy_count == component.requested_copy_count
+        and resolution.sequence_group_id == component.sequence_group_id
+        and resolution.sequence_sha256 == component.sequence_sha256
+        and resolution.model_id == component.model_id
+        and resolution.model_sha256 == component.model_sha256
+    )
+
+
 class ParentExpansionInput(ContractModel):
-    """One retained packed parent and its explicit beam rank."""
+    """One retained packed parent, beam rank, and optional registry bindings."""
 
     parent_rank: PositiveInt = Field(le=3)
     state: CompositionState
+    model_resolutions: tuple[RegistryModelResolution, ...] = ()
 
     @model_validator(mode="after")
     def _validate_parent(self) -> Self:
         if self.state.support_state not in _PACKED_PARENT_STATES:
             raise ValueError("component expansion requires a retained packed parent")
+        if self.model_resolutions:
+            resolution_by_spec = {
+                resolution.component_spec_id: resolution
+                for resolution in self.model_resolutions
+            }
+            if len(resolution_by_spec) != len(self.model_resolutions):
+                raise ValueError("duplicate parent model resolution")
+            if set(resolution_by_spec) != {
+                component.component_spec_id for component in self.state.components
+            }:
+                raise ValueError(
+                    "parent model resolutions do not cover every parent component"
+                )
+            for component in self.state.components:
+                resolution = resolution_by_spec[component.component_spec_id]
+                if (
+                    resolution.scope
+                    is not RegistryModelResolutionScope.PARENT_COMPONENT
+                    or resolution.parent_state_id != self.state.state_id
+                    or resolution.parent_rank != self.parent_rank
+                    or not _resolution_matches_component(resolution, component)
+                ):
+                    raise ValueError(
+                        "parent model resolution does not match its component"
+                    )
         return self
 
 
@@ -101,8 +161,9 @@ class ComponentExpansionInput(ContractModel):
     supplied total-composition Matthews/mass decision for ``parent_state_id``;
     the planner never infers it from scores.
     ``model_available`` refers to verified runtime availability of the model
-    named by the specifications, so a missing artefact can still be retained as
-    a typed unsearchable hypothesis.
+    named by the specifications.  The authoritative registry adapter derives
+    it and attaches one typed resolution per copy; a missing artefact remains a
+    typed unsearchable hypothesis.
     """
 
     parent_state_id: CompositionStateIdentifier
@@ -112,6 +173,9 @@ class ComponentExpansionInput(ContractModel):
     model_available: bool = True
     model_identity_supported: bool = True
     reviewer_allowed: bool = True
+    model_provider: NonEmptyString | None = None
+    model_variant_type: NonEmptyString | None = None
+    model_resolutions: tuple[RegistryModelResolution, ...] = ()
     localisation_evidence: ExpansionEvidenceLevel | None = None
     sds_page_evidence: ExpansionEvidenceLevel | None = None
     native_page_evidence: ExpansionEvidenceLevel | None = None
@@ -150,6 +214,36 @@ class ComponentExpansionInput(ContractModel):
                 raise ValueError(
                     "copy hypotheses must describe one invariant component/model"
                 )
+        if self.model_resolutions:
+            resolution_by_spec = {
+                resolution.component_spec_id: resolution
+                for resolution in self.model_resolutions
+            }
+            if len(resolution_by_spec) != len(self.model_resolutions):
+                raise ValueError("duplicate candidate-copy model resolution")
+            if set(resolution_by_spec) != {
+                component.component_spec_id for component in self.component_specs
+            }:
+                raise ValueError("model resolutions do not cover every candidate copy")
+            for component in self.component_specs:
+                resolution = resolution_by_spec[component.component_spec_id]
+                if (
+                    resolution.scope is not RegistryModelResolutionScope.CANDIDATE_COPY
+                    or resolution.parent_state_id != self.parent_state_id
+                    or resolution.candidate_rank != self.candidate_rank
+                    or resolution.requested_provider != self.model_provider
+                    or resolution.requested_variant_type != self.model_variant_type
+                    or not _resolution_matches_component(resolution, component)
+                ):
+                    raise ValueError(
+                        "candidate-copy model resolution does not match its input"
+                    )
+            if self.model_available != all(
+                resolution.available for resolution in self.model_resolutions
+            ):
+                raise ValueError(
+                    "candidate model availability disagrees with registry resolutions"
+                )
         return self
 
     @property
@@ -170,6 +264,7 @@ class CompositionExpansionRequest(ContractModel):
     global_attempt_budget: PositiveInt = Field(default=100, le=100)
     global_attempts_used_before: int = Field(default=0, ge=0)
     ranking_policy_version: NonEmptyString = _RANKING_POLICY_VERSION
+    model_registry_id: AllModelRegistryIdentifier | None = None
 
     @model_validator(mode="after")
     def _validate_one_depth(self) -> Self:
@@ -218,6 +313,31 @@ class CompositionExpansionRequest(ContractModel):
             if len(set(groups)) != len(groups):
                 raise ValueError(
                     "candidate sequence-equivalence groups must be unique per parent"
+                )
+        resolutions = tuple(
+            resolution
+            for parent in self.parents
+            for resolution in parent.model_resolutions
+        ) + tuple(
+            resolution
+            for candidate in self.candidates
+            for resolution in candidate.model_resolutions
+        )
+        if (self.model_registry_id is None) != (not resolutions):
+            raise ValueError(
+                "model registry identity and complete resolutions must be paired"
+            )
+        if self.model_registry_id is not None:
+            if any(
+                resolution.model_registry_id != self.model_registry_id
+                for resolution in resolutions
+            ):
+                raise ValueError("model resolution uses a different registry")
+            if any(not parent.model_resolutions for parent in self.parents) or any(
+                not candidate.model_resolutions for candidate in self.candidates
+            ):
+                raise ValueError(
+                    "registry-bound request requires every model resolution"
                 )
         return self
 
@@ -304,20 +424,59 @@ def _evidence_reason(candidate: ComponentExpansionInput) -> str:
     )
 
 
-def _base_disposition(
+def _parent_models_available(parent: ParentExpansionInput) -> bool:
+    return not parent.model_resolutions or all(
+        resolution.available for resolution in parent.model_resolutions
+    )
+
+
+def _candidate_copy_resolution(
     candidate: ComponentExpansionInput,
-    copy_count: int,
+    component: ComponentSpec,
+) -> RegistryModelResolution | None:
+    return next(
+        (
+            resolution
+            for resolution in candidate.model_resolutions
+            if resolution.component_spec_id == component.component_spec_id
+        ),
+        None,
+    )
+
+
+def _unavailable_model_reason(
+    parent: ParentExpansionInput,
+    candidate: ComponentExpansionInput,
+    component: ComponentSpec,
+) -> str:
+    details = [
+        f"parent:{resolution.component_spec_id}:{resolution.unavailable_reason.value}"
+        for resolution in parent.model_resolutions
+        if resolution.unavailable_reason is not None
+    ]
+    resolution = _candidate_copy_resolution(candidate, component)
+    if resolution is not None and resolution.unavailable_reason is not None:
+        details.append(f"candidate:{resolution.unavailable_reason.value}")
+    if not details:
+        return "verified model artefact is unavailable"
+    return "model_registry_unavailable=" + ",".join(details)
+
+
+def _base_disposition(
+    parent: ParentExpansionInput,
+    candidate: ComponentExpansionInput,
+    component: ComponentSpec,
 ) -> tuple[ExpansionDisposition | None, str | None]:
     evidence = _evidence_reason(candidate)
-    if copy_count not in candidate.physically_eligible_copy_counts:
+    if component.requested_copy_count not in candidate.physically_eligible_copy_counts:
         return (
             ExpansionDisposition.EXCLUDED_PHYSICAL_IMPOSSIBLE,
             f"copy count is not physically eligible; {evidence}",
         )
-    if not candidate.model_available:
+    if not candidate.model_available or not _parent_models_available(parent):
         return (
             ExpansionDisposition.UNSEARCHABLE_NO_MODEL,
-            f"verified model artefact is unavailable; {evidence}",
+            f"{_unavailable_model_reason(parent, candidate, component)}; {evidence}",
         )
     if not candidate.model_identity_supported:
         return (
@@ -360,8 +519,9 @@ def _proposals(
                         "candidate component label already exists in a parent state"
                     )
                 disposition, reason = _base_disposition(
+                    parent,
                     candidate,
-                    component.requested_copy_count,
+                    component,
                 )
                 proposals.append(
                     _Proposal(
@@ -405,6 +565,176 @@ def _round_robin_searchable(
                 if proposal is not None:
                     ordered.append(proposal)
     return tuple(ordered)
+
+
+def _resolution_sort_key(
+    resolution: RegistryModelResolution,
+) -> tuple[int, int, int, str]:
+    scope_rank = (
+        0 if resolution.scope is RegistryModelResolutionScope.PARENT_COMPONENT else 1
+    )
+    return (
+        resolution.parent_rank,
+        scope_rank,
+        resolution.candidate_rank or 0,
+        resolution.component_spec_id,
+    )
+
+
+def _verified_exact_model(
+    registry: AllEligibleModelRegistry,
+    component: ComponentSpec,
+    *,
+    provider: str | None,
+    variant_type: str | None,
+) -> tuple[AllEligibleModelEntry | None, ModelUnavailableReason | None]:
+    lookup: AllEligibleModelLookupResult = registry.lookup(
+        component.sequence_group_id,
+        provider=provider,
+        variant_type=variant_type,
+    )
+    if lookup.unavailable_reason is not None:
+        return None, lookup.unavailable_reason
+    entry = next(
+        (model for model in lookup.models if model.model_id == component.model_id),
+        None,
+    )
+    if entry is None:
+        return None, ModelUnavailableReason.MODEL_NOT_REGISTERED
+    if (
+        entry.sequence_sha256 != component.sequence_sha256
+        or entry.model_sha256 != component.model_sha256
+    ):
+        raise CompositionPlanningError(
+            "composition model identity disagrees with the all-model registry: "
+            f"{component.model_id}"
+        )
+    relative = PurePosixPath(entry.model_path)
+    try:
+        model_path = (registry.root / Path(*relative.parts)).resolve(strict=True)
+    except OSError as error:
+        raise CompositionPlanningError(
+            f"registered model cannot be resolved: {entry.model_id}"
+        ) from error
+    if not model_path.is_file() or not model_path.is_relative_to(registry.root):
+        raise CompositionPlanningError(
+            f"registered model escaped its checksum-verified root: {entry.model_id}"
+        )
+    if sha256_file(model_path, progress=False) != entry.model_sha256:
+        raise CompositionPlanningError(
+            f"registered model checksum changed before planning: {entry.model_id}"
+        )
+    return entry, None
+
+
+def _registry_resolution(
+    *,
+    registry: AllEligibleModelRegistry,
+    scope: RegistryModelResolutionScope,
+    parent: ParentExpansionInput,
+    component: ComponentSpec,
+    candidate_rank: int | None = None,
+    provider: str | None = None,
+    variant_type: str | None = None,
+) -> RegistryModelResolution:
+    entry, unavailable_reason = _verified_exact_model(
+        registry,
+        component,
+        provider=provider,
+        variant_type=variant_type,
+    )
+    return RegistryModelResolution.from_content(
+        model_registry_id=registry.manifest.registry_id,
+        scope=scope,
+        parent_state_id=parent.state.state_id,
+        parent_rank=parent.parent_rank,
+        candidate_rank=candidate_rank,
+        component_spec_id=component.component_spec_id,
+        requested_copy_count=component.requested_copy_count,
+        sequence_group_id=component.sequence_group_id,
+        sequence_sha256=component.sequence_sha256,
+        model_id=component.model_id,
+        model_sha256=component.model_sha256,
+        requested_provider=provider,
+        requested_variant_type=variant_type,
+        registry_entry_sha256=(canonical_digest(entry) if entry is not None else None),
+        resolved_provider=entry.provider if entry is not None else None,
+        resolved_variant_type=entry.variant_type if entry is not None else None,
+        unavailable_reason=unavailable_reason,
+    )
+
+
+def _bind_request_to_registry(
+    request: CompositionExpansionRequest,
+    registry: AllEligibleModelRegistry,
+) -> CompositionExpansionRequest:
+    if (
+        request.model_registry_id is not None
+        or any(parent.model_resolutions for parent in request.parents)
+        or any(candidate.model_resolutions for candidate in request.candidates)
+    ):
+        raise CompositionPlanningError(
+            "registry adapter requires an unbound composition request"
+        )
+    parents_by_id = {parent.state.state_id: parent for parent in request.parents}
+    bound_parents: list[ParentExpansionInput] = []
+    for parent in request.parents:
+        resolutions = tuple(
+            _registry_resolution(
+                registry=registry,
+                scope=RegistryModelResolutionScope.PARENT_COMPONENT,
+                parent=parent,
+                component=component,
+            )
+            for component in parent.state.components
+        )
+        payload = parent.model_dump(mode="python", exclude={"model_resolutions"})
+        bound_parents.append(
+            ParentExpansionInput.model_validate(
+                {**payload, "model_resolutions": resolutions}
+            )
+        )
+
+    bound_candidates: list[ComponentExpansionInput] = []
+    for candidate in request.candidates:
+        parent = parents_by_id[candidate.parent_state_id]
+        resolutions = tuple(
+            _registry_resolution(
+                registry=registry,
+                scope=RegistryModelResolutionScope.CANDIDATE_COPY,
+                parent=parent,
+                component=component,
+                candidate_rank=candidate.candidate_rank,
+                provider=candidate.model_provider,
+                variant_type=candidate.model_variant_type,
+            )
+            for component in candidate.component_specs
+        )
+        payload = candidate.model_dump(mode="python", exclude={"model_resolutions"})
+        bound_candidates.append(
+            ComponentExpansionInput.model_validate(
+                {
+                    **payload,
+                    "model_available": all(
+                        resolution.available for resolution in resolutions
+                    ),
+                    "model_resolutions": resolutions,
+                }
+            )
+        )
+
+    payload = request.model_dump(
+        mode="python",
+        exclude={"parents", "candidates", "model_registry_id"},
+    )
+    return CompositionExpansionRequest.model_validate(
+        {
+            **payload,
+            "parents": tuple(bound_parents),
+            "candidates": tuple(bound_candidates),
+            "model_registry_id": registry.manifest.registry_id,
+        }
+    )
 
 
 def build_composition_expansion_plan(
@@ -483,7 +813,10 @@ def build_composition_expansion_plan(
                     proposal.component.requested_copy_count
                     in proposal.candidate.physically_eligible_copy_counts
                 ),
-                model_available=proposal.candidate.model_available,
+                model_available=(
+                    proposal.candidate.model_available
+                    and _parent_models_available(proposal.parent)
+                ),
             )
             depth_candidate = CompositionExpansionDepthCandidate.from_content(
                 parent_state_id=parent.state.state_id,
@@ -525,6 +858,26 @@ def build_composition_expansion_plan(
         in proposal.candidate.physically_eligible_copy_counts
         for proposal in proposals
     )
+    model_resolutions = tuple(
+        sorted(
+            (
+                resolution
+                for parent in parents
+                for resolution in parent.model_resolutions
+            ),
+            key=_resolution_sort_key,
+        )
+    ) + tuple(
+        sorted(
+            (
+                resolution
+                for candidate in candidates
+                for resolution in candidate.model_resolutions
+            ),
+            key=_resolution_sort_key,
+        )
+    )
+    model_resolutions = tuple(sorted(model_resolutions, key=_resolution_sort_key))
     depth_plan = CompositionExpansionDepthPlan.from_content(
         crystal_id=parents[0].state.crystal_id,
         diffraction_dataset_id=parents[0].state.diffraction_dataset_id,
@@ -537,6 +890,8 @@ def build_composition_expansion_plan(
         global_attempt_budget=request.global_attempt_budget,
         global_attempts_used_before=request.global_attempts_used_before,
         ranking_policy_version=request.ranking_policy_version,
+        model_registry_id=request.model_registry_id,
+        model_resolutions=model_resolutions,
         candidate_count=len(depth_candidates),
         physical_hypothesis_count=physical_hypothesis_count,
         selected_attempt_count=selected_count,
@@ -561,3 +916,26 @@ def build_composition_expansion_plan(
         selected_attempts=selected_attempts,
         remaining_global_attempt_budget=remaining_global - len(selected_attempts),
     )
+
+
+def build_registry_bound_composition_expansion_plan(
+    request: CompositionExpansionRequest,
+    *,
+    model_registry_json: Path,
+) -> CompositionExpansionOutput:
+    """Verify the all-model registry, bind every model input, and plan one depth.
+
+    Registry file, record, and model checksum failures are input-contract
+    failures.  A valid registry that lacks the requested sequence group,
+    provider, variant, or exact model instead produces typed unavailable
+    resolutions and retained unsearchable hypotheses.
+    """
+
+    try:
+        registry = load_all_eligible_model_registry(model_registry_json)
+    except (AllEligibleModelRegistryError, OSError) as error:
+        raise CompositionPlanningError(
+            "all-model registry could not be checksum verified"
+        ) from error
+    bound_request = _bind_request_to_registry(request, registry)
+    return build_composition_expansion_plan(bound_request)

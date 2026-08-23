@@ -1,6 +1,7 @@
 """Schema-v2 public contracts for Phase III composition search."""
 
 from genome_to_diffraction.schemas.v2.composition import (
+    AllModelRegistryIdentifier,
     ComponentIdentitySupport,
     ComponentPlacement,
     ComponentScopeDecision,
@@ -18,6 +19,9 @@ from genome_to_diffraction.schemas.v2.composition import (
     CompositionStopReason,
     CompositionSupportState,
     ExpansionDisposition,
+    ModelUnavailableReason,
+    RegistryModelResolution,
+    RegistryModelResolutionScope,
     ResidualContentState,
 )
 from genome_to_diffraction.schemas.v2.diffraction import (
@@ -41,6 +45,7 @@ from genome_to_diffraction.schemas.v2.review import (
 )
 
 __all__ = [
+    "AllModelRegistryIdentifier",
     "ComponentIdentitySupport",
     "ComponentPlacement",
     "ComponentScopeDecision",
@@ -68,10 +73,13 @@ __all__ = [
     "FreeRFlagCount",
     "FreeRIdentity",
     "FreeRMembershipComparison",
+    "ModelUnavailableReason",
     "PhaseIIIReviewCheckpoint",
     "PhaseIIIReviewDecision",
     "PhaseIIIReviewDecisionFile",
     "PhaseIIIReviewDecisionValue",
+    "RegistryModelResolution",
+    "RegistryModelResolutionScope",
     "ResidualContentState",
     "diffraction_dataset_id",
 ]

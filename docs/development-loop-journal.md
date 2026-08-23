@@ -10579,3 +10579,37 @@ once, watch one CI run, then qualify that exact release commit through the
 fixed Marmic release boundary. Publish/tag experimental `v0.2.0` only after the
 exact-source qualification passes. Do not start another heteromer scientific
 job or modify the accepted P6 evidence.
+
+## 2026-08-23T17:50:14Z - All-model registry is bound to composition planning
+
+### Completed PH3-P1-02 integration slice
+
+- Added the authoritative local registry-to-planner adapter. It reloads and
+  checksum-verifies the all-eligible registry, processed records, manifests,
+  and model bytes before resolving every retained parent component and each
+  candidate copy hypothesis.
+- Added content-addressed schema-v2 model resolutions. Exact matches bind the
+  registry entry, provider, and variant; no-model, unknown-group,
+  provider-unavailable, variant-unavailable, and exact-model-unregistered
+  outcomes remain typed. Physically eligible absent models remain retained as
+  `unsearchable_no_model`, including when a parent model is unavailable.
+- Bound the exact registry identity and deterministic resolution inventory into
+  the depth-plan identity. A valid B model outside a 25-item A shortlist is
+  schedulable without consulting that shortlist. Registry/source mutation
+  changes the plan identity; checksum or claimed-model mismatch fails before
+  planning.
+- Preserved neutral missing evidence, deterministic allocation, the shared
+  25-attempt depth cap, the 100-attempt global cap, and the boundary that
+  scheduling is not scientific support.
+
+### Focused evidence and next exact starting point
+
+- The complete unit suite passes with 776 tests. The focused registry,
+  planner, composition-contract, and first-copy-funnel slice passes 41 tests.
+  Ruff lint/format, `ty`, schema validation, documentation links, and diff
+  checks pass.
+- Integrate this commit into `dev/phase3` after review. Next, define the
+  candidate-generation input that supplies exact model/provider/variant
+  requests to this adapter, then wire a separate complete-item execution slice.
+  Do not start Nextflow, Phaser, localisation, unknown profiles, or HPC from
+  this contract-only result.

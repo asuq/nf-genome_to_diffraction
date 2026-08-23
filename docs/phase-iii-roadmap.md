@@ -66,10 +66,13 @@ recorded in the finding ledger.
 
 The all-eligible model registry is now separated from the A-search execution
 cap. It retains every validated catalogue sequence-group/model/provider/variant
-and typed no-model inventories under one deterministic content identity. Later
-B--F planning can perform checksum-verified sequence/provider/variant lookup
-even when a model fell outside the 25-item A shortlist. Candidate ranking and
-composition execution remain separate pending slices.
+and typed no-model inventories under one deterministic content identity. The
+schema-v2 composition planner now reloads that registry and binds every parent
+component and candidate-copy input to a checksum-verified entry or typed
+unavailable reason. Models outside the 25-item A shortlist remain schedulable;
+registry, provider, variant, and exact-model absences remain retained
+unsearchable hypotheses. Candidate generation and composition execution remain
+separate pending slices.
 
 An opt-in schema-v2 diffraction selection now binds the MTZ dataset,
 dataset-qualified observations, space group, resolution range, overrides, and
@@ -115,11 +118,12 @@ New schema-v2 writes use:
 Historical v0.2/v1 results remain readable and immutable. New Phase III
 execution writes schema-v2 states.
 
-Status: all six immutable schema-v2 composition records and the authoritative
-parent-bound depth plan are implemented. The deterministic planner shares one
-25-attempt budget across at most three parents, preserves every disposition,
-and enforces the 100-attempt global bound. Nextflow/Phaser execution remains a
-separate pending slice.
+Status: all six immutable schema-v2 composition records, the supporting model-
+resolution record, and the authoritative parent-bound depth plan are
+implemented. The deterministic planner shares one 25-attempt budget across at
+most three parents, preserves every disposition, enforces the 100-attempt
+global bound, and binds the independent all-model registry without consulting
+the A shortlist. Nextflow/Phaser execution remains a separate pending slice.
 
 Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
 After review approval of at most three A states, automatically expand through

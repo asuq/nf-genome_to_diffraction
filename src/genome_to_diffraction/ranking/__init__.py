@@ -9,6 +9,7 @@ from genome_to_diffraction.ranking.composition import (
     ParentExpansionInput,
     PlannedCompositionAttempt,
     build_composition_expansion_plan,
+    build_registry_bound_composition_expansion_plan,
 )
 from genome_to_diffraction.ranking.funnel import (
     DiverseFirstCopyFunnelOutput,
@@ -50,4 +51,5 @@ __all__ = [
     "build_diverse_first_copy_funnel",
     "build_exact_predicted_funnel",
     "build_partner_search_plan",
+    "build_registry_bound_composition_expansion_plan",
 ]

@@ -30,7 +30,6 @@ checksum, lookup, and A-cap separation coverage lives in
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Literal, Self
 
@@ -55,6 +54,10 @@ from genome_to_diffraction.schemas.results import (
     ProcessedModelRecord,
     SequenceGroupRecord,
 )
+from genome_to_diffraction.schemas.v2.composition import (
+    AllModelRegistryIdentifier,
+    ModelUnavailableReason,
+)
 from genome_to_diffraction.status import InputContractError
 
 _ADAPTER_VERSION = "all-eligible-model-registry-v1"
@@ -67,23 +70,10 @@ SequenceGroupIdentifier = Annotated[
     str,
     Field(pattern=r"^seq_[a-f0-9]{64}$"),
 ]
-AllModelRegistryIdentifier = Annotated[
-    str,
-    Field(pattern=r"^allmodelreg_[a-f0-9]{64}$"),
-]
 
 
 class AllEligibleModelRegistryError(InputContractError):
     """The complete processed-model universe cannot be represented safely."""
-
-
-class ModelUnavailableReason(StrEnum):
-    """Typed reason that a requested model lookup has no result."""
-
-    NO_ELIGIBLE_MODEL = "no_eligible_model"
-    SEQUENCE_GROUP_NOT_REGISTERED = "sequence_group_not_registered"
-    PROVIDER_UNAVAILABLE = "provider_unavailable"
-    VARIANT_UNAVAILABLE = "variant_unavailable"
 
 
 class AllEligibleModelEntry(ContractModel):
