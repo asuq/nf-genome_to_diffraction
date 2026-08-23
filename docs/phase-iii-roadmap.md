@@ -119,8 +119,13 @@ multi-fixed partial syntax required for a depth-two-or-higher parent.
 
 The isolated complete-item workflow now proves three crystal items can reuse
 one catalogue and one provider preparation through a byte-identical cached
-resume. Integration into the application graph and the hypothesis/seed/finalist
-levels remain pending.
+resume. The composition-attempt boundary additionally binds each selected row
+to its parent state, depth candidate, parent/candidate model resolutions,
+diffraction selection, Free-R identity, all-model registry, and global
+execution identity. It proves one 25-attempt budget shared across three parents,
+typed empty/no-model scheduling, and byte-identical cached resume, but remains
+stub-only. Integration into the application graph and the
+hypothesis/seed/finalist levels remain pending.
 
 ### PH2 - General component contracts and bounded search
 
@@ -142,11 +147,13 @@ Historical v0.2/v1 results remain readable and immutable. New Phase III
 execution writes schema-v2 states.
 
 Status: all six immutable schema-v2 composition records, the supporting model-
-resolution record, and the authoritative parent-bound depth plan are
-implemented. The deterministic planner shares one 25-attempt budget across at
-most three parents, preserves every disposition, enforces the 100-attempt
-global bound, and binds the independent all-model registry without consulting
-the A shortlist. Nextflow/Phaser execution remains a separate pending slice.
+resolution record, the authoritative parent-bound depth plan, and the
+content-addressed selected-attempt inventory are implemented. The deterministic
+planner shares one 25-attempt budget across at most three parents, preserves
+every disposition, enforces the 100-attempt global bound, and binds the
+independent all-model registry without consulting the A shortlist. A stub-only
+Nextflow fan-out now proves exact complete task identities and resume caching;
+live Phaser execution remains a separate pending slice.
 
 Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
 After review approval of at most three A states, automatically expand through

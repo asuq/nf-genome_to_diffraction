@@ -13,7 +13,7 @@ open among the original 34 findings.
 | Finding | Baseline disposition | Phase III gate / required evidence |
 | --- | --- | --- |
 | `PIPE-P1-01` | Partial; complete schema-v2 identity fixed | Raw FAA/annotation/MTZ, database inventory, source commit/tree, nf-helper, Pixi lock, execution policy, seven Phenix executables, and adapter versions now form one path-free content identity. Complete Nextflow task/cache consumption and selective-rerun evidence remain open. |
-| `PIPE-P1-02` | Partial; three-crystal boundary fixed | Exact complete-item fan-out now covers three crystals with cached resume; hypotheses, seeds, and finalists remain to be integrated. |
+| `PIPE-P1-02` | Partial; crystal and composition-attempt boundaries fixed | Exact complete-item fan-out covers three crystals and one 25-attempt/three-parent composition depth with cached resume; hypotheses, seeds, and finalists remain to be integrated. |
 | `PIPE-P1-03` | Partial | Enabled-provider no-hit and disabled/no-model bundles compose without abort or network call. |
 | `PIPE-P1-04` | Open | Network work resolves only to approved staging; compute workers fail closed with sockets blocked. |
 | `PIPE-P1-05` | Fixed | Dataset-qualified duplicate-label tests reject conflicts and retain deterministic equivalent selection. |
@@ -29,7 +29,7 @@ open among the original 34 findings.
 | `PIPE-P2-03` | Fixed | Runtime, tracked, and packaged schemas are byte/semantic parity checked. |
 | `PIPE-P2-04` | Fixed | Duplicate headers and ragged TSV rows produce typed diagnostics. |
 | `PIPE-P2-05` | Fixed | All executed Phenix binaries are digest-bound and replacement is refused. |
-| `PIPE-P2-06` | Partial; three-crystal boundary fixed | Three crystal items retain complete shared context; two-catalogue and malformed-sibling isolation remain open. |
+| `PIPE-P2-06` | Partial; crystal and composition-attempt boundaries fixed | Three crystal items retain complete shared context. Every selected composition attempt carries its complete plan/parent/model/diffraction/Free-R/registry identity through a byte-identical cached resume; two-catalogue and malformed-sibling isolation remain open. |
 | `PIPE-P2-07` | Open | One classified transient failure retries once; scientific/parser failures execute once. |
 | `PIPE-P2-08` | Fixed | Declaration-only toggles/caps are removed; every retained cap has one runtime consumer. |
 | `PIPE-P3-01` | Open | Locked offline wheel build, isolated install, both entry points, schemas, and version parity. |
@@ -64,7 +64,7 @@ open among the original 34 findings.
 | `PH3-P1-08` Unknown-panel mixed outcomes cannot finalise | Open | One success, one no-hit, and one typed tool/parse failure produce three honest terminal reports. |
 | `PH3-P1-09` Component-specific scores obscured by parent | Open | Every expansion records component TFZ and incremental LLG separately from combined/parent LLG. |
 | `PH3-P1-10` Deeper component claims lack validation boundary | Planned | Depth three is control-validated; depths four to six are forcibly provisional regardless score/packing/refinement. |
-| `PH3-P1-11` Per-parent plans multiply the depth budget | Fixed on `dev/phase3`; execution evidence pending | One parent-bound depth plan proves a shared maximum of 25 attempts across the complete three-parent beam and a 100-attempt global bound. |
+| `PH3-P1-11` Per-parent plans multiply the depth budget | Fixed on `dev/phase3`; live execution pending | One parent-bound depth plan and its content-addressed stub execution inventory prove exactly one maximum of 25 attempts across the complete three-parent beam, a 100-attempt global bound, exact task IDs/counts, typed no-model empty scheduling, and byte-identical cached resume. |
 | `PH3-P1-12` Unverified DeepTMHMM image command could be guessed | Fixed contract; runtime integration blocked | User image/input checksums are bound, but command and parser remain empty with `blocked_unverified_cli` until the supplied image is inspected. |
 | `PH3-P1-13` Conflicting localisation could become a hard exclusion | Fixed contract; ranking evidence pending | Conflicting informative tool outcomes resolve to `conflicting`; unknown and failed observations remain neutral rather than excluded. |
 

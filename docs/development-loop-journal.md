@@ -10772,3 +10772,52 @@ record that a process does not yet consume.
   construction and record component TFZ, incremental LLG, requested/observed
   copies, packing, markers, all identities, and only `search_evidence_only`.
   Do not add Nextflow, HPC, or control execution from this contract-only slice.
+
+## 2026-08-23 - Phase III composition-attempt fan-out is focused-green
+
+### Discoveries
+
+- Nextflow `splitJson(path: 'attempts')` rejects a valid empty nested array.
+  Reading the one validated inventory document with `flatMap` instead preserves
+  a typed empty/no-model path and schedules zero execution tasks.
+- A selected composition row cannot be a safe execution item when it carries
+  only parent/candidate IDs. Its immutable identity must also bind every parent
+  and candidate model resolution, diffraction selection, Free-R identity,
+  all-model registry, and the separate global execution identity.
+
+### Accomplishments and evidence
+
+- Added content-addressed `CompositionAttemptTask` and
+  `CompositionAttemptInventory` records plus a strict builder/loader/writer.
+  The builder consumes the authoritative shared depth plan and exact ordered
+  `PlannedCompositionAttempt` tuple; it cannot omit, reorder, duplicate, or add
+  a selected row.
+- Added the stub-only `COMPOSITION_ATTEMPT_WORKFLOW`. Every selected row is
+  combined with the complete inventory path, so no independent singleton queue
+  can be consumed by only the first attempt. Non-stub invocation fails before
+  creating a scientific result.
+- The focused Python integration set passes 21 tests across the new inventory,
+  shared-depth planner, and registry-bound planner. It proves one exact
+  25-attempt budget across three parents, deterministic task identities, typed
+  `empty_no_model` and other zero-selection states, strict mutation failure, and
+  byte-stable inventory writing.
+- `pixi run --locked composition-attempt-stub` passes. The first run schedules
+  exactly 25 distinct attempt tags spanning all three parents, the second run
+  caches the same 25 task hashes, retained outputs are byte-identical, and a
+  typed no-model inventory schedules zero execution tasks.
+- Locked lint, type checking, schema checking, documentation checking, and
+  Nextflow syntax checking pass. No Phenix, control, unknown-crystal, remote, or
+  HPC execution was started.
+
+### Unresolved work and next exact starting point
+
+- This is deliberately not a Phaser adapter. The separately developed
+  component-expansion execution input must remain authoritative for fixed
+  coordinates, per-component uncertainty, and parent LLG. Bind that input's
+  content ID into each attempt during integration; do not duplicate its
+  semantics here.
+- The `execution_identity_id` remains opaque and must be supplied by the
+  separate global Phase III execution-identity builder. Integrate both focused
+  contracts, rerun the combined tests, then implement a live adapter only from
+  reviewed real-Phenix semantics. Keep controls, unknown profiles, and HPC
+  submission closed until that boundary is qualified.

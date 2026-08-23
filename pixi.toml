@@ -67,10 +67,11 @@ docs-check = "python tests/scripts/check_docs.py"
 actionlint-check = "actionlint .github/workflows/ci.yml"
 nextflow-check = "python tests/scripts/check_nextflow.py --syntax"
 nextflow-stub = "python tests/scripts/check_nextflow.py --stub"
+composition-attempt-stub = "python tests/scripts/check_composition_attempt_fanout.py"
 hpc-wrapper-check = "bash -n bootstrap/nf-gtd-hpc-remote bootstrap/nf-gtd-hpc-smoke-job bootstrap/nf-gtd-hpc-recover-tools"
 build-hpc-test = "python bootstrap/build_hpc_test_app.py --output dist/nf-gtd-hpc-test"
 prepare-project-layout = "bootstrap/prepare_project_layout.sh"
 prepare-public-control = "genome-to-diffraction benchmark prepare-public-control --specification benchmarks/public-controls/pdb_8oox.yaml"
 public-panel-check = "genome-to-diffraction benchmark check-public-panel --panel benchmarks/public-controls/panel.yaml"
 prepare-public-panel = "genome-to-diffraction benchmark prepare-public-panel --panel benchmarks/public-controls/panel.yaml --outdir .untracked/public-controls/panel-v2"
-check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "public-panel-check", "docs-check", "actionlint-check", "nextflow-check", "nextflow-stub", "hpc-wrapper-check"] }
+check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "public-panel-check", "docs-check", "actionlint-check", "nextflow-check", "nextflow-stub", "composition-attempt-stub", "hpc-wrapper-check"] }

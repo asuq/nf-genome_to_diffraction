@@ -27,6 +27,11 @@ from genome_to_diffraction.schemas.v2.composition import (
     RegistryModelResolutionScope,
     ResidualContentState,
 )
+from genome_to_diffraction.schemas.v2.composition_attempts import (
+    CompositionAttemptInventory,
+    CompositionAttemptInventoryStatus,
+    CompositionAttemptTask,
+)
 from genome_to_diffraction.schemas.v2.diffraction import (
     DiffractionBoundHypothesis,
     DiffractionCommandBinding,
@@ -63,6 +68,9 @@ __all__ = [
     "ComponentScopeStatus",
     "ComponentSpec",
     "CompositionAssessment",
+    "CompositionAttemptInventory",
+    "CompositionAttemptInventoryStatus",
+    "CompositionAttemptTask",
     "CompositionCandidateHypothesis",
     "CompositionClaimBoundary",
     "CompositionExpansionDepthCandidate",
