@@ -59,25 +59,34 @@ def _run(
     input_data: bytes | None = None,
     close_stdin: bool = False,
     success: bool = True,
+    timeout_seconds: float = 30.0,
 ) -> subprocess.CompletedProcess[bytes]:
-    if close_stdin:
-        result = subprocess.run(
-            command,
-            cwd=cwd,
-            env=environment,
-            stdin=subprocess.DEVNULL,
-            check=False,
-            capture_output=True,
-        )
-    else:
-        result = subprocess.run(
-            command,
-            cwd=cwd,
-            env=environment,
-            input=input_data,
-            check=False,
-            capture_output=True,
-        )
+    try:
+        if close_stdin:
+            result = subprocess.run(
+                command,
+                cwd=cwd,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                check=False,
+                capture_output=True,
+                timeout=timeout_seconds,
+            )
+        else:
+            result = subprocess.run(
+                command,
+                cwd=cwd,
+                env=environment,
+                input=input_data,
+                check=False,
+                capture_output=True,
+                timeout=timeout_seconds,
+            )
+    except subprocess.TimeoutExpired as error:
+        raise AssertionError(
+            f"command timed out after {timeout_seconds} seconds: {command}\n"
+            f"stdout={error.stdout!r}\nstderr={error.stderr!r}"
+        ) from error
     if success and result.returncode != 0:
         raise AssertionError(
             f"command failed ({result.returncode}): {command}\n"
@@ -86,6 +95,15 @@ def _run(
     if not success and result.returncode == 0:
         raise AssertionError(f"command unexpectedly succeeded: {command}")
     return result
+
+
+def test_run_times_out_blocking_command(tmp_path: Path) -> None:
+    with pytest.raises(AssertionError, match=r"command timed out after 0\.1 seconds"):
+        _run(
+            [sys.executable, "-c", "import time; time.sleep(60)"],
+            cwd=tmp_path,
+            timeout_seconds=0.1,
+        )
 
 
 def _git(repository: Path, *arguments: str) -> str:
@@ -2233,8 +2251,10 @@ def _install_fake_database_runtime(run: Path, fake_bin: Path) -> None:
     shutil.copy2(fake_bin / "flock", bin_directory / "flock")
     sha256sum = shutil.which("sha256sum")
     assert sha256sum is not None
+    installed_sha256sum = bin_directory / "sha256sum"
+    installed_sha256sum.unlink(missing_ok=True)
     _write_executable(
-        bin_directory / "sha256sum",
+        installed_sha256sum,
         f'#!/usr/bin/env bash\nexec {shlex.quote(sha256sum)} "$@"\n',
     )
     _write_executable(bin_directory / "aria2c", "#!/usr/bin/env bash\nexit 0\n")
@@ -2404,7 +2424,14 @@ def test_database_administration_uses_separate_fixed_start_boundary(
     )
     assert _decode_protocol(concurrent.stdout)["scheduler_state"] == "SUBMITTED"
 
+    host_sha256sum = Path(shutil.which("sha256sum") or "")
+    assert host_sha256sum.is_file()
+    host_sha256sum_sha256 = hashlib.sha256(host_sha256sum.read_bytes()).hexdigest()
     _install_fake_database_runtime(run, tmp_path / "fake-bin")
+    assert hashlib.sha256(host_sha256sum.read_bytes()).hexdigest() == (
+        host_sha256sum_sha256
+    )
+    assert not (run / "source/.pixi/envs/hpc/bin/sha256sum").is_symlink()
     scratch_parent = remote_root / "database-staging"
     scratch_parent.mkdir()
     command_log = tmp_path / "database-commands.log"
