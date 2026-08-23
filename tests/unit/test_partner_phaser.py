@@ -100,6 +100,8 @@ def _request(tmp_path: Path) -> PartnerSearchRequest:
         parent_coordinate=parent,
         expected_parent_coordinate_sha256=sha256_file(parent),
         parent_llg=1200.0,
+        parent_model_identity_fraction=0.35,
+        parent_model_uncertainty_source="registered PDB homologue identity",
         partner_model=partner_model,
         expected_partner_model_sha256=sha256_file(partner_model),
         partner_model_identity_fraction=0.42,
@@ -182,6 +184,8 @@ def test_fixed_a_one_b_command_and_primary_result(
     assert result.partner_tfz == pytest.approx(49.7)
     assert result.combined_llg == pytest.approx(1622.91)
     assert result.incremental_llg == pytest.approx(422.91)
+    assert result.parent_model_identity_fraction == pytest.approx(0.35)
+    assert result.parent_model_uncertainty_source == "registered PDB homologue identity"
     assert result.score_cohort == "primary"
     assert result.fixed_parent_placement_observed is True
     assert result.partner_placement_count == 1
@@ -201,6 +205,7 @@ def test_fixed_a_one_b_command_and_primary_result(
     assert "model_id = search_partner" in text
     assert "ensembles = search_partner" in text
     assert "copies = 1" in text
+    assert "identity = 0.35" in text
     assert "identity = 0.42" in text
     assert "jobs = 8" in text
 
@@ -332,6 +337,18 @@ def test_partner_result_rejects_incorrect_incremental_llg(
         PartnerSearchResult.model_validate(document)
 
 
+def test_partner_result_requires_paired_parent_uncertainty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _request(tmp_path)
+    _fake_runtime(monkeypatch, log_text=POSITIVE_LOG, write_solution=True)
+    document = run_partner_search(request).result.model_dump(mode="json")
+    document["parent_model_uncertainty_source"] = None
+
+    with pytest.raises(ValidationError, match="parent model identity"):
+        PartnerSearchResult.model_validate(document)
+
+
 def test_partner_cli_exposes_adapter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -361,6 +378,10 @@ def test_partner_cli_exposes_adapter(
             request.expected_parent_coordinate_sha256,
             "--parent-llg",
             str(request.parent_llg),
+            "--parent-model-identity-fraction",
+            str(request.parent_model_identity_fraction),
+            "--parent-model-uncertainty-source",
+            request.parent_model_uncertainty_source,
             "--partner-model",
             str(request.partner_model),
             "--expected-partner-model-sha256",

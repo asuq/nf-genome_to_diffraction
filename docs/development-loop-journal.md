@@ -10370,3 +10370,26 @@ and candidate ranking in later focused slices.
   Phaser/refinement space-group and resolution parameters against real Phenix
 before promoting `PIPE-P1-06` from partial. Do not infer Free-R membership or
 launch unknown-crystal execution from this foundation.
+
+## 2026-08-23 - Fixed-parent model uncertainty is preserved
+
+### Completed focused slice
+
+- Bumped the fixed-A/partner adapter identity and made the original reviewed A
+  model identity/error source explicit in the request, Phaser fixed ensemble,
+  command record, normalised result, and cache identity. A placed coordinate is
+  no longer silently treated as a perfect 100%-identity parent.
+- The normal-workflow bridge verifies the checksum-bound first-copy command in
+  the review package and propagates its exact uncertainty evidence into every
+  approved or plan-selected B search. Historical v1 result records remain
+  readable because the new result fields are paired and optional for old data.
+- Focused tests retain a 35%-identity parent as 35%, distinguish it from the B
+  model identity, and reject unpaired result evidence. Real Phase III Phenix
+  qualification and execution-to-composition assessment remain pending.
+
+### Next exact starting point
+
+Commit this focused parent-uncertainty slice after Ruff, `ty`, CLI, bridge, and
+adapter tests pass. Use it as the fixed-parent basis for B-F execution; do not
+start Phase III HPC until v0.2 is immutable and the general execution graph is
+integrated.

@@ -82,6 +82,8 @@ class _ApprovedParent:
     coordinate_sha256: str
     llg: float
     copy_count: int
+    model_identity_fraction: float
+    model_uncertainty_source: str
 
 
 def _object(path: Path, *, label: str) -> tuple[Path, dict[str, object]]:
@@ -202,6 +204,22 @@ def _approved_parent(approved_stage: Path, review_package: Path) -> _ApprovedPar
         or result.llg is None
     ):
         raise PhaserInputError("approved A result does not match its packed copy count")
+    parent_command_path = _owned(
+        review, copied.get("command"), label="review A command"
+    )
+    if sha256_file(parent_command_path) != copied_sha.get("command"):
+        raise PhaserInputError("review A command checksum differs")
+    _, parent_command = _object(parent_command_path, label="review A command")
+    identity_percent = parent_command.get("model_identity_percent")
+    uncertainty_source = parent_command.get("model_uncertainty_source")
+    if (
+        isinstance(identity_percent, bool)
+        or not isinstance(identity_percent, int | float)
+        or not 0 < float(identity_percent) <= 100
+        or not isinstance(uncertainty_source, str)
+        or not uncertainty_source.strip()
+    ):
+        raise PhaserInputError("review A command lacks model uncertainty evidence")
     return _ApprovedParent(
         solution_id=solution_id,
         sequence_group_id=sequence_group_id,
@@ -209,6 +227,8 @@ def _approved_parent(approved_stage: Path, review_package: Path) -> _ApprovedPar
         coordinate_sha256=coordinate_sha256,
         llg=result.llg,
         copy_count=expected_copy_count,
+        model_identity_fraction=float(identity_percent) / 100.0,
+        model_uncertainty_source=uncertainty_source,
     )
 
 
@@ -261,6 +281,8 @@ def run_approved_partner_search(
             parent_coordinate=parent.coordinate,
             expected_parent_coordinate_sha256=parent.coordinate_sha256,
             parent_llg=parent.llg,
+            parent_model_identity_fraction=parent.model_identity_fraction,
+            parent_model_uncertainty_source=parent.model_uncertainty_source,
             parent_copy_count=parent.copy_count,
             partner_model=partner_model,
             expected_partner_model_sha256=partner_sha256,
@@ -336,6 +358,8 @@ def run_planned_partner_search(
             parent_coordinate=parent.coordinate,
             expected_parent_coordinate_sha256=parent.coordinate_sha256,
             parent_llg=parent.llg,
+            parent_model_identity_fraction=parent.model_identity_fraction,
+            parent_model_uncertainty_source=parent.model_uncertainty_source,
             parent_copy_count=parent.copy_count,
             partner_model=partner_model,
             expected_partner_model_sha256=candidate.model_sha256,

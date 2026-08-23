@@ -72,6 +72,11 @@ are explicit where already qualified; Phaser/refinement space-group and
 resolution-limit flags, parent-MTZ derivation, and Free-R membership remain
 deliberately pending rather than guessed.
 
+Fixed-component partner searches now preserve the reviewed parent's original
+model identity/error source in Phaser, command/result records, and cache
+identity. Placement no longer silently resets a lower-identity A model to 100%
+for the B-F searches.
+
 The isolated complete-item workflow now proves three crystal items can reuse
 one catalogue and one provider preparation through a byte-identical cached
 resume. Integration into the application graph and the hypothesis/seed/finalist

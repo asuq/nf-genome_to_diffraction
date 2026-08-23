@@ -17,7 +17,9 @@ by the required Phenix manifest; no Phenix version is bundled. It writes
 parameter file, capture/native logs, and any combined ``PHASER.1`` PDB/MTZ.
 
 The cache identity is the adapter version plus the two sequence digests, parent
-solution/coordinate/LLG, B model identity, MTZ, and Phenix-manifest checksums.
+solution/coordinate/LLG and original model uncertainty, B model identity, MTZ,
+and Phenix-manifest checksums. A fixed placed parent is not reinterpreted as a
+perfect 100%-identity model.
 Focused tests cover command construction, primary/fallback score
 classification, no-solution, tool/parse failure, and checksum drift. A real
 installed Phenix run is still required for P1 qualification.
@@ -62,7 +64,7 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.partner")
-_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v2"
+_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v3"
 _ROOT = "PHASER"
 _PRIMARY_LLG = 100.0
 _PRIMARY_TFZ = 10.0
@@ -98,6 +100,8 @@ class PartnerSearchRequest:
     parent_coordinate: Path
     expected_parent_coordinate_sha256: str
     parent_llg: float
+    parent_model_identity_fraction: float
+    parent_model_uncertainty_source: str
     partner_model: Path
     expected_partner_model_sha256: str
     partner_model_identity_fraction: float
@@ -188,6 +192,12 @@ def _resolve(request: PartnerSearchRequest) -> _Resolved:
         raise PhaserInputError("A and B must be distinct exact-sequence groups")
     if not math.isfinite(request.parent_llg):
         raise PhaserInputError("parent LLG must be finite")
+    if not math.isfinite(request.parent_model_identity_fraction) or not (
+        0 < request.parent_model_identity_fraction <= 1
+    ):
+        raise PhaserInputError("parent model identity fraction must be in (0, 1]")
+    if not request.parent_model_uncertainty_source.strip():
+        raise PhaserInputError("parent model uncertainty source must not be empty")
     if request.parent_copy_count < 1 or request.partner_copy_count < 1:
         raise PhaserInputError("component copy counts must be positive")
     selection_fields = (
@@ -279,6 +289,7 @@ def _parameters(
     resolved: _Resolved,
     parent_fasta: Path,
     partner_fasta: Path,
+    parent_identity_fraction: float,
     identity_fraction: float,
     parent_copy_count: int,
     partner_copy_count: int,
@@ -312,7 +323,7 @@ def _parameters(
     solution_at_origin = True
     coordinates {{
       pdb = {parent}
-      identity = 1.0
+      identity = {parent_identity_fraction:.12g}
     }}
   }}
   ensemble {{
@@ -402,6 +413,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
             resolved,
             parent_fasta,
             partner_fasta,
+            request.parent_model_identity_fraction,
             request.partner_model_identity_fraction,
             request.parent_copy_count,
             request.partner_copy_count,
@@ -416,6 +428,8 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         "partner_sequence_sha256": resolved.partner_group.sha256,
         "parent_coordinate_sha256": resolved.parent_coordinate_sha256,
         "parent_llg": request.parent_llg,
+        "parent_model_identity_fraction": request.parent_model_identity_fraction,
+        "parent_model_uncertainty_source": (request.parent_model_uncertainty_source),
         "partner_model_sha256": resolved.partner_model_sha256,
         "partner_model_identity_fraction": request.partner_model_identity_fraction,
         "mtz_sha256": resolved.mtz_sha256,
@@ -592,6 +606,8 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         partner_candidate_id=request.partner_candidate_id,
         execution_status=status,
         parent_llg=request.parent_llg,
+        parent_model_identity_fraction=request.parent_model_identity_fraction,
+        parent_model_uncertainty_source=request.parent_model_uncertainty_source,
         combined_llg=combined_llg,
         incremental_llg=incremental_llg,
         partner_tfz=partner_tfz,

@@ -55,6 +55,17 @@ def _request(tmp_path: Path) -> ApprovedPartnerSearchRequest:
     )
     result_path = assets / "normalised_mr_result.jsonl"
     result_path.write_text(f"{canonical_json_text(result)}\n", encoding="utf-8")
+    command_path = assets / "phaser_command.json"
+    command_path.write_text(
+        json.dumps(
+            {
+                "model_identity_percent": 35.0,
+                "model_uncertainty_source": "registered PDB homologue identity",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     review_manifest = review / "mr_seed_review_manifest.json"
     review_manifest.write_text(
         json.dumps(
@@ -70,10 +81,12 @@ def _request(tmp_path: Path) -> ApprovedPartnerSearchRequest:
                             "normalised_result": (
                                 f"assets/{solution_id}/normalised_mr_result.jsonl"
                             ),
+                            "command": f"assets/{solution_id}/phaser_command.json",
                         },
                         "copied_asset_sha256": {
                             "solution_coordinate": sha256_file(coordinate),
                             "normalised_result": sha256_file(result_path),
+                            "command": sha256_file(command_path),
                         },
                     }
                 ]
@@ -244,6 +257,11 @@ def test_approved_seed_binds_parent_llg_and_fixed_partner(
     partner_request = captured[0]
     assert partner_request.crystal_id == "6RTZ"
     assert partner_request.parent_llg == 321.5
+    assert partner_request.parent_model_identity_fraction == pytest.approx(0.35)
+    assert (
+        partner_request.parent_model_uncertainty_source
+        == "registered PDB homologue identity"
+    )
     assert partner_request.parent_sequence_group_id == "seq_" + "b" * 64
     assert partner_request.partner_sequence_group_id == "seq_" + "c" * 64
     assert partner_request.partner_model.name == "component_B.pdb"
@@ -288,6 +306,7 @@ def test_planned_partner_binds_selection_and_approved_parent(
     )
     assert partner_request.partner_candidate_id == request.partner_candidate_id
     assert partner_request.partner_model_identity_fraction == 0.8
+    assert partner_request.parent_model_identity_fraction == pytest.approx(0.35)
 
 
 def test_planned_partner_rejects_changed_model(tmp_path: Path) -> None:

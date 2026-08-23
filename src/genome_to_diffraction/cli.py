@@ -1220,6 +1220,10 @@ def _build_parser() -> argparse.ArgumentParser:
     partner_parser.add_argument("--parent-coordinate", type=Path, required=True)
     partner_parser.add_argument("--expected-parent-coordinate-sha256", required=True)
     partner_parser.add_argument("--parent-llg", type=float, required=True)
+    partner_parser.add_argument(
+        "--parent-model-identity-fraction", type=float, required=True
+    )
+    partner_parser.add_argument("--parent-model-uncertainty-source", required=True)
     partner_parser.add_argument("--parent-copy-count", type=int, default=1)
     partner_parser.add_argument("--partner-model", type=Path, required=True)
     partner_parser.add_argument("--expected-partner-model-sha256", required=True)
@@ -2669,6 +2673,8 @@ def _run_mr(args: argparse.Namespace) -> int:
                     args.expected_parent_coordinate_sha256
                 ),
                 parent_llg=args.parent_llg,
+                parent_model_identity_fraction=(args.parent_model_identity_fraction),
+                parent_model_uncertainty_source=(args.parent_model_uncertainty_source),
                 parent_copy_count=args.parent_copy_count,
                 partner_model=args.partner_model,
                 expected_partner_model_sha256=args.expected_partner_model_sha256,

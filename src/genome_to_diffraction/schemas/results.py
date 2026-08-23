@@ -660,6 +660,8 @@ class PartnerSearchResult(ContractModel):
     partner_candidate_id: NonEmptyString | None = None
     execution_status: ExecutionStatus
     parent_llg: float
+    parent_model_identity_fraction: float | None = Field(default=None, gt=0, le=1)
+    parent_model_uncertainty_source: NonEmptyString | None = None
     combined_llg: float | None = None
     incremental_llg: float | None = None
     partner_tfz: float | None = None
@@ -687,6 +689,12 @@ class PartnerSearchResult(ContractModel):
 
     @model_validator(mode="after")
     def _validate_partner_transition(self) -> Self:
+        if (self.parent_model_identity_fraction is None) != (
+            self.parent_model_uncertainty_source is None
+        ):
+            raise ValueError(
+                "parent model identity and uncertainty source must be paired"
+            )
         selection_fields = (
             self.selection_plan_id,
             self.selection_plan_sha256,
