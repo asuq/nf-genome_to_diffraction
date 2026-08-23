@@ -26,6 +26,11 @@ Execution goes through the isolated Phenix child environment. The profile uses
 has a 300-second deadline. No structure, reflection, sequence, or other
 scientific input is supplied.
 
+The immutable Phase III source is published and deployed only from the fixed
+`dev/phase3` remote branch. The controller accepts `main` or `dev/phase3` as
+literal deployment sources and uses `dev/phase3` automatically for this probe;
+arbitrary branch names remain invalid.
+
 ## Outputs and cache identity
 
 The probe retains:

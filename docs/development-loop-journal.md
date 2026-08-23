@@ -10951,6 +10951,10 @@ with a collapsed combined parent or a guessed command.
   Marmic Phenix binding; requests 2 CPUs/8 GB with a 45-minute outer limit; and
   allow-lists only the refreshed manifest, verification log, defaults output,
   report, and final checksums.
+- The CI workflow now runs on `dev/phase3` pushes. Remote-tool deployment
+  accepts only literal `main` or `dev/phase3` source branches, and the probe
+  stage requires its exact commit to be reachable from tracked
+  `origin/dev/phase3`; arbitrary branch names remain invalid.
 - Eighteen Phenix unit tests and 100 focused Phenix/HPC model, CLI, and client
   tests pass. The dedicated fake managed lifecycle passes fixed stage, submit,
   execution, terminal classification, and bounded collection. Both Bash
@@ -10964,7 +10968,8 @@ with a collapsed combined parent or a guessed command.
   command per tool call.
 - Review and integrate the active candidate-generation and unknown-screen stub
   slices, then run focused combined checks. Commit the coherent local Phase III
-  milestone. Before remote use, obtain an approved branch publication path,
+  milestone. Before remote use, obtain persistent approval to publish the fixed
+  `dev/phase3` branch,
   run one CI workflow, deploy matching reviewed tools, and execute exactly one
   `phase3-phenix-probe` on Marmic. Use only its collected defaults to implement
   the subsequent per-ensemble control adapter; do not guess the PHIL field.

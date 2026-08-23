@@ -33,6 +33,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="deploy the two fixed remote scripts from a pushed commit",
     )
     deploy_tools.add_argument("--revision", required=True)
+    deploy_tools.add_argument(
+        "--source-branch",
+        choices=("main", "dev/phase3"),
+        default="main",
+        help="fixed remote branch containing the immutable commit",
+    )
 
     readiness = actions.add_parser(
         "readiness",
@@ -207,7 +213,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, object]:
     if args.operation == "deploy-tools":
-        return controller.deploy_tools(args.revision)
+        return controller.deploy_tools(
+            args.revision,
+            source_branch=args.source_branch,
+        )
     if args.operation == "readiness":
         return controller.readiness(args.profile)
     if args.operation == "p0-configure":

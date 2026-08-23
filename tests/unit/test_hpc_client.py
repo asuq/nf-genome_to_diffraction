@@ -59,6 +59,10 @@ class FakeGit:
         if commit != COMMIT or not self.reachable:
             raise ValidationError("commit is unavailable from origin/main")
 
+    def ensure_reachable_from_origin_branch(self, commit: str, branch: str) -> None:
+        if commit != COMMIT or not self.reachable or branch != "dev/phase3":
+            raise ValidationError("commit is unavailable from approved remote branch")
+
     def create_source_archive(
         self, commit: str, destination: Path
     ) -> tuple[str, int, str]:
@@ -858,6 +862,17 @@ def test_deploy_tools_sends_only_commit_and_verified_checksums(tmp_path: Path) -
     assert arguments[0] == COMMIT
     assert len(arguments) == 3
     assert all(len(value) == 64 for value in arguments[1:])
+
+
+def test_deploy_tools_accepts_only_the_fixed_phase3_branch(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+
+    result = controller.deploy_tools("HEAD", source_branch="dev/phase3")
+
+    assert result["source_branch"] == "dev/phase3"
+    with pytest.raises(ValidationError, match="source branch"):
+        controller.deploy_tools("HEAD", source_branch="feature/unreviewed")
 
 
 def test_deploy_tools_recovers_only_from_approved_bootstrap_failures(

@@ -2,7 +2,7 @@ name: foundation-checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev/phase3]
   pull_request:
 
 permissions:

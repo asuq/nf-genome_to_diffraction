@@ -452,6 +452,9 @@ class GitRepository(Protocol):
     def ensure_reachable_from_origin_main(self, commit: str) -> None:
         """Fail unless the exact commit is contained in tracked origin/main."""
 
+    def ensure_reachable_from_origin_branch(self, commit: str, branch: str) -> None:
+        """Fail unless the exact commit is contained in one fixed tracked branch."""
+
     def create_source_archive(
         self,
         commit: str,
@@ -529,6 +532,16 @@ class SubprocessGitRepository:
         validate_commit(commit)
         self._run(["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"])
         self._run(["merge-base", "--is-ancestor", commit, "refs/remotes/origin/main"])
+
+    def ensure_reachable_from_origin_branch(self, commit: str, branch: str) -> None:
+        """Require the commit in one explicitly allowed tracked remote branch."""
+
+        validate_commit(commit)
+        if branch not in {"dev/phase3"}:
+            raise ValidationError("remote branch is not approved for HPC staging")
+        reference = f"refs/remotes/origin/{branch}"
+        self._run(["rev-parse", "--verify", f"{reference}^{{commit}}"])
+        self._run(["merge-base", "--is-ancestor", commit, reference])
 
     def create_source_archive(
         self,
@@ -1247,12 +1260,19 @@ class HpcController:
         self.logger = logger or logging.getLogger("genome_to_diffraction.hpc")
         self.progress = progress
 
-    def deploy_tools(self, revision: str) -> dict[str, object]:
+    def deploy_tools(
+        self, revision: str, *, source_branch: str = "main"
+    ) -> dict[str, object]:
         """Install the two fixed remote scripts from one clean pushed commit."""
 
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
-        self.git.ensure_reachable_from_origin_main(commit)
+        if source_branch == "main":
+            self.git.ensure_reachable_from_origin_main(commit)
+        elif source_branch == "dev/phase3":
+            self.git.ensure_reachable_from_origin_branch(commit, source_branch)
+        else:
+            raise ValidationError("remote tool source branch is not approved")
         checksums: dict[str, str] = {}
         committed_tools: dict[str, bytes] = {}
         for relative in _REMOTE_TOOL_PATHS:
@@ -1328,6 +1348,7 @@ class HpcController:
             **remote,
             "operation": "deploy-tools",
             "commit": commit,
+            "source_branch": source_branch,
             "dispatcher_sha256": dispatcher_checksum,
             "smoke_job_sha256": smoke_job_checksum,
             "recovery_sha256": recovery_checksum,
@@ -1349,7 +1370,10 @@ class HpcController:
             )
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
-        self.git.ensure_reachable_from_origin_main(commit)
+        if profile == "phase3-phenix-probe":
+            self.git.ensure_reachable_from_origin_branch(commit, "dev/phase3")
+        else:
+            self.git.ensure_reachable_from_origin_main(commit)
         iteration, parent = self._next_iteration(parent_run_id)
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
         run_id = f"gtd-{profile}-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
