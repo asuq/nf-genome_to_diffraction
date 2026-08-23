@@ -11397,3 +11397,68 @@ with a collapsed combined parent or a guessed command.
   rebuild the opaque runner from the frozen public sources and inspect the
   emitted sanitisation records; operational and leakage acceptance remain
   separate pending gates under the unchanged protocol.
+
+## 2026-08-23 - M6 seed advancement no longer prefers the largest copy count
+
+### Focused DEV-P1-06 correction
+
+- Removed the pre-ranking same-model collapse that unconditionally replaced a
+  smaller-copy first-copy hypothesis with the largest packing-eligible copy
+  hypothesis. The unchanged maximum of five advancing seeds now comes from all
+  eligible hypotheses ordered only by retained LLG, TFZ, candidate rank, and a
+  final immutable-hypothesis-ID tie-break.
+- Added `seed_advancement.jsonl`, which retains every eligible hypothesis with
+  its copy count, raw ranking evidence, advancement rank, and explicit
+  `selected` or `deferred_seed_cap` disposition. The seed plan records complete
+  eligible/deferred counts and the changed semantics use adapter/cache identity
+  `m6-nextflow-seeds-v2`; the empty branch emits the same typed surface.
+- First-copy inputs are ordered by hypothesis ID before bundle identity is
+  constructed, so scheduler completion order cannot change this boundary's
+  outputs.
+
+### Focused evidence and next exact starting point
+
+- A same-model two-copy strong/four-copy weak regression proves that the
+  smaller-copy hypothesis advances, the larger alternative remains retained
+  and cap-deferred, and all 720 input permutations produce one identical
+  inventory. The existing early-empty M6 path remains green.
+- No threshold, copy cap, frozen protocol, truth boundary, MTZ, leakage,
+  provider/network, bootstrap/HPC, unknown-crystal, or 7L6G behaviour changed,
+  and no M6 or remote run occurred.
+- Integrate this focused commit into `dev/phase3`. Keep M6 operational and
+  leakage execution held until the remaining PH6 stop gates and the named
+  integration gate pass.
+
+## 2026-08-23T21:54:53Z - Phase III local tranche is ready for branch CI
+
+### Integrated clean head and evidence
+
+- The integrated code tranche through
+  `6e4e32712695919e6ef7feaef66984a13aabd622` contains the fixed no-data
+  Phaser interface profile; bounded candidate/unknown/provider/review/status
+  foundations; explicit refinement observation, Free-R, space-group, and
+  resolution propagation; and the locally completed M6 MTZ, leakage-order, and
+  seed-preference corrections.
+- The named pre-M6 integration gate passed 864 unit, 128 contract, and 75
+  integration tests and every constituent schema/docs/actionlint/Nextflow/
+  wrapper gate; its sole transient Nextflow resume exception passed the exact
+  classified retry. Subsequent integrated focused gates pass: 57 diffraction/
+  refinement tests, 46 combined M6 tests, four wheel-checker regressions, and
+  targeted Ruff, `ty`, schema, docs, Nextflow, and diff checks.
+- The exact offline wheel checker is committed but its positive local run is
+  still pending because this host's cache lacks one locked Hatchling
+  dependency; no network fetch was made. Branch CI must provision the lock and
+  run the complete gate before any remote deployment.
+
+### Discipline disclosure and exact next starting point
+
+- One read-only retry-policy inventory command in this loop accidentally piped
+  `rg` to `head`. It made no mutation, network request, or external action;
+  subsequent shell calls returned to one command per tool call.
+- No source was pushed, no remote tool was deployed, and no HPC or M6 job was
+  submitted. The only current external blocker is persistent approval for the
+  exact command `git push origin dev/phase3`. After approval, push this clean
+  head once, watch its single CI run, deploy matching tools from the literal
+  `dev/phase3` source, and run exactly one fixed no-data
+  `phase3-phenix-probe` on Marmic. Do not launch 9ECN, unknown crystals, or M6
+  before collecting and classifying that probe.

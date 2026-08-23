@@ -132,7 +132,9 @@ _FOLDSEEK_ADAPTER = "m6-nextflow-foldseek-search-v2"
 _MODEL_POLICY_ADAPTER = "m6-nextflow-model-policy-v2"
 _PREFLIGHT_ADAPTER = "m6-nextflow-preflight-v1"
 _CASE_ADAPTER = "m6-nextflow-case-v1"
+_SEED_ADAPTER = "m6-nextflow-seeds-v2"
 _CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v2"
+_M6_SEED_CAP = 5
 _RUN_ADAPTER = "m6-nextflow-run-v2"
 _MATERIALISED_SUFFIX = {
     "application/json": ".json",
@@ -1707,16 +1709,73 @@ def _case_plan(case_bundle: Path) -> M6HypothesisGroupTask:
 def _first_rank(
     attempt: PhaserRunOutput,
     hypothesis: MrHypothesis,
-    candidate_rank: dict[str, int],
+    candidate_rank: Mapping[str, int],
 ) -> tuple[object, ...]:
     result = attempt.result
     return (
         -(result.llg if result.llg is not None else float("-inf")),
         -(result.tfz if result.tfz is not None else float("-inf")),
         candidate_rank.get(hypothesis.sequence_group_id, 10**9),
-        -hypothesis.copy_count_expected,
         hypothesis.hypothesis_id,
     )
+
+
+def _m6_seed_advancement_rows(
+    case_id: str,
+    eligible: tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
+    selected_hypothesis_ids: set[str],
+    candidate_rank: Mapping[str, int],
+) -> tuple[dict[str, object], ...]:
+    """Retain the disposition and ranking evidence for every eligible seed."""
+
+    return tuple(
+        {
+            "schema_version": "1.0",
+            "case_id": case_id,
+            "hypothesis_id": hypothesis.hypothesis_id,
+            "sequence_group_id": hypothesis.sequence_group_id,
+            "model_id": hypothesis.model_id,
+            "expected_copy_count": hypothesis.copy_count_expected,
+            "llg": attempt.result.llg,
+            "tfz": attempt.result.tfz,
+            "candidate_rank": candidate_rank.get(hypothesis.sequence_group_id),
+            "advancement_rank": rank,
+            "advancement_disposition": (
+                "selected"
+                if hypothesis.hypothesis_id in selected_hypothesis_ids
+                else "deferred_seed_cap"
+            ),
+            "eligible_hypothesis_retained": True,
+        }
+        for rank, (attempt, hypothesis) in enumerate(eligible, start=1)
+    )
+
+
+def _rank_m6_seed_candidates(
+    packed: tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
+    candidate_rank: Mapping[str, int],
+) -> tuple[tuple[PhaserRunOutput, MrHypothesis], ...]:
+    """Order every eligible copy hypothesis without a copy-count preference."""
+
+    return tuple(
+        sorted(
+            packed,
+            key=lambda item: _first_rank(item[0], item[1], candidate_rank),
+        )
+    )
+
+
+def _select_m6_seed_candidates(
+    packed: tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
+    candidate_rank: Mapping[str, int],
+) -> tuple[
+    tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
+    tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
+]:
+    """Return every eligible hypothesis and the unchanged five-seed slice."""
+
+    eligible = _rank_m6_seed_candidates(packed, candidate_rank)
+    return eligible, eligible[:_M6_SEED_CAP]
 
 
 def run_m6_select_seeds_task(
@@ -1730,7 +1789,12 @@ def run_m6_select_seeds_task(
     plan = _case_plan(case)
     case_id = plan.case_id
     expected = plan.hypothesis_count
-    attempts = tuple(_phaser_output(path) for path in first_copy_results)
+    attempts = tuple(
+        sorted(
+            (_phaser_output(path) for path in first_copy_results),
+            key=lambda attempt: attempt.result.hypothesis_id,
+        )
+    )
     if len(attempts) != expected:
         raise PublicControlError(
             f"M6 first-copy result count changed for {case_id}: "
@@ -1755,21 +1819,8 @@ def run_m6_select_seeds_task(
             attempt, expected_copy_count=hypothesis.copy_count_expected
         ):
             packed.append((attempt, hypothesis))
-    best_by_model: dict[tuple[str, str], tuple[PhaserRunOutput, MrHypothesis]] = {}
-    for item in packed:
-        key = (item[1].sequence_group_id, item[1].model_id)
-        current = best_by_model.get(key)
-        if (
-            current is None
-            or item[1].copy_count_expected > current[1].copy_count_expected
-        ):
-            best_by_model[key] = item
-    selected = tuple(
-        sorted(
-            best_by_model.values(),
-            key=lambda item: _first_rank(item[0], item[1], candidate_rank),
-        )[:5]
-    )
+    eligible, selected = _select_m6_seed_candidates(tuple(packed), candidate_rank)
+    selected_hypothesis_ids = {hypothesis.hypothesis_id for _, hypothesis in selected}
     output = output_directory.resolve()
     output.mkdir(parents=True, exist_ok=False)
     all_results = output / "first-copy-results"
@@ -1814,21 +1865,36 @@ def run_m6_select_seeds_task(
         seeds_jsonl,
         "".join(f"{json.dumps(row, sort_keys=True)}\n" for row in rows),
     )
+    advancement_path = output / "seed_advancement.jsonl"
+    advancement_rows = _m6_seed_advancement_rows(
+        case_id,
+        eligible,
+        selected_hypothesis_ids,
+        candidate_rank,
+    )
+    atomic_write_text(
+        advancement_path,
+        "".join(f"{canonical_json_text(row)}\n" for row in advancement_rows),
+    )
     atomic_write_json(
         output / "seed_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-seeds-v1",
+            "adapter_version": _SEED_ADAPTER,
             "case_id": case_id,
             "first_copy_attempt_count": len(attempts),
+            "advancement_eligible_count": len(eligible),
+            "advancement_deferred_count": len(eligible) - len(selected),
             "selected_seed_count": len(selected),
             "typed_outcome": (None if selected else "completed_no_credible_seed"),
             "all_first_copy_attempts_retained": True,
+            "all_advancement_eligible_hypotheses_retained": True,
+            "copy_count_advancement_preference": "none",
         },
     )
     _write_bundle_manifest(
         output,
-        adapter="m6-nextflow-seeds-v1",
+        adapter=_SEED_ADAPTER,
         kind="seed_selection",
         task_id=case_id,
         inputs={
@@ -1841,6 +1907,7 @@ def run_m6_select_seeds_task(
         outputs={
             "seed_plan": output / "seed_plan.json",
             "seed_tasks": seeds_jsonl,
+            "seed_advancement": advancement_path,
         },
     )
     return output
@@ -1858,27 +1925,33 @@ def run_m6_empty_seeds_task(case_bundle: Path, output_directory: Path) -> Path:
     (output / "first-copy-results").mkdir()
     (output / "seed_tasks").mkdir()
     atomic_write_text(output / "seed_tasks.jsonl", "")
+    atomic_write_text(output / "seed_advancement.jsonl", "")
     atomic_write_json(
         output / "seed_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-seeds-v1",
+            "adapter_version": _SEED_ADAPTER,
             "case_id": plan.case_id,
             "first_copy_attempt_count": 0,
+            "advancement_eligible_count": 0,
+            "advancement_deferred_count": 0,
             "selected_seed_count": 0,
             "typed_outcome": plan.early_outcome or "completed_no_credible_seed",
             "all_first_copy_attempts_retained": True,
+            "all_advancement_eligible_hypotheses_retained": True,
+            "copy_count_advancement_preference": "none",
         },
     )
     _write_bundle_manifest(
         output,
-        adapter="m6-nextflow-seeds-v1",
+        adapter=_SEED_ADAPTER,
         kind="seed_selection",
         task_id=plan.case_id,
         inputs={"case_plan": case / "case_plan.json"},
         outputs={
             "seed_plan": output / "seed_plan.json",
             "seed_tasks": output / "seed_tasks.jsonl",
+            "seed_advancement": output / "seed_advancement.jsonl",
         },
     )
     return output

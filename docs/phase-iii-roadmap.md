@@ -327,6 +327,17 @@ checksums remain in the trusted source inventory. The explicit map-only edge
 cases are unchanged. No M6 run has been launched, so operational/leakage
 acceptance remains pending.
 
+Status: the local `DEV-P1-06` advancement correction is implemented. Every
+packing-eligible first-copy hypothesis now remains in a deterministic seed
+advancement inventory, including alternative copy counts for the same model.
+The unchanged five-seed cap is applied only after ordering by retained LLG,
+TFZ, and candidate-rank evidence; copy count is not a ranking or replacement
+criterion, and the immutable hypothesis ID is only the final deterministic
+tie-break. Selected and cap-deferred alternatives remain explicit, input-order
+permutations produce identical inventories, and the changed seed semantics use
+adapter/cache identity `m6-nextflow-seeds-v2`. M6 execution and acceptance
+remain pending the other PH6 stop gates.
+
 Add a locked offline wheel build, isolated install, both entry points, packaged
 schemas, and version parity. Remove or migrate legacy nested thread-pool
 benchmark execution. Repeat the adverse review before release.
