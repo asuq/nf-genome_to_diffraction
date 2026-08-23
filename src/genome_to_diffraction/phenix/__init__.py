@@ -1,6 +1,11 @@
 """External Phenix installation, verification, and isolated execution."""
 
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
+from genome_to_diffraction.phenix.interface_probe import (
+    PhaserInterfaceProbeOutput,
+    PhaserInterfaceProbeRequest,
+    probe_phaser_interface,
+)
 from genome_to_diffraction.phenix.recovery import (
     RecoveryRequest,
     recover_failed_install,
@@ -20,11 +25,14 @@ __all__ = [
     "REQUIRED_COMMANDS",
     "InstallRequest",
     "MatthewsReferenceExecution",
+    "PhaserInterfaceProbeOutput",
+    "PhaserInterfaceProbeRequest",
     "RecoveryRequest",
     "capture_matthews_reference_from_manifest",
     "execute_from_manifest",
     "inspect_runtime",
     "install_phenix",
+    "probe_phaser_interface",
     "recover_failed_install",
     "validate_manifest_environment",
     "verified_runtime_identity_sha256",

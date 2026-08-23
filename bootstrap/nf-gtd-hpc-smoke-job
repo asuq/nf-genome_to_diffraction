@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -170,6 +170,9 @@ finalise() {
     elif [[ "$PROFILE" == heteromer-smoke ]]; then
         reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/qualification/heteromer-multicopy-summary.json","artifacts/qualification/heteromer-catalogue-summary.json","artifacts/qualification/heteromer-control-slice-report.json","artifacts/qualification/heteromer-composition-assessments.jsonl","artifacts/heteromer-smoke/partner/partner_search_result.json","artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json"]'
         retained_json='["artifacts/heteromer-smoke","artifacts/qualification"]'
+    elif [[ "$PROFILE" == phase3-phenix-probe ]]; then
+        reports_json='["artifacts/qualification/phaser-interface-probe.json"]'
+        retained_json='["artifacts/qualification"]'
     elif [[ "$PROFILE" == control-slice ]]; then
         reports_json='["artifacts/qualification/control-slice-summary.json","artifacts/qualification/control-slice-case-results.jsonl","artifacts/qualification/control-slice-first-copy-results.jsonl","artifacts/qualification/control-slice-copy-two-results.jsonl","artifacts/qualification/control-slice-refinement-results.jsonl","artifacts/qualification/control-slice-sequence-results.jsonl"]'
         retained_json='["artifacts/control-slice-inputs","artifacts/control-slice","artifacts/qualification"]'
@@ -1648,6 +1651,66 @@ EOF
     [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
         return 3
     printf 'p2_control_status=both_retained_and_positive_outranks_unrelated_negative\n'
+}
+
+run_phase3_phenix_probe() {
+    local qualification="$RUN/artifacts/qualification"
+    local legacy_manifest refreshed_manifest expected_manifest_sha256
+    local gtd checksums_tmp candidate checksum relative
+
+    [[ -f "$RUN/state/phenix-manifest" && \
+       -f "$RUN/state/phenix-manifest-sha256" ]] || return 2
+    legacy_manifest="$(<"$RUN/state/phenix-manifest")"
+    expected_manifest_sha256="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$legacy_manifest" =~ $SAFE_PATH_RE && \
+       -f "$legacy_manifest" && ! -L "$legacy_manifest" && \
+       "$expected_manifest_sha256" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$legacy_manifest" | awk '{print $1}')" == \
+       "$expected_manifest_sha256" ]] || return 2
+    gtd="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    [[ -x "$gtd" ]] || return 2
+    mkdir -p "$qualification"
+
+    PHASE=preflight
+    printf 'phase=phase3_phenix_manifest_verify profile=phase3-phenix-probe\n'
+    refreshed_manifest="$qualification/phase3-phenix-manifest.json"
+    "$gtd" --log-format json --no-progress phenix refresh-manifest \
+        --manifest "$legacy_manifest" \
+        --output "$refreshed_manifest" \
+        --verification-log "$qualification/phase3-phenix-verification.log" \
+        --no-command-timeout
+
+    PHASE=test
+    printf 'phase=phase3_phaser_interface_probe profile=phase3-phenix-probe\n'
+    "$gtd" --log-format json --no-progress phenix probe-phaser-interface \
+        --manifest "$refreshed_manifest" \
+        --outdir "$qualification/phaser-interface" \
+        --command-timeout-seconds 300
+    cp -- "$qualification/phaser-interface/phaser-interface-probe.json" \
+        "$qualification/phaser-interface-probe.json"
+    cp -- "$qualification/phaser-interface/phenix-phaser-show-defaults.txt" \
+        "$qualification/phenix-phaser-show-defaults.txt"
+
+    checksums_tmp="$qualification/phase3-phenix-probe-checksums.sha256.tmp.$$"
+    : > "$checksums_tmp"
+    for candidate in \
+        "$qualification/phase3-phenix-manifest.json" \
+        "$qualification/phase3-phenix-verification.log" \
+        "$qualification/phaser-interface-probe.json" \
+        "$qualification/phenix-phaser-show-defaults.txt"; do
+        checksum="$(sha256sum "$candidate" | awk '{print $1}')"
+        relative="${candidate#"$RUN/"}"
+        printf '%s  %s\n' "$checksum" "$relative" >> "$checksums_tmp"
+    done
+    mv -f -- "$checksums_tmp" \
+        "$qualification/phase3-phenix-probe-checksums.sha256"
+
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == \
+       "$(<"$RUN/state/commit")" ]] || return 3
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
+        return 3
+    printf 'phase3_phenix_probe_status=defaults_captured_no_scientific_execution\n'
 }
 
 run_heteromer_smoke() {
@@ -3903,6 +3966,7 @@ case "$PROFILE" in
     p2-diverse) run_p2_diverse ;;
     p2-control) run_p2_control ;;
     heteromer-smoke) run_heteromer_smoke ;;
+    phase3-phenix-probe) run_phase3_phenix_probe ;;
     control-slice) run_control_slice ;;
     control-matrix) run_control_matrix ;;
     m6-inputs) run_m6_inputs ;;

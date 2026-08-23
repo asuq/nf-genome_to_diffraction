@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -847,20 +847,22 @@ stage_run_common() {
     local heteromer_checksums heteromer_tmp
     local heteromer_phenix_manifest="" heteromer_phenix_sha256=""
     local heteromer_phenix_json="null"
+    local phase3_probe_phenix_json="null"
     local candidate coordinate_count hit_count
     local source_archive=false source_archive_sha256="" source_archive_size=""
     local expected_submodule_commit="" source_archive_json="null"
     local m6_site_contract_json="null"
     local -a p0_values=() heteromer_p6_values=()
 
-    if [[ "$profile" == heteromer-smoke ]]; then
+    if [[ "$profile" == heteromer-smoke || \
+          "$profile" == phase3-phenix-probe ]]; then
         [[ "$#" -eq 8 || "$#" -eq 11 ]] || \
-            fail wrapper_failure "heteromer stage expects its fixed Phenix binding"
+            fail wrapper_failure "Phenix-bound stage expects its fixed manifest"
         heteromer_phenix_manifest="$7"
         heteromer_phenix_sha256="$8"
         [[ "$heteromer_phenix_manifest" =~ $SAFE_PATH_RE && \
            "$heteromer_phenix_sha256" =~ $CHECKSUM_RE ]] || \
-            fail wrapper_failure "invalid fixed heteromer Phenix binding"
+            fail wrapper_failure "invalid fixed Phenix binding"
     else
         [[ "$#" -eq 6 || "$#" -eq 9 ]] || \
             fail wrapper_failure "non-heteromer stage received extra arguments"
@@ -868,7 +870,8 @@ stage_run_common() {
 
     if [[ "$#" -eq 9 || "$#" -eq 11 ]]; then
         source_archive=true
-        if [[ "$profile" == heteromer-smoke ]]; then
+        if [[ "$profile" == heteromer-smoke || \
+              "$profile" == phase3-phenix-probe ]]; then
             source_archive_sha256="$9"
             source_archive_size="${10}"
             expected_submodule_commit="${11}"
@@ -1058,21 +1061,27 @@ stage_run_common() {
         append_event "$run" "stage_m6_site_policy_bound"
     fi
 
-    if [[ "$profile" == heteromer-smoke ]]; then
+    if [[ "$profile" == heteromer-smoke || \
+          "$profile" == phase3-phenix-probe ]]; then
         [[ "$SITE_ID" == marmic ]] || \
             fail environment_failure \
-                "fixed heteromer smoke is currently qualified only on Marmic"
+                "fixed Phenix-bound profile is currently qualified only on Marmic"
         [[ -f "$heteromer_phenix_manifest" && \
            ! -L "$heteromer_phenix_manifest" ]] || \
-            fail environment_failure "fixed heteromer Phenix manifest is absent"
+            fail environment_failure "fixed Phenix manifest is absent"
         [[ "$(sha256sum "$heteromer_phenix_manifest" | awk '{print $1}')" == \
            "$heteromer_phenix_sha256" ]] || \
             fail environment_failure "fixed heteromer Phenix manifest changed"
         atomic_text "$run/state/phenix-manifest" "$heteromer_phenix_manifest"
         atomic_text "$run/state/phenix-manifest-sha256" \
             "$heteromer_phenix_sha256"
-        heteromer_phenix_json="\"$heteromer_phenix_sha256\""
-        append_event "$run" "stage_heteromer_phenix_bound"
+        if [[ "$profile" == heteromer-smoke ]]; then
+            heteromer_phenix_json="\"$heteromer_phenix_sha256\""
+            append_event "$run" "stage_heteromer_phenix_bound"
+        else
+            phase3_probe_phenix_json="\"$heteromer_phenix_sha256\""
+            append_event "$run" "stage_phase3_phenix_probe_bound"
+        fi
     fi
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
@@ -1144,6 +1153,7 @@ stage_run_common() {
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == heteromer-smoke || \
+          "$profile" == phase3-phenix-probe || \
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-inputs || "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
@@ -1770,6 +1780,7 @@ PY
   "p2_control_login_stage_sha256": $p2_control_json,
   "heteromer_login_stage_sha256": $heteromer_json,
   "heteromer_phenix_manifest_sha256": $heteromer_phenix_json,
+  "phase3_phenix_probe_manifest_sha256": $phase3_probe_phenix_json,
   "m6_site_contract": $m6_site_contract_json,
   "source_archive_sha256": $source_archive_json,
   "staged_at": "$(now_utc)",
@@ -1791,7 +1802,8 @@ EOF
 }
 
 stage_run() {
-    [[ "$#" -eq 6 || ( "$#" -eq 8 && "$6" == heteromer-smoke ) ]] || \
+    [[ "$#" -eq 6 || ( "$#" -eq 8 && \
+       ( "$6" == heteromer-smoke || "$6" == phase3-phenix-probe ) ) ]] || \
         fail wrapper_failure "stage received an invalid fixed argument set"
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
@@ -1799,7 +1811,8 @@ stage_run() {
 }
 
 stage_archive_run() {
-    [[ "$#" -eq 9 || ( "$#" -eq 11 && "$6" == heteromer-smoke ) ]] || \
+    [[ "$#" -eq 9 || ( "$#" -eq 11 && \
+       ( "$6" == heteromer-smoke || "$6" == phase3-phenix-probe ) ) ]] || \
         fail wrapper_failure "stage-archive received an invalid fixed argument set"
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
@@ -3312,6 +3325,7 @@ collect_run() {
         logs/p2-diverse.log \
         logs/p2-control.log \
         logs/heteromer-smoke.log \
+        logs/phase3-phenix-probe.log \
         logs/m4-copy.log \
         logs/database.log \
         logs/nextflow-first.log \
@@ -3421,6 +3435,11 @@ collect_run() {
         artifacts/qualification/heteromer-smoke-checksums.sha256 \
         artifacts/qualification/heteromer-smoke-phenix-manifest.json \
         artifacts/qualification/heteromer-smoke-phenix-verification.log \
+        artifacts/qualification/phase3-phenix-manifest.json \
+        artifacts/qualification/phase3-phenix-verification.log \
+        artifacts/qualification/phaser-interface-probe.json \
+        artifacts/qualification/phenix-phaser-show-defaults.txt \
+        artifacts/qualification/phase3-phenix-probe-checksums.sha256 \
         artifacts/qualification/control-slice-summary.json \
         artifacts/qualification/control-slice-case-results.jsonl \
         artifacts/qualification/control-slice-first-copy-results.jsonl \

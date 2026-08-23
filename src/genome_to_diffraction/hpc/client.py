@@ -1376,7 +1376,7 @@ class HpcController:
         )
         local_path = record.write(self.config.local_state_root)
         arguments = [run_id, commit, lock_checksum, owner_id, str(iteration), profile]
-        if profile == "heteromer-smoke":
+        if profile in {"heteromer-smoke", "phase3-phenix-probe"}:
             phenix_manifest, phenix_sha256 = _fixed_heteromer_phenix_binding(
                 self.config.repository
             )

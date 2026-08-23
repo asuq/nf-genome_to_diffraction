@@ -10931,3 +10931,40 @@ with a collapsed combined parent or a guessed command.
   stage, and prove exact recombination before replacing this boundary. Do not
   infer chains from order, collapse components, or implement a multi-fixed
   Phaser command from this result.
+
+## 2026-08-23T19:53:27Z - Fixed no-data Phaser interface probe is locally green
+
+### Narrow implementation and evidence
+
+- The official Phaser keyword reference establishes that
+  `XYZOUT ON ENSEMBLE ON` writes one PDB per placed ensemble and maps the
+  second filename ordinal to one exact `SOLU 6DIM` entry. The installed Phenix
+  PHIL mapping remains deliberately unresolved until observed from that exact
+  runtime.
+- Added a fixed `phenix.phaser --show_defaults` probe. It accepts only a
+  checksum-verified Phenix manifest, captures exact output bytes, and writes a
+  path-free content-addressed report over the runtime, executable, command,
+  output checksum, size, and interface-token observations. It supplies no
+  crystallographic input and cannot emit a scientific result.
+- Added the closed `phase3-phenix-probe` managed profile. It exposes no path,
+  executable, command, crystal, model, or threshold argument; uses the frozen
+  Marmic Phenix binding; requests 2 CPUs/8 GB with a 45-minute outer limit; and
+  allow-lists only the refreshed manifest, verification log, defaults output,
+  report, and final checksums.
+- Eighteen Phenix unit tests and 100 focused Phenix/HPC model, CLI, and client
+  tests pass. The dedicated fake managed lifecycle passes fixed stage, submit,
+  execution, terminal classification, and bounded collection. Both Bash
+  wrappers pass syntax checks. The real Marmic probe remains required.
+
+### Command-discipline disclosure and next exact starting point
+
+- One earlier read-only repository inventory command used a pipe to `head`
+  before command discipline was corrected. It caused no mutation, network
+  access, or external action. Every command in this probe slice used one shell
+  command per tool call.
+- Review and integrate the active candidate-generation and unknown-screen stub
+  slices, then run focused combined checks. Commit the coherent local Phase III
+  milestone. Before remote use, obtain an approved branch publication path,
+  run one CI workflow, deploy matching reviewed tools, and execute exactly one
+  `phase3-phenix-probe` on Marmic. Use only its collected defaults to implement
+  the subsequent per-ensemble control adapter; do not guess the PHIL field.

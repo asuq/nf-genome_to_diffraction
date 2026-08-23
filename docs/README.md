@@ -29,6 +29,9 @@ remain authoritative for scientific policy and interface contracts.
   component-specific fixed-coordinate/error evidence, selected candidate,
   diffraction and Free-R binding, and the explicit unqualified multi-fixed
   Phaser syntax boundary.
+- [Phase III Phaser interface probe](phase-iii-phenix-interface-probe.md): fixed
+  no-data Marmic capture of the installed `phenix.phaser --show_defaults`
+  interface before per-ensemble output syntax is used.
 - [Phase III composition-attempt fan-out](phase-iii-composition-attempt-fanout.md):
   complete immutable selected-attempt items, typed empty paths, stub-only
   Nextflow execution, and byte-identical cached-resume evidence.

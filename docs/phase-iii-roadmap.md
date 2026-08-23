@@ -119,6 +119,12 @@ coordinate collapse. The command/parser adapter remains deliberately blocked:
 retained evidence qualifies only one fixed-at-origin ensemble, not the
 multi-fixed partial syntax required for a depth-two-or-higher parent.
 
+A fixed `phase3-phenix-probe` profile now captures only the exact installed
+`phenix.phaser --show_defaults` output under the checksum-frozen Marmic runtime.
+It exposes no paths or command arguments and performs no scientific execution.
+Its local fake lifecycle is green; the real Marmic probe and the subsequent
+known-control `XYZOUT ON ENSEMBLE ON` qualification remain pending.
+
 The isolated complete-item workflow now proves three crystal items can reuse
 one catalogue and one provider preparation through a byte-identical cached
 resume. The composition-attempt boundary additionally binds each selected row

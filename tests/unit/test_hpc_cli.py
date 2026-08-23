@@ -104,6 +104,20 @@ def test_heteromer_smoke_has_only_fixed_stage_and_submit_arguments() -> None:
     assert submitted.profile == "heteromer-smoke"
 
 
+def test_phase3_phenix_probe_exposes_no_runtime_command_or_path() -> None:
+    parser = _build_parser()
+
+    staged = parser.parse_args(["stage", "phase3-phenix-probe", "--revision", "HEAD"])
+    submitted = parser.parse_args(
+        ["submit", "phase3-phenix-probe", "--run-id", "RUN_ID"]
+    )
+
+    assert staged.profile == "phase3-phenix-probe"
+    assert vars(staged)["revision"] == "HEAD"
+    assert not {"path", "command", "manifest", "arguments"} & vars(staged).keys()
+    assert submitted.profile == "phase3-phenix-probe"
+
+
 def test_m4_copy_uses_explicit_checksum_gated_stage() -> None:
     parser = _build_parser()
 

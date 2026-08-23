@@ -143,6 +143,10 @@ from genome_to_diffraction.mr.stage_add_copy import (
 )
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
+from genome_to_diffraction.phenix.interface_probe import (
+    PhaserInterfaceProbeRequest,
+    probe_phaser_interface,
+)
 from genome_to_diffraction.phenix.recovery import (
     RecoveryRequest,
     recover_failed_install,
@@ -420,6 +424,22 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs=argparse.REMAINDER,
         help="exact command and arguments, conventionally after --",
     )
+
+    interface_probe_parser = phenix_actions.add_parser(
+        "probe-phaser-interface",
+        help="capture the fixed installed phenix.phaser --show_defaults interface",
+    )
+    interface_probe_parser.add_argument("--manifest", type=Path, required=True)
+    interface_probe_parser.add_argument("--outdir", type=Path, required=True)
+    interface_probe_timeout = interface_probe_parser.add_mutually_exclusive_group()
+    interface_probe_timeout.add_argument("--command-timeout-seconds", type=float)
+    interface_probe_timeout.add_argument(
+        "--no-command-timeout",
+        dest="command_timeout_seconds",
+        action="store_const",
+        const=None,
+    )
+    interface_probe_parser.set_defaults(command_timeout_seconds=120.0)
 
     database_parser = subparsers.add_parser(
         "databases", help="prepare or verify shared reference databases"
@@ -1770,6 +1790,16 @@ def _run_phenix(args: argparse.Namespace, logger: logging.Logger) -> int:
         if command and command[0] == "--":
             command = command[1:]
         return execute_from_manifest(args.manifest, command)
+    if args.phenix_action == "probe-phaser-interface":
+        output = probe_phaser_interface(
+            PhaserInterfaceProbeRequest(
+                phenix_manifest=args.manifest,
+                output_directory=args.outdir,
+                timeout_seconds=args.command_timeout_seconds,
+            )
+        )
+        print(f"Captured Phaser interface {output.probe_id}: {output.report_json}")
+        return 0
     raise AssertionError(f"unhandled Phenix action: {args.phenix_action}")
 
 

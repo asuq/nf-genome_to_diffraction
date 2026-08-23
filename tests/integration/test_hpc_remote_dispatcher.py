@@ -25,6 +25,9 @@ P2_RUN_ID = "gtd-p2-20260802T120000Z-0123456789ab-01234567"
 P2_DIVERSE_RUN_ID = "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567"
 P2_CONTROL_RUN_ID = "gtd-p2-control-20260802T120000Z-0123456789ab-01234567"
 HETEROMER_RUN_ID = "gtd-heteromer-smoke-20260802T120000Z-0123456789ab-01234567"
+PHASE3_PHENIX_PROBE_RUN_ID = (
+    "gtd-phase3-phenix-probe-20260802T120000Z-0123456789ab-01234567"
+)
 CONTROL_MATRIX_RUN_ID = "gtd-control-matrix-20260802T120000Z-0123456789ab-01234567"
 M6_INPUTS_RUN_ID = "gtd-m6-inputs-20260802T120000Z-0123456789ab-01234567"
 M6_NEXTFLOW_SMOKE_RUN_ID = (
@@ -307,6 +310,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "mode=heteromer_p6_assess ;;\n"
         '  *" benchmark approve-6rtz-parent "*) mode=heteromer_review ;;\n'
         '  *" phenix refresh-manifest "*) mode=phenix_refresh ;;\n'
+        '  *" phenix probe-phaser-interface "*) mode=phenix_interface ;;\n'
         '  *" phenix verify "*) mode=phenix_verify ;;\n'
         '  *" diffraction preflight "*) mode=preflight ;;\n'
         '  *" matthews enumerate "*) mode=matthews ;;\n'
@@ -630,6 +634,14 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  mkdir -p "$(dirname "$verification_log")"\n'
         '  printf "fake Phenix refreshed\\n" > "$verification_log"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$refreshed"\n'
+        'elif [[ "$mode" == phenix_interface ]]; then\n'
+        '  mkdir -p "$outdir"\n'
+        '  printf "phaser { keywords { xyzout { ensemble = False } } }\\n" > '
+        '"$outdir/phenix-phaser-show-defaults.txt"\n'
+        '  printf \'{"schema_version":"1.0","probe_id":'
+        '"phaserinterface_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
+        '"scientific_execution_performed":false}\\n\' > '
+        '"$outdir/phaser-interface-probe.json"\n'
         'elif [[ "$mode" == preflight ]]; then\n'
         '  mkdir -p "$outdir/xtriage"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mtz_preflight.jsonl"\n'
@@ -4338,6 +4350,81 @@ def test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile(
     assert "artifacts/qualification/p2-control-summary.json" in names
     assert "artifacts/qualification/p2-control-commands.jsonl" in names
     assert "artifacts/qualification/p2-control-artifact-sha256.tsv" in names
+
+
+def test_phase3_phenix_probe_is_fixed_and_collectable(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    p0_paths = _write_p0_paths(remote_root)
+    phenix_manifest = Path(p0_paths.read_text(encoding="ascii").splitlines()[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    p0_paths.unlink()
+
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                PHASE3_PHENIX_PROBE_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "phase3-phenix-probe",
+                str(phenix_manifest),
+                phenix_sha256,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert staged["profile"] == "phase3-phenix-probe"
+    run = remote_root / "runs" / PHASE3_PHENIX_PROBE_RUN_ID
+
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", PHASE3_PHENIX_PROBE_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert submitted["profile"] == "phase3-phenix-probe"
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "123"
+    _run(
+        [
+            str(smoke_job),
+            PHASE3_PHENIX_PROBE_RUN_ID,
+            str(remote_root),
+            "phase3-phenix-probe",
+        ],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
+
+    result = json.loads((run / "state/job-result.json").read_text(encoding="utf-8"))
+    assert result["failure_class"] == "success"
+    probe = json.loads(
+        (run / "artifacts/qualification/phaser-interface-probe.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert probe["scientific_execution_performed"] is False
+    assert (run / "artifacts/qualification/phenix-phaser-show-defaults.txt").is_file()
+    assert (
+        run / "artifacts/qualification/phase3-phenix-probe-checksums.sha256"
+    ).is_file()
+
+    archive = _run(
+        [str(dispatcher), "collect", PHASE3_PHENIX_PROBE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    assert "artifacts/qualification/phaser-interface-probe.json" in names
+    assert "artifacts/qualification/phenix-phaser-show-defaults.txt" in names
+    assert "artifacts/qualification/phase3-phenix-probe-checksums.sha256" in names
 
 
 def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(

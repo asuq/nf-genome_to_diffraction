@@ -983,8 +983,9 @@ def test_remote_log_payload_has_a_local_byte_limit(tmp_path: Path) -> None:
         controller.logs(run_id, 200)
 
 
-def test_heteromer_stage_binds_only_the_preserved_phenix_identity(
-    tmp_path: Path,
+@pytest.mark.parametrize("profile", ["heteromer-smoke", "phase3-phenix-probe"])
+def test_phenix_bound_stage_uses_only_the_preserved_runtime_identity(
+    tmp_path: Path, profile: str
 ) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
@@ -1021,12 +1022,12 @@ def test_heteromer_stage_binds_only_the_preserved_phenix_identity(
         encoding="ascii",
     )
 
-    staged = controller.stage("heteromer-smoke", "HEAD")
+    staged = controller.stage(profile, "HEAD")
 
-    assert staged["profile"] == "heteromer-smoke"
+    assert staged["profile"] == profile
     operation, arguments = transport.calls[-1]
     assert operation == "stage"
-    assert arguments[5:] == ("heteromer-smoke", phenix_path, phenix_sha256)
+    assert arguments[5:] == (profile, phenix_path, phenix_sha256)
 
 
 @pytest.mark.parametrize("site_id", ["marmic", "viper-cpu"])
