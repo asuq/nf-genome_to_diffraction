@@ -62,6 +62,14 @@ from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewPackageTarget,
     PhaseIIIReviewTableArtifact,
 )
+from genome_to_diffraction.schemas.v2.unknown_assessment import (
+    UnknownPass1CrystalAssessment,
+    UnknownPass1PanelSummary,
+    UnknownPass1ResidualContentState,
+    UnknownPass1ReviewEvidence,
+    UnknownPass1ScientificStatus,
+    UnknownPass1SolutionEvidence,
+)
 from genome_to_diffraction.schemas.v2.unknown_screen import (
     UnknownPass1AHypothesis,
     UnknownPass1AHypothesisDisposition,
@@ -126,10 +134,16 @@ __all__ = [
     "UnknownPass1AHypothesis",
     "UnknownPass1AHypothesisDisposition",
     "UnknownPass1AHypothesisTask",
+    "UnknownPass1CrystalAssessment",
     "UnknownPass1CrystalBranch",
     "UnknownPass1CrystalItem",
+    "UnknownPass1PanelSummary",
+    "UnknownPass1ResidualContentState",
     "UnknownPass1ReviewBinding",
+    "UnknownPass1ReviewEvidence",
+    "UnknownPass1ScientificStatus",
     "UnknownPass1ScreenInventory",
     "UnknownPass1SharedPreparation",
+    "UnknownPass1SolutionEvidence",
     "diffraction_dataset_id",
 ]

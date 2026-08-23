@@ -11156,3 +11156,38 @@ with a collapsed combined parent or a guessed command.
   immutable `dev/phase3` head after persistent approval, watch its one CI run,
   deploy matching reviewed tools, and run exactly one fixed no-data Phaser
   interface probe on Marmic.
+
+## 2026-08-23T21:00:14Z - Unknown-pass terminal statuses are crystal-isolated
+
+### Narrow status foundation
+
+- Added one standalone schema-v2 assessment that derives the exact seven
+  approved pass-1 endpoints from one crystal's terminal execution, solution,
+  copy, packing, refinement, final Rwork/Rfree, and human-review evidence. It
+  runs no workflow or scientific tool and changes no provider, review-package,
+  report, bootstrap, or HPC path.
+- Credible and partial promotion requires matching package-side and
+  decision-side crystal/item identities at crystallographic, A-seed, and
+  composition checkpoints. Missing, ambiguous, unsupported, or cross-crystal
+  evidence becomes `insufficient_evidence`; one exact crystallographic hold
+  becomes `mtz_or_symmetry_review_required`.
+- Model/provider no-hit stays a completed
+  `no_supported_catalogue_candidate`; input-contract, tool, parse, and
+  infrastructure failures stay `execution_failure`.
+- Added one content-addressed panel record that embeds exactly three complete
+  assessments from one owned execution. It has no global scientific status, so
+  mixed success, no-hit, and failure finalise without sibling promotion.
+
+### Focused evidence and next exact starting point
+
+- Fifteen focused tests cover complete and partial promotion, copy/packing/
+  refinement/final-metric mutations, mismatched and missing review evidence,
+  hold/no-hit/shortlist separation, typed failures, content mutation, cross-run
+  refusal, and the mixed three-crystal panel. Targeted Ruff format/lint and
+  `ty`, schema, documentation, and diff checks pass.
+- One read-only inventory command accidentally used an `rg | head` pipeline
+  before command discipline was corrected. It made no mutation, network
+  request, or external action; every later shell call used exactly one command.
+- Next, consume these assessment records from the owned unknown-run collector
+  and portable report boundary after those exact evidence inventories exist.
+  Do not infer missing reviews or promote historical unknown-crystal results.
