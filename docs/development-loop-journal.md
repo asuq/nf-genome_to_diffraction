@@ -10973,3 +10973,58 @@ with a collapsed combined parent or a guessed command.
   run one CI workflow, deploy matching reviewed tools, and execute exactly one
   `phase3-phenix-probe` on Marmic. Use only its collected defaults to implement
   the subsequent per-ensemble control adapter; do not guess the PHIL field.
+## 2026-08-23T19:38:36Z - Complete component candidate generation is focused-green
+
+### Completed evidence join
+
+- Added one pure-Python, content-addressed candidate-generation inventory that
+  joins every non-parent catalogue sequence group to each of at most three
+  packed parents. It retains exact source identities and counts, four
+  parent-specific copy assessments per row, and explicit localisation,
+  SDS/native-PAGE, Matthews, model-quality, and structural-diversity evidence.
+- Total-composition Matthews evidence uses the complete retained parent mass
+  plus candidate copies 1--4. `plausible` and `review` copies remain eligible;
+  only physical impossibility excludes a copy and low prior alone cannot do so.
+  Two-parent coverage proves different eligible copy sets for the same B.
+- Extended schema-v2 `ComponentSpec` to distinguish exact, bounded, and
+  unavailable sequence mass. A mass-unavailable group now retains four typed
+  unassessed copy rows and zero eligible copies instead of receiving a
+  fabricated mass or disappearing. The planner gives these rows the distinct
+  `unsearchable_physical_evidence` disposition; only an assessed impossible
+  composition may be labelled physically impossible.
+- The complete catalogue, localisation policy, and all-model registry must
+  match exactly. Missing gel and model-ranking evidence is neutral. Unknown,
+  conflicting, and failed localisation remains neutral and first-wave
+  eligible. Explicit localisation exclusions remain complete deferred rows;
+  reopening changes only the dedicated localisation-wave eligibility field and
+  requires the exact supplied complete zero-pack `ActiveWaveCompletion` and its
+  derived reopen plan. Reviewer holds remain a distinct untouched input.
+- Model selection reads every checksum-verified all-eligible registry entry,
+  with separate quality/diversity levels and deterministic raw-quality
+  tie-breaks. A B model outside the 25-model A set is selected without any A
+  shortlist input. No-model groups retain typed non-coordinate placeholders
+  that resolve to registry absence and cannot execute.
+- Candidate rank and planner selection remain scheduling priors only. The
+  generator runs no provider, localisation tool, Nextflow, Phaser, refinement,
+  unknown profile, remote submission, or HPC operation and does not promote a
+  parent beyond its existing support state.
+
+### Validation, limitation, and next exact starting point
+
+- The final focused composition/generator slice passes 46 tests; the complete
+  unit suite passes 838 tests. Typed/schema contract coverage adds 115 passing
+  tests. Locked Ruff formatting/lint, `ty`, schema, documentation, and diff
+  checks pass.
+- The full contract task reached 126 passing tests and two environment-only
+  failures because this isolated worktree has no initialised `external/nf-helper`
+  submodule. No submodule download or update was attempted; the two focused
+  typed/schema contract files pass completely.
+- One read-only inventory command accidentally used an `rg | head` pipeline
+  before command discipline was corrected. It made no mutation, network
+  request, or external-system change; all later shell calls use one command.
+- Integrate this commit into `dev/phase3`, then carry `inventory_id` and the
+  complete rows into the application graph before any live adapter. The v1
+  active-wave/reopen records lack explicit crystal/parent/depth fields, so live
+  wiring must bind their upstream result checksums to the same execution item.
+  Real localisation runtime qualification, multi-fixed Phaser syntax, controls,
+  unknown profiles, and HPC remain separate closed gates.

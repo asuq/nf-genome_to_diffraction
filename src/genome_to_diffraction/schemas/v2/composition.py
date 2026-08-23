@@ -241,7 +241,9 @@ class ComponentSpec(_ContentAddressedContract):
     model_id: NonEmptyString
     model_sha256: Sha256Hex
     requested_copy_count: PositiveInt
-    sequence_mass_da: PositiveFloat
+    sequence_mass_da: PositiveFloat | None = None
+    sequence_mass_lower_da: PositiveFloat | None = None
+    sequence_mass_upper_da: PositiveFloat | None = None
     mass_evidence_sha256: Sha256Hex
     model_evidence_sha256: Sha256Hex
     warnings: tuple[str, ...] = ()
@@ -251,6 +253,28 @@ class ComponentSpec(_ContentAddressedContract):
         if self.sequence_group_id != f"seq_{self.sequence_sha256}":
             raise ValueError(
                 "sequence_group_id does not match the exact sequence digest"
+            )
+        exact = self.sequence_mass_da is not None
+        bounded = (
+            self.sequence_mass_lower_da is not None
+            or self.sequence_mass_upper_da is not None
+        )
+        unavailable = not exact and not bounded
+        if exact and bounded:
+            raise ValueError("component mass cannot be both exact and bounded")
+        if bounded and (
+            self.sequence_mass_lower_da is None or self.sequence_mass_upper_da is None
+        ):
+            raise ValueError("component mass bounds must be supplied together")
+        if (
+            self.sequence_mass_lower_da is not None
+            and self.sequence_mass_upper_da is not None
+            and self.sequence_mass_lower_da > self.sequence_mass_upper_da
+        ):
+            raise ValueError("component mass lower bound exceeds upper bound")
+        if unavailable and "sequence_mass_unavailable" not in self.warnings:
+            raise ValueError(
+                "unavailable component mass requires sequence_mass_unavailable"
             )
         return self
 
@@ -486,7 +510,9 @@ class ExpansionDisposition(StrEnum):
     SELECTED = "selected"
     DEFERRED_DEPTH_BUDGET = "deferred_depth_budget"
     DEFERRED_GLOBAL_BUDGET = "deferred_global_budget"
+    DEFERRED_LOCALISATION_WAVE = "deferred_localisation_wave"
     DEFERRED_REVIEWER = "deferred_reviewer"
+    UNSEARCHABLE_PHYSICAL_EVIDENCE = "unsearchable_physical_evidence"
     UNSEARCHABLE_NO_MODEL = "unsearchable_no_model"
     UNSEARCHABLE_MODEL_IDENTITY = "unsearchable_model_identity"
     EXCLUDED_PHYSICAL_IMPOSSIBLE = "excluded_physical_impossible"
@@ -504,6 +530,7 @@ class CompositionCandidateHypothesis(_ContentAddressedContract):
     rank: PositiveInt
     disposition: ExpansionDisposition
     disposition_reason: NonEmptyString
+    physical_assessed: bool = True
     physical_possible: bool
     model_available: bool
 
@@ -513,17 +540,32 @@ class CompositionCandidateHypothesis(_ContentAddressedContract):
             ExpansionDisposition.SELECTED,
             ExpansionDisposition.DEFERRED_DEPTH_BUDGET,
             ExpansionDisposition.DEFERRED_GLOBAL_BUDGET,
+            ExpansionDisposition.DEFERRED_LOCALISATION_WAVE,
             ExpansionDisposition.DEFERRED_REVIEWER,
-        } and not (self.physical_possible and self.model_available):
+        } and not (
+            self.physical_assessed and self.physical_possible and self.model_available
+        ):
             raise ValueError("selected or deferred hypothesis is not searchable")
+        if not self.physical_assessed and (
+            self.physical_possible
+            or self.disposition
+            is not ExpansionDisposition.UNSEARCHABLE_PHYSICAL_EVIDENCE
+        ):
+            raise ValueError(
+                "unassessed physical evidence requires its typed disposition"
+            )
+        if (
+            self.physical_assessed
+            and self.disposition is ExpansionDisposition.UNSEARCHABLE_PHYSICAL_EVIDENCE
+        ):
+            raise ValueError("unsearchable physical-evidence disposition was assessed")
         if (
             self.disposition is ExpansionDisposition.UNSEARCHABLE_NO_MODEL
             and self.model_available
         ):
             raise ValueError("no-model disposition contradicts model availability")
-        if (
-            self.disposition is ExpansionDisposition.EXCLUDED_PHYSICAL_IMPOSSIBLE
-            and self.physical_possible
+        if self.disposition is ExpansionDisposition.EXCLUDED_PHYSICAL_IMPOSSIBLE and (
+            not self.physical_assessed or self.physical_possible
         ):
             raise ValueError("physically impossible disposition is contradictory")
         return self
@@ -587,6 +629,7 @@ class CompositionExpansionPlan(_ContentAddressedContract):
             in {
                 ExpansionDisposition.DEFERRED_DEPTH_BUDGET,
                 ExpansionDisposition.DEFERRED_GLOBAL_BUDGET,
+                ExpansionDisposition.DEFERRED_LOCALISATION_WAVE,
                 ExpansionDisposition.DEFERRED_REVIEWER,
             }
             for candidate in self.candidates
@@ -776,6 +819,7 @@ class CompositionExpansionDepthPlan(_ContentAddressedContract):
             elif candidate.hypothesis.disposition in {
                 ExpansionDisposition.DEFERRED_DEPTH_BUDGET,
                 ExpansionDisposition.DEFERRED_GLOBAL_BUDGET,
+                ExpansionDisposition.DEFERRED_LOCALISATION_WAVE,
                 ExpansionDisposition.DEFERRED_REVIEWER,
             }:
                 deferred += 1

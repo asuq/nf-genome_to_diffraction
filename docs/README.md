@@ -25,6 +25,10 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III all-eligible model registry](phase-iii-all-model-registry.md):
   cap-independent processed-model universe, content identity, typed absence,
   checksum validation, and authoritative schema-v2 B--F planner binding.
+- [Phase III component candidate generation](phase-iii-candidate-generation.md):
+  complete catalogue/evidence joins, parent-specific copies 1--4,
+  conservative localisation reopen, gel priors, model selection, and retained
+  candidate counts.
 - [Phase III component-expansion execution input](phase-iii-component-expansion-input.md):
   component-specific fixed-coordinate/error evidence, selected candidate,
   diffraction and Free-R binding, and the explicit unqualified multi-fixed

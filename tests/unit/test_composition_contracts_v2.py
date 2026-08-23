@@ -77,6 +77,56 @@ def _placement(
     )
 
 
+def test_component_mass_is_explicitly_exact_bounded_or_unavailable() -> None:
+    common = {
+        "label": "B",
+        "sequence_group_id": f"seq_{HASHES[1]}",
+        "sequence_sha256": HASHES[1],
+        "model_id": "model_mass_forms",
+        "model_sha256": HASHES[10],
+        "requested_copy_count": 1,
+        "mass_evidence_sha256": HASHES[11],
+        "model_evidence_sha256": HASHES[12],
+    }
+    bounded = ComponentSpec.from_content(
+        **common,
+        sequence_mass_lower_da=19_900.0,
+        sequence_mass_upper_da=20_100.0,
+    )
+    unavailable = ComponentSpec.from_content(
+        **common,
+        warnings=("sequence_mass_unavailable",),
+    )
+
+    assert bounded.sequence_mass_da is None
+    assert bounded.sequence_mass_lower_da == 19_900.0
+    assert bounded.sequence_mass_upper_da == 20_100.0
+    assert unavailable.sequence_mass_da is None
+    assert unavailable.sequence_mass_lower_da is None
+    assert unavailable.sequence_mass_upper_da is None
+
+    with pytest.raises(ValidationError, match="both exact and bounded"):
+        ComponentSpec.from_content(
+            **common,
+            sequence_mass_da=20_000.0,
+            sequence_mass_lower_da=19_900.0,
+            sequence_mass_upper_da=20_100.0,
+        )
+    with pytest.raises(ValidationError, match="bounds must be supplied together"):
+        ComponentSpec.from_content(
+            **common,
+            sequence_mass_lower_da=19_900.0,
+        )
+    with pytest.raises(ValidationError, match="mass lower bound exceeds"):
+        ComponentSpec.from_content(
+            **common,
+            sequence_mass_lower_da=20_100.0,
+            sequence_mass_upper_da=19_900.0,
+        )
+    with pytest.raises(ValidationError, match="requires sequence_mass_unavailable"):
+        ComponentSpec.from_content(**common)
+
+
 def _state(
     components: tuple[ComponentSpec, ...],
     placements: tuple[ComponentPlacement, ...],
@@ -292,6 +342,42 @@ def test_expansion_plan_binds_ranking_inventory_and_budgets() -> None:
                     ),
                 ),
             }
+        )
+
+
+def test_unassessed_physical_evidence_has_a_distinct_disposition() -> None:
+    component = _component("B", HASHES[1])
+    unassessed = CompositionCandidateHypothesis.from_content(
+        component=component,
+        rank=1,
+        disposition=ExpansionDisposition.UNSEARCHABLE_PHYSICAL_EVIDENCE,
+        disposition_reason="total-composition mass is unavailable",
+        physical_assessed=False,
+        physical_possible=False,
+        model_available=True,
+    )
+
+    assert not unassessed.physical_assessed
+    assert unassessed.disposition is ExpansionDisposition.UNSEARCHABLE_PHYSICAL_EVIDENCE
+    with pytest.raises(ValidationError, match="requires its typed disposition"):
+        CompositionCandidateHypothesis.from_content(
+            component=component,
+            rank=1,
+            disposition=ExpansionDisposition.EXCLUDED_PHYSICAL_IMPOSSIBLE,
+            disposition_reason="invalid unassessed impossibility",
+            physical_assessed=False,
+            physical_possible=False,
+            model_available=True,
+        )
+    with pytest.raises(ValidationError, match=r"unsearchable physical.*was assessed"):
+        CompositionCandidateHypothesis.from_content(
+            component=component,
+            rank=1,
+            disposition=ExpansionDisposition.UNSEARCHABLE_PHYSICAL_EVIDENCE,
+            disposition_reason="invalid assessed absence",
+            physical_assessed=True,
+            physical_possible=False,
+            model_available=True,
         )
 
 

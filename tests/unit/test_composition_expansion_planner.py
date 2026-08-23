@@ -350,6 +350,43 @@ def test_missing_ranking_evidence_is_explicitly_neutral() -> None:
     )
 
 
+def test_localisation_wave_and_reviewer_holds_remain_distinct() -> None:
+    parent = _parent(1)
+    template = _candidate(1, 2, parent=parent)
+    payload = template.model_dump(
+        mode="python",
+        exclude={"localisation_wave_eligible", "reviewer_allowed"},
+    )
+    wave_held = ComponentExpansionInput(
+        **payload,
+        localisation_wave_eligible=False,
+        reviewer_allowed=True,
+    )
+    reviewer_held = ComponentExpansionInput(
+        **payload,
+        localisation_wave_eligible=True,
+        reviewer_allowed=False,
+    )
+
+    wave_output = build_composition_expansion_plan(
+        CompositionExpansionRequest(parents=(parent,), candidates=(wave_held,))
+    )
+    reviewer_output = build_composition_expansion_plan(
+        CompositionExpansionRequest(parents=(parent,), candidates=(reviewer_held,))
+    )
+
+    assert {
+        candidate.hypothesis.disposition
+        for candidate in wave_output.depth_plan.candidates
+    } == {ExpansionDisposition.DEFERRED_LOCALISATION_WAVE}
+    assert {
+        candidate.hypothesis.disposition
+        for candidate in reviewer_output.depth_plan.candidates
+    } == {ExpansionDisposition.DEFERRED_REVIEWER}
+    assert wave_output.selected_attempts == ()
+    assert reviewer_output.selected_attempts == ()
+
+
 def test_no_physical_hypothesis_is_complete_without_scheduling() -> None:
     parent = _parent(1)
     impossible = _candidate(1, 2, parent=parent, eligible=())
@@ -366,3 +403,35 @@ def test_no_physical_hypothesis_is_complete_without_scheduling() -> None:
     assert {
         candidate.hypothesis.disposition for candidate in output.depth_plan.candidates
     } == {ExpansionDisposition.EXCLUDED_PHYSICAL_IMPOSSIBLE}
+
+
+def test_unassessed_physical_evidence_is_not_labelled_impossible() -> None:
+    parent = _parent(1)
+    template = _candidate(1, 2, parent=parent, eligible=())
+    unassessed = ComponentExpansionInput(
+        **template.model_dump(
+            mode="python",
+            exclude={
+                "physically_assessed_copy_counts",
+                "physically_eligible_copy_counts",
+            },
+        ),
+        physically_assessed_copy_counts=(),
+        physically_eligible_copy_counts=(),
+    )
+    output = build_composition_expansion_plan(
+        CompositionExpansionRequest(parents=(parent,), candidates=(unassessed,))
+    )
+
+    assert output.selected_attempts == ()
+    assert output.depth_plan.physical_hypothesis_count == 0
+    assert {
+        candidate.hypothesis.disposition for candidate in output.depth_plan.candidates
+    } == {ExpansionDisposition.UNSEARCHABLE_PHYSICAL_EVIDENCE}
+    assert all(
+        not candidate.hypothesis.physical_assessed
+        and not candidate.hypothesis.physical_possible
+        and "Matthews evidence is unavailable"
+        in candidate.hypothesis.disposition_reason
+        for candidate in output.depth_plan.candidates
+    )

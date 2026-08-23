@@ -163,7 +163,11 @@ planner shares one 25-attempt budget across at most three parents, preserves
 every disposition, enforces the 100-attempt global bound, and binds the
 independent all-model registry without consulting the A shortlist. A stub-only
 Nextflow fan-out now proves exact complete task identities and resume caching;
-live Phaser execution remains a separate pending slice.
+live Phaser execution remains a separate pending slice. The pure-Python
+candidate generator now supplies complete parent/catalogue rows with four
+parent-specific total-composition copy assessments, typed gel/localisation
+priors, cap-independent model selection, quality/diversity evidence, and exact
+retained counts.
 
 Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
 After review approval of at most three A states, automatically expand through
@@ -198,7 +202,8 @@ typed blocked DeepTMHMM result per sequence group, requires exact result coverag
 retains all first-wave exclusions, and gates deterministic reopen on a complete
 zero-pack active wave. DeepTMHMM remains `blocked_unverified_cli` until the supplied
 image exposes a verifiable local entrypoint/output format. Composition-planner
-consumption and real runtime/profile qualification remain pending.
+consumption is now implemented through the complete candidate-generation
+inventory; real runtime/profile qualification remains pending.
 
 Run checksum-pinned local PSORTb 3.0.6 with its archaeal model and DeepTMHMM
 1.0 from a user-provided academic runtime image. Record runtime/image digests,

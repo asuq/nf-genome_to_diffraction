@@ -6,7 +6,9 @@ assessment work.  ``selected`` means only that an attempt may be scheduled;
 packing, LLG, TFZ, and selection never promote identity or composition support.
 
 Inputs explicitly enumerate component copy hypotheses 1--4 and identify which
-copy counts are physically possible.  Missing ranking evidence is neutral.
+copy counts were physically assessed and which are possible. Missing physical
+evidence remains typed unsearchable rather than physically impossible; missing
+ranking evidence is neutral.
 Every non-parent hypothesis is retained with a selected, deferred, or
 unsearchable reason.  Searchable hypotheses are allocated in deterministic
 diagonal rounds across candidate rank and copy count, with parent rank as the
@@ -157,21 +159,27 @@ class ComponentExpansionInput(ContractModel):
     """One parent-bound catalogue candidate with copy and ranking evidence.
 
     ``component_specs`` must contain the same proposed component at copy counts
-    1, 2, 3, and 4.  ``physically_eligible_copy_counts`` is the independently
-    supplied total-composition Matthews/mass decision for ``parent_state_id``;
-    the planner never infers it from scores.
+    1, 2, 3, and 4.  ``physically_assessed_copy_counts`` distinguishes an
+    assessed impossible copy from missing physical evidence, while
+    ``physically_eligible_copy_counts`` is the independently supplied
+    total-composition Matthews/mass decision for ``parent_state_id``; the
+    planner never infers either state from scores.
     ``model_available`` refers to verified runtime availability of the model
     named by the specifications.  The authoritative registry adapter derives
     it and attaches one typed resolution per copy; a missing artefact remains a
-    typed unsearchable hypothesis.
+    typed unsearchable hypothesis. ``localisation_wave_eligible`` and
+    ``reviewer_allowed`` are independent scheduling gates and cannot substitute
+    for one another.
     """
 
     parent_state_id: CompositionStateIdentifier
     candidate_rank: PositiveInt
     component_specs: tuple[ComponentSpec, ...] = Field(min_length=4, max_length=4)
+    physically_assessed_copy_counts: tuple[CopyCount, ...] = _COPY_COUNTS
     physically_eligible_copy_counts: tuple[CopyCount, ...] = ()
     model_available: bool = True
     model_identity_supported: bool = True
+    localisation_wave_eligible: bool = True
     reviewer_allowed: bool = True
     model_provider: NonEmptyString | None = None
     model_variant_type: NonEmptyString | None = None
@@ -194,6 +202,16 @@ class ComponentExpansionInput(ContractModel):
             raise ValueError(
                 "physically eligible copy counts must be sorted and unique"
             )
+        if tuple(sorted(set(self.physically_assessed_copy_counts))) != (
+            self.physically_assessed_copy_counts
+        ):
+            raise ValueError(
+                "physically assessed copy counts must be sorted and unique"
+            )
+        if not set(self.physically_eligible_copy_counts) <= set(
+            self.physically_assessed_copy_counts
+        ):
+            raise ValueError("physically eligible copy counts must have an assessment")
 
         first = self.component_specs[0]
         invariant_fields = (
@@ -203,6 +221,8 @@ class ComponentExpansionInput(ContractModel):
             "model_id",
             "model_sha256",
             "sequence_mass_da",
+            "sequence_mass_lower_da",
+            "sequence_mass_upper_da",
             "mass_evidence_sha256",
             "model_evidence_sha256",
         )
@@ -214,6 +234,17 @@ class ComponentExpansionInput(ContractModel):
                 raise ValueError(
                     "copy hypotheses must describe one invariant component/model"
                 )
+        mass_unavailable = (
+            first.sequence_mass_da is None
+            and first.sequence_mass_lower_da is None
+            and first.sequence_mass_upper_da is None
+        )
+        if mass_unavailable and (
+            self.physically_assessed_copy_counts or self.physically_eligible_copy_counts
+        ):
+            raise ValueError(
+                "mass-unavailable candidate cannot carry assessed or eligible copies"
+            )
         if self.model_resolutions:
             resolution_by_spec = {
                 resolution.component_spec_id: resolution
@@ -468,6 +499,11 @@ def _base_disposition(
     component: ComponentSpec,
 ) -> tuple[ExpansionDisposition | None, str | None]:
     evidence = _evidence_reason(candidate)
+    if component.requested_copy_count not in candidate.physically_assessed_copy_counts:
+        return (
+            ExpansionDisposition.UNSEARCHABLE_PHYSICAL_EVIDENCE,
+            f"total-composition Matthews evidence is unavailable; {evidence}",
+        )
     if component.requested_copy_count not in candidate.physically_eligible_copy_counts:
         return (
             ExpansionDisposition.EXCLUDED_PHYSICAL_IMPOSSIBLE,
@@ -483,6 +519,11 @@ def _base_disposition(
             ExpansionDisposition.UNSEARCHABLE_MODEL_IDENTITY,
             "model identity cannot be bound to the supplied sequence group; "
             f"{evidence}",
+        )
+    if not candidate.localisation_wave_eligible:
+        return (
+            ExpansionDisposition.DEFERRED_LOCALISATION_WAVE,
+            f"localisation policy holds this scheduling wave; {evidence}",
         )
     if not candidate.reviewer_allowed:
         return (
@@ -809,6 +850,10 @@ def build_composition_expansion_plan(
                 rank=rank,
                 disposition=disposition,
                 disposition_reason=reason,
+                physical_assessed=(
+                    proposal.component.requested_copy_count
+                    in proposal.candidate.physically_assessed_copy_counts
+                ),
                 physical_possible=(
                     proposal.component.requested_copy_count
                     in proposal.candidate.physically_eligible_copy_counts
@@ -836,6 +881,7 @@ def build_composition_expansion_plan(
         in {
             ExpansionDisposition.DEFERRED_DEPTH_BUDGET,
             ExpansionDisposition.DEFERRED_GLOBAL_BUDGET,
+            ExpansionDisposition.DEFERRED_LOCALISATION_WAVE,
             ExpansionDisposition.DEFERRED_REVIEWER,
         }
         for item in depth_candidates
