@@ -282,6 +282,18 @@ cached resume. The stub exposes no scientific
 paths, crystal selectors, thresholds, remote profile, or live Phaser execution;
 it is not an operator-data analysis or an unknown-screen qualification.
 
+A separate tool-free local collector now consumes exactly three schema-v2
+terminal assessments from one owned execution plus their checksum-declared
+per-crystal command/result/evidence allow-lists. It independently re-derives
+assessment IDs and statuses, refuses missing, duplicate, cross-crystal,
+symlinked, unsafe, mutated, or unexpected evidence, and publishes canonical
+assessment JSONL, one panel summary, per-crystal and cross-crystal checksum
+manifests, and a minimal portable HTML status table. Mixed and uncertain
+endpoints remain independently typed, and the report explicitly makes no
+identity, composition, or validation claim beyond each assessment. Live
+unknown-screen production of these terminal inputs and remote collection remain
+pending.
+
 Valid pass-1 endpoints are:
 
 - `credible_single_component_solution`;

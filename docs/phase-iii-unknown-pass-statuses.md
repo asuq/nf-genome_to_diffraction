@@ -1,6 +1,7 @@
 # Phase III unknown-pass terminal status contract
 
-Status: local schema-v2 foundation; workflow and report wiring remain pending.
+Status: local schema-v2 assessment and checksum-closed collector foundation;
+live workflow wiring remains pending.
 
 ## Purpose and boundary
 
@@ -52,7 +53,28 @@ owned execution. Its `panel_id` binds every assessment and exact terminal status
 The panel has only `terminal_complete`, never a panel-wide scientific status, so
 a credible sibling cannot promote a no-hit, held, or failed crystal.
 
-Focused mutation and mixed-panel coverage is in
-`tests/unit/test_unknown_pass1_assessment_v2.py`. Live unknown workflow wiring,
-review-package generation, provider composition, and report publication remain
-separate milestones.
+## Local collection boundary
+
+`collect_unknown_pass1_panel` accepts exactly the three fixed operator-crystal
+assessment records and an explicit per-crystal command/result/evidence
+allow-list. It reloads each assessment through strict JSON-mode validation,
+re-derives its content identifier and scientific status, requires one shared
+owned-run and execution identity, and requires every checksum referenced by the
+assessment to occur in that crystal's allow-list.
+
+Only checksum- and size-matched regular non-symlink files below the input root
+are copied. Missing, duplicate, cross-crystal, unsafe, mutated, or symlinked
+evidence and a non-empty output directory fail before publication. A successful
+collection contains canonical assessments JSONL, the panel summary, one
+per-crystal checksum manifest, one cross-crystal checksum manifest, the exact
+copied allow-list, and a static HTML table. The HTML explicitly states that the
+unknowns are exploratory rather than validation and mirrors each typed endpoint
+without adding an identity or composition claim.
+
+Assessment mutation and mixed-panel coverage is in
+`tests/unit/test_unknown_pass1_assessment_v2.py`. Collector coverage in
+`tests/unit/test_unknown_pass1_collection.py` includes credible/no-hit/failure
+and uncertain mixed panels, missing and cross-crystal evidence, checksum drift,
+unsafe paths, symlinks, non-empty output, and byte-identical input permutation.
+Live unknown workflow wiring, review-package generation, provider composition,
+and remote collection remain separate milestones.

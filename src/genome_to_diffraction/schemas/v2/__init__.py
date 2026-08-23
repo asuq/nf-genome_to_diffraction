@@ -74,6 +74,12 @@ from genome_to_diffraction.schemas.v2.unknown_assessment import (
     UnknownPass1ScientificStatus,
     UnknownPass1SolutionEvidence,
 )
+from genome_to_diffraction.schemas.v2.unknown_collection import (
+    UnknownPass1CollectedFile,
+    UnknownPass1CollectedFileKind,
+    UnknownPass1CrossChecksumManifest,
+    UnknownPass1CrystalChecksumManifest,
+)
 from genome_to_diffraction.schemas.v2.unknown_screen import (
     UnknownPass1AHypothesis,
     UnknownPass1AHypothesisDisposition,
@@ -140,8 +146,12 @@ __all__ = [
     "UnknownPass1AHypothesis",
     "UnknownPass1AHypothesisDisposition",
     "UnknownPass1AHypothesisTask",
+    "UnknownPass1CollectedFile",
+    "UnknownPass1CollectedFileKind",
+    "UnknownPass1CrossChecksumManifest",
     "UnknownPass1CrystalAssessment",
     "UnknownPass1CrystalBranch",
+    "UnknownPass1CrystalChecksumManifest",
     "UnknownPass1CrystalItem",
     "UnknownPass1PanelSummary",
     "UnknownPass1ResidualContentState",

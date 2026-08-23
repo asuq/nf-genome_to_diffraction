@@ -11597,3 +11597,38 @@ with a collapsed combined parent or a guessed command.
   retired control-slice or control-matrix profiles. Continue with the remaining
   PH1/PH6 gates and run operational M6 only after all documented stop gates and
   the named integration gate pass.
+
+## 2026-08-23 - Unknown-pass terminal panels are checksum-reconstructible locally
+
+### Focused PH3-P1-04/06/08 collection boundary
+
+- A prototype-small local collector now accepts exactly the three fixed Phase
+  III unknown-crystal schema-v2 assessments from one owned execution and their
+  explicit per-crystal command/result/evidence allow-lists. It independently
+  re-derives each assessment content ID and terminal status and requires every
+  assessment-referenced digest in the same crystal's allow-list.
+- Only checksum- and size-matched regular non-symlink sources are copied. Unsafe,
+  missing, duplicate, cross-crystal, mutated, symlinked, or unexpected evidence
+  and non-empty output fail closed. Successful output contains canonical JSONL,
+  one panel summary, per-crystal manifests, one cross manifest, and a minimal
+  static HTML table that states the exploratory/non-validation boundary and
+  makes no additional identity or composition claim.
+- Focused assessment/collector coverage passes 20 tests, including a credible
+  solution plus scientific no-hit plus parser-failure panel, uncertain terminal
+  mixtures, evidence mutation/absence, cross-crystal reuse, unsafe paths,
+  symlinks, non-empty output, and byte-identical input permutation. Targeted
+  Ruff formatting/lint and `ty` checks pass.
+
+### Scope and next exact starting point
+
+- This is a local collection contract, not an unknown-screen run, remote
+  collector, operator-data report, or scientific answer. No workflow, provider,
+  Phaser, M6, bootstrap/HPC, private input, threshold, or remote service changed
+  or ran.
+- Integrate this focused commit into `dev/phase3`. Next wire only run-owned live
+  terminal assessment outputs and their exact collected allow-list into this
+  boundary after the corresponding unknown workflow/profile gates pass.
+- Two early read-only inventory commands in this loop accidentally used a shell
+  pipe (`rg --files | sort` and `rg | head`). They made no mutation, network
+  request, scheduler action, or external-system change; all subsequent shell
+  calls returned to exactly one uncombined command per tool call.
