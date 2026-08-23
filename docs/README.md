@@ -6,6 +6,8 @@ remain authoritative for scientific policy and interface contracts.
 
 ## Available documents
 
+- [v0.2.0 release notes](releases/v0.2.0.md): experimental two-component scope,
+  known control outcomes, interpretation limits, and deferred hardening.
 - [v0.1.0 release notes](releases/v0.1.0.md): explicit archival release scope,
   included capabilities, known incompleteness, and the v0.2 pivot.
 - [Full-program roadmap](full-program-roadmap.md): programme phases from the

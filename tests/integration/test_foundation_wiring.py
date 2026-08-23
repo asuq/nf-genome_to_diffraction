@@ -18,7 +18,7 @@ def test_module_cli_version() -> None:
         capture_output=True,
         text=True,
     )
-    assert result.stdout.strip() == "0.2.0.dev0"
+    assert result.stdout.strip() == "0.2.0"
 
 
 @pytest.mark.integration

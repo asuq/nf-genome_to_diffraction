@@ -4,11 +4,12 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+## 0.2.0 - 2026-08-23
+
 ### Changed
 
-- Started the `0.2.0.dev0` development line for the bounded two-component
-  heteromer prototype. The immutable `v0.1.0` archival release remains
-  unchanged.
+- Completed the bounded two-component heteromer prototype as experimental
+  `v0.2.0`. The immutable `v0.1.0` archival release remains unchanged.
 
 ### Added
 
@@ -48,6 +49,12 @@ All notable changes to this project are documented here.
   RefSeq FASTA from the static NCBI FTP route, imports all exact sequence
   groups, supplies only the accepted HisH model, and extends the existing
   Marmic smoke with full-catalogue plan/result/count gates.
+- A fixed P6-v2 control slice checksum-binds the exact 6RTZ/3U7Q parents,
+  models, MTZs, full 1,846-sequence catalogue, and 1,845-row missing-B
+  universe. It exercises the zero-partner Nextflow channel, retains packed
+  wrong-B placement strictly as `search_evidence_only`, and derives the 9ECN
+  `unsupported_component_count` boundary through typed scope and composition
+  assessments.
 
 ## 0.1.0 - 2026-08-19
 

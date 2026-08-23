@@ -8,11 +8,10 @@ repairs and accepts M6, generalises composition states to `A+B+C+...`, and runs
 the three operator crystals as exploratory applications rather than validation
 truth.
 
-Development may proceed on `dev/phase3` while the exact v0.2 release validation
-continues on `main`. The two histories must remain isolated until v0.2 is tagged.
-No Phase III real-data, M6, or unknown-crystal run may reinterpret or reuse the
-active v0.2 P6 run. Rebase or merge the final immutable v0.2 release into this
-branch before the first Phase III integration/HPC gate.
+Experimental `v0.2.0` is immutable at exact-source Marmic-qualified commit
+`68d216f`. The `dev/phase3` history now includes that release boundary. No Phase
+III real-data, M6, or unknown-crystal run may reinterpret or reuse the v0.2 P6
+run; each requires its own fixed profile and Phase III acceptance evidence.
 
 The application records support arbitrary ordered component lists. Fixed Phase
 III execution is bounded to six distinct components, three retained parent

@@ -1,10 +1,9 @@
 # Phase III finding ledger
 
-Status: branch baseline prepared from `main` at `24f733c` while the corrected
-P6-v2 Marmic replay remains non-terminal. Update a row only with a named
-regression and an immutable evidence pointer. `Fixed` means the source contains
-the correction; it does not by itself establish the later Phase III release
-gate.
+Status: active Phase III ledger after immutable experimental release `v0.2.0`.
+Update a row only with a named regression and immutable evidence pointer.
+`Fixed` means the source contains the correction; it does not by itself
+establish the later Phase III release gate.
 
 ## Original 2026-08-17 review
 
