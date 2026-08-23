@@ -10714,3 +10714,27 @@ uncertainty. Keep `dev/phase3` local until an approved branch-push command is
 available. Next, close the trusted owned-run-registry/package generators and
 complete-item execution wiring before defining or launching any Phase III HPC
 profile or unknown-crystal analysis.
+
+## 2026-08-23 - Complete Phase III execution identity is explicit
+
+### Completed PIPE-P1-01 contract slice
+
+- Added a path-free content-addressed execution identity covering raw catalogue
+  FAA and annotation, every crystal MTZ, database inventories, source commit and
+  tree, nf-helper, Pixi lock, execution policy, all seven required Phenix
+  executables, and adapter versions. Remote sequence submission and compute-node
+  network access are fixed false in this identity.
+- Inventories must be unique and canonical. Every catalogue requires both its
+  raw proteome and annotation identity; every crystal requires its MTZ; missing
+  Phenix tools fail closed. Mutating each raw/environment/tool/adapter surface
+  changes the execution identity.
+- Ten focused tests pass with targeted Ruff and `ty`. This closes the identity
+  contract only. The complete-item Nextflow slice must carry the identity into
+  process/cache keys and prove observed selective reruns before `PIPE-P1-01` can
+  be marked fixed.
+
+### Next exact starting point
+
+Integrate the execution identity into the selected composition-attempt fan-out
+and later unknown-screen items. Do not claim cache invalidation from an identity
+record that a process does not yet consume.

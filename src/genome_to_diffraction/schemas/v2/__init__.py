@@ -37,6 +37,11 @@ from genome_to_diffraction.schemas.v2.diffraction import (
     FreeRMembershipComparison,
     diffraction_dataset_id,
 )
+from genome_to_diffraction.schemas.v2.execution import (
+    ExecutionArtifactIdentity,
+    ExecutionToolIdentity,
+    PhaseIIIExecutionIdentity,
+)
 from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecision,
@@ -69,6 +74,8 @@ __all__ = [
     "DiffractionCommandConsumer",
     "DiffractionSelection",
     "DiffractionValueSource",
+    "ExecutionArtifactIdentity",
+    "ExecutionToolIdentity",
     "ExpansionDisposition",
     "FreeRConventionStatus",
     "FreeRDistributionSummary",
@@ -76,6 +83,7 @@ __all__ = [
     "FreeRIdentity",
     "FreeRMembershipComparison",
     "ModelUnavailableReason",
+    "PhaseIIIExecutionIdentity",
     "PhaseIIIReviewCheckpoint",
     "PhaseIIIReviewDecision",
     "PhaseIIIReviewDecisionFile",

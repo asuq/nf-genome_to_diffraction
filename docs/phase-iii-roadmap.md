@@ -64,6 +64,13 @@ candidate-level typed sequence-map parse failure are implemented on
 `dev/phase3`. The remaining PH1 boundaries are still open or partial as
 recorded in the finding ledger.
 
+One schema-v2 `PhaseIIIExecutionIdentity` now binds every raw catalogue FAA and
+annotation, crystal MTZ, database inventory, source commit/tree, nf-helper,
+Pixi lock, execution policy, required Phenix executable, and adapter version
+without retaining machine paths. Independent mutation tests change the identity
+for each surface and refuse missing annotations, MTZs, or Phenix commands.
+Nextflow task/cache consumption and observed selective reruns remain pending.
+
 The all-eligible model registry is now separated from the A-search execution
 cap. It retains every validated catalogue sequence-group/model/provider/variant
 and typed no-model inventories under one deterministic content identity. The
