@@ -27,6 +27,7 @@ _FIXTURE_MAP = {
     "database_manifest.schema.json": Path(
         "tests/fixtures/stubs/database_manifest.json"
     ),
+    "gel_evidence_manifest.schema.json": Path("examples/gel_evidence_manifest.json"),
     "mr_hypothesis.schema.json": Path("tests/fixtures/stubs/mr_hypothesis.json"),
     "phenix_install_manifest.schema.json": Path(
         "tests/fixtures/stubs/phenix_install_manifest.json"
@@ -51,6 +52,8 @@ _TYPED_FIXTURES = (
     ("catalogue-manifest", Path("examples/catalogues.tsv")),
     ("crystal-manifest", Path("examples/crystal_manifest.json")),
     ("crystal-manifest", Path("examples/crystals.tsv")),
+    ("gel-evidence-manifest", Path("examples/gel_evidence_manifest.json")),
+    ("gel-evidence-manifest", Path("examples/gel_evidence.tsv")),
     ("pipeline-config", Path("examples/config.yaml")),
     ("provider-execution-plan", Path("examples/provider_plan.json")),
     ("database-manifest", Path("tests/fixtures/stubs/database_manifest.json")),

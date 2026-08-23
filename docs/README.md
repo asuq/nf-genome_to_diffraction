@@ -14,6 +14,12 @@ remain authoritative for scientific policy and interface contracts.
 - [Software v0.2 roadmap](v0.2-roadmap.md): active minimal 6RTZ `1A + 1B`
   implementation, explicit `nA + mB`, small controls, milestone testing, and
   deferred robustness backlog.
+- [Phase III roadmap](phase-iii-roadmap.md): isolated `dev/phase3` hardening,
+  bounded general component search, M6 repair, and the two-pass exploratory
+  analysis of the three operator crystals.
+- [Phase III finding ledger](phase-iii-finding-ledger.md): original and newer
+  defects, dependency gates, required regressions, and final-disposition rules
+  for v0.3.0.
 - [Single-component prototype roadmap](single-component-prototype-roadmap.md):
   historical v0.1/M6 plan and preserved single-component evidence; it is no
   longer the active heteromer gate.

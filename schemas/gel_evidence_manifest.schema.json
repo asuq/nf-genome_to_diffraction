@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/genome-to-diffraction/gel_evidence_manifest.schema.json",
+  "title": "Gel evidence manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "observations": {
+      "type": "array",
+      "default": [],
+      "items": {"$ref": "#/$defs/observation"}
+    }
+  },
+  "$defs": {
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_id",
+        "crystal_id",
+        "method",
+        "apparent_mass_kda",
+        "absolute_uncertainty_kda",
+        "condition",
+        "band_role",
+        "replicate_id",
+        "source"
+      ],
+      "properties": {
+        "observation_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "crystal_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "method": {"enum": ["sds_page", "native_page"]},
+        "apparent_mass_kda": {"type": "number", "exclusiveMinimum": 0},
+        "absolute_uncertainty_kda": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "condition": {"type": "string", "minLength": 1},
+        "band_role": {"enum": ["dominant", "minor", "uncertain"]},
+        "replicate_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "source": {"type": "string", "minLength": 1},
+        "notes": {"type": ["string", "null"], "default": null}
+      }
+    }
+  }
+}

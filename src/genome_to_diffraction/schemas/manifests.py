@@ -66,6 +66,42 @@ class SdsBandRole(StrEnum):
     UNCERTAIN = "uncertain"
 
 
+class GelMethod(StrEnum):
+    """Physical meaning of one apparent gel-mass observation."""
+
+    SDS_PAGE = "sds_page"
+    NATIVE_PAGE = "native_page"
+
+
+class GelEvidenceObservation(ContractModel):
+    """One operator-supplied apparent mass with explicit uncertainty."""
+
+    observation_id: OperatorIdentifier
+    crystal_id: OperatorIdentifier
+    method: GelMethod
+    apparent_mass_kda: PositiveFloat
+    absolute_uncertainty_kda: PositiveFloat
+    condition: NonEmptyString
+    band_role: SdsBandRole
+    replicate_id: OperatorIdentifier
+    source: NonEmptyString
+    notes: str | None = None
+
+
+class GelEvidenceManifest(ContractModel):
+    """Typed SDS/native-PAGE evidence; an empty manifest is explicitly neutral."""
+
+    schema_version: Literal["2.0"]
+    observations: tuple[GelEvidenceObservation, ...] = ()
+
+    @model_validator(mode="after")
+    def _unique_observation_ids(self) -> Self:
+        identifiers = [item.observation_id for item in self.observations]
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("observation_id values must be unique")
+        return self
+
+
 class CrystalEntry(ContractModel):
     """One integrated/scaled MTZ dataset and its identity universe."""
 
@@ -447,6 +483,26 @@ def validate_manifest_references(
     if missing:
         raise ValueError(
             "crystals reference unknown catalogue_id values: " + ", ".join(missing)
+        )
+
+
+def validate_gel_evidence_references(
+    gel_evidence: GelEvidenceManifest, crystals: CrystalManifest
+) -> None:
+    """Require every gel observation to name one supplied crystal dataset."""
+
+    crystal_ids = {entry.crystal_id for entry in crystals.crystals}
+    missing = sorted(
+        {
+            observation.crystal_id
+            for observation in gel_evidence.observations
+            if observation.crystal_id not in crystal_ids
+        }
+    )
+    if missing:
+        raise ValueError(
+            "gel observations reference unknown crystal_id values: "
+            + ", ".join(missing)
         )
 
 

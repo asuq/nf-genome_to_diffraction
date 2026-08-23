@@ -22,6 +22,7 @@ from genome_to_diffraction.schemas.manifests import (
     CatalogueManifest,
     CrystalManifest,
     DatabaseManifest,
+    GelEvidenceManifest,
     PhenixInstallManifest,
     PipelineConfig,
     RunManifest,
@@ -220,6 +221,24 @@ def _review_tsv(rows: Iterator[tuple[int, dict[str, str]]], path: Path) -> objec
     return {"schema_version": "1.0", "decisions": decisions}
 
 
+def _gel_evidence_tsv(rows: Iterator[tuple[int, dict[str, str]]], path: Path) -> object:
+    observations: list[dict[str, object]] = []
+    for row_number, row in rows:
+        converted: dict[str, object] = {
+            key: _optional(value) for key, value in row.items()
+        }
+        for field in ("apparent_mass_kda", "absolute_uncertainty_kda"):
+            converted[field] = _number(
+                row.get(field, ""),
+                converter=float,
+                path=path,
+                row=row_number,
+                column=field,
+            )
+        observations.append(_drop_nulls(converted))
+    return {"schema_version": "2.0", "observations": observations}
+
+
 CONTRACTS: dict[str, ContractSpec] = {
     "catalogue-import-manifest": ContractSpec(CatalogueImportManifest),
     "catalogue-manifest": ContractSpec(
@@ -247,6 +266,22 @@ CONTRACTS: dict[str, ContractSpec] = {
     ),
     "database-manifest": ContractSpec(
         DatabaseManifest, "database_manifest.schema.json"
+    ),
+    "gel-evidence-manifest": ContractSpec(
+        GelEvidenceManifest,
+        "gel_evidence_manifest.schema.json",
+        _gel_evidence_tsv,
+        (
+            "observation_id",
+            "crystal_id",
+            "method",
+            "apparent_mass_kda",
+            "absolute_uncertainty_kda",
+            "condition",
+            "band_role",
+            "replicate_id",
+            "source",
+        ),
     ),
     "phenix-install-manifest": ContractSpec(
         PhenixInstallManifest, "phenix_install_manifest.schema.json"

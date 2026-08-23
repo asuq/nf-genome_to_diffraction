@@ -10164,3 +10164,42 @@ outcomes before accepting P6 or beginning the v0.2 release boundary.
 - Review the final diff, commit/push once, watch one CI run, deploy matching
   reviewed tools, and stage one fresh `heteromer-smoke`. Accept P6 only after
   terminal collection validates the P6-v2 report and every retained checksum.
+
+## 2026-08-23 - Phase III development branch opened in parallel
+
+### Branch boundary and authorised scope
+
+- The user authorised Phase III source development on `dev/phase3` while the
+  corrected v0.2 P6 Marmic replay continues from immutable `main`. The Phase III
+  branch was created from `24f733c`; the active P6 run, release worktree, and
+  retained evidence remain untouched.
+- Phase III supports arbitrary ordered component records but fixed execution is
+  bounded to six distinct components, three parent states per depth, 25
+  attempts per depth, and 100 additional-component attempts per crystal.
+  Depth three requires 9ECN validation; depths four through six remain
+  provisional and cannot support a complete-composition claim.
+- No Phase III HPC, M6, localisation, or unknown-crystal run starts before the
+  relevant contracts/fixed profiles pass and v0.2 is preserved as an immutable
+  release.
+
+### Parallel starting slices
+
+- Added the dependency-ordered Phase III roadmap and unified finding ledger.
+- Started independent focused work on schema-v2 composition contracts and
+  complete three-crystal Nextflow fan-out. Both use branches/worktrees derived
+  from `dev/phase3`; neither may push or touch the v0.2 release line.
+- Added the first local Phase III vertical slice: a schema-v2 JSON/TSV gel
+  evidence manifest for SDS/native-PAGE observations with explicit mass,
+  absolute uncertainty, method, condition, band role, replicate, source, and
+  notes. Empty evidence is explicitly neutral, duplicate observation IDs fail,
+  and every observation must reference a supplied crystal.
+- Eleven focused gel-contract tests, the authoritative schema check, targeted
+  Ruff, targeted `ty`, documentation links, and diff checks pass. Localisation
+  adapters and ranking consumption remain deliberately separate slices.
+
+### Next exact starting point
+
+Review and integrate each focused branch only after its regressions pass. Keep
+the documentation changes uncommitted until combined with the first coherent
+Phase III code slice. Continue wrapper-only P6 polling through its existing
+heartbeat; do not duplicate the Marmic run or monitoring loop.

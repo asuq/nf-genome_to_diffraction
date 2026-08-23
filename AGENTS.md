@@ -20,10 +20,18 @@ When documents conflict, use the earlier item in this order. Do not silently rec
 ## 2. Scope that must not change without explicit user approval
 
 The user approved bounded two-component heteromer development on 2026-08-19.
-The active v0.2 prototype may implement `ASU = nA + mB` for exactly two protein
+The v0.2 release line may implement `ASU = nA + mB` for exactly two protein
 components. Start with an explicit known `1A + 1B` control, fix the placed A
-solution, and search for B. Three-or-more-component reconstruction, AF3 complex
-logic, and general assembly inference remain out of scope.
+solution, and search for B.
+
+On 2026-08-23 the user separately authorised Phase III development on the
+`dev/phase3` branch while v0.2 release validation continues on `main`. Phase III
+may represent arbitrary ordered protein-component lists, but fixed application
+execution is bounded to six distinct components, three retained parent states
+per depth, 25 attempts per depth, and 100 additional-component attempts per
+crystal. Depth three must be validated with 9ECN. Depths four through six remain
+provisional and cannot support a complete-composition claim. AF3 complex logic
+and unbounded assembly inference remain out of scope.
 
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
@@ -159,8 +167,9 @@ do not delay real-data feedback in pursuit of perfect test coverage.
 Do not claim a Phenix integration is complete without testing it against a real installed Phenix runtime.
 
 The three frozen operator MTZ datasets are unknown-composition feasibility
-inputs, not validation data. Defer them until the known heteromer control works;
-they must not calibrate scientific heuristics or support a validation claim.
+inputs, not validation data. They may run only after the Phase III execution,
+crystallographic, provider, and review-checkpoint foundations pass. They must
+not calibrate scientific heuristics or support a validation claim.
 M6 remains an independently reviewable robustness benchmark, but it no longer
 gates experimental heteromer implementation.
 
@@ -174,12 +183,15 @@ M6 scientific acceptance.
 
 After preserving v0.1, implement the smallest heteromer path before additional
 hardening: known fixed-A/one-B placement on 6RTZ, end-to-end 6RTZ, then explicit
-`nA + mB` and a small positive/negative control slice. Fix only defects that
-block or scientifically invalidate that path. Unfinished R2–R4 hardening, M6,
-localisation filtering, unknown operator crystals, and broader validation move
-to the post-prototype backlog. Do not start R3 as an independent hardening
-programme unless the user explicitly resumes it or a required heteromer result
-demonstrates that a specific R3 defect is blocking execution.
+`nA + mB` and a small positive/negative control slice. The v0.2 release remains
+isolated on `main` until its exact-source P6 and release gates close.
+
+Phase III foundation development may proceed in parallel only on `dev/phase3`
+or branches/worktrees derived from it. Do not reinterpret, mutate, or reuse the
+active v0.2 Marmic run as Phase III evidence. Do not launch Phase III controls,
+M6 reruns, localisation, or unknown-crystal analysis until the corresponding
+Phase III contracts and fixed profiles have passed their local integration
+gates and v0.2 has been preserved as an immutable release.
 
 At the start of each new development loop, read the newest entry in
 `docs/development-loop-journal.md` before changing code or running a new remote
