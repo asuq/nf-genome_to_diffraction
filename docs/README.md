@@ -39,6 +39,10 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III composition-attempt fan-out](phase-iii-composition-attempt-fanout.md):
   complete immutable selected-attempt items, typed empty paths, stub-only
   Nextflow execution, and byte-identical cached-resume evidence.
+- [Phase III unknown-pass-1 local screen stub](phase-iii-unknown-pass1-screen-stub.md):
+  path-closed synthetic three-crystal fan-out, staged crystallographic review,
+  shared preparation, exact 25-A inventory, typed no-work paths, and cached
+  resume without an HPC or scientific-execution claim.
 - [Phase III offline localisation and wave policy](localisation-adapters.md):
   one-item-per-group PSORTb 3.0.6 execution, typed blocked DeepTMHMM 1.0,
   conservative first-wave decisions, exclusion retention, and zero-pack reopen.

@@ -60,6 +60,16 @@ from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewPackageManifest,
     PhaseIIIReviewPackageTarget,
 )
+from genome_to_diffraction.schemas.v2.unknown_screen import (
+    UnknownPass1AHypothesis,
+    UnknownPass1AHypothesisDisposition,
+    UnknownPass1AHypothesisTask,
+    UnknownPass1CrystalBranch,
+    UnknownPass1CrystalItem,
+    UnknownPass1ReviewBinding,
+    UnknownPass1ScreenInventory,
+    UnknownPass1SharedPreparation,
+)
 
 __all__ = [
     "AllModelRegistryIdentifier",
@@ -109,5 +119,13 @@ __all__ = [
     "RegistryModelResolution",
     "RegistryModelResolutionScope",
     "ResidualContentState",
+    "UnknownPass1AHypothesis",
+    "UnknownPass1AHypothesisDisposition",
+    "UnknownPass1AHypothesisTask",
+    "UnknownPass1CrystalBranch",
+    "UnknownPass1CrystalItem",
+    "UnknownPass1ReviewBinding",
+    "UnknownPass1ScreenInventory",
+    "UnknownPass1SharedPreparation",
     "diffraction_dataset_id",
 ]

@@ -10973,6 +10973,7 @@ with a collapsed combined parent or a guessed command.
   run one CI workflow, deploy matching reviewed tools, and execute exactly one
   `phase3-phenix-probe` on Marmic. Use only its collected defaults to implement
   the subsequent per-ensemble control adapter; do not guess the PHIL field.
+
 ## 2026-08-23T19:38:36Z - Complete component candidate generation is focused-green
 
 ### Completed evidence join
@@ -11028,3 +11029,45 @@ with a collapsed combined parent or a guessed command.
   wiring must bind their upstream result checksums to the same execution item.
   Real localisation runtime qualification, multi-fixed Phaser syntax, controls,
   unknown profiles, and HPC remain separate closed gates.
+
+## 2026-08-23 - Unknown-pass-1 local screen stub is path-closed
+
+### Completed local integration
+
+- Added a path-free content-addressed screen inventory binding one complete
+  `PhaseIIIExecutionIdentity`, an exact checksum-verified output of the existing
+  crystallographic review stager, one shared catalogue/provider/offline-
+  localisation preparation, three exact MTZ files, every ranked A hypothesis,
+  and every model-backed candidate file.
+- The synthetic public fixture emits exactly three complete crystal items: one
+  `ready` item with 25 selected tasks over seven exact models plus one cap-
+  deferred and one retained no-model row, one `held` item with no task, and one
+  proceeding `empty_no_model` item retaining two unavailable rows. Hold, empty,
+  and model absence remain typed scheduling outcomes rather than failures.
+- Each Nextflow crystal task carries its record, MTZ, complete inventory,
+  execution identity, staged decisions, and all shared preparations. Each A
+  task additionally carries its exact model and task record. The fixed test
+  entry point accepts no paths, crystal selectors, thresholds, or arbitrary
+  commands; live A execution fails because the adapter remains stub-only.
+
+### Focused evidence and next exact starting point
+
+- Eight focused unit tests cover exact counts and branches, deterministic
+  write/reload, MTZ/model/review mutation, hold enforcement, the 26th-allocation
+  boundary, offline/remote policy refusal, and content-ID mutation. The complete
+  836-test unit suite, 128-test
+  contract suite, and 74-test integration suite pass. The contract suite first
+  exposed only an uninitialised pinned nf-helper submodule; after checking out
+  exact commit `82431e4`, it passed unchanged.
+- The dedicated stub schedules exactly one catalogue, provider, localisation,
+  and review-stage preparation, three crystal items, and 25 A tasks. Resume
+  caches all 32 exact task hashes and preserves every retained output byte.
+  Locked Ruff lint/format, `ty`, schema, documentation, and Nextflow syntax
+  checks pass. No real Phenix, provider, localisation, operator input, remote
+  service, HPC profile, or scientific analysis ran.
+- One early read-only inventory command accidentally piped `rg` to `head` before
+  command discipline was corrected. It made no mutation, network request, or
+  external-system change; all subsequent shell calls were uncombined.
+- Integrate this commit after review. Next, generate review packages from a
+  trusted owned-run registry and qualify the real first-copy adapter before
+  defining any fixed unknown-screen HPC profile or analysing operator data.

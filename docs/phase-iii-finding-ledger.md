@@ -13,7 +13,7 @@ open among the original 34 findings.
 | Finding | Baseline disposition | Phase III gate / required evidence |
 | --- | --- | --- |
 | `PIPE-P1-01` | Partial; identity and composition-task consumption fixed | Raw FAA/annotation/MTZ, database inventory, source commit/tree, nf-helper, Pixi lock, execution policy, seven Phenix executables, and adapter versions form one path-free content identity carried by every selected composition task. Selective mutation/rerun evidence and other task-family consumption remain open. |
-| `PIPE-P1-02` | Partial; crystal and composition-attempt boundaries fixed | Exact complete-item fan-out covers three crystals and one 25-attempt/three-parent composition depth with cached resume; hypotheses, seeds, and finalists remain to be integrated. |
+| `PIPE-P1-02` | Partial; crystal, A-screen stub, and composition-attempt boundaries fixed | The path-closed local unknown-screen stub binds exactly three reviewed crystal items, one shared catalogue/provider/localisation preparation, exact MTZ/model bytes, and at most 25 A tasks per proceeding crystal with typed held/empty-no-model paths and cached resume. The separate composition fan-out covers one 25-attempt/three-parent depth. Live hypotheses, seeds, finalists, and selective mutation evidence remain open. |
 | `PIPE-P1-03` | Partial | Enabled-provider no-hit and disabled/no-model bundles compose without abort or network call. |
 | `PIPE-P1-04` | Open | Network work resolves only to approved staging; compute workers fail closed with sockets blocked. |
 | `PIPE-P1-05` | Fixed | Dataset-qualified duplicate-label tests reject conflicts and retain deterministic equivalent selection. |
