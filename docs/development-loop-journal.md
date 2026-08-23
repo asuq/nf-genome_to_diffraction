@@ -10368,8 +10368,8 @@ and candidate ranking in later focused slices.
   targeted Ruff formatting/lint and `ty` pass.
 - Integrate this commit into `dev/phase3`, then qualify supported explicit
   Phaser/refinement space-group and resolution parameters against real Phenix
-before promoting `PIPE-P1-06` from partial. Do not infer Free-R membership or
-launch unknown-crystal execution from this foundation.
+  before promoting `PIPE-P1-06` from partial. Do not infer Free-R membership or
+  launch unknown-crystal execution from this foundation.
 
 ## 2026-08-23 - Fixed-parent model uncertainty is preserved
 
@@ -10393,3 +10393,32 @@ Commit this focused parent-uncertainty slice after Ruff, `ty`, CLI, bridge, and
 adapter tests pass. Use it as the fixed-parent basis for B-F execution; do not
 start Phase III HPC until v0.2 is immutable and the general execution graph is
 integrated.
+
+## 2026-08-23 - Phase III file-based review contracts are focused-green
+
+### Completed contract slice
+
+- Added one opt-in schema-v2 decision-file contract for the crystallographic,
+  A-seed, composition, and sequence checkpoints. Every file binds one checkpoint
+  to an owned parent-run identifier, review-package identity and manifest
+  checksum, while every row binds crystal/item identity, reviewer, UTC-normalised
+  time, mandatory reason, and optional comment.
+- The complete canonical content derives `decision_file_id`. Checkpoint-specific
+  decision values fail closed; duplicate or conflicting crystal/item targets are
+  invalid. A-seed approvals and combined composition `approve`/`retain_partial`
+  finalists are independently capped at three per crystal.
+- Added the operator-facing TSV adapter and JSON round trip without modifying the
+  historical v1 review records or their adapters. No workflow, profile, remote
+  staging, or review-package generator is included.
+
+### Focused evidence and next exact starting point
+
+- Twenty-one focused decision-contract tests cover every allowed status, stale-ID
+  mutations, wrong-checkpoint decisions, conflicting duplicates, both
+  per-crystal limits, TSV/JSON loading, mixed-package refusal, and unchanged v1
+  readability. The combined v2/typed-contract slice passes 144 tests. Repository
+  Ruff lint/format, `ty`, schema, documentation, and diff checks pass.
+- Integrate this commit into `dev/phase3` after review. In a separate later slice,
+  build checkpoint-specific review packages and a local stager that verifies
+  owned-run provenance, package assets/target membership, review chronology, and
+  the exact transported file checksum before any Nextflow consumer is wired.

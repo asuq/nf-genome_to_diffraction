@@ -28,6 +28,12 @@ from genome_to_diffraction.schemas.v2.diffraction import (
     DiffractionValueSource,
     diffraction_dataset_id,
 )
+from genome_to_diffraction.schemas.v2.review import (
+    PhaseIIIReviewCheckpoint,
+    PhaseIIIReviewDecision,
+    PhaseIIIReviewDecisionFile,
+    PhaseIIIReviewDecisionValue,
+)
 
 __all__ = [
     "ComponentIdentitySupport",
@@ -52,6 +58,10 @@ __all__ = [
     "DiffractionSelection",
     "DiffractionValueSource",
     "ExpansionDisposition",
+    "PhaseIIIReviewCheckpoint",
+    "PhaseIIIReviewDecision",
+    "PhaseIIIReviewDecisionFile",
+    "PhaseIIIReviewDecisionValue",
     "ResidualContentState",
     "diffraction_dataset_id",
 ]

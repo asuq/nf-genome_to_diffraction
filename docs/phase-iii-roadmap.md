@@ -175,6 +175,14 @@ confirmation SHA. Approve at most three A states per crystal.
 complete-catalogue sequence narrowing, and Coot review while retaining mixed
 terminal outcomes.
 
+Status: the opt-in schema-v2 file contract for crystallographic, A-seed,
+composition, and sequence decisions is implemented and documented in
+`docs/phase-iii-review-contract.md`. It content-binds one checkpoint to an owned
+parent-run identifier and checksum-qualified review package, rejects duplicate
+or conflicting targets, and enforces the three-state A/composition limits.
+Parent ownership, package/target membership, byte-checksum confirmation,
+Nextflow wiring, and staging remain pending rather than inferred.
+
 Valid pass-1 endpoints are:
 
 - `credible_single_component_solution`;

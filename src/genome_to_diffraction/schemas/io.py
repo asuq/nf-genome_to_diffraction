@@ -46,6 +46,10 @@ from genome_to_diffraction.schemas.results import (
     StructuralSearchHit,
     StructuralSearchResult,
 )
+from genome_to_diffraction.schemas.v2.review import (
+    PhaseIIIReviewDecision,
+    PhaseIIIReviewDecisionFile,
+)
 
 InputFormat = Literal["auto", "json", "yaml", "tsv"]
 TsvAdapter = Callable[[Iterator[tuple[int, dict[str, str]]], Path], object]
@@ -221,6 +225,81 @@ def _review_tsv(rows: Iterator[tuple[int, dict[str, str]]], path: Path) -> objec
     return {"schema_version": "1.0", "decisions": decisions}
 
 
+_PHASE3_REVIEW_TSV_COLUMNS = frozenset(
+    {
+        "checkpoint",
+        "owned_parent_run_id",
+        "review_package_id",
+        "review_package_manifest_sha256",
+        "crystal_id",
+        "item_id",
+        "decision",
+        "reviewer",
+        "reviewed_at",
+        "reason",
+        "comment",
+    }
+)
+
+
+def _phase3_review_tsv(
+    rows: Iterator[tuple[int, dict[str, str]]], path: Path
+) -> object:
+    metadata_fields = (
+        "checkpoint",
+        "owned_parent_run_id",
+        "review_package_id",
+        "review_package_manifest_sha256",
+    )
+    metadata: dict[str, str] | None = None
+    decisions: list[dict[str, object]] = []
+    for row_number, row in rows:
+        unexpected = sorted(set(row) - _PHASE3_REVIEW_TSV_COLUMNS)
+        if unexpected:
+            raise ContractLoadError(
+                f"{path}:{row_number}:{unexpected[0]}: unexpected TSV column"
+            )
+        row_metadata = {field: row[field].strip() for field in metadata_fields}
+        if metadata is None:
+            metadata = row_metadata
+        elif row_metadata != metadata:
+            raise ContractLoadError(
+                f"{path}:{row_number}:checkpoint: Phase III review TSV mixes "
+                "checkpoint or parent-package metadata"
+            )
+        decisions.append(
+            _drop_nulls(
+                {
+                    "crystal_id": _optional(row["crystal_id"]),
+                    "item_id": _optional(row["item_id"]),
+                    "decision": _optional(row["decision"]),
+                    "reviewer": _optional(row["reviewer"]),
+                    "reviewed_at": _optional(row["reviewed_at"]),
+                    "reason": _optional(row["reason"]),
+                    "comment": _optional(row.get("comment", "")),
+                }
+            )
+        )
+    if metadata is None:
+        raise ContractLoadError(f"{path}:2:row: Phase III review TSV has no decisions")
+    try:
+        decision_file = PhaseIIIReviewDecisionFile.from_content(
+            checkpoint=metadata["checkpoint"],
+            owned_parent_run_id=metadata["owned_parent_run_id"],
+            review_package_id=metadata["review_package_id"],
+            review_package_manifest_sha256=metadata["review_package_manifest_sha256"],
+            decisions=tuple(
+                PhaseIIIReviewDecision.model_validate(decision)
+                for decision in decisions
+            ),
+        )
+    except ValidationError as error:
+        raise ContractLoadError(
+            f"{path}: Phase III review TSV violates its typed contract: {error}"
+        ) from error
+    return decision_file.model_dump(mode="json", exclude_none=False)
+
+
 def _gel_evidence_tsv(rows: Iterator[tuple[int, dict[str, str]]], path: Path) -> object:
     observations: list[dict[str, object]] = []
     for row_number, row in rows:
@@ -296,6 +375,22 @@ CONTRACTS: dict[str, ContractSpec] = {
         "review_decision.schema.json",
         _review_tsv,
         ("checkpoint", "item_id", "decision", "reviewer", "reviewed_at"),
+    ),
+    "phase3-review-decisions": ContractSpec(
+        PhaseIIIReviewDecisionFile,
+        tsv_adapter=_phase3_review_tsv,
+        tsv_required_columns=(
+            "checkpoint",
+            "owned_parent_run_id",
+            "review_package_id",
+            "review_package_manifest_sha256",
+            "crystal_id",
+            "item_id",
+            "decision",
+            "reviewer",
+            "reviewed_at",
+            "reason",
+        ),
     ),
     "resource-summary": ContractSpec(ResourceSummaryRecord),
     "run-manifest": ContractSpec(RunManifest),
