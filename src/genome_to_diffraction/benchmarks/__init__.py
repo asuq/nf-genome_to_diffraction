@@ -1,5 +1,10 @@
 """Reproducible public controls for scientific qualification."""
 
+from genome_to_diffraction.benchmarks.heteromer_catalogue_control import (
+    HeteromerCatalogueControlRequest,
+    HeteromerCatalogueControlResult,
+    prepare_6rtz_partner_catalogue_control,
+)
 from genome_to_diffraction.benchmarks.heteromer_control import (
     HeteromerControlPreparationRequest,
     HeteromerControlPreparationResult,
@@ -60,6 +65,8 @@ from genome_to_diffraction.benchmarks.public_control import (
 )
 
 __all__ = [
+    "HeteromerCatalogueControlRequest",
+    "HeteromerCatalogueControlResult",
     "HeteromerControlPreparationRequest",
     "HeteromerControlPreparationResult",
     "HeteromerControlReviewRequest",
@@ -94,6 +101,7 @@ __all__ = [
     "m6_track_case_ids",
     "prepare_3u7q_heteromer_control",
     "prepare_6rtz_heteromer_control",
+    "prepare_6rtz_partner_catalogue_control",
     "prepare_m6_inputs",
     "prepare_public_control",
     "prepare_public_control_panel",

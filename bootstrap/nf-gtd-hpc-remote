@@ -841,7 +841,8 @@ stage_run_common() {
     local p2_control_sha256="" p2_control_json="null"
     local p2_control_root p2_control_catalogue p2_control_checksums p2_control_tmp
     local heteromer_sha256="" heteromer_json="null"
-    local heteromer_root heteromer_multicopy_root heteromer_checksums heteromer_tmp
+    local heteromer_root heteromer_multicopy_root heteromer_catalogue_root
+    local heteromer_checksums heteromer_tmp
     local heteromer_phenix_manifest="" heteromer_phenix_sha256=""
     local heteromer_phenix_json="null"
     local candidate coordinate_count hit_count
@@ -1447,6 +1448,7 @@ stage_run_common() {
     if [[ "$profile" == heteromer-smoke ]]; then
         heteromer_root="$run/artifacts/heteromer-smoke/inputs"
         heteromer_multicopy_root="$heteromer_root/multicopy"
+        heteromer_catalogue_root="$heteromer_root/catalogue-control"
         mkdir -p "$run/artifacts/heteromer-smoke"
         printf 'phase=heteromer_prepare_6rtz profile=%s\n' "$profile" \
             > "$run/logs/heteromer-smoke-login-stage.log"
@@ -1474,6 +1476,31 @@ stage_run_common() {
             append_event "$run" "stage_heteromer_multicopy_inputs_failed"
             fail transfer_failure "fixed 3U7Q input preparation failed"
         fi
+        printf 'phase=heteromer_prepare_catalogue profile=%s\n' "$profile" \
+            >> "$run/logs/heteromer-smoke-login-stage.log"
+        if ! PATH="$hpc_path" "$gtd" --log-format json --no-progress \
+            benchmark prepare-6rtz-partner-catalogue \
+            --protocol "$run/source/benchmarks/m6/protocol.yaml" \
+            --control-preparation "$heteromer_root/preparation_manifest.json" \
+            --download \
+            --outdir "$heteromer_catalogue_root" \
+            >> "$run/logs/heteromer-smoke-login-stage.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_heteromer_catalogue_inputs_failed"
+            fail transfer_failure "fixed 6RTZ catalogue preparation failed"
+        fi
+        if ! PATH="$hpc_path" "$gtd" --log-format json --no-progress \
+            catalogue import \
+            --catalogues "$heteromer_catalogue_root/catalogues.json" \
+            --config "$heteromer_catalogue_root/pipeline_config.json" \
+            --outdir "$heteromer_catalogue_root/catalogue" \
+            >> "$run/logs/heteromer-smoke-login-stage.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "software_failure"
+            append_event "$run" "stage_heteromer_catalogue_import_failed"
+            fail software_failure "fixed 6RTZ catalogue import failed"
+        fi
         for candidate in \
             "$heteromer_root/preparation_manifest.json" \
             "$heteromer_root/crystals.json" \
@@ -1492,7 +1519,16 @@ stage_run_common() {
             "$heteromer_multicopy_root/mr_hypotheses.jsonl" \
             "$heteromer_multicopy_root/derived/3U7Q.mtz" \
             "$heteromer_multicopy_root/models/component_A.pdb" \
-            "$heteromer_multicopy_root/models/component_B.pdb"; do
+            "$heteromer_multicopy_root/models/component_B.pdb" \
+            "$heteromer_catalogue_root/preparation_manifest.json" \
+            "$heteromer_catalogue_root/catalogues.json" \
+            "$heteromer_catalogue_root/pipeline_config.json" \
+            "$heteromer_catalogue_root/sources/GCF_000008545.1_protein.faa" \
+            "$heteromer_catalogue_root/partner_model_registry/processed_models.jsonl" \
+            "$heteromer_catalogue_root/partner_model_registry/model_preparation_manifest.json" \
+            "$heteromer_catalogue_root/catalogue/catalogue_import_manifest.json" \
+            "$heteromer_catalogue_root/catalogue/sequence_groups.jsonl" \
+            "$heteromer_catalogue_root/catalogue/source_records.jsonl"; do
             [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || {
                 atomic_text "$run/state/phase" "stage_failed"
                 atomic_text "$run/state/failure-class" "filesystem_failure"
@@ -1522,6 +1558,15 @@ stage_run_common() {
             "$heteromer_multicopy_root/derived/3U7Q.mtz" \
             "$heteromer_multicopy_root/models/component_A.pdb" \
             "$heteromer_multicopy_root/models/component_B.pdb" \
+            "$heteromer_catalogue_root/preparation_manifest.json" \
+            "$heteromer_catalogue_root/catalogues.json" \
+            "$heteromer_catalogue_root/pipeline_config.json" \
+            "$heteromer_catalogue_root/sources/GCF_000008545.1_protein.faa" \
+            "$heteromer_catalogue_root/partner_model_registry/processed_models.jsonl" \
+            "$heteromer_catalogue_root/partner_model_registry/model_preparation_manifest.json" \
+            "$heteromer_catalogue_root/catalogue/catalogue_import_manifest.json" \
+            "$heteromer_catalogue_root/catalogue/sequence_groups.jsonl" \
+            "$heteromer_catalogue_root/catalogue/source_records.jsonl" \
             > "$heteromer_tmp"
         mv -f -- "$heteromer_tmp" "$heteromer_checksums"
         heteromer_sha256="$(sha256sum "$heteromer_checksums" | awk '{print $1}')"
@@ -3193,6 +3238,7 @@ collect_run() {
         artifacts/qualification/p2-control-phenix-verification.log \
         artifacts/qualification/heteromer-smoke-summary.json \
         artifacts/qualification/heteromer-multicopy-summary.json \
+        artifacts/qualification/heteromer-catalogue-summary.json \
         artifacts/qualification/heteromer-smoke-checksums.sha256 \
         artifacts/qualification/heteromer-smoke-phenix-manifest.json \
         artifacts/qualification/heteromer-smoke-phenix-verification.log \
@@ -3390,6 +3436,14 @@ collect_run() {
         artifacts/heteromer-smoke/inputs/multicopy/mr_hypotheses.jsonl \
         artifacts/heteromer-smoke/inputs/multicopy/models/component_A.pdb \
         artifacts/heteromer-smoke/inputs/multicopy/models/component_B.pdb \
+        artifacts/heteromer-smoke/inputs/catalogue-control/preparation_manifest.json \
+        artifacts/heteromer-smoke/inputs/catalogue-control/catalogues.json \
+        artifacts/heteromer-smoke/inputs/catalogue-control/pipeline_config.json \
+        artifacts/heteromer-smoke/inputs/catalogue-control/catalogue/catalogue_import_manifest.json \
+        artifacts/heteromer-smoke/inputs/catalogue-control/catalogue/sequence_groups.jsonl \
+        artifacts/heteromer-smoke/inputs/catalogue-control/catalogue/source_records.jsonl \
+        artifacts/heteromer-smoke/inputs/catalogue-control/partner_model_registry/processed_models.jsonl \
+        artifacts/heteromer-smoke/inputs/catalogue-control/partner_model_registry/model_preparation_manifest.json \
         artifacts/heteromer-smoke/preflight/mtz_preflight.jsonl \
         artifacts/heteromer-smoke/preflight/xtriage/6RTZ.log \
         artifacts/heteromer-smoke/parent/normalised_mr_result.json \
@@ -3430,6 +3484,19 @@ collect_run() {
         artifacts/heteromer-smoke/multicopy/partner/PHASER.log \
         artifacts/heteromer-smoke/multicopy/partner/phenix.phaser.capture.log \
         artifacts/heteromer-smoke/multicopy/partner/PHASER.1.pdb \
+        artifacts/heteromer-smoke/catalogue/matthews/matthews_hypotheses.jsonl \
+        artifacts/heteromer-smoke/catalogue/plan/partner_search_plan.json \
+        artifacts/heteromer-smoke/catalogue/plan/partner_candidates.jsonl \
+        artifacts/heteromer-smoke/catalogue/plan/selected_partner_candidate_ids.txt \
+        artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json \
+        artifacts/heteromer-smoke/catalogue/partner/partner_search_result.jsonl \
+        artifacts/heteromer-smoke/catalogue/partner/phaser_command.json \
+        artifacts/heteromer-smoke/catalogue/partner/partner_search.eff \
+        artifacts/heteromer-smoke/catalogue/partner/PHASER.log \
+        artifacts/heteromer-smoke/catalogue/partner/phenix.phaser.capture.log \
+        artifacts/heteromer-smoke/catalogue/partner/PHASER.1.pdb \
+        artifacts/heteromer-smoke/catalogue/partner/PHASER.1.mtz \
+        artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json \
         artifacts/p2/first-copy/exact_predicted_funnel/funnel_manifest.json \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.jsonl \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.tsv; do

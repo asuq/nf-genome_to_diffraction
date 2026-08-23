@@ -54,6 +54,14 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _ADAPTER_VERSION = "catalogue-partner-plan-v1"
 _SELECTION_CAP = 25
+_CATALOGUE_INELIGIBLE_FLAGS = frozenset(
+    {
+        "excluded_ambiguous_or_nonstandard_residue",
+        "excluded_below_minimum_length",
+        "internal_stop",
+        "mass_unavailable",
+    }
+)
 
 
 class PartnerPlanInputError(InputContractError):
@@ -115,7 +123,7 @@ class _ModelChoice:
 @dataclass(frozen=True)
 class _Candidate:
     group: SequenceGroupRecord
-    matthews: MatthewsHypothesis
+    matthews: MatthewsHypothesis | None
     model: _ModelChoice | None
     physical_status: PhysicalStatus | None
     solvent_lower: float | None
@@ -277,7 +285,11 @@ def _candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
     )
     return (
         candidate.base_status is not None,
-        sds_rank[candidate.matthews.sds_page_prior_label],
+        sds_rank[
+            candidate.matthews.sds_page_prior_label
+            if candidate.matthews is not None
+            else "unavailable"
+        ],
         physical_rank[candidate.physical_status],
         -(candidate.combined_prior or 0.0),
         *model_key,
@@ -364,9 +376,25 @@ def _load_inputs(
             continue
         matthews = row_index.get(group.sequence_group_id)
         if matthews is None:
-            raise PartnerPlanInputError(
-                f"partner Matthews coverage missing: {group.sequence_group_id}"
+            if not _CATALOGUE_INELIGIBLE_FLAGS.intersection(group.quality_flags):
+                raise PartnerPlanInputError(
+                    f"partner Matthews coverage missing: {group.sequence_group_id}"
+                )
+            candidates.append(
+                _Candidate(
+                    group=group,
+                    matthews=None,
+                    model=None,
+                    physical_status=None,
+                    solvent_lower=None,
+                    solvent_upper=None,
+                    combined_prior=None,
+                    base_status=(
+                        PartnerCandidateSelectionStatus.UNSEARCHABLE_CATALOGUE_INELIGIBLE
+                    ),
+                )
             )
+            continue
         combined = _combined_metrics(
             parent,
             group,
@@ -458,6 +486,8 @@ def build_partner_search_plan(request: PartnerPlanRequest) -> PartnerPlanOutput:
             "model_id": model.record.model_id if model is not None else None,
         }
         rows.append(
+            # Matthews-absent rows are retained only for explicit catalogue
+            # ineligibility and therefore carry neutral SDS evidence.
             PartnerCandidateRanking(
                 schema_version="1.0",
                 candidate_id=content_id("partnercand_", identity),
@@ -481,16 +511,27 @@ def build_partner_search_plan(request: PartnerPlanRequest) -> PartnerPlanOutput:
                     if model is not None
                     else None
                 ),
-                sds_page_prior_label=candidate.matthews.sds_page_prior_label,
+                sds_page_prior_label=(
+                    candidate.matthews.sds_page_prior_label
+                    if candidate.matthews is not None
+                    else "unavailable"
+                ),
                 sds_page_fractional_difference=(
                     candidate.matthews.sds_page_fractional_difference
+                    if candidate.matthews is not None
+                    else None
                 ),
                 combined_physical_status=candidate.physical_status,
                 combined_solvent_fraction_lower=candidate.solvent_lower,
                 combined_solvent_fraction_upper=candidate.solvent_upper,
                 combined_matthews_prior=candidate.combined_prior,
                 ordering_reasons=(
-                    f"sds_page:{candidate.matthews.sds_page_prior_label}",
+                    "sds_page:"
+                    + (
+                        candidate.matthews.sds_page_prior_label
+                        if candidate.matthews is not None
+                        else "unavailable"
+                    ),
                     "native_page:unavailable_neutral",
                     "combined_matthews:"
                     + (

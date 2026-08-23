@@ -252,6 +252,50 @@ def test_partner_plan_rejects_changed_model(tmp_path: Path) -> None:
         build_partner_search_plan(request)
 
 
+def test_partner_plan_retains_explained_matthews_ineligibility(tmp_path: Path) -> None:
+    request, named = _request(tmp_path)
+    groups = [
+        SequenceGroupRecord.model_validate_json(line)
+        for line in request.sequence_groups_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    groups = [
+        group.model_copy(update={"quality_flags": ("excluded_below_minimum_length",)})
+        if group.sequence_group_id == named["no_model"].sequence_group_id
+        else group
+        for group in groups
+    ]
+    request.sequence_groups_jsonl.write_text(
+        "".join(f"{canonical_json_text(group)}\n" for group in groups),
+        encoding="utf-8",
+    )
+    rows = [
+        MatthewsHypothesis.model_validate_json(line)
+        for line in request.matthews_hypotheses_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    request.matthews_hypotheses_jsonl.write_text(
+        "".join(
+            f"{canonical_json_text(row)}\n"
+            for row in rows
+            if row.sequence_group_id != named["no_model"].sequence_group_id
+        ),
+        encoding="utf-8",
+    )
+
+    plan = build_partner_search_plan(request).plan
+
+    retained = next(
+        item
+        for item in plan.candidates
+        if item.sequence_group_id == named["no_model"].sequence_group_id
+    )
+    assert retained.selection_status == "unsearchable_catalogue_ineligible"
+    assert retained.sds_page_prior_label == "unavailable"
+
+
 def test_partner_plan_cli_keeps_the_cap_fixed(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

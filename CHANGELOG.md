@@ -44,6 +44,10 @@ All notable changes to this project are documented here.
 - The existing `analysis_stage=heteromer` now fans only selected plan rows into
   independent fixed-A/joint-B Nextflow processes and writes a typed summary
   that requires one terminal result for every selected candidate.
+- The fixed P5 control prepares the checksum-frozen 1,846-protein Thermotoga
+  RefSeq FASTA from the static NCBI FTP route, imports all exact sequence
+  groups, supplies only the accepted HisH model, and extends the existing
+  Marmic smoke with full-catalogue plan/result/count gates.
 
 ## 0.1.0 - 2026-08-19
 

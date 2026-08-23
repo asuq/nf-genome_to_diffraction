@@ -9,6 +9,7 @@ from typing import cast
 
 from genome_to_diffraction import __version__
 from genome_to_diffraction.benchmarks import (
+    HeteromerCatalogueControlRequest,
     HeteromerControlPreparationRequest,
     HeteromerControlReviewRequest,
     M6CollectionRequest,
@@ -28,6 +29,7 @@ from genome_to_diffraction.benchmarks import (
     load_public_control_panel,
     prepare_3u7q_heteromer_control,
     prepare_6rtz_heteromer_control,
+    prepare_6rtz_partner_catalogue_control,
     prepare_m6_inputs,
     prepare_public_control,
     prepare_public_control_panel,
@@ -545,6 +547,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="download only the two protocol-frozen RCSB files",
     )
     multicopy_control_parser.add_argument("--outdir", type=Path, required=True)
+    partner_catalogue_parser = benchmark_actions.add_parser(
+        "prepare-6rtz-partner-catalogue",
+        help="prepare the frozen full Thermotoga catalogue and HisH model registry",
+    )
+    partner_catalogue_parser.add_argument("--protocol", type=Path, required=True)
+    partner_catalogue_parser.add_argument(
+        "--control-preparation", type=Path, required=True
+    )
+    partner_catalogue_parser.add_argument("--proteome-faa", type=Path)
+    partner_catalogue_parser.add_argument(
+        "--download",
+        action="store_true",
+        help="download only the protocol-frozen NCBI catalogue bundle",
+    )
+    partner_catalogue_parser.add_argument("--outdir", type=Path, required=True)
     heteromer_review_parser = benchmark_actions.add_parser(
         "approve-6rtz-parent",
         help="build and approve the fixed HisF MR review checkpoint",
@@ -1741,6 +1758,21 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             )
         )
         print(f"Prepared fixed 3U7Q 2A+2B inputs: {prepared.preparation_manifest}")
+        return 0
+    if args.benchmark_action == "prepare-6rtz-partner-catalogue":
+        prepared = prepare_6rtz_partner_catalogue_control(
+            HeteromerCatalogueControlRequest(
+                protocol=args.protocol,
+                control_preparation_manifest=args.control_preparation,
+                output_directory=args.outdir,
+                proteome_faa=args.proteome_faa,
+                download_missing=args.download,
+            )
+        )
+        print(
+            f"Prepared {prepared.protein_record_count}-protein 6RTZ catalogue "
+            f"control: {prepared.preparation_manifest}"
+        )
         return 0
     if args.benchmark_action == "build-first-copy-controls":
         control_bundle = build_mr_control_bundle(

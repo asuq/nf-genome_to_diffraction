@@ -168,7 +168,7 @@ finalise() {
         reports_json='["artifacts/qualification/p2-control-summary.json","artifacts/qualification/p2-control-resume-check.json"]'
         retained_json='["artifacts/p2-control","artifacts/qualification"]'
     elif [[ "$PROFILE" == heteromer-smoke ]]; then
-        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/qualification/heteromer-multicopy-summary.json","artifacts/heteromer-smoke/partner/partner_search_result.json","artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json"]'
+        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/qualification/heteromer-multicopy-summary.json","artifacts/qualification/heteromer-catalogue-summary.json","artifacts/heteromer-smoke/partner/partner_search_result.json","artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json"]'
         retained_json='["artifacts/heteromer-smoke","artifacts/qualification"]'
     elif [[ "$PROFILE" == control-slice ]]; then
         reports_json='["artifacts/qualification/control-slice-summary.json","artifacts/qualification/control-slice-case-results.jsonl","artifacts/qualification/control-slice-first-copy-results.jsonl","artifacts/qualification/control-slice-copy-two-results.jsonl","artifacts/qualification/control-slice-refinement-results.jsonl","artifacts/qualification/control-slice-sequence-results.jsonl"]'
@@ -1676,9 +1676,20 @@ run_heteromer_smoke() {
     local multicopy_parent_copies multicopy_partner_copies multicopy_partner_sha256
     local multicopy_identity multicopy_parent_llg multicopy_parent_relative
     local multicopy_parent_sha256 multicopy_parent_coordinate multicopy_gate_passed
+    local catalogue_inputs="$inputs/catalogue-control"
+    local catalogue_root="$root/catalogue"
+    local catalogue_matthews="$catalogue_root/matthews"
+    local catalogue_plan="$catalogue_root/plan"
+    local catalogue_partner="$catalogue_root/partner"
+    local catalogue_attempt_summary="$catalogue_root/partner_attempt_summary.json"
+    local catalogue_preparation="$catalogue_inputs/preparation_manifest.json"
+    local catalogue_partner_result="$catalogue_partner/partner_search_result.json"
+    local catalogue_candidate_id catalogue_parent_group catalogue_partner_group
+    local catalogue_model_id catalogue_gate_passed
     local legacy_phenix_manifest refreshed_phenix_manifest
     local -a preparation_values=() parent_values=()
     local -a multicopy_values=() multicopy_parent_values=()
+    local -a catalogue_values=()
 
     [[ -f "$RUN/state/phenix-manifest" && \
        -f "$RUN/state/phenix-manifest-sha256" ]] || return 2
@@ -1695,7 +1706,8 @@ run_heteromer_smoke() {
     [[ -x "$GTD" && -x "$PYTHON" ]] || return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     mkdir -p "$preflight" "$partner" "$multicopy_preflight" \
-        "$multicopy_partner" "$qualification"
+        "$multicopy_partner" "$catalogue_matthews" "$catalogue_partner" \
+        "$qualification"
     cd "$RUN/source"
 
     PHASE=preflight
@@ -2062,6 +2074,165 @@ summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", en
 print("true" if gate else "false")
 PY
     )"
+    [[ "$multicopy_gate_passed" == true ]] || return 4
+
+    PHASE=test
+    printf 'phase=heteromer_catalogue_matthews profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress matthews enumerate \
+        --crystals "$inputs/crystals.json" \
+        --config "$catalogue_inputs/pipeline_config.json" \
+        --preflight "$preflight/mtz_preflight.jsonl" \
+        --sequence-groups "$catalogue_inputs/catalogue/sequence_groups.jsonl" \
+        --source-records "$catalogue_inputs/catalogue/source_records.jsonl" \
+        --outdir "$catalogue_matthews"
+    printf 'phase=heteromer_catalogue_plan profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress ranking approved-partner-plan \
+        --approved-stage "$checkpoint/approved_mr_seed_stage" \
+        --crystal-id 6RTZ \
+        --partner-copy-count 1 \
+        --sequence-groups "$catalogue_inputs/catalogue/sequence_groups.jsonl" \
+        --matthews "$catalogue_matthews/matthews_hypotheses.jsonl" \
+        --preflight "$preflight/mtz_preflight.jsonl" \
+        --config "$catalogue_inputs/pipeline_config.json" \
+        --model-registry "$catalogue_inputs/partner_model_registry" \
+        --outdir "$catalogue_plan"
+    mapfile -t catalogue_values < <(
+        "$PYTHON" - "$catalogue_preparation" \
+            "$catalogue_plan/partner_search_plan.json" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+preparation = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+plan = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+selected = [
+    row for row in plan.get("candidates", [])
+    if row.get("selection_status") == "selected"
+]
+parent = preparation.get("parent_sequence_group_id")
+partner = preparation.get("partner_sequence_group_id")
+model_id = preparation.get("partner_model_id")
+candidate_id = selected[0].get("candidate_id") if len(selected) == 1 else None
+if (
+    preparation.get("protein_record_count") != 1846
+    or plan.get("candidate_count") != 1845
+    or plan.get("searchable_candidate_count") != 1
+    or plan.get("selected_attempt_count") != 1
+    or plan.get("deferred_cap_count") != 0
+    or plan.get("unsearchable_candidate_count") != 1844
+    or len(selected) != 1
+    or selected[0].get("sequence_group_id") != partner
+    or selected[0].get("model_id") != model_id
+    or not isinstance(parent, str)
+    or not isinstance(partner, str)
+    or not isinstance(model_id, str)
+    or not isinstance(candidate_id, str)
+    or re.fullmatch(r"seq_[a-f0-9]{64}", parent) is None
+    or re.fullmatch(r"seq_[a-f0-9]{64}", partner) is None
+    or re.fullmatch(r"model_[a-f0-9]{64}", model_id) is None
+    or re.fullmatch(r"partnercand_[a-f0-9]{64}", candidate_id) is None
+):
+    raise SystemExit("full-catalogue partner plan is not the fixed 6RTZ control")
+print(candidate_id)
+print(parent)
+print(partner)
+print(model_id)
+PY
+    )
+    [[ "${#catalogue_values[@]}" -eq 4 ]] || return 4
+    catalogue_candidate_id="${catalogue_values[0]}"
+    catalogue_parent_group="${catalogue_values[1]}"
+    catalogue_partner_group="${catalogue_values[2]}"
+    catalogue_model_id="${catalogue_values[3]}"
+
+    PHASE=software
+    printf 'phase=heteromer_catalogue_partner profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress mr planned-partner \
+        --approved-stage "$checkpoint/approved_mr_seed_stage" \
+        --review-package "$checkpoint/mr_seed_review" \
+        --partner-plan "$catalogue_plan/partner_search_plan.json" \
+        --partner-candidate-id "$catalogue_candidate_id" \
+        --sequence-groups "$catalogue_inputs/catalogue/sequence_groups.jsonl" \
+        --model-registry "$catalogue_inputs/partner_model_registry" \
+        --preflight "$preflight/mtz_preflight.jsonl" \
+        --mtz "$inputs/derived/6RTZ.mtz" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --threads "${SLURM_CPUS_PER_TASK:-1}" \
+        --outdir "$catalogue_partner"
+    "$GTD" --log-format json --no-progress mr summarize-partners \
+        --partner-plan "$catalogue_plan/partner_search_plan.json" \
+        --result-directory "$catalogue_partner" \
+        --output "$catalogue_attempt_summary"
+
+    PHASE=test
+    printf 'phase=heteromer_catalogue_gate profile=heteromer-smoke\n'
+    catalogue_gate_passed="$("$PYTHON" - \
+        "$catalogue_partner_result" \
+        "$catalogue_plan/partner_search_plan.json" \
+        "$catalogue_attempt_summary" \
+        "$qualification/heteromer-catalogue-summary.json" <<'PY'
+import json
+import math
+import sys
+from pathlib import Path
+
+result = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+plan = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+attempts = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+summary_path = Path(sys.argv[4])
+delta = result.get("incremental_llg")
+tfz = result.get("partner_tfz")
+selected = [
+    row for row in plan.get("candidates", [])
+    if row.get("selection_status") == "selected"
+]
+gate = (
+    result.get("execution_status") == "completed_hit"
+    and result.get("partner_placement_count") == 1
+    and result.get("partner_placement_observed") is True
+    and result.get("top_solution_packed") is True
+    and result.get("score_cohort") in {"primary", "fallback"}
+    and result.get("selection_plan_id") == plan.get("plan_id")
+    and len(selected) == 1
+    and result.get("partner_candidate_id") == selected[0].get("candidate_id")
+    and result.get("partner_sequence_group_id")
+    == selected[0].get("sequence_group_id")
+    and attempts.get("all_selected_attempts_retained") is True
+    and attempts.get("selected_attempt_count") == 1
+    and attempts.get("result_count") == 1
+    and attempts.get("completed_hit_count") == 1
+    and attempts.get("candidate_count") == 1845
+    and attempts.get("unsearchable_candidate_count") == 1844
+    and isinstance(delta, (int, float))
+    and not isinstance(delta, bool)
+    and math.isfinite(float(delta))
+    and isinstance(tfz, (int, float))
+    and not isinstance(tfz, bool)
+    and math.isfinite(float(tfz))
+)
+summary = {
+    "schema_version": "1.0",
+    "profile": "heteromer-smoke",
+    "control": "6RTZ_full_1846_protein_catalogue",
+    "candidate_count": plan.get("candidate_count"),
+    "selected_attempt_count": plan.get("selected_attempt_count"),
+    "unsearchable_candidate_count": plan.get("unsearchable_candidate_count"),
+    "selected_sequence_group_id": (
+        selected[0].get("sequence_group_id") if len(selected) == 1 else None
+    ),
+    "execution_status": result.get("execution_status"),
+    "incremental_llg": delta,
+    "partner_tfz": tfz,
+    "score_cohort": result.get("score_cohort"),
+    "gate_passed": gate,
+    "plan": "artifacts/heteromer-smoke/catalogue/plan/partner_search_plan.json",
+    "result": "artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json",
+}
+summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+print("true" if gate else "false")
+PY
+    )"
     (
         cd "$RUN"
         sha256sum \
@@ -2083,9 +2254,17 @@ PY
             artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json \
             artifacts/heteromer-smoke/multicopy/partner/phaser_command.json \
             artifacts/qualification/heteromer-multicopy-summary.json \
+            artifacts/heteromer-smoke/inputs/catalogue-control/preparation_manifest.json \
+            artifacts/heteromer-smoke/inputs/catalogue-control/catalogue/catalogue_import_manifest.json \
+            artifacts/heteromer-smoke/inputs/catalogue-control/catalogue/sequence_groups.jsonl \
+            artifacts/heteromer-smoke/catalogue/plan/partner_search_plan.json \
+            artifacts/heteromer-smoke/catalogue/plan/selected_partner_candidate_ids.txt \
+            artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json \
+            artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json \
+            artifacts/qualification/heteromer-catalogue-summary.json \
             > artifacts/qualification/heteromer-smoke-checksums.sha256
     )
-    [[ "$multicopy_gate_passed" == true ]] || return 4
+    [[ "$catalogue_gate_passed" == true ]] || return 4
     printf 'heteromer_smoke_status=passed\n'
 }
 

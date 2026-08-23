@@ -752,6 +752,7 @@ class PartnerCandidateSelectionStatus(StrEnum):
     DEFERRED_CAP = "deferred_cap"
     UNSEARCHABLE_NO_MODEL = "unsearchable_no_model"
     UNSEARCHABLE_MODEL_IDENTITY = "unsearchable_model_identity"
+    UNSEARCHABLE_CATALOGUE_INELIGIBLE = "unsearchable_catalogue_ineligible"
     EXCLUDED_PHYSICAL_IMPOSSIBLE = "excluded_physical_impossible"
     UNSEARCHABLE_MASS = "unsearchable_mass"
 

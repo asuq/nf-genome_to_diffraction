@@ -9997,4 +9997,46 @@ Run the focused checks and inspect the complete diff, then commit/push this P5
 integration slice and watch one CI run. Next build the fixed 6RTZ full-catalogue
 control using the frozen 1,846-protein Thermotoga catalogue, require HisH in the
 selected wave, and execute/count every selected attempt before accepting P5.
-Do not add localisation tools, unknown crystals, or a new workflow/profile.
+  Do not add localisation tools, unknown crystals, or a new workflow/profile.
+
+## 2026-08-23T00:18:27Z - Fixed 1846-protein P5 control is locally ready
+
+### Real local control evidence
+
+- The protocol's dynamic NCBI Datasets ZIP endpoint no longer reproduced the
+  frozen bundle byte checksum and was correctly rejected. Replaced that fragile
+  route only for this fixed control with the assembly-versioned static NCBI FTP
+  `protein.faa.gz`; the decompressed FASTA still must match the protocol's exact
+  size and SHA-256, so source identity is unchanged.
+- The real Thermotoga FASTA matches the frozen 729424-byte identity and contains
+  exactly 1846 unique protein records, including checksum-matched HisF and HisH.
+  Catalogue import produced 1846 source records and 1846 exact sequence groups;
+  two sub-30-aa records retain catalogue review flags and one exact group is
+  explicitly `unsearchable_catalogue_ineligible` because Matthews correctly
+  omitted it.
+- The fixed catalogue control publishes a path-closed catalogue manifest,
+  strict control config, preparation manifest, and one-model exact HisH
+  registry. Real local Matthews enumeration retained 7380 rows for 1845 eligible
+  groups. The approved-parent plan retained 1845 non-A candidates, selected
+  exactly HisH as the sole searchable row, deferred none, and recorded 1844
+  unsearchable rows; the combined HisF+HisH composition is plausible.
+
+### Existing-profile extension and checks
+
+- Extended only `heteromer-smoke`: login staging downloads/verifies the static
+  FASTA, imports the catalogue, and checksum-binds its outputs. After the green
+  6RTZ and 3U7Q gates, the existing job enumerates full-catalogue Matthews,
+  plans one HisH attempt, runs it through the planned-partner driver, requires
+  a complete attempt summary, and adds all P5 evidence to final checksums and
+  bounded collection.
+- The complete fake Marmic lifecycle passes the new staging, 1845-candidate
+  plan, selected attempt, summary, gate, and collection assertions. The final
+  touched/integration set passed 84 tests; repository-wide Ruff formatting/lint and `ty`,
+  Bash wrapper syntax, Nextflow syntax, and diff checks pass.
+
+### Next exact starting point
+
+Review/commit/push this fixed P5 control, watch one CI run, deploy matching
+tools, and stage exactly one fresh `heteromer-smoke`. Submit only that owned
+run, then use a 30-minute thread heartbeat for wrapper-only status checks.
+Collect/classify before accepting P5 or starting P6.
