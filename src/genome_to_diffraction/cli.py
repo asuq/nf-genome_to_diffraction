@@ -99,6 +99,12 @@ from genome_to_diffraction.diffraction import (
     prepare_crystal_dispatch,
 )
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.localisation import (
+    build_catalogue_localisation_tasks,
+    build_catalogue_localisation_wave_policy,
+    plan_localisation_reopen,
+    run_catalogue_localisation_task,
+)
 from genome_to_diffraction.logging import configure_logging, parse_log_level
 from genome_to_diffraction.matthews import (
     MatthewsReferenceRequest,
@@ -916,6 +922,52 @@ def _build_parser() -> argparse.ArgumentParser:
     import_parser.add_argument(
         "--outdir", type=Path, required=True, help="stable output directory"
     )
+
+    localisation_parser = subparsers.add_parser(
+        "localisation", help="run checksum-bound offline localisation policy"
+    )
+    localisation_actions = localisation_parser.add_subparsers(
+        dest="localisation_action", required=True
+    )
+    localisation_tasks_parser = localisation_actions.add_parser(
+        "build-tasks", help="emit one offline task per exact sequence group"
+    )
+    localisation_tasks_parser.add_argument(
+        "--sequence-groups", type=Path, required=True
+    )
+    localisation_tasks_parser.add_argument("--psortb-runtime", type=Path, required=True)
+    localisation_tasks_parser.add_argument(
+        "--deeptmhmm-runtime", type=Path, required=True
+    )
+    localisation_tasks_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_run_parser = localisation_actions.add_parser(
+        "run-task", help="run one PSORTb item and retain blocked DeepTMHMM"
+    )
+    localisation_run_parser.add_argument("--task-directory", type=Path, required=True)
+    localisation_run_parser.add_argument("--psortb-runtime", type=Path, required=True)
+    localisation_run_parser.add_argument(
+        "--deeptmhmm-runtime", type=Path, required=True
+    )
+    localisation_run_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_policy_parser = localisation_actions.add_parser(
+        "build-wave-policy",
+        help="merge exact per-group results into first-wave decisions",
+    )
+    localisation_policy_parser.add_argument(
+        "--task-inventory", type=Path, required=True
+    )
+    localisation_policy_parser.add_argument(
+        "--result-directory", type=Path, action="append", default=[]
+    )
+    localisation_policy_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_reopen_parser = localisation_actions.add_parser(
+        "plan-reopen", help="reopen excluded groups only after a zero-pack wave"
+    )
+    localisation_reopen_parser.add_argument("--wave-policy", type=Path, required=True)
+    localisation_reopen_parser.add_argument(
+        "--active-wave-completion", type=Path, required=True
+    )
+    localisation_reopen_parser.add_argument("--outdir", type=Path, required=True)
 
     diffraction_parser = subparsers.add_parser(
         "diffraction", help="inspect crystallographic diffraction inputs"
@@ -1804,6 +1856,53 @@ def _run_catalogue(args: argparse.Namespace) -> int:
         f"{result.manifest.sequence_group_count} exact sequence groups: {args.outdir}"
     )
     return 0
+
+
+def _run_localisation(args: argparse.Namespace) -> int:
+    if args.localisation_action == "build-tasks":
+        result = build_catalogue_localisation_tasks(
+            args.sequence_groups,
+            args.psortb_runtime,
+            args.deeptmhmm_runtime,
+            args.outdir,
+        )
+        print(
+            f"Built {result.inventory.task_count} localisation task(s): "
+            f"{result.inventory_json}"
+        )
+        return 0
+    if args.localisation_action == "run-task":
+        result = run_catalogue_localisation_task(
+            args.task_directory,
+            args.psortb_runtime,
+            args.deeptmhmm_runtime,
+            args.outdir,
+        )
+        print(
+            f"Localisation {result.task.sequence_group_id}: "
+            f"{result.group_evidence.merged_outcome.value}"
+        )
+        return 0
+    if args.localisation_action == "build-wave-policy":
+        result = build_catalogue_localisation_wave_policy(
+            args.task_inventory,
+            tuple(args.result_directory),
+            args.outdir,
+        )
+        print(
+            f"Built localisation wave policy for "
+            f"{result.policy.sequence_group_count} group(s): {result.policy_json}"
+        )
+        return 0
+    if args.localisation_action == "plan-reopen":
+        result = plan_localisation_reopen(
+            args.wave_policy,
+            args.active_wave_completion,
+            args.outdir,
+        )
+        print(f"Localisation reopen {result.plan.status.value}: {result.plan_json}")
+        return 0
+    raise AssertionError(f"unhandled localisation action: {args.localisation_action}")
 
 
 def _run_benchmark(args: argparse.Namespace) -> int:
@@ -3014,6 +3113,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_benchmark(args)
         if args.command == "catalogue":
             return _run_catalogue(args)
+        if args.command == "localisation":
+            return _run_localisation(args)
         if args.command == "diffraction":
             return _run_diffraction(args)
         if args.command == "matthews":

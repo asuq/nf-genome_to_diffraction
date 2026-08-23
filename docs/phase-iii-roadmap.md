@@ -187,10 +187,12 @@ automatic scientific claim is made between depths.
 
 Status: the schema-v2 JSON/TSV gel manifest, crystal-reference validator, and
 checksum/version-bound offline PSORTb archaeal adapter are implemented on
-`dev/phase3`. DeepTMHMM binds the user image and input but remains
-`blocked_unverified_cli` until the supplied image exposes a verifiable local
-entrypoint/output format. Catalogue-wide Nextflow and ranking integration remain
-pending.
+`dev/phase3`. The catalogue-wide local workflow emits one PSORTb item and one
+typed blocked DeepTMHMM result per sequence group, requires exact result coverage,
+retains all first-wave exclusions, and gates deterministic reopen on a complete
+zero-pack active wave. DeepTMHMM remains `blocked_unverified_cli` until the supplied
+image exposes a verifiable local entrypoint/output format. Composition-planner
+consumption and real runtime/profile qualification remain pending.
 
 Run checksum-pinned local PSORTb 3.0.6 with its archaeal model and DeepTMHMM
 1.0 from a user-provided academic runtime image. Record runtime/image digests,

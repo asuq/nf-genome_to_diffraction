@@ -456,9 +456,7 @@ def _check_ready(root: Path, environment: dict[str, str]) -> None:
     trace_path = output / "pipeline_info/trace.tsv"
     first_rows = _read_trace(trace_path)
     expected_process = "STUB_PLANNED_COMPOSITION_ATTEMPT"
-    actual_processes = Counter(
-        row["process"].split(":")[-1] for row in first_rows
-    )
+    actual_processes = Counter(row["process"].split(":")[-1] for row in first_rows)
     if actual_processes != Counter({expected_process: 25}):
         raise RuntimeError(
             "composition stub scheduled the wrong exact task count: "

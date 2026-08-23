@@ -378,12 +378,26 @@ def plan_deeptmhmm_invocation(
         raise InputContractError(
             "DeepTMHMM input contains unsupported residues: " + "".join(unsupported)
         )
+    input_fasta_sha256 = sha256_file(resolved_input)
+    payload = {
+        "image_sha256": runtime.image_sha256,
+        "input_fasta_sha256": input_fasta_sha256,
+        "invocation_status": "blocked_unverified_cli",
+        "provenance": runtime.provenance,
+        "raw_output_retention_required": True,
+        "runtime_identity_sha256": runtime.runtime_identity_sha256,
+        "sequence_group_id": record.sequence_group_id,
+        "sequence_sha256": record.sha256,
+        "tool": "deeptmhmm",
+        "tool_version": runtime.tool_version,
+    }
     return DeepTMHMMInvocationPlan(
         runtime_identity_sha256=runtime.runtime_identity_sha256,
         image_sha256=runtime.image_sha256,
         sequence_group_id=record.sequence_group_id,
         sequence_sha256=record.sha256,
         input_fasta_path=str(resolved_input),
-        input_fasta_sha256=sha256_file(resolved_input),
+        input_fasta_sha256=input_fasta_sha256,
         block_reason=_DEEPTMHMM_BLOCK_REASON,
+        invocation_identity_sha256=canonical_digest(payload),
     )

@@ -32,9 +32,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III composition-attempt fan-out](phase-iii-composition-attempt-fanout.md):
   complete immutable selected-attempt items, typed empty paths, stub-only
   Nextflow execution, and byte-identical cached-resume evidence.
-- [Phase III offline localisation adapters](localisation-adapters.md):
-  checksum-bound PSORTb 3.0.6 archaeal execution and the explicitly blocked
-  DeepTMHMM 1.0 user-image runtime/input contract.
+- [Phase III offline localisation and wave policy](localisation-adapters.md):
+  one-item-per-group PSORTb 3.0.6 execution, typed blocked DeepTMHMM 1.0,
+  conservative first-wave decisions, exclusion retention, and zero-pack reopen.
 - [Single-component prototype roadmap](single-component-prototype-roadmap.md):
   historical v0.1/M6 plan and preserved single-component evidence; it is no
   longer the active heteromer gate.

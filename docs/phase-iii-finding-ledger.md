@@ -66,7 +66,7 @@ open among the original 34 findings.
 | `PH3-P1-10` Deeper component claims lack validation boundary | Planned | Depth three is control-validated; depths four to six are forcibly provisional regardless score/packing/refinement. |
 | `PH3-P1-11` Per-parent plans multiply the depth budget | Fixed on `dev/phase3`; live execution pending | One parent-bound depth plan and its content-addressed stub execution inventory prove exactly one maximum of 25 attempts across the complete three-parent beam, a 100-attempt global bound, exact task IDs/counts, typed no-model empty scheduling, and byte-identical cached resume. |
 | `PH3-P1-12` Unverified DeepTMHMM image command could be guessed | Fixed contract; runtime integration blocked | User image/input checksums are bound, but command and parser remain empty with `blocked_unverified_cli` until the supplied image is inspected. |
-| `PH3-P1-13` Conflicting localisation could become a hard exclusion | Fixed contract; ranking evidence pending | Conflicting informative tool outcomes resolve to `conflicting`; unknown and failed observations remain neutral rather than excluded. |
+| `PH3-P1-13` Conflicting localisation could become a hard exclusion | Fixed locally; real runtime qualification pending | Catalogue-wide policy maps conflicting, unknown, and failed observations to retained first-wave-eligible `neutral`; only explicit membrane/surface/extracellular/transmembrane calls are excluded, every exclusion is retained, and reopen requires a complete zero-pack active wave. |
 
 ## Closure rule
 

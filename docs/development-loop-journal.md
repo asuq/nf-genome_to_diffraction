@@ -10848,3 +10848,41 @@ Produce component-only placed-coordinate artefacts with derivation checksums,
 then qualify the exact multi-fixed partial-solution syntax against official
 documentation and the installed Phenix runtime. Do not replace this evidence
 with a collapsed combined parent or a guessed command.
+
+## 2026-08-23 - Catalogue-wide localisation wave policy is focused-green
+
+### Completed PH3-P1-13 slice
+
+- Added one content-addressed PSORTb task per exact sequence-equivalence group,
+  exact catalogue/result coverage validation, and one typed
+  `skipped_policy` DeepTMHMM result per group. DeepTMHMM retains an empty command
+  and no scientific outcome while its user-image CLI remains unverified.
+- Merged every group to one explicit localisation outcome and one first-wave
+  decision. Soluble is active; explicit membrane, surface, extracellular, and
+  transmembrane calls are excluded but retained; conflicting, unknown, and
+  failed calls remain neutral and first-wave eligible.
+- Added a deterministic reopen plan that always carries the complete excluded
+  inventory. It activates only after every first-wave group has a non-failed
+  terminal result and none packed. Missing/failed active-wave results remain
+  pending; any packed result keeps excluded groups closed.
+- Added a typed Nextflow workflow boundary. Its focused stub fans out five
+  sequence groups, retains one typed PSORTb failure, exercises a zero-task
+  channel, verifies exact counts and excluded-group retention, and requires
+  byte-stable cached resume. It runs no real PSORTb, DeepTMHMM, unknown profile,
+  HPC job, download, or remote sequence submission.
+
+### Validation, disclosure, and next exact starting point
+
+- The complete isolated unit suite passes 808 tests; the focused localisation
+  adapter/policy slice accounts for 31 tests and five CLI regressions. Ruff
+  formatting/lint, `ty`, schema and documentation validation, Nextflow syntax,
+  and the dedicated mixed/empty cached-resume stub pass. No complete release
+  gate or real-runtime claim is made from this focused branch.
+- Three early read-only inventory commands accidentally used a pipe to
+  `head`/`sort` before command discipline was corrected. They made no mutation,
+  network request, or external-system change; every subsequent shell call used
+  exactly one command.
+- Integrate this focused commit after review. Next, feed the retained first-wave
+  and reopened inventories into schema-v2 composition candidate generation and
+  qualify the real PSORTb runtime separately. Do not enable DeepTMHMM, define an
+  unknown profile, or launch localisation/HPC work until those later gates pass.

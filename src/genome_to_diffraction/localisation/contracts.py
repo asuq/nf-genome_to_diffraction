@@ -270,6 +270,7 @@ class DeepTMHMMInvocationPlan(ContractModel):
     command: tuple[str, ...] = ()
     block_reason: NonEmptyString
     raw_output_retention_required: Literal[True] = True
+    invocation_identity_sha256: Sha256Hex
     provenance: OfflineExecutionProvenance = Field(
         default_factory=OfflineExecutionProvenance
     )
@@ -280,6 +281,22 @@ class DeepTMHMMInvocationPlan(ContractModel):
             raise ValueError("sequence_group_id does not match sequence_sha256")
         if self.command:
             raise ValueError("blocked DeepTMHMM plan cannot contain a guessed command")
+        expected = canonical_digest(
+            {
+                "image_sha256": self.image_sha256,
+                "input_fasta_sha256": self.input_fasta_sha256,
+                "invocation_status": self.invocation_status,
+                "provenance": self.provenance,
+                "raw_output_retention_required": (self.raw_output_retention_required),
+                "runtime_identity_sha256": self.runtime_identity_sha256,
+                "sequence_group_id": self.sequence_group_id,
+                "sequence_sha256": self.sequence_sha256,
+                "tool": self.tool,
+                "tool_version": self.tool_version,
+            }
+        )
+        if self.invocation_identity_sha256 != expected:
+            raise ValueError("DeepTMHMM invocation identity does not match its content")
         return self
 
 
