@@ -93,6 +93,64 @@ def test_dispatch_rejects_multi_crystal_manifest(tmp_path: Path) -> None:
         )
 
 
+def test_dispatch_selects_each_manifest_owned_crystal_from_multi_manifest(
+    tmp_path: Path,
+) -> None:
+    crystals, preflight, first_mtz = _inputs(tmp_path)
+    document = json.loads(crystals.read_text(encoding="utf-8"))
+    preflight_template = json.loads(preflight.read_text(encoding="utf-8"))
+    preflight_records = [preflight_template]
+    expected_mtz = {"crystal_01": first_mtz}
+
+    for index in (2, 3):
+        crystal_id = f"crystal_{index:02d}"
+        mtz = first_mtz.parent / f"input diffraction {index}.mtz"
+        mtz.write_bytes(f"checksum-bound MTZ fixture {index}\n".encode())
+        entry = dict(document["crystals"][0])
+        entry.update(
+            {
+                "crystal_id": crystal_id,
+                "mtz": f"../data/{mtz.name}",
+            }
+        )
+        document["crystals"].append(entry)
+        record = dict(preflight_template)
+        record.update(
+            {
+                "crystal_id": crystal_id,
+                "preflight_id": f"preflight_{crystal_id}",
+                "mtz_sha256": sha256_file(mtz),
+            }
+        )
+        preflight_records.append(record)
+        expected_mtz[crystal_id] = mtz
+
+    crystals.write_text(json.dumps(document), encoding="utf-8")
+    preflight.write_text(
+        "".join(f"{json.dumps(record)}\n" for record in preflight_records),
+        encoding="utf-8",
+    )
+
+    dispatched = {
+        crystal_id: prepare_crystal_dispatch(
+            CrystalDispatchRequest(
+                crystals,
+                preflight,
+                tmp_path / f"dispatch-{crystal_id}",
+                False,
+                crystal_id,
+            )
+        )
+        for crystal_id in expected_mtz
+    }
+
+    assert set(dispatched) == {"crystal_01", "crystal_02", "crystal_03"}
+    assert len({item.record.dispatch_id for item in dispatched.values()}) == 3
+    for crystal_id, item in dispatched.items():
+        assert item.record.crystal_id == crystal_id
+        assert item.mtz.read_bytes() == expected_mtz[crystal_id].read_bytes()
+
+
 def test_dispatch_rejects_preflight_checksum_drift(tmp_path: Path) -> None:
     crystals, preflight, _ = _inputs(tmp_path)
     record = json.loads(preflight.read_text(encoding="utf-8"))

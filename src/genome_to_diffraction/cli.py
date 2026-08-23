@@ -961,11 +961,18 @@ def _build_parser() -> argparse.ArgumentParser:
     free_r_parser.add_argument("--timeout-seconds", type=float, default=3600.0)
     dispatch_parser = diffraction_actions.add_parser(
         "select-single",
-        help="derive one checksum-verified MR input from a one-crystal manifest",
+        help="derive one checksum-verified MR input from a crystal manifest",
     )
     dispatch_parser.add_argument("--crystals", type=Path, required=True)
     dispatch_parser.add_argument("--preflight", type=Path, required=True)
     dispatch_parser.add_argument("--outdir", type=Path, required=True)
+    dispatch_parser.add_argument(
+        "--crystal-id",
+        help=(
+            "manifest-owned crystal to dispatch; required when the manifest "
+            "contains more than one crystal"
+        ),
+    )
 
     matthews_parser = subparsers.add_parser(
         "matthews", help="enumerate candidate-specific ASU copy hypotheses"
@@ -2189,6 +2196,7 @@ def _run_diffraction(args: argparse.Namespace) -> int:
                 preflight_jsonl=args.preflight,
                 output_directory=args.outdir,
                 progress=not args.no_progress,
+                crystal_id=args.crystal_id,
             )
         )
         print(

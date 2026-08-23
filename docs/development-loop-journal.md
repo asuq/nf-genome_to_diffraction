@@ -10234,3 +10234,28 @@ Integrate this contract-only commit into `dev/phase3` after review. Build the
 planner and Nextflow fan-out against these records in a separate slice; do not add
 search execution, localisation, unknown-crystal profiles, or reinterpret v1 data
 while integrating the contracts.
+
+## 2026-08-23T15:30:00Z - Phase III per-crystal fan-out foundation is isolated
+
+### Completed focused slice
+
+- Extended the existing checksum-verifying crystal dispatcher with an explicit
+  manifest-owned crystal ID. Omitting that ID preserves the v0.2 one-crystal
+  contract; a multi-crystal manifest remains invalid on the legacy path.
+- Added a Phase III workflow boundary that expands the validated manifest and
+  uses Cartesian combination with the singleton catalogue and provider bundles.
+  Each scheduled item therefore carries its crystal manifest, preflight,
+  catalogue preparation, and provider preparation together instead of
+  consuming shared preparation alongside only the first crystal.
+- A focused stub prepares the two shared bundles once, dispatches three exact
+  crystal identities, and proves that all three downstream items can read both
+  shared bundles. The first run completes eight expected tasks; cached resume
+  retains the same three distinct dispatch hashes and byte-identical evidence.
+  The focused dispatcher unit tests, Ruff checks, and Nextflow syntax check pass.
+
+### Next exact starting point
+
+Integrate this boundary into the Phase III application workflow after the v0.2
+release transition. Keep the existing v0.2 single-crystal entry point unchanged;
+do not add unknown-screen profiles or general composition contracts in this
+slice.

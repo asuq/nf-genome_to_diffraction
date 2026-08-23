@@ -1,9 +1,9 @@
-"""Select one manifest-owned crystal for the first-copy MR boundary.
+"""Select one manifest-owned crystal for a per-crystal MR boundary.
 
-The normal workflow deliberately runs structural stages for one crystal per
-invocation.  This module validates that boundary, verifies the MTZ against the
-completed preflight record, and publishes a small immutable dispatch bundle.
-It never accepts a caller-supplied crystal identifier or MTZ path.
+The v1 workflow selects the sole crystal implicitly.  Phase III fan-out passes
+an explicit manifest-owned crystal identifier for each Nextflow item.  Both
+paths verify the MTZ against the completed preflight record and publish the
+same immutable dispatch bundle.  A caller-supplied MTZ path is never accepted.
 """
 
 import logging
@@ -62,6 +62,7 @@ class CrystalDispatchRequest:
     preflight_jsonl: Path
     output_directory: Path
     progress: bool = True
+    crystal_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -89,11 +90,8 @@ def _read_preflights(path: Path) -> tuple[MtzPreflightRecord, ...]:
                 raise CrystalDispatchError(
                     f"invalid MTZ preflight record at line {line_number}: {resolved}"
                 ) from error
-    if len(records) != 1:
-        raise CrystalDispatchError(
-            "first-copy dispatch requires exactly one MTZ preflight record; "
-            f"found {len(records)}"
-        )
+    if not records:
+        raise CrystalDispatchError("first-copy dispatch requires MTZ preflight records")
     return tuple(records)
 
 
@@ -147,19 +145,38 @@ def prepare_crystal_dispatch(
     )
     if not isinstance(manifest, CrystalManifest):
         raise TypeError("crystal dispatch received an unexpected contract")
-    if len(manifest.crystals) != 1:
-        raise CrystalDispatchError(
-            "first-copy analysis requires a one-crystal manifest; "
-            f"found {len(manifest.crystals)} crystals"
+    if request.crystal_id is None:
+        if len(manifest.crystals) != 1:
+            raise CrystalDispatchError(
+                "first-copy analysis requires a one-crystal manifest when "
+                "crystal_id is omitted; "
+                f"found {len(manifest.crystals)} crystals"
+            )
+        crystal = manifest.crystals[0]
+    else:
+        matching_crystals = tuple(
+            crystal
+            for crystal in manifest.crystals
+            if crystal.crystal_id == request.crystal_id
         )
-    crystal = manifest.crystals[0]
+        if len(matching_crystals) != 1:
+            raise CrystalDispatchError(
+                "requested crystal_id is not uniquely present in the manifest: "
+                f"{request.crystal_id}"
+            )
+        crystal = matching_crystals[0]
     preflight_path = request.preflight_jsonl.resolve(strict=True)
-    preflight = _read_preflights(preflight_path)[0]
-    if preflight.crystal_id != crystal.crystal_id:
+    matching_preflights = tuple(
+        preflight
+        for preflight in _read_preflights(preflight_path)
+        if preflight.crystal_id == crystal.crystal_id
+    )
+    if len(matching_preflights) != 1:
         raise CrystalDispatchError(
-            "crystal manifest and MTZ preflight identifiers differ: "
-            f"{crystal.crystal_id} != {preflight.crystal_id}"
+            "crystal requires exactly one matching MTZ preflight record: "
+            f"{crystal.crystal_id}; found {len(matching_preflights)}"
         )
+    preflight = matching_preflights[0]
     if (
         preflight.decision is PreflightDecision.FAIL
         or preflight.execution_status
