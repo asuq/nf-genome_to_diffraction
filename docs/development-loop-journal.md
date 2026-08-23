@@ -10520,3 +10520,36 @@ integrated.
   already completed retained run. Do not submit or resume another scientific
   job. Accept P6 only after the corrected collection succeeds and all retained
   checksums are independently verified.
+
+## 2026-08-23T16:20:00Z - P6-v2 accepted after corrected bounded collection
+
+### Immutable acceptance evidence
+
+- Collection correction `82042264166579cc0b08b221f392e5a4b97a9c30` passed CI
+  run/job `32650748546` / `97221842168` under Pixi 0.76.2. The deployed
+  dispatcher SHA-256 is
+  `c2a4016724b7b98afb90d053eb6dd73c6944ea49e45ee3beed38d4e2808aef74`;
+  the scientific job wrapper remained byte-identical.
+- The already completed retained P6-v2 run was recollected successfully without
+  resubmission or resume. All 47 paths in the final checksum manifest exist and
+  match. Provenance binds source `24f733c`, the pinned nf-helper revision, Pixi
+  0.76.2, the staged-source archive, and the verified Phenix installation.
+- 6RTZ recovered `1A+1B`; 3U7Q recovered `2A+2B`. The preparation binds 1846
+  catalogue groups and the exact 1845-member catalogue-minus-A missing-B
+  universe. Missing B selected zero attempts and emitted a complete summary.
+- Exactly six composition assessments were retained. None makes a composition
+  claim. The deliberately wrong B packed with incremental LLG 327.049 and TFZ
+  5.1 but is `search_evidence_only`; 9ECN is the protocol-backed
+  `unsupported_component_count` boundary with partial A+B evidence retainable.
+  All seven required Phenix executable identities and smoke probes passed.
+- The exact-source CI covers the real Nextflow empty-selected-channel regression:
+  one plan, zero partner tasks, one summary, and byte-identical cached resume.
+  P6 is accepted; no additional scientific job is required.
+
+### Next exact starting point
+
+Complete P7 from the prepared release worktree: merge the accepted main history,
+replace the pending P6 release-note marker, review version/changelog/docs, run
+one full locked release gate, push and watch one CI run, qualify the exact
+release commit on Marmic, then publish experimental `v0.2.0`. Keep Phase III
+development isolated on `dev/phase3` until v0.2 is immutable.
