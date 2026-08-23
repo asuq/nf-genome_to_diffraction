@@ -4570,7 +4570,9 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         environment=environment,
     ).stdout
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
-        names = set(collected.getnames())
+        member_names = collected.getnames()
+    assert len(member_names) == len(set(member_names))
+    names = set(member_names)
     assert "artifacts/qualification/heteromer-smoke-summary.json" in names
     assert "artifacts/qualification/heteromer-multicopy-summary.json" in names
     assert "artifacts/qualification/heteromer-catalogue-summary.json" in names
@@ -4613,6 +4615,19 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         in names
     )
     assert "artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json" in names
+
+
+def test_heteromer_collection_allowlist_has_no_duplicate_p6_report() -> None:
+    dispatcher = (REPOSITORY / "bootstrap/nf-gtd-hpc-remote").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        dispatcher.count(
+            "        artifacts/qualification/heteromer-control-slice-report.json \\"
+        )
+        == 1
+    )
 
 
 def test_heteromer_p6_no_hit_omits_only_conditional_solution_assets(
