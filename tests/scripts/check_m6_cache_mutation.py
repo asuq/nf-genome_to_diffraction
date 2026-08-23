@@ -9,7 +9,7 @@ from tests.scripts.check_nextflow import REPOSITORY, _environment, _read_trace, 
 
 def _rows(path: Path) -> dict[str, dict[str, str]]:
     rows = {row["tag"]: row for row in _read_trace(path)}
-    if len(rows) != 25:
+    if len(rows) != 26:
         raise RuntimeError(f"M6 task inventory changed: {sorted(rows)}")
     return rows
 
@@ -68,14 +68,14 @@ def main() -> None:
         trace = output / "pipeline_info/trace.tsv"
         baseline = _rows(trace)
         if {row["status"] for row in baseline.values()} != {"COMPLETED"}:
-            raise RuntimeError("M6 mutation baseline was not 25 completed tasks")
+            raise RuntimeError("M6 mutation baseline was not 26 completed tasks")
         inventories = {tag: _inventory(row) for tag, row in baseline.items()}
         published = _published(output)
 
         _run([*command, "-resume"], environment=environment)
         resumed = _rows(trace)
         if {row["status"] for row in resumed.values()} != {"CACHED"}:
-            raise RuntimeError("M6 baseline resume was not 25 cached tasks")
+            raise RuntimeError("M6 baseline resume was not 26 cached tasks")
 
         import_tag = f"m6-import:{'a' * 64}"
         child = "m6_catalogue_bundle/catalogue/source_records.jsonl"
@@ -104,6 +104,7 @@ def main() -> None:
         mutated = _rows(trace)
         completed = {
             "m6-policy:M6C001",
+            "m6-coordinate-stage:M6C001",
             "m6-case:M6C001",
             "m6-first:M6C001:hyp_stub",
             "m6-seeds:M6C001",

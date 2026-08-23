@@ -11467,9 +11467,10 @@ with a collapsed combined parent or a guessed command.
 
 ### Focused DEV-P1-07 evidence
 
-- A dedicated check reuses the full two-catalogue, two-batch, 25-task M6 stub
+- A dedicated check reuses the full two-catalogue, two-batch, 26-task M6 stub
   and standard Nextflow resume. Changing only the bytes of the staged protocol
-  reruns the exact nine-task policy-to-active-aggregate closure. The other 16
+  reruns the exact ten-task policy-to-coordinate-stage-to-active-aggregate
+  closure. The other 16
   exact task tags remain cached with unchanged cache hashes and byte-identical
   complete non-staged child-output inventories; published scientific outputs
   remain byte-identical.

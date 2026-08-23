@@ -339,9 +339,9 @@ adapter/cache identity `m6-nextflow-seeds-v2`. M6 execution and acceptance
 remain pending the other PH6 stop gates.
 
 Status: one focused local `DEV-P1-07` probe now mutates the real protocol path
-used by the full 25-task M6 stub. Exactly the policy, active-case, first-copy,
-seed, additional-copy, finalist, refinement, active-case assembly, and aggregate
-tasks complete again; the other 16 task tags remain cached with byte-identical
+used by the full 26-task M6 stub. Exactly the policy, coordinate-stage,
+active-case, first-copy, seed, additional-copy, finalist, refinement,
+active-case assembly, and aggregate tasks complete again; the other 16 task tags remain cached with byte-identical
 child outputs. The same probe inventories every non-staged child output, removes
 one cached catalogue `source_records.jsonl`, observes a standard resume, and
 derives `hold_missing_required_child` instead of accepting the unchanged
