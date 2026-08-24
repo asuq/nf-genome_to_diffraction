@@ -2890,10 +2890,7 @@ def _run_mr(args: argparse.Namespace) -> int:
                 expected_components=tuple(args.expected_component),
             )
         )
-        print(
-            "Mapped native Phaser placements: "
-            f"{placement_output.inventory_json}"
-        )
+        print(f"Mapped native Phaser placements: {placement_output.inventory_json}")
         return 0
     if args.mr_action == "search-partner":
         partner_output = run_partner_search(
