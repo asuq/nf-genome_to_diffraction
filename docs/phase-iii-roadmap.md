@@ -127,8 +127,12 @@ multi-fixed partial syntax required for a depth-two-or-higher parent.
 A fixed `phase3-phenix-probe` profile now captures only the exact installed
 `phenix.phaser --show_defaults` output under the checksum-frozen Marmic runtime.
 It exposes no paths or command arguments and performs no scientific execution.
-Its local fake lifecycle is green; the real Marmic probe and the subsequent
-known-control `XYZOUT ON ENSEMBLE ON` qualification remain pending.
+The real Marmic probe passed at exact source `a962e97` and qualified
+`phaser.keywords.general.xyzout_ensemble=True` plus exact `.sol` output. The
+fixed partner command now requests both explicitly, and a content-addressed
+parser retains exact `SOLU 6DIM` ordinal-to-native-PDB mappings. Known-control
+coordinate grouping/recombination remains pending and cannot yet create fixed
+component evidence.
 
 The isolated complete-item workflow now proves three crystal items can reuse
 one catalogue and one provider preparation through a byte-identical cached

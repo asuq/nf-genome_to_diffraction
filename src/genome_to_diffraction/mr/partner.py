@@ -64,7 +64,7 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.partner")
-_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v3"
+_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v4-native-placements"
 _ROOT = "PHASER"
 _PRIMARY_LLG = 100.0
 _PRIMARY_TFZ = 10.0
@@ -341,6 +341,9 @@ def _parameters(
     general {{
       root = {_ROOT}
       jobs = {threads}
+      xyzout = True
+      xyzout_ensemble = True
+      keywords = True
     }}
     sgalternative {{ select = none }}
   }}

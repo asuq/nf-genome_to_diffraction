@@ -36,6 +36,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III Phaser interface probe](phase-iii-phenix-interface-probe.md): fixed
   no-data Marmic capture of the installed `phenix.phaser --show_defaults`
   interface before per-ensemble output syntax is used.
+- [Phase III native Phaser placement output](phase-iii-phaser-placement-output.md):
+  exact `.sol`-to-per-ensemble PDB ordinal retention for the next known-control
+  qualification, with recombination claims still blocked.
 - [Phase III locked offline wheel gate](phase-iii-offline-wheel-gate.md): exact
   locked backend, purelib wheel inspection/install, packaged schema and source
   parity, both console entry points, and cross-surface version parity.

@@ -208,6 +208,9 @@ def test_fixed_a_one_b_command_and_primary_result(
     assert "identity = 0.35" in text
     assert "identity = 0.42" in text
     assert "jobs = 8" in text
+    assert "xyzout = True" in text
+    assert "xyzout_ensemble = True" in text
+    assert "keywords = True" in text
 
 
 def test_fixed_two_a_searches_two_b_jointly(

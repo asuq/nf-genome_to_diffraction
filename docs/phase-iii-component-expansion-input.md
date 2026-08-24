@@ -79,6 +79,13 @@ runtime and must:
 6. verify that all grouped component atom records recombine exactly to the
    combined parent before emitting derivation evidence.
 
+The installed-runtime probe and local adapter now complete steps 1--3 for the
+next known-control run: the partner command explicitly requests `.sol` and
+per-ensemble PDBs, and `PhaserPerPlacementInventory` content-binds the exact
+ordinal/ensemble/component/copy mapping. Steps 4--6 remain blocked until real
+6RTZ/3U7Q outputs prove grouping and recombination; the inventory therefore
+cannot yet emit `FixedComponentExecutionEvidence`.
+
 References: [Phaser keyword reference](https://www.phaser.cimr.cam.ac.uk/index.php/Keywords)
 and [Phenix automated molecular-replacement reference](https://phenix-online.org/documentation/reference/phaser.html).
 

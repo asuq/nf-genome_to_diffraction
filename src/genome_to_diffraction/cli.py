@@ -127,11 +127,14 @@ from genome_to_diffraction.mr import (
     AddCopyRunRequest,
     ApprovedPartnerSearchRequest,
     CopyCountReportRequest,
+    ExpectedPhaserComponent,
     PartnerSearchRequest,
     PartnerSummaryRequest,
+    PhaserPerPlacementRequest,
     PhaserRunRequest,
     PlannedPartnerSearchRequest,
     build_copy_count_report,
+    collect_phaser_per_placement_outputs,
     run_additional_copy_phaser,
     run_additional_copy_series,
     run_approved_partner_search,
@@ -233,6 +236,26 @@ def _add_contract_input(parser: argparse.ArgumentParser) -> None:
         default="auto",
         help="input format (default: infer from suffix)",
     )
+
+
+def _expected_phaser_component(value: str) -> ExpectedPhaserComponent:
+    parts = value.split(":")
+    if len(parts) != 3:
+        raise argparse.ArgumentTypeError(
+            "expected component must be LABEL:ENSEMBLE_ID:COPY_COUNT"
+        )
+    label, ensemble_id, raw_count = parts
+    try:
+        copy_count = int(raw_count)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            "expected component copy count must be an integer"
+        ) from error
+    if not label or not ensemble_id or not 1 <= copy_count <= 4:
+        raise argparse.ArgumentTypeError(
+            "expected component requires non-empty IDs and copy count 1..4"
+        )
+    return ExpectedPhaserComponent(label, ensemble_id, copy_count)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -1367,6 +1390,23 @@ def _build_parser() -> argparse.ArgumentParser:
         "--timeout-seconds",
         type=float,
         help="optional explicit Phaser deadline; by default no deadline is imposed",
+    )
+    placement_parser = mr_actions.add_parser(
+        "collect-per-placement",
+        help="map exact top-solution SOLU 6DIM entries to native Phaser PDBs",
+    )
+    placement_parser.add_argument("--crystal-id", required=True)
+    placement_parser.add_argument("--search-id", required=True)
+    placement_parser.add_argument("--phaser-version", required=True)
+    placement_parser.add_argument("--output-directory", type=Path, required=True)
+    placement_parser.add_argument("--command-record", type=Path, required=True)
+    placement_parser.add_argument("--result-record", type=Path, required=True)
+    placement_parser.add_argument(
+        "--expected-component",
+        type=_expected_phaser_component,
+        action="append",
+        required=True,
+        help="repeat LABEL:ENSEMBLE_ID:COPY_COUNT for each known component",
     )
     stage_add_copy_parser = mr_actions.add_parser(
         "stage-add-copy",
@@ -2836,6 +2876,23 @@ def _run_mr(args: argparse.Namespace) -> int:
             "Additional-copy MR "
             f"{add_copy_output.result.execution_status.value}: "
             f"{add_copy_output.result_json}"
+        )
+        return 0
+    if args.mr_action == "collect-per-placement":
+        placement_output = collect_phaser_per_placement_outputs(
+            PhaserPerPlacementRequest(
+                crystal_id=args.crystal_id,
+                search_id=args.search_id,
+                phaser_version=args.phaser_version,
+                output_directory=args.output_directory,
+                command_record=args.command_record,
+                result_record=args.result_record,
+                expected_components=tuple(args.expected_component),
+            )
+        )
+        print(
+            "Mapped native Phaser placements: "
+            f"{placement_output.inventory_json}"
         )
         return 0
     if args.mr_action == "search-partner":

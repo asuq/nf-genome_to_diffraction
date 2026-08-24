@@ -11765,3 +11765,46 @@ with a collapsed combined parent or a guessed command.
   refresh the deployment record for the exact commit, then stage one new fixed
   probe. The failed stage created no scheduler job and must not be submitted or
   reused.
+
+## 2026-08-24T10:54:14Z - Installed Phaser per-ensemble interface is qualified
+
+### Exact-source CI and Marmic evidence
+
+- Source `a962e97da22962e4b9afcf97081dd04ed26d4d26` passed complete CI
+  run/job `32714117442` / `97391634275` in 11m51s under Pixi 0.76.2.
+  The exact-commit archive fallback regression passed without changing the
+  fixed 64 MiB limit.
+- Reviewed Marmic deployment records the unchanged dispatcher/job-wrapper/
+  recovery SHA-256 values
+  `a80b6a61cd0d9b1a360880021bf625fd360a69951f8532fa120ee6482ed5f8be`,
+  `5e156ca02a7b89f747a4b3ee1cd8fa2c13b6d91c451fb9f8410a3ac984cf5e8d`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Owned fixed run
+  `gtd-phase3-phenix-probe-20260824T100809Z-a962e97da229-c046087f`,
+  Slurm `633758`, completed from that exact source in 64 seconds with exit zero,
+  `failure_class=success`, Pixi 0.76.2, pinned nf-helper `82431e4`, and verified
+  Phenix 2.1-6048. The command was exactly
+  `phenix.phaser --show_defaults`; the report records
+  `scientific_execution_performed=false` and probe ID
+  `phaserinterface_e99ac91e0e3edc664f57ee8a0c017cc62f97197b373888fe9165e7e217a1f986`.
+- All four retained checksums verify. The exact defaults output is 8515 bytes,
+  SHA-256 `35eeb2a1349e47f91860b54270f4017bf97a1b10e92cb1e9d107e56531b4283b`,
+  and proves `phaser.keywords.general.xyzout_ensemble=True`,
+  `phaser.keywords.general.keywords=True`,
+  `phaser.crystal_symmetry.space_group`, and
+  `phaser.keywords.resolution.high|low`. The completed-run heartbeat was
+  deleted after collection.
+
+### Smallest adapter and next exact starting point
+
+- The fixed partner adapter now requests coordinate output, per-ensemble PDBs,
+  and `.sol` output explicitly under cache identity
+  `phenix-fixed-a-joint-b-v4-native-placements`.
+- Added a content-addressed parser/CLI boundary that maps every top-solution
+  `SOLU 6DIM` line to `PHASER.1.<ordinal>.pdb`, verifies complete expected
+  component/copy coverage, and retains exact command/result/solution/combined/
+  placement checksums. Nineteen focused partner/parser tests pass.
+- This parser deliberately cannot yet create fixed-component evidence: exact
+  component grouping/recombination must be demonstrated by the next known
+  6RTZ/3U7Q control output. Build that fixed control qualification before 9ECN;
+  do not infer components from chain order or run unknown crystals/M6.

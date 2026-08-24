@@ -56,6 +56,11 @@ from genome_to_diffraction.schemas.v2.owned_run import (
     PhaseIIIOwnedReviewPackage,
     PhaseIIIOwnedRunRegistry,
 )
+from genome_to_diffraction.schemas.v2.phaser_placements import (
+    PhaserPerPlacementInventory,
+    PhaserPlacementArtifact,
+    PhaserPlacementComponentGroup,
+)
 from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecision,
@@ -141,6 +146,9 @@ __all__ = [
     "PhaseIIIReviewPackageManifest",
     "PhaseIIIReviewPackageTarget",
     "PhaseIIIReviewTableArtifact",
+    "PhaserPerPlacementInventory",
+    "PhaserPlacementArtifact",
+    "PhaserPlacementComponentGroup",
     "RegistryModelResolution",
     "RegistryModelResolutionScope",
     "ResidualContentState",
