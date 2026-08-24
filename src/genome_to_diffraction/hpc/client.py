@@ -582,17 +582,21 @@ class SubprocessGitRepository:
                     )
                 return result.stdout.strip()
 
+            checkout.mkdir()
+            run(["-C", str(checkout), "init", "--quiet"])
+            run(["-C", str(checkout), "remote", "add", "origin", origin_url])
             run(
                 [
-                    "clone",
-                    "--no-hardlinks",
-                    "--no-checkout",
-                    str(self._repository),
+                    "-C",
                     str(checkout),
+                    "fetch",
+                    "--depth=1",
+                    "--no-tags",
+                    str(self._repository),
+                    commit,
                 ]
             )
-            run(["-C", str(checkout), "checkout", "--detach", commit])
-            run(["-C", str(checkout), "remote", "set-url", "origin", origin_url])
+            run(["-C", str(checkout), "checkout", "--detach", "FETCH_HEAD"])
             run(
                 [
                     "-C",

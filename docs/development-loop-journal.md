@@ -11727,3 +11727,41 @@ with a collapsed combined parent or a guessed command.
 - Commit and push this correction once to `dev/phase3`, watch exactly one new
   CI run, and require the complete gate to pass before reviewed tool deployment
   or the fixed Marmic Phaser interface probe.
+
+## 2026-08-24T09:54:18Z - Phase III CI passes; archive fallback carried unrelated history
+
+### Exact CI and deployment evidence
+
+- Corrective head `204566db98cf4e8900b54a61a7fe3661c2d7c496` passed complete
+  GitHub Actions run/job `32712557760` / `97386907356` in 11m42s under
+  Pixi 0.76.2. This includes the positive offline wheel/install gate and every
+  unit, contract, integration, schema, documentation, actionlint, Nextflow,
+  cache-mutation, localisation, unknown-screen, provider-empty, and wrapper
+  task.
+- Reviewed Marmic tools deployed from that exact branch head using checksum-
+  gated recovery. Dispatcher SHA-256 is
+  `a80b6a61cd0d9b1a360880021bf625fd360a69951f8532fa120ee6482ed5f8be`;
+  job-wrapper SHA-256 is
+  `5e156ca02a7b89f747a4b3ee1cd8fa2c13b6d91c451fb9f8410a3ac984cf5e8d`;
+  recovery remains
+  `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+
+### Staging failure and smallest correction
+
+- The single fixed probe stage fell back from the unavailable remote mirror but
+  failed locally before transfer because the 64 MiB source-archive limit was
+  exceeded. Audit found the archive builder cloned and tarred the repository's
+  complete Git object history; Phase III commit history, not tracked source or
+  scientific payload, caused the growth.
+- The archive fallback now initialises a temporary repository and performs one
+  depth-one fetch of only the exact requested commit, then restores the real
+  origin URL and pinned submodule provenance before the existing cleanliness,
+  checksum, and size gates. The 64 MiB safety cap is unchanged.
+- A focused real-Git regression adds a three-MiB high-entropy object only on an
+  unrelated branch and proves the exact-commit archive stays smaller than that
+  object, has the requested clean detached HEAD and pinned helper commit, and
+  contains no unrelated file. Targeted Ruff, `ty`, and diff checks pass.
+- Commit and push this controller-only correction, require one green CI run,
+  refresh the deployment record for the exact commit, then stage one new fixed
+  probe. The failed stage created no scheduler job and must not be submitted or
+  reused.

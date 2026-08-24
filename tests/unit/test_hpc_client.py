@@ -22,6 +22,7 @@ from genome_to_diffraction.hpc.client import (
     SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS,
     HpcController,
     SshTransport,
+    SubprocessGitRepository,
 )
 from genome_to_diffraction.hpc.models import (
     ConfigurationError,
@@ -33,6 +34,19 @@ from genome_to_diffraction.hpc.models import (
 
 COMMIT = "1" * 40
 REPOSITORY = Path(__file__).resolve().parents[2]
+
+
+def _run_git(repository: Path, *arguments: str) -> str:
+    result = subprocess.run(
+        ["git", *arguments],
+        cwd=repository,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise AssertionError(result.stderr or result.stdout)
+    return result.stdout.strip()
 
 
 @dataclass
@@ -1365,6 +1379,84 @@ def test_stage_uses_source_archive_for_exact_unavailable_git_mirror(
     staged = controller.stage("p2-control", "HEAD")
     assert staged["remote_operation"] == "stage-archive"
     assert [call[0] for call in transport.calls] == ["stage", "stage-archive"]
+
+
+def test_source_archive_contains_exact_commit_not_unrelated_git_history(
+    tmp_path: Path,
+) -> None:
+    helper = tmp_path / "helper"
+    helper.mkdir()
+    _run_git(helper, "init", "--quiet")
+    _run_git(helper, "config", "user.name", "Test")
+    _run_git(helper, "config", "user.email", "test@example.invalid")
+    (helper / "README.md").write_text("helper\n", encoding="ascii")
+    _run_git(helper, "add", "README.md")
+    _run_git(helper, "commit", "--quiet", "-m", "helper")
+    helper_commit = _run_git(helper, "rev-parse", "HEAD")
+
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    _run_git(repository, "init", "--quiet")
+    _run_git(repository, "branch", "-M", "main")
+    _run_git(repository, "config", "user.name", "Test")
+    _run_git(repository, "config", "user.email", "test@example.invalid")
+    _run_git(
+        repository,
+        "remote",
+        "add",
+        "origin",
+        "git@github.com:example/repository.git",
+    )
+    (repository / "pixi.lock").write_text("locked\n", encoding="ascii")
+    _run_git(repository, "add", "pixi.lock")
+    _run_git(repository, "commit", "--quiet", "-m", "base")
+    _run_git(
+        repository,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "--quiet",
+        str(helper),
+        "external/nf-helper",
+    )
+    _run_git(repository, "commit", "--quiet", "-am", "add helper")
+    commit = _run_git(repository, "rev-parse", "HEAD")
+
+    _run_git(repository, "checkout", "--quiet", "-b", "unrelated-history")
+    unrelated = hashlib.shake_256(b"unrelated-history").digest(3 * 1024 * 1024)
+    (repository / "unrelated.bin").write_bytes(unrelated)
+    _run_git(repository, "add", "unrelated.bin")
+    _run_git(repository, "commit", "--quiet", "-m", "unrelated large history")
+    _run_git(repository, "checkout", "--quiet", "main")
+
+    archive = tmp_path / "source.tar"
+    digest, size, archived_helper = SubprocessGitRepository(
+        repository
+    ).create_source_archive(commit, archive)
+
+    assert size < len(unrelated)
+    assert digest == hashlib.sha256(archive.read_bytes()).hexdigest()
+    assert archived_helper == helper_commit
+    extracted = tmp_path / "extracted"
+    extracted.mkdir()
+    with tarfile.open(archive) as source_archive:
+        source_archive.extractall(extracted, filter="data")
+    assert _run_git(extracted, "rev-parse", "HEAD") == commit
+    assert (
+        _run_git(
+            extracted,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--ignore-submodules=none",
+        )
+        == ""
+    )
+    assert _run_git(extracted / "external/nf-helper", "rev-parse", "HEAD") == (
+        helper_commit
+    )
+    assert not (extracted / "unrelated.bin").exists()
 
 
 @pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse", "p2-control"])
