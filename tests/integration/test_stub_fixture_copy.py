@@ -93,14 +93,14 @@ def test_every_m6_directory_copy_stub_uses_the_writable_copy_helper() -> None:
         block for module in modules for block in module.split("\n    stub:\n")[1:]
     )
 
-    assert len(stub_blocks) == 20
+    assert len(stub_blocks) == 21
     assert all("cp -R" not in module for module in modules)
     assert (
         sum(module.count("tests/scripts/copy_stub_fixture.sh") for module in modules)
-        == 21
+        == 22
     )
     hardened_invocation = "/bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh'"
-    assert sum(module.count(hardened_invocation) for module in modules) == 21
+    assert sum(module.count(hardened_invocation) for module in modules) == 22
     for block in stub_blocks:
         stub = block.split("\n}\n", maxsplit=1)[0]
         assert "tests/scripts/copy_stub_fixture.sh" in stub

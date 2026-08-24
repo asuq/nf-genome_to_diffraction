@@ -11702,3 +11702,28 @@ with a collapsed combined parent or a guessed command.
   push once, watch one CI run, deploy from literal `dev/phase3`, stage/submit
   one `phase3-phenix-probe`, create its 30-minute poll, and collect/classify it
   before implementing native per-placement output or launching scientific data.
+
+## 2026-08-24T09:34:26Z - First Phase III branch CI found one stale stub count
+
+### Exact pushed evidence and failure classification
+
+- The user approved and the controller pushed clean Phase III head
+  `e90ad0262a753d3522fef49ae88dcc67493b844e` once to the new remote
+  `dev/phase3` branch. GitHub Actions run/job `32711960703` / `97385077689`
+  installed the locked Pixi 0.76.2 environment and passed formatting, lint,
+  type checking, 929 unit tests, and 129 contract tests.
+- Seventy-four of 75 integration tests passed. The sole failure was the exact
+  repository inventory assertion that still expected 20 M6 stub blocks and 21
+  writable-copy-helper invocations. The new coordinate-stage process correctly
+  makes those totals 21 and 22. This is test-accounting drift, not a software,
+  scientific, packaging, environment, or HPC failure.
+
+### Smallest correction and next exact starting point
+
+- Updated only those three expected counts. The focused integration regression
+  now passes, as do targeted Ruff format/lint and diff checks. No workflow,
+  scientific record, protocol, threshold, cache, remote tool, or HPC state
+  changed.
+- Commit and push this correction once to `dev/phase3`, watch exactly one new
+  CI run, and require the complete gate to pass before reviewed tool deployment
+  or the fixed Marmic Phaser interface probe.
