@@ -11808,3 +11808,35 @@ with a collapsed combined parent or a guessed command.
   component grouping/recombination must be demonstrated by the next known
   6RTZ/3U7Q control output. Build that fixed control qualification before 9ECN;
   do not infer components from chain order or run unknown crystals/M6.
+
+## 2026-08-24 - Fixed native-placement control capture is locally green
+
+### Accomplished
+
+- The fixed `heteromer-smoke` execution now calls the native-placement mapper
+  after the accepted 6RTZ `1A+1B` and 3U7Q `2A+2B` partner searches. The known
+  ensemble labels and copy counts are explicit; an incomplete `.sol` or native
+  PDB inventory fails the run.
+- Added a separate 48-file Phase III checksum manifest and control summary that
+  bind the exact inputs, Phenix manifest, parent and partner commands/results,
+  `.sol`, combined PDB/MTZ, every per-placement PDB, and both inventories. The
+  accepted v0.2 47-file P6 manifest remains byte-semantically unchanged.
+- The reviewed remote collection allow-list now includes only the exact new
+  control files. The focused fake lifecycle proves both mappings, the exact
+  checksum cardinality, bounded collection, and retained P6 no-hit behaviour.
+
+### Evidence and unresolved boundary
+
+- The fixed lifecycle regression passes, and 21 focused partner/parser/P6
+  tests pass. Ruff formatting/lint, `ty`, wrapper syntax, and diff checks pass.
+- This is control-capture wiring, not scientific recombination evidence. The
+  inventories intentionally remain
+  `recombination_status=not_assessed_pending_real_control` and cannot create
+  fixed-component execution evidence.
+
+### Exact next starting point
+
+- Commit and publish this slice, run one CI gate, deploy the reviewed wrappers,
+  and submit exactly one fixed Marmic `heteromer-smoke` control. Collect and
+  compare native component groups against each combined coordinate before
+  implementing the multi-fixed command or launching 9ECN.

@@ -52,6 +52,18 @@ genome-to-diffraction mr collect-per-placement \
 
 Repeat `--expected-component` for every known component.
 
+The fixed Marmic `heteromer-smoke` profile now applies this collector to both
+known positive controls immediately after the successful partner search:
+
+- 6RTZ requires `1 x fixed_parent` and `1 x search_partner`;
+- 3U7Q requires `2 x fixed_parent` and `2 x search_partner`.
+
+The wrapper fails if either native inventory is incomplete. It publishes a
+separate 48-file `phase3-placement-control-checksums.sha256` manifest covering
+the exact inputs, parent and partner command/results, `.sol`, combined
+coordinates/MTZ, every placement PDB, both inventories, and summaries. The
+immutable 47-file v0.2 P6 checksum manifest is not changed or reinterpreted.
+
 ## Failure and scientific boundary
 
 The parser runs no external command. Missing or symlinked files, malformed
@@ -65,6 +77,9 @@ mapping. It deliberately records
 `can_create_fixed_component_evidence=false`. A real 6RTZ/3U7Q control must
 demonstrate exact component grouping/recombination before these files can
 populate `ComponentExpansionExecutionInput` or be used to search 9ECN for C.
+The fixed-profile lifecycle and collection allow-list pass locally; the next
+action is one exact-source Marmic control run, followed by comparison of the
+native component groups with the combined coordinates.
 
 ## Tests and references
 

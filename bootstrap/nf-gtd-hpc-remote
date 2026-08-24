@@ -3435,6 +3435,8 @@ collect_run() {
         artifacts/qualification/heteromer-smoke-checksums.sha256 \
         artifacts/qualification/heteromer-smoke-phenix-manifest.json \
         artifacts/qualification/heteromer-smoke-phenix-verification.log \
+        artifacts/qualification/phase3-placement-control-summary.json \
+        artifacts/qualification/phase3-placement-control-checksums.sha256 \
         artifacts/qualification/phase3-phenix-manifest.json \
         artifacts/qualification/phase3-phenix-verification.log \
         artifacts/qualification/phaser-interface-probe.json \
@@ -3673,6 +3675,10 @@ collect_run() {
         artifacts/heteromer-smoke/partner/phenix.phaser.capture.log \
         artifacts/heteromer-smoke/partner/PHASER.1.pdb \
         artifacts/heteromer-smoke/partner/PHASER.1.mtz \
+        artifacts/heteromer-smoke/partner/PHASER.sol \
+        artifacts/heteromer-smoke/partner/PHASER.1.1.pdb \
+        artifacts/heteromer-smoke/partner/PHASER.1.2.pdb \
+        artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json \
         artifacts/heteromer-smoke/multicopy/preflight/mtz_preflight.jsonl \
         artifacts/heteromer-smoke/multicopy/preflight/xtriage/3U7Q.log \
         artifacts/heteromer-smoke/multicopy/parent/normalised_mr_result.json \
@@ -3688,6 +3694,13 @@ collect_run() {
         artifacts/heteromer-smoke/multicopy/partner/PHASER.log \
         artifacts/heteromer-smoke/multicopy/partner/phenix.phaser.capture.log \
         artifacts/heteromer-smoke/multicopy/partner/PHASER.1.pdb \
+        artifacts/heteromer-smoke/multicopy/partner/PHASER.1.mtz \
+        artifacts/heteromer-smoke/multicopy/partner/PHASER.sol \
+        artifacts/heteromer-smoke/multicopy/partner/PHASER.1.1.pdb \
+        artifacts/heteromer-smoke/multicopy/partner/PHASER.1.2.pdb \
+        artifacts/heteromer-smoke/multicopy/partner/PHASER.1.3.pdb \
+        artifacts/heteromer-smoke/multicopy/partner/PHASER.1.4.pdb \
+        artifacts/heteromer-smoke/multicopy/partner/phaser_per_placement_inventory.json \
         artifacts/heteromer-smoke/catalogue/matthews/matthews_hypotheses.jsonl \
         artifacts/heteromer-smoke/catalogue/plan/partner_search_plan.json \
         artifacts/heteromer-smoke/catalogue/plan/partner_candidates.jsonl \

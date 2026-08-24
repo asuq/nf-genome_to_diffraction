@@ -168,7 +168,7 @@ finalise() {
         reports_json='["artifacts/qualification/p2-control-summary.json","artifacts/qualification/p2-control-resume-check.json"]'
         retained_json='["artifacts/p2-control","artifacts/qualification"]'
     elif [[ "$PROFILE" == heteromer-smoke ]]; then
-        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/qualification/heteromer-multicopy-summary.json","artifacts/qualification/heteromer-catalogue-summary.json","artifacts/qualification/heteromer-control-slice-report.json","artifacts/qualification/heteromer-composition-assessments.jsonl","artifacts/heteromer-smoke/partner/partner_search_result.json","artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json"]'
+        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/qualification/heteromer-multicopy-summary.json","artifacts/qualification/heteromer-catalogue-summary.json","artifacts/qualification/heteromer-control-slice-report.json","artifacts/qualification/heteromer-composition-assessments.jsonl","artifacts/qualification/phase3-placement-control-summary.json","artifacts/heteromer-smoke/partner/partner_search_result.json","artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json","artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json","artifacts/heteromer-smoke/multicopy/partner/phaser_per_placement_inventory.json","artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json"]'
         retained_json='["artifacts/heteromer-smoke","artifacts/qualification"]'
     elif [[ "$PROFILE" == phase3-phenix-probe ]]; then
         reports_json='["artifacts/qualification/phaser-interface-probe.json"]'
@@ -1728,10 +1728,12 @@ run_heteromer_smoke() {
     local multicopy_preparation="$multicopy_inputs/preparation_manifest.json"
     local multicopy_parent_result=""
     local multicopy_partner_result="$multicopy_partner/partner_search_result.json"
+    local multicopy_placement_inventory="$multicopy_partner/phaser_per_placement_inventory.json"
     local qualification="$RUN/artifacts/qualification"
     local preparation="$inputs/preparation_manifest.json"
     local parent_result=""
     local partner_result="$partner/partner_search_result.json"
+    local partner_placement_inventory="$partner/phaser_per_placement_inventory.json"
     local parent_hypothesis_id parent_sequence_group_id partner_sequence_group_id
     local parent_llg parent_coordinate_relative parent_coordinate_sha256
     local parent_coordinate gate_passed expected_phenix_sha256
@@ -1759,10 +1761,12 @@ run_heteromer_smoke() {
     local p6_assessments="$qualification/heteromer-composition-assessments.jsonl"
     local p6_parent_group p6_wrong_group p6_wrong_model_sha p6_wrong_identity
     local p6_missing_model_relative p6_scope_relative p6_checksums_tmp
+    local placement_checksums_tmp
     local candidate
     local legacy_phenix_manifest refreshed_phenix_manifest
-    local -a preparation_values=() parent_values=()
+    local -a preparation_values=() parent_values=() partner_native_values=()
     local -a multicopy_values=() multicopy_parent_values=()
+    local -a multicopy_native_values=()
     local -a catalogue_values=() p6_values=() p6_solution_values=()
     local -a p6_checksum_files=()
 
@@ -1914,6 +1918,40 @@ PY
         --phenix-manifest "$PHENIX_MANIFEST" \
         --threads "${SLURM_CPUS_PER_TASK:-1}" \
         --outdir "$partner"
+
+    PHASE=test
+    printf 'phase=heteromer_partner_native_placements profile=heteromer-smoke\n'
+    mapfile -t partner_native_values < <(
+        "$PYTHON" - "$partner_result" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+search_id = document.get("search_id")
+tool_version = document.get("tool_version")
+if (
+    not isinstance(search_id, str)
+    or re.fullmatch(r"partner_[a-f0-9]{64}", search_id) is None
+    or not isinstance(tool_version, str)
+    or not tool_version
+):
+    raise SystemExit("fixed 6RTZ partner result lacks execution identity")
+print(search_id)
+print(tool_version)
+PY
+    )
+    [[ "${#partner_native_values[@]}" -eq 2 ]] || return 4
+    "$GTD" --log-format json --no-progress mr collect-per-placement \
+        --crystal-id 6RTZ \
+        --search-id "${partner_native_values[0]}" \
+        --phaser-version "${partner_native_values[1]}" \
+        --output-directory "$partner" \
+        --command-record "$partner/phaser_command.json" \
+        --result-record "$partner_result" \
+        --expected-component A:fixed_parent:1 \
+        --expected-component B:search_partner:1
 
     PHASE=test
     printf 'phase=heteromer_gate profile=heteromer-smoke\n'
@@ -2100,6 +2138,40 @@ PY
         --phenix-manifest "$PHENIX_MANIFEST" \
         --threads "${SLURM_CPUS_PER_TASK:-1}" \
         --outdir "$multicopy_partner"
+
+    PHASE=test
+    printf 'phase=heteromer_multicopy_native_placements profile=heteromer-smoke\n'
+    mapfile -t multicopy_native_values < <(
+        "$PYTHON" - "$multicopy_partner_result" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+search_id = document.get("search_id")
+tool_version = document.get("tool_version")
+if (
+    not isinstance(search_id, str)
+    or re.fullmatch(r"partner_[a-f0-9]{64}", search_id) is None
+    or not isinstance(tool_version, str)
+    or not tool_version
+):
+    raise SystemExit("fixed 3U7Q partner result lacks execution identity")
+print(search_id)
+print(tool_version)
+PY
+    )
+    [[ "${#multicopy_native_values[@]}" -eq 2 ]] || return 4
+    "$GTD" --log-format json --no-progress mr collect-per-placement \
+        --crystal-id 3U7Q \
+        --search-id "${multicopy_native_values[0]}" \
+        --phaser-version "${multicopy_native_values[1]}" \
+        --output-directory "$multicopy_partner" \
+        --command-record "$multicopy_partner/phaser_command.json" \
+        --result-record "$multicopy_partner_result" \
+        --expected-component A:fixed_parent:2 \
+        --expected-component B:search_partner:2
 
     PHASE=test
     printf 'phase=heteromer_multicopy_gate profile=heteromer-smoke\n'
@@ -2547,6 +2619,132 @@ PY
     ) > "$p6_checksums_tmp"
     mv -f -- "$p6_checksums_tmp" \
         "$qualification/heteromer-smoke-checksums.sha256"
+
+    "$PYTHON" - "$partner_placement_inventory" \
+        "$multicopy_placement_inventory" \
+        "$qualification/phase3-placement-control-summary.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+inventory_paths = (Path(sys.argv[1]), Path(sys.argv[2]))
+summary_path = Path(sys.argv[3])
+expected = {
+    "6RTZ": {"A": ("fixed_parent", 1), "B": ("search_partner", 1)},
+    "3U7Q": {"A": ("fixed_parent", 2), "B": ("search_partner", 2)},
+}
+controls = []
+for inventory_path in inventory_paths:
+    document = json.loads(inventory_path.read_text(encoding="utf-8"))
+    crystal_id = document.get("crystal_id")
+    groups = {
+        row.get("component_label"): (
+            row.get("ensemble_id"),
+            row.get("expected_copy_count"),
+            len(row.get("placement_ordinals", [])),
+        )
+        for row in document.get("component_groups", [])
+        if isinstance(row, dict)
+    }
+    expected_groups = expected.get(crystal_id)
+    observed_groups = {
+        label: (ensemble, expected_count)
+        for label, (ensemble, expected_count, observed_count) in groups.items()
+        if expected_count == observed_count
+    }
+    if (
+        document.get("schema_version") != "2.0"
+        or document.get("adapter_version") != "phaser-per-placement-inventory-v1"
+        or expected_groups is None
+        or observed_groups != expected_groups
+        or document.get("ordinal_mapping_status")
+        != "verified_exact_sol_to_native_pdb"
+        or document.get("recombination_status")
+        != "not_assessed_pending_real_control"
+        or document.get("can_create_fixed_component_evidence") is not False
+    ):
+        raise SystemExit(f"invalid native placement inventory for {crystal_id!r}")
+    controls.append(
+        {
+            "crystal_id": crystal_id,
+            "inventory_id": document.get("inventory_id"),
+            "search_id": document.get("search_id"),
+            "phaser_version": document.get("phaser_version"),
+            "placement_count": len(document.get("placements", [])),
+            "component_groups": groups,
+        }
+    )
+controls.sort(key=lambda row: row["crystal_id"])
+summary = {
+    "schema_version": "1.0",
+    "adapter_version": "phase3-placement-known-controls-v1",
+    "profile": "heteromer-smoke",
+    "controls": controls,
+    "native_mapping_passed": True,
+    "recombination_qualified": False,
+    "next_gate": "compare_native_component_groups_with_combined_coordinates",
+    "checksum_file_count": 48,
+}
+summary_path.write_text(
+    json.dumps(summary, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+PY
+    placement_checksums_tmp="$qualification/phase3-placement-control-checksums.sha256.tmp.$$"
+    (
+        cd "$RUN"
+        sha256sum \
+            artifacts/qualification/heteromer-smoke-phenix-manifest.json \
+            artifacts/heteromer-smoke/inputs/preparation_manifest.json \
+            artifacts/heteromer-smoke/inputs/crystals.json \
+            artifacts/heteromer-smoke/inputs/sequence_groups.jsonl \
+            artifacts/heteromer-smoke/inputs/models/component_A.pdb \
+            artifacts/heteromer-smoke/inputs/models/component_B.pdb \
+            artifacts/heteromer-smoke/inputs/derived/6RTZ.mtz \
+            artifacts/heteromer-smoke/parent/normalised_mr_result.json \
+            artifacts/heteromer-smoke/parent/phaser_command.json \
+            artifacts/heteromer-smoke/parent/PHASER.1.pdb \
+            artifacts/heteromer-smoke/partner/partner_search_result.json \
+            artifacts/heteromer-smoke/partner/partner_search_result.jsonl \
+            artifacts/heteromer-smoke/partner/phaser_command.json \
+            artifacts/heteromer-smoke/partner/partner_search.eff \
+            artifacts/heteromer-smoke/partner/PHASER.log \
+            artifacts/heteromer-smoke/partner/phenix.phaser.capture.log \
+            artifacts/heteromer-smoke/partner/PHASER.sol \
+            artifacts/heteromer-smoke/partner/PHASER.1.pdb \
+            artifacts/heteromer-smoke/partner/PHASER.1.mtz \
+            artifacts/heteromer-smoke/partner/PHASER.1.1.pdb \
+            artifacts/heteromer-smoke/partner/PHASER.1.2.pdb \
+            artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json \
+            artifacts/qualification/heteromer-smoke-summary.json \
+            artifacts/heteromer-smoke/inputs/multicopy/preparation_manifest.json \
+            artifacts/heteromer-smoke/inputs/multicopy/crystals.json \
+            artifacts/heteromer-smoke/inputs/multicopy/sequence_groups.jsonl \
+            artifacts/heteromer-smoke/inputs/multicopy/models/component_A.pdb \
+            artifacts/heteromer-smoke/inputs/multicopy/models/component_B.pdb \
+            artifacts/heteromer-smoke/inputs/multicopy/derived/3U7Q.mtz \
+            artifacts/heteromer-smoke/multicopy/parent/normalised_mr_result.json \
+            artifacts/heteromer-smoke/multicopy/parent/phaser_command.json \
+            artifacts/heteromer-smoke/multicopy/parent/PHASER.1.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json \
+            artifacts/heteromer-smoke/multicopy/partner/partner_search_result.jsonl \
+            artifacts/heteromer-smoke/multicopy/partner/phaser_command.json \
+            artifacts/heteromer-smoke/multicopy/partner/partner_search.eff \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.log \
+            artifacts/heteromer-smoke/multicopy/partner/phenix.phaser.capture.log \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.sol \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.mtz \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.1.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.2.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.3.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.4.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/phaser_per_placement_inventory.json \
+            artifacts/qualification/heteromer-multicopy-summary.json \
+            artifacts/qualification/phase3-placement-control-summary.json
+    ) > "$placement_checksums_tmp"
+    mv -f -- "$placement_checksums_tmp" \
+        "$qualification/phase3-placement-control-checksums.sha256"
     printf 'heteromer_smoke_status=passed\n'
 }
 

@@ -180,7 +180,11 @@ planner shares one 25-attempt budget across at most three parents, preserves
 every disposition, enforces the 100-attempt global bound, and binds the
 independent all-model registry without consulting the A shortlist. A stub-only
 Nextflow fan-out now proves exact complete task identities and resume caching;
-live Phaser execution remains a separate pending slice. The pure-Python
+live general-component Phaser execution remains a separate pending slice. The
+fixed 6RTZ/3U7Q control profile now retains `.sol`, combined outputs, and every
+native per-placement PDB in a separate 48-file Phase III checksum boundary;
+its local lifecycle and allow-listed collection are green, while exact real
+component recombination remains the next Marmic gate. The pure-Python
 candidate generator now supplies complete parent/catalogue rows with four
 parent-specific total-composition copy assessments, typed gel/localisation
 priors, cap-independent model selection, quality/diversity evidence, and exact
