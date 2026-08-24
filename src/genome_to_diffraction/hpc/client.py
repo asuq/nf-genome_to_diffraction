@@ -1365,6 +1365,7 @@ class HpcController:
         revision: str,
         *,
         parent_run_id: str | None = None,
+        source_branch: str | None = None,
     ) -> dict[str, object]:
         """Stage one clean immutable commit and create its local capability record."""
 
@@ -1375,10 +1376,19 @@ class HpcController:
             )
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
-        if profile == "phase3-phenix-probe":
+        approved_source_branch = source_branch or (
+            "dev/phase3" if profile == "phase3-phenix-probe" else "main"
+        )
+        if approved_source_branch == "dev/phase3":
+            if profile not in {"heteromer-smoke", "phase3-phenix-probe"}:
+                raise ValidationError(
+                    "dev/phase3 staging is limited to fixed Phase III controls"
+                )
             self.git.ensure_reachable_from_origin_branch(commit, "dev/phase3")
-        else:
+        elif approved_source_branch == "main":
             self.git.ensure_reachable_from_origin_main(commit)
+        else:
+            raise ValidationError("source branch is not approved for HPC staging")
         iteration, parent = self._next_iteration(parent_run_id)
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
         run_id = f"gtd-{profile}-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
@@ -1461,6 +1471,7 @@ class HpcController:
             "run_id": run_id,
             "commit": commit,
             "profile": profile,
+            "source_branch": approved_source_branch,
             "iteration": iteration,
             "local_record": str(local_path),
         }

@@ -54,6 +54,8 @@ class FakeGit:
     dirty: bool = False
     repository: Path | None = None
     reachable: bool = True
+    main_checks: list[str] = field(default_factory=list)
+    branch_checks: list[tuple[str, str]] = field(default_factory=list)
 
     def ensure_clean(self) -> None:
         if self.dirty:
@@ -70,10 +72,12 @@ class FakeGit:
         return self.repository.joinpath(*path.parts).read_bytes()
 
     def ensure_reachable_from_origin_main(self, commit: str) -> None:
+        self.main_checks.append(commit)
         if commit != COMMIT or not self.reachable:
             raise ValidationError("commit is unavailable from origin/main")
 
     def ensure_reachable_from_origin_branch(self, commit: str, branch: str) -> None:
+        self.branch_checks.append((commit, branch))
         if commit != COMMIT or not self.reachable or branch != "dev/phase3":
             raise ValidationError("commit is unavailable from approved remote branch")
 
@@ -1051,12 +1055,27 @@ def test_phenix_bound_stage_uses_only_the_preserved_runtime_identity(
         encoding="ascii",
     )
 
-    staged = controller.stage(profile, "HEAD")
+    staged = controller.stage(
+        profile,
+        "HEAD",
+        source_branch=("dev/phase3" if profile == "heteromer-smoke" else None),
+    )
 
     assert staged["profile"] == profile
+    assert staged["source_branch"] == "dev/phase3"
+    assert isinstance(controller.git, FakeGit)
+    assert controller.git.main_checks == []
+    assert controller.git.branch_checks == [(COMMIT, "dev/phase3")]
     operation, arguments = transport.calls[-1]
     assert operation == "stage"
     assert arguments[5:] == (profile, phenix_path, phenix_sha256)
+
+
+def test_dev_phase3_stage_rejects_non_phase3_profiles(tmp_path: Path) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+
+    with pytest.raises(ValidationError, match="fixed Phase III controls"):
+        controller.stage("smoke", "HEAD", source_branch="dev/phase3")
 
 
 @pytest.mark.parametrize("site_id", ["marmic", "viper-cpu"])

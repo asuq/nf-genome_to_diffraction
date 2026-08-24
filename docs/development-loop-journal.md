@@ -11840,3 +11840,36 @@ with a collapsed combined parent or a guessed command.
   and submit exactly one fixed Marmic `heteromer-smoke` control. Collect and
   compare native component groups against each combined coordinate before
   implementing the multi-fixed command or launching 9ECN.
+
+## 2026-08-24 - Phase III branch authority made explicit for the fixed control
+
+### Evidence and diagnosis
+
+- Native-placement control commit
+  `36d49c4163f81b765da9c254363349bfdc1c5a82` passed exact-source CI
+  run/job `32746501569` / `97493200593` under Pixi 0.76.2. GitHub delayed the
+  run-level conclusion after the only job completed, but ultimately recorded
+  `success`; no replacement CI run was created.
+- Reviewed Marmic deployment recorded dispatcher/job-wrapper/recovery SHA-256
+  values `e3d9047feda9726fce11f01bf1ed8acd5e11ffb629ea0a1e81aae41412ac7366`,
+  `50699a20a6f8508103debdd856732ff92dfba4e8302a6cae5be22deb36768391`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- The first stage attempt stopped locally before creating a run because the
+  controller still required `heteromer-smoke` commits to be ancestors of
+  `origin/main`. The empty Git diagnostic was the exit-one
+  `merge-base --is-ancestor` predicate, not a remote, scientific, or scheduler
+  failure.
+
+### Smallest correction and next exact starting point
+
+- Fixed staging now accepts an explicit `--source-branch dev/phase3` only for
+  `heteromer-smoke` and `phase3-phenix-probe`; every other profile still
+  defaults to and requires `origin/main`. The no-data Phase III probe keeps its
+  existing automatic branch selection.
+- Twenty-four focused CLI/client tests pass, including exact branch-check
+  selection and rejection of a non-Phase-III profile. Formatting, Ruff, and
+  `ty` pass.
+- Commit/push this controller-only fix, require one green CI run, refresh the
+  exact deployment record, then stage and submit one fixed control with the
+  explicit Phase III branch. The failed local stage created nothing to reuse or
+  clean.

@@ -101,6 +101,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     stage.add_argument("--revision", required=True)
     stage.add_argument("--parent-run")
+    stage.add_argument(
+        "--source-branch",
+        choices=("main", "dev/phase3"),
+        help="fixed remote branch containing the immutable commit",
+    )
 
     submit = actions.add_parser("submit", help="submit the fixed Slurm profile")
     submit.add_argument(
@@ -236,6 +241,7 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.profile,
             args.revision,
             parent_run_id=args.parent_run,
+            source_branch=args.source_branch,
         )
     if args.operation == "m4-copy-stage":
         return controller.m4_copy_stage(

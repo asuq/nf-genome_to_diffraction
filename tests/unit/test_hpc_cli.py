@@ -96,10 +96,22 @@ def test_heteromer_smoke_has_only_fixed_stage_and_submit_arguments() -> None:
     parser = _build_parser()
 
     staged = parser.parse_args(["stage", "heteromer-smoke", "--revision", "HEAD"])
+    phase3_staged = parser.parse_args(
+        [
+            "stage",
+            "heteromer-smoke",
+            "--revision",
+            "HEAD",
+            "--source-branch",
+            "dev/phase3",
+        ]
+    )
     submitted = parser.parse_args(["submit", "heteromer-smoke", "--run-id", "RUN_ID"])
 
     assert staged.profile == "heteromer-smoke"
     assert vars(staged)["revision"] == "HEAD"
+    assert staged.source_branch is None
+    assert phase3_staged.source_branch == "dev/phase3"
     assert not {"case", "path", "command", "coordinates"} & vars(staged).keys()
     assert submitted.profile == "heteromer-smoke"
 
