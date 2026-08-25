@@ -403,9 +403,14 @@ legacy MR evidence, every crystal/hypothesis/target, and reviewer dispositions.
 Only approved states enter the existing same-component Nextflow adapter; rejected
 or deferred checkpoints complete with empty approved/placement tables instead of
 fabricating a seed. Original decision, stage, and package records remain retained
-in the downstream evidence. Historical schema-v1 approvals remain unchanged. The
-fixed remote profile, multi-crystal continuation, and real licensed execution
-remain pending.
+in the downstream evidence. A separate complete-item continuation now independently
+authenticates and publishes each crystal's owned A-seed stage, joins placement
+inputs only by crystal identity, and retains deferred decisions without launching
+Phaser. A real three-crystal local workflow schedules exactly three review-stage
+jobs and two approved placements, fully caches all five, and reruns only the
+affected placement after one crystal's selected-diffraction mutation. Historical
+schema-v1 approvals remain unchanged. Main-entry multi-crystal refinement, the
+fixed remote profile, and real licensed execution remain pending.
 
 A scientifically completed zero-model crystal now also receives its own
 content-bound schema-v2 A-seed package and an empty target worksheet. This

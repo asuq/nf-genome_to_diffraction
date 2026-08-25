@@ -57,11 +57,15 @@ GROUP_ID = "seq_f50b9a1db8767fb7cdc8b89cf1a78c9fac1e0e2d5bb5367aeec14709396d5c5e
 HYPOTHESIS_ID = "mrhyp_" + "d" * 64
 
 
-def _hypothesis() -> MrHypothesis:
+def _hypothesis(
+    *,
+    crystal_id: str = "test_crystal_01",
+    hypothesis_id: str = HYPOTHESIS_ID,
+) -> MrHypothesis:
     return MrHypothesis(
         schema_version="1.0",
-        hypothesis_id=HYPOTHESIS_ID,
-        crystal_id="test_crystal_01",
+        hypothesis_id=hypothesis_id,
+        crystal_id=crystal_id,
         sequence_group_id=GROUP_ID,
         model_id="model_" + "a" * 64,
         copy_count_expected=1,
@@ -81,11 +85,11 @@ def _hypothesis() -> MrHypothesis:
     )
 
 
-def _matthews() -> MatthewsHypothesis:
+def _matthews(*, crystal_id: str = "test_crystal_01") -> MatthewsHypothesis:
     return MatthewsHypothesis(
         schema_version="1.0",
         hypothesis_id="matthews_stub",
-        crystal_id="test_crystal_01",
+        crystal_id=crystal_id,
         sequence_group_id=GROUP_ID,
         copy_count=1,
         sequence_mass_da=436.4375,
@@ -103,10 +107,15 @@ def _matthews() -> MatthewsHypothesis:
     )
 
 
-def _result(*, hit: bool = True, raw_log: str = "PHASER.log") -> NormalisedMrResult:
+def _result(
+    *,
+    hit: bool = True,
+    raw_log: str = "PHASER.log",
+    hypothesis_id: str = HYPOTHESIS_ID,
+) -> NormalisedMrResult:
     return NormalisedMrResult(
         schema_version="1.0",
-        hypothesis_id=HYPOTHESIS_ID,
+        hypothesis_id=hypothesis_id,
         tool_version="2.8.3",
         execution_status=(
             ExecutionStatus.COMPLETED_HIT if hit else ExecutionStatus.COMPLETED_NO_HIT
@@ -142,15 +151,20 @@ def _request(
     hit: bool = True,
     raw_log: str = "PHASER.log",
     keep_solution_assets: bool | None = None,
+    crystal_id: str = "test_crystal_01",
+    hypothesis_id: str = HYPOTHESIS_ID,
 ) -> MrSeedReviewRequest:
-    hypothesis = _hypothesis()
-    result = _result(hit=hit, raw_log=raw_log)
+    hypothesis = _hypothesis(crystal_id=crystal_id, hypothesis_id=hypothesis_id)
+    result = _result(hit=hit, raw_log=raw_log, hypothesis_id=hypothesis_id)
     hypotheses = tmp_path / "hypotheses.jsonl"
     hypotheses.write_text(f"{canonical_json_text(hypothesis)}\n", encoding="utf-8")
     results = tmp_path / "results.jsonl"
     results.write_text(f"{canonical_json_text(result)}\n", encoding="utf-8")
     matthews = tmp_path / "matthews.jsonl"
-    matthews.write_text(f"{canonical_json_text(_matthews())}\n", encoding="utf-8")
+    matthews.write_text(
+        f"{canonical_json_text(_matthews(crystal_id=crystal_id))}\n",
+        encoding="utf-8",
+    )
     funnel = tmp_path / "funnel_manifest.json"
     funnel.write_text(
         json.dumps(
@@ -161,7 +175,7 @@ def _request(
                 "execution_status": "completed_success",
                 "hypotheses": [
                     {
-                        "hypothesis_id": HYPOTHESIS_ID,
+                        "hypothesis_id": hypothesis_id,
                         "model_id": hypothesis.model_id,
                     }
                 ],
@@ -170,7 +184,7 @@ def _request(
         encoding="utf-8",
     )
     result_root = tmp_path / "published results"
-    bundle = result_root / f"first_copy_phaser_{HYPOTHESIS_ID}"
+    bundle = result_root / f"first_copy_phaser_{hypothesis_id}"
     bundle.mkdir(parents=True)
     (bundle / "normalised_mr_result.jsonl").write_text(
         f"{canonical_json_text(result)}\n", encoding="utf-8"
@@ -254,6 +268,7 @@ def _phase3_a_seed_stage(
     review_manifest: Path,
     solution_id: str,
     decision: PhaseIIIReviewDecisionValue,
+    crystal_id: str = "test_crystal_01",
 ) -> tuple[Path, Path]:
     package_directory = tmp_path / "phase3 A review package"
     package_directory.mkdir()
@@ -264,7 +279,7 @@ def _phase3_a_seed_stage(
             parent_profile="unknown-screen",
             parent_phase="phase3-pass1",
             execution_identity_id=f"phase3exec_{'a' * 64}",
-            crystal_id="test_crystal_01",
+            crystal_id=crystal_id,
             target_item_ids=(solution_id,),
             created_at=datetime.now(UTC),
             input_root=review_manifest.parent,
@@ -285,7 +300,7 @@ def _phase3_a_seed_stage(
         review_package_manifest_sha256=sha256_file(package.manifest),
         decisions=(
             PhaseIIIReviewDecision(
-                crystal_id="test_crystal_01",
+                crystal_id=crystal_id,
                 item_id=solution_id,
                 decision=decision,
                 reviewer="phase3-reviewer",
@@ -845,6 +860,176 @@ def test_phase3_a_decision_controls_the_actual_same_component_process(
         cached = tuple(csv.DictReader(stream, delimiter="\t"))
     assert {row["status"] for row in cached} == {"CACHED"}
     assert {row["hash"] for row in cached} == {row["hash"] for row in first}
+
+
+def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
+    tmp_path: Path,
+) -> None:
+    records: list[dict[str, str]] = []
+    approved_ids: dict[str, str] = {}
+    selection_paths: dict[str, Path] = {}
+    decisions = (
+        ("test_crystal_a", "a", PhaseIIIReviewDecisionValue.APPROVE),
+        ("test_crystal_b", "b", PhaseIIIReviewDecisionValue.APPROVE),
+        ("test_crystal_c", "c", PhaseIIIReviewDecisionValue.DEFER),
+    )
+    for crystal_id, digest, decision in decisions:
+        root = tmp_path / crystal_id
+        root.mkdir()
+        hypothesis_id = f"mrhyp_{digest * 64}"
+        request = _request(
+            root,
+            crystal_id=crystal_id,
+            hypothesis_id=hypothesis_id,
+        )
+        hypothesis = _hypothesis(
+            crystal_id=crystal_id,
+            hypothesis_id=hypothesis_id,
+        ).model_copy(update={"copy_count_expected": 3})
+        request.hypotheses_jsonl.write_text(
+            f"{canonical_json_text(hypothesis)}\n",
+            encoding="utf-8",
+        )
+        matthews = _matthews(crystal_id=crystal_id).model_copy(
+            update={"copy_count": 3, "total_mass_da": 3 * 436.4375}
+        )
+        request.matthews_hypotheses_jsonl.write_text(
+            f"{canonical_json_text(matthews)}\n",
+            encoding="utf-8",
+        )
+        package = build_mr_seed_review(request)
+        manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
+        solution_id = manifest["items"][0]["solution_id"]
+        stage, phase3_manifest = _phase3_a_seed_stage(
+            root,
+            review_manifest=package.manifest_json,
+            solution_id=solution_id,
+            decision=decision,
+            crystal_id=crystal_id,
+        )
+        selection = root / "selected-diffraction.json"
+        selection.write_text(f'{{"crystal":"{crystal_id}"}}\n', encoding="ascii")
+        selection_paths[crystal_id] = selection
+        if decision is PhaseIIIReviewDecisionValue.APPROVE:
+            approved_ids[crystal_id] = solution_id
+        records.append(
+            {
+                "crystal_id": crystal_id,
+                "review_package": str(package.manifest_json.parent),
+                "review_stage": str(stage),
+                "phase3_package": str(phase3_manifest.parent),
+                "hypotheses": str(request.hypotheses_jsonl),
+                "sequence_groups": str(STUBS / "sequence_groups.jsonl"),
+                "preflight": str(STUBS / "mtz_preflight.jsonl"),
+                "mtz": str(STUBS / "predicted_model_preparation/models/stub.pdb"),
+                "phenix_manifest": str(STUBS / "phenix_install_manifest.json"),
+                "diffraction_selection": str(selection),
+            }
+        )
+
+    input_manifest = tmp_path / "reviewed-crystals.json"
+    input_manifest.write_text(json.dumps({"crystals": records}), encoding="ascii")
+    project = tmp_path / "nextflow-project"
+    project.mkdir()
+    source = STUBS / "phase3_multicrystal_reviewed_seed_fanout/main.nf"
+    (project / "main.nf").write_text(
+        source.read_text(encoding="ascii").replace(
+            "'../../../../workflows/",
+            f"'{REPOSITORY}/workflows/",
+        ),
+        encoding="ascii",
+    )
+    local_stubs = project / "tests/fixtures/stubs"
+    local_stubs.mkdir(parents=True)
+    for name in (
+        "additional_copy_result.jsonl",
+        "additional_copy_result.json",
+        "phaser_command.json",
+        "add_copy.eff",
+        "additional_copy_series_results.jsonl",
+        "additional_copy_series_summary.json",
+    ):
+        copy2(STUBS / name, local_stubs / name)
+    output = tmp_path / "reviewed-crystal-results"
+    command = [
+        "nextflow",
+        "-C",
+        "tests/fixtures/stubs/p6_empty_partner/nextflow.config",
+        "run",
+        str(project / "main.nf"),
+        "-stub-run",
+        "--reviewed_manifest",
+        str(input_manifest),
+        "--outdir",
+        str(output),
+        "--cache_root",
+        str(tmp_path / "nextflow-cache"),
+    ]
+    environment = dict(os.environ)
+    environment.update(
+        {
+            "NXF_AGENT_MODE": "true",
+            "NXF_ANSI_LOG": "false",
+            "NXF_DISABLE_CHECK_LATEST": "true",
+            "NXF_HOME": str(tmp_path / "nxf-home"),
+            "NXF_SYNTAX_PARSER": "v2",
+        }
+    )
+
+    def run(*, resume: bool = False) -> tuple[dict[str, str], ...]:
+        invocation = [*command, *(["-resume"] if resume else [])]
+        result = subprocess.run(
+            invocation,
+            cwd=REPOSITORY,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=180,
+        )
+        assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+        trace = output / "pipeline_info/trace.tsv"
+        with trace.open(encoding="utf-8", newline="") as stream:
+            return tuple(csv.DictReader(stream, delimiter="\t"))
+
+    first = run()
+    assert Counter(row["process"].split(":")[-1] for row in first) == {
+        "STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS": 3,
+        "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 2,
+    }
+    assert {row["status"] for row in first} == {"COMPLETED"}
+    for crystal_id, _, decision in decisions:
+        stage_manifest = output / (
+            f"phase3_approved_mr_seed_{crystal_id}/live_m4_stage_manifest.json"
+        )
+        stage = json.loads(stage_manifest.read_text(encoding="utf-8"))
+        assert stage["phase3_approval_provenance"]["crystal_id"] == crystal_id
+        assert stage["phase3_approval_provenance"]["approved_solution_ids"] == (
+            [approved_ids[crystal_id]]
+            if decision is PhaseIIIReviewDecisionValue.APPROVE
+            else []
+        )
+    first_selection = (
+        output
+        / f"phase3_additional_copy_test_crystal_a_{approved_ids['test_crystal_a']}"
+        / "phase3_diffraction_selection.json"
+    )
+    first_digest = sha256_file(first_selection)
+
+    cached = run(resume=True)
+    assert {row["status"] for row in cached} == {"CACHED"}
+    assert {row["hash"] for row in cached} == {row["hash"] for row in first}
+
+    selection_paths["test_crystal_b"].write_text(
+        '{"crystal":"test_crystal_b","revision":2}\n',
+        encoding="ascii",
+    )
+    changed = run(resume=True)
+    assert Counter(row["status"] for row in changed) == {"CACHED": 4, "COMPLETED": 1}
+    rerun = next(row for row in changed if row["status"] == "COMPLETED")
+    assert rerun["process"].endswith("RUN_PHASE3_ADDITIONAL_COPY_PHASER")
+    assert "test_crystal_b" in rerun["tag"]
+    assert sha256_file(first_selection) == first_digest
 
 
 def test_approval_without_inspectable_assets_requires_explicit_override(

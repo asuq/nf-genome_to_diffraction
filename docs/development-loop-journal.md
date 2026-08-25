@@ -12573,3 +12573,22 @@ with a collapsed combined parent or a guessed command.
   per-crystal stage publication. Preserve the existing 30-minute monitor for
   Slurm job `634097`; classify exact grouped 6RTZ/3U7Q controls before any
   multi-fixed command, `9ECN`, M6, localisation, or unknown run.
+
+## 2026-08-25 - Reviewed A checkpoints remain isolated across crystals
+
+- The existing Phase III placement process already carried complete crystal-bound
+  inputs, but approved-seed staging still published one shared directory and could
+  not independently retain several reviewed crystal decisions.
+- One narrow crystal-keyed Nextflow process now reuses the existing authenticated
+  A-seed adapter and publishes an independent stage per crystal. A typed
+  continuation joins stages to their original complete inputs only by exact
+  crystal ID before launching the already-qualified placement workflow.
+- A real local three-crystal Nextflow regression authenticates two approved
+  checkpoints and one deferred checkpoint, schedules exactly three stage tasks
+  plus two placement tasks, and caches all five on resume. Changing only the
+  second crystal's selected-diffraction bytes reruns exactly its placement while
+  retaining four cached tasks and unchanged sibling evidence.
+- Historical single-crystal/v1 routes remain unchanged. Full main-entry
+  multi-crystal refinement, fixed unknown profiles, and real licensed execution
+  remain separate gates. Preserve the existing 30-minute monitor for Slurm job
+  `634097` and classify it before any new scientific HPC operation.

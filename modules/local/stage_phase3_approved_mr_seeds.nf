@@ -46,3 +46,53 @@ process STAGE_PHASE3_APPROVED_MR_SEEDS {
         --outdir approved_mr_seed_stage
     """
 }
+
+
+// Independent reviewed crystals must never publish into the same stage or
+// consume another crystal's authenticated package, decisions, or hypotheses.
+process STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS {
+    tag "phase3-approved-mr-seeds:${item[0]}"
+    label 'process_low'
+    cache 'deep'
+    publishDir params.outdir, mode: 'copy', overwrite: true
+    stageInMode 'copy'
+
+    input:
+    item: Tuple
+
+    output:
+    stage: Tuple = tuple(
+        item[0],
+        file("phase3_approved_mr_seed_${item[0]}")
+    )
+
+    script:
+    def outputName = "phase3_approved_mr_seed_${item[0]}"
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        mr stage-approved-seeds \
+        --review-package '${item[1]}' \
+        --decisions '${item[2]}/phase3_review_decision.json' \
+        --phase3-review-stage '${item[2]}' \
+        --phase3-review-package-manifest '${item[3]}/phase3_review_package_manifest.json' \
+        --hypotheses '${item[4]}' \
+        --outdir '${outputName}'
+    """
+
+    stub:
+    def outputName = "phase3_approved_mr_seed_${item[0]}"
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        mr stage-approved-seeds \
+        --review-package '${item[1]}' \
+        --decisions '${item[2]}/phase3_review_decision.json' \
+        --phase3-review-stage '${item[2]}' \
+        --phase3-review-package-manifest '${item[3]}/phase3_review_package_manifest.json' \
+        --hypotheses '${item[4]}' \
+        --outdir '${outputName}'
+    """
+}

@@ -4,6 +4,9 @@ include {
     RUN_ADDITIONAL_COPY_PHASER;
     RUN_PHASE3_ADDITIONAL_COPY_PHASER
 } from '../modules/local/run_additional_copy_phaser'
+include {
+    STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS
+} from '../modules/local/stage_phase3_approved_mr_seeds'
 
 workflow ADDITIONAL_COPY_WORKFLOW {
     take:
@@ -97,4 +100,52 @@ workflow PHASE3_ADDITIONAL_COPY_WORKFLOW {
 
     emit:
     results: Tuple = additional_copy_results
+}
+
+
+// Revalidate each owned A checkpoint separately, retain rejected/deferred
+// stages, and join placement inputs only by their exact crystal identity.
+workflow PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW {
+    take:
+    reviewed_crystals: Tuple
+
+    main:
+    stage_items = reviewed_crystals.map { item ->
+        tuple(item[0], item[1], item[2], item[3], item[4])
+    }
+    staged = STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS(stage_items)
+    complete_crystals = staged
+        .join(reviewed_crystals, by: 0, failOnDuplicate: true, failOnMismatch: true)
+        .map {
+            crystalId,
+            approved,
+            legacyReview,
+            reviewedDecision,
+            phase3Package,
+            hypotheses,
+            sequences,
+            preflight,
+            mtz,
+            phenix,
+            selection ->
+            tuple(
+                crystalId,
+                approved,
+                file(
+                    legacyReview.resolve('mr_seed_review_manifest.json'),
+                    checkIfExists: true
+                ),
+                hypotheses,
+                sequences,
+                preflight,
+                mtz,
+                phenix,
+                selection
+            )
+        }
+    placements = PHASE3_ADDITIONAL_COPY_WORKFLOW(complete_crystals)
+
+    emit:
+    stage: Tuple = staged
+    results: Tuple = placements
 }
