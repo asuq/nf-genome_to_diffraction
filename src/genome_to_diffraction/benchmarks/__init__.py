@@ -66,6 +66,10 @@ from genome_to_diffraction.benchmarks.panel import (
     load_public_control_panel,
     prepare_public_control_panel,
 )
+from genome_to_diffraction.benchmarks.phase3_control import (
+    Phase3ControlPreparationResult,
+    prepare_9ecn_phase3_control,
+)
 from genome_to_diffraction.benchmarks.public_control import (
     PublicControlPreparationRequest,
     PublicControlPreparationResult,
@@ -96,6 +100,7 @@ __all__ = [
     "M6RunnerVerificationResult",
     "MrControlBundleOutput",
     "MrControlBundleRequest",
+    "Phase3ControlPreparationResult",
     "PublicControlPreparationRequest",
     "PublicControlPreparationResult",
     "PublicPanelPreparationRequest",
@@ -115,6 +120,7 @@ __all__ = [
     "prepare_3u7q_heteromer_control",
     "prepare_6rtz_heteromer_control",
     "prepare_6rtz_partner_catalogue_control",
+    "prepare_9ecn_phase3_control",
     "prepare_heteromer_control_slice",
     "prepare_m6_inputs",
     "prepare_public_control",

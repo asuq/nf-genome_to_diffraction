@@ -11873,3 +11873,38 @@ with a collapsed combined parent or a guessed command.
   exact deployment record, then stage and submit one fixed control with the
   explicit Phase III branch. The failed local stage created nothing to reuse or
   clean.
+
+## 2026-08-24 - Native control submitted; fixed 9ECN preparation works on real inputs
+
+### Immutable control execution
+
+- Corrective source `5d59801356a725566fd7339b57916b0fa488af35` passed exact
+  GitHub Actions run/job `32749107553` / `97501553696` under Pixi 0.76.2.
+- Reviewed Marmic dispatcher/job-wrapper/recovery digests are
+  `e3d9047feda9726fce11f01bf1ed8acd5e11ffb629ea0a1e81aae41412ac7366`,
+  `50699a20a6f8508103debdd856732ff92dfba4e8302a6cae5be22deb36768391`, and
+  `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Exactly one fixed native-placement control was staged from `dev/phase3` and
+  submitted as owned run
+  `gtd-heteromer-smoke-20260824T162036Z-5d59801356a7-3a72cb00`, Slurm job
+  `633943`. The reviewed 30-minute heartbeat monitors only that run.
+
+### Independent fixed 9ECN preparation
+
+- Public 9ECN coordinate/structure-factor downloads matched their frozen M6
+  SHA-256 values exactly. Real mmCIF inspection resolved entity/chain groups
+  `1=A,B`, `2=C,D`, and `3=E,F`.
+- McrG is a 321-residue tagged construct, but source positions 74--321 align
+  exactly to the frozen 248-residue catalogue protein. Chain E contains 247
+  observed aligned residues and no observed tag residues.
+- McrA polymer residues `MGN` and `DYA` are deposited modifications that map
+  respectively to catalogue glutamine 420 and aspartate 470; the preparation
+  retains their original coordinate chemistry while validating sequence
+  identity.
+- The fixed source preparation now emits exact A/B/C models containing 568,
+  432, and 247 observed residues, a 147,424-reflection MTZ, three complete
+  catalogue/model records, the `2A+2B+2C` composition, and one joint two-copy
+  McrA hypothesis. No Phaser command was executed.
+- Focused preparation and existing 6RTZ/3U7Q tests pass. The next scientific
+  gate remains classification and exact native component recombination from
+  job `633943`; do not start 9ECN before that evidence is accepted.

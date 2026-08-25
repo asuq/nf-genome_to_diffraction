@@ -33,6 +33,7 @@ from genome_to_diffraction.benchmarks import (
     prepare_3u7q_heteromer_control,
     prepare_6rtz_heteromer_control,
     prepare_6rtz_partner_catalogue_control,
+    prepare_9ecn_phase3_control,
     prepare_heteromer_control_slice,
     prepare_m6_inputs,
     prepare_public_control,
@@ -605,6 +606,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="download only the two protocol-frozen RCSB files",
     )
     multicopy_control_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_control_parser = benchmark_actions.add_parser(
+        "prepare-9ecn-phase3-control",
+        help="prepare the fixed public 9ECN 2A+2B+2C validation inputs",
+    )
+    phase3_control_parser.add_argument("--protocol", type=Path, required=True)
+    phase3_control_parser.add_argument("--coordinates", type=Path)
+    phase3_control_parser.add_argument("--structure-factors", type=Path)
+    phase3_control_parser.add_argument(
+        "--download",
+        action="store_true",
+        help="download only the two protocol-frozen RCSB files",
+    )
+    phase3_control_parser.add_argument("--outdir", type=Path, required=True)
     partner_catalogue_parser = benchmark_actions.add_parser(
         "prepare-6rtz-partner-catalogue",
         help="prepare the frozen full Thermotoga catalogue and HisH model registry",
@@ -2049,6 +2063,19 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             )
         )
         print(f"Prepared fixed 3U7Q 2A+2B inputs: {prepared.preparation_manifest}")
+        return 0
+    if args.benchmark_action == "prepare-9ecn-phase3-control":
+        prepared = prepare_9ecn_phase3_control(
+            HeteromerControlPreparationRequest(
+                protocol=args.protocol,
+                coordinates=args.coordinates,
+                structure_factors=args.structure_factors,
+                output_directory=args.outdir,
+                download_missing=args.download,
+                progress=not args.no_progress,
+            )
+        )
+        print(f"Prepared fixed 9ECN 2A+2B+2C inputs: {prepared.preparation_manifest}")
         return 0
     if args.benchmark_action == "prepare-heteromer-control-slice":
         prepared = prepare_heteromer_control_slice(

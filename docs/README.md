@@ -39,6 +39,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III native Phaser placement output](phase-iii-phaser-placement-output.md):
   exact `.sol`-to-per-ensemble PDB ordinal retention for the next known-control
   qualification, with recombination claims still blocked.
+- [Phase III 9ECN control preparation](phase-iii-9ecn-control.md): frozen
+  `2A+2B+2C` identities, expression-tag alignment, modified McrA residues,
+  three component models, and the joint two-copy McrA hypothesis.
 - [Phase III locked offline wheel gate](phase-iii-offline-wheel-gate.md): exact
   locked backend, purelib wheel inspection/install, packaged schema and source
   parity, both console entry points, and cross-surface version parity.

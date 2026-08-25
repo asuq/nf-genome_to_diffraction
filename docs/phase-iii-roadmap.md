@@ -214,6 +214,13 @@ automatic scientific claim is made between depths.
 - Depths four to six: executable and reviewable but always
   `provisional_unvalidated_component_depth`.
 
+Status: the fixed 9ECN input preparation now binds all three frozen catalogue
+identities, exact A/B/C source entities and chain pairs, the 73-residue McrG
+expression-tag alignment, McrA modified residues, three experimental models,
+and one joint two-copy McrA hypothesis. Real frozen inputs produce a 147,424-row
+MTZ; this is preparation evidence only, and execution remains blocked until the
+6RTZ/3U7Q native-placement recombination gate passes.
+
 ### PH4 - Localisation and gel evidence
 
 Status: the schema-v2 JSON/TSV gel manifest, crystal-reference validator, and
