@@ -1034,16 +1034,16 @@ class ComponentScopeDecision(_ContentAddressedContract):
             CompositionStopReason.INFRASTRUCTURE_OR_CONTRACT_FAILURE,
             CompositionStopReason.REVIEWER_HOLD,
         }
-        if incomplete_stop:
-            expected_scope = ComponentScopeStatus.SEARCH_INCOMPLETE
-            expected_boundary = CompositionClaimBoundary.SEARCH_INCOMPLETE
-        elif self.search_depth_reached > self.validated_component_depth:
+        if self.search_depth_reached > self.validated_component_depth:
             expected_scope = (
                 ComponentScopeStatus.PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH
             )
             expected_boundary = (
                 CompositionClaimBoundary.PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH
             )
+        elif incomplete_stop:
+            expected_scope = ComponentScopeStatus.SEARCH_INCOMPLETE
+            expected_boundary = CompositionClaimBoundary.SEARCH_INCOMPLETE
         else:
             expected_scope = ComponentScopeStatus.WITHIN_VALIDATED_COMPONENT_DEPTH
             eligible = (

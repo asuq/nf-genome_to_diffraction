@@ -442,6 +442,74 @@ def test_scope_decision_prohibits_complete_claim_beyond_validated_depth() -> Non
         ComponentScopeDecision.from_content(**mutated)
 
 
+@pytest.mark.parametrize("depth", (4, 5, 6))
+@pytest.mark.parametrize(
+    "stop_reason",
+    (
+        CompositionStopReason.GLOBAL_ATTEMPT_BUDGET_REACHED,
+        CompositionStopReason.REVIEWER_HOLD,
+    ),
+)
+def test_unvalidated_depth_stays_provisional_even_when_search_stops_incomplete(
+    depth: int,
+    stop_reason: CompositionStopReason,
+) -> None:
+    decision = ComponentScopeDecision.from_content(
+        crystal_id="crystal_1",
+        state_id=f"compstate_{HASHES[0]}",
+        search_depth_reached=depth,
+        maximum_search_depth=6,
+        validated_component_depth=3,
+        total_additional_attempt_budget=100,
+        total_additional_attempts_used=(
+            100
+            if stop_reason is CompositionStopReason.GLOBAL_ATTEMPT_BUDGET_REACHED
+            else 50
+        ),
+        remaining_physical_hypothesis_count=3,
+        retained_packed_state_count=1,
+        state_support_state=CompositionSupportState.COMPOSITION_SUPPORTED,
+        stop_reason=stop_reason,
+        residual_content_state=ResidualContentState.NONE_DETECTED,
+        scope_status=ComponentScopeStatus.PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH,
+        claim_boundary=(
+            CompositionClaimBoundary.PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH
+        ),
+        complete_composition_claim_eligible=False,
+        reviewer_hold_evidence_sha256=(
+            HASHES[5] if stop_reason is CompositionStopReason.REVIEWER_HOLD else None
+        ),
+    )
+    assessment = CompositionAssessment.from_content(
+        crystal_id="crystal_1",
+        state_id=decision.state_id,
+        scope_decision=decision,
+        execution_status=ExecutionStatus.COMPLETED_SUCCESS,
+        state_support_state=CompositionSupportState.COMPOSITION_SUPPORTED,
+        scientific_status=(
+            CompositionScientificStatus.PROVISIONAL_UNVALIDATED_COMPONENT_DEPTH
+        ),
+        complete_composition_claim_eligible=False,
+        complete_composition_claimed=False,
+        final_review_decision_sha256=HASHES[4],
+        evidence_sha256={"composition_state": HASHES[5]},
+    )
+
+    assert assessment.complete_composition_claim_eligible is False
+    assert assessment.complete_composition_claimed is False
+
+    with pytest.raises(ValidationError, match="requires eligibility"):
+        CompositionAssessment.from_content(
+            **{
+                **assessment.model_dump(
+                    mode="python",
+                    exclude={"assessment_id"},
+                ),
+                "complete_composition_claimed": True,
+            }
+        )
+
+
 def test_assessment_requires_supported_status_and_final_review_for_claim() -> None:
     decision = ComponentScopeDecision.from_content(
         crystal_id="crystal_1",

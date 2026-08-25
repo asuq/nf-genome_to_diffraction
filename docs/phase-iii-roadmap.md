@@ -17,7 +17,8 @@ The application records support arbitrary ordered component lists. Fixed Phase
 III execution is bounded to six distinct components, three retained parent
 states per depth, 25 attempts per depth, and 100 additional-component attempts
 per crystal. Three-component placement is validated with 9ECN. Depths four to
-six remain provisional until independent positive controls exist.
+six remain provisional until independent positive controls exist, including
+when the retained search also stops for budget exhaustion or reviewer hold.
 
 ## Milestone sequence
 
@@ -219,6 +220,12 @@ automatic scientific claim is made between depths.
 - Homomer controls: no false additional distinct component.
 - Depths four to six: executable and reviewable but always
   `provisional_unvalidated_component_depth`.
+
+The schema-v2 scope/assessment boundary now applies this depth limitation
+before incomplete-stop classification, so budget exhaustion or reviewer hold
+cannot relabel a four-to-six-component retained state as an ordinary partial
+or complete result. Review evidence, packing, and final refinement never make
+such a composition eligible for a complete claim.
 
 Status: the fixed 9ECN input preparation now binds all three frozen catalogue
 identities, exact A/B/C source entities and chain pairs, the 73-residue McrG

@@ -11976,3 +11976,23 @@ with a collapsed combined parent or a guessed command.
 - The next gate remains classification and exact checksum verification of the
   running known-control job. Do not launch `9ECN`, unknown crystals, or a
   multi-fixed scientific command before both real component inventories pass.
+
+## 2026-08-25 - Provisional-depth status now precedes incomplete search stops
+
+- An independent focused regression exposed that a four-, five-, or
+  six-component state lost its mandatory provisional status when the search
+  stopped because its global attempt budget was exhausted or a reviewer held
+  further expansion. The prior scope validator classified the incomplete stop
+  before the unsupported scientific depth.
+- The minimal correction reverses those existing condition branches: every
+  retained state beyond the independently validated depth remains
+  `provisional_unvalidated_component_depth`, with no complete-claim
+  eligibility, regardless of packing, review evidence, residual status, budget,
+  or hold. The original stop reason and reviewer evidence are preserved.
+- Six red-to-green combinations cover depths four through six and both
+  incomplete-stop causes; the complete focused composition-contract suite
+  passes. No external tool, scientific run, profile, schema family, or legacy
+  evidence was changed.
+- The existing 30-minute automation remains the only monitor for Slurm job
+  `634097`. Classify that exact known-control run before implementing the
+  multi-fixed Phaser command or launching `9ECN`.
