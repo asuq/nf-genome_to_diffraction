@@ -130,9 +130,12 @@ It exposes no paths or command arguments and performs no scientific execution.
 The real Marmic probe passed at exact source `a962e97` and qualified
 `phaser.keywords.general.xyzout_ensemble=True` plus exact `.sol` output. The
 fixed partner command now requests both explicitly, and a content-addressed
-parser retains exact `SOLU 6DIM` ordinal-to-native-PDB mappings. Known-control
-coordinate grouping/recombination remains pending and cannot yet create fixed
-component evidence.
+parser binds exact `SOLU 6DIM` entries to source-model-matched combined-PDB
+chains because the installed wrapper does not emit native per-ensemble PDBs.
+The local bridge validates atom-complete grouped coordinates against the packed
+parent and preserves each component's independent original uncertainty in the
+existing fixed-execution contract. Real two-control qualification and
+multi-fixed command syntax remain pending.
 
 The isolated complete-item workflow now proves three crystal items can reuse
 one catalogue and one provider preparation through a byte-identical cached
@@ -185,7 +188,9 @@ fixed 6RTZ/3U7Q control profile now binds `.sol` entries to exact source-model
 polymer sequences, derives one multi-copy coordinate per component, and proves
 complete atom recombination in a separate 46-file Phase III checksum boundary.
 The retained real 6RTZ result reconstructs all 3,543 atoms locally; fresh
-two-control Marmic qualification remains the next gate. The pure-Python
+two-control Marmic qualification remains the next gate. A pure local bridge
+binds those verified coordinates to the packed parent and each original
+component-specific Phaser error model without inventing a command. The pure-Python
 candidate generator now supplies complete parent/catalogue rows with four
 parent-specific total-composition copy assessments, typed gel/localisation
 priors, cap-independent model selection, quality/diversity evidence, and exact

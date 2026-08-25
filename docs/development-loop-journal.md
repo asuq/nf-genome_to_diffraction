@@ -11955,3 +11955,24 @@ with a collapsed combined parent or a guessed command.
   focused gate and one CI run, deploy the exact reviewed scripts, and submit
   exactly one fresh Marmic 6RTZ/3U7Q control. Only after both atom-complete
   inventories pass may the multi-fixed adapter or 9ECN search begin.
+
+## 2026-08-25 - Fixed component uncertainty bridge prepared during control run
+
+- Corrected source `17c52e85d62935f7cd63d8299e2b16c5b11f20a4` passed exact CI
+  run/job `32809071301` / `97684812748` and was deployed through the reviewed
+  wrapper. Exactly one fresh `6RTZ`/`3U7Q` control was submitted as owned run
+  `gtd-heteromer-smoke-20260825T044202Z-17c52e85d629-f381f293`, Slurm job
+  `634097`; its existing 30-minute automation is the only monitor.
+- While that run executes, a pure local bridge now revalidates the complete
+  grouped-coordinate inventory against its packed parent, exact crystal and
+  combined PDB, each registered source model, all requested/observed copies,
+  each component-only coordinate, and every component's original uncertainty
+  evidence. It emits only the existing content-addressed fixed-component
+  records; no Phaser syntax, remote call, scientific task, or new schema was
+  invented.
+- Focused regressions retain distinct `35%` A and `82%` B model identities,
+  deterministic component ordering, the complete inventory checksum, and
+  fail-closed coordinate/inventory/uncertainty mutation handling.
+- The next gate remains classification and exact checksum verification of the
+  running known-control job. Do not launch `9ECN`, unknown crystals, or a
+  multi-fixed scientific command before both real component inventories pass.

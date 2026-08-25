@@ -50,6 +50,17 @@ It writes `phaser_per_placement_inventory.json`. The content-addressed record
 binds the command/result, exact `.sol` lines, source-model and polymer digests,
 combined coordinate, derived component coordinates, exact chain/copy/atom
 counts, tool version, crystal, search, and verified atom-partition digest.
+
+`build_fixed_component_execution_evidence` then consumes that exact inventory,
+one packed schema-v2 parent state, and the original identity/error record for
+each component. It rechecks the parent crystal and combined-coordinate bytes,
+each source-model identity, every requested/observed copy count, and every
+derived coordinate checksum before emitting the existing
+`FixedComponentExecutionEvidence` records in parent-component order. Each
+record binds the complete inventory digest and retains its own original Phaser
+identity; a 35%-identity A model cannot silently become a perfect or shared
+model. This local bridge does not construct or execute a multi-fixed command.
+
 The CLI boundary is:
 
 ```text
@@ -93,7 +104,8 @@ The corrected adapter records
 complete coordinate comparison passes. A local replay of the retained real
 6RTZ result recovered all 3,543 atoms without native per-ensemble files. Both
 fixed 6RTZ and 3U7Q must still pass a fresh exact-source Marmic run before the
-result can populate `ComponentExpansionExecutionInput` or support 9ECN search.
+locally verified fixed-evidence bridge can support a live
+`ComponentExpansionExecutionInput` or 9ECN search.
 
 ## Tests and references
 
@@ -101,7 +113,9 @@ Focused tests cover `1A+1B`, `2A+2B`, out-of-order combined chains, the single
 fixed-parent/two-copy distinction, deterministic output, combined-coordinate
 mutation, missing `.sol` or source models, unknown/ambiguous ensembles,
 indistinguishable source sequences, unknown chains, copy mismatch, and exact
-real 6RTZ atom reconstruction.
+real 6RTZ atom reconstruction. The fixed-evidence bridge additionally rejects
+mutated grouped or combined coordinates, incomplete/incorrect original
+uncertainty, invalid identity fractions, and mutated inventory contracts.
 
 - [Official Phaser output keywords](https://www.phaser.cimr.cam.ac.uk/index.php/Keywords)
 - [Phenix Phaser reference](https://phenix-online.org/documentation/reference/phaser.html)

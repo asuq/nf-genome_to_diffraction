@@ -18,6 +18,13 @@ from genome_to_diffraction.mr.copy_report import (
     CopyCountReportRequest,
     build_copy_count_report,
 )
+from genome_to_diffraction.mr.fixed_components import (
+    FixedComponentEvidenceError,
+    FixedComponentEvidenceOutput,
+    FixedComponentEvidenceRequest,
+    FixedComponentUncertainty,
+    build_fixed_component_execution_evidence,
+)
 from genome_to_diffraction.mr.partner import (
     PartnerSearchOutput,
     PartnerSearchRequest,
@@ -54,6 +61,10 @@ __all__ = [
     "CopyCountReportOutput",
     "CopyCountReportRequest",
     "ExpectedPhaserComponent",
+    "FixedComponentEvidenceError",
+    "FixedComponentEvidenceOutput",
+    "FixedComponentEvidenceRequest",
+    "FixedComponentUncertainty",
     "ParsedPhaserLog",
     "PartnerSearchOutput",
     "PartnerSearchRequest",
@@ -67,6 +78,7 @@ __all__ = [
     "PhaserRunRequest",
     "PlannedPartnerSearchRequest",
     "build_copy_count_report",
+    "build_fixed_component_execution_evidence",
     "collect_phaser_per_placement_outputs",
     "parse_completed_phaser_outputs",
     "parse_phaser_log",

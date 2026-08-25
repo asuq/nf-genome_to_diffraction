@@ -5,13 +5,28 @@ from pathlib import Path
 
 import pytest
 
+from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.cli import main
+from genome_to_diffraction.mr.fixed_components import (
+    FixedComponentEvidenceError,
+    FixedComponentEvidenceRequest,
+    FixedComponentUncertainty,
+    build_fixed_component_execution_evidence,
+)
 from genome_to_diffraction.mr.per_placement import (
     ExpectedPhaserComponent,
     PhaserPerPlacementError,
     PhaserPerPlacementRequest,
     collect_phaser_per_placement_outputs,
 )
+from genome_to_diffraction.schemas.v2 import (
+    ComponentIdentitySupport,
+    ComponentPlacement,
+    ComponentSpec,
+    CompositionState,
+    CompositionSupportState,
+)
+from genome_to_diffraction.status import ExecutionStatus
 
 _A_RESIDUES = ("ALA", "GLY", "SER", "THR")
 _B_RESIDUES = ("LYS", "GLU", "ASP", "VAL")
@@ -80,6 +95,75 @@ def _request(
             ExpectedPhaserComponent("B", "search_partner", copies_b),
         ),
         component_models=(("A", source_a), ("B", source_b)),
+    )
+
+
+def _fixed_component_request(tmp_path: Path) -> FixedComponentEvidenceRequest:
+    request = _request(tmp_path)
+    inventory = collect_phaser_per_placement_outputs(request)
+    components: list[ComponentSpec] = []
+    placements: list[ComponentPlacement] = []
+    uncertainties: list[FixedComponentUncertainty] = []
+    for index, (label, model) in enumerate(request.component_models, start=1):
+        sequence_sha256 = f"{index:064x}"
+        component = ComponentSpec.from_content(
+            label=label,
+            sequence_group_id=f"seq_{sequence_sha256}",
+            sequence_sha256=sequence_sha256,
+            model_id=f"model_{label}",
+            model_sha256=sha256_file(model),
+            requested_copy_count=2,
+            sequence_mass_da=20_000.0,
+            mass_evidence_sha256=f"{index + 10:064x}",
+            model_evidence_sha256=f"{index + 20:064x}",
+        )
+        group = next(
+            item
+            for item in inventory.inventory.component_groups
+            if item.component_label == label
+        )
+        placement = ComponentPlacement.from_content(
+            component_spec_id=component.component_spec_id,
+            component_label=label,
+            sequence_group_id=component.sequence_group_id,
+            model_id=component.model_id,
+            model_sha256=component.model_sha256,
+            requested_copy_count=2,
+            observed_copy_count=2,
+            execution_status=ExecutionStatus.COMPLETED_HIT,
+            component_tfz=10.0 + index,
+            incremental_llg=100.0 + index,
+            packing_passed=True,
+            coordinate_sha256=group.coordinate_sha256,
+            identity_support=ComponentIdentitySupport.UNRESOLVED,
+        )
+        components.append(component)
+        placements.append(placement)
+        uncertainties.append(
+            FixedComponentUncertainty(
+                component_label=label,
+                phaser_identity_fraction=0.35 if label == "A" else 0.82,
+                model_uncertainty_source=f"original_{label}_model_identity",
+                model_uncertainty_evidence_sha256=component.model_evidence_sha256,
+            )
+        )
+    state = CompositionState.from_content(
+        crystal_id=request.crystal_id,
+        diffraction_dataset_id="dataset_3U7Q",
+        diffraction_sha256=f"{90:064x}",
+        parent_state_id=f"compstate_{91:064x}",
+        depth=2,
+        components=tuple(components),
+        placements=tuple(placements),
+        combined_coordinate_sha256=inventory.inventory.combined_coordinate_sha256,
+        physical_mass_lower_da=50_000.0,
+        physical_mass_upper_da=100_000.0,
+        support_state=CompositionSupportState.PACKED,
+    )
+    return FixedComponentEvidenceRequest(
+        parent_state=state,
+        inventory_json=inventory.inventory_json,
+        uncertainties=tuple(uncertainties),
     )
 
 
@@ -167,6 +251,90 @@ def test_cli_writes_the_verified_component_inventory(tmp_path: Path) -> None:
 
     assert status == 0
     assert (request.output_directory / "phaser_per_placement_inventory.json").is_file()
+
+
+def test_verified_groups_preserve_distinct_original_component_uncertainties(
+    tmp_path: Path,
+) -> None:
+    request = _fixed_component_request(tmp_path)
+
+    first = build_fixed_component_execution_evidence(request)
+    second = build_fixed_component_execution_evidence(
+        replace(request, uncertainties=tuple(reversed(request.uncertainties)))
+    )
+
+    assert first.evidence == second.evidence
+    assert tuple(item.phaser_identity_fraction for item in first.evidence) == (
+        0.35,
+        0.82,
+    )
+    assert tuple(path.name for path in first.coordinate_paths) == (
+        "component_A.pdb",
+        "component_B.pdb",
+    )
+    assert all(
+        item.coordinate_derivation_evidence_sha256 == first.inventory_sha256
+        for item in first.evidence
+    )
+    assert len({item.fixed_coordinate_sha256 for item in first.evidence}) == 2
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("coordinate", "coordinate checksum"),
+        ("combined", "combined parent coordinate checksum"),
+        ("missing_uncertainty", "coverage"),
+        ("uncertainty", "original uncertainty"),
+        ("invalid_fraction", "uncertainty is invalid"),
+        ("inventory", "inventory is invalid"),
+    ),
+)
+def test_fixed_component_bridge_rejects_mutated_or_collapsed_evidence(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    request = _fixed_component_request(tmp_path)
+    if mutation == "coordinate":
+        path = request.inventory_json.parent / "component_A.pdb"
+        path.write_bytes(path.read_bytes() + b"REMARK mutation\n")
+    elif mutation == "combined":
+        path = request.inventory_json.parent / "PHASER.1.pdb"
+        path.write_bytes(path.read_bytes() + b"REMARK mutation\n")
+    elif mutation == "missing_uncertainty":
+        request = replace(request, uncertainties=request.uncertainties[:1])
+    elif mutation == "uncertainty":
+        request = replace(
+            request,
+            uncertainties=(
+                replace(
+                    request.uncertainties[0],
+                    model_uncertainty_evidence_sha256=f"{99:064x}",
+                ),
+                request.uncertainties[1],
+            ),
+        )
+    elif mutation == "invalid_fraction":
+        request = replace(
+            request,
+            uncertainties=(
+                replace(request.uncertainties[0], phaser_identity_fraction=1.1),
+                request.uncertainties[1],
+            ),
+        )
+    else:
+        path = request.inventory_json
+        path.write_text(
+            path.read_text(encoding="ascii").replace(
+                "verified_exact_combined_atom_partition",
+                "unverified_atom_partition",
+            ),
+            encoding="ascii",
+        )
+
+    with pytest.raises(FixedComponentEvidenceError, match=message):
+        build_fixed_component_execution_evidence(request)
 
 
 @pytest.mark.parametrize(
