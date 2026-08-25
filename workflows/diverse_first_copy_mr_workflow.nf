@@ -21,7 +21,7 @@ workflow DIVERSE_FIRST_COPY_MR_WORKFLOW {
     phenix_manifest: Path
 
     main:
-    funnel_bundle = BUILD_DIVERSE_FIRST_COPY_FUNNEL(
+    funnel_items = BUILD_DIVERSE_FIRST_COPY_FUNNEL(
         predicted_coordinate_sources,
         predicted_prepared_models,
         pdb_coordinate_sources,
@@ -35,6 +35,7 @@ workflow DIVERSE_FIRST_COPY_MR_WORKFLOW {
         maximum_first_copy_jobs,
         joint_copy_search
     )
+    funnel_bundle = funnel_items.map { selectedCrystal, bundle -> bundle as Path }
     hypothesis_records = funnel_bundle
         .flatMap { Path bundle ->
             Path records = bundle.resolve('hypotheses')

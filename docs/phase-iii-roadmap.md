@@ -266,6 +266,18 @@ Every schema-v2 unknown-screen task now binds the selected hypothesis's exact
 requested copy count; a mismatched task is rejected before fan-out. Real Phase
 III Phaser execution remains a separate control-qualified gate.
 
+The normal `main.nf` first-copy application now also has an explicit Phase III
+multi-crystal route. With joint-A mode enabled, one shared catalogue/provider
+preparation feeds one manifest-owned MTZ dispatch and one existing diverse
+funnel per crystal. Every selected hypothesis becomes a complete independent
+Phaser task, and each crystal receives its own unapproved MR-seed checkpoint;
+empty/no-model branches retain a separate review rather than blocking siblings.
+A synthetic three-crystal actual Nextflow regression verifies exact shared/task
+counts, independent packages, unchanged cached identities and published bytes,
+and real main-entry routing. Legacy single-crystal and heteromer-control routes
+remain unchanged. Staged crystallographic review, malformed-sibling isolation,
+and real Phase III Phenix execution remain separate gates.
+
 Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
 After review approval of at most three A states, automatically expand through
 B-F. At each depth, exclude represented sequence groups, consider physically

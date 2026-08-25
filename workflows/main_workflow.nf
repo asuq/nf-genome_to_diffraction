@@ -18,6 +18,9 @@ include { BRIEF_REFINEMENT_WORKFLOW } from './brief_refinement_workflow'
 include { DIVERSE_FIRST_COPY_MR_WORKFLOW } from './diverse_first_copy_mr_workflow'
 include { PDB_SEQUENCE_DISCOVERY } from './pdb_sequence_discovery_workflow'
 include { PARTNER_SEARCH_WORKFLOW } from './partner_search_workflow'
+include {
+    PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW
+} from './phase3_multicrystal_first_copy_workflow'
 
 workflow MAIN_WORKFLOW {
     take:
@@ -151,18 +154,35 @@ workflow MAIN_WORKFLOW {
         )
 
         if (analysis_stage in ['first_copy', 'additional_copy', 'heteromer', 't12']) {
+            matthews_jsonl = matthews_bundle.map { Path bundle ->
+                bundle.resolve('matthews_hypotheses.jsonl')
+            }
+            preflight_jsonl = preflight_bundle.map { Path bundle ->
+                bundle.resolve('mtz_preflight.jsonl')
+            }
+            if (analysis_stage == 'first_copy' && phase3_joint_first_copy) {
+                PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW(
+                    channel.value(crystals),
+                    preflight_jsonl,
+                    catalogue_bundle,
+                    pdb_registration,
+                    predicted_coordinate_sources,
+                    predicted_models,
+                    pdb_coordinate_sources,
+                    coordinate_hit_mappings,
+                    experimental_models,
+                    matthews_jsonl,
+                    channel.value(pipeline_config),
+                    maximum_first_copy_jobs,
+                    channel.value(phenix_manifest)
+                )
+            } else {
             crystal_dispatch = SELECT_SINGLE_CRYSTAL(crystals, preflight_bundle)
             crystal_id = crystal_dispatch.map { Path bundle ->
                 bundle.resolve('crystal_id.txt').toFile().text.trim()
             }
             selected_mtz = crystal_dispatch.map { Path bundle ->
                 bundle.resolve('input.mtz')
-            }
-            matthews_jsonl = matthews_bundle.map { Path bundle ->
-                bundle.resolve('matthews_hypotheses.jsonl')
-            }
-            preflight_jsonl = preflight_bundle.map { Path bundle ->
-                bundle.resolve('mtz_preflight.jsonl')
             }
             first_copy = DIVERSE_FIRST_COPY_MR_WORKFLOW(
                 predicted_coordinate_sources,
@@ -289,6 +309,7 @@ workflow MAIN_WORKFLOW {
                     )
                 }
                 }
+            }
             }
         }
     }

@@ -48,6 +48,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III composition-attempt fan-out](phase-iii-composition-attempt-fanout.md):
   complete immutable selected-attempt items, typed empty paths, stub-only
   Nextflow execution, and byte-identical cached-resume evidence.
+- [Phase III multi-crystal first-copy application](phase-iii-multicrystal-first-copy.md):
+  one shared catalogue/provider preparation, independent manifest-owned
+  crystal funnels, complete joint-A attempts, and separate unapproved reviews.
 - [Phase III unknown-pass-1 local screen stub](phase-iii-unknown-pass1-screen-stub.md):
   path-closed synthetic three-crystal fan-out, staged crystallographic review,
   shared preparation, exact 25-A inventory, typed no-work paths, and cached

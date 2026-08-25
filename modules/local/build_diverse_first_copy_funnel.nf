@@ -3,7 +3,12 @@ nextflow.enable.types = true
 process BUILD_DIVERSE_FIRST_COPY_FUNNEL {
     tag "diverse-first-copy-funnel:${crystal_id}"
     label 'process_low'
-    publishDir params.outdir, mode: 'copy', overwrite: true
+    publishDir params.outdir,
+        mode: 'copy',
+        overwrite: true,
+        saveAs: { name ->
+            joint_copy_search ? "phase3/${crystal_id}/${name}" : name
+        }
 
     input:
     predicted_coordinate_sources: Path
@@ -24,7 +29,7 @@ process BUILD_DIVERSE_FIRST_COPY_FUNNEL {
     stageAs pdb_coordinate_sources, 'pdb_coordinate_sources.jsonl'
 
     output:
-    funnel: Path = file('diverse_first_copy_funnel')
+    funnel: Tuple = tuple(crystal_id, file('diverse_first_copy_funnel'))
 
     script:
     def jointCopyArgument = joint_copy_search ? '--joint-copy-search' : ''

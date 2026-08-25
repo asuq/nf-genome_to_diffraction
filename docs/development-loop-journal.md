@@ -12364,3 +12364,25 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Phase III application dispatches independent crystal searches
+
+- The ordinary first-copy application still rejected multi-crystal manifests
+  through its historical single-crystal selector despite the separate Phase III
+  fan-out fixture; this blocked reviewed three-crystal application.
+- Explicit joint-A Phase III mode now reuses one catalogue/provider preparation,
+  dispatches each manifest-owned crystal/MTZ, builds one existing diverse funnel
+  per crystal, schedules complete crystal-qualified Phaser hypotheses, and
+  publishes one independent approval-free MR-seed review package per crystal.
+- The actual synthetic Nextflow regression proves one shared catalogue/provider,
+  three dispatches, three funnels, three hypotheses, three review packages, and
+  exact fully cached resume with byte-identical output. Actual `main.nf` routes
+  to the new workflow; historical heteromer/control paths remain unchanged.
+- Forty-five focused dispatch/ranking/review/unknown-screen tests, repository-
+  wide type checking, both relevant cached workflows, Nextflow syntax, Ruff,
+  schema, and documentation checks pass. Real Phenix execution, staged
+  crystallographic decisions, malformed-sibling isolation, and fixed unknown
+  profiles remain separate gates.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

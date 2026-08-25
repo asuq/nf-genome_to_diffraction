@@ -10,6 +10,7 @@ import tempfile
 from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
+from shutil import copytree
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 FIXTURE = REPOSITORY / "tests/fixtures/stubs/multi_crystal_fanout"
@@ -18,6 +19,135 @@ CRYSTAL_IDS = (
     "fanout_crystal_02",
     "fanout_crystal_03",
 )
+
+
+def _check_first_copy_application(root: Path, environment: dict[str, str]) -> None:
+    """Require one shared preparation and three independent real workflow branches."""
+
+    output = root / "first-copy-results"
+    stubs = REPOSITORY / "tests/fixtures/stubs"
+    project = root / "first-copy-project"
+    project.mkdir()
+    fixture_main = stubs / "phase3_multicrystal_first_copy/main.nf"
+    (project / "main.nf").write_text(
+        fixture_main.read_text(encoding="ascii").replace(
+            "'../../../../workflows/",
+            f"'{REPOSITORY}/workflows/",
+        ),
+        encoding="ascii",
+    )
+    project_stubs = project / "tests/fixtures/stubs"
+    project_stubs.mkdir(parents=True)
+    for name in (
+        "exact_predicted_funnel",
+        "predicted_model_preparation",
+        "first_copy_phaser",
+        "mr_seed_review",
+    ):
+        copytree(stubs / name, project_stubs / name)
+    command = [
+        "nextflow",
+        "-C",
+        "tests/fixtures/stubs/p6_empty_partner/nextflow.config",
+        "run",
+        str(project / "main.nf"),
+        "-stub-run",
+        "--crystals",
+        str(FIXTURE / "crystals.json"),
+        "--preflight",
+        str(stubs / "mtz_preflight.jsonl"),
+        "--sequence_groups",
+        str(stubs / "sequence_groups.jsonl"),
+        "--source_records",
+        str(stubs / "source_records.jsonl"),
+        "--predicted_coordinate_sources",
+        str(stubs / "afdb_exact_search/coordinate_sources.jsonl"),
+        "--predicted_prepared_models",
+        str(stubs / "predicted_model_preparation"),
+        "--pdb_coordinate_sources",
+        str(stubs / "pdb_coordinate_registration/coordinate_sources.jsonl"),
+        "--coordinate_hit_mappings",
+        str(stubs / "pdb_coordinate_registration/coordinate_hit_mappings.jsonl"),
+        "--experimental_prepared_models",
+        str(stubs / "experimental_model_preparation"),
+        "--matthews",
+        str(stubs / "mtz_preflight.jsonl"),
+        "--pipeline_config",
+        str(REPOSITORY / "examples/config.yaml"),
+        "--phenix_manifest",
+        str(stubs / "phenix_install_manifest.json"),
+        "--outdir",
+        str(output),
+        "--cache_root",
+        str(root / "first-copy-cache"),
+    ]
+    _run(command, environment)
+    trace = output / "pipeline_info/trace.tsv"
+    first = _read_trace(trace)
+    expected = Counter(
+        {
+            "PREPARE_PHASE3_SHARED_CATALOGUE_FIXTURE": 1,
+            "PREPARE_PHASE3_SHARED_PROVIDER_FIXTURE": 1,
+            "DISPATCH_CRYSTAL_ITEM": 3,
+            "BUILD_DIVERSE_FIRST_COPY_FUNNEL": 3,
+            "RUN_PHASE3_FIRST_COPY_PHASER": 3,
+            "BUILD_PHASE3_MR_SEED_REVIEW": 3,
+        }
+    )
+    if Counter(_process_name(row) for row in first) != expected:
+        raise RuntimeError("Phase III multi-crystal application dropped a branch")
+    if {row["status"] for row in first} != {"COMPLETED"}:
+        raise RuntimeError("Phase III multi-crystal application did not complete")
+    for crystal_id in CRYSTAL_IDS:
+        package = output / f"phase3_mr_seed_review_{crystal_id}"
+        if not (package / "mr_seed_review_manifest.json").is_file():
+            raise RuntimeError(f"missing independent MR review for {crystal_id}")
+        approvals = (package / "approved_mr_seeds.tsv").read_text(encoding="utf-8")
+        if len(approvals.splitlines()) != 1:
+            raise RuntimeError(f"fabricated MR review approval for {crystal_id}")
+    before = _output_digests(output)
+    _run([*command, "-resume"], environment)
+    resumed = _read_trace(trace)
+    if len(resumed) != len(first) or {row["status"] for row in resumed} != {"CACHED"}:
+        raise RuntimeError("Phase III multi-crystal application did not fully resume")
+    if {row["hash"] for row in resumed} != {row["hash"] for row in first}:
+        raise RuntimeError("Phase III multi-crystal resume changed task identities")
+    if _output_digests(output) != before:
+        raise RuntimeError("Phase III multi-crystal resume changed published outputs")
+
+    application_output = root / "main-application-results"
+    _run(
+        [
+            "nextflow",
+            "run",
+            "main.nf",
+            "-profile",
+            "test",
+            "-stub-run",
+            "-params-file",
+            "tests/fixtures/stubs/main_params.yaml",
+            "--analysis_stage",
+            "first_copy",
+            "--phase3_joint_first_copy",
+            "true",
+            "--outdir",
+            str(application_output),
+            "--cache_root",
+            str(root / "main-application-cache"),
+        ],
+        environment,
+    )
+    application = Counter(
+        _process_name(row)
+        for row in _read_trace(application_output / "pipeline_info/trace.tsv")
+    )
+    if (
+        application["DISPATCH_CRYSTAL_ITEM"] != 1
+        or application["RUN_PHASE3_FIRST_COPY_PHASER"] != 1
+        or application["BUILD_PHASE3_MR_SEED_REVIEW"] != 1
+        or application["SELECT_SINGLE_CRYSTAL"] != 0
+    ):
+        raise RuntimeError("main application did not select the Phase III crystal path")
 
 
 def _environment(nxf_home: Path) -> dict[str, str]:
@@ -181,8 +311,9 @@ def main() -> int:
             raise RuntimeError("cached resume changed per-crystal task identities")
         if _output_digests(output) != before_resume:
             raise RuntimeError("cached resume changed retained crystal evidence")
+        _check_first_copy_application(root, environment)
 
-    print("Three-crystal complete-item fan-out and cached resume passed.")
+    print("Three-crystal dispatch, first-copy review, and cached resume passed.")
     return 0
 
 
