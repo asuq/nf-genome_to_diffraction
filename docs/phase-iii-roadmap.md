@@ -105,7 +105,12 @@ command identities. Observation labels, Phaser/refinement space group,
 Phaser/refinement low/high limits, and sequence-from-map high resolution are
 explicit. The Phaser PHIL names are bound to the previously retained no-data
 installed-runtime defaults; legacy commands are unchanged. Real Phase III
-Phaser execution and parent-MTZ derivation remain separate qualification gates.
+Phaser execution remains a separate qualification gate. Phase III refinement
+now verifies the parent MTZ against the exact selected observation dataset and
+source HKL-to-Free-R mapping before invoking Phenix, retains its
+content-addressed derivation comparison in the command record, and separately
+checks the refined child. This proves dataset labels/HKL/flags, not numerical
+observation-value equivalence or reindexing.
 
 A separate schema-v2 Free-R foundation now binds an exact label and MTZ dataset
 to the diffraction selection, rejects non-finite, non-integral, constant, and
@@ -115,8 +120,9 @@ or changed flags and is invariant to row order. The test flag value remains
 explicitly unresolved unless supplied from reviewed external provenance.
 Opt-in Phase III brief refinement now requires that content-address-valid
 identity from the same diffraction selection, includes the exact label and
-convention state in its command identity, and refuses completion or downstream
-sequence-map execution unless the refined MTZ preserves the exact raw mapping.
+convention state in its command identity, rejects an unproven parent before
+tool execution, and refuses completion or downstream sequence-map execution
+unless the refined MTZ also preserves the exact raw mapping.
 The comparison deliberately recognises row permutation only; it does not claim
 symmetry or reindexing equivalence.
 Phase III refinement now passes the officially documented second

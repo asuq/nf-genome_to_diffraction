@@ -17,11 +17,13 @@ tool execution. Real Phenix qualification remains mandatory on Viper.
 
 The optional Phase III path verifies the dataset-qualified selection against
 its exact preflight and requires a content-address-valid Free-R identity bound
-to that selection.  The command record retains the exact Free-R label and
-explicit or unresolved test-value convention.  A successful refined MTZ is
-promoted only after its raw HKL-to-Free-R mapping compares exactly with the
-source identity.  No Free-R convention, flag, or unqualified Phenix parameter
-is inferred.
+to that selection. Before Phenix starts, its parent MTZ must retain the exact
+selected observation dataset/labels and the source HKL-to-Free-R mapping; the
+content-addressed comparison is retained beside the command. A successful
+refined MTZ must independently preserve the same mapping. The command also
+records the exact Free-R label and explicit or unresolved test-value convention.
+No observation-value equivalence, Free-R convention, flag, or unqualified
+Phenix parameter is inferred.
 """
 
 import logging
@@ -75,7 +77,7 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
 _PROTOCOL_VERSION = "phenix-t12-brief-v5"
-_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v7-phase3-free-r-preservation"
+_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v8-phase3-parent-mtz-preservation"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -247,6 +249,36 @@ def _resolve_phase3_diffraction(
     except FreeRIdentityError as error:
         raise T12InputError(str(error)) from error
     return selection, free_r_identity
+
+
+def _verify_phase3_parent_mtz(
+    *,
+    parent_mtz: Path,
+    selection: DiffractionSelection,
+    free_r_identity: FreeRIdentity,
+) -> FreeRMembershipComparison:
+    try:
+        parent = gemmi.read_mtz_file(str(parent_mtz))
+    except (OSError, RuntimeError, ValueError) as error:
+        raise T12InputError("Phase III parent MTZ cannot be inspected") from error
+    for label in selection.observation_labels:
+        matches = tuple(
+            column
+            for column in parent.columns
+            if column.label == label
+            and column.dataset_id == selection.observation_dataset_id
+        )
+        if len(matches) != 1:
+            raise T12InputError(
+                "parent MTZ lacks the selected observation dataset and unique labels"
+            )
+    try:
+        return compare_free_r_membership(
+            source=free_r_identity,
+            derived_mtz_path=parent_mtz,
+        )
+    except FreeRIdentityError as error:
+        raise T12InputError(f"parent MTZ {error}") from error
 
 
 def _write_catalogue_fasta(
@@ -666,6 +698,14 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         label="parent MTZ",
         progress=request.progress,
     )
+    parent_mtz_comparison: FreeRMembershipComparison | None = None
+    if diffraction_selection is not None:
+        assert free_r_identity is not None
+        parent_mtz_comparison = _verify_phase3_parent_mtz(
+            parent_mtz=parent_mtz,
+            selection=diffraction_selection,
+            free_r_identity=free_r_identity,
+        )
     groups = _read_jsonl(
         request.sequence_groups_jsonl, SequenceGroupRecord, label="sequence group"
     )
@@ -755,11 +795,13 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     diffraction_binding: DiffractionCommandBinding | None = None
     if diffraction_selection is not None:
         assert free_r_identity is not None
+        assert parent_mtz_comparison is not None
         diffraction_binding = build_diffraction_command_binding(
             consumer=DiffractionCommandConsumer.BRIEF_REFINEMENT,
             command_owner_id=refinement_id,
             selection=diffraction_selection,
             free_r_identity=free_r_identity,
+            parent_mtz_comparison=parent_mtz_comparison,
         )
         command_record.update(
             {
@@ -775,6 +817,9 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
                     mode="json"
                 ),
                 "free_r_identity": free_r_identity.model_dump(mode="json"),
+                "parent_free_r_membership_comparison": (
+                    parent_mtz_comparison.model_dump(mode="json")
+                ),
                 "free_r_membership_comparison_status": (
                     "pending_successful_refined_mtz"
                 ),

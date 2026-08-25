@@ -397,6 +397,7 @@ class DiffractionCommandBinding(_ContentAddressedContract):
     command_mtz_binding: Literal[
         "exact_selected_mtz",
         "derived_parent_mtz_recorded_derivation_verification_pending",
+        "verified_parent_hkl_free_r_and_observation_dataset",
     ]
     observation_dataset_id: int = Field(ge=0)
     observation_labels: tuple[NonEmptyString, ...]
@@ -453,13 +454,6 @@ class DiffractionCommandBinding(_ContentAddressedContract):
         )
         if self.space_group_command_binding != expected_space_group_binding:
             raise ValueError("space-group command boundary does not match the consumer")
-        expected_mtz_binding = (
-            "exact_selected_mtz"
-            if self.consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
-            else "derived_parent_mtz_recorded_derivation_verification_pending"
-        )
-        if self.command_mtz_binding != expected_mtz_binding:
-            raise ValueError("MTZ command boundary does not match the consumer")
         free_r_values = (
             self.free_r_identity_id,
             self.free_r_dataset_id,
@@ -467,6 +461,8 @@ class DiffractionCommandBinding(_ContentAddressedContract):
             self.free_r_convention_status,
         )
         if self.consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER:
+            if self.command_mtz_binding != "exact_selected_mtz":
+                raise ValueError("MTZ command boundary does not match the consumer")
             if any(value is not None for value in free_r_values) or (
                 self.free_r_test_flag_value is not None
             ):
@@ -480,6 +476,12 @@ class DiffractionCommandBinding(_ContentAddressedContract):
                     "Free-R membership boundary does not match the consumer"
                 )
             return self
+
+        if self.command_mtz_binding not in {
+            "derived_parent_mtz_recorded_derivation_verification_pending",
+            "verified_parent_hkl_free_r_and_observation_dataset",
+        }:
+            raise ValueError("MTZ command boundary does not match the consumer")
 
         if any(value is None for value in free_r_values):
             raise ValueError(

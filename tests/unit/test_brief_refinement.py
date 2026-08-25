@@ -249,6 +249,7 @@ def _write_phase3_mtz(
     free_r_flags: tuple[int, ...] = _FREE_R_FLAGS,
     include_free_r: bool = True,
     include_map_coefficients: bool = False,
+    observation_labels: tuple[str, str] = ("I", "SIGI"),
 ) -> None:
     if len(hkl) != len(free_r_flags):
         raise ValueError("test HKL and Free-R arrays must have equal length")
@@ -257,8 +258,8 @@ def _write_phase3_mtz(
     mtz.set_cell_for_all(gemmi.UnitCell(100, 100, 100, 90, 90, 90))
     observations = mtz.add_dataset("observations")
     assert observations.id == 1
-    mtz.add_column("I", "J", observations.id)
-    mtz.add_column("SIGI", "Q", observations.id)
+    mtz.add_column(observation_labels[0], "J", observations.id)
+    mtz.add_column(observation_labels[1], "Q", observations.id)
     if include_free_r:
         mtz.add_column("FreeR_flag", "I", observations.id)
     if include_map_coefficients:
@@ -534,7 +535,12 @@ def test_phase3_refinement_promotes_permuted_synthetic_mtz_after_free_r_comparis
     assert binding["space_group_command_binding"] == (
         "explicit_refinement_crystal_symmetry_parameter"
     )
-    assert binding["command_mtz_binding"].endswith("derivation_verification_pending")
+    assert binding["command_mtz_binding"] == (
+        "verified_parent_hkl_free_r_and_observation_dataset"
+    )
+    assert record["parent_free_r_membership_comparison"]["derived_mtz_sha256"] == (
+        request.parent_mtz_sha256
+    )
     assert binding["free_r_label"] == "FreeR_flag"
     assert binding["free_r_convention_status"] == ("unresolved_raw_flag_values_only")
     assert binding["free_r_test_flag_value"] is None
@@ -556,6 +562,68 @@ def test_phase3_refinement_promotes_permuted_synthetic_mtz_after_free_r_comparis
     )
     assert "data_manager.fmodel.xray_data.high_resolution=2" in commands[0]
     assert "crystal_info.resolution=2" in commands[1]
+
+
+def test_phase3_refinement_accepts_proven_derived_parent_before_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = _phase3_request(tmp_path)
+    _write_phase3_mtz(original.parent_mtz, include_map_coefficients=True)
+    request = replace(
+        original,
+        parent_mtz_sha256=sha256_file(original.parent_mtz, progress=False),
+    )
+    commands = _install_phase3_runtime(monkeypatch)
+
+    output = run_t12_candidate(request)
+
+    record = json.loads(output.command_json.read_text(encoding="utf-8"))
+    parent_proof = record["parent_free_r_membership_comparison"]
+    assert len(commands) == 2
+    assert output.refinement.execution_status is ExecutionStatus.COMPLETED_SUCCESS
+    assert parent_proof["source_mtz_sha256"] != parent_proof["derived_mtz_sha256"]
+    assert parent_proof["derived_mtz_sha256"] == request.parent_mtz_sha256
+
+
+@pytest.mark.parametrize(
+    ("flags", "observation_labels", "message"),
+    (
+        (
+            (1, 1, 0, 0, 1, 0),
+            ("I", "SIGI"),
+            "parent MTZ.*changed the exact HKL-to-Free-R",
+        ),
+        (
+            _FREE_R_FLAGS,
+            ("OTHER", "SIGOTHER"),
+            "parent MTZ lacks the selected observation dataset",
+        ),
+    ),
+)
+def test_phase3_refinement_rejects_unproven_parent_before_phenix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    flags: tuple[int, ...],
+    observation_labels: tuple[str, str],
+    message: str,
+) -> None:
+    original = _phase3_request(tmp_path)
+    _write_phase3_mtz(
+        original.parent_mtz,
+        free_r_flags=flags,
+        observation_labels=observation_labels,
+    )
+    request = replace(
+        original,
+        parent_mtz_sha256=sha256_file(original.parent_mtz, progress=False),
+    )
+    commands = _install_phase3_runtime(monkeypatch)
+
+    with pytest.raises(T12InputError, match=message):
+        run_t12_candidate(request)
+
+    assert commands == []
 
 
 @pytest.mark.parametrize(

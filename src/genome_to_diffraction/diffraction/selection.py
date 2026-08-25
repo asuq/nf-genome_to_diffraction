@@ -38,6 +38,7 @@ from genome_to_diffraction.schemas.v2.diffraction import (
     DiffractionSelection,
     DiffractionValueSource,
     FreeRIdentity,
+    FreeRMembershipComparison,
     diffraction_dataset_id,
 )
 from genome_to_diffraction.status import InputContractError
@@ -276,6 +277,7 @@ def build_diffraction_command_binding(
     command_owner_id: str,
     selection: DiffractionSelection,
     free_r_identity: FreeRIdentity | None = None,
+    parent_mtz_comparison: FreeRMembershipComparison | None = None,
 ) -> DiffractionCommandBinding:
     """Create the typed external-command propagation boundary for one selection."""
 
@@ -285,9 +287,27 @@ def build_diffraction_command_binding(
                 "Phase III brief refinement requires a Free-R identity"
             )
         verify_free_r_identity_selection(free_r_identity, selection)
+        if parent_mtz_comparison is None:
+            raise DiffractionSelectionError(
+                "Phase III brief refinement requires verified parent MTZ derivation"
+            )
+        if (
+            parent_mtz_comparison.source_free_r_identity_id
+            != free_r_identity.free_r_identity_id
+            or parent_mtz_comparison.diffraction_selection_id
+            != selection.diffraction_selection_id
+            or parent_mtz_comparison.source_mtz_sha256 != selection.mtz_sha256
+        ):
+            raise DiffractionSelectionError(
+                "parent MTZ comparison differs from diffraction selection"
+            )
     elif free_r_identity is not None:
         raise DiffractionSelectionError(
             "first-copy Phaser cannot consume a brief-refinement Free-R identity"
+        )
+    elif parent_mtz_comparison is not None:
+        raise DiffractionSelectionError(
+            "first-copy Phaser cannot consume a parent MTZ comparison"
         )
 
     resolution_binding = (
@@ -303,7 +323,7 @@ def build_diffraction_command_binding(
     command_mtz_binding = (
         "exact_selected_mtz"
         if consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
-        else "derived_parent_mtz_recorded_derivation_verification_pending"
+        else "verified_parent_hkl_free_r_and_observation_dataset"
     )
     return DiffractionCommandBinding.from_content(
         command_owner_id=command_owner_id,

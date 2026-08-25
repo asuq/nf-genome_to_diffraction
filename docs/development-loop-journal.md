@@ -12107,3 +12107,23 @@ with a collapsed combined parent or a guessed command.
 - Keep the existing 30-minute automation as the sole monitor of Slurm job
   `634097`; classify its exact known-control component evidence before any
   multi-fixed Phaser, `9ECN`, M6, localisation, or unknown execution.
+
+## 2026-08-25 - Parent diffraction provenance gates refinement before Phenix
+
+- Phase III refinement previously labelled parent MTZ derivation as pending
+  and could launch Phenix with unrelated observation labels or altered Free-R
+  flags, even though the child MTZ was checked later. Focused mutations
+  reproduced both unsafe parent paths without starting a real tool.
+- Refinement now checks the exact selected dataset/observation labels and
+  compares the parent against the source's complete sorted HKL-to-Free-R
+  mapping before invoking Phenix. Its command retains the existing typed,
+  content-addressed parent comparison; a valid derived parent with additional
+  columns is accepted, while changed flags/missing observations fail before
+  any command. The refined child is still compared independently.
+- The Phase III refinement adapter/cache identity advances; historical v1
+  commands and first-copy diffraction identities remain unchanged. This
+  boundary does not claim numerical observation-value equivalence, symmetry
+  reindexing, or real refined-MTZ qualification.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact two grouped-component controls before starting a multi-fixed Phaser
+  command, `9ECN`, M6, localisation, or unknown analysis.
