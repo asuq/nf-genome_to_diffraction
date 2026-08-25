@@ -41,6 +41,12 @@ Scope: `FCB-P0-08` and every new finding inventory entry.
 - Require the future fixed unknown-pass-2 stage/submit profile to consume one
   immutable, exact-source finding-closure record; an absent, stale, or
   incomplete record refuses scheduling.
+  Completed locally: one content-addressed verifier binds the exact source
+  commit/tree, ledger bytes, all final finding dispositions, exact-source CI,
+  adverse review, integration gate, public controls, M6, and pass-1 evidence.
+  It rejects local/pending dispositions, incomplete inventories, changed
+  ledger bytes, malformed/duplicate JSON, and cross-source records. Fixed
+  pass-2 profile integration remains for RG7.
 - Distinguish required historical readers and explicitly approved, bounded
   operational/scientific exceptions from removable current compatibility.
 
@@ -176,7 +182,8 @@ Scope: `FCB-P2-01` and `FCB-P2-02`.
   scheduling, and is used by the reviewed HPC wrapper, examples, documentation,
   Nextflow checks, and dispatcher integrations. All replacement operations
   passed the complete stub gate before the nine superseded roots were deleted.
-  Exact-source CI remains.
+  Exact-source CI `32910230567` passed on `de2f4c4`; real fixed-profile
+  qualification remains before final disposition.
 - Remove permanently failing retired CLI subcommands, parser/dispatch branches,
   compatibility-only tests, and stale documentation.
 - Preserve genuinely shared preparation helpers and historical evidence

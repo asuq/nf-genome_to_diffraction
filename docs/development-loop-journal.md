@@ -13419,5 +13419,26 @@ with a collapsed combined parent or a guessed command.
   stub matrix, syntax gate, wrapper syntax, root policy regression, and four
   P1/P2/P2-diverse/control dispatcher integrations pass. Only after those
   replacement gates passed were the nine superseded roots deleted.
-- Exact-source CI remains. No installed dispatcher, scheduler run, scientific
-  threshold, control interpretation, M6 input, or unknown crystal was changed.
+- Exact-source CI `32910230567` passed on
+  `de2f4c4480f28df105315483b937dbedf48f7d6a` under Pixi 0.76.2 in 21m15s.
+  Real fixed-profile qualification remains before the finding receives a final
+  disposition. No installed dispatcher, scheduler run, scientific threshold,
+  control interpretation, M6 input, or unknown crystal was changed.
+
+## 2026-08-25 - Pass 2 has an exact-source finding-closure contract
+
+- `FCB-P0-08` previously had only a documented stop: no executable contract
+  could distinguish a complete final finding ledger from local-only or stale
+  claims before a second unknown run.
+- One content-addressed record now binds the exact source commit/tree, ledger
+  bytes, adverse review, integration gate, public controls, M6, unknown pass 1,
+  exact-source CI, and one regression/evidence-backed final disposition per
+  finding.
+- Validation rejects non-final ledger wording, missing/extra/changed findings,
+  changed ledger bytes, cross-source records, and malformed or duplicate-key
+  JSON before any scheduler integration. Six focused regressions, Ruff, and
+  typing pass.
+- This is contract evidence, not pass-2 authorisation. The future fixed pass-2
+  profile must consume the verifier and real RG7 record. No installed tool,
+  scheduler run, scientific threshold, control, M6 input, or unknown crystal
+  was changed.

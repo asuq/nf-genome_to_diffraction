@@ -721,8 +721,9 @@ root now contains only archival `main.nf`, current `phase3_application.nf`,
 database preparation, M6, and one typed `qualification.nf` owner. Nine
 superseded stage roots were removed only after all replacement operations,
 unknown/incomplete operation rejection, fixed-wrapper integrations, and the
-complete Nextflow stub gate passed. Exact-source CI remains before
-`FCB-P2-01` receives its final disposition.
+complete Nextflow stub gate passed. Exact-source CI `32910230567` passed on
+`de2f4c4`; real fixed-profile qualification remains before `FCB-P2-01`
+receives its final disposition.
 
 Status: the exact Hatchling backend is now pinned in both build metadata and
 the Pixi lock, and one fixed `offline-wheel-check` builds without isolation,
@@ -747,6 +748,13 @@ are complete. Every old and new finding requires a final `Fixed`, `Superseded`,
 or `Deleted` disposition with its focused regression, exact-source acceptance,
 and any required fixed-HPC evidence. The reviewed second-pass profile must
 reject an absent, stale, changed, or incomplete closure record.
+
+Status: the content-addressed closure-record verifier is implemented locally.
+It authenticates the exact source commit/tree and ledger bytes, requires one
+final entry for every finding plus exact-source CI/control/M6/pass-1 evidence,
+and rejects local/pending wording, stale or incomplete inventories, malformed
+JSON, and cross-source records. Fixed pass-2 profile integration and the real
+RG7 evidence remain pending.
 
 Reuse identical frozen inputs, gel/localisation evidence, thresholds,
 databases, and tools. For a credible A state, launch the automatic B-F beam
