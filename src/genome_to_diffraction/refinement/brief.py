@@ -77,8 +77,8 @@ from genome_to_diffraction.schemas.v2.diffraction import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
-_PROTOCOL_VERSION = "phenix-t12-brief-v5"
-_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v9-phase3-source-observations"
+_PROTOCOL_VERSION = "phenix-t12-brief-v6"
+_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v10-phase3-source-observations"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -550,15 +550,29 @@ def _sequence_candidates(
     float | None,
     float | None,
 ]:
-    raw = [
-        (group_id, int(length), float(score))
-        for length, score, group_id in _SCORE.findall(text)
-    ]
+    summaries = list(_SCORE_SUMMARY.finditer(text))
+    if len(summaries) != 1:
+        raise T12InputError("sequence-from-map output lacks one complete score summary")
+    best_z, mean, sd = (float(value) for value in summaries[0].groups())
+    if not all(math.isfinite(value) for value in (best_z, mean, sd)) or sd < 0:
+        raise T12InputError("sequence-from-map score summary contains invalid values")
+
+    raw: list[tuple[str, int, float]] = []
+    for line in text.splitlines():
+        if "Score for sequence" not in line:
+            continue
+        match = _SCORE.search(line)
+        if match is None:
+            raise T12InputError("sequence-from-map output contains a malformed score")
+        length, score, group_id = match.groups()
+        parsed_score = float(score)
+        if not math.isfinite(parsed_score):
+            raise T12InputError("sequence-from-map output contains a non-finite score")
+        raw.append((group_id, int(length), parsed_score))
+    if not raw and (best_z != 0.0 or mean != 0.0):
+        raise T12InputError("sequence-from-map summary claims unreported scores")
+
     ordered = sorted(raw, key=lambda item: (-item[2], item[0]))
-    summary = _SCORE_SUMMARY.search(text)
-    best_z = float(summary.group(1)) if summary else None
-    mean = float(summary.group(2)) if summary else None
-    sd = float(summary.group(3)) if summary else None
     candidates: list[SequenceMapCandidate] = []
     for rank, (group_id, length, score) in enumerate(ordered, start=1):
         group = groups.get(group_id)
@@ -567,9 +581,9 @@ def _sequence_candidates(
             raise T12InputError(
                 f"sequence-from-map output does not map to catalogue group {group_id}"
             )
-        score_z = (
-            None if sd is None or sd == 0.0 or mean is None else (score - mean) / sd
-        )
+        score_z = None if sd == 0.0 else (score - mean) / sd
+        if score_z is not None and not math.isfinite(score_z):
+            raise T12InputError("sequence-from-map score yields a non-finite Z-score")
         candidates.append(
             SequenceMapCandidate(
                 schema_version="1.0",
@@ -578,7 +592,7 @@ def _sequence_candidates(
                 sequence_group_id=group_id,
                 sequence_length=length,
                 raw_score=score,
-                score_z=score_z if score_z is None or math.isfinite(score_z) else None,
+                score_z=score_z,
                 source_record_ids=source[0],
                 source_loci=source[1],
                 warnings=("exact_sequence_group_maps_to_multiple_source_records",)
@@ -605,7 +619,7 @@ def _classify_sequence_output(
     float | None,
     tuple[str, ...],
 ]:
-    """Turn malformed catalogue mappings into one typed candidate-level failure."""
+    """Turn malformed scientific or catalogue evidence into a typed failure."""
 
     try:
         candidates, best, mean, sd, best_z = _sequence_candidates(
@@ -614,7 +628,7 @@ def _classify_sequence_output(
             groups=groups,
             crosswalk=crosswalk,
         )
-    except T12InputError:
+    except T12InputError, ValidationError, ValueError, OverflowError:
         return (
             ExecutionStatus.FAILED_PARSE,
             (),
@@ -622,7 +636,7 @@ def _classify_sequence_output(
             None,
             None,
             None,
-            ("sequence_from_map_output_failed_catalogue_validation",),
+            ("sequence_from_map_output_failed_evidence_validation",),
         )
     warnings = (
         ("some_catalogue_groups_received_no_score",)

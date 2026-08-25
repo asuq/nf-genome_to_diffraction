@@ -12919,3 +12919,22 @@ with a collapsed combined parent or a guessed command.
   focused Phaser, copy, partner, and control cases pass. The only submitted
   known-control run remains Slurm `634369`; no new scientific HPC operation
   or full repository gate was started.
+
+## 2026-08-25 - Sequence no-hit requires a complete observed score summary
+
+- `FCB-P1-01` reproduced four fabricated scientific no-hit outcomes from
+  empty, truncated, malformed-row, or unsupported positive-summary output.
+  An oversized numerical score independently escaped the typed failure path
+  as a raw non-finite Pydantic exception.
+- Sequence narrowing now requires exactly one complete finite native summary;
+  every reported score row must parse, remain finite, and resolve to its exact
+  supplied catalogue group. A zero-score summary remains a valid completed
+  scientific no-hit, while a positive summary without scored rows or a
+  non-finite candidate becomes a retained typed parse failure.
+- Both active refinement protocol versions advance because sequence result
+  semantics affect content-addressed refinement/sequence identities. The
+  earlier unresolved Free-R and final-R safeguards remain unchanged.
+- Five focused red/green malformed/non-finite regressions, the explicit
+  zero-hit control, and 66 refinement, sequence, and review cases pass. Keep
+  Slurm `634369` as the only submitted known control; no full gate or new HPC
+  operation was started.

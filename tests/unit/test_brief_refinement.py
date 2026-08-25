@@ -475,7 +475,7 @@ def test_version_1_refinement_path_does_not_require_free_r_identity(
     assert output.refinement.execution_status is ExecutionStatus.COMPLETED_SUCCESS
     assert output.free_r_comparison is None
     assert record["schema_version"] == "1.0"
-    assert record["protocol_version"] == "phenix-t12-brief-v5"
+    assert record["protocol_version"] == "phenix-t12-brief-v6"
     assert "free_r_identity" not in record
 
 

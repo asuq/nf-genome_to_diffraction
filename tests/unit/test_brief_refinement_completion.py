@@ -121,7 +121,10 @@ def test_unknown_sequence_from_map_group_becomes_typed_parse_failure() -> None:
         source_record_count=1,
     )
     unknown_id = f"seq_{'f' * 64}"
-    text = f"Score for sequence 1 (4 residues): 12.5 (>{unknown_id})\n"
+    text = (
+        f"Score for sequence 1 (4 residues): 12.5 (>{unknown_id})\n"
+        "Overall best Z-score: 1.0  Mean and SD of scores: 9.0 +/- 2.0\n"
+    )
 
     status, candidates, best, mean, sd, best_z, warnings = _classify_sequence_output(
         text,
@@ -136,4 +139,104 @@ def test_unknown_sequence_from_map_group_becomes_typed_parse_failure() -> None:
     assert mean is None
     assert sd is None
     assert best_z is None
-    assert warnings == ("sequence_from_map_output_failed_catalogue_validation",)
+    assert warnings == ("sequence_from_map_output_failed_evidence_validation",)
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "",
+        "sequence-from-map output was truncated\n",
+        "Overall best Z-score: 2.0  Mean and SD of scores: 9.0 +/- 1.0\n",
+        "Score for sequence 1 (4 residues): not-a-number (>seq_invalid)\n"
+        "Overall best Z-score: 0.0  Mean and SD of scores: 0.0 +/- 1.0\n",
+    ),
+)
+def test_malformed_sequence_output_cannot_become_scientific_no_hit(
+    text: str,
+) -> None:
+    sequence = "ACDE"
+    digest = hashlib.sha256(sequence.encode("ascii")).hexdigest()
+    group_id = f"seq_{digest}"
+    group = SequenceGroupRecord(
+        schema_version="1.0",
+        sequence_group_id=group_id,
+        sha256=digest,
+        sequence=sequence,
+        length_aa=len(sequence),
+        mass_method="unit_test",
+        residue_policy="unit_test",
+        source_record_count=1,
+    )
+
+    status, candidates, best, mean, sd, best_z, warnings = _classify_sequence_output(
+        text,
+        refinement_id="refine_test",
+        groups={group_id: group},
+        crosswalk={group_id: (("source_01",), ("locus_01",))},
+    )
+
+    assert status is ExecutionStatus.FAILED_PARSE
+    assert candidates == ()
+    assert (best, mean, sd, best_z) == (None, None, None, None)
+    assert warnings == ("sequence_from_map_output_failed_evidence_validation",)
+
+
+def test_sequence_score_requires_complete_finite_summary() -> None:
+    sequence = "ACDE"
+    digest = hashlib.sha256(sequence.encode("ascii")).hexdigest()
+    group_id = f"seq_{digest}"
+    group = SequenceGroupRecord(
+        schema_version="1.0",
+        sequence_group_id=group_id,
+        sha256=digest,
+        sequence=sequence,
+        length_aa=len(sequence),
+        mass_method="unit_test",
+        residue_policy="unit_test",
+        source_record_count=1,
+    )
+    text = (
+        f"Score for sequence 1 (4 residues): {'9' * 400} (>{group_id})\n"
+        "Overall best Z-score: 1.0  Mean and SD of scores: 9.0 +/- 1.0\n"
+    )
+
+    status, candidates, best, mean, sd, best_z, warnings = _classify_sequence_output(
+        text,
+        refinement_id="refine_test",
+        groups={group_id: group},
+        crosswalk={group_id: (("source_01",), ("locus_01",))},
+    )
+
+    assert status is ExecutionStatus.FAILED_PARSE
+    assert candidates == ()
+    assert (best, mean, sd, best_z) == (None, None, None, None)
+    assert warnings == ("sequence_from_map_output_failed_evidence_validation",)
+
+
+def test_explicit_zero_score_summary_remains_scientific_no_hit() -> None:
+    sequence = "ACDE"
+    digest = hashlib.sha256(sequence.encode("ascii")).hexdigest()
+    group_id = f"seq_{digest}"
+    group = SequenceGroupRecord(
+        schema_version="1.0",
+        sequence_group_id=group_id,
+        sha256=digest,
+        sequence=sequence,
+        length_aa=len(sequence),
+        mass_method="unit_test",
+        residue_policy="unit_test",
+        source_record_count=1,
+    )
+
+    status, candidates, best, mean, sd, best_z, warnings = _classify_sequence_output(
+        "Overall best Z-score: 0.0  Mean and SD of scores: 0.0 +/- 1.0\n",
+        refinement_id="refine_test",
+        groups={group_id: group},
+        crosswalk={group_id: (("source_01",), ("locus_01",))},
+    )
+
+    assert status is ExecutionStatus.COMPLETED_NO_HIT
+    assert candidates == ()
+    assert (best, mean, sd, best_z) == (None, 0.0, 1.0, 0.0)
+    assert warnings == ("some_catalogue_groups_received_no_score",)
