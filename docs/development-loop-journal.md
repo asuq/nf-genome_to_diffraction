@@ -12299,3 +12299,27 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Phase III A hypotheses preserve joint requested copy counts
+
+- Focused red regressions exposed two connected application defects: the
+  diverse-model funnel always asked Phaser for one copy even when Matthews
+  retained a higher count, and supposedly complete Phase III A-task records
+  omitted their selected hypothesis's requested copy count.
+- Explicit Phase III joint mode now retains all four configured physically
+  possible copy alternatives, excludes counts above four before per-model
+  truncation, searches each declared copy count jointly, and enforces one
+  25-attempt bound. Main and standalone Nextflow entry points default to their
+  unchanged historical single-copy semantics unless explicitly opted in.
+- Every schema-v2 unknown A task binds its exact one-to-four requested copy
+  count and refuses mismatch against the selected hypothesis. The existing
+  three-crystal cached workflow preserves all 25 complete task identities;
+  ordinary and explicit-control heteromer stubs both remain green.
+- A focused integration check also repaired two pre-existing test typing
+  errors and updated the stale M6 Apptainer assertion to verify the newer
+  exact run-owned site-contract binding. The full repository type check,
+  104 focused unit/contract tests, both relevant cached workflows, Nextflow
+  syntax, Ruff, schema, and documentation checks pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

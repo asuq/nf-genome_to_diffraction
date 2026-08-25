@@ -249,6 +249,17 @@ copy counts, result checksum, and candidate-only coordinates remain bound;
 packing cannot promote a sequence or composition claim. Live general-component
 Phaser parsing remains a separate post-control gate.
 
+The ordinary diverse-model funnel now also has an explicit Phase III joint-A
+mode. It preserves all four configured, physically possible Matthews copy
+alternatives, excludes counts above four before applying any per-model cap, and
+constructs one joint Phaser hypothesis per retained candidate/copy count.
+The 25-attempt hard ceiling applies across the complete A search. Both the main
+and historical standalone Nextflow entry points require explicit opt-in, so
+legacy single-copy hypotheses, identifiers, and manifests remain unchanged.
+Every schema-v2 unknown-screen task now binds the selected hypothesis's exact
+requested copy count; a mismatched task is rejected before fan-out. Real Phase
+III Phaser execution remains a separate control-qualified gate.
+
 Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
 After review approval of at most three A states, automatically expand through
 B-F. At each depth, exclude represented sequence groups, consider physically

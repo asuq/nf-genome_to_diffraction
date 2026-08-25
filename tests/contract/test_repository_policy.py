@@ -308,7 +308,18 @@ def test_scientific_profiles_use_run_owned_apptainer_caches(
     )[0]
 
     assert '"$RUN/cache/apptainer"' in body
-    assert 'export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"' in body
+    if function_name == "run_m6_scientific":
+        assert "load_m6_smoke_site_contract || return 2" in body
+        assert 'export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"' in body
+        site_contract = job.split(
+            "load_m6_smoke_site_contract() {",
+            maxsplit=1,
+        )[1].split("run_m6_stub_nextflow() {", maxsplit=1)[0]
+        assert '[[ "$M6_APPTAINER_CACHE" == "$RUN/cache/apptainer" &&' in (
+            site_contract
+        )
+    else:
+        assert 'export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"' in body
     assert "/ptmp/ashima/apptainer-cache" not in body
 
 

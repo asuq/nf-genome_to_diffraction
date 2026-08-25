@@ -16,6 +16,7 @@ workflow DIVERSE_FIRST_COPY_MR_WORKFLOW {
     pipeline_config: Path
     crystal_id: String
     maximum_first_copy_jobs: Integer
+    joint_copy_search: Boolean
     mtz: Path
     phenix_manifest: Path
 
@@ -31,7 +32,8 @@ workflow DIVERSE_FIRST_COPY_MR_WORKFLOW {
         preflight,
         pipeline_config,
         crystal_id,
-        maximum_first_copy_jobs
+        maximum_first_copy_jobs,
+        joint_copy_search
     )
     hypothesis_records = funnel_bundle
         .flatMap { Path bundle ->

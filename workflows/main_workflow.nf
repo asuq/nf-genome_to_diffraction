@@ -48,6 +48,7 @@ workflow MAIN_WORKFLOW {
     maximum_pdb_hits_per_sequence_group: Integer
     maximum_pdb_mappings: Integer
     maximum_first_copy_jobs: Integer
+    phase3_joint_first_copy: Boolean
 
     main:
     validation_scope = VALIDATE_TASK05_INPUTS(
@@ -175,6 +176,7 @@ workflow MAIN_WORKFLOW {
                 pipeline_config,
                 crystal_id,
                 maximum_first_copy_jobs,
+                phase3_joint_first_copy,
                 selected_mtz,
                 phenix_manifest
             )

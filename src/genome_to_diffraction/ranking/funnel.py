@@ -58,6 +58,9 @@ from genome_to_diffraction.time import utc_now_iso
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
 _ADAPTER_VERSION = "exact-predicted-funnel-v1"
 _DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v1"
+_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v2-phase3"
+_PHASE3_MAXIMUM_COPY_COUNT = 4
+_PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
     PrototypeProfile.SMOKE: 1,
     PrototypeProfile.PILOT: 3,
@@ -115,6 +118,7 @@ class DiverseFirstCopyFunnelRequest:
     coordinate_hit_mappings_jsonl: Path | None = None
     crystal_ids: tuple[str, ...] = ()
     maximum_first_copy_jobs: int | None = None
+    joint_copy_search: bool = False
     progress: bool = True
 
 
@@ -861,18 +865,30 @@ def _make_diverse_candidate(
     preflight: MtzPreflightRecord,
     profile: PrototypeProfile,
     mapping: CoordinateHitMappingRecord | None,
+    joint_copy_search: bool,
 ) -> _Candidate:
+    copy_number_to_search = matthews.copy_count if joint_copy_search else 1
     identity = {
         "crystal_id": preflight.crystal_id,
         "sequence_group_id": group.sequence_group_id,
         "model_id": model.model_id,
         "copy_count_expected": matthews.copy_count,
-        "copy_number_to_search": 1,
+        "copy_number_to_search": copy_number_to_search,
         "space_group": preflight.space_group,
         "obs_labels": preflight.selected_observation_labels,
         "search_stage": MrSearchStage.FIRST_COPY.value,
         "resource_profile": profile.value,
     }
+    features = _diverse_priority_features(
+        coordinate, model, model_path, group, matthews, mapping
+    )
+    if joint_copy_search:
+        features.update(
+            {
+                "funnel_adapter": _PHASE3_DIVERSE_ADAPTER_VERSION,
+                "copy_search_mode": "joint_declared_copies",
+            }
+        )
     hypothesis = MrHypothesis(
         schema_version="1.0",
         hypothesis_id=content_id("mrhyp_", identity),
@@ -880,15 +896,13 @@ def _make_diverse_candidate(
         sequence_group_id=group.sequence_group_id,
         model_id=model.model_id,
         copy_count_expected=matthews.copy_count,
-        copy_number_to_search=1,
+        copy_number_to_search=copy_number_to_search,
         fixed_solution_id=None,
         space_group=preflight.space_group,
         obs_labels=preflight.selected_observation_labels,
         search_stage=MrSearchStage.FIRST_COPY,
         resource_profile=profile,
-        priority_features=_diverse_priority_features(
-            coordinate, model, model_path, group, matthews, mapping
-        ),
+        priority_features=features,
         status=MrHypothesisStatus.QUEUED,
     )
     return _Candidate(hypothesis, model_path, coordinate, model, matthews)
@@ -905,6 +919,7 @@ def _join_diverse_candidates(
     matthews_rows: Sequence[MatthewsHypothesis],
     preflights: Sequence[MtzPreflightRecord],
     crystal_ids: Sequence[str],
+    joint_copy_search: bool,
 ) -> list[_Candidate]:
     coordinate_index = _unique_index(
         coordinates, lambda item: item.coordinate_id, label="coordinate ID"
@@ -925,7 +940,11 @@ def _join_diverse_candidates(
             "requested crystals lack MTZ preflight records: "
             + ", ".join(sorted(unknown_crystals))
         )
-    per_model_copy_cap = _copy_cap(config)
+    per_model_copy_cap = (
+        min(_PHASE3_MAXIMUM_COPY_COUNT, config.matthews.max_hypotheses_per_candidate)
+        if joint_copy_search
+        else _copy_cap(config)
+    )
     candidates: list[_Candidate] = []
     for model in models:
         coordinate = coordinate_index.get(model.coordinate_id)
@@ -974,6 +993,10 @@ def _join_diverse_candidates(
                 and row.crystal_id in selected_crystals
                 and row.retained
                 and row.physical_status is not PhysicalStatus.IMPOSSIBLE
+                and (
+                    not joint_copy_search
+                    or row.copy_count <= _PHASE3_MAXIMUM_COPY_COUNT
+                )
             ),
             key=lambda row: (
                 row.crystal_id,
@@ -1009,6 +1032,7 @@ def _join_diverse_candidates(
                     preflight=preflight,
                     profile=config.prototype.profile,
                     mapping=mapping,
+                    joint_copy_search=joint_copy_search,
                 )
             )
             per_crystal_counts[row.crystal_id] = used + 1
@@ -1020,10 +1044,15 @@ def _select_diverse_candidates(
     candidates: Sequence[_Candidate],
     config: PipelineConfig,
     execution_cap: int | None,
+    *,
+    joint_copy_search: bool,
 ) -> tuple[tuple[_Candidate, ...], int]:
     if execution_cap is not None and not 1 <= execution_cap <= 1000:
         raise ValueError("maximum_first_copy_jobs must be between 1 and 1000")
-    requested_cap = execution_cap if execution_cap is not None else 1000
+    maximum_cap = _PHASE3_MAXIMUM_FIRST_COPY_JOBS if joint_copy_search else 1000
+    requested_cap = (
+        min(execution_cap, maximum_cap) if execution_cap is not None else maximum_cap
+    )
     per_crystal_cap = min(
         _FIRST_COPY_PROFILE_CAPS[config.prototype.profile],
         config.search_limits.max_first_copy_jobs,
@@ -1188,9 +1217,13 @@ def build_diverse_first_copy_funnel(
         matthews_rows=matthews_rows,
         preflights=preflights,
         crystal_ids=request.crystal_ids,
+        joint_copy_search=request.joint_copy_search,
     )
     selected, per_crystal_cap = _select_diverse_candidates(
-        candidates, config, request.maximum_first_copy_jobs
+        candidates,
+        config,
+        request.maximum_first_copy_jobs,
+        joint_copy_search=request.joint_copy_search,
     )
     output = request.output_directory.resolve()
     if output.exists() and any(output.iterdir()):
@@ -1226,11 +1259,25 @@ def build_diverse_first_copy_funnel(
     for item in selected:
         crystal_id = item.hypothesis.crystal_id
         per_crystal_counts[crystal_id] = per_crystal_counts.get(crystal_id, 0) + 1
+    adapter_version = (
+        _PHASE3_DIVERSE_ADAPTER_VERSION
+        if request.joint_copy_search
+        else _DIVERSE_ADAPTER_VERSION
+    )
+    phase3_copy_details = (
+        {
+            "copy_search_mode": "joint_declared_copies",
+            "maximum_joint_copy_count": _PHASE3_MAXIMUM_COPY_COUNT,
+        }
+        if request.joint_copy_search
+        else {}
+    )
     manifest_identity = {
-        "adapter_version": _DIVERSE_ADAPTER_VERSION,
+        "adapter_version": adapter_version,
         "input_sha256": input_sha256,
         "hypothesis_ids": [item.hypothesis.hypothesis_id for item in selected],
         "per_crystal_cap": per_crystal_cap,
+        **phase3_copy_details,
     }
     manifest_path = output / "funnel_manifest.json"
     atomic_write_json(
@@ -1239,7 +1286,7 @@ def build_diverse_first_copy_funnel(
             "schema_version": "1.0",
             "funnel_id": content_id("funnel_", manifest_identity),
             "created_at": utc_now_iso(),
-            "adapter_version": _DIVERSE_ADAPTER_VERSION,
+            "adapter_version": adapter_version,
             "scope": "multi_source_first_copy",
             "resource_profile": config.prototype.profile.value,
             "input_sha256": input_sha256,
@@ -1251,7 +1298,15 @@ def build_diverse_first_copy_funnel(
             "global_structural_cap": config.search_limits.max_structural_hypotheses,
             "global_first_copy_cap": config.search_limits.max_first_copy_jobs,
             "requested_execution_cap": request.maximum_first_copy_jobs,
-            "per_model_copy_cap": _copy_cap(config),
+            "per_model_copy_cap": (
+                min(
+                    _PHASE3_MAXIMUM_COPY_COUNT,
+                    config.matthews.max_hypotheses_per_candidate,
+                )
+                if request.joint_copy_search
+                else _copy_cap(config)
+            ),
+            **phase3_copy_details,
             "diversity_buckets": [
                 "sequence_group_id",
                 "coordinate_provider",

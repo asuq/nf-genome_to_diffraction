@@ -35,6 +35,7 @@ params {
     maximum_pdb_hits_per_sequence_group: Integer = 3
     maximum_pdb_mappings: Integer = 25
     maximum_first_copy_jobs: Integer = 25
+    phase3_joint_first_copy: Boolean = false
 }
 
 workflow {
@@ -85,6 +86,7 @@ workflow {
         params.afdb_retry_count,
         params.maximum_pdb_hits_per_sequence_group,
         params.maximum_pdb_mappings,
-        params.maximum_first_copy_jobs
+        params.maximum_first_copy_jobs,
+        params.phase3_joint_first_copy
     )
 }

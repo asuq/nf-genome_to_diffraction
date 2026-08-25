@@ -690,6 +690,7 @@ def build_unknown_pass1_screen_inventory(
                         crystal_item_id=item.crystal_item_id,
                         hypothesis_id=hypothesis.hypothesis_id,
                         allocation_rank=hypothesis.allocation_rank,
+                        requested_copy_count=hypothesis.requested_copy_count,
                         model_id=hypothesis.model_id,
                         model_sha256=hypothesis.model_sha256,
                         mtz_sha256=item.mtz_sha256,

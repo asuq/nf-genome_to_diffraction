@@ -170,12 +170,18 @@ def _assert_first_run(
     expected_task_ids = {
         task["task_id"] for task in inventory.get("hypothesis_tasks", [])
     }
+    requested_copies = {
+        task["task_id"]: task["requested_copy_count"]
+        for task in inventory.get("hypothesis_tasks", [])
+    }
     observed_task_ids: set[str] = set()
     for bundle in sorted((output / "hypotheses").glob("unknown_pass1_a_*")):
         task = json.loads(
             (bundle / "a_hypothesis_task.json").read_text(encoding="utf-8")
         )
         observed_task_ids.add(task["task_id"])
+        if task["requested_copy_count"] != requested_copies[task["task_id"]]:
+            raise RuntimeError("A task lost its exact joint-search copy count")
         if (bundle / "execution_status.txt").read_text(encoding="utf-8") != (
             "stub_only_no_scientific_result\n"
         ):

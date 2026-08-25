@@ -17,6 +17,7 @@ process BUILD_DIVERSE_FIRST_COPY_FUNNEL {
     pipeline_config: Path
     crystal_id: String
     maximum_first_copy_jobs: Integer
+    joint_copy_search: Boolean
 
     stage:
     stageAs predicted_coordinate_sources, 'predicted_coordinate_sources.jsonl'
@@ -26,6 +27,7 @@ process BUILD_DIVERSE_FIRST_COPY_FUNNEL {
     funnel: Path = file('diverse_first_copy_funnel')
 
     script:
+    def jointCopyArgument = joint_copy_search ? '--joint-copy-search' : ''
     """
     genome-to-diffraction \
         --no-progress \
@@ -44,6 +46,7 @@ process BUILD_DIVERSE_FIRST_COPY_FUNNEL {
         --config '${pipeline_config}' \
         --crystal-id '${crystal_id}' \
         --maximum-first-copy-jobs ${maximum_first_copy_jobs} \
+        ${jointCopyArgument} \
         --outdir diverse_first_copy_funnel
     """
 

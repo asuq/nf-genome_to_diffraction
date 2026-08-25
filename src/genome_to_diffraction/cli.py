@@ -1239,6 +1239,11 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         help="optional additional hard cap applied after configured profile limits",
     )
+    diverse_parser.add_argument(
+        "--joint-copy-search",
+        action="store_true",
+        help="search up to four declared copies jointly under the Phase III 25-job cap",
+    )
     partner_plan_parser = ranking_actions.add_parser(
         "partner-plan",
         help="select the fixed first wave of at most 25 catalogue B candidates",
@@ -2821,6 +2826,7 @@ def _run_ranking(args: argparse.Namespace) -> int:
                 output_directory=args.outdir,
                 crystal_ids=tuple(args.crystal_id),
                 maximum_first_copy_jobs=args.maximum_first_copy_jobs,
+                joint_copy_search=args.joint_copy_search,
                 progress=not args.no_progress,
             )
         )

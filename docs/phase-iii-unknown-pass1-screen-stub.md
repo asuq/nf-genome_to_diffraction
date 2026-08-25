@@ -56,6 +56,17 @@ three-crystal inventory is retained once at the run boundary rather than copied
 into independent child tasks. The stub A adapter emits only
 `stub_only_no_scientific_result`; non-stub invocation fails deliberately.
 
+Each selected A task explicitly carries its parent hypothesis's exact
+`requested_copy_count` in `1..4`. This field participates in the task's
+content-addressed identity, and the complete screen refuses a task whose copy
+count differs from its selected hypothesis. The ordinary diverse-model funnel
+exposes the corresponding opt-in `--joint-copy-search` mode; the main and
+standalone Nextflow entry points spell its opt-in
+`--phase3_joint_first_copy true`. Joint mode retains all four configured
+physically possible alternatives, ignores copy counts above four, and bounds
+all selected A hypotheses to 25 per crystal. Historical single-copy execution
+remains the default.
+
 ## Status, failure, and cache semantics
 
 `ready`, `held`, `empty_no_model`, and `empty_no_hypotheses` are typed scheduling
@@ -86,8 +97,11 @@ pixi run --locked unknown-pass1-screen-stub
 Focused unit coverage checks exact branch and task counts, the separate
 proceeding empty-hypothesis state, canonical write/load stability, MTZ/model and
 review mutation, remote-provider/offline-localisation policy refusal, hold
-enforcement, the 26th-allocation boundary, and content-ID mutation. Repository
-Nextflow lint covers the workflow and modules.
+enforcement, exact requested copy propagation/mutation, the 26th-allocation
+boundary, and content-ID mutation. Funnel regressions cover copies one through
+four, the excluded fifth copy, retained fourth-ranked alternatives, the fixed
+25-attempt cap, and unchanged legacy behaviour. Repository Nextflow lint covers
+the workflow and modules.
 
 This closes the local registry-to-crystallographic-stage-to-screen wiring and
 stub integration. Remote owned-run collection, the qualified first-copy Phaser

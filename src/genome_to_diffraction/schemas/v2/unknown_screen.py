@@ -333,6 +333,7 @@ class UnknownPass1AHypothesisTask(_ContentAddressedContract):
     crystal_item_id: UnknownPass1CrystalItemIdentifier
     hypothesis_id: UnknownPass1AHypothesisIdentifier
     allocation_rank: Annotated[int, Field(gt=0, le=25)]
+    requested_copy_count: Annotated[int, Field(gt=0, le=4)]
     model_id: NonEmptyString
     model_sha256: Sha256Hex
     mtz_sha256: Sha256Hex
@@ -501,6 +502,7 @@ class UnknownPass1ScreenInventory(_ContentAddressedContract):
                 task.crystal_id != item.crystal_id
                 or task.crystal_item_id != item.crystal_item_id
                 or task.allocation_rank != hypothesis.allocation_rank
+                or task.requested_copy_count != hypothesis.requested_copy_count
                 or task.model_id != hypothesis.model_id
                 or task.model_sha256 != hypothesis.model_sha256
                 or task.mtz_sha256 != item.mtz_sha256

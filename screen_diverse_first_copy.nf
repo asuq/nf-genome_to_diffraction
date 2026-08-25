@@ -17,6 +17,7 @@ params {
     config: Path
     crystal_id: String
     maximum_first_copy_jobs: Integer = 25
+    phase3_joint_first_copy: Boolean = false
     mtz: Path
     phenix_manifest: Path
     outdir: Path = file('results')
@@ -37,6 +38,7 @@ workflow {
         params.config,
         params.crystal_id,
         params.maximum_first_copy_jobs,
+        params.phase3_joint_first_copy,
         params.mtz,
         params.phenix_manifest
     )

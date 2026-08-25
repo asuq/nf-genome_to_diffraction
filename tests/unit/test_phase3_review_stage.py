@@ -266,6 +266,7 @@ def test_stages_composition_and_sequence_reviews_without_promoting_claims(
         "phase3-review-decisions",
         progress=False,
     )
+    assert isinstance(observed, PhaseIIIReviewDecisionFile)
     assert observed == expected
     assert observed.decisions[0].decision is decision
 

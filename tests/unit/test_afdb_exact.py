@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import urllib.error
+from email.message import Message
 from pathlib import Path
 
 import gemmi
@@ -40,7 +41,7 @@ def test_afdb_only_marks_temporary_http_failures_retryable(
             "https://alphafold.ebi.ac.uk/test",
             http_status,
             "test failure",
-            {},
+            Message(),
             io.BytesIO(b""),
         )
 

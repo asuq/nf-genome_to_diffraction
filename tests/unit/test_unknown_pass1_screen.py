@@ -19,6 +19,7 @@ from genome_to_diffraction.schemas.v2 import (
     ModelUnavailableReason,
     UnknownPass1AHypothesis,
     UnknownPass1AHypothesisDisposition,
+    UnknownPass1AHypothesisTask,
     UnknownPass1CrystalBranch,
     UnknownPass1ReviewBinding,
     UnknownPass1ReviewStageIndex,
@@ -72,6 +73,18 @@ def test_builds_exact_three_crystal_and_25_task_inventory(tmp_path: Path) -> Non
     assert tuple(task.allocation_rank for task in inventory.hypothesis_tasks) == tuple(
         range(1, 26)
     )
+    assert tuple(
+        task.requested_copy_count for task in inventory.hypothesis_tasks[:8]
+    ) == (
+        1,
+        2,
+        3,
+        4,
+        1,
+        2,
+        3,
+        4,
+    )
     assert len({task.model_id for task in inventory.hypothesis_tasks}) == 7
     assert len({task.model_id for task in inventory.hypothesis_tasks[:4]}) == 1
 
@@ -87,6 +100,26 @@ def test_inventory_write_and_reload_are_byte_stable(tmp_path: Path) -> None:
 
     assert first.read_bytes() == second.read_bytes()
     assert loaded.inventory_id == inventory.inventory_id
+
+
+def test_a_task_rejects_copy_count_from_another_hypothesis(tmp_path: Path) -> None:
+    inventory = _build(materialise_unknown_pass1_public_fixture(tmp_path))
+    task = inventory.hypothesis_tasks[1]
+    task_payload = task.model_dump(mode="python", exclude={"task_id"})
+    task_payload["requested_copy_count"] = 1
+    changed = UnknownPass1AHypothesisTask.from_content(**task_payload)
+    inventory_payload = inventory.model_dump(
+        mode="python",
+        exclude={"inventory_id"},
+    )
+    inventory_payload["hypothesis_tasks"] = (
+        inventory.hypothesis_tasks[0],
+        changed,
+        *inventory.hypothesis_tasks[2:],
+    )
+
+    with pytest.raises(ValidationError, match="A task differs from its complete"):
+        UnknownPass1ScreenInventory.from_content(**inventory_payload)
 
 
 def test_crystal_local_candidate_mutation_preserves_sibling_identities(

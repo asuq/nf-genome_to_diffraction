@@ -262,6 +262,42 @@ def test_diverse_funnel_preserves_predicted_and_experimental_sources(
     ]
 
 
+def test_phase3_diverse_funnel_searches_all_declared_copies_jointly(
+    tmp_path: Path,
+) -> None:
+    request = _diverse_request(tmp_path)
+    rows = tuple(
+        _matthews(
+            copy_count=copy_count,
+            rank=rank,
+            physical_status=PhysicalStatus.PLAUSIBLE,
+        )
+        for rank, copy_count in enumerate((5, 1, 2, 3, 4), start=1)
+    )
+    request.matthews_hypotheses_jsonl.write_text(
+        "".join(f"{canonical_json_text(row)}\n" for row in rows),
+        encoding="utf-8",
+    )
+
+    result = build_diverse_first_copy_funnel(replace(request, joint_copy_search=True))
+
+    assert len(result.hypotheses) == 8
+    assert {
+        (item.copy_count_expected, item.copy_number_to_search)
+        for item in result.hypotheses
+    } == {(1, 1), (2, 2), (3, 3), (4, 4)}
+    assert all(
+        item.priority_features["copy_search_mode"] == "joint_declared_copies"
+        for item in result.hypotheses
+    )
+    manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["adapter_version"] == "multi-source-first-copy-funnel-v2-phase3"
+    assert manifest["copy_search_mode"] == "joint_declared_copies"
+    assert manifest["maximum_joint_copy_count"] == 4
+    assert manifest["per_model_copy_cap"] == 4
+    assert manifest["per_crystal_first_copy_cap"] == 25
+
+
 @pytest.mark.parametrize("all_providers_empty", (False, True))
 def test_diverse_funnel_preserves_documented_empty_model_batches(
     tmp_path: Path, *, all_providers_empty: bool
@@ -348,8 +384,15 @@ def test_diverse_funnel_reserves_exact_mapping_before_homologue(
     )
 
 
+@pytest.mark.parametrize(
+    ("joint_copy_search", "expected_candidate_count"),
+    ((False, 30), (True, 60)),
+)
 def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
     tmp_path: Path,
+    *,
+    joint_copy_search: bool,
+    expected_candidate_count: int,
 ) -> None:
     base = _request(tmp_path)
     preparation = base.model_preparation_manifest.parent
@@ -390,6 +433,7 @@ def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
         pipeline_config=smoke_config,
         output_directory=tmp_path / "hard capped smoke funnel",
         crystal_ids=base.crystal_ids,
+        joint_copy_search=joint_copy_search,
         progress=False,
     )
 
@@ -397,10 +441,10 @@ def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
 
     assert len(result.hypotheses) == 25
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
-    assert manifest["candidate_count_before_caps"] == 30
+    assert manifest["candidate_count_before_caps"] == expected_candidate_count
     assert manifest["per_crystal_first_copy_cap"] == 25
     assert manifest["per_crystal_selected_counts"] == {"test_crystal_01": 25}
-    assert manifest["excluded_by_caps_count"] == 5
+    assert manifest["excluded_by_caps_count"] == expected_candidate_count - 25
     registry = load_all_eligible_model_registry(
         result.model_registry_directory / "all_model_registry.json"
     )
