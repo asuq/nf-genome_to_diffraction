@@ -94,6 +94,7 @@ def _solution(
     values: dict[str, object] = {
         "crystal_id": default_crystal_id,
         "state_id": f"{default_crystal_id}_state_A",
+        "sequence_group_id": f"seq_{HASHES[16]}",
         "requested_copy_count": 2,
         "observed_copy_count": 2,
         "copy_counts_supported": True,
@@ -102,8 +103,11 @@ def _solution(
         "packing_evidence_sha256": HASHES[11],
         "refinement_completed": True,
         "combined_coordinate_sha256": HASHES[12],
+        "refined_coordinate_sha256": HASHES[39],
         "refined_mtz_sha256": HASHES[13],
+        "review_map_sha256": HASHES[40],
         "refinement_evidence_sha256": HASHES[14],
+        "sequence_evidence_sha256": HASHES[41],
         "final_r_work": 0.22,
         "final_r_free": 0.27,
         "parsed_final_metrics_evidence_sha256": HASHES[15],
@@ -134,6 +138,13 @@ def _solution_reviews(
             item_id=state_id,
             decision=composition_decision,
             salt=23,
+        ),
+        _review(
+            PhaseIIIReviewCheckpoint.SEQUENCE,
+            crystal_id=crystal_id,
+            item_id=f"seq_{HASHES[16]}",
+            decision=PhaseIIIReviewDecisionValue.APPROVE,
+            salt=33,
         ),
     )
 
@@ -220,6 +231,75 @@ def test_credible_and_partial_statuses_require_matching_review_decisions() -> No
     assert credible.assessment_id != partial.assessment_id
 
 
+def test_solution_without_owned_sequence_review_cannot_be_credible() -> None:
+    crystal_id = "AD4QS1P4G2_18"
+    solution = _solution(crystal_id)
+    reviews = tuple(
+        item
+        for item in _solution_reviews(
+            crystal_id,
+            solution.state_id,
+            composition_decision=PhaseIIIReviewDecisionValue.APPROVE,
+        )
+        if item.checkpoint is not PhaseIIIReviewCheckpoint.SEQUENCE
+    )
+
+    assessment = _assessment(
+        crystal_id,
+        execution_status=ExecutionStatus.COMPLETED_HIT,
+        candidate_shortlist_present=True,
+        solution=solution,
+        reviews=reviews,
+    )
+
+    assert (
+        assessment.scientific_status
+        is UnknownPass1ScientificStatus.INSUFFICIENT_EVIDENCE
+    )
+
+
+@pytest.mark.parametrize("mutation", ("sequence-group", "crystal", "decision"))
+def test_solution_rejects_unbound_or_unapproved_sequence_decisions(
+    mutation: str,
+) -> None:
+    crystal_id = "AD4QS1P4G2_18"
+    solution = _solution(crystal_id)
+    reviews = list(
+        _solution_reviews(
+            crystal_id,
+            solution.state_id,
+            composition_decision=PhaseIIIReviewDecisionValue.APPROVE,
+        )
+    )
+    sequence_index = next(
+        index
+        for index, item in enumerate(reviews)
+        if item.checkpoint is PhaseIIIReviewCheckpoint.SEQUENCE
+    )
+    update: dict[str, object]
+    if mutation == "sequence-group":
+        other_group = f"seq_{HASHES[17]}"
+        update = {"package_item_id": other_group, "decision_item_id": other_group}
+    elif mutation == "crystal":
+        update = {"decision_crystal_id": "another_crystal"}
+    else:
+        update = {"decision": PhaseIIIReviewDecisionValue.NO_ASSIGNMENT}
+    reviews[sequence_index] = reviews[sequence_index].model_copy(update=update)
+
+    assessment = _assessment(
+        crystal_id,
+        execution_status=ExecutionStatus.COMPLETED_HIT,
+        candidate_shortlist_present=True,
+        solution=solution,
+        reviews=_ordered_reviews(*reviews),
+    )
+
+    assert (
+        assessment.scientific_status
+        is UnknownPass1ScientificStatus.INSUFFICIENT_EVIDENCE
+    )
+
+
 @pytest.mark.parametrize(
     "updates",
     [
@@ -228,6 +308,9 @@ def test_credible_and_partial_statuses_require_matching_review_decisions() -> No
         {"packing_passed": False},
         {"refinement_completed": False},
         {"final_r_free": None},
+        {"refined_coordinate_sha256": None},
+        {"review_map_sha256": None},
+        {"sequence_evidence_sha256": None},
         {"crystal_id": "another_crystal"},
     ],
     ids=[
@@ -236,6 +319,9 @@ def test_credible_and_partial_statuses_require_matching_review_decisions() -> No
         "packing-failed",
         "refinement-incomplete",
         "final-metrics-missing",
+        "refined-coordinates-missing",
+        "review-map-missing",
+        "sequence-evidence-missing",
         "crystal-mismatch",
     ],
 )

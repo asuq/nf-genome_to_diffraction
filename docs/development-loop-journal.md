@@ -13049,3 +13049,29 @@ with a collapsed combined parent or a guessed command.
   not emit site identity on status/log responses, so mandatory site emission
   must be deployed only after active known-control Slurm `634369` reaches a
   terminal state and its retained evidence has been collected/classified.
+
+## 2026-08-25 - Unknown claims require independently owned scientific evidence
+
+- `FCB-P0-02` first reproduced a nominally credible unknown-crystal result
+  without any approved exact-sequence decision and a checksum-matched,
+  content-rebound plain-text checkpoint accepted as authentic review.
+- Pass-1 promotion now requires four separate crystal-bound human decisions;
+  collection independently validates each complete schema-v2 package, target
+  worksheet, content-addressed decision, execution identity, and distinct
+  screen/final run ownership before publishing any report.
+- The previous placeholder scientific fixture was replaced with real typed
+  terminal/copy/packing/refinement/sequence/metric records, parseable
+  pre-/post-refinement coordinates, a genuine MTZ carrying all four review-map
+  coefficient columns, and a genuine CCP4 review map. Every record and asset
+  is checksum-bound to the exact owned crystal, state, group, copies, observed
+  packing, final R values, map-derived candidate, and reviewed residual state.
+- One original red/green fabricated-scientific-bytes case, 12 cross-owner or
+  inconsistent-record mutations, four invalid checksum-matched PDB/MTZ/map
+  assets, the four independent sequence-decision controls, mixed honest
+  no-hit/failure/hold outcomes, and all 45 focused assessment/collection tests
+  pass. The complete neighbouring owned-review/screen/checkpoint integration
+  group also passes all 217 tests; scientific assessment and collector adapter
+  identities both advance.
+- Prior integration source `2fc46463e07bfdc61c7c8917cf31c7b830ca59c1`
+  completed GitHub Actions run `32882784812` successfully. No deployed
+  dispatcher was changed and known-control Slurm `634369` remains untouched.

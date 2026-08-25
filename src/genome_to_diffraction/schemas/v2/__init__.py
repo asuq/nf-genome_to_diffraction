@@ -74,11 +74,13 @@ from genome_to_diffraction.schemas.v2.review import (
 )
 from genome_to_diffraction.schemas.v2.unknown_assessment import (
     UnknownPass1CrystalAssessment,
+    UnknownPass1FinalMetricsEvidence,
     UnknownPass1PanelSummary,
     UnknownPass1ResidualContentState,
     UnknownPass1ReviewEvidence,
     UnknownPass1ScientificStatus,
     UnknownPass1SolutionEvidence,
+    UnknownPass1TerminalEvidence,
 )
 from genome_to_diffraction.schemas.v2.unknown_collection import (
     UnknownPass1CollectedFile,
@@ -164,6 +166,7 @@ __all__ = [
     "UnknownPass1CrystalBranch",
     "UnknownPass1CrystalChecksumManifest",
     "UnknownPass1CrystalItem",
+    "UnknownPass1FinalMetricsEvidence",
     "UnknownPass1PanelSummary",
     "UnknownPass1ResidualContentState",
     "UnknownPass1ReviewBinding",
@@ -173,5 +176,6 @@ __all__ = [
     "UnknownPass1ScreenInventory",
     "UnknownPass1SharedPreparation",
     "UnknownPass1SolutionEvidence",
+    "UnknownPass1TerminalEvidence",
     "diffraction_dataset_id",
 ]

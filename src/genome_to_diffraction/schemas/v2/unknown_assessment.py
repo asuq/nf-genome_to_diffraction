@@ -21,7 +21,10 @@ from genome_to_diffraction.schemas.base import (
     OperatorIdentifier,
     Sha256Hex,
 )
-from genome_to_diffraction.schemas.v2.composition import _ContentAddressedContract
+from genome_to_diffraction.schemas.v2.composition import (
+    SequenceGroupIdentifier,
+    _ContentAddressedContract,
+)
 from genome_to_diffraction.schemas.v2.execution import ExecutionIdentityIdentifier
 from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewCheckpoint,
@@ -61,6 +64,40 @@ class UnknownPass1ResidualContentState(StrEnum):
     UNASSESSED = "unassessed"
 
 
+class UnknownPass1TerminalEvidence(ContractModel):
+    """One owned scientific terminal record before assessment interpretation."""
+
+    schema_version: Literal["2.0"]
+    owned_parent_run_id: OperatorIdentifier
+    execution_identity_id: ExecutionIdentityIdentifier
+    crystal_id: OperatorIdentifier
+    execution_status: ExecutionStatus
+    candidate_shortlist_present: bool
+    state_id: OperatorIdentifier | None = None
+    sequence_group_id: SequenceGroupIdentifier | None = None
+
+    @model_validator(mode="after")
+    def _validate_solution_identity(self) -> Self:
+        if (self.state_id is None) != (self.sequence_group_id is None):
+            raise ValueError("terminal state and sequence identities must be paired")
+        return self
+
+
+class UnknownPass1FinalMetricsEvidence(ContractModel):
+    """Independently owned final metrics and reviewed residual interpretation."""
+
+    schema_version: Literal["2.0"]
+    owned_parent_run_id: OperatorIdentifier
+    execution_identity_id: ExecutionIdentityIdentifier
+    crystal_id: OperatorIdentifier
+    state_id: OperatorIdentifier
+    sequence_group_id: SequenceGroupIdentifier
+    refinement_id: OperatorIdentifier
+    final_r_work: Annotated[float, Field(ge=0, le=1)]
+    final_r_free: Annotated[float, Field(ge=0, le=1)]
+    residual_content_state: UnknownPass1ResidualContentState
+
+
 class UnknownPass1ReviewEvidence(ContractModel):
     """One review package/decision pair with both sides' crystal binding."""
 
@@ -79,6 +116,7 @@ class UnknownPass1ReviewEvidence(ContractModel):
 class UnknownPass1SolutionEvidence(ContractModel):
     crystal_id: OperatorIdentifier
     state_id: OperatorIdentifier
+    sequence_group_id: SequenceGroupIdentifier
     requested_copy_count: Annotated[int, Field(gt=0, le=4)] | None = None
     observed_copy_count: Annotated[int, Field(ge=0, le=4)] | None = None
     copy_counts_supported: bool
@@ -87,8 +125,11 @@ class UnknownPass1SolutionEvidence(ContractModel):
     packing_evidence_sha256: Sha256Hex | None = None
     refinement_completed: bool
     combined_coordinate_sha256: Sha256Hex | None = None
+    refined_coordinate_sha256: Sha256Hex | None = None
     refined_mtz_sha256: Sha256Hex | None = None
+    review_map_sha256: Sha256Hex | None = None
     refinement_evidence_sha256: Sha256Hex | None = None
+    sequence_evidence_sha256: Sha256Hex | None = None
     final_r_work: Annotated[float, Field(ge=0, le=1)] | None = None
     final_r_free: Annotated[float, Field(ge=0, le=1)] | None = None
     parsed_final_metrics_evidence_sha256: Sha256Hex | None = None
@@ -144,8 +185,11 @@ def _solution_can_promote(
     refined = (
         solution.refinement_completed
         and solution.combined_coordinate_sha256 is not None
+        and solution.refined_coordinate_sha256 is not None
         and solution.refined_mtz_sha256 is not None
+        and solution.review_map_sha256 is not None
         and solution.refinement_evidence_sha256 is not None
+        and solution.sequence_evidence_sha256 is not None
         and solution.final_r_work is not None
         and solution.final_r_free is not None
         and solution.parsed_final_metrics_evidence_sha256 is not None
@@ -157,12 +201,20 @@ def _solution_can_promote(
         item_id=solution.state_id,
         decision=PhaseIIIReviewDecisionValue.APPROVE,
     )
+    sequence_approved = _has_one_review(
+        reviews,
+        checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        crystal_id=crystal_id,
+        item_id=solution.sequence_group_id,
+        decision=PhaseIIIReviewDecisionValue.APPROVE,
+    )
     return (
         solution.crystal_id == crystal_id
         and copies_supported
         and packed
         and refined
         and seed_approved
+        and sequence_approved
     )
 
 
@@ -257,7 +309,7 @@ class UnknownPass1CrystalAssessment(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "unknownpass1assessment_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["unknown-pass1-terminal-assessment-v1"]
+    adapter_version: Literal["unknown-pass1-terminal-assessment-v2"]
     assessment_id: UnknownPass1AssessmentIdentifier
     owned_parent_run_id: OperatorIdentifier
     execution_identity_id: ExecutionIdentityIdentifier
@@ -295,7 +347,7 @@ class UnknownPass1CrystalAssessment(_ContentAddressedContract):
             reviews=review_evidence,
         )
         return cls.from_content(
-            adapter_version="unknown-pass1-terminal-assessment-v1",
+            adapter_version="unknown-pass1-terminal-assessment-v2",
             owned_parent_run_id=owned_parent_run_id,
             execution_identity_id=execution_identity_id,
             crystal_id=crystal_id,
