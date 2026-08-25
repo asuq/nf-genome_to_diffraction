@@ -90,6 +90,9 @@ _TERMINAL_STATES = frozenset(
 _QUEUED_STATES = frozenset(
     {"CONFIGURING", "PENDING", "REQUEUE_FED", "REQUEUE_HOLD", "REQUEUED"}
 )
+_RUNNING_STATES = frozenset(
+    {"COMPLETING", "RESIZING", "RUNNING", "STOPPED", "SUSPENDED"}
+)
 _REMOTE_TOOL_PATHS = (
     PurePosixPath("bootstrap/nf-gtd-hpc-remote"),
     PurePosixPath("bootstrap/nf-gtd-hpc-smoke-job"),
@@ -2393,13 +2396,27 @@ class HpcController:
         ) as progress_bar:
             while True:
                 result = self.status(run_id)
-                scheduler_state = str(result.get("scheduler_state", "UNKNOWN")).upper()
-                if (
-                    scheduler_state in _TERMINAL_STATES
-                    or result.get("terminal") == "true"
+                scheduler_state = result.get("scheduler_state")
+                if not isinstance(scheduler_state, str) or scheduler_state not in (
+                    _QUEUED_STATES | _RUNNING_STATES | _TERMINAL_STATES
                 ):
+                    raise RemoteOperationError(
+                        "remote scheduler state is missing or unsupported",
+                        failure_class=FailureClass.TRANSFER_FAILURE,
+                    )
+                terminal = result.get("terminal")
+                if (
+                    not isinstance(terminal, str)
+                    or terminal not in {"true", "false"}
+                    or ((terminal == "true") != (scheduler_state in _TERMINAL_STATES))
+                ):
+                    raise RemoteOperationError(
+                        "remote terminal flag contradicts its scheduler state",
+                        failure_class=FailureClass.TRANSFER_FAILURE,
+                    )
+                if terminal == "true":
                     return {**result, "operation": "wait"}
-                if scheduler_state not in _QUEUED_STATES and phase == "queue":
+                if scheduler_state in _RUNNING_STATES and phase == "queue":
                     phase = "execution"
                     total = execution_timeout
                     progress_bar.reset(total=total)

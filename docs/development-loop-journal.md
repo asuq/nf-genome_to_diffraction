@@ -12969,3 +12969,17 @@ with a collapsed combined parent or a guessed command.
   owned-run client suite and two existing real remote-dispatcher log
   integrations now pass. No deployed dispatcher was changed, and known
   control Slurm `634369` remains the sole submitted HPC run.
+
+## 2026-08-25 - Scheduler transitions require explicit consistent evidence
+
+- `FCB-P1-12` first reproduced eight fabricated monitoring outcomes from
+  missing, unknown, or noncanonical scheduler states and absent or
+  contradictory terminal flags. The old path silently treated unknown states
+  as active execution or returned an impossible terminal result.
+- Reviewed waiting now allows only explicit queue, running, or terminal state
+  enumerations; its exact lowercase boolean flag must independently agree
+  with that observed state before any queue-to-execution transition.
+- The eight red/green negatives, an authentic running-to-completed control,
+  the existing bounded queue-timeout case, and all 77 owned-run client tests
+  pass. No remote tool was redeployed and Slurm `634369` remains the only
+  submitted known-control job.

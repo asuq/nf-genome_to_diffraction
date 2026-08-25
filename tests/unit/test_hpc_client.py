@@ -7,7 +7,7 @@ import json
 import subprocess
 import tarfile
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 
 import pytest
@@ -1894,6 +1894,56 @@ def test_wait_reports_bounded_queue_timeout_without_cancelling(
 
     assert result["failure_class"] == FailureClass.QUEUE_TIMEOUT
     assert all(operation != "cancel" for operation, _ in transport.calls)
+
+
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        ({"terminal": "false"}, "scheduler state"),
+        ({"scheduler_state": "UNKNOWN", "terminal": "false"}, "scheduler state"),
+        ({"scheduler_state": "running", "terminal": "false"}, "scheduler state"),
+        ({"scheduler_state": "PENDING"}, "terminal"),
+        ({"scheduler_state": "PENDING", "terminal": "true"}, "terminal"),
+        ({"scheduler_state": "RUNNING", "terminal": "true"}, "terminal"),
+        ({"scheduler_state": "COMPLETED", "terminal": "false"}, "terminal"),
+        ({"scheduler_state": "COMPLETED", "terminal": "TRUE"}, "terminal"),
+    ],
+)
+def test_wait_rejects_unsupported_or_inconsistent_scheduler_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    response: dict[str, str],
+    message: str,
+) -> None:
+    transport = FakeTransport(status_responses=[response])
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.time.sleep", lambda _: None)
+
+    with pytest.raises(RemoteOperationError, match=message) as error:
+        controller.wait(run_id)
+
+    assert error.value.failure_class == FailureClass.TRANSFER_FAILURE
+
+
+def test_wait_accepts_explicit_running_and_terminal_scheduler_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transport = FakeTransport(
+        status_responses=[
+            {"scheduler_state": "RUNNING", "terminal": "false"},
+            {"scheduler_state": "COMPLETED", "terminal": "true"},
+        ]
+    )
+    controller = _controller(tmp_path, transport)
+    controller.config = replace(controller.config, execution_timeout_seconds=2)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.time.sleep", lambda _: None)
+
+    result = controller.wait(run_id)
+
+    assert result["scheduler_state"] == "COMPLETED"
+    assert result["terminal"] == "true"
 
 
 def test_collection_extracts_regular_whitelisted_payload_safely(tmp_path: Path) -> None:
