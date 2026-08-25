@@ -190,14 +190,11 @@ from genome_to_diffraction.refinement import (
     stage_t12_inputs,
 )
 from genome_to_diffraction.review import (
-    CrystalReportRequest,
     LiveSequenceCheckpointRequest,
     MrSeedApprovalRequest,
     MrSeedReviewRequest,
     ResourceSummaryRequest,
     SequenceCheckpointRequest,
-    StatusRequest,
-    build_crystal_report,
     build_live_sequence_checkpoint,
     build_mr_seed_review,
     build_owned_phase3_a_seed_review_package,
@@ -205,7 +202,6 @@ from genome_to_diffraction.review import (
     build_owned_phase3_sequence_review_package,
     build_resource_summary,
     build_sequence_checkpoint,
-    build_status_record,
     validate_mr_seed_approvals,
 )
 from genome_to_diffraction.schema_check import validate_repository
@@ -1768,30 +1764,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     live_sequence_checkpoint_parser.add_argument("--crystal-id")
     live_sequence_checkpoint_parser.add_argument("--outdir", type=Path, required=True)
-    status_parser = review_actions.add_parser(
-        "build-status",
-        help="derive the T13.1 execution, scientific, and assumption status",
-    )
-    status_parser.add_argument("--crystal-id", required=True)
-    status_parser.add_argument("--t12-summary", type=Path, required=True)
-    status_parser.add_argument("--job-result", type=Path, required=True)
-    status_parser.add_argument("--refinement-results", type=Path, required=True)
-    status_parser.add_argument("--checkpoint-manifest", type=Path, required=True)
-    status_parser.add_argument("--approval-candidates", type=Path, required=True)
-    status_parser.add_argument("--decisions", type=Path, required=True)
-    status_parser.add_argument(
-        "--prototype-assumption-status",
-        choices=("consistent", "possibly_violated", "violated", "unknown"),
-        default="unknown",
-    )
-    status_parser.add_argument("--residual-content-suspected", action="store_true")
-    status_parser.add_argument("--out", type=Path, required=True)
-    report_parser = review_actions.add_parser(
-        "build-report",
-        help="add the T13.2 crystal report to a verified T12.5 package",
-    )
-    report_parser.add_argument("--status", type=Path, required=True)
-    report_parser.add_argument("--checkpoint-dir", type=Path, required=True)
     resource_parser = review_actions.add_parser(
         "build-resource-summary",
         help="add the deterministic T13.3 resource record to a T12.5 package",
@@ -3378,15 +3350,6 @@ def _run_review(args: argparse.Namespace) -> int:
             f"{resources.summary_json}"
         )
         return 0
-    if args.review_action == "build-report":
-        report = build_crystal_report(
-            CrystalReportRequest(
-                status_json=args.status,
-                checkpoint_directory=args.checkpoint_dir,
-            )
-        )
-        print(f"Built T13.2 crystal report {report.report_id}: {report.report_html}")
-        return 0
     if args.review_action == "build-mr-seed":
         output = build_mr_seed_review(
             MrSeedReviewRequest(
@@ -3442,30 +3405,6 @@ def _run_review(args: argparse.Namespace) -> int:
         print(
             f"Built T12.5 sequence checkpoint for {sequence_output.finalist_count} "
             f"finalist(s): {sequence_output.manifest_json}"
-        )
-        return 0
-    if args.review_action == "build-status":
-        from genome_to_diffraction.schemas.results import PrototypeAssumptionStatus
-
-        status = build_status_record(
-            StatusRequest(
-                crystal_id=args.crystal_id,
-                t12_summary_json=args.t12_summary,
-                job_result_json=args.job_result,
-                refinement_results_jsonl=args.refinement_results,
-                checkpoint_manifest_json=args.checkpoint_manifest,
-                approval_candidates_tsv=args.approval_candidates,
-                decisions_tsv=args.decisions,
-                output_json=args.out,
-                prototype_assumption_status=PrototypeAssumptionStatus(
-                    args.prototype_assumption_status
-                ),
-                residual_content_suspected=args.residual_content_suspected,
-            )
-        )
-        print(
-            f"Built T13.1 status {status.execution_status.value}/"
-            f"{status.scientific_status.value}: {args.out}"
         )
         return 0
     if args.review_action != "validate-mr-seeds":

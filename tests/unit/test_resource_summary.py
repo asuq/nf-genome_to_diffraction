@@ -7,10 +7,7 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.checksums import sha256_file
-from genome_to_diffraction.review.crystal_report import (
-    CrystalReportRequest,
-    build_crystal_report,
-)
+from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.review.resource_summary import (
     ResourceSummaryError,
     ResourceSummaryRequest,
@@ -79,7 +76,7 @@ def _write_checkpoint(root: Path) -> None:
         ),
         encoding="utf-8",
     )
-    status = root.parent / "status.json"
+    status = root / "scientific_status.json"
     status.write_text(
         json.dumps(
             {
@@ -101,8 +98,31 @@ def _write_checkpoint(root: Path) -> None:
         ),
         encoding="utf-8",
     )
-    build_crystal_report(
-        CrystalReportRequest(status_json=status, checkpoint_directory=root)
+    report = root / "crystal_report.html"
+    report.write_text("<html>immutable historical review report</html>\n")
+    identity = {
+        "adapter_version": "crystal-report-v2",
+        "crystal_id": "crystal_test",
+        "checkpoint_package_id": "seqreview_test",
+        "checkpoint_manifest_sha256": sha256_file(
+            root / "sequence_checkpoint_manifest.json"
+        ),
+        "scientific_status_sha256": sha256_file(status),
+        "report_html_sha256": sha256_file(report),
+    }
+    (root / "crystal_report_manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "report_id": content_id("report_", identity),
+                "identity": identity,
+                "outputs": {
+                    status.name: sha256_file(status),
+                    report.name: sha256_file(report),
+                },
+            }
+        ),
+        encoding="utf-8",
     )
 
 

@@ -62,6 +62,17 @@ def test_version_flag_exits_successfully(
     assert capsys.readouterr().out.strip() == "0.2.0"
 
 
+@pytest.mark.parametrize("action", ("build-status", "build-report"))
+def test_obsolete_scientific_claim_writers_are_not_registered(
+    capsys: pytest.CaptureFixture[str], action: str
+) -> None:
+    with pytest.raises(SystemExit) as error:
+        main(["review", action])
+
+    assert error.value.code == 2
+    assert f"invalid choice: '{action}'" in capsys.readouterr().err
+
+
 def test_schema_check_reports_missing_schema_directory(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

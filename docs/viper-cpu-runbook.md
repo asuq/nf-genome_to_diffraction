@@ -173,41 +173,20 @@ other evidence justify a stronger call. CD6 is an unknown crystal and may be
 heteromeric or otherwise violate `ASU = nA`; Matthews copy-number context is a
 physical prior and cannot establish single-component composition.
 
-After collection, build the T13.1 status locally from the accepted T12 summary,
-job result, refinement records, checkpoint manifest, candidate table, and human
-decision TSV:
+The historical T13.1/T13.2 scientific-status and report writers have been
+removed. Their caller-supplied crystal identifier and legacy approval counts
+cannot satisfy the current Phase III ownership or scientific-evidence boundary.
+Never recreate a status, report, or approval through the retired commands.
 
-```bash
-pixi run --locked genome-to-diffraction --no-progress review build-status \
-  --crystal-id CRYSTAL_ID \
-  --t12-summary T12_SUMMARY_JSON \
-  --job-result JOB_RESULT_JSON \
-  --refinement-results T12_REFINEMENT_RESULTS_JSONL \
-  --checkpoint-manifest SEQUENCE_CHECKPOINT_MANIFEST_JSON \
-  --approval-candidates SEQUENCE_APPROVAL_CANDIDATES_TSV \
-  --decisions APPROVED_SEQUENCE_GROUPS_TSV \
-  --out SCIENTIFIC_STATUS_JSON
-```
-
-The default assumption status is `unknown`. An empty decision file preserves
-`completed_success` execution while reporting `insufficient_evidence`; it never
-promotes a ranked candidate. Set the assumption-status option only after that
-assumption has been reviewed, and use `--residual-content-suspected` only when
-the experimental evidence supports it.
-
-Add the T13.2 report to the already verified checkpoint package:
-
-```bash
-pixi run --locked genome-to-diffraction --no-progress review build-report \
-  --status SCIENTIFIC_STATUS_JSON \
-  --checkpoint-dir T12_SEQUENCE_CHECKPOINT_DIRECTORY
-```
-
-The builder first rechecks every manifest-bound table and finalist asset. It
-then writes `crystal_report.html`, `scientific_status.json`, and
-`crystal_report_manifest.json` inside that package, so its links remain
-portable with the review assets. The HTML is a review aid, not a replacement
-for Coot inspection or explicit decisions.
+Existing immutable `crystal_report.html`, `scientific_status.json`, and
+`crystal_report_manifest.json` files remain readable as historical evidence.
+The retained-checkpoint verifier independently checks every package asset,
+checksum, and confined path without writing or promoting a scientific claim;
+the historical resource-summary reader can still inspect that existing package.
+New unknown-crystal reporting must use the authenticated schema-v2 assessment,
+four distinct owned review decisions, and exact scientific evidence described
+in the [Phase III roadmap](phase-iii-roadmap.md). An empty human decision or
+unreviewed `ASU = nA` assumption must remain insufficient evidence.
 
 ## Fixed 23-case homomer control matrix
 

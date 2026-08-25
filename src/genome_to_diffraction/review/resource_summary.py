@@ -13,7 +13,9 @@ from tqdm import tqdm
 
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.ids import content_id
-from genome_to_diffraction.review.crystal_report import verify_checkpoint_package
+from genome_to_diffraction.review.historical_checkpoint import (
+    verify_historical_checkpoint,
+)
 from genome_to_diffraction.schemas.results import (
     OuterJobResourceSummary,
     PackageResourceInventory,
@@ -441,7 +443,7 @@ def build_resource_summary(request: ResourceSummaryRequest) -> ResourceSummaryOu
     root = request.checkpoint_directory.resolve(strict=True)
     if request.checkpoint_directory.is_symlink() or not root.is_dir():
         raise ResourceSummaryError("checkpoint directory is absent or unsafe")
-    checkpoint, checkpoint_manifest_path = verify_checkpoint_package(root)
+    checkpoint, checkpoint_manifest_path = verify_historical_checkpoint(root)
     checkpoint_manifest_sha256 = sha256_file(checkpoint_manifest_path)
     if checkpoint.run_id != run.run_id:
         raise ResourceSummaryError("checkpoint and execution run IDs differ")

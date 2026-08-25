@@ -13108,3 +13108,28 @@ with a collapsed combined parent or a guessed command.
 - The modified dispatcher is source-only. Nothing was deployed, and the
   existing known-control Slurm `634369` and its installed protocol remain
   untouched pending terminal evidence collection.
+
+## 2026-08-25 - Historical review evidence is readable but cannot create claims
+
+- `FCB-P0-05` reproduced both obsolete public scientific-status/report routes
+  remaining executable. The legacy status writer accepted an arbitrary caller
+  crystal identifier and promoted a human-approved sequence differing from the
+  actual refined sequence; its report writer failed to reconcile the package
+  crystal before publishing those fabricated claims.
+- Both active writer modules, their parser/dispatch branches, public exports,
+  and obsolete positive tests are deleted. No permanent fail-only compatibility
+  command is retained: both former subcommands are unregistered and rejected by
+  the parser before reading data or creating outputs.
+- A narrowly scoped historical checkpoint reader independently verifies the
+  immutable manifest, every declared asset/output checksum, safe relative paths,
+  confinement to the owned package, and every intermediate symlink. It has no
+  status/report writer, no caller-supplied crystal identity, and no scientific
+  promotion operation. Existing v1 status/report schemas and checksum-bound
+  historical resource-summary evidence remain readable unchanged.
+- Two red/green removed-command cases, immutable checkpoint inventory,
+  traversal/symlink attacks, historical resource-summary fixtures, and the
+  authenticated schema-v2 unknown-assessment/collection regressions establish
+  the clean break. Historical Viper documentation now explicitly preserves
+  retained evidence while directing new scientific claims exclusively to the
+  owned four-checkpoint Phase III route.
+- No existing scientific run or installed HPC dispatcher was modified.
