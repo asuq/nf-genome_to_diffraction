@@ -759,6 +759,8 @@ def test_phase3_a_decision_controls_the_actual_same_component_process(
         "additional_copy_series_summary.json",
     ):
         copy2(STUBS / name, local_stubs / name)
+    selection = tmp_path / "selected diffraction.json"
+    selection.write_text('{"selection":"reviewed-crystal"}\n', encoding="ascii")
     output = tmp_path / "reviewed-copy-results"
     command = [
         "nextflow",
@@ -783,6 +785,8 @@ def test_phase3_a_decision_controls_the_actual_same_component_process(
         str(STUBS / "predicted_model_preparation/models/stub.pdb"),
         "--phenix_manifest",
         str(STUBS / "phenix_install_manifest.json"),
+        "--diffraction_selection",
+        str(selection),
         "--outdir",
         str(output),
         "--cache_root",
@@ -815,7 +819,7 @@ def test_phase3_a_decision_controls_the_actual_same_component_process(
         "STAGE_PHASE3_APPROVED_MR_SEEDS": 1,
     }
     if decision is PhaseIIIReviewDecisionValue.APPROVE:
-        expected_processes["RUN_ADDITIONAL_COPY_PHASER"] = 1
+        expected_processes["RUN_PHASE3_ADDITIONAL_COPY_PHASER"] = 1
     assert Counter(row["process"].split(":")[-1] for row in first) == expected_processes
     assert {row["status"] for row in first} == {"COMPLETED"}
     staged = json.loads(

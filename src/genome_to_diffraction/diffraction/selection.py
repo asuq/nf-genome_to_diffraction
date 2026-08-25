@@ -11,9 +11,9 @@ execution so stale selections fail before any licensed command is launched.
 The selection itself retains no inferred Free-R convention.  Phase III Free-R
 label, distribution, and raw HKL-to-flag identities are validated in the
 separate :mod:`genome_to_diffraction.diffraction.free_r_identity` foundation.
-First-copy Phaser space-group/resolution names and brief-refinement Free-R
-selection use explicitly qualified PHIL parameters; this builder remains
-independent of MTZ file access.
+First-copy/same-component Phaser space-group/resolution names and
+brief-refinement Free-R selection use explicitly qualified PHIL parameters;
+this builder remains independent of MTZ file access.
 """
 
 import math
@@ -310,19 +310,23 @@ def build_diffraction_command_binding(
             "first-copy Phaser cannot consume a parent MTZ comparison"
         )
 
+    phaser_consumer = consumer in {
+        DiffractionCommandConsumer.FIRST_COPY_PHASER,
+        DiffractionCommandConsumer.ADDITIONAL_COPY_PHASER,
+    }
     resolution_binding = (
         "explicit_phaser_resolution_low_high_parameters"
-        if consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
+        if phaser_consumer
         else "refinement_low_high_and_sequence_map_high_explicit"
     )
     space_group_binding = (
         "explicit_phaser_crystal_symmetry_parameter"
-        if consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
+        if phaser_consumer
         else "explicit_refinement_crystal_symmetry_parameter"
     )
     command_mtz_binding = (
         "exact_selected_mtz"
-        if consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
+        if phaser_consumer
         else "verified_parent_hkl_free_r_and_observation_dataset"
     )
     return DiffractionCommandBinding.from_content(
@@ -356,7 +360,9 @@ def build_diffraction_command_binding(
             free_r_identity.test_flag_value if free_r_identity is not None else None
         ),
         free_r_command_binding=(
-            "not_applicable_first_copy_phaser"
+            "not_applicable_additional_copy_phaser"
+            if consumer is DiffractionCommandConsumer.ADDITIONAL_COPY_PHASER
+            else "not_applicable_first_copy_phaser"
             if free_r_identity is None
             else (
                 "selected_label_explicit_generation_disabled_test_value_automatic"

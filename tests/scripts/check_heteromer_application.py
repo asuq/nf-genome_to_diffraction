@@ -123,6 +123,17 @@ def _scientific_fanout_command(root: Path) -> tuple[list[str], Path]:
     (phase3_dispatch / "phase3_free_r_identity.json").write_text(
         '{"free_r":"original"}\n', encoding="ascii"
     )
+    phase3_approved = inputs / "phase3-approved-seeds"
+    phase3_approved.mkdir()
+    copy2(seeds, phase3_approved / "additional_copy_seeds.tsv")
+    copy2(
+        STUBS / "approved_mr_seed_stage/validated_mr_seed_decisions.json",
+        phase3_approved / "validated_mr_seed_decisions.json",
+    )
+    (phase3_approved / "live_m4_stage_manifest.json").write_text(
+        '{"phase3_approval_provenance":{"crystal_id":"test_crystal_01"}}\n',
+        encoding="ascii",
+    )
     output = root / "scientific-fanout-results"
     command = [
         "nextflow",
@@ -147,6 +158,8 @@ def _scientific_fanout_command(root: Path) -> tuple[list[str], Path]:
         str(phase3_finalists),
         "--phase3_dispatch",
         str(phase3_dispatch),
+        "--phase3_approved",
+        str(phase3_approved),
         "--sequence_groups",
         str(STUBS / "sequence_groups.jsonl"),
         "--source_records",
@@ -175,6 +188,7 @@ def _check_complete_scientific_fanout(root: Path, environment: dict[str, str]) -
     expected = {
         "RUN_FIRST_COPY_PHASER": 3,
         "RUN_ADDITIONAL_COPY_PHASER": 2,
+        "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 2,
         "RUN_BRIEF_REFINEMENT": 2,
         "RUN_PHASE3_BRIEF_REFINEMENT": 2,
     }
@@ -190,6 +204,8 @@ def _check_complete_scientific_fanout(root: Path, environment: dict[str, str]) -
         "first-copy-phaser:mrhyp_" + "d" * 64,
         "add-copy:sol_seed_a",
         "add-copy:sol_seed_b",
+        "phase3-add-copy:test_crystal_01:sol_seed_a",
+        "phase3-add-copy:test_crystal_01:sol_seed_b",
         "t12:sol_finalist_a",
         "t12:sol_finalist_b",
         "phase3-t12:sol_phase3_a",
@@ -228,14 +244,28 @@ def _check_complete_scientific_fanout(root: Path, environment: dict[str, str]) -
     rerun = Counter(
         row["process"].split(":")[-1] for row in mutated if row["status"] == "COMPLETED"
     )
-    if rerun != {"RUN_PHASE3_BRIEF_REFINEMENT": 2}:
+    if rerun != {
+        "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 2,
+        "RUN_PHASE3_BRIEF_REFINEMENT": 2,
+    }:
         raise RuntimeError(
-            "diffraction mutation did not isolate both Phase III finalists: "
+            "diffraction mutation did not isolate the four Phase III tasks: "
             f"{dict(sorted(rerun.items()))}"
         )
     if sum(row["status"] == "CACHED" for row in mutated) != 7:
         raise RuntimeError("diffraction mutation invalidated unrelated scientific jobs")
     for label in ("a", "b"):
+        additional = output / f"phase3_additional_copy_test_crystal_01_sol_seed_{label}"
+        if (additional / "phase3_diffraction_selection.json").read_bytes() != (
+            selection.read_bytes()
+        ):
+            raise RuntimeError(
+                "Phase III same-component placement lost selected MTZ evidence"
+            )
+        if (additional / "phase3_crystal_id.txt").read_text(encoding="ascii") != (
+            "test_crystal_01\n"
+        ):
+            raise RuntimeError("Phase III same-component placement crossed crystals")
         result = output / f"t12_sol_phase3_{label}"
         if (result / "phase3_diffraction_selection.json").read_bytes() != (
             selection.read_bytes()

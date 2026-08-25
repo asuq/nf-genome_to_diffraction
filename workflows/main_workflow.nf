@@ -19,7 +19,10 @@ include {
 } from '../modules/local/stage_phase3_approved_mr_seeds'
 include { STAGE_LIVE_T12 } from '../modules/local/stage_live_t12'
 include { VALIDATE_TASK05_INPUTS } from '../modules/local/validate_task05_inputs'
-include { ADDITIONAL_COPY_WORKFLOW } from './additional_copy_workflow'
+include {
+    ADDITIONAL_COPY_WORKFLOW;
+    PHASE3_ADDITIONAL_COPY_WORKFLOW
+} from './additional_copy_workflow'
 include {
     BRIEF_REFINEMENT_WORKFLOW;
     PHASE3_BRIEF_REFINEMENT_WORKFLOW
@@ -305,16 +308,51 @@ workflow MAIN_WORKFLOW {
                 review_manifest = selected_review_package.map { Path bundle ->
                     bundle.resolve('mr_seed_review_manifest.json')
                 }
-                additional_copy = ADDITIONAL_COPY_WORKFLOW(
-                    additional_seeds,
-                    review_validation,
-                    review_manifest,
-                    first_copy_hypotheses,
-                    sequence_groups,
-                    preflight_jsonl,
-                    selected_mtz,
-                    phenix_manifest
-                )
+                if (phase3_a_seed_review_stage != null) {
+                    reviewed_crystals = approved_stage
+                        .combine(review_manifest.first())
+                        .combine(first_copy_hypotheses.first())
+                        .combine(sequence_groups.first())
+                        .combine(preflight_jsonl.first())
+                        .combine(selected_mtz.first())
+                        .combine(channel.value(phenix_manifest))
+                        .combine(crystal_dispatch.first())
+                        .map {
+                            approved,
+                            review,
+                            hypotheses,
+                            sequences,
+                            preflight,
+                            mtz,
+                            phenix,
+                            dispatch ->
+                            tuple(
+                                dispatch.resolve('crystal_id.txt').toFile().text.trim(),
+                                approved,
+                                review,
+                                hypotheses,
+                                sequences,
+                                preflight,
+                                mtz,
+                                phenix,
+                                dispatch.resolve('phase3_diffraction_selection.json')
+                            )
+                        }
+                    additional_copy = PHASE3_ADDITIONAL_COPY_WORKFLOW(
+                        reviewed_crystals
+                    ).map { crystalId, seedId, result -> result }
+                } else {
+                    additional_copy = ADDITIONAL_COPY_WORKFLOW(
+                        additional_seeds,
+                        review_validation,
+                        review_manifest,
+                        first_copy_hypotheses,
+                        sequence_groups,
+                        preflight_jsonl,
+                        selected_mtz,
+                        phenix_manifest
+                    )
+                }
                 if (analysis_stage == 't12') {
                     copy_results = additional_copy
                         .collect()

@@ -372,14 +372,15 @@ class DiffractionCommandConsumer(StrEnum):
     """External command record that consumes one diffraction selection."""
 
     FIRST_COPY_PHASER = "phase3_first_copy_phaser"
+    ADDITIONAL_COPY_PHASER = "phase3_additional_copy_phaser"
     BRIEF_REFINEMENT = "phase3_brief_refinement"
 
 
 class DiffractionCommandBinding(_ContentAddressedContract):
     """Typed propagation boundary retained beside an external command array.
 
-    First-copy Phaser retains no Free-R identity.  Phase III brief refinement
-    records the exact selected identity and convention.  The official
+    First-copy and same-component Phaser retain no Free-R identity.  Phase III
+    brief refinement records the exact selected identity and convention.  The official
     ``phenix.refine`` label-selection and R-free parameters are explicit while
     completion separately requires a :class:`FreeRMembershipComparison`.
     """
@@ -426,6 +427,7 @@ class DiffractionCommandBinding(_ContentAddressedContract):
     free_r_test_flag_value: int | None = None
     free_r_command_binding: Literal[
         "not_applicable_first_copy_phaser",
+        "not_applicable_additional_copy_phaser",
         "selected_label_explicit_generation_disabled_test_value_automatic",
         "selected_label_and_test_value_explicit_generation_disabled",
     ] = "not_applicable_first_copy_phaser"
@@ -440,16 +442,20 @@ class DiffractionCommandBinding(_ContentAddressedContract):
             raise ValueError("command observation labels must be a pair or quartet")
         if self.resolution_high_a > self.resolution_low_a:
             raise ValueError("command resolution limits are inverted")
+        phaser_consumer = self.consumer in {
+            DiffractionCommandConsumer.FIRST_COPY_PHASER,
+            DiffractionCommandConsumer.ADDITIONAL_COPY_PHASER,
+        }
         expected_resolution_binding = (
             "explicit_phaser_resolution_low_high_parameters"
-            if self.consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
+            if phaser_consumer
             else "refinement_low_high_and_sequence_map_high_explicit"
         )
         if self.resolution_command_binding != expected_resolution_binding:
             raise ValueError("resolution command boundary does not match the consumer")
         expected_space_group_binding = (
             "explicit_phaser_crystal_symmetry_parameter"
-            if self.consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
+            if phaser_consumer
             else "explicit_refinement_crystal_symmetry_parameter"
         )
         if self.space_group_command_binding != expected_space_group_binding:
@@ -460,14 +466,19 @@ class DiffractionCommandBinding(_ContentAddressedContract):
             self.free_r_label,
             self.free_r_convention_status,
         )
-        if self.consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER:
+        if phaser_consumer:
             if self.command_mtz_binding != "exact_selected_mtz":
                 raise ValueError("MTZ command boundary does not match the consumer")
             if any(value is not None for value in free_r_values) or (
                 self.free_r_test_flag_value is not None
             ):
                 raise ValueError("first-copy Phaser cannot carry a Free-R identity")
-            if self.free_r_command_binding != "not_applicable_first_copy_phaser":
+            expected_free_r_binding = (
+                "not_applicable_first_copy_phaser"
+                if self.consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
+                else "not_applicable_additional_copy_phaser"
+            )
+            if self.free_r_command_binding != expected_free_r_binding:
                 raise ValueError("Free-R command boundary does not match the consumer")
             if self.free_r_membership_binding != (
                 "identity_placeholder_only_membership_validation_pending"

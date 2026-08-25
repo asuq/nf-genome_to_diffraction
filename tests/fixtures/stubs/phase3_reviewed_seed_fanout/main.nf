@@ -7,7 +7,7 @@ include {
     STAGE_PHASE3_APPROVED_MR_SEEDS
 } from '../../../../modules/local/stage_phase3_approved_mr_seeds'
 include {
-    ADDITIONAL_COPY_WORKFLOW
+    PHASE3_ADDITIONAL_COPY_WORKFLOW
 } from '../../../../workflows/additional_copy_workflow'
 
 params {
@@ -19,6 +19,7 @@ params {
     preflight: Path
     mtz: Path
     phenix_manifest: Path
+    diffraction_selection: Path
     outdir: Path = file('results')
     cache_root: Path = file('.cache')
 }
@@ -31,16 +32,18 @@ workflow {
         channel.value(params.phase3_package),
         channel.value(params.hypotheses)
     )
-    ADDITIONAL_COPY_WORKFLOW(
-        approved.map { Path bundle -> bundle.resolve('additional_copy_seeds.tsv') },
-        approved.map { Path bundle ->
-            bundle.resolve('validated_mr_seed_decisions.json')
-        },
-        channel.value(params.review_package.resolve('mr_seed_review_manifest.json')),
-        channel.value(params.hypotheses),
-        channel.value(params.sequence_groups),
-        channel.value(params.preflight),
-        channel.value(params.mtz),
-        channel.value(params.phenix_manifest)
-    )
+    reviewed = approved.map { Path bundle ->
+        tuple(
+            'test_crystal_01',
+            bundle,
+            params.review_package.resolve('mr_seed_review_manifest.json'),
+            params.hypotheses,
+            params.sequence_groups,
+            params.preflight,
+            params.mtz,
+            params.phenix_manifest,
+            params.diffraction_selection
+        )
+    }
+    PHASE3_ADDITIONAL_COPY_WORKFLOW(reviewed)
 }

@@ -9,6 +9,10 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.diffraction import (
+    DiffractionSelectionError,
+    build_diffraction_selection,
+)
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.mr import (
     AddCopyRunRequest,
@@ -19,6 +23,7 @@ from genome_to_diffraction.mr import (
 from genome_to_diffraction.mr.add_copy import _phaser_placement_count
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
+    CrystalEntry,
     PhenixInstallManifest,
     PrototypeProfile,
 )
@@ -27,6 +32,7 @@ from genome_to_diffraction.schemas.results import (
     MrHypothesis,
     MrHypothesisStatus,
     MrSearchStage,
+    MtzObservationCandidateRecord,
     MtzPreflightRecord,
     NormalisedMrResult,
 )
@@ -257,6 +263,117 @@ def _fake_runtime(
     monkeypatch.setattr(
         "genome_to_diffraction.mr.add_copy.capture_from_manifest", fake_capture
     )
+
+
+def _phase3_request(
+    tmp_path: Path, *, resolution_high_a: float = 2.0
+) -> AddCopyRunRequest:
+    request = _request(tmp_path)
+    preflight = MtzPreflightRecord.model_validate_json(
+        request.preflight_jsonl.read_text(encoding="utf-8")
+    ).model_copy(
+        update={
+            "resolution_high_a": resolution_high_a,
+            "selected_observation_dataset_id": 1,
+            "observation_candidate_identities": (
+                MtzObservationCandidateRecord(
+                    dataset_id=1,
+                    labels=("I", "SIGI"),
+                    observation_type="intensity",
+                ),
+            ),
+        }
+    )
+    request.preflight_jsonl.write_text(
+        f"{canonical_json_text(preflight)}\n", encoding="utf-8"
+    )
+    selection = build_diffraction_selection(
+        crystal=CrystalEntry(
+            crystal_id=preflight.crystal_id,
+            mtz=str(request.mtz),
+            catalogue_id="catalogue_test",
+        ),
+        preflight=preflight,
+        crystal_manifest_sha256="e" * 64,
+    )
+    selection_path = tmp_path / "phase3 diffraction selection.json"
+    selection_path.write_text(canonical_json_text(selection), encoding="utf-8")
+    return replace(request, diffraction_selection_json=selection_path)
+
+
+def test_phase3_additional_copy_command_binds_selected_diffraction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _phase3_request(tmp_path)
+    _fake_runtime(monkeypatch, log_text=POSITIVE_LOG, write_solution=True)
+
+    output = run_additional_copy_phaser(request)
+
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+    selection = command["diffraction_selection"]
+    binding = command["diffraction_command_binding"]
+    parameters = output.parameters_file.read_text(encoding="utf-8")
+    assert command["schema_version"] == "2.0"
+    assert command["adapter_version"] == "phenix-add-copy-mr-v5"
+    assert command["phase3_hypothesis_id"].startswith("mrhyp2_")
+    assert binding["consumer"] == "phase3_additional_copy_phaser"
+    assert binding["command_mtz_binding"] == "exact_selected_mtz"
+    assert selection["crystal_id"] == "test_crystal_01"
+    assert selection["observation_labels"] == ["I", "SIGI"]
+    assert 'space_group = "P 21 21 21"' in parameters
+    assert f"low = {selection['resolution_low_a']:.12g}" in parameters
+    assert f"high = {selection['resolution_high_a']:.12g}" in parameters
+
+
+def test_phase3_additional_copy_rejects_stale_diffraction_before_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _phase3_request(tmp_path)
+    preflight = MtzPreflightRecord.model_validate_json(
+        request.preflight_jsonl.read_text(encoding="utf-8")
+    ).model_copy(update={"resolution_high_a": 1.8})
+    request.preflight_jsonl.write_text(
+        f"{canonical_json_text(preflight)}\n", encoding="utf-8"
+    )
+    called = False
+
+    def unexpected(*args: object, **kwargs: object) -> None:
+        nonlocal called
+        del args, kwargs
+        called = True
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.mr.add_copy.capture_from_manifest", unexpected
+    )
+    with pytest.raises(DiffractionSelectionError, match="preflight record digest"):
+        run_additional_copy_phaser(request)
+
+    assert called is False
+
+
+def test_phase3_additional_copy_identity_changes_with_selected_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        placement_count=(2, 2),
+    )
+
+    first = run_additional_copy_phaser(_phase3_request(first_root))
+    second = run_additional_copy_phaser(
+        _phase3_request(second_root, resolution_high_a=1.8)
+    )
+
+    first_record = json.loads(first.command_json.read_text(encoding="utf-8"))
+    second_record = json.loads(second.command_json.read_text(encoding="utf-8"))
+    assert first_record["phase3_hypothesis_id"] != second_record["phase3_hypothesis_id"]
+    assert first_record["attempt_id"] != second_record["attempt_id"]
 
 
 def test_packed_additional_copy_advances_child_state(
@@ -653,3 +770,6 @@ def test_nextflow_finishes_sibling_attempts_after_contract_failure() -> None:
 
     assert "errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }" in module
     assert "--until-expected" in module
+    assert "process RUN_PHASE3_ADDITIONAL_COPY_PHASER" in module
+    assert "--diffraction-selection '${item[11]}'" in module
+    assert "phase3-add-copy:${item[0]}:${item[1]}" in module

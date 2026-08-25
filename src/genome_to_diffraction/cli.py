@@ -1348,6 +1348,11 @@ def _build_parser() -> argparse.ArgumentParser:
     add_copy_parser.add_argument("--sequence-groups", type=Path, required=True)
     add_copy_parser.add_argument("--preflight", type=Path, required=True)
     add_copy_parser.add_argument("--mtz", type=Path, required=True)
+    add_copy_parser.add_argument(
+        "--diffraction-selection",
+        type=Path,
+        help="optional schema-v2 dataset-qualified diffraction selection",
+    )
     add_copy_parser.add_argument("--search-model", type=Path, required=True)
     add_copy_parser.add_argument("--expected-search-model-sha256")
     add_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
@@ -3031,6 +3036,7 @@ def _run_mr(args: argparse.Namespace) -> int:
             output_directory=args.outdir,
             parent_result_jsonl=args.parent_result,
             parent_coordinate=args.parent_coordinate,
+            diffraction_selection_json=args.diffraction_selection,
             threads=args.threads,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,

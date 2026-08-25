@@ -12547,3 +12547,29 @@ with a collapsed combined parent or a guessed command.
   continuation. Preserve the existing 30-minute monitor for Slurm job `634097`;
   classify the exact grouped 6RTZ/3U7Q controls before any multi-fixed command,
   `9ECN`, M6, localisation, or unknown run.
+
+## 2026-08-25 - Approved A-copy searches retain selected diffraction identity
+
+- First-copy Phaser and reviewed refinement already consumed dataset-qualified
+  diffraction selections, but the intervening approved same-component search
+  silently fell back to historical unqualified observation/symmetry defaults.
+- The opt-in same-component adapter now verifies its exact crystal, hypothesis,
+  selected observation dataset, preflight, and source MTZ before invoking
+  Phenix. Its retained schema-v2 command and content identity bind the selected
+  labels, explicit space group, and explicit high/low resolution; stale or
+  changed evidence fails before licensed execution. Historical v1 calls retain
+  their original parameters, records, and content identities.
+- Reviewed production fan-out now creates one complete crystal/approved-seed
+  item rather than combining independent queue consumers. Rejected and deferred
+  decisions retain review evidence but schedule no placement.
+- A local actual Nextflow regression completes eleven independent scientific
+  tasks, caches every task without changing outputs, and reruns exactly two
+  reviewed placements plus two reviewed refinements after one selection-byte
+  mutation; seven historical siblings remain cached. One hundred six focused
+  adapter, crystallographic, review, and workflow regressions plus targeted
+  static, schema, and documentation checks pass without a full suite or remote
+  action.
+- Continue with complete reviewed three-crystal continuation and independent
+  per-crystal stage publication. Preserve the existing 30-minute monitor for
+  Slurm job `634097`; classify exact grouped 6RTZ/3U7Q controls before any
+  multi-fixed command, `9ECN`, M6, localisation, or unknown run.

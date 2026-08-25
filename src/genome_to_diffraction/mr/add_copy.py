@@ -7,6 +7,10 @@ runs ``phenix.phaser`` with the approved coordinates fixed at the origin, and
 searches exactly one additional copy. A parsed but unpacked or absent addition
 retains the parent as best state and never proves that another copy is absent.
 
+An opt-in Phase III selection additionally binds the exact observation dataset,
+crystal symmetry, low/high resolution, immutable hypothesis, and source MTZ.
+Historical schema-v1 commands and identities remain unchanged without it.
+
 The cache identity is the review/seed identity plus parent, model, sequence, MTZ,
 Phenix-manifest, and command-policy checksums. Unit tests cover command assembly,
 packed/no-solution semantics, and checksum failures; real-runtime qualification is
@@ -29,6 +33,12 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
+from genome_to_diffraction.diffraction import (
+    bind_phase3_hypothesis,
+    build_diffraction_command_binding,
+    load_diffraction_selection,
+    verify_diffraction_selection,
+)
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.mr.phaser import (
     PhaserInputError,
@@ -48,11 +58,18 @@ from genome_to_diffraction.schemas.results import (
     PreflightDecision,
     SequenceGroupRecord,
 )
+from genome_to_diffraction.schemas.v2 import (
+    DiffractionBoundHypothesis,
+    DiffractionCommandBinding,
+    DiffractionCommandConsumer,
+    DiffractionSelection,
+)
 from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.add_copy")
 _ADAPTER_VERSION = "phenix-add-copy-mr-v4"
+_PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v5"
 _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
@@ -100,6 +117,7 @@ class AddCopyRunRequest:
     expected_search_model_sha256: str | None = None
     parent_result_jsonl: Path | None = None
     parent_coordinate: Path | None = None
+    diffraction_selection_json: Path | None = None
     threads: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
@@ -142,6 +160,9 @@ class _Resolved:
     model_identity_fraction: float
     mtz: Path
     mtz_sha256: str
+    diffraction_selection: DiffractionSelection | None = None
+    phase3_hypothesis: DiffractionBoundHypothesis | None = None
+    diffraction_command_binding: DiffractionCommandBinding | None = None
 
 
 def _json_object(path: Path, *, label: str) -> dict[str, object]:
@@ -353,6 +374,20 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     mtz_sha = sha256_file(mtz, progress=request.progress, logger=_LOGGER)
     if mtz_sha != preflight.mtz_sha256:
         raise PhaserInputError("MTZ checksum differs from preflight")
+    selection: DiffractionSelection | None = None
+    phase3_hypothesis: DiffractionBoundHypothesis | None = None
+    diffraction_binding: DiffractionCommandBinding | None = None
+    if request.diffraction_selection_json is not None:
+        selection = load_diffraction_selection(request.diffraction_selection_json)
+        verify_diffraction_selection(selection, preflight)
+        if selection.mtz_sha256 != mtz_sha:
+            raise PhaserInputError("Phase III diffraction selection MTZ differs")
+        phase3_hypothesis = bind_phase3_hypothesis(hypothesis, selection)
+        diffraction_binding = build_diffraction_command_binding(
+            consumer=DiffractionCommandConsumer.ADDITIONAL_COPY_PHASER,
+            command_owner_id=phase3_hypothesis.hypothesis_id,
+            selection=selection,
+        )
     command_path = _owned(root, copied.get("command"), label="parent command")
     if sha256_file(command_path) != copied_sha.get("command"):
         raise PhaserInputError("parent command checksum differs from review package")
@@ -391,20 +426,43 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         model_identity_fraction=float(identity_percent) / 100.0,
         mtz=mtz,
         mtz_sha256=mtz_sha,
+        diffraction_selection=selection,
+        phase3_hypothesis=phase3_hypothesis,
+        diffraction_command_binding=diffraction_binding,
     )
 
 
 def _parameters(resolved: _Resolved, sequence_fasta: Path, threads: int) -> str:
-    labels = resolved.hypothesis.obs_labels
+    selection = resolved.diffraction_selection
+    labels = (
+        selection.rendered_observation_labels
+        if selection is not None
+        else resolved.hypothesis.obs_labels
+    )
     mtz = json.dumps(str(resolved.mtz))
     sequence = json.dumps(str(sequence_fasta))
     parent = json.dumps(str(resolved.parent_coordinate))
     model = json.dumps(str(resolved.search_model))
+    symmetry = (
+        "  crystal_symmetry {\n"
+        f"    space_group = {json.dumps(selection.selected_space_group)}\n"
+        "  }\n"
+        if selection is not None
+        else ""
+    )
+    resolution = (
+        "    resolution {\n"
+        f"      low = {selection.resolution_low_a:.12g}\n"
+        f"      high = {selection.resolution_high_a:.12g}\n"
+        "    }\n"
+        if selection is not None
+        else ""
+    )
     return f"""phaser {{
   mode = MR_AUTO
   hklin = {mtz}
   labin = {labels}
-  composition {{
+{symmetry}  composition {{
     chain {{
       chain_type = protein
       comp_type = sequence_file
@@ -437,7 +495,7 @@ def _parameters(resolved: _Resolved, sequence_fasta: Path, threads: int) -> str:
       jobs = {threads}
     }}
     sgalternative {{ select = none }}
-  }}
+{resolution}  }}
 }}
 """
 
@@ -477,8 +535,13 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
     atomic_write_text(
         parameters, _parameters(resolved, sequence_fasta, request.threads)
     )
-    attempt_identity = {
-        "adapter_version": _ADAPTER_VERSION,
+    adapter_version = (
+        _PHASE3_ADAPTER_VERSION
+        if resolved.diffraction_selection is not None
+        else _ADAPTER_VERSION
+    )
+    attempt_identity: dict[str, object] = {
+        "adapter_version": adapter_version,
         "review_id": resolved.review_id,
         "seed_solution_id": request.seed_solution_id,
         "parent_solution_id": resolved.parent_solution_id,
@@ -494,22 +557,48 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         ),
         "parameters_sha256": sha256_file(parameters),
     }
+    if (
+        resolved.diffraction_selection is not None
+        and resolved.phase3_hypothesis is not None
+        and resolved.diffraction_command_binding is not None
+    ):
+        attempt_identity.update(
+            {
+                "phase3_hypothesis_id": resolved.phase3_hypothesis.hypothesis_id,
+                "diffraction_selection_id": (
+                    resolved.diffraction_selection.diffraction_selection_id
+                ),
+                "diffraction_command_binding_id": (
+                    resolved.diffraction_command_binding.binding_id
+                ),
+            }
+        )
     attempt_id = content_id("addcopy_", attempt_identity)
     arguments = ["phenix.phaser", str(parameters)]
     command_json = output / "phaser_command.json"
-    atomic_write_json(
-        command_json,
-        {
-            "schema_version": "1.0",
-            "adapter_version": _ADAPTER_VERSION,
-            "created_at": utc_now_iso(),
-            "attempt_id": attempt_id,
-            "arguments": arguments,
-            "threads": request.threads,
-            "timeout_seconds": request.timeout_seconds,
-            **attempt_identity,
-        },
-    )
+    command_record: dict[str, object] = {
+        "schema_version": (
+            "2.0" if resolved.diffraction_selection is not None else "1.0"
+        ),
+        "adapter_version": adapter_version,
+        "created_at": utc_now_iso(),
+        "attempt_id": attempt_id,
+        "arguments": arguments,
+        "threads": request.threads,
+        "timeout_seconds": request.timeout_seconds,
+        **attempt_identity,
+    }
+    if (
+        resolved.diffraction_selection is not None
+        and resolved.diffraction_command_binding is not None
+    ):
+        command_record["diffraction_selection"] = (
+            resolved.diffraction_selection.model_dump(mode="json")
+        )
+        command_record["diffraction_command_binding"] = (
+            resolved.diffraction_command_binding.model_dump(mode="json")
+        )
+    atomic_write_json(command_json, command_record)
     _LOGGER.info(
         "additional-copy Phaser search started",
         extra={
@@ -707,7 +796,11 @@ def run_additional_copy_series(request: AddCopyRunRequest) -> AddCopySeriesOutpu
     )
     summary = root / "additional_copy_series_summary.json"
     series_identity = {
-        "adapter_version": _ADAPTER_VERSION,
+        "adapter_version": (
+            _PHASE3_ADAPTER_VERSION
+            if request.diffraction_selection_json is not None
+            else _ADAPTER_VERSION
+        ),
         "seed_solution_id": request.seed_solution_id,
         "attempt_ids": [item.result.attempt_id for item in attempts],
     }

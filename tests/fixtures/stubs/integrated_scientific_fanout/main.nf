@@ -4,7 +4,10 @@ nextflow.enable.dsl = 2
 nextflow.enable.types = true
 
 include { CONTROL_FIRST_COPY_MR_WORKFLOW } from '../../../../workflows/control_first_copy_mr_workflow'
-include { ADDITIONAL_COPY_WORKFLOW } from '../../../../workflows/additional_copy_workflow'
+include {
+    ADDITIONAL_COPY_WORKFLOW;
+    PHASE3_ADDITIONAL_COPY_WORKFLOW
+} from '../../../../workflows/additional_copy_workflow'
 include {
     BRIEF_REFINEMENT_WORKFLOW;
     PHASE3_BRIEF_REFINEMENT_WORKFLOW
@@ -19,6 +22,7 @@ params {
     finalists: Path
     phase3_finalists: Path
     phase3_dispatch: Path
+    phase3_approved: Path
     sequence_groups: Path
     source_records: Path
     preflight: Path
@@ -46,6 +50,21 @@ workflow {
         channel.of(params.preflight),
         channel.of(params.mtz),
         channel.of(params.phenix_manifest)
+    )
+    PHASE3_ADDITIONAL_COPY_WORKFLOW(
+        channel.of(
+            tuple(
+                'test_crystal_01',
+                params.phase3_approved,
+                params.review_package,
+                params.hypotheses,
+                params.sequence_groups,
+                params.preflight,
+                params.mtz,
+                params.phenix_manifest,
+                params.phase3_dispatch.resolve('phase3_diffraction_selection.json')
+            )
+        )
     )
     BRIEF_REFINEMENT_WORKFLOW(
         channel.of(params.finalists),

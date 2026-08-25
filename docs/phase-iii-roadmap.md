@@ -128,12 +128,15 @@ inferred.
 
 Reviewed Phase III single-component continuation now regenerates the same
 authenticated diffraction selection and Free-R identity in its single-crystal
-dispatch. Each production refinement task receives a complete crystal-owned
-item containing the selected dataset, exact raw MTZ, preflight, Free-R
-identity, finalist, catalogue evidence, and Phenix manifest. Deep content
-caching reruns only the two affected finalists after a selection-byte mutation;
-all seven neighbouring historical scientific tasks retain their cache entries.
-Historical refinement processes remain unchanged. Real installed-tool
+dispatch. Each approved same-component seed independently verifies the selected
+dataset against its exact crystal, hypothesis, preflight, and raw MTZ; its
+Phaser PHIL explicitly retains the selected labels, space group, and both
+resolution limits. Each refinement finalist also receives the exact Free-R
+identity and complete crystal/catalogue/Phenix evidence. Deep content caching
+reruns only the two affected placement tasks and two affected finalists after a
+selection-byte mutation; all seven neighbouring historical scientific tasks
+retain their cache entries. Rejected/deferred A states schedule no placement.
+Historical placement/refinement processes remain unchanged. Real installed-tool
 execution and complete three-crystal continuation remain separate gates.
 
 A separate schema-v2 Free-R foundation now binds an exact label and MTZ dataset
