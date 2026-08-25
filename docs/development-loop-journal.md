@@ -12816,3 +12816,30 @@ with a collapsed combined parent or a guessed command.
   CI run, deploy the matching reviewed dispatcher, and submit exactly one fresh
   two-control successor. Do not launch 9ECN, unknown crystals, M6, or another
   scientific profile until that successor is collected and classified.
+
+## 2026-08-25 - Fail-closed review blocks unsupported unknown-crystal execution
+
+- The updated global engineering policy requires unknown/malformed state to
+  fail explicitly, prohibits fabricated scientific values, and treats active
+  compatibility as a concrete requirement rather than a default. Three
+  independent review tracks examined scientific claims, Nextflow/HPC
+  execution, and clean-break architecture at exact source `26e69b95`.
+- The combined review identified 26 independently evidenced findings: nine P0,
+  fifteen P1, and two P2. Existing positive fixtures demonstrate fabricated
+  packing, unauthenticated credible claims, unresolved Free-R conventions,
+  unowned provider execution, missing human reviews, self-asserted component
+  identity, and active schema-v1 production routes.
+- The reviewed HPC boundary also lacks fixed unknown profiles and silently
+  accepts malformed scheduler responses, missing site/log/failure evidence,
+  unsafe review paths, and unqualified compute-worker network isolation. None
+  of the three operator crystals has been used as a validation control.
+- One dedicated adverse-review report, remediation roadmap, and expanded
+  finding ledger now define `RG0`-`RG7`. Relevant scientific/execution defects
+  block unknown pass 1; **every** old and new finding must have a final
+  evidenced disposition before the reviewed second-pass profile can run.
+- Preserve immutable v0.1/v0.2 evidence and explicitly required bounded
+  operations, but remove current compatibility writers after their canonical
+  replacements are qualified. Continue the single already-approved known
+  6RTZ/3U7Q control independently; do not launch 9ECN, M6, localisation,
+  unknown crystals, or another scientific profile before that control is
+  classified.

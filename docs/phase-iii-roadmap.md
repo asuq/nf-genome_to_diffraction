@@ -20,6 +20,28 @@ per crystal. Three-component placement is validated with 9ECN. Depths four to
 six remain provisional until independent positive controls exist, including
 when the retained search also stops for budget exhaustion or reviewer hold.
 
+## Mandatory fail-closed and clean-break stop gates
+
+The independent
+[2026-08-25 fail-closed/clean-break adverse review](adverse-code-review-2026-08-25-fail-closed-clean-break.md)
+identified fabricated scientific state, unreviewed provider/scheduler routes,
+missing human checkpoints, and active legacy execution paths. Existing status
+paragraphs below establish only their specifically tested narrow behaviour;
+they do not override reopened scientific or operational findings.
+
+The [fail-closed and clean-break remediation roadmap](phase-iii-fail-closed-clean-break-roadmap.md)
+defines mandatory `RG0`-`RG7` milestones. Unknown pass 1 may not stage or run
+until its named scientific, provider, review, and execution prerequisites are
+closed. Unknown pass 2 may not stage or run until **every** original and new
+[finding-ledger](phase-iii-finding-ledger.md) row is `Fixed`, `Superseded`, or
+`Deleted` with focused regression and required immutable qualification evidence.
+The future fixed second-pass wrapper must independently authenticate that
+exact-source closure record.
+
+Historical v0.1/v0.2 results remain readable and immutable; that requirement
+does not authorise active legacy Phase III writers, compatibility bridges, or
+fallback paths.
+
 ## Milestone sequence
 
 ### PH0 - Rebaseline and preserve evidence
@@ -30,8 +52,8 @@ when the retained search also stops for budget exhaustion or reviewer hold.
   final disposition.
 - Preserve v0.1/v0.2 schemas, outputs, control evidence, and readers as
   immutable historical records.
-- Require every finding to finish `fixed`, `superseded`, or `deleted` before
-  v0.3.0.
+- Require every original and new finding to finish `fixed`, `superseded`, or
+  `deleted` before unknown pass 2; recheck final dispositions at v0.3.0.
 
 ### PH1 - Execution and crystallographic foundations
 
@@ -366,6 +388,13 @@ PAGE ranks total composition mass. Missing evidence remains neutral.
 
 ### PH5 - Unknown-dataset pass 1
 
+Stop gate: complete the applicable `RG1`-`RG3` scientific, provider, owned
+execution, human-review, and evidence-derivation requirements in the
+[fail-closed and clean-break roadmap](phase-iii-fail-closed-clean-break-roadmap.md)
+before staging or scheduling any unknown crystal. A matching SHA-256 digest, a
+self-asserted status, or a green synthetic fixture without parsed evidence is
+not acceptance.
+
 Use the checksum-frozen catalogue and MTZs. Require file-based `proceed|hold`
 crystallographic review for AD4 completeness/Patterson evidence, CD4
 completeness/direction-dependent resolution, and the previously unassessed CD6
@@ -692,6 +721,14 @@ verified without contacting a package index. `PIPE-P3-01` is fixed; final
 release qualification must repeat this same gate after the version changes.
 
 ### PH7 - Unknown-dataset pass 2
+
+Hard stop: do not stage, submit, resume, or otherwise execute the second pass
+until `RG0`-`RG7` in the
+[fail-closed and clean-break roadmap](phase-iii-fail-closed-clean-break-roadmap.md)
+are complete. Every old and new finding requires a final `Fixed`, `Superseded`,
+or `Deleted` disposition with its focused regression, exact-source acceptance,
+and any required fixed-HPC evidence. The reviewed second-pass profile must
+reject an absent, stale, changed, or incomplete closure record.
 
 Reuse identical frozen inputs, gel/localisation evidence, thresholds,
 databases, and tools. For a credible A state, launch the automatic B-F beam

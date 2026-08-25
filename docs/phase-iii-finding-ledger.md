@@ -77,8 +77,51 @@ open among the original 34 findings.
 | `PH3-P1-21` Full-catalogue Foldseek search stopped at its pilot cap | Fixed locally; real complete-catalogue execution pending | Explicit Phase III application sorts all sequence groups into immutable Nextflow-owned batches of at most 128, invokes the existing provider-bound adapter once per batch with one high-memory job at a time, and independently verifies complete result/hit/raw-log coverage before merging. A 1,621-group public-only regression schedules exactly 13 searches and preserves all task identities/output bytes on cached resume. Missing, duplicated, deferred, or changed batches fail closed; direct PDB and historical single-batch modes remain unchanged. Real installed-tool and fixed-HPC qualification remain pending. |
 | `PH3-P1-22` Empty A-seed outcomes could not receive Phase III review packages | Fixed locally; real mixed-panel qualification pending | The production multi-crystal first-copy workflow now emits one authenticated, owned schema-v2 A-seed package per proceeding crystal. Its existing legacy review/solution identities, original crystal-bound hypotheses, complete result assets, review-output checksums, candidate/inspectable counts, full execution identity, and exact scheduler-owned parent are independently verified before publication. A scientifically completed zero-candidate crystal receives the same content-bound package with an honest header-only target worksheet; a held crystal never schedules an A package. Every other checkpoint and historical v1 package still requires review targets; missing, contradictory, edited, cross-crystal, or failed evidence is rejected before publication. |
 
+## Updated 2026-08-25 fail-closed and clean-break review
+
+Reviewed exact source: `26e69b95d57d6c8fd543980b661fc055b08bbcc8`.
+The [independent adverse review](adverse-code-review-2026-08-25-fail-closed-clean-break.md)
+provides each source location, mechanism, and negative case. The
+[remediation roadmap](phase-iii-fail-closed-clean-break-roadmap.md) defines the
+ordered `RG0`-`RG7` milestones and both scientific stop gates.
+
+| Finding | Current disposition | Required gate and acceptance evidence |
+| --- | --- | --- |
+| `FCB-P0-01` Fabricated final Phaser packing | Open | RG2; reject absent packing rows before 9ECN acceptance and unknown pass 1. |
+| `FCB-P0-02` Self-asserted credible unknown assessment | Open | RG3; parse owned scientific records and all four human decisions before pass 1. |
+| `FCB-P0-03` Unresolved Free-R test convention | Open | RG2; require authoritative explicit test reflection value before pass 1. |
+| `FCB-P0-04` Optional reviewed provider policy | Open | RG1; require exact provider plan and route entry before pass 1. |
+| `FCB-P0-05` Executable cross-crystal legacy report | Open | RG3; remove legacy claim producer and require owned v2 reporting before pass 1. |
+| `FCB-P0-06` Missing mandatory final review channels | Open | RG1; require distinct owned parent and sequence/composition packages before pass 1. |
+| `FCB-P0-07` Self-asserted component/composition identity | Open | RG3; require independently parsed component-bound decisions before any composition claim and pass 2. |
+| `FCB-P0-08` Missing pre-pass-2 finding closure barrier | Open; roadmap stop now recorded | RG0/RG7; make the fixed second-pass profile reject incomplete exact-source closure evidence. |
+| `FCB-P0-09` No reviewed fixed unknown HPC profiles | Open | RG1; add owned fixed screen/single-component execution before pass 1 and gated pass-2 execution before pass 2. |
+| `FCB-P1-01` Malformed sequence output becomes no-hit | Open | RG2; reject corrupt, truncated, and non-finite output before pass 1. |
+| `FCB-P1-02` Lossy scientific coordinate/log decoding | Open | RG2; require strict authoritative evidence decoding before pass 1. |
+| `FCB-P1-03` Missing sequence mass becomes assessed | Open | RG4; derive physical eligibility from actual mass evidence before pass 2. |
+| `FCB-P1-04` Synthetic legacy Phase III approval records | Open | RG1; consume owned schema-v2 reviews directly before pass-1 continuation. |
+| `FCB-P1-05` Competing current application authorities | Open | RG1; require one typed Phase III application route before pass 1. |
+| `FCB-P1-06` Synthetic v1 all-model registry manifest | Open | RG4; migrate all active consumers to exact v2 entries before pass 2. |
+| `FCB-P1-07` Repeated inferred Phenix runtime migration | Open | RG4; qualify one strict complete executable-hashed runtime manifest before pass 2. |
+| `FCB-P1-08` Malformed/duplicate reviewed A inventory | Open | RG1; reject nonconserving review rows or remove the obsolete source before pass 1. |
+| `FCB-P1-09` Missing current HPC site silently becomes Marmic | Open | RG1; require explicit site/schema for each current owned run before pass 1. |
+| `FCB-P1-10` Malformed/duplicate remote protocol fields | Open | RG1; require strict complete operation/run/site response framing before pass 1. |
+| `FCB-P1-11` Missing failed-job evidence suppresses failure signature | Open | RG1; require owned complete terminal scheduler/failure records before pass 1. |
+| `FCB-P1-12` Unsupported scheduler state becomes executing | Open | RG1; reject unknown/missing inconsistent scheduler states before pass 1. |
+| `FCB-P1-13` Missing remote log payload becomes empty log | Open | RG1; require explicitly declared authenticated log bytes before pass 1. |
+| `FCB-P1-14` Review checkpoint paths escape ownership | Open | RG1; reject traversal and intermediate symlink evidence before pass 1. |
+| `FCB-P1-15` Compute-worker network denial remains unenforced | Open | RG1; qualify bounded login acquisition and worker socket denial before pass 1. |
+| `FCB-P2-01` Competing root Nextflow application entry points | Open | RG5; migrate active reviewed callers/docs/tests and remove obsolete roots before pass 2. |
+| `FCB-P2-02` Permanently retired CLI execution aliases | Open | RG5; delete fail-only commands/dispatch/tests while retaining historical readers before pass 2. |
+
 ## Closure rule
 
+Before the second unknown-dataset pass, every original and new row in this
+ledger must be `Fixed`, `Superseded`, or `Deleted`, with a focused regression,
+exact-source commit/CI evidence, and any required fixed-HPC qualification.
+`Open`, `Partial`, `fixed locally`, and `qualification pending` are not final
+dispositions. The fixed second-pass profile must independently reject absent,
+stale, incomplete, or source-mismatched closure evidence.
+
 Before `v0.3.0`, rerun an independent adverse review against the exact release
-candidate. Every row must be `Fixed`, `Superseded`, or `Deleted`, with a focused
-regression, commit/CI evidence, and any required fixed-HPC evidence.
+candidate and verify the same complete final dispositions and evidence again.

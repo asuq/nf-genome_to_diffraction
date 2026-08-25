@@ -19,6 +19,12 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III roadmap](phase-iii-roadmap.md): isolated `dev/phase3` hardening,
   bounded general component search, M6 repair, and the two-pass exploratory
   analysis of the three operator crystals.
+- [Phase III fail-closed and clean-break adverse review](adverse-code-review-2026-08-25-fail-closed-clean-break.md):
+  independently verified scientific, scheduler/provider, reviewed-execution,
+  and current-compatibility defects with concrete source evidence.
+- [Phase III fail-closed and clean-break remediation roadmap](phase-iii-fail-closed-clean-break-roadmap.md):
+  mandatory pre-pass-1 scientific fixes, canonical execution migrations, and
+  the complete finding-closure stop gate before the second unknown run.
 - [Phase III finding ledger](phase-iii-finding-ledger.md): original and newer
   defects, dependency gates, required regressions, and final-disposition rules
   for v0.3.0.
