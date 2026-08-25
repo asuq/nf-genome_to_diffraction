@@ -29,6 +29,7 @@ from pydantic import ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
+    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
@@ -44,6 +45,7 @@ from genome_to_diffraction.mr.phaser import (
     PhaserInputError,
     PhaserParseError,
     parse_phaser_log,
+    read_phaser_evidence_text,
 )
 from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
@@ -68,8 +70,8 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.add_copy")
-_ADAPTER_VERSION = "phenix-add-copy-mr-v5"
-_PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v6"
+_ADAPTER_VERSION = "phenix-add-copy-mr-v6"
+_PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v7"
 _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
@@ -626,10 +628,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
             completed = subprocess.CompletedProcess(arguments, 124, b"", b"timed out")
         bar.update(1)
     capture_log = output / "phenix.phaser.capture.log"
-    atomic_write_text(
-        capture_log,
-        (completed.stdout + completed.stderr).decode("utf-8", errors="replace"),
-    )
+    atomic_write_bytes(capture_log, completed.stdout + completed.stderr)
     native_log = output / f"{_ROOT}.log"
     raw_log = native_log if native_log.is_file() else capture_log
     status = ExecutionStatus.FAILED_TOOL_EXECUTION
@@ -648,7 +647,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         )
     else:
         try:
-            raw_log_text = raw_log.read_text(encoding="utf-8", errors="replace")
+            raw_log_text = read_phaser_evidence_text(raw_log)
             if _reported_no_additional_solution(raw_log_text):
                 status = ExecutionStatus.COMPLETED_NO_HIT
                 rejection_reason = "phaser_reported_no_additional_solution"
@@ -667,9 +666,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
                         raise PhaserParseError(
                             "additional-copy solution lacks PDB or MTZ"
                         )
-                    coordinate_text = coordinate.read_text(
-                        encoding="utf-8", errors="replace"
-                    )
+                    coordinate_text = read_phaser_evidence_text(coordinate)
                     placements = _phaser_placement_count(
                         coordinate_text, parent_copy_count=resolved.parent_copy_count
                     )
@@ -698,6 +695,11 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         except PhaserParseError as error:
             status = ExecutionStatus.FAILED_PARSE
             rejection_reason = str(error)
+            llg = tfz = None
+            placements = 0
+            packed = supported = False
+            coordinate_path = mtz_path = None
+            coordinate_sha = mtz_sha = child_id = None
     result = AdditionalCopyResult(
         schema_version="1.0",
         attempt_id=attempt_id,

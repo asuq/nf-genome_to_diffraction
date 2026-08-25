@@ -12938,3 +12938,20 @@ with a collapsed combined parent or a guessed command.
   zero-hit control, and 66 refinement, sequence, and review cases pass. Keep
   Slurm `634369` as the only submitted known control; no full gate or new HPC
   operation was started.
+
+## 2026-08-25 - Phaser scientific evidence cannot replace corrupt bytes
+
+- `FCB-P1-02` independently reproduced seven false scientific successes from
+  invalid UTF-8 in first-copy/additional-copy/partner native logs, component
+  coordinates, and direct solution-metric parsing.
+- One shared strict Phaser evidence reader now converts invalid authoritative
+  bytes into typed parse failures. A corrupt additional-copy coordinate also
+  clears all provisional LLG, packing, placement, and child evidence rather
+  than retaining a partially parsed scientific claim.
+- Capture logs preserve their exact original bytes atomically. They are parsed
+  strictly only when no native log exists; invalid presentation-only capture
+  bytes do not suppress a valid, independently parsed native scientific log.
+- All five affected scientific adapter/cache versions advance again. Seven
+  red/green corruption regressions, both authoritative-versus-diagnostic
+  capture controls, and 78 focused Phaser/copy/partner/control tests pass.
+  The existing known-control job `634369` remains the only submitted HPC run.

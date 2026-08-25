@@ -252,6 +252,9 @@ def _fake_runtime(
     pdb_tfz: float = 49.7,
     pdb_pak: float | None = 0.0,
     placement_count: int = 1,
+    corrupt_evidence: str | None = None,
+    capture_bytes: bytes = b"capture\n",
+    write_native_log: bool = True,
 ) -> list[list[str]]:
     commands: list[list[str]] = []
 
@@ -269,7 +272,8 @@ def _fake_runtime(
         del manifest_path, timeout_seconds
         commands.append(arguments)
         working_directory.mkdir(parents=True, exist_ok=True)
-        (working_directory / "PHASER.log").write_text(log_text, encoding="utf-8")
+        if write_native_log:
+            (working_directory / "PHASER.log").write_text(log_text, encoding="utf-8")
         if write_solution:
             placements = "".join(
                 "REMARK ENSEMBLE ense_1 EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
@@ -286,7 +290,10 @@ def _fake_runtime(
                 encoding="utf-8",
             )
             (working_directory / "PHASER.1.mtz").write_bytes(b"phaser MTZ")
-        return subprocess.CompletedProcess(arguments, returncode, b"capture\n", b"")
+        if corrupt_evidence is not None:
+            evidence = working_directory / corrupt_evidence
+            evidence.write_bytes(evidence.read_bytes() + b"\xff")
+        return subprocess.CompletedProcess(arguments, returncode, capture_bytes, b"")
 
     monkeypatch.setattr(
         "genome_to_diffraction.mr.phaser.validate_manifest_environment",
@@ -363,6 +370,19 @@ def test_solution_pdb_llg_accepts_scientific_notation(tmp_path: Path) -> None:
     assert pak == pytest.approx(0.0)
 
 
+def test_solution_pdb_rejects_non_utf8_scientific_evidence(tmp_path: Path) -> None:
+    coordinate = tmp_path / "PHASER.1.pdb"
+    coordinate.write_bytes(
+        b"REMARK Log-Likelihood Gain: 247000\n"
+        b"REMARK PAK=0 LLG=246594 TFZ==371.4\n"
+        b"REMARK ENSEMBLE search_partner EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
+        b"\xff"
+    )
+
+    with pytest.raises(PhaserParseError, match="not valid UTF-8"):
+        read_phaser_solution_metrics(parse_phaser_log(POSITIVE_LOG), coordinate)
+
+
 def test_parser_retains_top_solution_tfz_when_tncs_omits_refined_value() -> None:
     parsed = parse_phaser_log(
         "PHENIX: Phaser 2.8.4\n"
@@ -434,7 +454,7 @@ def test_adapter_runs_exact_composition_and_emits_credible_hit(
     assert "phaser.keywords.general.jobs=4" in command
     assert "phaser.keywords.sgalternative.select=none" in command
     record = json.loads(output.command_json.read_text(encoding="utf-8"))
-    assert record["adapter_version"] == "phenix-first-copy-mr-v7"
+    assert record["adapter_version"] == "phenix-first-copy-mr-v8"
     assert record["model_uncertainty_source"].startswith("phenix.process")
 
 
@@ -451,7 +471,7 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
     binding = record["diffraction_command_binding"]
     selection = record["diffraction_selection"]
     assert record["schema_version"] == "2.0"
-    assert record["adapter_version"] == "phenix-first-copy-mr-v9-phase3-diffraction"
+    assert record["adapter_version"] == "phenix-first-copy-mr-v10-phase3-diffraction"
     assert record["phase3_hypothesis_id"] == request.phase3_hypothesis_id
     assert record["phase3_command_id"].startswith("phasercmd_")
     command_identity = {
@@ -470,7 +490,7 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
     assert content_id("phasercmd_", command_identity) == record["phase3_command_id"]
     previous_identity = {
         **command_identity,
-        "adapter_version": "phenix-first-copy-mr-v8-phase3-diffraction",
+        "adapter_version": "phenix-first-copy-mr-v9-phase3-diffraction",
     }
     assert content_id("phasercmd_", previous_identity) != record["phase3_command_id"]
     assert selection["observation_dataset_id"] == 1
@@ -674,6 +694,56 @@ def test_adapter_rejects_output_only_solution_without_explicit_packing(
     assert (
         output.result.rejection_reason == "Phaser solution lacks final packing evidence"
     )
+
+
+@pytest.mark.parametrize("corrupt_evidence", ("PHASER.log", "PHASER.1.pdb"))
+def test_adapter_rejects_non_utf8_native_scientific_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    corrupt_evidence: str,
+) -> None:
+    request = _inputs(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        corrupt_evidence=corrupt_evidence,
+    )
+
+    result = run_first_copy_phaser(request).result
+
+    assert result.execution_status == "failed_parse"
+    assert "not valid UTF-8" in (result.rejection_reason or "")
+    assert result.solution_coordinate_path is None
+
+
+@pytest.mark.parametrize("write_native_log", (False, True))
+def test_capture_bytes_are_preserved_and_parsed_only_when_authoritative(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    write_native_log: bool,
+) -> None:
+    request = _inputs(tmp_path)
+    capture = POSITIVE_LOG.encode("utf-8") + b"\xff"
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        capture_bytes=capture,
+        write_native_log=write_native_log,
+    )
+
+    result = run_first_copy_phaser(request).result
+
+    assert (request.output_directory / "phenix.phaser.capture.log").read_bytes() == (
+        capture
+    )
+    if write_native_log:
+        assert result.execution_status == "completed_hit"
+        assert result.raw_log_pointer == "PHASER.log"
+    else:
+        assert result.execution_status == "failed_parse"
+        assert result.raw_log_pointer == "phenix.phaser.capture.log"
 
 
 def test_adapter_does_not_infer_no_hit_from_marker_free_empty_outputs(

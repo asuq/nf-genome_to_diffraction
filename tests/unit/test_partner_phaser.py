@@ -125,6 +125,7 @@ def _fake_runtime(
     partner_marker_count: int = 1,
     pdb_llg: float = 1622.91,
     pdb_tfz: float = 49.7,
+    corrupt_evidence: str | None = None,
 ) -> list[str]:
     captured_parameters: list[str] = []
 
@@ -160,6 +161,9 @@ def _fake_runtime(
                 encoding="utf-8",
             )
             (working_directory / "PHASER.1.mtz").write_bytes(b"combined MTZ")
+        if corrupt_evidence is not None:
+            evidence = working_directory / corrupt_evidence
+            evidence.write_bytes(evidence.read_bytes() + b"\xff")
         return subprocess.CompletedProcess(arguments, returncode, b"capture\n", b"")
 
     monkeypatch.setattr(
@@ -182,7 +186,7 @@ def test_fixed_a_one_b_command_and_primary_result(
 
     result = output.result
     command = json.loads(output.command_json.read_text(encoding="utf-8"))
-    assert command["adapter_version"] == "phenix-fixed-a-joint-b-v5-native-placements"
+    assert command["adapter_version"] == "phenix-fixed-a-joint-b-v6-native-placements"
     assert result.execution_status == "completed_hit"
     assert result.partner_tfz == pytest.approx(49.7)
     assert result.combined_llg == pytest.approx(1622.91)
@@ -291,6 +295,28 @@ def test_explicit_no_extension_is_scientific_no_hit(
     assert result.combined_solution_id is None
     assert result.failed_search_proves_partner_absence is False
     assert result.rejection_reason == "phaser_reported_no_partner_solution"
+
+
+@pytest.mark.parametrize("corrupt_evidence", ("PHASER.log", "PHASER.1.pdb"))
+def test_partner_rejects_non_utf8_scientific_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    corrupt_evidence: str,
+) -> None:
+    request = _request(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        corrupt_evidence=corrupt_evidence,
+    )
+
+    result = run_partner_search(request).result
+
+    assert result.execution_status == "failed_parse"
+    assert "not valid UTF-8" in (result.rejection_reason or "")
+    assert result.top_solution_packed is False
+    assert result.combined_coordinate_path is None
 
 
 @pytest.mark.parametrize(

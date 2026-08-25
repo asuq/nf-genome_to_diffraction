@@ -217,6 +217,7 @@ def _fake_runtime(
     log_text: str,
     write_solution: bool,
     placement_count: int | tuple[int, ...] = 2,
+    corrupt_evidence: str | None = None,
 ) -> None:
     placement_counts = iter(
         (placement_count,) if isinstance(placement_count, int) else placement_count
@@ -254,6 +255,9 @@ def _fake_runtime(
                 encoding="utf-8",
             )
             (working_directory / "PHASER.1.mtz").write_bytes(b"result MTZ")
+        if corrupt_evidence is not None:
+            evidence = working_directory / corrupt_evidence
+            evidence.write_bytes(evidence.read_bytes() + b"\xff")
         return subprocess.CompletedProcess(arguments, 0, b"capture\n", b"")
 
     monkeypatch.setattr(
@@ -314,7 +318,7 @@ def test_phase3_additional_copy_command_binds_selected_diffraction(
     binding = command["diffraction_command_binding"]
     parameters = output.parameters_file.read_text(encoding="utf-8")
     assert command["schema_version"] == "2.0"
-    assert command["adapter_version"] == "phenix-add-copy-mr-v6"
+    assert command["adapter_version"] == "phenix-add-copy-mr-v7"
     assert command["phase3_hypothesis_id"].startswith("mrhyp2_")
     assert binding["consumer"] == "phase3_additional_copy_phaser"
     assert binding["command_mtz_binding"] == "exact_selected_mtz"
@@ -385,7 +389,7 @@ def test_packed_additional_copy_advances_child_state(
     output = run_additional_copy_phaser(request)
 
     command = json.loads(output.command_json.read_text(encoding="utf-8"))
-    assert command["adapter_version"] == "phenix-add-copy-mr-v5"
+    assert command["adapter_version"] == "phenix-add-copy-mr-v6"
     assert output.result.execution_status == "completed_hit"
     assert output.result.additional_copy_supported is True
     assert output.result.parent_copy_count == 1
@@ -665,6 +669,29 @@ def test_no_additional_solution_retains_parent_without_absence_claim(
     assert result.parent_solution_id == SEED_ID
     assert result.failed_addition_proves_absence is False
     assert result.rejection_reason == "phaser_reported_no_additional_solution"
+
+
+@pytest.mark.parametrize("corrupt_evidence", ("PHASER.log", "PHASER.1.pdb"))
+def test_additional_copy_rejects_non_utf8_scientific_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    corrupt_evidence: str,
+) -> None:
+    request = _request(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        corrupt_evidence=corrupt_evidence,
+    )
+
+    result = run_additional_copy_phaser(request).result
+
+    assert result.execution_status == "failed_parse"
+    assert "not valid UTF-8" in (result.rejection_reason or "")
+    assert result.additional_copy_supported is False
+    assert result.top_solution_packed is False
+    assert result.output_coordinate_path is None
 
 
 def test_no_extension_partial_parent_output_is_not_a_supported_child(

@@ -40,6 +40,7 @@ from pydantic import BaseModel, JsonValue, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
+    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
@@ -86,8 +87,8 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
-_ADAPTER_VERSION = "phenix-first-copy-mr-v7"
-_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v9-phase3-diffraction"
+_ADAPTER_VERSION = "phenix-first-copy-mr-v8"
+_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v10-phase3-diffraction"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -123,6 +124,17 @@ class PhaserInputError(InputContractError):
 
 class PhaserParseError(ResultParseError):
     """A completed Phaser log or output set is internally inconsistent."""
+
+
+def read_phaser_evidence_text(path: Path) -> str:
+    """Read authoritative Phaser evidence without replacing corrupted bytes."""
+
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise PhaserParseError(
+            f"Phaser scientific evidence {path.name} is not valid UTF-8"
+        ) from error
 
 
 @dataclass(frozen=True)
@@ -585,7 +597,7 @@ def parse_completed_phaser_outputs(text: str, output: Path) -> ParsedPhaserLog:
         output_mtz = output / f"{_ROOT}.1.mtz"
         if not coordinate.is_file() or not output_mtz.is_file():
             raise
-        pdb_text = coordinate.read_text(encoding="utf-8", errors="replace")
+        pdb_text = read_phaser_evidence_text(coordinate)
         llg = _last_match_float(_PDB_LLG, pdb_text)
         tfz_values = [float(value) for value in _PDB_TFZ.findall(pdb_text)]
         placed_count = len(_PDB_PLACEMENT.findall(pdb_text))
@@ -730,7 +742,7 @@ def read_phaser_solution_metrics(
 ) -> tuple[float | None, float | None, int, float | None]:
     if not coordinate_path.is_file():
         return parsed.llg, parsed.tfz, 0, None
-    text = coordinate_path.read_text(encoding="utf-8", errors="replace")
+    text = read_phaser_evidence_text(coordinate_path)
     pdb_llg = _last_match_float(_PDB_LLG, text)
     llg = pdb_llg if pdb_llg is not None else parsed.llg
     tfz_values = [float(value) for value in _PDB_TFZ.findall(text)]
@@ -931,10 +943,7 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
             return _write_result(output, result, command_json)
         progress_bar.update(1)
     capture_log = output / "phenix.phaser.capture.log"
-    atomic_write_text(
-        capture_log,
-        (completed.stdout + completed.stderr).decode("utf-8", errors="replace"),
-    )
+    atomic_write_bytes(capture_log, completed.stdout + completed.stderr)
     native_log = output / f"{_ROOT}.log"
     raw_log = native_log if native_log.is_file() else capture_log
     if completed.returncode != 0:
@@ -953,8 +962,8 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
             },
         )
         return _write_result(output, result, command_json)
-    log_text = raw_log.read_text(encoding="utf-8", errors="replace")
     try:
+        log_text = read_phaser_evidence_text(raw_log)
         parsed = parse_completed_phaser_outputs(log_text, output)
         tool_version = (
             f"Phenix {phenix_manifest.phenix_version}; Phaser {parsed.phaser_version}"

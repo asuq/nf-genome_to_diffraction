@@ -39,6 +39,7 @@ from pydantic import BaseModel, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
+    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
@@ -48,6 +49,7 @@ from genome_to_diffraction.mr.phaser import (
     PhaserInputError,
     PhaserParseError,
     parse_completed_phaser_outputs,
+    read_phaser_evidence_text,
     read_phaser_solution_metrics,
 )
 from genome_to_diffraction.phenix.runtime import (
@@ -64,7 +66,7 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.partner")
-_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v5-native-placements"
+_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v6-native-placements"
 _ROOT = "PHASER"
 _PRIMARY_LLG = 100.0
 _PRIMARY_TFZ = 10.0
@@ -499,10 +501,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         progress_bar.update(1)
 
     capture_log = output / "phenix.phaser.capture.log"
-    atomic_write_text(
-        capture_log,
-        (completed.stdout + completed.stderr).decode("utf-8", errors="replace"),
-    )
+    atomic_write_bytes(capture_log, completed.stdout + completed.stderr)
     native_log = output / f"{_ROOT}.log"
     raw_log = native_log if native_log.is_file() else capture_log
     tool_version = phenix_manifest.phenix_version
@@ -524,7 +523,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         )
     else:
         try:
-            raw_text = raw_log.read_text(encoding="utf-8", errors="replace")
+            raw_text = read_phaser_evidence_text(raw_log)
             if _reported_no_partner_solution(raw_text):
                 status = ExecutionStatus.COMPLETED_NO_HIT
                 rejection_reason = "phaser_reported_no_partner_solution"
@@ -553,9 +552,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
                         raise PhaserParseError(
                             "partner solution lacks final LLG or TFZ"
                         )
-                    coordinate_text = coordinate.read_text(
-                        encoding="utf-8", errors="replace"
-                    )
+                    coordinate_text = read_phaser_evidence_text(coordinate)
                     fixed_parent_observed = (
                         _FIXED_PARENT_PLACEMENT.search(coordinate_text) is not None
                     )
