@@ -60,12 +60,12 @@ Each selected A task explicitly carries its parent hypothesis's exact
 `requested_copy_count` in `1..4`. This field participates in the task's
 content-addressed identity, and the complete screen refuses a task whose copy
 count differs from its selected hypothesis. The ordinary diverse-model funnel
-exposes the corresponding opt-in `--joint-copy-search` mode; the main and
-standalone Nextflow entry points spell its opt-in
-`--phase3_joint_first_copy true`. Joint mode retains all four configured
+retains the corresponding explicit `--joint-copy-search` mode. Current
+application execution enters through `phase3_application.nf`, where joint mode
+is mandatory and has no compatibility switch. It retains all four configured
 physically possible alternatives, ignores copy counts above four, and bounds
 all selected A hypotheses to 25 per crystal. Historical single-copy execution
-remains the default.
+remains isolated under the archival root.
 
 ## Status, failure, and cache semantics
 

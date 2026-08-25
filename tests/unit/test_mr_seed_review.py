@@ -1594,7 +1594,7 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
 
 
 @pytest.mark.parametrize("single_component_parent", (None, "gtd-owned-screen"))
-def test_main_application_requires_distinct_owned_final_review_parent(
+def test_phase3_application_requires_distinct_owned_final_review_parent(
     tmp_path: Path,
     single_component_parent: str | None,
 ) -> None:
@@ -1608,16 +1608,14 @@ def test_main_application_requires_distinct_owned_final_review_parent(
     command = [
         "nextflow",
         "run",
-        "main.nf",
+        "phase3_application.nf",
         "-profile",
         "test",
         "-stub-run",
         "-params-file",
-        "tests/fixtures/stubs/main_params.yaml",
-        "--analysis_stage",
-        "t12",
-        "--phase3_joint_first_copy",
-        "true",
+        "tests/fixtures/stubs/phase3_application_params.yaml",
+        "--phase3_operation",
+        "reviewed_single_component",
         "--phase3_reviewed_crystal_manifest",
         str(reviewed),
         "--phase3_owned_run_registry",
@@ -1658,8 +1656,8 @@ def test_main_application_requires_distinct_owned_final_review_parent(
 
     assert result.returncode != 0
     assert (
-        "Owned Phase III final reviews require a distinct single-component run"
-        in f"{result.stdout}\n{result.stderr}"
+        "Phase III reviewed continuation requires its owned screen and distinct "
+        "single-component parent" in f"{result.stdout}\n{result.stderr}"
     )
     assert not tuple(output.glob("phase3_*"))
     trace = output / "pipeline_info/trace.tsv"
@@ -1668,7 +1666,88 @@ def test_main_application_requires_distinct_owned_final_review_parent(
             assert tuple(csv.DictReader(stream, delimiter="\t")) == ()
 
 
-def test_main_application_continues_owned_reviewed_crystals_independently(
+def test_application_roots_reject_cross_authority_parameters(tmp_path: Path) -> None:
+    environment = dict(os.environ)
+    environment.update(
+        {
+            "NXF_AGENT_MODE": "true",
+            "NXF_ANSI_LOG": "false",
+            "NXF_DISABLE_CHECK_LATEST": "true",
+            "NXF_HOME": str(tmp_path / "nxf-home"),
+            "NXF_SYNTAX_PARSER": "v2",
+        }
+    )
+    invocations = (
+        (
+            [
+                "nextflow",
+                "run",
+                "main.nf",
+                "-profile",
+                "test",
+                "-stub-run",
+                "-params-file",
+                "tests/fixtures/stubs/main_params.yaml",
+                "--analysis_stage",
+                "task05",
+                "--phase3_operation",
+                "first_copy",
+                "--outdir",
+                str(tmp_path / "legacy-output"),
+                "--cache_root",
+                str(tmp_path / "legacy-cache"),
+            ],
+            "Parameter `phase3_operation` was specified",
+            tmp_path / "legacy-output",
+        ),
+        (
+            [
+                "nextflow",
+                "run",
+                "phase3_application.nf",
+                "-profile",
+                "test",
+                "-stub-run",
+                "-params-file",
+                "tests/fixtures/stubs/phase3_application_params.yaml",
+                "--phase3_operation",
+                "first_copy",
+                "--phase3_execution_identity",
+                "tests/fixtures/stubs/phenix_install_manifest.json",
+                "--phase3_owned_parent_run_id",
+                "gtd-test-parent",
+                "--phase3_crystallographic_review_stage",
+                "tests/fixtures/stubs",
+                "--approved_mr_seeds",
+                "examples/approvals/approved_mr_seeds.tsv",
+                "--outdir",
+                str(tmp_path / "phase3-output"),
+                "--cache_root",
+                str(tmp_path / "phase3-cache"),
+            ],
+            "Parameter `approved_mr_seeds` was specified",
+            tmp_path / "phase3-output",
+        ),
+    )
+    for command, expected_error, output in invocations:
+        result = subprocess.run(
+            command,
+            cwd=REPOSITORY,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        assert result.returncode != 0
+        assert expected_error in f"{result.stdout}\n{result.stderr}"
+        trace = output / "pipeline_info/trace.tsv"
+        if trace.is_file():
+            with trace.open(encoding="utf-8", newline="") as stream:
+                assert tuple(csv.DictReader(stream, delimiter="\t")) == ()
+
+
+def test_phase3_application_continues_owned_reviewed_crystals_independently(
     tmp_path: Path,
 ) -> None:
     fixture_root = tmp_path / "public-fixture"
@@ -1742,16 +1821,14 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
     command = [
         "nextflow",
         "run",
-        "main.nf",
+        "phase3_application.nf",
         "-profile",
         "test",
         "-stub-run",
         "-params-file",
-        "tests/fixtures/stubs/main_params.yaml",
-        "--analysis_stage",
-        "t12",
-        "--phase3_joint_first_copy",
-        "true",
+        "tests/fixtures/stubs/phase3_application_params.yaml",
+        "--phase3_operation",
+        "reviewed_single_component",
         "--crystals",
         str(crystals),
         "--phase3_reviewed_crystal_manifest",

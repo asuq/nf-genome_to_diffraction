@@ -222,15 +222,8 @@ process BUILD_PHASE3_OWNED_A_REVIEW_PACKAGE {
     stub:
     def outputName = "phase3_owned_a_review_${item[0]}"
     """
-    genome-to-diffraction \
-        --no-progress \
-        --log-format json \
-        review build-owned-a-package \
-        --review-package '${item[1]}' \
-        --hypotheses '${item[2]}' \
-        --execution-identity '${item[3]}' \
-        --owned-parent-run '${item[4]}' \
-        --crystal-id '${item[0]}' \
-        --outdir '${outputName}'
+    mkdir -p '${outputName}'
+    printf '%s\n' 'scientific execution not performed in stub mode' \
+        > '${outputName}/phase3_owned_a_review.stub'
     """
 }

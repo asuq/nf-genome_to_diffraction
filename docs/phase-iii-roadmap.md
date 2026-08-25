@@ -299,28 +299,29 @@ copy counts, result checksum, and candidate-only coordinates remain bound;
 packing cannot promote a sequence or composition claim. Live general-component
 Phaser parsing remains a separate post-control gate.
 
-The ordinary diverse-model funnel now also has an explicit Phase III joint-A
-mode. It preserves all four configured, physically possible Matthews copy
-alternatives, excludes counts above four before applying any per-model cap, and
-constructs one joint Phaser hypothesis per retained candidate/copy count.
-The 25-attempt hard ceiling applies across the complete A search. Both the main
-and historical standalone Nextflow entry points require explicit opt-in, so
-legacy single-copy hypotheses, identifiers, and manifests remain unchanged.
+The ordinary diverse-model funnel has an explicit Phase III joint-A mode. It
+preserves all four configured, physically possible Matthews copy alternatives,
+excludes counts above four before applying any per-model cap, and constructs
+one joint Phaser hypothesis per retained candidate/copy count. The 25-attempt
+hard ceiling applies across the complete A search. The canonical
+`phase3_application.nf` root always selects this mode and exposes no legacy
+single-copy switch; archival application and standalone controls remain
+separate.
 Every schema-v2 unknown-screen task now binds the selected hypothesis's exact
 requested copy count; a mismatched task is rejected before fan-out. Real Phase
 III Phaser execution remains a separate control-qualified gate.
 
-The normal `main.nf` first-copy application now also has an explicit Phase III
-multi-crystal route. With joint-A mode enabled, one shared catalogue/provider
+The canonical `phase3_application.nf` first-copy operation owns the Phase III
+multi-crystal route. One shared catalogue/provider
 preparation feeds one manifest-owned MTZ dispatch and one existing diverse
 funnel per crystal. Every selected hypothesis becomes a complete independent
 Phaser task, and each crystal receives its own unapproved MR-seed checkpoint;
 empty/no-model branches retain a separate review rather than blocking siblings.
 A synthetic three-crystal actual Nextflow regression verifies exact shared/task
 counts, independent packages, unchanged cached identities and published bytes,
-and real main-entry routing. Legacy single-crystal and heteromer-control routes
-remain unchanged. Staged crystallographic review, malformed-sibling isolation,
-and real Phase III Phenix execution remain separate gates.
+and canonical-root routing. Archival `main.nf` has no Phase III parameters, and
+both roots reject cross-authority inputs before scheduling. Real Phase III
+Phenix execution remains a separate control-qualified gate.
 
 Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
 After review approval of at most three A states, automatically expand through
@@ -453,15 +454,16 @@ three-crystal local workflows preserve cached replay, selected diffraction,
 Free-R, refinement, and sequence checkpoints while changing one crystal cannot
 cross-consume a sibling's review. Historical fixed and normal-workflow schema-v1
 controls remain immutable on their genuinely separate route. Exact-source CI
-and owned-HPC qualification remain before the finding is final evidence.
-The actual `main.nf` application now also accepts a bounded private reviewed-
+`32899255889` passed on `b615c34`; owned-HPC qualification remains before the
+finding is final evidence. The canonical `phase3_application.nf`
+`reviewed_single_component` operation accepts a bounded private reviewed-
 crystal route manifest plus its exact completed-screen registry, complete
 execution identity, and owned parent. Each A package is resolved exclusively
 from that registry; each independent stage revalidates its full registry,
 package, original MR evidence, and execution identity before placement. A-seed
 packages produced during the screening job may correctly predate that job's
 completion; pre-completion crystallographic packages remain rejected. A real
-three-crystal main-entry regression schedules three owned approvals, one
+three-crystal canonical-entry regression schedules three owned approvals, one
 required additional placement, two finalist stages, two refinements, two
 independent sequence-review checkpoints, two owned schema-v2 sequence packages,
 and two separately owned composition packages, while retaining the deferred

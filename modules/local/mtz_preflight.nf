@@ -30,7 +30,10 @@ process MTZ_PREFLIGHT {
     stub:
     """
     mkdir -p preflight
-    cp '${projectDir}/tests/fixtures/stubs/mtz_preflight.jsonl' preflight/mtz_preflight.jsonl
+    python '${moduleDir}/../../tests/scripts/materialise_mtz_preflight_stub.py' \
+        --crystals '${crystals}' \
+        --template '${moduleDir}/../../tests/fixtures/stubs/mtz_preflight.jsonl' \
+        --output preflight/mtz_preflight.jsonl
     printf '%s\n' '# Stub MTZ preflight' > preflight/preflight_report.md
     """
 }

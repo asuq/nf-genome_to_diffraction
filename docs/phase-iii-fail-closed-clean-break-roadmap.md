@@ -73,10 +73,13 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   Completed locally: the owned A package is independently portable, the active
   seed stage emits one schema-v2 authority without translated approval files,
   and current additional-copy/refinement consumers reject legacy or dual
-  authority. Exact-source CI and owned-HPC qualification remain.
+  authority. Exact-source CI is green; owned-HPC qualification remains.
 - Replace optional Phase III/legacy application switches with one canonical
   typed application route while preserving genuinely separate reviewed control
-  profiles.
+  profiles. Completed locally: `phase3_application.nf` owns the reviewed joint
+  first-copy and owned single-component operations, while archival `main.nf`
+  accepts only its v0.2 authority. Exact-source CI and owned-HPC qualification
+  remain.
 
 Acceptance: one focused negative regression for absent profile/policy, disabled
 route, wrong owner/site, corrupt protocol/result, missing log, unknown

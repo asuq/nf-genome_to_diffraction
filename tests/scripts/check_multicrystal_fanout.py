@@ -133,7 +133,7 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
                 {
                     "crystal_id": crystal.crystal_id,
                     "mtz": str(crystal.mtz),
-                    "catalogue_id": "public_stub_catalogue",
+                    "catalogue_id": "example_archaeon_refseq",
                     "sds_page_mass_kda": [],
                     "allow_remote_sequence_submission": False,
                 }
@@ -205,16 +205,22 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
         [
             "nextflow",
             "run",
-            "main.nf",
+            "phase3_application.nf",
             "-profile",
             "test",
             "-stub-run",
             "-params-file",
-            "tests/fixtures/stubs/main_params.yaml",
-            "--analysis_stage",
+            "tests/fixtures/stubs/phase3_application_params.yaml",
+            "--phase3_operation",
             "first_copy",
-            "--phase3_joint_first_copy",
-            "true",
+            "--crystals",
+            str(reviewed_manifest),
+            "--phase3_crystallographic_review_stage",
+            str(reviewed.review_stage),
+            "--phase3_execution_identity",
+            str(reviewed.execution_identity),
+            "--phase3_owned_parent_run_id",
+            "gtd-unknown-screen-production-fixture",
             "--outdir",
             str(application_output),
             "--cache_root",
@@ -227,12 +233,12 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
         for row in _read_trace(application_output / "pipeline_info/trace.tsv")
     )
     if (
-        application["DISPATCH_CRYSTAL_ITEM"] != 1
-        or application["RUN_PHASE3_FIRST_COPY_PHASER"] != 1
-        or application["BUILD_PHASE3_MR_SEED_REVIEW"] != 1
+        application["DISPATCH_CRYSTAL_ITEM"] != 3
+        or application["RUN_PHASE3_FIRST_COPY_PHASER"] != 2
+        or application["BUILD_PHASE3_MR_SEED_REVIEW"] != 2
         or application["SELECT_SINGLE_CRYSTAL"] != 0
     ):
-        raise RuntimeError("main application did not select the Phase III crystal path")
+        raise RuntimeError("Phase III application did not retain its canonical path")
 
 
 def _environment(nxf_home: Path) -> dict[str, str]:

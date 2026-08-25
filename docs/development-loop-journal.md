@@ -13317,3 +13317,29 @@ with a collapsed combined parent or a guessed command.
   lint pass. A successor exact-source CI remains required; no scheduler run,
   remote tool, installed dispatcher, scientific threshold, known control, or
   unknown crystal was touched.
+
+## 2026-08-25 - Current Phase III and archival application authorities are separate
+
+- Exact-source CI `32899255889` completed successfully on `b615c34`, closing
+  the CI qualification left by the canonical A-seed-stage migration. Owned-HPC
+  qualification remains separate.
+- `FCB-P1-05` reproduced one `main.nf` surface accepting both archival v0.2
+  approval state and optional Phase III review/ownership switches. Missing or
+  contradictory nullable inputs could therefore select between competing
+  current authorities.
+- Current execution now has one root, `phase3_application.nf`, and exactly two
+  typed operations: reviewed joint multi-crystal `first_copy` and owned
+  `reviewed_single_component`. It accepts neither the legacy approval TSV nor a
+  joint-mode or single-crystal compatibility switch. Archival `main.nf` retains
+  only its genuine v0.2 route; each root rejects parameters belonging to the
+  other before scheduling.
+- A deterministic MTZ-preflight stub now emits one row per declared crystal,
+  and the owned-A package stub explicitly records that scientific execution was
+  not performed. Production preflight and scientific package validation are
+  unchanged.
+- Four focused authority/continuation cases, the public three-crystal
+  application fan-out, the reviewed three-crystal cached-resume workflow,
+  Ruff, ty, the complete Nextflow syntax gate, and diff validation pass.
+  Exact-source CI and owned-HPC qualification for this route split remain; no
+  scheduler run, deployed tool, Phenix installation, threshold, control, M6,
+  localisation, or unknown crystal was changed.

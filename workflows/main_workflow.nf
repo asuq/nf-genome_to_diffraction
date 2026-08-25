@@ -9,38 +9,19 @@ include { PREPARE_EXPERIMENTAL_MODELS } from '../modules/local/prepare_experimen
 include { PREPARE_PREDICTED_MODELS } from '../modules/local/prepare_predicted_models'
 include { REGISTER_PDB_COORDINATES } from '../modules/local/register_pdb_coordinates'
 include { RUN_APPROVED_PARTNER_PHASER } from '../modules/local/run_approved_partner_phaser'
-include {
-    SELECT_PHASE3_SINGLE_CRYSTAL;
-    SELECT_SINGLE_CRYSTAL
-} from '../modules/local/select_single_crystal'
+include { SELECT_SINGLE_CRYSTAL } from '../modules/local/select_single_crystal'
 include { STAGE_APPROVED_MR_SEEDS } from '../modules/local/stage_approved_mr_seeds'
-include {
-    STAGE_PHASE3_APPROVED_MR_SEEDS
-} from '../modules/local/stage_phase3_approved_mr_seeds'
-include {
-    STAGE_LIVE_T12;
-    STAGE_PHASE3_CRYSTAL_T12
-} from '../modules/local/stage_live_t12'
+include { STAGE_LIVE_T12 } from '../modules/local/stage_live_t12'
 include { VALIDATE_TASK05_INPUTS } from '../modules/local/validate_task05_inputs'
-include {
-    ADDITIONAL_COPY_WORKFLOW;
-    PHASE3_ADDITIONAL_COPY_WORKFLOW
-} from './additional_copy_workflow'
-include {
-    BRIEF_REFINEMENT_WORKFLOW;
-    PHASE3_BRIEF_REFINEMENT_WORKFLOW
-} from './brief_refinement_workflow'
+include { ADDITIONAL_COPY_WORKFLOW } from './additional_copy_workflow'
+include { BRIEF_REFINEMENT_WORKFLOW } from './brief_refinement_workflow'
 include { DIVERSE_FIRST_COPY_MR_WORKFLOW } from './diverse_first_copy_mr_workflow'
-include { CRYSTAL_FANOUT_WORKFLOW } from './crystal_fanout_workflow'
 include { PDB_SEQUENCE_DISCOVERY } from './pdb_sequence_discovery_workflow'
 include { PARTNER_SEARCH_WORKFLOW } from './partner_search_workflow'
-include {
-    PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW
-} from './phase3_multicrystal_first_copy_workflow'
-include {
-    PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW
-} from './phase3_reviewed_single_component_workflow'
 
+
+// This entry point retains the immutable v0.2 application shape only. Current
+// Phase III execution is owned exclusively by phase3_application.nf.
 workflow MAIN_WORKFLOW {
     take:
     catalogues: Path
@@ -70,15 +51,6 @@ workflow MAIN_WORKFLOW {
     maximum_pdb_hits_per_sequence_group: Integer
     maximum_pdb_mappings: Integer
     maximum_first_copy_jobs: Integer
-    phase3_joint_first_copy: Boolean
-    phase3_crystallographic_review_stage: Path?
-    phase3_execution_identity: Path?
-    phase3_owned_parent_run_id: String?
-    phase3_a_seed_review_stage: Path?
-    phase3_a_seed_review_package: Path?
-    phase3_reviewed_crystal_manifest: Path?
-    phase3_owned_run_registry: Path?
-    phase3_owned_sequence_parent_run_id: String?
 
     main:
     validation_scope = VALIDATE_TASK05_INPUTS(
@@ -103,118 +75,14 @@ workflow MAIN_WORKFLOW {
         skip_xtriage,
         validation_scope
     )
-    if (phase3_reviewed_crystal_manifest == null) {
-        matthews_bundle = ENUMERATE_MATTHEWS(
-            crystals,
-            pipeline_config,
-            preflight_bundle,
-            catalogue_bundle
-        )
-    } else {
-        matthews_bundle = channel.empty()
-    }
+    matthews_bundle = ENUMERATE_MATTHEWS(
+        crystals,
+        pipeline_config,
+        preflight_bundle,
+        catalogue_bundle
+    )
 
-    if (phase3_reviewed_crystal_manifest != null) {
-        def source = new groovy.json.JsonSlurper().parse(
-            phase3_reviewed_crystal_manifest.toFile()
-        )
-        def frozen = new groovy.json.JsonSlurper().parse(crystals.toFile())
-        def registry = new groovy.json.JsonSlurper().parse(
-            phase3_owned_run_registry.resolve('phase3_owned_run_registry.json').toFile()
-        )
-        if (
-            registry.run_id != phase3_owned_parent_run_id ||
-            registry.profile != 'unknown-screen' ||
-            registry.phase != 'phase3-pass1'
-        ) {
-            error 'Reviewed Phase III continuation belongs to another completed screen'
-        }
-        if (!(source.crystals instanceof List)) {
-            error 'Reviewed Phase III continuation requires a crystal route list'
-        }
-        def frozenIds = (frozen.crystals as List).collect { item ->
-            item.crystal_id as String
-        }
-        def routeIds = (source.crystals as List).collect { item ->
-            item.crystal_id as String
-        }
-        if (routeIds.size() != routeIds.unique(false).size()) {
-            error 'Reviewed Phase III continuation repeats a crystal route'
-        }
-        if (!routeIds.every { String crystalId -> frozenIds.contains(crystalId) }) {
-            error 'Reviewed Phase III continuation contains an unknown crystal'
-        }
-        review_routes = channel.value(phase3_reviewed_crystal_manifest)
-            .flatMap { Path manifest ->
-                def routes = new groovy.json.JsonSlurper().parse(manifest.toFile())
-                (routes.crystals as List).collect { item ->
-                    def required = [
-                        'crystal_id',
-                        'review_stage',
-                        'hypotheses'
-                    ] as Set
-                    if (item.keySet() != required) {
-                        error 'Reviewed Phase III crystal route differs from its fixed inputs'
-                    }
-                    def matches = (registry.packages as List).findAll { owned ->
-                        owned.crystal_id == item.crystal_id &&
-                            owned.checkpoint == 'a_seed'
-                    }
-                    if (matches.size() != 1) {
-                        error "Reviewed Phase III crystal lacks its owned A package: ${item.crystal_id}"
-                    }
-                    tuple(
-                        item.crystal_id as String,
-                        file(item.review_stage as String, checkIfExists: true),
-                        file(
-                            phase3_owned_run_registry.resolve(
-                                "packages/${matches[0].review_package_id}"
-                            ),
-                            checkIfExists: true
-                        ),
-                        file(item.hypotheses as String, checkIfExists: true)
-                    )
-                }
-            }
-        preflight_jsonl = preflight_bundle.map { Path bundle ->
-            bundle.resolve('mtz_preflight.jsonl')
-        }
-        dispatched = CRYSTAL_FANOUT_WORKFLOW(
-            channel.value(crystals),
-            preflight_jsonl,
-            catalogue_bundle,
-            channel.value(phase3_owned_run_registry)
-        )
-        complete_reviews = review_routes
-            .join(dispatched, by: 0, failOnDuplicate: true, failOnMismatch: false)
-            .combine(preflight_jsonl.first())
-            .combine(channel.value(phenix_manifest))
-            .map { item, preflight, phenix ->
-                Path dispatch = item[4] as Path
-                Path catalogue = item[5] as Path
-                tuple(
-                    item[0],
-                    item[1],
-                    item[2],
-                    item[3],
-                    file(catalogue.resolve('sequence_groups.jsonl'), checkIfExists: true),
-                    file(catalogue.resolve('source_records.jsonl'), checkIfExists: true),
-                    preflight,
-                    file(dispatch.resolve('input.mtz'), checkIfExists: true),
-                    file((phenix as Path).toAbsolutePath(), checkIfExists: true),
-                    dispatch
-                )
-            }
-        PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW(
-            complete_reviews,
-            phase3_owned_run_registry,
-            phase3_execution_identity,
-            phase3_owned_parent_run_id,
-            phase3_owned_sequence_parent_run_id
-        )
-    } else if (
-        analysis_stage in ['discovery', 'first_copy', 'additional_copy', 'heteromer', 't12']
-    ) {
+    if (analysis_stage in ['discovery', 'first_copy', 'additional_copy', 'heteromer', 't12']) {
         sequence_groups = catalogue_bundle.map { Path bundle ->
             bundle.resolve('sequence_groups.jsonl')
         }
@@ -237,7 +105,7 @@ workflow MAIN_WORKFLOW {
             afdb_accession_map,
             afdb_request_timeout_seconds,
             afdb_retry_count,
-            phase3_joint_first_copy
+            false
         )
         direct_pdb_hits = discovery.pdb_provider_hits.map { Path bundle ->
             bundle.resolve('structural_hits.jsonl')
@@ -286,45 +154,18 @@ workflow MAIN_WORKFLOW {
         )
 
         if (analysis_stage in ['first_copy', 'additional_copy', 'heteromer', 't12']) {
-            matthews_jsonl = matthews_bundle.map { Path bundle ->
-                bundle.resolve('matthews_hypotheses.jsonl')
-            }
-            preflight_jsonl = preflight_bundle.map { Path bundle ->
-                bundle.resolve('mtz_preflight.jsonl')
-            }
-            if (analysis_stage == 'first_copy' && phase3_joint_first_copy) {
-                PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW(
-                    channel.value(crystals),
-                    preflight_jsonl,
-                    catalogue_bundle,
-                    pdb_registration,
-                    predicted_coordinate_sources,
-                    predicted_models,
-                    pdb_coordinate_sources,
-                    coordinate_hit_mappings,
-                    experimental_models,
-                    matthews_jsonl,
-                    channel.value(pipeline_config),
-                    maximum_first_copy_jobs,
-                    channel.value(phenix_manifest),
-                    phase3_crystallographic_review_stage,
-                    phase3_execution_identity,
-                    phase3_owned_parent_run_id
-                )
-            } else {
-            if (phase3_a_seed_review_stage != null) {
-                crystal_dispatch = SELECT_PHASE3_SINGLE_CRYSTAL(
-                    crystals,
-                    preflight_bundle
-                )
-            } else {
-                crystal_dispatch = SELECT_SINGLE_CRYSTAL(crystals, preflight_bundle)
-            }
+            crystal_dispatch = SELECT_SINGLE_CRYSTAL(crystals, preflight_bundle)
             crystal_id = crystal_dispatch.map { Path bundle ->
                 bundle.resolve('crystal_id.txt').toFile().text.trim()
             }
             selected_mtz = crystal_dispatch.map { Path bundle ->
                 bundle.resolve('input.mtz')
+            }
+            matthews_jsonl = matthews_bundle.map { Path bundle ->
+                bundle.resolve('matthews_hypotheses.jsonl')
+            }
+            preflight_jsonl = preflight_bundle.map { Path bundle ->
+                bundle.resolve('mtz_preflight.jsonl')
             }
             first_copy = DIVERSE_FIRST_COPY_MR_WORKFLOW(
                 predicted_coordinate_sources,
@@ -338,7 +179,7 @@ workflow MAIN_WORKFLOW {
                 pipeline_config,
                 crystal_id,
                 maximum_first_copy_jobs,
-                phase3_joint_first_copy,
+                false,
                 selected_mtz,
                 phenix_manifest
             )
@@ -351,40 +192,18 @@ workflow MAIN_WORKFLOW {
                 pipeline_config
             )
             if (analysis_stage in ['additional_copy', 'heteromer', 't12']) {
-                if (
-                    approved_mr_seeds == null &&
-                    phase3_a_seed_review_stage == null
-                ) {
+                if (approved_mr_seeds == null) {
                     error "${analysis_stage} stage requires approved MR seeds"
                 }
                 first_copy_hypotheses = first_copy.funnel.map { Path bundle ->
                     bundle.resolve('mr_hypotheses.jsonl')
                 }
-                if (phase3_a_seed_review_stage != null) {
-                    if (
-                        phase3_a_seed_review_package == null ||
-                        phase3_owned_run_registry == null ||
-                        phase3_execution_identity == null ||
-                        phase3_owned_parent_run_id == null
-                    ) {
-                        error 'Phase III A-seed execution lacks complete owned evidence'
-                    }
-                    approved_stage = STAGE_PHASE3_APPROVED_MR_SEEDS(
-                        channel.value(phase3_a_seed_review_stage),
-                        channel.value(phase3_a_seed_review_package),
-                        first_copy_hypotheses,
-                        channel.value(phase3_owned_run_registry),
-                        channel.value(phase3_execution_identity),
-                        channel.value(phase3_owned_parent_run_id)
-                    )
-                } else {
-                    selected_review_package = mr_seed_review
-                    approved_stage = STAGE_APPROVED_MR_SEEDS(
-                        selected_review_package,
-                        approved_mr_seeds,
-                        first_copy_hypotheses
-                    )
-                }
+                selected_review_package = mr_seed_review
+                approved_stage = STAGE_APPROVED_MR_SEEDS(
+                    selected_review_package,
+                    approved_mr_seeds,
+                    first_copy_hypotheses
+                )
                 if (analysis_stage == 'heteromer') {
                     if (heteromer_control_preparation != null) {
                         RUN_APPROVED_PARTNER_PHASER(
@@ -415,40 +234,9 @@ workflow MAIN_WORKFLOW {
                     )
                 }
                 if (analysis_stage in ['additional_copy', 't12']) {
-                additional_seeds = approved_stage.map { Path bundle ->
-                    bundle.resolve('additional_copy_seeds.tsv')
-                }
-                if (phase3_a_seed_review_stage != null) {
-                    reviewed_crystals = approved_stage
-                        .combine(first_copy_hypotheses.first())
-                        .combine(sequence_groups.first())
-                        .combine(preflight_jsonl.first())
-                        .combine(selected_mtz.first())
-                        .combine(channel.value(phenix_manifest))
-                        .combine(crystal_dispatch.first())
-                        .map {
-                            approved,
-                            hypotheses,
-                            sequences,
-                            preflight,
-                            mtz,
-                            phenix,
-                            dispatch ->
-                            tuple(
-                                dispatch.resolve('crystal_id.txt').toFile().text.trim(),
-                                approved,
-                                hypotheses,
-                                sequences,
-                                preflight,
-                                mtz,
-                                phenix,
-                                dispatch.resolve('phase3_diffraction_selection.json')
-                            )
-                        }
-                    additional_copy = PHASE3_ADDITIONAL_COPY_WORKFLOW(
-                        reviewed_crystals
-                    ).map { crystalId, seedId, result -> result }
-                } else {
+                    additional_seeds = approved_stage.map { Path bundle ->
+                        bundle.resolve('additional_copy_seeds.tsv')
+                    }
                     review_validation = approved_stage.map { Path bundle ->
                         bundle.resolve('validated_mr_seed_decisions.json')
                     }
@@ -465,60 +253,14 @@ workflow MAIN_WORKFLOW {
                         selected_mtz,
                         phenix_manifest
                     )
-                }
-                if (analysis_stage == 't12') {
-                    copy_results = additional_copy
-                        .collect()
-                        .ifEmpty([])
-                    if (phase3_a_seed_review_stage != null) {
-                        phase3_t12_inputs = approved_stage
-                            .filter { Path bundle ->
-                                def stageManifest = new groovy.json.JsonSlurper().parse(
-                                    bundle.resolve('phase3_seed_stage_manifest.json').toFile()
-                                )
-                                (stageManifest.approved_seed_count as Integer) > 0
-                            }
-                            .combine(copy_results)
-                            .combine(first_copy_hypotheses.first())
-                            .combine(sequence_groups.first())
-                            .combine(source_records.first())
-                            .combine(preflight_jsonl.first())
-                            .combine(selected_mtz.first())
-                            .combine(channel.value(phenix_manifest))
-                            .combine(crystal_dispatch.first())
-                            .map {
-                                approved,
-                                results,
-                                hypotheses,
-                                sequences,
-                                sources,
-                                preflight,
-                                mtz,
-                                phenix,
-                                dispatch ->
-                                tuple(
-                                    dispatch.resolve('crystal_id.txt').toFile().text.trim(),
-                                    approved,
-                                    results,
-                                    hypotheses,
-                                    sequences,
-                                    sources,
-                                    preflight,
-                                    mtz,
-                                    phenix,
-                                    dispatch
-                                )
-                            }
-                        live_t12_stage = STAGE_PHASE3_CRYSTAL_T12(
-                            phase3_t12_inputs
-                        ).map { crystalId, stage, dispatch -> stage }
-                    } else {
+                    if (analysis_stage == 't12') {
+                        copy_results = additional_copy.collect().ifEmpty([])
                         live_t12_stage = STAGE_LIVE_T12(
                             approved_stage.filter { Path bundle ->
-                            def stageManifest = new groovy.json.JsonSlurper().parse(
-                                bundle.resolve('live_m4_stage_manifest.json').toFile()
-                            )
-                            (stageManifest.approved_seed_count as Integer) > 0
+                                def stageManifest = new groovy.json.JsonSlurper().parse(
+                                    bundle.resolve('live_m4_stage_manifest.json').toFile()
+                                )
+                                (stageManifest.approved_seed_count as Integer) > 0
                             },
                             selected_review_package,
                             copy_results,
@@ -529,44 +271,31 @@ workflow MAIN_WORKFLOW {
                             selected_mtz,
                             phenix_manifest
                         )
-                    }
-                    t12_finalists = live_t12_stage.map { Path bundle ->
-                        bundle.resolve('finalists.tsv')
-                    }
-                    t12_sequence_groups = live_t12_stage.map { Path bundle ->
-                        bundle.resolve('inputs/sequence_groups.jsonl')
-                    }
-                    t12_source_records = live_t12_stage.map { Path bundle ->
-                        bundle.resolve('inputs/source_records.jsonl')
-                    }
-                    t12_phenix_manifest = live_t12_stage.map { Path bundle ->
-                        bundle.resolve('inputs/phenix_manifest.json')
-                    }
-                    if (phase3_a_seed_review_stage != null) {
-                        t12 = PHASE3_BRIEF_REFINEMENT_WORKFLOW(
-                            t12_finalists,
-                            t12_sequence_groups,
-                            t12_source_records,
-                            t12_phenix_manifest,
-                            crystal_dispatch,
-                            preflight_jsonl
-                        )
-                    } else {
+                        t12_finalists = live_t12_stage.map { Path bundle ->
+                            bundle.resolve('finalists.tsv')
+                        }
+                        t12_sequence_groups = live_t12_stage.map { Path bundle ->
+                            bundle.resolve('inputs/sequence_groups.jsonl')
+                        }
+                        t12_source_records = live_t12_stage.map { Path bundle ->
+                            bundle.resolve('inputs/source_records.jsonl')
+                        }
+                        t12_phenix_manifest = live_t12_stage.map { Path bundle ->
+                            bundle.resolve('inputs/phenix_manifest.json')
+                        }
                         t12 = BRIEF_REFINEMENT_WORKFLOW(
                             t12_finalists,
                             t12_sequence_groups,
                             t12_source_records,
                             t12_phenix_manifest
                         )
+                        t12_results = t12.collect().ifEmpty([])
+                        BUILD_LIVE_SEQUENCE_CHECKPOINT(
+                            live_t12_stage,
+                            t12_results
+                        )
                     }
-                    t12_results = t12.collect().ifEmpty([])
-                    BUILD_LIVE_SEQUENCE_CHECKPOINT(
-                        live_t12_stage,
-                        t12_results
-                    )
                 }
-                }
-            }
             }
         }
     }

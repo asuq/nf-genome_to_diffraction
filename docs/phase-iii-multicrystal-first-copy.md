@@ -2,18 +2,18 @@
 
 ## Purpose and activation
 
-The historical application selects exactly one manifest-owned crystal before
-first-copy molecular replacement. Explicit Phase III mode activates the
-multi-crystal path only when `analysis_stage=first_copy` and
-`phase3_joint_first_copy=true`; historical single-crystal, heteromer-control,
-approved-seed, and refinement execution remain unchanged.
+Current application execution uses `phase3_application.nf` with the required
+typed operation `phase3_operation=first_copy`. That root always uses reviewed
+joint multi-crystal search and exposes no legacy single-crystal selector or
+joint-mode switch. Archival single-crystal, heteromer-control, approved-seed,
+and refinement execution remains isolated under `main.nf`.
 
 Reviewed unknown applications additionally provide both
 `phase3_crystallographic_review_stage` and `phase3_execution_identity`.
-Supplying only one, or using either outside explicit Phase III joint-A mode,
-fails before scheduling. These are internal Nextflow inputs for a future fixed,
-reviewed operator profile; no arbitrary HPC path, crystal selector, or user
-approval is exposed by this slice.
+Supplying incomplete or continuation-only authority with the first-copy
+operation fails before scheduling. These are internal Nextflow inputs for a
+future fixed, reviewed operator profile; no arbitrary HPC path, crystal
+selector, or user approval is exposed by this slice.
 
 ## Inputs and execution boundaries
 
@@ -58,8 +58,8 @@ still produces its own review checkpoint. The dedicated
 catalogue, one shared provider, three dispatch tasks, three funnels, three
 first-copy tasks, and three separate unapproved review packages; every task
 and published output must remain unchanged on cached resume. The same gate
-checks that the ordinary `main.nf` application selects the explicit Phase III
-branch instead of the legacy one-crystal selector.
+checks that `phase3_application.nf` selects only the canonical Phase III branch
+and never schedules the legacy one-crystal selector.
 
 The same gate runs an actual independently staged three-crystal reviewed
 fixture: one validation task, three dispatches, two proceeding funnels/Phaser
