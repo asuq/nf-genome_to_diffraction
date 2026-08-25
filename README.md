@@ -410,38 +410,49 @@ for debugging; an existing versioned installation is never overwritten.
 
 ## Nextflow entry points
 
-- `main.nf` exposes catalogue, crystal, configuration, prepared-database,
-  Phenix-manifest, output/cache, review, approval, execution-profile, and
-  explicit Task05/discovery/first-copy stage inputs. The first-copy stage accepts
-  exactly one manifest crystal and stops at the MR-seed checkpoint.
+- `main.nf` preserves the archival v0.2 application shape.
+- `phase3_application.nf` is the only current reviewed Phase III application
+  owner.
 - `prepare_databases.nf` exposes database-root, output, preparation switches,
   coordinate-cache initialisation, and verify-only inputs.
-- `discover_structures.nf` exposes exact sequence groups, source records, the
-  qualified database manifest, output/cache roots, bounded direct-PDB and
-  ProstT5/Foldseek-to-PDB parameters, and optional exact UniProt mappings for
-  AFDB retrieval.
-- `register_coordinates.nf` exposes direct-PDB hit and sequence-group records,
-  the qualified database manifest, a per-group source quota, and a hard global
-  mapping cap for content-addressed PDB coordinate registration.
-- `prepare_models.nf` exposes exact coordinate-source and sequence-group
-  records, a verified Phenix manifest, and output/cache roots for deterministic
-  confidence-pruned predicted-model preparation.
-- `prepare_pdb_models.nf` exposes registered PDB coordinate sources, typed
-  hit-to-coordinate mappings, and catalogue sequence groups for the one cleaned
-  experimental source-chain variant.
-- `screen_first_copy.nf` runs the qualified exact-predicted first-copy route.
-- `screen_diverse_first_copy.nf` joins predicted and registered experimental
-model bundles, applies source/variant diversity and the profile-specific hard
-cap plus an optional stricter execution cap, publishes one aggregate immutable
-model registry, and fans the selected first-copy hypotheses out to Phaser. The
-fixed `p2-diverse` HPC operation sets this additional cap to 25, but has not yet
-been interpreted as a protein identification despite completing on real Marmic
-direct-PDB candidates.
-- `screen_first_copy_controls.nf` runs the fixed same-MTZ first-copy calibration
-  pair: exact 8OOW chain A as the known-positive model and independently anchored
-  1UBQ ubiquitin as the deliberate unrelated negative. It uses the production
-  Phaser adapter and records the strict `LLG > 50` or `TFZ > 5` decision without
-  claiming that a passing first copy validates a complete ASU.
+- `m6_validation.nf` owns the independently reviewable M6 graph.
+- `qualification.nf` owns fixed controls and small stage tests. It is not an
+  alternative Phase III application route.
+
+The qualification operations retain the earlier focused boundaries without
+publishing nine competing roots:
+
+- `qualification.nf --qualification_stage discovery` exposes exact sequence
+  groups, source records, the qualified database manifest, output/cache roots,
+  bounded direct-PDB and ProstT5/Foldseek-to-PDB parameters, and optional exact
+  UniProt mappings for AFDB retrieval.
+- `qualification.nf --qualification_stage register_coordinates` exposes
+  direct-PDB hit and sequence-group records, the qualified database manifest, a
+  per-group source quota, and a hard global mapping cap for content-addressed
+  PDB coordinate registration.
+- `qualification.nf --qualification_stage prepare_predicted_models` exposes
+  exact coordinate-source and sequence-group records, a verified Phenix
+  manifest, and output/cache roots for deterministic confidence-pruned
+  predicted-model preparation.
+- `qualification.nf --qualification_stage prepare_experimental_models` exposes
+  registered PDB coordinate sources, typed hit-to-coordinate mappings, and
+  catalogue sequence groups for the one cleaned experimental source-chain
+  variant.
+- `qualification.nf --qualification_stage first_copy` runs the qualified
+  exact-predicted first-copy route.
+- `qualification.nf --qualification_stage diverse_first_copy` joins predicted
+  and registered experimental model bundles, applies source/variant diversity
+  and the profile-specific hard cap plus an optional stricter execution cap,
+  publishes one aggregate immutable model registry, and fans the selected
+  first-copy hypotheses out to Phaser. The fixed `p2-diverse` HPC operation
+  sets this additional cap to 25, but has not yet been interpreted as a protein
+  identification despite completing on real Marmic direct-PDB candidates.
+- `qualification.nf --qualification_stage first_copy_controls` runs the fixed
+  same-MTZ first-copy calibration pair: exact 8OOW chain A as the known-positive
+  model and independently anchored 1UBQ ubiquitin as the deliberate unrelated
+  negative. It uses the production Phaser adapter and records the strict
+  `LLG > 50` or `TFZ > 5` decision without claiming that a passing first copy
+  validates a complete ASU.
 
 The safe workflow smoke test is:
 
@@ -472,7 +483,9 @@ pixi run nextflow run main.nf -profile local \
 For the implemented local structural-discovery routes:
 
 ```bash
-pixi run -e hpc nextflow run discover_structures.nf -profile local \
+pixi run -e hpc nextflow run qualification.nf \
+  --qualification_stage discovery \
+  -profile local \
   --sequence_groups /absolute/results/catalogue/sequence_groups.jsonl \
   --source_records /absolute/results/catalogue/source_records.jsonl \
   --database_manifest /absolute/shared/database_manifest.json \
@@ -548,7 +561,9 @@ protein sequences. It is not a final identification workflow.
 For the bounded direct-PDB coordinate-registration route:
 
 ```bash
-pixi run -e hpc nextflow run register_coordinates.nf -profile local \
+pixi run -e hpc nextflow run qualification.nf \
+  --qualification_stage register_coordinates \
+  -profile local \
   --structural_hits /absolute/results/structural-discovery/pdb_sequence_search/structural_hits.jsonl \
   --sequence_groups /absolute/results/catalogue/sequence_groups.jsonl \
   --database_manifest /absolute/shared/database_manifest.json \
@@ -567,7 +582,9 @@ objects.
 For the implemented predicted-model preparation route:
 
 ```bash
-pixi run -e hpc nextflow run prepare_models.nf -profile local \
+pixi run -e hpc nextflow run qualification.nf \
+  --qualification_stage prepare_predicted_models \
+  -profile local \
   --coordinate_sources /absolute/results/structural-discovery/afdb_exact_search/coordinate_sources.jsonl \
   --sequence_groups /absolute/results/catalogue/sequence_groups.jsonl \
   --phenix_manifest /absolute/software/manifests/phenix.json \

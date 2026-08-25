@@ -7,7 +7,9 @@ protocol. It does not approve a structure, force a unique sequence/locus, or
 discard a candidate because refinement or sequence scoring is poor. The output
 is evidence for Coot review and the second file-based checkpoint.
 
-The first increment is exposed by `refine_finalists.nf` and the Python command:
+The first increment is exposed by
+`qualification.nf --qualification_stage refine_finalists` and the Python
+command:
 
 ```text
 genome-to-diffraction refinement brief ...

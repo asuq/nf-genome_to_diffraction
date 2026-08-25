@@ -13395,8 +13395,29 @@ with a collapsed combined parent or a guessed command.
   address. Any successful or ambiguous socket result fails the run.
 - Four probe regressions, 153 neighbouring HPC unit cases, one real dispatcher
   stage/submit integration, Ruff, ty, documentation, Nextflow syntax, wrapper
-  syntax, and diff validation pass locally. Exact-source CI for this profile,
-  one collected Marmic result, and complete bounded login-side provider staging
+  syntax, and diff validation pass locally. Exact-source CI `32908137245`
+  passed on `18036c9445fbc28ed48c976163129a7ea3c97ddf` under Pixi 0.76.2.
+  One collected Marmic result and complete bounded login-side provider staging
   remain mandatory before unknown pass 1.
 - No installed dispatcher, active scheduler run, provider data, control,
   scientific threshold, M6 input, or unknown crystal was changed.
+
+## 2026-08-25 - One qualification owner replaces nine root stage wrappers
+
+- `FCB-P2-01` first retained nine root-level stage wrappers beside the archival
+  v0.2 application, current Phase III application, database, and M6 owners.
+  Reviewed wrappers, examples, tests, and documentation therefore exposed
+  several competing-looking application surfaces.
+- One typed `qualification.nf` now owns the nine fixed stage/control operations.
+  It requires an explicit supported operation and the complete authority for
+  that operation before scheduling; unknown and incomplete requests fail.
+- The reviewed HPC wrapper, public commands, stage documentation, Nextflow
+  checks, and fake-dispatcher integrations now use the single qualification
+  owner. Root policy permits exactly the archival v0.2 application, current
+  Phase III application, database preparation, M6, and qualification owners.
+- A real discovery stub, both negative authority cases, the complete Nextflow
+  stub matrix, syntax gate, wrapper syntax, root policy regression, and four
+  P1/P2/P2-diverse/control dispatcher integrations pass. Only after those
+  replacement gates passed were the nine superseded roots deleted.
+- Exact-source CI remains. No installed dispatcher, scheduler run, scientific
+  threshold, control interpretation, M6 input, or unknown crystal was changed.

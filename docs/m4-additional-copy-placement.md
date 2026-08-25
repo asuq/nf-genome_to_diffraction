@@ -186,7 +186,8 @@ and separate execution status. `parent_retained` is always true and
 
 ## Nextflow and cache identity
 
-`screen_additional_copies.nf` consumes a seed TSV containing
+`qualification.nf --qualification_stage additional_copy` consumes a seed TSV
+containing
 `seed_solution_id`, `search_model`, and `search_model_sha256` (with optional
 stage metadata columns) and fans out one isolated process per approved seed
 that requires another copy. A genuine candidate-specific contract failure makes the run fail

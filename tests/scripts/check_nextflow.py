@@ -803,6 +803,43 @@ def check_stubs() -> None:
         refinement_out = temporary_root / "refinement-results"
         cache_root = temporary_root / "cache"
 
+        unsupported = _run(
+            [
+                "nextflow",
+                "run",
+                "qualification.nf",
+                "-profile",
+                "test",
+                "-stub-run",
+                "--qualification_stage",
+                "unsupported",
+            ],
+            environment=environment,
+            expected_success=False,
+        )
+        if "Unsupported qualification_stage" not in (
+            f"{unsupported.stdout}\n{unsupported.stderr}"
+        ):
+            raise RuntimeError("qualification root did not reject an unknown stage")
+        incomplete = _run(
+            [
+                "nextflow",
+                "run",
+                "qualification.nf",
+                "-profile",
+                "test",
+                "-stub-run",
+                "--qualification_stage",
+                "discovery",
+            ],
+            environment=environment,
+            expected_success=False,
+        )
+        if "discovery qualification requires" not in (
+            f"{incomplete.stdout}\n{incomplete.stderr}"
+        ):
+            raise RuntimeError("qualification root accepted incomplete authority")
+
         main_command = [
             "nextflow",
             "run",
@@ -1136,7 +1173,9 @@ def check_stubs() -> None:
         discovery_command = [
             "nextflow",
             "run",
-            "discover_structures.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "discovery",
             "-profile",
             "test",
             "-stub-run",
@@ -1292,7 +1331,9 @@ def check_stubs() -> None:
         coordinate_command = [
             "nextflow",
             "run",
-            "register_coordinates.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "register_coordinates",
             "-profile",
             "test",
             "-stub-run",
@@ -1333,7 +1374,9 @@ def check_stubs() -> None:
         pdb_model_command = [
             "nextflow",
             "run",
-            "prepare_pdb_models.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "prepare_experimental_models",
             "-profile",
             "test",
             "-stub-run",
@@ -1374,7 +1417,9 @@ def check_stubs() -> None:
         model_command = [
             "nextflow",
             "run",
-            "prepare_models.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "prepare_predicted_models",
             "-profile",
             "test",
             "-stub-run",
@@ -1412,7 +1457,9 @@ def check_stubs() -> None:
         first_copy_command = [
             "nextflow",
             "run",
-            "screen_first_copy.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "first_copy",
             "-profile",
             "test",
             "-stub-run",
@@ -1468,7 +1515,9 @@ def check_stubs() -> None:
         diverse_first_copy_command = [
             "nextflow",
             "run",
-            "screen_diverse_first_copy.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "diverse_first_copy",
             "-profile",
             "test",
             "-stub-run",
@@ -1538,7 +1587,9 @@ def check_stubs() -> None:
         control_first_copy_command = [
             "nextflow",
             "run",
-            "screen_first_copy_controls.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "first_copy_controls",
             "-profile",
             "test",
             "-stub-run",
@@ -1614,7 +1665,9 @@ def check_stubs() -> None:
         additional_copy_command = [
             "nextflow",
             "run",
-            "screen_additional_copies.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "additional_copy",
             "-profile",
             "test",
             "-stub-run",
@@ -1680,7 +1733,9 @@ def check_stubs() -> None:
         refinement_command = [
             "nextflow",
             "run",
-            "refine_finalists.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "refine_finalists",
             "-profile",
             "test",
             "-stub-run",

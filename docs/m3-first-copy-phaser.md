@@ -171,7 +171,9 @@ infrastructure failure is collectable evidence but cannot qualify the route.
 
 ## Nextflow boundary, cache, and outputs
 
-`screen_first_copy.nf` takes coordinate sources, one prepared-model directory,
+`qualification.nf --qualification_stage first_copy` takes coordinate sources,
+one
+prepared-model directory,
 sequence groups, Matthews and preflight JSONL, pipeline configuration, crystal
 ID, the crystal MTZ, and the verified Phenix manifest. It builds the bounded
 funnel, then fans out the single-record files to independent `process_mr`
@@ -189,13 +191,16 @@ Nextflow additionally hashes the staged inputs, process script, resolved task
 configuration, and environment. Changing any of these creates a different task
 rather than silently reusing an old result.
 
-The separate `screen_diverse_first_copy.nf` entry point accepts one predicted
+The separate `qualification.nf --qualification_stage diverse_first_copy` entry
+point accepts one predicted
 coordinate/preparation bundle plus one registered PDB
 coordinate/mapping/preparation bundle. It builds a self-contained aggregate
 model registry, then reuses the same one-hypothesis-per-Phaser-process boundary:
 
 ```bash
-pixi run -e hpc nextflow run screen_diverse_first_copy.nf -profile local \
+pixi run -e hpc nextflow run qualification.nf \
+  --qualification_stage diverse_first_copy \
+  -profile local \
   --predicted_coordinate_sources /absolute/predicted/coordinate_sources.jsonl \
   --predicted_prepared_models /absolute/predicted/model-preparation \
   --pdb_coordinate_sources /absolute/pdb-registration/coordinate_sources.jsonl \

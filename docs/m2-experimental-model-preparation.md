@@ -37,7 +37,9 @@ subset; omitting it processes every supplied mapping. The typed DSL2 equivalent
 is:
 
 ```bash
-pixi run -e hpc nextflow run prepare_pdb_models.nf -profile local \
+pixi run -e hpc nextflow run qualification.nf \
+  --qualification_stage prepare_experimental_models \
+  -profile local \
   --coordinate_sources /absolute/pdb-registration/coordinate_sources.jsonl \
   --coordinate_hit_mappings /absolute/pdb-registration/coordinate_hit_mappings.jsonl \
   --sequence_groups /absolute/catalogue/sequence_groups.jsonl \
@@ -92,7 +94,9 @@ Unit tests exercise paths containing spaces, source/group/mapping joins,
 checksum drift, water and hydrogen removal, output-chain remapping, observed
 sequence preservation, model mass/checksum/identity, homologue quality flags,
 structured records, and progress suppression. Parser-v2 lint plus a full
-`-stub-run` and `-resume` exercise `prepare_pdb_models.nf` and standard Nextflow
+`-stub-run` and `-resume` exercise
+`qualification.nf --qualification_stage prepare_experimental_models` and
+standard Nextflow
 reports.
 
 The software boundary is implemented but not yet qualified on the real Marmic
@@ -107,6 +111,7 @@ its immutable hypothesis.
 
 The next real gate is to register a bounded candidate set from the immutable P1
 results, prepare these source-chain models on Marmic, run
-`screen_diverse_first_copy.nf`, and inspect the selected count before Phaser
+`qualification.nf --qualification_stage diverse_first_copy`, and inspect the
+selected count before Phaser
 submission. Sequence-adapted/side-chain-pruned and clear-domain variants remain
 later calibrated additions, not blockers for this first feedback run.

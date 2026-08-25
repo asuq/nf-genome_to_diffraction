@@ -99,9 +99,10 @@ the login node before submission. A fixed Marmic `phase3-network-probe` now
 binds the tracked site/shell checksums and schedules one ordinary Slurm child
 plus one controller-local task; both must prove distinct worker namespaces and
 explicit TEST-NET-1 socket denial. Its focused local contracts and dispatcher
-stage/submit integration pass, but exact-source CI and the real Marmic result
-remain. Bounded provider staging is a separate qualification gate; only the
-selected scientific execution site gates the next run.
+stage/submit integration pass, and exact-source CI `32908137245` passed on
+`18036c9`. The real Marmic result remains. Bounded provider staging is a
+separate qualification gate; only the selected scientific execution site gates
+the next run.
 
 Transient infrastructure recovery now uses one explicit boundary instead of a
 general retry framework. Classified temporary transport/HTTP failures return
@@ -714,6 +715,14 @@ Nextflow migration diagnostic. Their shared preparation and classification
 helpers remain available to current Nextflow-owned workflows, but neither
 production benchmark driver contains a thread/process-pool primitive. No
 historical control profile or evidence was reinterpreted as Phase III evidence.
+
+The current executable surface is also locally consolidated. The repository
+root now contains only archival `main.nf`, current `phase3_application.nf`,
+database preparation, M6, and one typed `qualification.nf` owner. Nine
+superseded stage roots were removed only after all replacement operations,
+unknown/incomplete operation rejection, fixed-wrapper integrations, and the
+complete Nextflow stub gate passed. Exact-source CI remains before
+`FCB-P2-01` receives its final disposition.
 
 Status: the exact Hatchling backend is now pinned in both build metadata and
 the Pixi lock, and one fixed `offline-wheel-check` builds without isolation,

@@ -575,7 +575,8 @@ during the P0 allocation.
 
 The fixed P1 job reuses the frozen catalogue and qualified database manifest
 already protected by the P0 configuration. It verifies their staging-time
-checksums, imports the catalogue once, and runs `discover_structures.nf -profile
+checksums, imports the catalogue once, and runs
+`qualification.nf --qualification_stage discovery -profile
 marmic` against the local PDB sequence resource. The checked `nf-helper` Marmic
 configuration gives the MMseqs2 process compute-node `/scratch` and copies its
 declared output to durable storage. The job repeats the identical workflow with
@@ -598,7 +599,9 @@ Immutable staging imports the catalogue and retrieves the public model
 on the login node, where outbound HTTPS is available. It requires one exact hit
 and coordinate, records fixed-file checksums, and leaves all heavy work to
 Slurm. The compute job verifies that record, runs discovery without remote
-accessions, then runs `prepare_models.nf` with the P0-verified Phenix manifest
+accessions, then runs
+`qualification.nf --qualification_stage prepare_predicted_models` with the
+P0-verified Phenix manifest
 and a separate Nextflow cache. It requires exactly one processed pilot model
 and a fully cached model-preparation resume. The collected allow-list adds only
 the prefetch/model manifests, records, traces, and bounded logs; coordinates,
@@ -659,7 +662,8 @@ instead of accepting a caller-selected intermediate. After replay it:
 1. verifies the single CD6 MTZ from the checksum-frozen P0 bundle layout;
 2. builds the inspectable exact-predicted funnel and requires exactly one
    physically possible, bounded hypothesis for this pilot slice;
-3. runs `screen_first_copy.nf -profile marmic`, with each Phenix process using
+3. runs `qualification.nf --qualification_stage first_copy -profile marmic`,
+   with each Phenix process using
    two CPUs, 8 GB, compute-node `/scratch`, and the 1,000-hour site margin;
 4. validates and preserves the normalised MR result, then requires its execution
    status to be `completed_hit` or `completed_no_hit`;
@@ -718,7 +722,8 @@ login node:
 The scheduled phase is offline. It replays P0/P1, verifies the login-stage
 checksum list, and requires the normalised login-node PDB hit file to have the
 same SHA-256 as the scheduled P1 search. It then runs
-`prepare_pdb_models.nf` and `screen_diverse_first_copy.nf`, each once normally
+`qualification.nf --qualification_stage prepare_experimental_models` and
+`qualification.nf --qualification_stage diverse_first_copy`, each once normally
 and once with `-resume`. The funnel receives an explicit additional cap of 25
 jobs even though the underlying pilot configuration permits more. It must
 retain at least one exact predicted and one mapped experimental hypothesis,

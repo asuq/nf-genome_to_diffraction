@@ -15,6 +15,16 @@ from genome_to_diffraction.schemas.results import ProcessedModelRecord
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
+def test_root_nextflow_surface_has_only_intentional_owners() -> None:
+    assert {path.name for path in REPOSITORY.glob("*.nf")} == {
+        "m6_validation.nf",
+        "main.nf",
+        "phase3_application.nf",
+        "prepare_databases.nf",
+        "qualification.nf",
+    }
+
+
 def test_operational_documentation_is_tracked_separately_from_handoff() -> None:
     assert (REPOSITORY / "docs" / "README.md").is_file()
     assert (REPOSITORY / "docs" / "marmic-prototype-runbook.md").is_file()

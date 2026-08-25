@@ -619,7 +619,8 @@ run_p1_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p1-${label}.log" \
-        run "$RUN/source/discover_structures.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage discovery \
         "$@" \
         -profile viper-cpu \
         --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
@@ -635,7 +636,8 @@ run_p1_model_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p1-model-${label}.log" \
-        run "$RUN/source/prepare_models.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage prepare_predicted_models \
         "$@" \
         -profile viper-cpu \
         --coordinate_sources \
@@ -823,7 +825,8 @@ run_p2_first_copy_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p2-first-copy-${label}.log" \
-        run "$RUN/source/screen_first_copy.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage first_copy \
         "$@" \
         -profile viper-cpu \
         --coordinate_sources "$P1_PREFETCH_OUT/coordinate_sources.jsonl" \
@@ -1012,7 +1015,8 @@ run_p2_diverse_model_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p2-diverse-model-${label}.log" \
-        run "$RUN/source/prepare_pdb_models.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage prepare_experimental_models \
         "$@" \
         -profile viper-cpu \
         --coordinate_sources \
@@ -1029,7 +1033,8 @@ run_p2_diverse_first_copy_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p2-diverse-first-copy-${label}.log" \
-        run "$RUN/source/screen_diverse_first_copy.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage diverse_first_copy \
         "$@" \
         -profile viper-cpu \
         --predicted_coordinate_sources \
@@ -1453,7 +1458,8 @@ run_p2_control_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p2-control-${label}.log" \
-        run "$RUN/source/screen_first_copy_controls.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage first_copy_controls \
         "$@" \
         -profile viper-cpu \
         --control_bundle "$P2_CONTROL_BUNDLE" \
@@ -3789,7 +3795,8 @@ run_m4_copy_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-m4-copy-${label}.log" \
-        run "$RUN/source/screen_additional_copies.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage additional_copy \
         "$@" \
         -profile viper-cpu \
         --seeds "$M4_INPUTS/seeds.tsv" \
@@ -3973,7 +3980,8 @@ run_t12_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-t12-${label}.log" \
-        run "$RUN/source/refine_finalists.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage refine_finalists \
         "$@" \
         -profile viper-cpu \
         --finalists "$T12_INPUTS/finalists.tsv" \

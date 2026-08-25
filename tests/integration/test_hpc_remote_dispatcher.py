@@ -156,19 +156,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     ):
         shutil.copy2(REPOSITORY / "bootstrap" / name, bootstrap / name)
         (bootstrap / name).chmod(0o755)
-    shutil.copy2(
-        REPOSITORY / "discover_structures.nf", source / "discover_structures.nf"
-    )
-    shutil.copy2(REPOSITORY / "prepare_models.nf", source / "prepare_models.nf")
-    shutil.copy2(REPOSITORY / "prepare_pdb_models.nf", source / "prepare_pdb_models.nf")
-    shutil.copy2(
-        REPOSITORY / "screen_diverse_first_copy.nf",
-        source / "screen_diverse_first_copy.nf",
-    )
-    shutil.copy2(
-        REPOSITORY / "screen_first_copy_controls.nf",
-        source / "screen_first_copy_controls.nf",
-    )
+    shutil.copy2(REPOSITORY / "qualification.nf", source / "qualification.nf")
     conf = source / "conf"
     conf.mkdir()
     shutil.copy2(REPOSITORY / "conf/marmic.config", conf / "marmic.config")
@@ -205,11 +193,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         "add",
         "pixi.lock",
         "bootstrap",
-        "discover_structures.nf",
-        "prepare_models.nf",
-        "prepare_pdb_models.nf",
-        "screen_diverse_first_copy.nf",
-        "screen_first_copy_controls.nf",
+        "qualification.nf",
         "conf",
         "workflows",
         "benchmarks",
@@ -4021,11 +4005,17 @@ def _install_fake_p1_runtime(run: Path) -> None:
         'printf \'%s\\n\' "$*" >> "$PWD/fake-nextflow-commands.log"\n'
         'for argument in "$@"; do\n'
         '  [[ "$argument" != */main.nf ]] || mode=p0\n'
-        '  [[ "$argument" != */prepare_models.nf ]] || mode=model\n'
-        '  [[ "$argument" != */prepare_pdb_models.nf ]] || mode=p2div-model\n'
-        '  [[ "$argument" != */screen_first_copy.nf ]] || mode=p2\n'
-        '  [[ "$argument" != */screen_diverse_first_copy.nf ]] || mode=p2div\n'
-        '  [[ "$argument" != */screen_first_copy_controls.nf ]] || mode=p2control\n'
+        '  if [[ "$previous" == --qualification_stage ]]; then\n'
+        '    case "$argument" in\n'
+        "      prepare_predicted_models) mode=model ;;\n"
+        "      prepare_experimental_models) mode=p2div-model ;;\n"
+        "      first_copy) mode=p2 ;;\n"
+        "      diverse_first_copy) mode=p2div ;;\n"
+        "      first_copy_controls) mode=p2control ;;\n"
+        "      discovery) mode=discovery ;;\n"
+        "      *) exit 11 ;;\n"
+        "    esac\n"
+        "  fi\n"
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
         '  [[ "$argument" != -resume ]] || status=CACHED\n'
         '  previous="$argument"\n'
@@ -4302,7 +4292,9 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
         encoding="utf-8"
     )
     assert "--afdb_accession_map" not in nextflow_commands
-    assert "prepare_models.nf" in nextflow_commands
+    assert "qualification.nf --qualification_stage prepare_predicted_models" in (
+        nextflow_commands
+    )
     assert "--phenix_manifest" in nextflow_commands
 
     archive_path = tmp_path / "p1-collected.tar.gz"
@@ -5421,7 +5413,7 @@ def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(
     commands = (run / "execution/fake-nextflow-commands.log").read_text(
         encoding="utf-8"
     )
-    assert "screen_diverse_first_copy.nf" in commands
+    assert "qualification.nf --qualification_stage diverse_first_copy" in commands
     assert "--maximum_first_copy_jobs 25" in commands
 
     archive_path = tmp_path / "p2-diverse-collected.tar.gz"

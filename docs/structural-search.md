@@ -155,7 +155,8 @@ pixi run genome-to-diffraction \
   --outdir /absolute/results/pdb-coordinate-registration
 ```
 
-The equivalent typed DSL2 entry point is `discover_structures.nf`. It runs the
+The equivalent typed DSL2 qualification entry point is
+`qualification.nf --qualification_stage discovery`. It runs the
 three providers independently and publishes complete `pdb_sequence_search`,
 `prostt5_foldseek_search`, and `afdb_exact_search` directories plus standard
 Nextflow report, timeline, trace, and DAG files. ProstT5/Foldseek has the
@@ -165,7 +166,9 @@ has the dedicated `process_network` label; compute-node internet access must
 therefore be an explicit site capability. `-stub-run -profile test` uses only tracked
 fixtures. A normal run requires the real qualified databases.
 
-`register_coordinates.nf` is the separate T8.1 coordinate boundary. It accepts
+`qualification.nf --qualification_stage register_coordinates` is the separate
+T8.1
+coordinate boundary. It accepts
 only selected `pdb_sequence_mmseqs` hits from adapter v2, whose raw metrics now
 include the full target SEQRES length and SHA-256 from the qualified target
 crosswalk. The default policy keeps at most three direct hits per catalogue
