@@ -66,10 +66,14 @@ requires an explicitly edited `--approved_mr_seeds` file, validates it against
 the exact regenerated package, and advances every approved seed one
 same-component copy at a time to its expected count or first unsupported
 addition. Seeds already expected to contain one copy remain recorded without an
-unnecessary Phaser job. `--analysis_stage t12` extends that exact path by
-selecting each approved seed's last checksum-authenticated supported state and
-running the qualified brief-refinement/map/sequence adapter on every retained
-alternative. It refines against the original FreeR-bearing diffraction MTZ;
+unnecessary Phaser job. `--analysis_stage heteromer` instead uses the reviewed
+approved seed and complete-catalogue partner plan without requiring public
+control data; an optional `--heteromer_control_preparation` additionally runs
+the fixed control when explicitly supplied. `--analysis_stage t12` extends the
+same-component path by selecting each approved seed's last
+checksum-authenticated supported state and running the qualified
+brief-refinement/map/sequence adapter on every retained alternative. It refines
+against the original FreeR-bearing diffraction MTZ;
 the corresponding Phaser solution MTZ is preserved as provenance only. The
 normal path then builds the T12.5 top-10, top-25, full-results, HTML, asset,
 and header-only second-decision package directly from the typed finalist

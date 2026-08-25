@@ -55,12 +55,6 @@ workflow {
     ) {
         error "analysis_stage=${params.analysis_stage} requires --approved_mr_seeds"
     }
-    if (
-        params.analysis_stage == 'heteromer' &&
-        params.heteromer_control_preparation == null
-    ) {
-        error 'analysis_stage=heteromer requires --heteromer_control_preparation'
-    }
     if (params.analysis_stage == 'heteromer' && params.partner_copy_count < 1) {
         error 'analysis_stage=heteromer requires a positive --partner_copy_count'
     }

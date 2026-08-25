@@ -146,6 +146,15 @@ model identity/error source in Phaser, command/result records, and cache
 identity. Placement no longer silently resets a lower-identity A model to 100%
 for the B-F searches.
 
+The normal heteromer application no longer depends on the fixed 6RTZ control.
+Its reviewed approved A seed feeds the existing complete-catalogue partner
+planner, one task per selected B candidate, and the typed attempt summary.
+The fixed-control Phaser task executes only when its optional control
+preparation is explicitly supplied. A focused real local Nextflow stub proves
+the separate application/control process inventories and cached application
+resume; scientific Phenix qualification and the general depth-three adapter
+remain separate gates.
+
 The schema-v2 component-expansion execution input now binds one authoritative
 selected depth candidate to a packed parent, component-only fixed coordinates
 and distinct original error models for every existing component, the exact

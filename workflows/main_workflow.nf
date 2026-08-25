@@ -183,18 +183,17 @@ workflow MAIN_WORKFLOW {
                     first_copy_hypotheses
                 )
                 if (analysis_stage == 'heteromer') {
-                    if (heteromer_control_preparation == null) {
-                        error 'heteromer stage requires fixed control preparation'
+                    if (heteromer_control_preparation != null) {
+                        RUN_APPROVED_PARTNER_PHASER(
+                            approved_stage,
+                            mr_seed_review,
+                            heteromer_control_preparation,
+                            sequence_groups,
+                            preflight_jsonl,
+                            selected_mtz,
+                            phenix_manifest
+                        )
                     }
-                    RUN_APPROVED_PARTNER_PHASER(
-                        approved_stage,
-                        mr_seed_review,
-                        heteromer_control_preparation,
-                        sequence_groups,
-                        preflight_jsonl,
-                        selected_mtz,
-                        phenix_manifest
-                    )
                     partner_model_registry = first_copy.funnel.map { Path bundle ->
                         bundle.resolve('model_registry')
                     }

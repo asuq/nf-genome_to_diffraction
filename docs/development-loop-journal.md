@@ -12256,3 +12256,22 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Catalogue partner application no longer requires 6RTZ
+
+- The normal `analysis_stage=heteromer` entry point incorrectly refused every
+  reviewed application unless a fixed 6RTZ preparation was supplied, even
+  though its complete-catalogue partner planner already consumes the sample's
+  own approved A seed and candidate-specific model registry.
+- Fixed-control preparation is now optional. Normal applications schedule the
+  unchanged reviewed partner planner, candidate Phaser task, and typed
+  summary without invoking or publishing a fixed-control search. Explicitly
+  supplying the control preparation preserves its historical 6RTZ process and
+  the same catalogue-driven partner chain.
+- A focused local Nextflow stub reproduces the former refusal, then proves the
+  normal application process inventory, cached resume, absent control outputs,
+  and independently retained explicit fixed-control path. Nextflow syntax,
+  targeted Ruff/`ty`, and documentation checks pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
