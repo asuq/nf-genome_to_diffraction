@@ -13298,3 +13298,22 @@ with a collapsed combined parent or a guessed command.
   Exact-source CI and owned-HPC qualification remain; no running scheduler job,
   remote tool, Phenix installation, scientific threshold, known control, or
   unknown crystal was touched.
+
+## 2026-08-25 - Public heteromer fan-out uses the canonical A-seed stage
+
+- Exact-source CI run `32897583601` passed formatting, linting, typing, 1,281
+  unit tests, 134 contract tests, 82 integration tests, schemas, documentation,
+  Nextflow syntax, and the complete general stub matrix before reproducing one
+  stale public heteromer fan-out fixture.
+- That fixture still fabricated the removed Phase III v1 approval files and
+  passed the obsolete extra review-package tuple field. The migrated workflow
+  correctly refused the missing `phase3_seed_stage_manifest.json` before any
+  scientific process ran.
+- The fixture now supplies one canonical schema-v2 seed-stage directory and the
+  exact eight-field crystal-owned tuple. It no longer constructs or passes a
+  Phase III legacy approval authority; the genuinely historical fixed-workflow
+  v1 test remains separate and unchanged.
+- The focused locked `heteromer-application-stub`, Ruff format check, and Ruff
+  lint pass. A successor exact-source CI remains required; no scheduler run,
+  remote tool, installed dispatcher, scientific threshold, known control, or
+  unknown crystal was touched.

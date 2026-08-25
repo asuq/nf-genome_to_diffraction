@@ -123,15 +123,11 @@ def _scientific_fanout_command(root: Path) -> tuple[list[str], Path]:
     (phase3_dispatch / "phase3_free_r_identity.json").write_text(
         '{"free_r":"original"}\n', encoding="ascii"
     )
-    phase3_approved = inputs / "phase3-approved-seeds"
-    phase3_approved.mkdir()
-    copy2(seeds, phase3_approved / "additional_copy_seeds.tsv")
-    copy2(
-        STUBS / "approved_mr_seed_stage/validated_mr_seed_decisions.json",
-        phase3_approved / "validated_mr_seed_decisions.json",
-    )
-    (phase3_approved / "live_m4_stage_manifest.json").write_text(
-        '{"phase3_approval_provenance":{"crystal_id":"test_crystal_01"}}\n',
+    phase3_seed_stage = inputs / "phase3-seed-stage"
+    phase3_seed_stage.mkdir()
+    copy2(seeds, phase3_seed_stage / "additional_copy_seeds.tsv")
+    (phase3_seed_stage / "phase3_seed_stage_manifest.json").write_text(
+        '{"approval_provenance":{"crystal_id":"test_crystal_01"}}\n',
         encoding="ascii",
     )
     output = root / "scientific-fanout-results"
@@ -158,8 +154,8 @@ def _scientific_fanout_command(root: Path) -> tuple[list[str], Path]:
         str(phase3_finalists),
         "--phase3_dispatch",
         str(phase3_dispatch),
-        "--phase3_approved",
-        str(phase3_approved),
+        "--phase3_seed_stage",
+        str(phase3_seed_stage),
         "--sequence_groups",
         str(STUBS / "sequence_groups.jsonl"),
         "--source_records",

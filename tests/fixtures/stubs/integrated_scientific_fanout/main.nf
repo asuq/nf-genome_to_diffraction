@@ -22,7 +22,7 @@ params {
     finalists: Path
     phase3_finalists: Path
     phase3_dispatch: Path
-    phase3_approved: Path
+    phase3_seed_stage: Path
     sequence_groups: Path
     source_records: Path
     preflight: Path
@@ -55,8 +55,7 @@ workflow {
         channel.of(
             tuple(
                 'test_crystal_01',
-                params.phase3_approved,
-                params.review_package,
+                params.phase3_seed_stage,
                 params.hypotheses,
                 params.sequence_groups,
                 params.preflight,
