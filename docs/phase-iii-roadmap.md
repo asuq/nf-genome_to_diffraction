@@ -186,8 +186,14 @@ execution identity. Every task now also carries its exact
 `ComponentExpansionExecutionInput`, preserving component-only fixed coordinates,
 per-component uncertainties, candidate evidence, and parent LLG. It proves one
 25-attempt budget shared across three parents, typed empty/no-model scheduling,
-and byte-identical cached resume, but remains stub-only. Integration into the application graph and the
-hypothesis/seed/finalist levels remain pending.
+and byte-identical cached resume, but remains stub-only. The ordinary application
+first-copy, approved-seed, and refinement workflows now broadcast their shared
+singleton catalogue/review/diffraction inputs as reusable values. One local
+production-workflow regression schedules exactly three independent hypotheses,
+two seeds, and two finalists, then caches all seven identical tasks on resume;
+the original one-task-per-stage failure is retained as focused red/green
+evidence. Live Phenix execution and general composition integration remain
+separate pending gates.
 
 The authoritative provider plan now also drives a fixed local typed-empty graph.
 One enabled local scientific no-hit, two configured-disabled routes, and one

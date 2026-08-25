@@ -32,11 +32,11 @@ workflow FIRST_COPY_MR_WORKFLOW {
         }
     first_copy_results = RUN_FIRST_COPY_PHASER(
         hypothesis_records,
-        sequence_groups,
-        prepared_models,
-        preflight,
-        mtz,
-        phenix_manifest
+        sequence_groups.first(),
+        prepared_models.first(),
+        preflight.first(),
+        mtz.first(),
+        phenix_manifest.first()
     )
 
     emit:

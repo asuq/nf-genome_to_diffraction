@@ -12323,3 +12323,24 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Integrated scientific fan-out no longer drops sibling tasks
+
+- A focused actual Nextflow regression reproduced original finding
+  `PIPE-P1-02`: three supplied first-copy hypotheses, two reviewed additional
+  seeds, and two refinement finalists silently produced only one task at each
+  stage because the first sibling consumed shared singleton queue inputs.
+- The historical exact, diverse, and control first-copy workflows plus the
+  additional-copy and refinement workflows now convert their existing shared
+  catalogue, model, review, diffraction, and Phenix inputs into reusable value
+  channels. No scientific command, ranking, threshold, or result changed.
+- The same regression now records exactly three hypothesis tasks, two seed
+  tasks, and two finalist tasks with every immutable task tag; resume caches
+  all seven exact hashes and preserves every published output byte. The normal
+  heteromer application and optional fixed control also remain green.
+- Forty-four focused policy/ranking/unknown-screen tests, complete repository
+  type checking, Nextflow syntax, targeted Ruff, documentation validation, and
+  the strengthened cached integration workflow pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

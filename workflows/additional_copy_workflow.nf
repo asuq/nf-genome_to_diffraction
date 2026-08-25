@@ -25,13 +25,13 @@ workflow ADDITIONAL_COPY_WORKFLOW {
         }
     additional_copy_results = RUN_ADDITIONAL_COPY_PHASER(
         seed_rows,
-        review_validation,
-        review_package,
-        hypotheses,
-        sequence_groups,
-        preflight,
-        mtz,
-        phenix_manifest
+        review_validation.first(),
+        review_package.first(),
+        hypotheses.first(),
+        sequence_groups.first(),
+        preflight.first(),
+        mtz.first(),
+        phenix_manifest.first()
     )
 
     emit:

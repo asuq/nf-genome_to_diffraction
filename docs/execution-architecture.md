@@ -14,6 +14,16 @@ chain. Iterative placement of copy `n + 1`, for example, must wait for the
 retained result at copy `n`; independent seeds and samples still run as separate
 Nextflow tasks.
 
+Shared single-emission sequence catalogues, model registries, reviews,
+diffraction records, and Phenix manifests must be converted to reusable value
+channels before they accompany a multi-item hypothesis, approved-seed, or
+finalist queue. A singleton queue is consumed by its first sibling and silently
+prevents later candidates from scheduling. The production first-copy,
+additional-copy, and refinement workflows explicitly broadcast these inputs.
+One real local stub supplies three hypotheses, two approved seeds, and two
+finalists through independent singleton queues and requires all seven exact
+tasks followed by a fully cached equivalent resume.
+
 ## Retired direct benchmark drivers
 
 The archival `benchmark run-control-slice` and `benchmark run-control-matrix`

@@ -45,11 +45,11 @@ workflow DIVERSE_FIRST_COPY_MR_WORKFLOW {
         .first()
     first_copy_results = RUN_FIRST_COPY_PHASER(
         hypothesis_records,
-        sequence_groups,
+        sequence_groups.first(),
         aggregate_model_registry,
-        preflight,
-        mtz,
-        phenix_manifest
+        preflight.first(),
+        mtz.first(),
+        phenix_manifest.first()
     )
 
     emit:

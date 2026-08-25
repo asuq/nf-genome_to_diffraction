@@ -21,11 +21,11 @@ workflow CONTROL_FIRST_COPY_MR_WORKFLOW {
         .first()
     first_copy_results = RUN_FIRST_COPY_PHASER(
         hypothesis_records,
-        sequence_groups,
+        sequence_groups.first(),
         prepared_models,
-        preflight,
-        mtz,
-        phenix_manifest
+        preflight.first(),
+        mtz.first(),
+        phenix_manifest.first()
     )
 
     emit:

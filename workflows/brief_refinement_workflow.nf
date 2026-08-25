@@ -27,9 +27,9 @@ workflow BRIEF_REFINEMENT_WORKFLOW {
         }
     refinement_results = RUN_BRIEF_REFINEMENT(
         finalist_rows,
-        sequence_groups,
-        source_records,
-        phenix_manifest
+        sequence_groups.first(),
+        source_records.first(),
+        phenix_manifest.first()
     )
 
     emit:
