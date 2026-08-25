@@ -3555,6 +3555,8 @@ collect_run() {
         artifacts/qualification/m6-runtime-provenance.json \
         artifacts/qualification/m6-child-resource-evidence.json \
         artifacts/qualification/m6-resume-cache-evidence.json \
+        artifacts/qualification/m6-first-child-outputs.json \
+        artifacts/qualification/m6-resume-child-outputs.json \
         artifacts/qualification/m6-scientific-checksums.sha256 \
         artifacts/qualification/m6-phenix-verification.log \
         artifacts/qualification/m6-phaser-log-tails.txt \

@@ -186,7 +186,7 @@ finalise() {
         reports_json='["artifacts/qualification/m6-nextflow-smoke-summary.json","artifacts/qualification/m6-nextflow-smoke-resume-check.json","artifacts/qualification/m6-nextflow-smoke-resource-evidence.json","artifacts/qualification/m6-nextflow-smoke-contract-evidence.json"]'
         retained_json='["artifacts/m6-nextflow-smoke","artifacts/qualification"]'
     elif [[ "$PROFILE" == m6-operational || "$PROFILE" == m6-leakage ]]; then
-        reports_json='["artifacts/qualification/m6-scientific-summary.json","artifacts/qualification/m6-execution-verification.json","artifacts/qualification/m6-resume-check.json","artifacts/qualification/m6-runtime-provenance.json"]'
+        reports_json='["artifacts/qualification/m6-scientific-summary.json","artifacts/qualification/m6-execution-verification.json","artifacts/qualification/m6-resume-check.json","artifacts/qualification/m6-runtime-provenance.json","artifacts/qualification/m6-resume-child-outputs.json"]'
         retained_json='["artifacts/m6-runner-inputs","artifacts/m6-nextflow-results","artifacts/qualification"]'
     elif [[ "$PROFILE" == m4-copy ]]; then
         reports_json='["artifacts/qualification/m4-copy-summary.json","artifacts/qualification/m4-copy-resume-check.json"]'
@@ -3506,6 +3506,9 @@ run_m6_scientific() {
         --execution-policy "$M6_EXECUTION_POLICY" \
         --trace "$qualification/m6-first-pipeline-info/trace.tsv" \
         --output "$qualification/m6-child-resource-evidence.json"
+    "$GTD" --log-format json --no-progress benchmark collect-m6-child-outputs \
+        --trace "$qualification/m6-first-pipeline-info/trace.tsv" \
+        --output "$qualification/m6-first-child-outputs.json"
     before="$qualification/m6-before-resume.sha256"
     after="$qualification/m6-after-resume.sha256"
     (
@@ -3537,12 +3540,18 @@ run_m6_scientific() {
         "$qualification/m6-first-pipeline-info/trace.tsv")"
     [[ "$expected" -gt 0 && "$total" -eq "$expected" && \
        "$cached" -eq "$expected" ]] || return 4
+    "$GTD" --log-format json --no-progress benchmark collect-m6-child-outputs \
+        --trace "$qualification/m6-resume-pipeline-info/trace.tsv" \
+        --baseline "$qualification/m6-first-child-outputs.json" \
+        --output "$qualification/m6-resume-child-outputs.json"
     cat > "$qualification/m6-resume-cache-evidence.json" <<EOF
 {
   "schema_version": "1.0",
   "cache_mechanism": "nextflow_resume",
   "first_task_count": $expected,
   "cached_resume_task_count": $cached,
+  "first_child_output_sha256": "$(sha256sum "$qualification/m6-first-child-outputs.json" | awk '{print $1}')",
+  "resume_child_output_sha256": "$(sha256sum "$qualification/m6-resume-child-outputs.json" | awk '{print $1}')",
   "fully_cached_resume": true
 }
 EOF
@@ -3643,6 +3652,8 @@ EOF
         "$qualification/m6-runtime-provenance.json" \
         "$qualification/m6-child-resource-evidence.json" \
         "$qualification/m6-resume-cache-evidence.json" \
+        "$qualification/m6-first-child-outputs.json" \
+        "$qualification/m6-resume-child-outputs.json" \
         "$qualification/m6-phenix-verification.log" \
         "$qualification/m6-phaser-log-tails.txt" \
         "$M6_PHENIX_MANIFEST" \

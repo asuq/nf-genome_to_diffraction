@@ -462,15 +462,18 @@ permutations produce identical inventories, and the changed seed semantics use
 adapter/cache identity `m6-nextflow-seeds-v2`. M6 execution and acceptance
 remain pending the other PH6 stop gates.
 
-Status: one focused local `DEV-P1-07` probe now mutates the real protocol path
-used by the full 26-task M6 stub. Exactly the policy, coordinate-stage,
-active-case, first-copy, seed, additional-copy, finalist, refinement,
-active-case assembly, and aggregate tasks complete again; the other 16 task tags remain cached with byte-identical
-child outputs. The same probe inventories every non-staged child output, removes
-one cached catalogue `source_records.jsonl`, observes a standard resume, and
-derives `hold_missing_required_child` instead of accepting the unchanged
-aggregate. This is local verifier evidence only. M6 collection must still carry
-and validate the observed mutation/child inventory before scientific acceptance.
+Status: the production `DEV-P1-07` child-output boundary now snapshots every
+completed task's exact process, tag, cache hash, and non-staged child-file
+checksums before cached resume. Resume must reproduce the same complete task
+and file inventory; deleting or changing even one cached catalogue
+`source_records.jsonl` now aborts the actual production verifier despite all
+26 Nextflow directory-cache hits. Both path-free inventories and trace hashes
+are retained through the reviewed remote collection, bound into resume
+provenance and final checksums, and independently reconciled with every Slurm
+child and controller stage at the truth-side gate. The real protocol mutation
+continues to rerun exactly ten dependent tasks while 16 unaffected tasks keep
+their cache identities and outputs. Real M6 execution and observed mutation
+qualification of the remaining cache-key components remain separate gates.
 
 Status: the local `DEV-P1-04` coordinate boundary is implemented. A dedicated
 login/controller-labelled process resolves only the bounded policy-selected

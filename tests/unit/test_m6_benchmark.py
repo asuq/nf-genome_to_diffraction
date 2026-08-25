@@ -44,7 +44,9 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
     evaluate_m6,
 )
 from genome_to_diffraction.benchmarks.m6_execution import (
+    M6ChildOutputEvidenceRequest,
     M6ResourceEvidenceRequest,
+    collect_m6_child_output_evidence,
     collect_m6_resource_evidence,
     load_m6_execution_policy,
 )
@@ -1127,6 +1129,47 @@ def _synthetic_collection(
                 }
             ]
         _write_json(qualification / "m6-child-resource-evidence.json", resources)
+        first_trace = qualification / "m6-first-pipeline-info/trace.tsv"
+        resume_trace = qualification / "m6-resume-pipeline-info/trace.tsv"
+        first_trace.parent.mkdir()
+        resume_trace.parent.mkdir()
+        jobs = cast(list[dict[str, object]], resources["jobs"])
+        controller_jobs = cast(
+            list[dict[str, object]], resources.get("controller_stages", [])
+        )
+        tasks = [*jobs, *controller_jobs]
+        rows: list[tuple[str, str, str, Path]] = []
+        for index, task in enumerate(tasks):
+            work = tmp_path / f"{track}-task-{index}"
+            output = work / "result"
+            output.mkdir(parents=True)
+            (output / "evidence.json").write_text(
+                f'{{"task":"{task["process"]}"}}\n', encoding="utf-8"
+            )
+            rows.append(
+                (str(task["process"]), str(task["tag"]), f"aa/{index:06d}", work)
+            )
+        for trace, status in ((first_trace, "COMPLETED"), (resume_trace, "CACHED")):
+            trace.write_text(
+                "process\ttag\tstatus\thash\tworkdir\n"
+                + "".join(
+                    f"{process}\t{tag}\t{status}\t{task_hash}\t{work}\n"
+                    for process, tag, task_hash, work in rows
+                ),
+                encoding="utf-8",
+            )
+        first_outputs = qualification / "m6-first-child-outputs.json"
+        resumed_outputs = qualification / "m6-resume-child-outputs.json"
+        collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(trace=first_trace, output=first_outputs)
+        )
+        collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(
+                trace=resume_trace,
+                baseline=first_outputs,
+                output=resumed_outputs,
+            )
+        )
         _write_json(
             qualification / "m6-resume-cache-evidence.json",
             {
@@ -1134,6 +1177,8 @@ def _synthetic_collection(
                 "cache_mechanism": "nextflow_resume",
                 "first_task_count": task_count,
                 "cached_resume_task_count": task_count,
+                "first_child_output_sha256": sha256_file(first_outputs),
+                "resume_child_output_sha256": sha256_file(resumed_outputs),
                 "fully_cached_resume": True,
             },
         )
@@ -1324,6 +1369,55 @@ def test_m6_collection_rejects_tracks_from_different_reviewed_sites(
     )
 
     with pytest.raises(PublicControlError, match="same reviewed HPC site"):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=_private_truth_file(
+                    tmp_path, protocol_path, protocol
+                ),
+                operational_collection=operational,
+                leakage_collection=leakage,
+                output=tmp_path / "not-written.json",
+            )
+        )
+
+
+@pytest.mark.parametrize("mutation", ["missing", "changed"])
+def test_m6_collection_refuses_incomplete_cached_child_evidence(
+    tmp_path: Path, mutation: str
+) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="b" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+    )
+    qualification = operational / "artifacts/qualification"
+    resumed_path = qualification / "m6-resume-child-outputs.json"
+    if mutation == "missing":
+        resumed_path.unlink()
+    else:
+        resumed = json.loads(resumed_path.read_text(encoding="utf-8"))
+        resumed["tasks"][0]["outputs"][0]["sha256"] = "f" * 64
+        _write_json(resumed_path, resumed)
+        resume_cache_path = qualification / "m6-resume-cache-evidence.json"
+        resume_cache = json.loads(resume_cache_path.read_text(encoding="utf-8"))
+        resume_cache["resume_child_output_sha256"] = sha256_file(resumed_path)
+        _write_json(resume_cache_path, resume_cache)
+
+    with pytest.raises(PublicControlError, match="child output evidence"):
         collect_m6_evidence(
             M6CollectionRequest(
                 protocol=protocol_path,
@@ -1936,6 +2030,68 @@ def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> No
     )
     assert changed_software_batch["batch_id"] == first_batch["batch_id"]
     assert changed_software_batch["search_cache_key"] != first_batch["search_cache_key"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["missing", "changed"],
+)
+def test_m6_cached_child_inventory_refuses_missing_or_changed_outputs(
+    tmp_path: Path, mutation: str
+) -> None:
+    work = tmp_path / "work"
+    catalogue = work / "m6_catalogue_bundle" / "catalogue"
+    catalogue.mkdir(parents=True)
+    source_records = catalogue / "source_records.jsonl"
+    source_records.write_text('{"source_record_id":"source_a"}\n', encoding="utf-8")
+    (work / "m6_catalogue_bundle.json").write_text("{}\n", encoding="utf-8")
+    (catalogue / "sequence_groups.jsonl").write_text(
+        '{"sequence_group_id":"sequence_a"}\n', encoding="utf-8"
+    )
+    first_trace = tmp_path / "first.tsv"
+    resume_trace = tmp_path / "resume.tsv"
+    for trace, status in ((first_trace, "COMPLETED"), (resume_trace, "CACHED")):
+        trace.write_text(
+            "process\ttag\tstatus\thash\tworkdir\n"
+            f"M6_IMPORT_CATALOGUE\tm6-import:a\t{status}\taa/123456\t{work}\n",
+            encoding="utf-8",
+        )
+
+    baseline_path = tmp_path / "first-child-outputs.json"
+    baseline = collect_m6_child_output_evidence(
+        M6ChildOutputEvidenceRequest(trace=first_trace, output=baseline_path)
+    )
+    resumed = collect_m6_child_output_evidence(
+        M6ChildOutputEvidenceRequest(
+            trace=resume_trace,
+            baseline=baseline_path,
+            output=tmp_path / "cached-child-outputs.json",
+        )
+    )
+
+    assert baseline.phase == "first"
+    assert baseline.task_count == 1
+    assert resumed.phase == "resume"
+    assert resumed.baseline_sha256 == sha256_file(baseline_path)
+    assert [item.relative_path for item in baseline.tasks[0].outputs] == [
+        "m6_catalogue_bundle.json",
+        "m6_catalogue_bundle/catalogue/sequence_groups.jsonl",
+        "m6_catalogue_bundle/catalogue/source_records.jsonl",
+    ]
+
+    if mutation == "missing":
+        source_records.unlink()
+    else:
+        source_records.write_text('{"source_record_id":"mutated"}\n', encoding="utf-8")
+
+    with pytest.raises(PublicControlError, match="missing or changed child outputs"):
+        collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(
+                trace=resume_trace,
+                baseline=baseline_path,
+                output=tmp_path / "rejected-child-outputs.json",
+            )
+        )
 
 
 @pytest.mark.parametrize(

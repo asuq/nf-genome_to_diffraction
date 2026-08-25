@@ -2,6 +2,11 @@ import hashlib
 import tempfile
 from pathlib import Path
 
+from genome_to_diffraction.benchmarks.m6_execution import (
+    M6ChildOutputEvidenceRequest,
+    collect_m6_child_output_evidence,
+)
+from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.ids import canonical_json_text
 from tests.scripts.check_nextflow import REPOSITORY, _environment, _read_trace, _run
@@ -70,12 +75,23 @@ def main() -> None:
         if {row["status"] for row in baseline.values()} != {"COMPLETED"}:
             raise RuntimeError("M6 mutation baseline was not 26 completed tasks")
         inventories = {tag: _inventory(row) for tag, row in baseline.items()}
+        child_baseline = output / "pipeline_info/m6-first-child-outputs.json"
+        collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(trace=trace, output=child_baseline)
+        )
         published = _published(output)
 
         _run([*command, "-resume"], environment=environment)
         resumed = _rows(trace)
         if {row["status"] for row in resumed.values()} != {"CACHED"}:
             raise RuntimeError("M6 baseline resume was not 26 cached tasks")
+        collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(
+                trace=trace,
+                baseline=child_baseline,
+                output=output / "pipeline_info/m6-resume-child-outputs.json",
+            )
+        )
 
         import_tag = f"m6-import:{'a' * 64}"
         child = "m6_catalogue_bundle/catalogue/source_records.jsonl"
@@ -97,6 +113,21 @@ def main() -> None:
             )
         ):
             raise RuntimeError("M6 missing-child HOLD evidence changed")
+        try:
+            collect_m6_child_output_evidence(
+                M6ChildOutputEvidenceRequest(
+                    trace=trace,
+                    baseline=child_baseline,
+                    output=output / "pipeline_info/rejected-child-outputs.json",
+                )
+            )
+        except PublicControlError as error:
+            if "missing or changed child outputs" not in str(error):
+                raise RuntimeError(
+                    "M6 missing-child refusal was misclassified"
+                ) from error
+        else:
+            raise RuntimeError("production M6 verifier accepted a missing cached child")
         child_path.write_bytes(child_bytes)
 
         protocol.write_bytes(protocol.read_bytes() + b"\n# cache-mutation-probe\n")

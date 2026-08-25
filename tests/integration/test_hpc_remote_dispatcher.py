@@ -1246,6 +1246,14 @@ def test_m6_scientific_submit_uses_approved_bounded_resources(
     assert '--execution-policy "$M6_EXECUTION_POLICY"' in m6_body
     assert '"execution_policy": "$M6_EXECUTION_POLICY_ID"' in m6_body
     assert "m6-child-resource-evidence.json" in m6_body
+    assert m6_body.count("benchmark collect-m6-child-outputs") == 2
+    assert "m6-first-child-outputs.json" in m6_body
+    assert "m6-resume-child-outputs.json" in m6_body
+    assert "first_child_output_sha256" in m6_body
+    assert "resume_child_output_sha256" in m6_body
+    dispatcher_body = dispatcher.read_text(encoding="utf-8")
+    assert "artifacts/qualification/m6-first-child-outputs.json" in dispatcher_body
+    assert "artifacts/qualification/m6-resume-child-outputs.json" in dispatcher_body
     assert "benchmark run-m6-scientific" not in m6_body
     assert "tool_runtime_timeouts" in m6_body
 

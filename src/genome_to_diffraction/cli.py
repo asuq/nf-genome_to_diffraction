@@ -49,7 +49,9 @@ from genome_to_diffraction.benchmarks.control_slice_run import (
     run_control_slice,
 )
 from genome_to_diffraction.benchmarks.m6_execution import (
+    M6ChildOutputEvidenceRequest,
     M6ResourceEvidenceRequest,
+    collect_m6_child_output_evidence,
     collect_m6_resource_evidence,
 )
 from genome_to_diffraction.benchmarks.m6_nextflow import (
@@ -970,6 +972,13 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_resources.add_argument("--execution-policy", type=Path, required=True)
     m6_resources.add_argument("--trace", type=Path, required=True)
     m6_resources.add_argument("--output", type=Path, required=True)
+    m6_child_outputs = benchmark_actions.add_parser(
+        "collect-m6-child-outputs",
+        help="verify complete first-pass or cached M6 child outputs",
+    )
+    m6_child_outputs.add_argument("--trace", type=Path, required=True)
+    m6_child_outputs.add_argument("--baseline", type=Path)
+    m6_child_outputs.add_argument("--output", type=Path, required=True)
     m6_evaluate_parser = benchmark_actions.add_parser(
         "evaluate-m6",
         help="evaluate collected M6 evidence against the frozen gates",
@@ -2450,6 +2459,19 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             )
         )
         print(f"Collected {result.child_job_count} M6 child jobs: {args.output}")
+        return 0
+    if args.benchmark_action == "collect-m6-child-outputs":
+        child_outputs = collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(
+                trace=args.trace,
+                baseline=args.baseline,
+                output=args.output,
+            )
+        )
+        print(
+            f"Verified {child_outputs.task_count} M6 {child_outputs.phase} "
+            f"child outputs: {args.output}"
+        )
         return 0
     if args.benchmark_action == "evaluate-m6":
         result = evaluate_m6(

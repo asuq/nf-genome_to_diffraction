@@ -12344,3 +12344,23 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - M6 resume requires every original scientific child output
+
+- A focused regression confirmed that ordinary Nextflow directory-cache hits
+  do not prove every nested scientific output still exists: removing one cached
+  catalogue `source_records.jsonl` left all 26 M6 tasks marked `CACHED`.
+- Scientific operational/leakage execution now records every first-pass task's
+  process, tag, cache hash, and canonical non-staged child-file checksums, then
+  independently compares the complete inventory after its standard resume.
+  Missing, changed, unexpected, or mismatched files fail before acceptance.
+- The reviewed collector retains both path-free inventories and their trace
+  digests. Truth-side collection independently checks first/resume checksums,
+  every cached task identity/output, and the complete Slurm/controller resource
+  inventory; historical non-v2 results remain readable without reinterpretation.
+- The real 26-task mutation stub now exercises the same production verifier;
+  96 focused M6/loader tests, five reviewed-wrapper checks, complete repository
+  type checking, Ruff, schema, documentation, and Bash syntax checks pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

@@ -38,7 +38,10 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
     M6FamilyModelEvidence,
     M6SoftwareProvenance,
 )
-from genome_to_diffraction.benchmarks.m6_execution import M6ResourceEvidence
+from genome_to_diffraction.benchmarks.m6_execution import (
+    M6ChildOutputEvidence,
+    M6ResourceEvidence,
+)
 from genome_to_diffraction.benchmarks.m6_identity import M6IdentityDecision
 from genome_to_diffraction.benchmarks.m6_nextflow import M6CaseEvidence
 from genome_to_diffraction.benchmarks.m6_protocol import (
@@ -316,6 +319,66 @@ def _state_text(root: Path, name: str) -> str:
     return value
 
 
+def _verify_child_output_evidence(
+    qualification: Path,
+    track: M6ScientificTrack,
+    resources: M6ResourceEvidence,
+    resume_cache: dict[str, object],
+) -> None:
+    """Require the same complete checksum-bound outputs after cached resume."""
+
+    baseline_path = qualification / "m6-first-child-outputs.json"
+    resumed_path = qualification / "m6-resume-child-outputs.json"
+    try:
+        baseline = M6ChildOutputEvidence.model_validate(
+            _json_object(baseline_path, "first-pass child output evidence")
+        )
+        resumed = M6ChildOutputEvidence.model_validate(
+            _json_object(resumed_path, "cached child output evidence")
+        )
+        first_trace_sha256 = sha256_file(
+            qualification / "m6-first-pipeline-info/trace.tsv"
+        )
+        resume_trace_sha256 = sha256_file(
+            qualification / "m6-resume-pipeline-info/trace.tsv"
+        )
+    except (OSError, ValidationError) as error:
+        raise PublicControlError(
+            f"collected M6 {track} child output evidence is invalid"
+        ) from error
+
+    expected_tasks = tuple(
+        sorted(
+            (job.process, job.tag)
+            for job in (*resources.jobs, *resources.controller_stages)
+            if job.tag is not None
+        )
+    )
+    observed_tasks = tuple((task.process, task.tag) for task in baseline.tasks)
+    if (
+        baseline.phase != "first"
+        or resumed.phase != "resume"
+        or baseline.trace_sha256 != first_trace_sha256
+        or resumed.trace_sha256 != resume_trace_sha256
+        or resumed.baseline_sha256 != sha256_file(baseline_path)
+        or resume_cache.get("first_child_output_sha256") != sha256_file(baseline_path)
+        or resume_cache.get("resume_child_output_sha256") != sha256_file(resumed_path)
+        or baseline.task_count != resume_cache.get("first_task_count")
+        or resumed.task_count != resume_cache.get("cached_resume_task_count")
+        or observed_tasks != expected_tasks
+        or any(
+            first.process != cached.process
+            or first.tag != cached.tag
+            or first.task_hash != cached.task_hash
+            or first.outputs != cached.outputs
+            for first, cached in zip(baseline.tasks, resumed.tasks, strict=False)
+        )
+    ):
+        raise PublicControlError(
+            f"collected M6 {track} cached child output evidence changed"
+        )
+
+
 def _load_track(
     root: Path,
     track: M6ScientificTrack,
@@ -422,6 +485,10 @@ def _load_track(
             qualification / "m6-resume-cache-evidence.json",
             "resume-cache evidence",
         )
+        if summary.get("adapter_version") == "m6-nextflow-run-v2":
+            _verify_child_output_evidence(
+                qualification, track, resource_evidence, resume_cache
+            )
         if (
             runtime.get("maximum_cpu_count") != 32
             or runtime.get("maximum_memory_gb") != 16.0
