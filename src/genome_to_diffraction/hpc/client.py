@@ -93,6 +93,20 @@ _QUEUED_STATES = frozenset(
 _RUNNING_STATES = frozenset(
     {"COMPLETING", "RESIZING", "RUNNING", "STOPPED", "SUSPENDED"}
 )
+_RUN_SCOPED_REMOTE_OPERATIONS = frozenset(
+    {
+        "cancel",
+        "clean",
+        "database-archive-failed",
+        "database-stage",
+        "database-submit",
+        "logs",
+        "m4-copy-stage",
+        "stage",
+        "status",
+        "submit",
+    }
+)
 _REMOTE_TOOL_PATHS = (
     PurePosixPath("bootstrap/nf-gtd-hpc-remote"),
     PurePosixPath("bootstrap/nf-gtd-hpc-smoke-job"),
@@ -751,6 +765,24 @@ class SshTransport:
         if not fields:
             raise RemoteOperationError(
                 f"remote {operation} returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        reported_operation = "stage" if operation == "database-stage" else operation
+        if fields.get("operation") != reported_operation:
+            raise RemoteOperationError(
+                f"remote {operation} returned an inconsistent operation identity",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if operation in _RUN_SCOPED_REMOTE_OPERATIONS and (
+            not arguments or fields.get("run_id") != arguments[0]
+        ):
+            raise RemoteOperationError(
+                f"remote {operation} returned an inconsistent owned run identity",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if "site_id" in fields and fields["site_id"] != self._config.site_id:
+            raise RemoteOperationError(
+                f"remote {operation} returned an inconsistent site identity",
                 failure_class=FailureClass.TRANSFER_FAILURE,
             )
         return fields
@@ -2673,9 +2705,21 @@ def _decode_remote_fields(payload: bytes) -> dict[str, str]:
             key = raw_key.decode("ascii")
             value = base64.b64decode(encoded, validate=True).decode("utf-8")
         except ValueError, UnicodeDecodeError:
-            continue
-        if key.replace("_", "").isalnum():
-            fields[key] = value
+            raise RemoteOperationError(
+                "remote dispatcher returned a malformed protocol field",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from None
+        if re.fullmatch(r"[a-z][a-z0-9_]*", key) is None:
+            raise RemoteOperationError(
+                "remote dispatcher returned an unsupported protocol field",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if key in fields:
+            raise RemoteOperationError(
+                "remote dispatcher returned a duplicate protocol field",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        fields[key] = value
     return fields
 
 

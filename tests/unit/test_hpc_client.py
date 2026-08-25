@@ -880,6 +880,105 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
     )
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "malformed-line",
+        "invalid-key",
+        "invalid-base64",
+        "invalid-utf8",
+        "duplicate-key",
+        "missing-operation",
+        "different-operation",
+        "missing-run",
+        "different-run",
+        "different-site",
+    ),
+)
+def test_ssh_transport_rejects_unauthenticated_remote_protocol_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    owned_run = "gtd-heteromer-smoke-20260825T164430Z-26e69b95d57d-451bc765"
+
+    def field(key: str, value: str) -> bytes:
+        return key.encode("ascii") + b"\t" + base64.b64encode(value.encode("utf-8"))
+
+    records = [field("operation", "status"), field("run_id", owned_run)]
+    if mutation == "malformed-line":
+        records.append(b"unexpected-unframed-output")
+    elif mutation == "invalid-key":
+        records.append(field("not-a-field", "value"))
+    elif mutation == "invalid-base64":
+        records.append(b"profile\tnot-base64")
+    elif mutation == "invalid-utf8":
+        records.append(b"profile\t" + base64.b64encode(b"\xff"))
+    elif mutation == "duplicate-key":
+        records.append(field("run_id", owned_run))
+    elif mutation == "missing-operation":
+        records.pop(0)
+    elif mutation == "different-operation":
+        records[0] = field("operation", "logs")
+    elif mutation == "missing-run":
+        records.pop(1)
+    elif mutation == "different-run":
+        records[1] = field("run_id", "gtd-other-owned-run")
+    elif mutation == "different-site":
+        records.append(field("site_id", "viper-cpu"))
+    payload = b"\n".join(records) + b"\n"
+
+    def respond(
+        command: Sequence[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(command, 0, stdout=payload, stderr=b"")
+
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.subprocess.run", respond)
+
+    with pytest.raises(RemoteOperationError, match="remote") as error:
+        SshTransport(_config(tmp_path)).run("status", [owned_run, "owner"])
+
+    assert error.value.failure_class is FailureClass.TRANSFER_FAILURE
+
+
+@pytest.mark.parametrize(
+    ("operation", "reported_operation", "site_id"),
+    (
+        ("status", "status", None),
+        ("database-stage", "stage", "marmic"),
+    ),
+)
+def test_ssh_transport_accepts_current_owned_dispatcher_protocol(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    reported_operation: str,
+    site_id: str | None,
+) -> None:
+    owned_run = "gtd-heteromer-smoke-20260825T164430Z-26e69b95d57d-451bc765"
+    records = {
+        "operation": reported_operation,
+        "run_id": owned_run,
+    }
+    if site_id is not None:
+        records["site_id"] = site_id
+    payload = b"".join(
+        key.encode("ascii") + b"\t" + base64.b64encode(value.encode("utf-8")) + b"\n"
+        for key, value in records.items()
+    )
+
+    def respond(
+        command: Sequence[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(command, 0, stdout=payload, stderr=b"")
+
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.subprocess.run", respond)
+
+    assert SshTransport(_config(tmp_path)).run(operation, [owned_run, "owner"]) == (
+        records
+    )
+
+
 def test_deploy_tools_sends_only_commit_and_verified_checksums(tmp_path: Path) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)

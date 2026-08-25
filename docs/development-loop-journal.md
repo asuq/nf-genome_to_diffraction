@@ -13031,3 +13031,21 @@ with a collapsed combined parent or a guessed command.
 - Two red/green missing/shared-parent cases, both owned Nextflow integrations,
   and all 45 focused review/decision cases pass. Known-control Slurm `634369`
   and its deployed dispatcher remain untouched.
+
+## 2026-08-25 - Remote responses reject forged and ambiguous framing
+
+- `FCB-P1-10` reproduced ten false accepted remote responses containing
+  malformed lines, unsupported keys, invalid base64/UTF-8, duplicate fields,
+  omitted or cross-operation identity, absent or cross-run ownership, and an
+  explicitly different HPC site.
+- The local transport now rejects any undecodable, noncanonical, or duplicate
+  field and authenticates exact operation and owned-run identity before using
+  a successful response. A present site must match the configured site.
+- Genuine status responses from the currently deployed dispatcher and its
+  explicit database-stage/stage protocol alias remain supported, as do two
+  real dispatcher status/log integrations. All ten negative cases and the
+  complete 89-case owned-run client suite pass.
+- This finding deliberately remains partial: the installed dispatcher does
+  not emit site identity on status/log responses, so mandatory site emission
+  must be deployed only after active known-control Slurm `634369` reaches a
+  terminal state and its retained evidence has been collected/classified.
