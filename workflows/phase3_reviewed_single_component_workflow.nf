@@ -5,6 +5,7 @@ include {
 } from '../modules/local/stage_live_t12'
 include {
     BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT;
+    BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE;
     BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE
 } from '../modules/local/build_live_sequence_checkpoint'
 include {
@@ -114,6 +115,7 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
         }
     checkpoints = BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT(checkpoint_inputs)
     owned_sequence_reviews = channel.empty()
+    owned_composition_reviews = channel.empty()
     if (owned_sequence_parent_run_id != null) {
         if (
             execution_identity == null ||
@@ -133,6 +135,9 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
         owned_sequence_reviews = BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE(
             sequence_review_inputs
         )
+        owned_composition_reviews = BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE(
+            sequence_review_inputs
+        )
     }
 
     emit:
@@ -142,4 +147,5 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
     refinement: Tuple = refinements
     sequence_checkpoint: Tuple = checkpoints
     owned_sequence_review: Tuple = owned_sequence_reviews
+    owned_composition_review: Tuple = owned_composition_reviews
 }

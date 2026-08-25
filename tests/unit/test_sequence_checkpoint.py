@@ -9,6 +9,7 @@ from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.ids import sequence_digest
 from genome_to_diffraction.review.phase3_package import (
     PhaseIIIReviewPackageError,
+    build_owned_phase3_composition_review_package,
     build_owned_phase3_sequence_review_package,
     validate_phase3_review_package,
 )
@@ -721,6 +722,76 @@ def test_owned_phase3_sequence_package_retains_full_catalogue_and_coot_assets(
         "sequence_groups.jsonl" in item.relative_path
         for item in manifest.evidence_inventory
     )
+
+
+def test_owned_phase3_composition_package_targets_exact_refined_states(
+    tmp_path: Path,
+) -> None:
+    request = _phase3_live_request(tmp_path)
+    checkpoint = build_live_sequence_checkpoint(request)
+    execution_identity = _phase3_sequence_execution(tmp_path, request)
+
+    package = build_owned_phase3_composition_review_package(
+        sequence_checkpoint=checkpoint.manifest_json.parent,
+        execution_identity=execution_identity,
+        owned_parent_run_id="gtd-unknown-single-component-public-fixture",
+        crystal_id=str(request.crystal_id),
+        output_directory=tmp_path / "owned-composition-package",
+    )
+
+    manifest = validate_phase3_review_package(package.manifest.parent)
+    checkpoint_document = json.loads(
+        checkpoint.manifest_json.read_text(encoding="utf-8")
+    )
+    assert manifest.checkpoint is PhaseIIIReviewCheckpoint.COMPOSITION
+    assert manifest.parent_profile == "unknown-single-component"
+    assert manifest.crystal_id == request.crystal_id
+    assert {item.item_id for item in manifest.permitted_targets} == {
+        str(item["seed_solution_id"])
+        for item in checkpoint_document["candidate_outcomes"]
+    }
+    assert "approve|defer|reject|retain_partial" in package.review_table.read_text(
+        encoding="ascii"
+    )
+    assert any(
+        "brief_refinement_result.json" in item.relative_path
+        for item in manifest.evidence_inventory
+    )
+
+
+@pytest.mark.parametrize("mutation", ["parent", "outcome", "refinement", "all_failed"])
+def test_owned_phase3_composition_package_rejects_unsupported_states(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    request = _phase3_live_request(tmp_path)
+    checkpoint = build_live_sequence_checkpoint(request)
+    execution_identity = _phase3_sequence_execution(tmp_path, request)
+    root = checkpoint.manifest_json.parent
+    parent = "gtd-unknown-single-component-public-fixture"
+    if mutation == "parent":
+        parent = "gtd-unknown-screen-public-fixture"
+    elif mutation == "refinement":
+        next((root / "evidence").rglob("brief_refinement_result.json")).write_text(
+            "{}\n", encoding="ascii"
+        )
+    else:
+        manifest = json.loads(checkpoint.manifest_json.read_text(encoding="utf-8"))
+        if mutation == "outcome":
+            manifest["candidate_outcomes"][0]["seed_solution_id"] = "sol_unknown"
+        else:
+            for outcome in manifest["candidate_outcomes"]:
+                outcome["refinement_execution_status"] = "failed_tool_execution"
+        checkpoint.manifest_json.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(PhaseIIIReviewPackageError):
+        build_owned_phase3_composition_review_package(
+            sequence_checkpoint=root,
+            execution_identity=execution_identity,
+            owned_parent_run_id=parent,
+            crystal_id=str(request.crystal_id),
+            output_directory=tmp_path / "owned-composition-package",
+        )
 
 
 @pytest.mark.parametrize("mutation", ["parent", "mtz", "table", "asset", "extra"])

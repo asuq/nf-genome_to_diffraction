@@ -1658,6 +1658,7 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         "STAGE_PHASE3_CRYSTAL_T12": 2,
         "RUN_PHASE3_BRIEF_REFINEMENT": 2,
         "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT": 2,
+        "BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE": 2,
         "BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE": 2,
     }
     assert {row["status"] for row in first} == {"COMPLETED"}
@@ -1690,11 +1691,22 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         assert owned_review.owned_parent_run_id == single_component_run
         assert owned_review.parent_profile == "unknown-single-component"
         assert len(owned_review.permitted_targets) == 1
+        composition_review = validate_phase3_review_package(
+            output / f"phase3_owned_composition_review_{crystal_id}"
+        )
+        assert composition_review.checkpoint is PhaseIIIReviewCheckpoint.COMPOSITION
+        assert composition_review.crystal_id == crystal_id
+        assert composition_review.owned_parent_run_id == single_component_run
+        assert composition_review.parent_profile == "unknown-single-component"
+        assert len(composition_review.permitted_targets) == 1
     assert not (
         output / f"phase3_sequence_checkpoint_{PUBLIC_STUB_CRYSTAL_IDS[2]}"
     ).exists()
     assert not (
         output / f"phase3_owned_sequence_review_{PUBLIC_STUB_CRYSTAL_IDS[2]}"
+    ).exists()
+    assert not (
+        output / f"phase3_owned_composition_review_{PUBLIC_STUB_CRYSTAL_IDS[2]}"
     ).exists()
     cached = run(resume=True)
     assert {row["status"] for row in cached} == {"CACHED"}
@@ -1740,6 +1752,7 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 1,
         "STAGE_PHASE3_CRYSTAL_T12": 1,
         "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT": 1,
+        "BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE": 1,
         "BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE": 1,
     }
     assert all(crystal_id in row["tag"] for row in rerun)

@@ -9,6 +9,7 @@ from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.cli import main
 from genome_to_diffraction.execution import (
     UnknownPass1ScreenError,
+    stage_unknown_pass1_composition_decisions,
     stage_unknown_pass1_selected_a_seeds,
     stage_unknown_pass1_sequence_decisions,
 )
@@ -304,6 +305,7 @@ def _register_sequence(
     run_id: str = SEQUENCE_RUN_ID,
     profile: str = "unknown-single-component",
     phase: str = PHASE,
+    checkpoint: PhaseIIIReviewCheckpoint = PhaseIIIReviewCheckpoint.SEQUENCE,
 ) -> Path:
     execution_path, identity = _write_execution_identity(tmp_path)
     package = _build_package(
@@ -311,7 +313,7 @@ def _register_sequence(
         name="owned-sequence-review",
         identity=identity,
         crystal_id=CRYSTAL_A,
-        checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        checkpoint=checkpoint,
         run_id=run_id,
         profile=profile,
         phase=phase,
@@ -325,7 +327,7 @@ def _register_sequence(
         packages=(
             OwnedPhaseIIIReviewPackageSource(
                 crystal_id=CRYSTAL_A,
-                checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+                checkpoint=checkpoint,
                 package_directory=package,
             ),
         ),
@@ -730,6 +732,99 @@ def test_cli_stages_owned_sequence_decisions_without_package_or_crystal_selector
             "--no-progress",
             "review",
             "stage-owned-sequences",
+            "--owned-run-registry",
+            str(registry),
+            "--parent-run",
+            SEQUENCE_RUN_ID,
+            "--decisions",
+            str(decisions),
+            "--confirm-decisions-sha256",
+            checksum,
+            "--outdir",
+            str(destination),
+        ]
+    )
+
+    assert exit_code == 0
+    assert (destination / "phase3_review_stage_manifest.json").is_file()
+
+
+@pytest.mark.parametrize("decision", ("approve", "retain_partial", "reject", "defer"))
+def test_stages_composition_decisions_only_through_owned_refined_states(
+    tmp_path: Path,
+    decision: str,
+) -> None:
+    registry = _register_sequence(
+        tmp_path,
+        checkpoint=PhaseIIIReviewCheckpoint.COMPOSITION,
+    )
+    decisions, checksum = _a_seed_tsv(
+        tmp_path,
+        registry,
+        checkpoint=PhaseIIIReviewCheckpoint.COMPOSITION,
+        owned_run_id=SEQUENCE_RUN_ID,
+        rows=((CRYSTAL_A, f"{CRYSTAL_A}_target", decision),),
+    )
+
+    output = stage_unknown_pass1_composition_decisions(
+        owned_run_registry=registry,
+        owned_run_id=SEQUENCE_RUN_ID,
+        decisions=decisions,
+        confirmed_decisions_sha256=checksum,
+        output_directory=tmp_path / "reviewed-composition",
+    )
+
+    staged = PhaseIIIReviewDecisionFile.model_validate_json(
+        output.canonical_decision.read_bytes()
+    )
+    assert staged.checkpoint is PhaseIIIReviewCheckpoint.COMPOSITION
+    assert staged.decisions[0].decision is PhaseIIIReviewDecisionValue(decision)
+
+
+def test_composition_staging_rejects_sequence_package_and_decisions(
+    tmp_path: Path,
+) -> None:
+    registry = _register_sequence(tmp_path)
+    decisions, checksum = _a_seed_tsv(
+        tmp_path,
+        registry,
+        checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        owned_run_id=SEQUENCE_RUN_ID,
+    )
+    destination = tmp_path / "must-not-promote-sequence"
+
+    with pytest.raises(UnknownPass1ScreenError, match="composition review"):
+        stage_unknown_pass1_composition_decisions(
+            owned_run_registry=registry,
+            owned_run_id=SEQUENCE_RUN_ID,
+            decisions=decisions,
+            confirmed_decisions_sha256=checksum,
+            output_directory=destination,
+        )
+
+    assert not destination.exists()
+
+
+def test_cli_stages_owned_composition_decisions_without_target_selector(
+    tmp_path: Path,
+) -> None:
+    registry = _register_sequence(
+        tmp_path,
+        checkpoint=PhaseIIIReviewCheckpoint.COMPOSITION,
+    )
+    decisions, checksum = _a_seed_tsv(
+        tmp_path,
+        registry,
+        checkpoint=PhaseIIIReviewCheckpoint.COMPOSITION,
+        owned_run_id=SEQUENCE_RUN_ID,
+    )
+    destination = tmp_path / "cli-composition-stage"
+
+    exit_code = main(
+        [
+            "--no-progress",
+            "review",
+            "stage-owned-compositions",
             "--owned-run-registry",
             str(registry),
             "--parent-run",

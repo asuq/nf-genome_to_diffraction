@@ -108,6 +108,8 @@ process BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT {
         '${outputName}/provenance/sequence_groups.jsonl'
     cp '${item[1]}/inputs/source_records.jsonl' \
         '${outputName}/provenance/source_records.jsonl'
+    cp '${item[1]}/finalists.tsv' \
+        '${outputName}/provenance/finalists.tsv'
     printf '%s\\n' 'seed_solution_id\\tsequence_group_id\\traw_score' \
         > '${outputName}/sequence_candidates_full.tsv'
     cp '${outputName}/sequence_candidates_full.tsv' \
@@ -164,6 +166,53 @@ process BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE {
         --execution-identity '${item[2]}' \
         --owned-parent-run '${item[3]}' \
         --crystal-id '${item[0]}' \
+        --outdir '${outputName}'
+    """
+}
+
+
+// Composition identity claims remain impossible until each packed/refined A
+// state receives an independent, explicitly human-owned composition review.
+process BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE {
+    tag "phase3-owned-composition-review:${item[0]}"
+    label 'process_low'
+    cache 'deep'
+    publishDir params.outdir, mode: 'copy', overwrite: true
+    stageInMode 'copy'
+
+    input:
+    item: Tuple
+
+    output:
+    owned_review: Tuple = tuple(
+        item[0],
+        file("phase3_owned_composition_review_${item[0]}")
+    )
+
+    script:
+    def outputName = "phase3_owned_composition_review_${item[0]}"
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        review build-owned-composition-package \
+        --sequence-checkpoint '${item[1]}' \
+        --execution-identity '${item[2]}' \
+        --owned-parent-run '${item[3]}' \
+        --crystal-id '${item[0]}' \
+        --outdir '${outputName}'
+    """
+
+    stub:
+    def outputName = "phase3_owned_composition_review_${item[0]}"
+    """
+    python \
+        '${projectDir}/tests/scripts/build_phase3_owned_sequence_stub.py' \
+        --sequence-checkpoint '${item[1]}' \
+        --execution-identity '${item[2]}' \
+        --owned-parent-run '${item[3]}' \
+        --crystal-id '${item[0]}' \
+        --checkpoint composition \
         --outdir '${outputName}'
     """
 }

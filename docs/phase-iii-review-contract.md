@@ -177,6 +177,16 @@ fail before publication. The fixed local CLI is
 `review stage-owned-sequences`; it exposes neither a crystal selector nor an
 arbitrary package path and does not itself promote a scientific claim.
 
+The same single-component run also publishes a separate `composition` package
+from each checksum-verified sequence checkpoint. Its targets are the exact
+one-to-three successfully refined seed/composition states, not sequence-group
+identities or failed finalists. The complete crystal-bound checkpoint,
+coordinates, maps, final refinement results, commands, and retained failed
+evidence remain independently checksum-covered. The fixed
+`review stage-owned-compositions` handoff resolves only that owned package and
+preserves the explicit `approve`, `retain_partial`, `reject`, and `defer`
+outcomes. A sequence decision cannot substitute for composition approval.
+
 The production same-component stage accepts these decisions through explicit
 `--phase3-review-stage` and `--phase3-review-package-manifest` options. It first
 revalidates the stage's exact two-file allow-list, canonical decision checksum,

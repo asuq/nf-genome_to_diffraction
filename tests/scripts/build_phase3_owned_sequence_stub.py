@@ -1,6 +1,7 @@
 """Build one explicitly synthetic owned sequence package for Nextflow stubs."""
 
 import argparse
+import csv
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +25,9 @@ def main() -> None:
     parser.add_argument("--execution-identity", type=Path, required=True)
     parser.add_argument("--owned-parent-run", required=True)
     parser.add_argument("--crystal-id", required=True)
+    parser.add_argument(
+        "--checkpoint", choices=("sequence", "composition"), default="sequence"
+    )
     parser.add_argument("--outdir", type=Path, required=True)
     args = parser.parse_args()
     identity = PhaseIIIExecutionIdentity.model_validate_json(
@@ -31,16 +35,26 @@ def main() -> None:
     )
     catalogue = args.sequence_checkpoint / "provenance/sequence_groups.jsonl"
     group = json.loads(catalogue.read_text(encoding="utf-8").splitlines()[0])
+    checkpoint = PhaseIIIReviewCheckpoint(args.checkpoint)
+    if checkpoint is PhaseIIIReviewCheckpoint.COMPOSITION:
+        finalists = args.sequence_checkpoint / "provenance/finalists.tsv"
+        with finalists.open(encoding="ascii", newline="") as stream:
+            target_item_ids = tuple(
+                row["seed_solution_id"]
+                for row in csv.DictReader(stream, delimiter="\t")
+            )
+    else:
+        target_item_ids = (str(group["sequence_group_id"]),)
     args.outdir.mkdir()
     build_phase3_review_package(
         PhaseIIIReviewPackageRequest(
-            checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+            checkpoint=checkpoint,
             owned_parent_run_id=args.owned_parent_run,
             parent_profile="unknown-single-component",
             parent_phase="phase3-pass1",
             execution_identity_id=identity.execution_identity_id,
             crystal_id=args.crystal_id,
-            target_item_ids=(str(group["sequence_group_id"]),),
+            target_item_ids=target_item_ids,
             created_at=datetime.now(UTC),
             input_root=args.sequence_checkpoint,
             evidence_sources=(

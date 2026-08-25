@@ -461,7 +461,11 @@ def _stage_unknown_pass1_owned_decisions(
     expected_run_prefix: str | None = None,
     progress: bool = False,
 ) -> PhaseIIIReviewStageOutput:
-    label = "A-seed" if checkpoint is PhaseIIIReviewCheckpoint.A_SEED else "sequence"
+    label = {
+        PhaseIIIReviewCheckpoint.A_SEED: "A-seed",
+        PhaseIIIReviewCheckpoint.COMPOSITION: "composition",
+        PhaseIIIReviewCheckpoint.SEQUENCE: "sequence",
+    }[checkpoint]
 
     decision_path = _regular_file(decisions, label=f"{label} decision file")
     if decision_path.suffix != ".tsv":
@@ -579,6 +583,30 @@ def stage_unknown_pass1_sequence_decisions(
         confirmed_decisions_sha256=confirmed_decisions_sha256,
         output_directory=output_directory,
         checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        expected_profile="unknown-single-component",
+        expected_run_prefix="gtd-unknown-single-component-",
+        progress=progress,
+    )
+
+
+def stage_unknown_pass1_composition_decisions(
+    *,
+    owned_run_registry: Path,
+    owned_run_id: str,
+    decisions: Path,
+    confirmed_decisions_sha256: str,
+    output_directory: Path,
+    progress: bool = False,
+) -> PhaseIIIReviewStageOutput:
+    """Stage one composition decision TSV from its owned single-component run."""
+
+    return _stage_unknown_pass1_owned_decisions(
+        owned_run_registry=owned_run_registry,
+        owned_run_id=owned_run_id,
+        decisions=decisions,
+        confirmed_decisions_sha256=confirmed_decisions_sha256,
+        output_directory=output_directory,
+        checkpoint=PhaseIIIReviewCheckpoint.COMPOSITION,
         expected_profile="unknown-single-component",
         expected_run_prefix="gtd-unknown-single-component-",
         progress=progress,
@@ -1006,6 +1034,7 @@ __all__ = [
     "build_unknown_pass1_screen_inventory",
     "load_unknown_pass1_screen_inventory",
     "publish_unknown_pass1_crystallographic_review_routes",
+    "stage_unknown_pass1_composition_decisions",
     "stage_unknown_pass1_crystallographic_reviews",
     "stage_unknown_pass1_selected_a_seeds",
     "stage_unknown_pass1_sequence_decisions",

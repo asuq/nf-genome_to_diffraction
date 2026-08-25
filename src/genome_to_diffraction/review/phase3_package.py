@@ -51,6 +51,7 @@ from genome_to_diffraction.review.mr_seed import (
     validate_mr_seed_review_evidence,
 )
 from genome_to_diffraction.schemas.io import ContractError, load_json_document
+from genome_to_diffraction.schemas.results import BriefRefinementResult
 from genome_to_diffraction.schemas.v2 import (
     PhaseIIIExecutionIdentity,
     PhaseIIIReviewCheckpoint,
@@ -63,7 +64,7 @@ from genome_to_diffraction.schemas.v2.review import (
     phase3_review_package_content_sha256,
     validate_phase3_review_relative_path,
 )
-from genome_to_diffraction.status import InputContractError
+from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LEGACY_CHECKPOINTS = frozenset(
     {
@@ -642,15 +643,20 @@ def build_owned_phase3_a_seed_review_package(
     )
 
 
-def build_owned_phase3_sequence_review_package(
+def _build_owned_phase3_finalist_review_package(
     *,
     sequence_checkpoint: Path,
     execution_identity: Path,
     owned_parent_run_id: str,
     crystal_id: str,
     output_directory: Path,
+    checkpoint: PhaseIIIReviewCheckpoint,
 ) -> PhaseIIIReviewPackageOutput:
-    """Publish complete crystal-bound sequence/map evidence for human review."""
+    label = (
+        "composition"
+        if checkpoint is PhaseIIIReviewCheckpoint.COMPOSITION
+        else "sequence"
+    )
 
     try:
         identity = PhaseIIIExecutionIdentity.model_validate_json(
@@ -739,22 +745,86 @@ def build_owned_phase3_sequence_review_package(
                 "sequence checkpoint file inventory is incomplete or unexpected"
             )
 
-        approvals = _source_file(root, "sequence_approval_candidates.tsv")
-        with approvals.open(encoding="utf-8", newline="") as stream:
-            reader = csv.DictReader(stream, delimiter="\t")
-            if not reader.fieldnames or "sequence_group_id" not in reader.fieldnames:
+        if checkpoint is PhaseIIIReviewCheckpoint.SEQUENCE:
+            approvals = _source_file(root, "sequence_approval_candidates.tsv")
+            with approvals.open(encoding="utf-8", newline="") as stream:
+                reader = csv.DictReader(stream, delimiter="\t")
+                if (
+                    not reader.fieldnames
+                    or "sequence_group_id" not in reader.fieldnames
+                ):
+                    raise PhaseIIIReviewPackageError(
+                        "sequence approval table lacks catalogue sequence identities"
+                    )
+                targets = tuple(str(row["sequence_group_id"]) for row in reader)
+            if (
+                not targets
+                or len(targets) != len(set(targets))
+                or manifest.get("approval_candidate_count") != len(targets)
+            ):
                 raise PhaseIIIReviewPackageError(
-                    "sequence approval table lacks catalogue sequence identities"
+                    "sequence review targets are missing, duplicated, or incomplete"
                 )
-            targets = tuple(str(row["sequence_group_id"]) for row in reader)
-        if (
-            not targets
-            or len(targets) != len(set(targets))
-            or manifest.get("approval_candidate_count") != len(targets)
-        ):
-            raise PhaseIIIReviewPackageError(
-                "sequence review targets are missing, duplicated, or incomplete"
-            )
+        else:
+            outcomes = manifest.get("candidate_outcomes")
+            results = checkpoint_identity.get("candidate_results")
+            if (
+                not isinstance(outcomes, list)
+                or not isinstance(results, dict)
+                or len(outcomes) != len(results)
+                or manifest.get("finalist_count") != len(results)
+            ):
+                raise PhaseIIIReviewPackageError(
+                    "composition review finalist inventory is incomplete"
+                )
+            successful: list[str] = []
+            seen: set[str] = set()
+            for outcome in outcomes:
+                if not isinstance(outcome, dict):
+                    raise PhaseIIIReviewPackageError(
+                        "composition review finalist outcome is invalid"
+                    )
+                seed = outcome.get("seed_solution_id")
+                record = results.get(seed) if isinstance(seed, str) else None
+                if (
+                    not isinstance(seed, str)
+                    or seed in seen
+                    or not isinstance(record, dict)
+                ):
+                    raise PhaseIIIReviewPackageError(
+                        "composition review finalist identity is missing or duplicated"
+                    )
+                seen.add(seed)
+                refinement_path = _source_file(
+                    root,
+                    f"evidence/{seed}/brief_refinement_result.json",
+                )
+                refinement = BriefRefinementResult.model_validate_json(
+                    refinement_path.read_bytes()
+                )
+                if (
+                    outcome.get("retained") is not True
+                    or refinement.seed_solution_id != seed
+                    or refinement.refinement_id != record.get("refinement_id")
+                    or refinement.refinement_id != outcome.get("refinement_id")
+                    or refinement.execution_status.value
+                    != record.get("refinement_execution_status")
+                    or refinement.execution_status.value
+                    != outcome.get("refinement_execution_status")
+                ):
+                    raise PhaseIIIReviewPackageError(
+                        "composition review finalist differs from retained refinement"
+                    )
+                if refinement.execution_status in {
+                    ExecutionStatus.COMPLETED_SUCCESS,
+                    ExecutionStatus.COMPLETED_WARNING,
+                }:
+                    successful.append(seed)
+            targets = tuple(sorted(successful))
+            if not targets or len(targets) > 3:
+                raise PhaseIIIReviewPackageError(
+                    "composition review requires one to three refined finalist states"
+                )
         decisions = _source_file(root, "approved_sequence_groups.tsv")
         with decisions.open(encoding="utf-8", newline="") as stream:
             if tuple(csv.DictReader(stream, delimiter="\t")):
@@ -765,18 +835,18 @@ def build_owned_phase3_sequence_review_package(
         raise
     except (ContractError, OSError, ValidationError, ValueError) as error:
         raise PhaseIIIReviewPackageError(
-            f"owned sequence review evidence is inconsistent: {error}"
+            f"owned {label} review evidence is inconsistent: {error}"
         ) from error
 
     try:
         output_directory.mkdir(parents=True, exist_ok=False)
     except OSError as error:
         raise PhaseIIIReviewPackageError(
-            "owned sequence review output must be a new directory"
+            f"owned {label} review output must be a new directory"
         ) from error
     return build_phase3_review_package(
         PhaseIIIReviewPackageRequest(
-            checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+            checkpoint=checkpoint,
             owned_parent_run_id=owned_parent_run_id,
             parent_profile="unknown-single-component",
             parent_phase="phase3-pass1",
@@ -787,7 +857,7 @@ def build_owned_phase3_sequence_review_package(
             input_root=root,
             evidence_sources=tuple(
                 PhaseIIIReviewEvidenceSource(
-                    role=f"sequence_evidence_{index:04d}",
+                    role=f"{label}_evidence_{index:04d}",
                     relative_path=relative,
                 )
                 for index, relative in enumerate(sorted(expected_files))
@@ -797,12 +867,53 @@ def build_owned_phase3_sequence_review_package(
     )
 
 
+def build_owned_phase3_sequence_review_package(
+    *,
+    sequence_checkpoint: Path,
+    execution_identity: Path,
+    owned_parent_run_id: str,
+    crystal_id: str,
+    output_directory: Path,
+) -> PhaseIIIReviewPackageOutput:
+    """Publish complete crystal-bound sequence/map evidence for human review."""
+
+    return _build_owned_phase3_finalist_review_package(
+        sequence_checkpoint=sequence_checkpoint,
+        execution_identity=execution_identity,
+        owned_parent_run_id=owned_parent_run_id,
+        crystal_id=crystal_id,
+        output_directory=output_directory,
+        checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+    )
+
+
+def build_owned_phase3_composition_review_package(
+    *,
+    sequence_checkpoint: Path,
+    execution_identity: Path,
+    owned_parent_run_id: str,
+    crystal_id: str,
+    output_directory: Path,
+) -> PhaseIIIReviewPackageOutput:
+    """Publish one review target per independently refined composition state."""
+
+    return _build_owned_phase3_finalist_review_package(
+        sequence_checkpoint=sequence_checkpoint,
+        execution_identity=execution_identity,
+        owned_parent_run_id=owned_parent_run_id,
+        crystal_id=crystal_id,
+        output_directory=output_directory,
+        checkpoint=PhaseIIIReviewCheckpoint.COMPOSITION,
+    )
+
+
 __all__ = [
     "PhaseIIIReviewEvidenceSource",
     "PhaseIIIReviewPackageError",
     "PhaseIIIReviewPackageOutput",
     "PhaseIIIReviewPackageRequest",
     "build_owned_phase3_a_seed_review_package",
+    "build_owned_phase3_composition_review_package",
     "build_owned_phase3_sequence_review_package",
     "build_phase3_review_package",
     "validate_phase3_review_package",

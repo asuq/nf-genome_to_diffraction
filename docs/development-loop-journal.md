@@ -12747,3 +12747,28 @@ with a collapsed combined parent or a guessed command.
   profiles and actual supervised unknown runs remain pending. Preserve the
   independent 30-minute monitor for Slurm job `634097` and classify it before
   new scientific HPC operations.
+
+## 2026-08-25 - Refined composition states receive independent human review
+
+- Sequence review alone cannot establish that a refined crystal composition is
+  complete or supported. The prior production workflow exposed sequence-group
+  targets but did not create the separately mandatory composition checkpoint.
+- The existing verified finalist/checkpoint adapter now also publishes a
+  schema-v2 composition review package. Its one-to-three targets are exact
+  successfully refined state IDs, independently checked against retained
+  outcome/refinement identities, final assets, and the entire crystal-bound
+  checksum inventory; failed states remain evidence but cannot become targets.
+- The production application schedules sequence and composition packages as
+  independent crystal-owned tasks. A separate fixed human handoff resolves the
+  registered composition package from its exact single-component parent and
+  preserves approval, partial retention, rejection, and deferral; sequence
+  approval cannot silently authorise a composition claim.
+- The focused three-crystal local application retains one deferred sibling,
+  schedules 20 tasks including two composition and two sequence packages,
+  caches the complete graph, and reruns only the changed crystal's six
+  review-dependent descendants.
+  One hundred and five focused registry, sequence, package, and staging tests
+  pass; targeted Ruff/type checks pass. Fixed scientific profiles, final
+  evidence-derived statuses, and real licensed runtime execution remain open.
+  Preserve the independent 30-minute monitor for Slurm job `634097` and classify
+  it before any new scientific HPC operation.

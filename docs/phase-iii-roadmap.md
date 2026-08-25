@@ -434,20 +434,24 @@ packages produced during the screening job may correctly predate that job's
 completion; pre-completion crystallographic packages remain rejected. A real
 three-crystal main-entry regression schedules three owned approvals, one
 required additional placement, two finalist stages, two refinements, two
-independent sequence-review checkpoints, and two owned schema-v2 sequence
-packages, while retaining the deferred crystal without scientific work. Each
+independent sequence-review checkpoints, two owned schema-v2 sequence packages,
+and two separately owned composition packages, while retaining the deferred
+crystal without scientific work. Each
 real checkpoint independently verifies its exact crystal-owned refinement
 directory, schema-v2 selected dataset, Free-R identity, source MTZ, preflight,
 complete catalogue/source inventory, final result, and Phenix command. Its
 owned package independently revalidates every retained map, coordinate, command,
 catalogue row, review output, content identity, and checksum; targets are the
-complete reviewed sequence-equivalence groups, not guessed exact loci. The
+complete reviewed sequence-equivalence groups, not guessed exact loci, or the
+one-to-three successfully refined seed/composition states. The
 parent is the current `unknown-single-component` scheduler run and cannot be
 replaced by the earlier screening run. Human sequence approvals remain empty.
 All tasks cache on resume; revising one review reruns only its approval,
-required placement, finalist stage, sequence checkpoint, and owned package
-while unchanged refinement and sibling tasks remain cached. The fixed remote
-profile and real licensed execution remain pending.
+required placement, finalist stage, sequence checkpoint, and both owned
+packages while unchanged refinement and sibling tasks remain cached. The fixed
+local composition-decision handoff accepts only the matching single-component
+run, owned crystal package, and independently confirmed operator TSV. The
+fixed remote profile and real licensed execution remain pending.
 
 A scientifically completed zero-model crystal now also receives its own
 content-bound schema-v2 A-seed package and an empty target worksheet. This
@@ -479,9 +483,10 @@ fixed local sequence-decision handoff independently resolves one crystal's
 package from its completed `unknown-single-component` run, requires the exact
 pass-1 run/profile/phase and confirmed ASCII decision checksum, and retains
 only explicit `approve`, `retain_alternative`, or `no_assignment` review;
-neither the predecessor screen nor an unreviewed locus can substitute. Fixed
-HPC profiles, remote staging, and live composition-package wiring remain
-pending.
+neither the predecessor screen nor an unreviewed locus can substitute. The
+reviewed application now publishes both composition and sequence packages per
+eligible crystal, with separate owned operator handoffs. Final status
+production, fixed HPC profiles, and remote staging remain pending.
 
 The unknown-pass-1 crystallographic bridge now accepts one exact owned-run ID
 and exactly three crystal-bound decision files/checksums, resolves every
