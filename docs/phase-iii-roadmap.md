@@ -441,6 +441,16 @@ objects without receiving the database manifest or invoking HTTPS; no-hit and
 missing-model paths remain typed. A future M6 run must still qualify the real
 site executor mapping and collected coordinate-stage inventory.
 
+Status: the M6 fixed-smoke/resource verifier now recognises the resulting
+26-task graph instead of rejecting the new coordinate stage as an unexpected
+25th Slurm child. Exactly 25 scheduler jobs and one bounded controller stage
+remain separate in retained resource evidence. Operational resume caches all
+26 tasks; leakage caches exactly six truthless discovery tasks and reruns 20
+track-specific tasks, including coordinate staging. The scientific collector
+reconciles total tasks against both inventories without changing historical
+resource records. Real M6 execution remains blocked by the earlier Phase III
+control gates.
+
 Status: the local `DEV-P2-01` completion-order correction is implemented. The
 active discovery and policy writers already canonicalised validated provider,
 result, hit, accepted/rejected-model, and evidence-ranked candidate records;

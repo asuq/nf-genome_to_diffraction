@@ -12181,3 +12181,20 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - M6 login staging remains distinct from scheduler children
+
+- A focused regression exposed that the new coordinate login stage produced a
+  valid 26-task graph, while the retained M6 smoke verifier still required the
+  obsolete 25-task topology and treated the local stage as a native Slurm job.
+- Resource evidence now retains the completed, driver-bounded coordinate stage
+  separately from 25 scheduler children. The smoke requires 26 cached
+  operational tasks, exactly six cross-track truthless cache hits, and 20 newly
+  completed leakage-specific tasks, including coordinate staging.
+- Scientific collection reconciles complete resume counts against scheduler
+  children plus controller stages; historical records without the new optional
+  inventory remain readable. Focused tests cover both reviewed site policies,
+  old/new scientific evidence, and forbidden cross-track coordinate reuse.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

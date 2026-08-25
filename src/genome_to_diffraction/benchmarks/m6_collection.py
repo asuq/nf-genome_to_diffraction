@@ -452,9 +452,12 @@ def _load_track(
             or resume_cache.get("first_task_count") != resume.get("first_task_count")
             or resume_cache.get("cached_resume_task_count")
             != resume.get("cached_resume_task_count")
-            or resume_cache.get("first_task_count") != resource_evidence.child_job_count
+            or resume_cache.get("first_task_count")
+            != resource_evidence.child_job_count
+            + len(resource_evidence.controller_stages)
             or resume_cache.get("cached_resume_task_count")
             != resource_evidence.child_job_count
+            + len(resource_evidence.controller_stages)
         ):
             raise PublicControlError(f"collected M6 {track} fan-out resources changed")
     elif (

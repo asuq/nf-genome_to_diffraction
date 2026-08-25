@@ -1002,6 +1002,7 @@ def _synthetic_collection(
     reported_identity_by_case: dict[str, str] | None = None,
     edge_observation_by_case: dict[str, M6EdgeObservation] | None = None,
     protocol_path: Path = PROTOCOL,
+    controller_stage: bool = False,
 ) -> Path:
     scientific = _synthetic_scientific_output(
         tmp_path,
@@ -1035,7 +1036,11 @@ def _synthetic_collection(
         "resume_equivalent": True,
     }
     if nextflow:
-        resume_record.update(first_task_count=1, cached_resume_task_count=1)
+        task_count = 1 + int(controller_stage)
+        resume_record.update(
+            first_task_count=task_count,
+            cached_resume_task_count=task_count,
+        )
     _write_json(
         qualification / "m6-resume-check.json",
         resume_record,
@@ -1060,48 +1065,63 @@ def _synthetic_collection(
             peak_aggregate_memory_gb=16.0,
             maximum_concurrent_phenix_attempts=0,
         )
-        _write_json(
-            qualification / "m6-child-resource-evidence.json",
-            {
-                "schema_version": "1.0",
-                "execution_policy_id": "m6_nextflow_slurm_v1",
-                "execution_policy_sha256": sha256_file(EXECUTION_POLICY),
-                "child_job_count": 1,
-                "maximum_cpu_per_job": 32,
-                "maximum_memory_gb_per_job": 16.0,
-                "maximum_scheduler_hours_per_job": 24.0,
-                "maximum_peak_rss_gb": 8.0,
-                "maximum_observed_cpu_percent": 3100.0,
-                "peak_running_jobs": 1,
-                "peak_aggregate_cpus": 32,
-                "peak_aggregate_memory_gb": 16.0,
-                "peak_concurrent_phenix_jobs": 0,
-                "per_job_bounds_passed": True,
-                "jobs": [
-                    {
-                        "process": "M6_SEARCH_FOLDSEEK",
-                        "tag": "batch",
-                        "status": "COMPLETED",
-                        "native_job_id": "101",
-                        "requested_cpus": 32,
-                        "requested_memory_gb": 16.0,
-                        "requested_time_hours": 24.0,
-                        "start": "2026-08-17T00:00:00Z",
-                        "complete": "2026-08-17T01:00:00Z",
-                        "peak_rss_gb": 8.0,
-                        "observed_cpu_percent": 3100.0,
-                        "phenix_job": False,
-                    }
-                ],
-            },
-        )
+        resources = {
+            "schema_version": "1.0",
+            "execution_policy_id": "m6_nextflow_slurm_v1",
+            "execution_policy_sha256": sha256_file(EXECUTION_POLICY),
+            "child_job_count": 1,
+            "maximum_cpu_per_job": 32,
+            "maximum_memory_gb_per_job": 16.0,
+            "maximum_scheduler_hours_per_job": 24.0,
+            "maximum_peak_rss_gb": 8.0,
+            "maximum_observed_cpu_percent": 3100.0,
+            "peak_running_jobs": 1,
+            "peak_aggregate_cpus": 32,
+            "peak_aggregate_memory_gb": 16.0,
+            "peak_concurrent_phenix_jobs": 0,
+            "per_job_bounds_passed": True,
+            "jobs": [
+                {
+                    "process": "M6_SEARCH_FOLDSEEK",
+                    "tag": "batch",
+                    "status": "COMPLETED",
+                    "native_job_id": "101",
+                    "requested_cpus": 32,
+                    "requested_memory_gb": 16.0,
+                    "requested_time_hours": 24.0,
+                    "start": "2026-08-17T00:00:00Z",
+                    "complete": "2026-08-17T01:00:00Z",
+                    "peak_rss_gb": 8.0,
+                    "observed_cpu_percent": 3100.0,
+                    "phenix_job": False,
+                }
+            ],
+        }
+        if controller_stage:
+            resources["controller_stages"] = [
+                {
+                    "process": "M6_STAGE_COORDINATES",
+                    "tag": "case",
+                    "status": "COMPLETED",
+                    "native_job_id": "-",
+                    "requested_cpus": 1,
+                    "requested_memory_gb": 2.0,
+                    "requested_time_hours": 1.0,
+                    "start": "2026-08-17T00:00:00Z",
+                    "complete": "2026-08-17T00:05:00Z",
+                    "peak_rss_gb": 1.0,
+                    "observed_cpu_percent": 95.0,
+                    "phenix_job": False,
+                }
+            ]
+        _write_json(qualification / "m6-child-resource-evidence.json", resources)
         _write_json(
             qualification / "m6-resume-cache-evidence.json",
             {
                 "schema_version": "1.0",
                 "cache_mechanism": "nextflow_resume",
-                "first_task_count": 1,
-                "cached_resume_task_count": 1,
+                "first_task_count": task_count,
+                "cached_resume_task_count": task_count,
                 "fully_cached_resume": True,
             },
         )
@@ -1211,7 +1231,10 @@ def test_m6_collection_rehashes_private_cluster_lines(tmp_path: Path) -> None:
         )
 
 
-def test_m6_collection_accepts_two_identity_bearing_tracks(tmp_path: Path) -> None:
+@pytest.mark.parametrize("controller_stage", [False, True])
+def test_m6_collection_accepts_two_identity_bearing_tracks(
+    tmp_path: Path, controller_stage: bool
+) -> None:
     protocol_path = _synthetic_collection_protocol(tmp_path)
     protocol = load_m6_protocol(protocol_path)
     operational = _synthetic_collection(
@@ -1220,6 +1243,7 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(tmp_path: Path) -> No
         adapter_version="m6-nextflow-run-v2",
         commit="a" * 40,
         protocol_path=protocol_path,
+        controller_stage=controller_stage,
     )
     leakage = _synthetic_collection(
         tmp_path,
@@ -1227,6 +1251,7 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(tmp_path: Path) -> No
         adapter_version="m6-nextflow-run-v2",
         commit="b" * 40,
         protocol_path=protocol_path,
+        controller_stage=controller_stage,
     )
     truth = _private_truth_file(tmp_path, protocol_path, protocol)
 
@@ -1877,7 +1902,9 @@ def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
         "M6_SEARCH_FOLDSEEK\tb1\tCOMPLETED\t101\t32\t16 GB\t1d\t"
         "2026-08-17T00:00:00+00:00\t2026-08-17T01:00:00+00:00\t8 GB\t3100%\n"
         "M6_FIRST_COPY\th1\tCOMPLETED\t102\t2\t4 GB\t24h\t"
-        "2026-08-17T00:30:00+00:00\t2026-08-17T00:45:00+00:00\t0\t190%\n",
+        "2026-08-17T00:30:00+00:00\t2026-08-17T00:45:00+00:00\t0\t190%\n"
+        "M6_STAGE_COORDINATES\tc1\tCOMPLETED\t-\t1\t2 GB\t1h\t"
+        "2026-08-17T00:10:00+00:00\t2026-08-17T00:15:00+00:00\t0\t20%\n",
         encoding="utf-8",
     )
 
@@ -1900,6 +1927,9 @@ def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
     assert evidence.execution_policy_id == policy_id
     assert evidence.execution_policy_sha256 == sha256_file(policy_path)
     assert evidence.child_job_count == 2
+    assert len(evidence.controller_stages) == 1
+    assert evidence.controller_stages[0].process == "M6_STAGE_COORDINATES"
+    assert evidence.controller_stages[0].native_job_id == "-"
     assert evidence.peak_running_jobs == 2
     assert evidence.peak_aggregate_cpus == 34
     assert evidence.peak_concurrent_phenix_jobs == 1

@@ -144,11 +144,24 @@ class M6ResourceEvidence(ContractModel):
     peak_concurrent_phenix_jobs: int
     per_job_bounds_passed: bool
     jobs: tuple[M6ChildJobRecord, ...]
+    controller_stages: tuple[M6ChildJobRecord, ...] = ()
 
     @model_validator(mode="after")
     def _validate_job_inventory(self) -> Self:
         if self.child_job_count != len(self.jobs):
             raise ValueError("M6 child-job count changed")
+        if any(
+            job.process.rsplit(":", maxsplit=1)[-1] != "M6_STAGE_COORDINATES"
+            or job.status != "COMPLETED"
+            or job.phenix_job
+            for job in self.controller_stages
+        ):
+            raise ValueError("M6 controller-stage inventory changed")
+        if any(
+            job.process.rsplit(":", maxsplit=1)[-1] == "M6_STAGE_COORDINATES"
+            for job in self.jobs
+        ):
+            raise ValueError("M6 controller stage was classified as a Slurm child")
         derived_cpu = max((job.requested_cpus for job in self.jobs), default=0)
         derived_memory = max(
             (job.requested_memory_gb for job in self.jobs), default=0.0
@@ -266,6 +279,7 @@ def collect_m6_resource_evidence(
     trace = request.trace.resolve(strict=True)
     policy = load_m6_execution_policy(policy_path)
     records: list[M6ChildJobRecord] = []
+    controller_stages: list[M6ChildJobRecord] = []
     with trace.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         required = {
@@ -286,29 +300,38 @@ def collect_m6_resource_evidence(
         for row in reader:
             process = row["process"]
             peak_rss = row["peak_rss"].strip()
-            records.append(
-                M6ChildJobRecord(
-                    process=process,
-                    tag=row["tag"] or None,
-                    status=row["status"],
-                    native_job_id=row["native_id"],
-                    requested_cpus=int(row["cpus"]),
-                    requested_memory_gb=_memory_gb(row["memory"]),
-                    requested_time_hours=_hours(row["time"]),
-                    start=_timestamp(row["start"]),
-                    complete=_timestamp(row["complete"]),
-                    peak_rss_gb=(
-                        None
-                        if not peak_rss or peak_rss == "-"
-                        else _memory_gb(peak_rss)
-                    ),
-                    observed_cpu_percent=_cpu_percent(row["%cpu"]),
-                    phenix_job=any(
-                        token in process
-                        for token in ("FIRST_COPY", "ADDITIONAL_COPY", "REFINEMENT")
-                    ),
-                )
+            record = M6ChildJobRecord(
+                process=process,
+                tag=row["tag"] or None,
+                status=row["status"],
+                native_job_id=row["native_id"],
+                requested_cpus=int(row["cpus"]),
+                requested_memory_gb=_memory_gb(row["memory"]),
+                requested_time_hours=_hours(row["time"]),
+                start=_timestamp(row["start"]),
+                complete=_timestamp(row["complete"]),
+                peak_rss_gb=(
+                    None if not peak_rss or peak_rss == "-" else _memory_gb(peak_rss)
+                ),
+                observed_cpu_percent=_cpu_percent(row["%cpu"]),
+                phenix_job=any(
+                    token in process
+                    for token in ("FIRST_COPY", "ADDITIONAL_COPY", "REFINEMENT")
+                ),
             )
+            if process.rsplit(":", maxsplit=1)[-1] == "M6_STAGE_COORDINATES":
+                if (
+                    record.requested_cpus > policy.driver.maximum_cpus
+                    or record.requested_memory_gb > policy.driver.maximum_memory_gb
+                    or record.requested_time_hours
+                    > policy.driver.maximum_scheduler_hours
+                ):
+                    raise PublicControlError(
+                        "M6 controller stage exceeds driver bounds"
+                    )
+                controller_stages.append(record)
+            else:
+                records.append(record)
     jobs = tuple(records)
     peak_jobs, peak_cpu, peak_memory, peak_phenix = _peak(jobs)
     max_cpu = max((job.requested_cpus for job in jobs), default=0)
@@ -346,6 +369,7 @@ def collect_m6_resource_evidence(
             and max_time <= policy.per_job.maximum_scheduler_hours
         ),
         jobs=jobs,
+        controller_stages=tuple(controller_stages),
     )
     request.output.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_json(request.output, evidence.model_dump(mode="json"))

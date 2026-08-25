@@ -1339,6 +1339,10 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
     assert "Stored process" not in body
     assert '"M6_SEARCH_PDB": 2' in body
     assert '"M6_SEARCH_FOLDSEEK": 2' in body
+    assert '"M6_STAGE_COORDINATES": 1' in body
+    assert 'controller_stages = record["controller_stages"]' in body
+    assert "or len(jobs) != 25" in body
+    assert "or len(controller_stages) != 1" in body
     assert 'len({job["native_job_id"] for job in search}) != 4' in body
     assert '"$stored" -eq 3' not in body
     assert "len(search) != 2" not in body
@@ -1396,6 +1400,7 @@ def test_m6_smoke_cache_evidence_requires_exact_cross_track_reuse(
         "M6_PARTITION_DISCOVERY": 2,
         "M6_PREFLIGHT_CASE": 2,
         "M6_APPLY_POLICY": 1,
+        "M6_STAGE_COORDINATES": 1,
         "M6_PREPARE_ACTIVE_CASE": 1,
         "M6_PREPARE_EARLY_CASE": 1,
         "M6_FIRST_COPY": 1,
@@ -1451,13 +1456,14 @@ def test_m6_smoke_cache_evidence_requires_exact_cross_track_reuse(
         cwd=tmp_path,
         input_data=validator.encode(),
     )
-    assert accepted.stdout.strip() == b"25 25 6 19"
+    assert accepted.stdout.strip() == b"26 26 6 20"
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     assert evidence["cache_mechanism"] == "nextflow_resume"
     assert evidence["leakage_cached_truthless_task_count"] == 6
-    assert evidence["leakage_completed_track_specific_task_count"] == 19
+    assert evidence["leakage_completed_track_specific_task_count"] == 20
+    assert evidence["coordinate_stage_process_count"] == 1
 
-    trace(leakage_resume, mode="LEAKAGE", extra_cached="M6_APPLY_POLICY")
+    trace(leakage_resume, mode="LEAKAGE", extra_cached="M6_STAGE_COORDINATES")
     rejected = _run(
         [
             sys.executable,

@@ -3199,6 +3199,7 @@ expected_process_counts = {
     "M6_PARTITION_DISCOVERY": 2,
     "M6_PREFLIGHT_CASE": 2,
     "M6_APPLY_POLICY": 1,
+    "M6_STAGE_COORDINATES": 1,
     "M6_PREPARE_ACTIVE_CASE": 1,
     "M6_PREPARE_EARLY_CASE": 1,
     "M6_FIRST_COPY": 1,
@@ -3243,7 +3244,10 @@ for label, rows in (
     ("operational resume", operational_resume),
     ("leakage resume", leakage_resume),
 ):
-    if len(rows) != 25 or process_counts(rows) != expected_process_counts:
+    if (
+        len(rows) != sum(expected_process_counts.values())
+        or process_counts(rows) != expected_process_counts
+    ):
         raise SystemExit(f"M6 smoke {label} topology changed")
 if {row["status"] for row in first} != {"COMPLETED"}:
     raise SystemExit("M6 operational first pass was not newly completed")
@@ -3255,8 +3259,8 @@ leakage_completed = [
 ]
 if len(leakage_cached) != 6 or process_counts(leakage_cached) != truthless_process_counts:
     raise SystemExit("M6 leakage resume did not cache exactly six truthless tasks")
-if len(leakage_completed) != 19:
-    raise SystemExit("M6 leakage resume did not complete 19 track-specific tasks")
+if len(leakage_completed) != 20:
+    raise SystemExit("M6 leakage resume did not complete 20 track-specific tasks")
 if len(leakage_cached) + len(leakage_completed) != len(leakage_resume):
     raise SystemExit("M6 leakage resume contains an unexpected task status")
 for process in truthless_process_counts:
@@ -3277,6 +3281,9 @@ evidence = {
     "operational_cached_resume_task_count": len(operational_resume),
     "leakage_cached_truthless_task_count": len(leakage_cached),
     "leakage_completed_track_specific_task_count": len(leakage_completed),
+    "coordinate_stage_process_count": expected_process_counts[
+        "M6_STAGE_COORDINATES"
+    ],
     "truthless_cached_process_counts": dict(sorted(truthless_process_counts.items())),
     "cross_track_truthless_cache_reuse": True,
     "track_specific_cache_reuse": False,
@@ -3305,6 +3312,7 @@ if (
 ):
     raise SystemExit("M6 resource evidence used another site policy")
 jobs = record["jobs"]
+controller_stages = record["controller_stages"]
 search = [
     job for job in jobs
     if job["process"].endswith(("M6_SEARCH_PDB", "M6_SEARCH_FOLDSEEK"))
@@ -3319,7 +3327,10 @@ process_counts = {
 }
 if (
     not record["per_job_bounds_passed"]
-    or len(jobs) < 20
+    or len(jobs) != 25
+    or len(controller_stages) != 1
+    or not controller_stages[0]["process"].endswith("M6_STAGE_COORDINATES")
+    or controller_stages[0]["status"] != "COMPLETED"
     or process_counts != {"M6_SEARCH_PDB": 2, "M6_SEARCH_FOLDSEEK": 2}
 ):
     raise SystemExit("M6 Slurm smoke child inventory is incomplete")
@@ -3374,6 +3385,7 @@ EOF
   "nextflow_slurm_driver_cpus": 2,
   "nextflow_slurm_driver_memory_gb": 8.0,
   "child_job_count": $child_jobs,
+  "controller_stage_task_count": 1,
   "search_child_job_count": $search_jobs,
   "search_cpus_per_job": 32,
   "peak_running_jobs": $peak_jobs,
