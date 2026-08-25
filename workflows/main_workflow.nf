@@ -28,11 +28,15 @@ include {
     PHASE3_BRIEF_REFINEMENT_WORKFLOW
 } from './brief_refinement_workflow'
 include { DIVERSE_FIRST_COPY_MR_WORKFLOW } from './diverse_first_copy_mr_workflow'
+include { CRYSTAL_FANOUT_WORKFLOW } from './crystal_fanout_workflow'
 include { PDB_SEQUENCE_DISCOVERY } from './pdb_sequence_discovery_workflow'
 include { PARTNER_SEARCH_WORKFLOW } from './partner_search_workflow'
 include {
     PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW
 } from './phase3_multicrystal_first_copy_workflow'
+include {
+    PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW
+} from './phase3_reviewed_single_component_workflow'
 
 workflow MAIN_WORKFLOW {
     take:
@@ -70,6 +74,8 @@ workflow MAIN_WORKFLOW {
     phase3_a_seed_review_stage: Path?
     phase3_a_seed_review_package: Path?
     phase3_a_seed_legacy_review_package: Path?
+    phase3_reviewed_crystal_manifest: Path?
+    phase3_owned_run_registry: Path?
 
     main:
     validation_scope = VALIDATE_TASK05_INPUTS(
@@ -94,14 +100,120 @@ workflow MAIN_WORKFLOW {
         skip_xtriage,
         validation_scope
     )
-    matthews_bundle = ENUMERATE_MATTHEWS(
-        crystals,
-        pipeline_config,
-        preflight_bundle,
-        catalogue_bundle
-    )
+    if (phase3_reviewed_crystal_manifest == null) {
+        matthews_bundle = ENUMERATE_MATTHEWS(
+            crystals,
+            pipeline_config,
+            preflight_bundle,
+            catalogue_bundle
+        )
+    } else {
+        matthews_bundle = channel.empty()
+    }
 
-    if (analysis_stage in ['discovery', 'first_copy', 'additional_copy', 'heteromer', 't12']) {
+    if (phase3_reviewed_crystal_manifest != null) {
+        def source = new groovy.json.JsonSlurper().parse(
+            phase3_reviewed_crystal_manifest.toFile()
+        )
+        def frozen = new groovy.json.JsonSlurper().parse(crystals.toFile())
+        def registry = new groovy.json.JsonSlurper().parse(
+            phase3_owned_run_registry.resolve('phase3_owned_run_registry.json').toFile()
+        )
+        if (
+            registry.run_id != phase3_owned_parent_run_id ||
+            registry.profile != 'unknown-screen' ||
+            registry.phase != 'phase3-pass1'
+        ) {
+            error 'Reviewed Phase III continuation belongs to another completed screen'
+        }
+        if (!(source.crystals instanceof List)) {
+            error 'Reviewed Phase III continuation requires a crystal route list'
+        }
+        def frozenIds = (frozen.crystals as List).collect { item ->
+            item.crystal_id as String
+        }
+        def routeIds = (source.crystals as List).collect { item ->
+            item.crystal_id as String
+        }
+        if (routeIds.size() != routeIds.unique(false).size()) {
+            error 'Reviewed Phase III continuation repeats a crystal route'
+        }
+        if (!routeIds.every { String crystalId -> frozenIds.contains(crystalId) }) {
+            error 'Reviewed Phase III continuation contains an unknown crystal'
+        }
+        review_routes = channel.value(phase3_reviewed_crystal_manifest)
+            .flatMap { Path manifest ->
+                def routes = new groovy.json.JsonSlurper().parse(manifest.toFile())
+                (routes.crystals as List).collect { item ->
+                    def required = [
+                        'crystal_id',
+                        'review_package',
+                        'review_stage',
+                        'hypotheses'
+                    ] as Set
+                    if (item.keySet() != required) {
+                        error 'Reviewed Phase III crystal route differs from its fixed inputs'
+                    }
+                    def matches = (registry.packages as List).findAll { owned ->
+                        owned.crystal_id == item.crystal_id &&
+                            owned.checkpoint == 'a_seed'
+                    }
+                    if (matches.size() != 1) {
+                        error "Reviewed Phase III crystal lacks its owned A package: ${item.crystal_id}"
+                    }
+                    tuple(
+                        item.crystal_id as String,
+                        file(item.review_package as String, checkIfExists: true),
+                        file(item.review_stage as String, checkIfExists: true),
+                        file(
+                            phase3_owned_run_registry.resolve(
+                                "packages/${matches[0].review_package_id}"
+                            ),
+                            checkIfExists: true
+                        ),
+                        file(item.hypotheses as String, checkIfExists: true)
+                    )
+                }
+            }
+        preflight_jsonl = preflight_bundle.map { Path bundle ->
+            bundle.resolve('mtz_preflight.jsonl')
+        }
+        dispatched = CRYSTAL_FANOUT_WORKFLOW(
+            channel.value(crystals),
+            preflight_jsonl,
+            catalogue_bundle,
+            channel.value(phase3_owned_run_registry)
+        )
+        complete_reviews = review_routes
+            .join(dispatched, by: 0, failOnDuplicate: true, failOnMismatch: false)
+            .combine(preflight_jsonl.first())
+            .combine(channel.value(phenix_manifest))
+            .map { item, preflight, phenix ->
+                Path dispatch = item[5] as Path
+                Path catalogue = item[6] as Path
+                tuple(
+                    item[0],
+                    item[1],
+                    item[2],
+                    item[3],
+                    item[4],
+                    file(catalogue.resolve('sequence_groups.jsonl'), checkIfExists: true),
+                    file(catalogue.resolve('source_records.jsonl'), checkIfExists: true),
+                    preflight,
+                    file(dispatch.resolve('input.mtz'), checkIfExists: true),
+                    file((phenix as Path).toAbsolutePath(), checkIfExists: true),
+                    dispatch
+                )
+            }
+        PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW(
+            complete_reviews,
+            phase3_owned_run_registry,
+            phase3_execution_identity,
+            phase3_owned_parent_run_id
+        )
+    } else if (
+        analysis_stage in ['discovery', 'first_copy', 'additional_copy', 'heteromer', 't12']
+    ) {
         sequence_groups = catalogue_bundle.map { Path bundle ->
             bundle.resolve('sequence_groups.jsonl')
         }

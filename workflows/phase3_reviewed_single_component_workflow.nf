@@ -16,6 +16,9 @@ include {
 workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
     take:
     reviewed_crystals: Tuple
+    owned_run_registry: Path?
+    execution_identity: Path?
+    owned_parent_run_id: String?
 
     main:
     placement_inputs = reviewed_crystals.map { item ->
@@ -35,7 +38,12 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
             )
         )
     }
-    placements = PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW(placement_inputs)
+    placements = PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW(
+        placement_inputs,
+        owned_run_registry,
+        execution_identity,
+        owned_parent_run_id
+    )
     active_stages = placements.stage.filter { crystalId, stage ->
         def manifest = new groovy.json.JsonSlurper().parse(
             stage.resolve('live_m4_stage_manifest.json').toFile()

@@ -28,7 +28,13 @@ from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.review.mr_seed import (
     MrSeedApprovalOutput,
     MrSeedApprovalRequest,
+    MrSeedReviewError,
     validate_mr_seed_approvals,
+    validate_mr_seed_review_evidence,
+)
+from genome_to_diffraction.review.owned_run import (
+    PhaseIIIOwnedRunError,
+    resolve_phase3_owned_review_package,
 )
 from genome_to_diffraction.review.phase3_package import (
     PhaseIIIReviewPackageError,
@@ -38,6 +44,7 @@ from genome_to_diffraction.review.phase3_stage import PhaseIIIReviewStageManifes
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import MrHypothesis
 from genome_to_diffraction.schemas.v2 import (
+    PhaseIIIExecutionIdentity,
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecisionFile,
     PhaseIIIReviewDecisionValue,
@@ -86,6 +93,9 @@ class LiveAddCopyStageRequest:
     progress: bool = True
     phase3_review_stage: Path | None = None
     phase3_review_package_manifest: Path | None = None
+    phase3_owned_run_registry: Path | None = None
+    phase3_execution_identity: Path | None = None
+    phase3_owned_parent_run_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +118,7 @@ class _PhaseIIISeedApproval:
     stage_manifest_path: Path
     canonical_decisions_path: Path
     package_manifest_path: Path
+    owned_run_registry_id: str | None = None
 
 
 def _load_object(path: Path, label: str) -> dict[str, object]:
@@ -287,6 +298,57 @@ def _load_phase3_seed_approval(
         raise ValueError(
             "Phase III A-seed decisions are stale or target another crystal"
         )
+    ownership = (
+        request.phase3_owned_run_registry,
+        request.phase3_execution_identity,
+        request.phase3_owned_parent_run_id,
+    )
+    registry_id: str | None = None
+    if any(value is not None for value in ownership):
+        registry, identity_path, parent_run = ownership
+        if registry is None or identity_path is None or parent_run is None:
+            raise ValueError(
+                "Phase III owned A execution requires complete run identity"
+            )
+        try:
+            identity = PhaseIIIExecutionIdentity.model_validate_json(
+                _regular_file(
+                    identity_path, "Phase III execution identity"
+                ).read_bytes()
+            )
+            owned = resolve_phase3_owned_review_package(
+                registry,
+                run_id=parent_run,
+                crystal_id=package.crystal_id,
+                checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+            )
+            validate_mr_seed_review_evidence(
+                package_manifest=review_manifest,
+                hypotheses_jsonl=request.hypotheses_jsonl,
+                crystal_id=package.crystal_id,
+                progress=False,
+            )
+        except (
+            OSError,
+            ValidationError,
+            ValueError,
+            PhaseIIIOwnedRunError,
+            MrSeedReviewError,
+        ) as error:
+            raise ValueError(
+                "Phase III A-seed evidence is not owned by the completed "
+                f"screen: {error}"
+            ) from error
+        if (
+            owned.parent.profile != "unknown-screen"
+            or owned.parent.phase != "phase3-pass1"
+            or owned.execution_identity_id != identity.execution_identity_id
+            or package.execution_identity_id != identity.execution_identity_id
+            or owned.review_package_id != package.review_package_id
+            or owned.review_package_manifest_sha256 != sha256_file(package_path)
+        ):
+            raise ValueError("Phase III A-seed ownership or execution identity differs")
+        registry_id = owned.owned_run_registry_id
     return _PhaseIIISeedApproval(
         stage=stage,
         decisions=decisions,
@@ -294,6 +356,7 @@ def _load_phase3_seed_approval(
         stage_manifest_path=stage_path,
         canonical_decisions_path=decision_path,
         package_manifest_path=package_path,
+        owned_run_registry_id=registry_id,
     )
 
 
@@ -327,7 +390,7 @@ def _phase3_legacy_decisions(approval: _PhaseIIISeedApproval) -> str:
 
 
 def _phase3_approval_provenance(approval: _PhaseIIISeedApproval) -> dict[str, object]:
-    return {
+    provenance: dict[str, object] = {
         "schema_version": "2.0",
         "checkpoint": approval.stage.checkpoint.value,
         "owned_parent_run_id": approval.stage.owned_parent_run_id,
@@ -359,6 +422,9 @@ def _phase3_approval_provenance(approval: _PhaseIIISeedApproval) -> dict[str, ob
             if decision.decision is PhaseIIIReviewDecisionValue.DEFER
         ],
     }
+    if approval.owned_run_registry_id is not None:
+        provenance["owned_run_registry_id"] = approval.owned_run_registry_id
+    return provenance
 
 
 def prepare_live_add_copy_stage(

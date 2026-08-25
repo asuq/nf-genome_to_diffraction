@@ -424,8 +424,19 @@ fabricated additional-copy search. All eight tasks cache on resume; mutating one
 crystal's selected diffraction reruns only its placement, finalist stage, and
 refinement while five sibling/review tasks remain cached. Historical schema-v1
 approvals and refinements remain unchanged.
-Complete reviewed main-entry continuation, the fixed remote profile, and real
-licensed execution remain pending.
+The actual `main.nf` application now also accepts a bounded private reviewed-
+crystal route manifest plus its exact completed-screen registry, complete
+execution identity, and owned parent. Each A package is resolved exclusively
+from that registry; each independent stage revalidates its full registry,
+package, original MR evidence, and execution identity before placement. A-seed
+packages produced during the screening job may correctly predate that job's
+completion; pre-completion crystallographic packages remain rejected. A real
+three-crystal main-entry regression schedules three owned approvals, one
+required additional placement, two finalist stages, and two refinements, while
+retaining the deferred crystal without scientific work. All tasks cache on
+resume; revising one review reruns only its approval, required placement, and
+finalist stage while unchanged refinement and sibling tasks remain cached.
+The fixed remote profile and real licensed execution remain pending.
 
 A scientifically completed zero-model crystal now also receives its own
 content-bound schema-v2 A-seed package and an empty target worksheet. This

@@ -796,3 +796,46 @@ def test_package_created_before_completed_run_is_rejected(tmp_path: Path) -> Non
             ),
             output_directory=output,
         )
+
+
+def test_screen_generated_a_package_can_precede_parent_completion(
+    tmp_path: Path,
+) -> None:
+    execution_path, identity = _write_execution_identity(tmp_path)
+    package = _build_package(
+        tmp_path,
+        name="screen-generated-a-package",
+        identity=identity,
+        crystal_id=CRYSTAL_A,
+        checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+        created_at=RUN_COMPLETED_AT - timedelta(seconds=1),
+    )
+    output = tmp_path / "registry"
+    output.mkdir()
+
+    register_phase3_owned_run(
+        parent=_parent(),
+        completed_at=RUN_COMPLETED_AT,
+        execution_identity=execution_path,
+        packages=(
+            OwnedPhaseIIIReviewPackageSource(
+                crystal_id=CRYSTAL_A,
+                checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+                package_directory=package,
+            ),
+        ),
+        output_directory=output,
+    )
+
+    resolved = resolve_phase3_owned_review_package(
+        output,
+        run_id=RUN_ID,
+        crystal_id=CRYSTAL_A,
+        checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+    )
+    assert (
+        resolved.review_package_id
+        == PhaseIIIReviewPackageManifest.model_validate_json(
+            (package / "phase3_review_package_manifest.json").read_bytes()
+        ).review_package_id
+    )

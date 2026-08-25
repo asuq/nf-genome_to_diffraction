@@ -1515,6 +1515,20 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="exact owned Phase III A-seed review-package manifest",
     )
+    live_stage_parser.add_argument(
+        "--phase3-owned-run-registry",
+        type=Path,
+        help="exact completed unknown-screen owned-run package registry",
+    )
+    live_stage_parser.add_argument(
+        "--phase3-execution-identity",
+        type=Path,
+        help="full content-bound execution identity for the owned screen",
+    )
+    live_stage_parser.add_argument(
+        "--phase3-owned-parent-run",
+        help="exact completed unknown-screen parent-run identifier",
+    )
     copy_report_parser = mr_actions.add_parser(
         "copy-report",
         help="compare Matthews-intended and empirically supported copy counts",
@@ -3028,6 +3042,9 @@ def _run_mr(args: argparse.Namespace) -> int:
                 progress=not args.no_progress,
                 phase3_review_stage=args.phase3_review_stage,
                 phase3_review_package_manifest=args.phase3_review_package_manifest,
+                phase3_owned_run_registry=args.phase3_owned_run_registry,
+                phase3_execution_identity=args.phase3_execution_identity,
+                phase3_owned_parent_run_id=args.phase3_owned_parent_run,
             )
         )
         print(

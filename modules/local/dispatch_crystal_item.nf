@@ -46,6 +46,12 @@ process DISPATCH_CRYSTAL_ITEM {
     printf '%s\n' 'stub-mtz' > '${outputName}/input.mtz'
     printf '%s\n' '${item[0]}' > '${outputName}/crystal_id.txt'
     printf '%s\n' \
+        '{"crystal":"${item[0]}"}' \
+        > '${outputName}/phase3_diffraction_selection.json'
+    printf '%s\n' \
+        '{"crystal":"${item[0]}","free_r":"fixture"}' \
+        > '${outputName}/phase3_free_r_identity.json'
+    printf '%s\n' \
         '{"schema_version":"1.0","dispatch_id":"crdispatch_${item[0]}","crystal_id":"${item[0]}","catalogue_id":"stub_catalogue","crystal_manifest_sha256":"0000000000000000000000000000000000000000000000000000000000000000","preflight_jsonl_sha256":"0000000000000000000000000000000000000000000000000000000000000000","preflight_id":"preflight_${item[0]}","mtz_sha256":"0000000000000000000000000000000000000000000000000000000000000000","staged_mtz":"input.mtz","stub":true}' \
         > '${outputName}/crystal_dispatch.json'
     """

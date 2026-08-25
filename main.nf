@@ -42,6 +42,8 @@ params {
     phase3_a_seed_review_stage: Path? = null
     phase3_a_seed_review_package: Path? = null
     phase3_a_seed_legacy_review_package: Path? = null
+    phase3_reviewed_crystal_manifest: Path? = null
+    phase3_owned_run_registry: Path? = null
 }
 
 workflow {
@@ -59,7 +61,8 @@ workflow {
     if (
         params.analysis_stage in ['additional_copy', 'heteromer', 't12'] &&
         params.approved_mr_seeds == null &&
-        params.phase3_a_seed_review_stage == null
+        params.phase3_a_seed_review_stage == null &&
+        params.phase3_reviewed_crystal_manifest == null
     ) {
         error "analysis_stage=${params.analysis_stage} requires --approved_mr_seeds"
     }
@@ -79,12 +82,31 @@ workflow {
             error 'Phase III A-seed execution requires joint hypotheses and no legacy decision override'
         }
     }
+    if (params.phase3_reviewed_crystal_manifest != null) {
+        if (
+            params.analysis_stage != 't12' ||
+            !params.phase3_joint_first_copy ||
+            params.phase3_owned_run_registry == null ||
+            params.phase3_execution_identity == null ||
+            params.phase3_owned_parent_run_id == null ||
+            params.phase3_crystallographic_review_stage != null ||
+            params.approved_mr_seeds != null ||
+            phase3SeedInputs.any { item -> item != null }
+        ) {
+            error 'Reviewed Phase III continuation requires its exact owned screen, execution identity, and T12 stage'
+        }
+    } else if (params.phase3_owned_run_registry != null) {
+        error 'A Phase III owned-run registry requires reviewed multi-crystal continuation'
+    }
     if (params.analysis_stage == 'heteromer' && params.partner_copy_count < 1) {
         error 'analysis_stage=heteromer requires a positive --partner_copy_count'
     }
     if (
-        (params.phase3_crystallographic_review_stage == null) !=
-        (params.phase3_execution_identity == null)
+        params.phase3_reviewed_crystal_manifest == null &&
+        (
+            (params.phase3_crystallographic_review_stage == null) !=
+            (params.phase3_execution_identity == null)
+        )
     ) {
         error 'Phase III crystallographic reviews require both staged decisions and execution identity'
     }
@@ -96,6 +118,7 @@ workflow {
     }
     if (
         params.phase3_owned_parent_run_id != null &&
+        params.phase3_reviewed_crystal_manifest == null &&
         (
             params.analysis_stage != 'first_copy' ||
             !params.phase3_joint_first_copy ||
@@ -139,6 +162,8 @@ workflow {
         params.phase3_owned_parent_run_id,
         params.phase3_a_seed_review_stage,
         params.phase3_a_seed_review_package,
-        params.phase3_a_seed_legacy_review_package
+        params.phase3_a_seed_legacy_review_package,
+        params.phase3_reviewed_crystal_manifest,
+        params.phase3_owned_run_registry
     )
 }

@@ -24,6 +24,7 @@ from genome_to_diffraction.review import (
     MrSeedReviewError,
     MrSeedReviewRequest,
     OwnedPhaseIIIParentRun,
+    OwnedPhaseIIIReviewPackageSource,
     PhaseIIIReviewEvidenceSource,
     PhaseIIIReviewPackageError,
     PhaseIIIReviewPackageRequest,
@@ -31,6 +32,7 @@ from genome_to_diffraction.review import (
     build_mr_seed_review,
     build_owned_phase3_a_seed_review_package,
     build_phase3_review_package,
+    register_phase3_owned_run,
     stage_phase3_review_decisions,
     validate_mr_seed_approvals,
     validate_phase3_review_package,
@@ -335,6 +337,84 @@ def _phase3_a_seed_stage(
         )
     )
     return output.stage_manifest.parent, package.manifest
+
+
+def _owned_phase3_a_seed_inputs(
+    root: Path,
+    *,
+    crystal_id: str,
+    execution_identity: Path,
+    owned_parent_run_id: str,
+    decision: PhaseIIIReviewDecisionValue,
+    expected_copies: int = 1,
+) -> tuple[MrSeedReviewRequest, Path, Path, Path, str]:
+    request = _request(root, crystal_id=crystal_id)
+    hypothesis = _hypothesis(crystal_id=crystal_id).model_copy(
+        update={"copy_count_expected": expected_copies}
+    )
+    request.hypotheses_jsonl.write_text(
+        f"{canonical_json_text(hypothesis)}\n", encoding="utf-8"
+    )
+    matthews = _matthews(crystal_id=crystal_id).model_copy(
+        update={
+            "copy_count": expected_copies,
+            "total_mass_da": expected_copies * 436.4375,
+        }
+    )
+    request.matthews_hypotheses_jsonl.write_text(
+        f"{canonical_json_text(matthews)}\n", encoding="utf-8"
+    )
+    review = build_mr_seed_review(request)
+    legacy = json.loads(review.manifest_json.read_text(encoding="utf-8"))
+    solution_id = str(legacy["items"][0]["solution_id"])
+    package = build_owned_phase3_a_seed_review_package(
+        review_package=review.manifest_json.parent,
+        hypotheses_jsonl=request.hypotheses_jsonl,
+        execution_identity=execution_identity,
+        owned_parent_run_id=owned_parent_run_id,
+        crystal_id=crystal_id,
+        output_directory=root / "owned-a-package",
+    )
+    record = PhaseIIIReviewDecisionFile.from_content(
+        checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+        owned_parent_run_id=owned_parent_run_id,
+        review_package_id=package.review_package_id,
+        review_package_manifest_sha256=sha256_file(package.manifest),
+        decisions=(
+            PhaseIIIReviewDecision(
+                crystal_id=crystal_id,
+                item_id=solution_id,
+                decision=decision,
+                reviewer="phase3-reviewer",
+                reviewed_at=datetime(2099, 1, 1, tzinfo=UTC),
+                reason="Coot evidence inspected",
+            ),
+        ),
+    )
+    decisions = root / "a-decisions.json"
+    atomic_write_json(decisions, record.model_dump(mode="json", exclude_none=False))
+    stage = stage_phase3_review_decisions(
+        PhaseIIIReviewStageRequest(
+            parent=OwnedPhaseIIIParentRun(
+                owned_parent_run_id,
+                "unknown-screen",
+                "phase3-pass1",
+            ),
+            checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+            review_package_manifest=package.manifest,
+            decisions=decisions,
+            confirmed_decisions_sha256=sha256_file(decisions),
+            output_directory=root / "owned-a-stage",
+            progress=False,
+        )
+    )
+    return (
+        request,
+        review.manifest_json.parent,
+        package.manifest.parent,
+        stage.stage_manifest.parent,
+        solution_id,
+    )
 
 
 def test_builds_content_bound_review_and_schema_valid_empty_template(
@@ -908,6 +988,76 @@ def test_phase3_a_decisions_feed_only_approved_existing_copy_workflow(
         assert (output.stage_manifest.parent / name).is_file()
 
 
+@pytest.mark.parametrize("mutation", ("none", "parent", "identity", "registry"))
+def test_phase3_a_seed_stage_authenticates_completed_owned_screen(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    public_root = tmp_path / "public-fixture"
+    public_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(public_root)
+    parent_run = "gtd-unknown-screen-owned-fixture"
+    crystal_id = PUBLIC_STUB_CRYSTAL_IDS[0]
+    crystal_root = tmp_path / crystal_id
+    crystal_root.mkdir()
+    request, legacy, package, stage, solution_id = _owned_phase3_a_seed_inputs(
+        crystal_root,
+        crystal_id=crystal_id,
+        execution_identity=fixture.execution_identity,
+        owned_parent_run_id=parent_run,
+        decision=PhaseIIIReviewDecisionValue.APPROVE,
+    )
+    registry = tmp_path / "completed-screen-registry"
+    registry.mkdir()
+    record = register_phase3_owned_run(
+        parent=OwnedPhaseIIIParentRun(parent_run, "unknown-screen", "phase3-pass1"),
+        completed_at=datetime.now(UTC),
+        execution_identity=fixture.execution_identity,
+        packages=(
+            OwnedPhaseIIIReviewPackageSource(
+                crystal_id=crystal_id,
+                checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+                package_directory=package,
+            ),
+        ),
+        output_directory=registry,
+    )
+    execution_identity = fixture.execution_identity
+    if mutation == "parent":
+        parent_run = "gtd-unknown-screen-another-fixture"
+    elif mutation == "identity":
+        execution_identity = tmp_path / "invalid-execution-identity.json"
+        execution_identity.write_text('{"invalid":true}\n', encoding="ascii")
+    elif mutation == "registry":
+        registry = fixture.owned_run_registry
+    output_root = tmp_path / "owned-reviewed-stage"
+    stage_request = LiveAddCopyStageRequest(
+        review_package=legacy,
+        decisions=stage / "phase3_review_decision.json",
+        hypotheses_jsonl=request.hypotheses_jsonl,
+        output_directory=output_root,
+        progress=False,
+        phase3_review_stage=stage,
+        phase3_review_package_manifest=package / "phase3_review_package_manifest.json",
+        phase3_owned_run_registry=registry,
+        phase3_execution_identity=execution_identity,
+        phase3_owned_parent_run_id=parent_run,
+    )
+    if mutation != "none":
+        with pytest.raises(ValueError, match=r"owned|ownership"):
+            prepare_live_add_copy_stage(stage_request)
+        assert not output_root.exists()
+        return
+
+    output = prepare_live_add_copy_stage(stage_request)
+    provenance = json.loads(output.validation_json.read_text(encoding="utf-8"))[
+        "phase3_approval_provenance"
+    ]
+    assert provenance["owned_run_registry_id"] == record.owned_run_registry_id
+    assert provenance["owned_parent_run_id"] == parent_run
+    assert provenance["approved_solution_ids"] == [solution_id]
+
+
 @pytest.mark.parametrize("failure", ("canonical", "legacy", "stage", "package"))
 def test_phase3_a_seed_bridge_rejects_cross_evidence_before_publication(
     tmp_path: Path,
@@ -1351,6 +1501,202 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
     }
     assert all("test_crystal_a" in row["tag"] for row in rerun)
     assert sha256_file(first_selection) == first_digest
+
+
+def test_main_application_continues_owned_reviewed_crystals_independently(
+    tmp_path: Path,
+) -> None:
+    fixture_root = tmp_path / "public-fixture"
+    fixture_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(fixture_root)
+    parent_run = "gtd-unknown-screen-production-fixture"
+    routes: list[dict[str, str]] = []
+    sources: list[OwnedPhaseIIIReviewPackageSource] = []
+    stages: dict[str, tuple[Path, Path]] = {}
+    dispositions = (
+        (PhaseIIIReviewDecisionValue.APPROVE, 3),
+        (PhaseIIIReviewDecisionValue.APPROVE, 1),
+        (PhaseIIIReviewDecisionValue.DEFER, 3),
+    )
+    for crystal_id, (decision, expected_copies) in zip(
+        PUBLIC_STUB_CRYSTAL_IDS, dispositions, strict=True
+    ):
+        root = tmp_path / crystal_id
+        root.mkdir()
+        request, legacy, package, stage, _ = _owned_phase3_a_seed_inputs(
+            root,
+            crystal_id=crystal_id,
+            execution_identity=fixture.execution_identity,
+            owned_parent_run_id=parent_run,
+            decision=decision,
+            expected_copies=expected_copies,
+        )
+        routes.append(
+            {
+                "crystal_id": crystal_id,
+                "review_package": str(legacy),
+                "review_stage": str(stage),
+                "hypotheses": str(request.hypotheses_jsonl),
+            }
+        )
+        sources.append(
+            OwnedPhaseIIIReviewPackageSource(
+                crystal_id=crystal_id,
+                checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+                package_directory=package,
+            )
+        )
+        stages[crystal_id] = (stage, package)
+
+    registry = tmp_path / "completed-screen-registry"
+    registry.mkdir()
+    record = register_phase3_owned_run(
+        parent=OwnedPhaseIIIParentRun(parent_run, "unknown-screen", "phase3-pass1"),
+        completed_at=datetime.now(UTC),
+        execution_identity=fixture.execution_identity,
+        packages=tuple(sources),
+        output_directory=registry,
+    )
+    manifest = tmp_path / "reviewed-crystals.json"
+    atomic_write_json(manifest, {"crystals": routes})
+    template = json.loads(
+        (REPOSITORY / "examples/crystal_manifest.json").read_text(encoding="utf-8")
+    )["crystals"][0]
+    crystals = tmp_path / "three-crystals.json"
+    atomic_write_json(
+        crystals,
+        {
+            "schema_version": "1.0",
+            "crystals": [
+                {**template, "crystal_id": item.crystal_id, "mtz": str(item.mtz)}
+                for item in fixture.crystals
+            ],
+        },
+    )
+    output = tmp_path / "production-reviewed-results"
+    command = [
+        "nextflow",
+        "run",
+        "main.nf",
+        "-profile",
+        "test",
+        "-stub-run",
+        "-params-file",
+        "tests/fixtures/stubs/main_params.yaml",
+        "--analysis_stage",
+        "t12",
+        "--phase3_joint_first_copy",
+        "true",
+        "--crystals",
+        str(crystals),
+        "--phase3_reviewed_crystal_manifest",
+        str(manifest),
+        "--phase3_owned_run_registry",
+        str(registry),
+        "--phase3_execution_identity",
+        str(fixture.execution_identity),
+        "--phase3_owned_parent_run_id",
+        parent_run,
+        "--outdir",
+        str(output),
+        "--cache_root",
+        str(tmp_path / "production-cache"),
+    ]
+    environment = dict(os.environ)
+    environment.update(
+        {
+            "NXF_AGENT_MODE": "true",
+            "NXF_ANSI_LOG": "false",
+            "NXF_DISABLE_CHECK_LATEST": "true",
+            "NXF_HOME": str(tmp_path / "nxf-home"),
+            "NXF_SYNTAX_PARSER": "v2",
+        }
+    )
+
+    def run(*, resume: bool = False) -> tuple[dict[str, str], ...]:
+        invocation = [*command, *(["-resume"] if resume else [])]
+        result = subprocess.run(
+            invocation,
+            cwd=REPOSITORY,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=240,
+        )
+        assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+        with (output / "pipeline_info/trace.tsv").open(
+            encoding="utf-8", newline=""
+        ) as stream:
+            return tuple(csv.DictReader(stream, delimiter="\t"))
+
+    first = run()
+    assert Counter(row["process"].split(":")[-1] for row in first) == {
+        "VALIDATE_TASK05_INPUTS": 1,
+        "IMPORT_CATALOGUES": 1,
+        "MTZ_PREFLIGHT": 1,
+        "DISPATCH_CRYSTAL_ITEM": 3,
+        "STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS": 3,
+        "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 1,
+        "STAGE_PHASE3_CRYSTAL_T12": 2,
+        "RUN_PHASE3_BRIEF_REFINEMENT": 2,
+    }
+    assert {row["status"] for row in first} == {"COMPLETED"}
+    for crystal_id in PUBLIC_STUB_CRYSTAL_IDS:
+        approved = json.loads(
+            (
+                output
+                / f"phase3_approved_mr_seed_{crystal_id}/live_m4_stage_manifest.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert approved["phase3_approval_provenance"]["owned_run_registry_id"] == (
+            record.owned_run_registry_id
+        )
+    cached = run(resume=True)
+    assert {row["status"] for row in cached} == {"CACHED"}
+    assert {row["hash"] for row in cached} == {row["hash"] for row in first}
+
+    crystal_id = PUBLIC_STUB_CRYSTAL_IDS[0]
+    original_stage, package = stages[crystal_id]
+    original = PhaseIIIReviewDecisionFile.model_validate_json(
+        (original_stage / "phase3_review_decision.json").read_bytes()
+    )
+    revised = PhaseIIIReviewDecisionFile.from_content(
+        checkpoint=original.checkpoint,
+        owned_parent_run_id=original.owned_parent_run_id,
+        review_package_id=original.review_package_id,
+        review_package_manifest_sha256=original.review_package_manifest_sha256,
+        decisions=(
+            original.decisions[0].model_copy(
+                update={"comment": "reviewed once more by the supervisor"}
+            ),
+        ),
+    )
+    revised_source = tmp_path / "revised-a-decisions.json"
+    atomic_write_json(
+        revised_source, revised.model_dump(mode="json", exclude_none=False)
+    )
+    revised_stage = stage_phase3_review_decisions(
+        PhaseIIIReviewStageRequest(
+            parent=OwnedPhaseIIIParentRun(parent_run, "unknown-screen", "phase3-pass1"),
+            checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+            review_package_manifest=package / "phase3_review_package_manifest.json",
+            decisions=revised_source,
+            confirmed_decisions_sha256=sha256_file(revised_source),
+            output_directory=tmp_path / "revised-a-stage",
+            progress=False,
+        )
+    )
+    routes[0]["review_stage"] = str(revised_stage.stage_manifest.parent)
+    atomic_write_json(manifest, {"crystals": routes})
+    changed = run(resume=True)
+    rerun = tuple(row for row in changed if row["status"] == "COMPLETED")
+    assert Counter(row["process"].split(":")[-1] for row in rerun) == {
+        "STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS": 1,
+        "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 1,
+        "STAGE_PHASE3_CRYSTAL_T12": 1,
+    }
+    assert all(crystal_id in row["tag"] for row in rerun)
 
 
 def test_approval_without_inspectable_assets_requires_explicit_override(

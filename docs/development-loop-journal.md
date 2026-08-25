@@ -12641,3 +12641,30 @@ with a collapsed combined parent or a guessed command.
   Complete reviewed main-entry continuation, fixed unknown profiles, and real
   licensed execution remain open. Preserve the existing 30-minute monitor for
   Slurm job `634097` and classify it before any new scientific HPC operation.
+
+## 2026-08-25 - Main application resumes owned crystal-bound A reviews
+
+- The production entrypoint still selected only one reviewed crystal, while the
+  owned-run registry also rejected A packages generated before their screening
+  job completed. Together these defects prevented the three screened datasets
+  from continuing through their independently approved A checkpoints.
+- Screen-produced A packages may now precede their completed parent timestamp;
+  stale crystallographic packages remain rejected. The existing approved-seed
+  adapter independently resolves each A package from its completed screen and
+  revalidates the full registry, exact parent/profile/phase, execution identity,
+  registered package checksum, original hypotheses, and complete MR review.
+- An explicit bounded private route list now enters `main.nf` without rerunning
+  provider discovery or first-copy Phaser. The existing keyed workflows dispatch
+  each crystal, retain approved/rejected/deferred decisions independently, and
+  refine only reviewer-supported same-component states.
+- One real three-crystal main-entry regression schedules 14 tasks: three shared
+  setup tasks, three crystal dispatches, three authenticated review stages, one
+  necessary additional-copy search, two finalist stages, and two refinements.
+  Every task caches on resume. Revising one review reruns only its approval,
+  placement, and finalist tasks; unchanged refinements and siblings stay cached.
+- Sixty-eight focused MR-review/ownership regressions, the existing
+  three-crystal first-copy/resume stub, targeted Ruff/type checks, schema
+  validation, documentation links, and typed Nextflow syntax pass. Historical
+  v1 approvals remain unchanged. Fixed unknown HPC profiles and real licensed
+  execution remain open; preserve the existing independent 30-minute monitor
+  for Slurm job `634097` and classify it before new scientific HPC operations.

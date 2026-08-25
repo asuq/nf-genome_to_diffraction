@@ -146,6 +146,10 @@ completed zero-candidate review receives a valid empty target worksheet;
 cross-crystal, failed, edited, missing, or contradictory evidence publishes
 nothing. A held crystal does not enter this package process, and the historical
 review output remains unchanged when owned publication is not requested.
+Because these A packages are produced inside the screen job, they may predate
+the completed parent-run timestamp. This narrow timing exception applies only
+to A-seed packages; pre-completion crystallographic packages are still
+rejected.
 
 `stage_unknown_pass1_selected_a_seeds` accepts one exact owned `unknown-screen`
 parent run, an ASCII operator TSV, and the independently confirmed SHA-256 of
@@ -176,8 +180,19 @@ reviewer, timestamp, disposition, and comment but never invents an inspectable
 asset override. The canonical schema-v2 decision, stage, and package manifest
 are copied into the resulting stage, and their content identities/checksums are
 bound into both downstream validation and stage provenance. The normal v1
-approval path remains unchanged. Fixed remote staging, complete multi-crystal
-continuation, and real Phenix execution remain separate gates.
+approval path remains unchanged. Fixed remote staging and real Phenix
+execution remain separate gates.
+
+The production `main.nf` continuation now consumes only an explicit private
+route list, the exact completed-screen registry, full execution identity, and
+owned parent run. Each route may contain only its crystal ID, historical review,
+canonical decision stage, and hypothesis file; its A package is resolved from
+the registry rather than accepted as caller-selected input. The existing
+same-component stage independently revalidates the entire owned-run registry,
+parent/profile/phase, exact content identity, registered package checksum, and
+complete original crystal-bound review evidence. Approved, rejected, and
+deferred crystals remain independent Nextflow items. Fixed remote staging and
+real licensed execution are still pending.
 
 ## Checkpoints and values
 

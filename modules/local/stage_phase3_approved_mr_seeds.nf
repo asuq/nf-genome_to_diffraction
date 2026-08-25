@@ -68,6 +68,11 @@ process STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS {
 
     script:
     def outputName = "phase3_approved_mr_seed_${item[0]}"
+    def ownershipArguments = item.size() == 8
+        ? "--phase3-owned-run-registry '${item[5]}' " +
+            "--phase3-execution-identity '${item[6]}' " +
+            "--phase3-owned-parent-run '${item[7]}'"
+        : ''
     """
     genome-to-diffraction \
         --no-progress \
@@ -78,11 +83,17 @@ process STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS {
         --phase3-review-stage '${item[2]}' \
         --phase3-review-package-manifest '${item[3]}/phase3_review_package_manifest.json' \
         --hypotheses '${item[4]}' \
+        ${ownershipArguments} \
         --outdir '${outputName}'
     """
 
     stub:
     def outputName = "phase3_approved_mr_seed_${item[0]}"
+    def ownershipArguments = item.size() == 8
+        ? "--phase3-owned-run-registry '${item[5]}' " +
+            "--phase3-execution-identity '${item[6]}' " +
+            "--phase3-owned-parent-run '${item[7]}'"
+        : ''
     """
     genome-to-diffraction \
         --no-progress \
@@ -93,6 +104,7 @@ process STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS {
         --phase3-review-stage '${item[2]}' \
         --phase3-review-package-manifest '${item[3]}/phase3_review_package_manifest.json' \
         --hypotheses '${item[4]}' \
+        ${ownershipArguments} \
         --outdir '${outputName}'
     """
 }

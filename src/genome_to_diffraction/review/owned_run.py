@@ -182,7 +182,10 @@ def _bind_package(
     )
     for observed, expected, label in checks:
         _assert_equal(observed, expected, f"owned review package {label} differs")
-    if manifest.created_at < completed_at:
+    if (
+        manifest.created_at < completed_at
+        and checkpoint is not PhaseIIIReviewCheckpoint.A_SEED
+    ):
         raise PhaseIIIOwnedRunError("owned review package predates the completed run")
     if not _has_mtz(identity, crystal_id):
         raise PhaseIIIOwnedRunError(

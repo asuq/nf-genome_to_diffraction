@@ -108,10 +108,26 @@ workflow PHASE3_ADDITIONAL_COPY_WORKFLOW {
 workflow PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW {
     take:
     reviewed_crystals: Tuple
+    owned_run_registry: Path?
+    execution_identity: Path?
+    owned_parent_run_id: String?
 
     main:
     stage_items = reviewed_crystals.map { item ->
-        tuple(item[0], item[1], item[2], item[3], item[4])
+        if (owned_run_registry != null) {
+            tuple(
+                item[0],
+                item[1],
+                item[2],
+                item[3],
+                item[4],
+                owned_run_registry,
+                execution_identity,
+                owned_parent_run_id
+            )
+        } else {
+            tuple(item[0], item[1], item[2], item[3], item[4])
+        }
     }
     staged = STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS(stage_items)
     complete_crystals = staged
