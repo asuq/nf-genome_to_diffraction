@@ -13354,6 +13354,28 @@ with a collapsed combined parent or a guessed command.
   multi-crystal continuation, and crystal-dispatch modules. The owned-package
   regression now runs the real lightweight package process rather than
   interpreting stub output as scientific evidence.
-- Both exact failing tests pass locally. A successor exact-source CI remains
-  required; no production adapter, scientific threshold, scheduler run,
-  deployed tool, control, or unknown crystal was changed.
+- Both exact failing tests pass locally. Successor exact-source CI `32904417863`
+  passed the complete locked gate on `b55348a` in 19m14s, qualifying the
+  application-authority split in CI. No production adapter, scientific
+  threshold, scheduler run, deployed tool, control, or unknown crystal was
+  changed.
+
+## 2026-08-25 - Compute workers have a concrete fail-closed network boundary
+
+- `FCB-P1-15` reproduced the intended controller labels without any in-job
+  socket prohibition. The Nextflow local executor runs inside the outer Slurm
+  allocation, so treating those labels as login-network permission would have
+  preserved the defect.
+- Both reviewed profiles now run every child and controller-local Nextflow
+  script through one fixed `/usr/bin/unshare` user/network namespace. The
+  wrapper retains the worker UID/GID, requires a numeric Slurm job context, and
+  has no fallback. It does not mistake that marker for ownership, which remains
+  authenticated by terminal collection; no in-job label restores ordinary
+  Bash or network access.
+- The focused unowned-invocation and site-policy regressions, resolved Marmic
+  configuration, Nextflow syntax, Ruff, ty, and HPC wrapper syntax pass. The
+  change is local only: exact-source CI, complete bounded pre-submit provider
+  staging, and real child/controller socket evidence on the selected site remain
+  mandatory before pass 1. Marmic is the current target, and Viper must qualify
+  only before use there. No installed remote tool, scheduler run, provider
+  data, control, or unknown crystal was changed.

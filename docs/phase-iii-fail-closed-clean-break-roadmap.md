@@ -64,7 +64,12 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   scheduler states, missing log payloads, and incomplete failed-job evidence.
 - Reject escaped/intermediate-symlink review assets before reading them.
 - Enforce a worker-offline network policy and qualify reviewed login-side
-  provider staging separately from compute-worker socket denial.
+  provider staging separately from compute-worker socket denial. Completed
+  locally: every Marmic and Viper in-job Nextflow task uses the fixed
+  fail-closed user/network-namespace shell; controller-local labels are not a
+  network exception. Exact-source CI, bounded pre-submit login staging, and
+  qualification on the selected execution site remain; the other site must
+  qualify before it is used scientifically.
 - Require a distinct owned single-component parent and both final human
   checkpoints for every eligible Phase III continuation.
 - Consume the approved schema-v2 A review, exact decisions, and execution
@@ -78,8 +83,8 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   typed application route while preserving genuinely separate reviewed control
   profiles. Completed locally: `phase3_application.nf` owns the reviewed joint
   first-copy and owned single-component operations, while archival `main.nf`
-  accepts only its v0.2 authority. Exact-source CI and owned-HPC qualification
-  remain.
+  accepts only its v0.2 authority. Exact-source CI is green; owned-HPC
+  qualification remains.
 
 Acceptance: one focused negative regression for absent profile/policy, disabled
 route, wrong owner/site, corrupt protocol/result, missing log, unknown

@@ -87,12 +87,17 @@ candidate-level typed sequence-map parse failure are implemented on
 `dev/phase3`. The remaining PH1 boundaries are still open or partial as
 recorded in the finding ledger.
 
-All three existing network-capable processes now carry both reviewed site
-aliases: `run_local` forces Marmic login/controller execution and
-`needs_internet` forces the same local executor on Viper. Direct PDB retrieval,
-exact AFDB retrieval, and M6 coordinate staging therefore cannot silently fall
-back to a site Slurm worker. Explicit compute-worker socket denial and real
-provider staging remain separate qualification gates.
+All three existing network-capable processes carry both reviewed site aliases:
+`run_local` keeps Marmic execution on the outer Nextflow controller and
+`needs_internet` does the same on Viper. The controller itself runs inside a
+Slurm allocation, so those aliases are scheduling boundaries rather than login-
+network permission. Every child and controller-local Nextflow task enters a
+fail-closed Linux user/network namespace through the fixed site process shell;
+absence of the runtime or a numeric Slurm context fails rather than restoring
+network access. Provider objects must be staged by the reviewed dispatcher on
+the login node before submission. Real child/controller socket denial and
+bounded provider staging remain separate per-site qualification gates; only the
+selected scientific execution site gates the next run.
 
 Transient infrastructure recovery now uses one explicit boundary instead of a
 general retry framework. Classified temporary transport/HTTP failures return
@@ -321,7 +326,8 @@ A synthetic three-crystal actual Nextflow regression verifies exact shared/task
 counts, independent packages, unchanged cached identities and published bytes,
 and canonical-root routing. Archival `main.nf` has no Phase III parameters, and
 both roots reject cross-authority inputs before scheduling. Real Phase III
-Phenix execution remains a separate control-qualified gate.
+Phenix execution remains a separate control-qualified gate. Exact-source CI
+`32904417863` passed on `b55348a`.
 
 Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
 After review approval of at most three A states, automatically expand through

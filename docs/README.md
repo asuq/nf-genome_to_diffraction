@@ -28,6 +28,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III finding ledger](phase-iii-finding-ledger.md): original and newer
   defects, dependency gates, required regressions, and final-disposition rules
   for v0.3.0.
+- [Phase III compute-worker network policy](phase-iii-worker-network-policy.md):
+  fail-closed Linux network namespaces for every in-job task, separate bounded
+  pre-submit login staging, failure semantics, and remaining site qualification.
 - [Phase III all-eligible model registry](phase-iii-all-model-registry.md):
   cap-independent processed-model universe, content identity, typed absence,
   checksum validation, and authoritative schema-v2 B--F planner binding.

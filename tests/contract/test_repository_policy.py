@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import re
+import subprocess
 from pathlib import Path
 
 import gemmi
@@ -69,9 +71,7 @@ def test_remote_sequence_submission_defaults_off() -> None:
     assert '"allow_remote_sequence_submission": false' in crystal
 
 
-def test_network_acquisition_processes_use_both_reviewed_login_executor_labels() -> (
-    None
-):
+def test_network_acquisition_processes_use_both_reviewed_controller_labels() -> None:
     modules = {
         "REGISTER_PDB_COORDINATES": "modules/local/register_pdb_coordinates.nf",
         "RETRIEVE_AFDB_EXACT": "modules/local/retrieve_afdb_exact.nf",
@@ -86,6 +86,16 @@ def test_network_acquisition_processes_use_both_reviewed_login_executor_labels()
         assert "label 'process_network'" in process
         assert "label 'needs_internet'" in process
         assert "label 'run_local'" in process
+
+    login_labelled = {
+        path.relative_to(REPOSITORY).as_posix()
+        for path in (REPOSITORY / "modules").rglob("*.nf")
+        if any(
+            label in path.read_text(encoding="utf-8")
+            for label in ("label 'needs_internet'", "label 'run_local'")
+        )
+    }
+    assert login_labelled == set(modules.values())
 
     sites = REPOSITORY / "external/nf-helper/conf/sites"
     marmic = (sites / "marmic.config").read_text(encoding="utf-8")
@@ -104,6 +114,40 @@ def test_network_acquisition_processes_use_both_reviewed_login_executor_labels()
             maxsplit=1,
         )[1].split("}", maxsplit=1)[0]
     )
+
+
+def test_hpc_tasks_enforce_network_namespace_without_in_job_exception() -> None:
+    wrapper_path = REPOSITORY / "bootstrap" / "nf-gtd-worker-offline-shell"
+    wrapper = wrapper_path.read_text(encoding="utf-8")
+    assert '[[ ! "${SLURM_JOB_ID:-}" =~ ^[0-9]+$ ]]' in wrapper
+    assert "GTD_COMPUTE_NETWORK_ACCESS=false" in wrapper
+    assert (
+        'exec /usr/bin/unshare --user --map-current-user --net -- /bin/bash "$@"'
+        in wrapper
+    )
+    outside_slurm = subprocess.run(
+        ["/bin/bash", str(wrapper_path), "-c", "exit 0"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert outside_slurm.returncode == 78
+    assert "requires a numeric Slurm job context" in outside_slurm.stderr
+
+    sites = ("conf/marmic.config", "conf/viper-cpu.config")
+    for relative_path in sites:
+        config = (REPOSITORY / relative_path).read_text(encoding="utf-8")
+        assert '"${projectDir}/bootstrap/nf-gtd-worker-offline-shell"' in config
+        assert "shell = ['/bin/bash', '-ue']" not in config
+
+    production_sources = (
+        tuple(REPOSITORY.glob("*.nf"))
+        + tuple((REPOSITORY / "modules").rglob("*.nf"))
+        + tuple((REPOSITORY / "workflows").rglob("*.nf"))
+    )
+    for path in production_sources:
+        source = path.read_text(encoding="utf-8")
+        assert re.search(r"(?m)^\s*shell\s+['\"]", source) is None
 
 
 def test_pilot_retention_cap_preserves_the_qualified_8oox_copy_rank() -> None:
