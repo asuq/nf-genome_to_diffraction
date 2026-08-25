@@ -126,6 +126,16 @@ proofs are retained in the command identity before Phenix can start; the
 refined child is checked independently. Reindexing/symmetry equivalence is not
 inferred.
 
+Reviewed Phase III single-component continuation now regenerates the same
+authenticated diffraction selection and Free-R identity in its single-crystal
+dispatch. Each production refinement task receives a complete crystal-owned
+item containing the selected dataset, exact raw MTZ, preflight, Free-R
+identity, finalist, catalogue evidence, and Phenix manifest. Deep content
+caching reruns only the two affected finalists after a selection-byte mutation;
+all seven neighbouring historical scientific tasks retain their cache entries.
+Historical refinement processes remain unchanged. Real installed-tool
+execution and complete three-crystal continuation remain separate gates.
+
 A separate schema-v2 Free-R foundation now binds an exact label and MTZ dataset
 to the diffraction selection, rejects non-finite, non-integral, constant, and
 ambiguous arrays, records the complete raw-value distribution, and hashes the

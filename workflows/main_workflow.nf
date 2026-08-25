@@ -9,7 +9,10 @@ include { PREPARE_EXPERIMENTAL_MODELS } from '../modules/local/prepare_experimen
 include { PREPARE_PREDICTED_MODELS } from '../modules/local/prepare_predicted_models'
 include { REGISTER_PDB_COORDINATES } from '../modules/local/register_pdb_coordinates'
 include { RUN_APPROVED_PARTNER_PHASER } from '../modules/local/run_approved_partner_phaser'
-include { SELECT_SINGLE_CRYSTAL } from '../modules/local/select_single_crystal'
+include {
+    SELECT_PHASE3_SINGLE_CRYSTAL;
+    SELECT_SINGLE_CRYSTAL
+} from '../modules/local/select_single_crystal'
 include { STAGE_APPROVED_MR_SEEDS } from '../modules/local/stage_approved_mr_seeds'
 include {
     STAGE_PHASE3_APPROVED_MR_SEEDS
@@ -17,7 +20,10 @@ include {
 include { STAGE_LIVE_T12 } from '../modules/local/stage_live_t12'
 include { VALIDATE_TASK05_INPUTS } from '../modules/local/validate_task05_inputs'
 include { ADDITIONAL_COPY_WORKFLOW } from './additional_copy_workflow'
-include { BRIEF_REFINEMENT_WORKFLOW } from './brief_refinement_workflow'
+include {
+    BRIEF_REFINEMENT_WORKFLOW;
+    PHASE3_BRIEF_REFINEMENT_WORKFLOW
+} from './brief_refinement_workflow'
 include { DIVERSE_FIRST_COPY_MR_WORKFLOW } from './diverse_first_copy_mr_workflow'
 include { PDB_SEQUENCE_DISCOVERY } from './pdb_sequence_discovery_workflow'
 include { PARTNER_SEARCH_WORKFLOW } from './partner_search_workflow'
@@ -188,7 +194,14 @@ workflow MAIN_WORKFLOW {
                     phase3_execution_identity
                 )
             } else {
-            crystal_dispatch = SELECT_SINGLE_CRYSTAL(crystals, preflight_bundle)
+            if (phase3_a_seed_review_stage != null) {
+                crystal_dispatch = SELECT_PHASE3_SINGLE_CRYSTAL(
+                    crystals,
+                    preflight_bundle
+                )
+            } else {
+                crystal_dispatch = SELECT_SINGLE_CRYSTAL(crystals, preflight_bundle)
+            }
             crystal_id = crystal_dispatch.map { Path bundle ->
                 bundle.resolve('crystal_id.txt').toFile().text.trim()
             }
@@ -334,12 +347,23 @@ workflow MAIN_WORKFLOW {
                     t12_phenix_manifest = live_t12_stage.map { Path bundle ->
                         bundle.resolve('inputs/phenix_manifest.json')
                     }
-                    t12 = BRIEF_REFINEMENT_WORKFLOW(
-                        t12_finalists,
-                        t12_sequence_groups,
-                        t12_source_records,
-                        t12_phenix_manifest
-                    )
+                    if (phase3_a_seed_review_stage != null) {
+                        t12 = PHASE3_BRIEF_REFINEMENT_WORKFLOW(
+                            t12_finalists,
+                            t12_sequence_groups,
+                            t12_source_records,
+                            t12_phenix_manifest,
+                            crystal_dispatch,
+                            preflight_jsonl
+                        )
+                    } else {
+                        t12 = BRIEF_REFINEMENT_WORKFLOW(
+                            t12_finalists,
+                            t12_sequence_groups,
+                            t12_source_records,
+                            t12_phenix_manifest
+                        )
+                    }
                     t12_results = t12.collect().ifEmpty([])
                     BUILD_LIVE_SEQUENCE_CHECKPOINT(
                         live_t12_stage,

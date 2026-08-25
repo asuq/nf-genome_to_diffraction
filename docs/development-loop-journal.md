@@ -12498,3 +12498,30 @@ with a collapsed combined parent or a guessed command.
   refinement diffraction/Free-R propagation. Preserve the existing 30-minute
   monitor for Slurm job `634097`; classify the exact grouped 6RTZ/3U7Q controls
   before any multi-fixed command, `9ECN`, M6, localisation, or unknown run.
+
+## 2026-08-25 - Reviewed Phase III finalists receive exact diffraction evidence
+
+- The Phase III Python refinement adapter already rejected mismatched selected
+  datasets, source reflections, and Free-R memberships, but the production
+  Nextflow process invoked only the historical v1 arguments and never enabled
+  those safeguards.
+- Reviewed same-component continuation now uses a separate crystal dispatch
+  that creates the exact dataset-qualified selection and raw Free-R identity.
+  Its production refinement workflow publishes one complete, deep-content-cached
+  task item per finalist, carrying the crystal ID, selected observations,
+  original MTZ, preflight, Free-R identity, catalogue records, licensed runtime,
+  and approved parent. The unchanged Python boundary verifies source, derived
+  parent, and refined-child reflection memberships before promotion.
+- A real local Nextflow fan-out retains three historical first-copy, two
+  same-component, and two historical finalist jobs alongside two reviewed
+  Phase III finalists. Identical resume caches all nine jobs; mutating the
+  selected-dataset evidence reruns only the two Phase III finalists while all
+  seven unrelated tasks remain cached.
+- Eighty focused refinement, preflight, Phaser, and staging regressions pass.
+  The historical application/control workflows, Nextflow syntax, targeted Ruff
+  and type checks, schemas, and documentation also pass without launching any
+  remote or scientific job.
+- Complete reviewed three-crystal continuation and real-tool qualification
+  remain pending. Preserve the existing 30-minute monitor for Slurm job
+  `634097`; classify the exact grouped 6RTZ/3U7Q controls before any multi-fixed
+  command, `9ECN`, M6, localisation, or unknown run.

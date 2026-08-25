@@ -124,6 +124,30 @@ def test_observation_labels_are_passed_to_phenix_unambiguously() -> None:
     )
 
 
+def test_phase3_nextflow_refinement_passes_every_bound_diffraction_input() -> None:
+    process = (REPOSITORY / "modules/local/run_brief_refinement.nf").read_text(
+        encoding="ascii"
+    )
+    workflow = (REPOSITORY / "workflows/main_workflow.nf").read_text(encoding="ascii")
+    dispatch = (REPOSITORY / "modules/local/select_single_crystal.nf").read_text(
+        encoding="ascii"
+    )
+
+    assert "process RUN_PHASE3_BRIEF_REFINEMENT" in process
+    assert "cache 'deep'" in process
+    for argument in (
+        "--crystal-id '${item[4]}'",
+        "--diffraction-selection '${item[5]}'",
+        "--source-mtz '${item[6]}'",
+        "--preflight '${item[7]}'",
+        "--free-r-identity '${item[8]}'",
+    ):
+        assert argument in process
+    assert "SELECT_PHASE3_SINGLE_CRYSTAL" in workflow
+    assert "PHASE3_BRIEF_REFINEMENT_WORKFLOW" in workflow
+    assert "--phase3-diffraction" in dispatch
+
+
 def test_refinement_output_names_match_phenix_serial_convention(
     tmp_path: Path,
 ) -> None:

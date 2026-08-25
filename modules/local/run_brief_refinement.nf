@@ -51,3 +51,66 @@ process RUN_BRIEF_REFINEMENT {
         't12_${finalist[0]}/t12_command.json'
     """
 }
+
+// Every reviewed Phase III finalist carries its own complete crystal-bound
+// diffraction evidence. Deep content hashing makes source, selected dataset,
+// Free-R flags, preflight, and licensed-runtime changes visible to resume.
+process RUN_PHASE3_BRIEF_REFINEMENT {
+    tag "phase3-t12:${item[0][0]}"
+    label 'process_refine'
+    cache 'deep'
+    errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }
+    publishDir params.outdir, mode: 'copy', overwrite: true
+
+    input:
+    item: Tuple
+
+    output:
+    result: Path = file("t12_${item[0][0]}")
+
+    script:
+    def finalist = item[0]
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        refinement brief \
+        --seed-solution-id '${finalist[0]}' \
+        --sequence-group-id '${finalist[1]}' \
+        --input-copy-count '${finalist[2]}' \
+        --parent-coordinate '${finalist[3]}' \
+        --parent-coordinate-sha256 '${finalist[4]}' \
+        --parent-mtz '${finalist[5]}' \
+        --parent-mtz-sha256 '${finalist[6]}' \
+        --resolution '${finalist[7]}' \
+        --observation-labels '${finalist[8]}' \
+        --sequence-groups '${item[1]}' \
+        --source-records '${item[2]}' \
+        --phenix-manifest '${item[3]}' \
+        --crystal-id '${item[4]}' \
+        --diffraction-selection '${item[5]}' \
+        --source-mtz '${item[6]}' \
+        --preflight '${item[7]}' \
+        --free-r-identity '${item[8]}' \
+        --threads '${task.cpus}' \
+        --outdir 't12_${finalist[0]}'
+    """
+
+    stub:
+    def finalist = item[0]
+    """
+    mkdir -p 't12_${finalist[0]}'
+    cp \
+        '${projectDir}/tests/fixtures/stubs/brief_refinement_result.json' \
+        't12_${finalist[0]}/brief_refinement_result.json'
+    cp \
+        '${projectDir}/tests/fixtures/stubs/sequence_map_result.json' \
+        't12_${finalist[0]}/sequence_map_result.json'
+    cp \
+        '${projectDir}/tests/fixtures/stubs/t12_command.json' \
+        't12_${finalist[0]}/t12_command.json'
+    cp '${item[5]}' 't12_${finalist[0]}/phase3_diffraction_selection.json'
+    cp '${item[8]}' 't12_${finalist[0]}/phase3_free_r_identity.json'
+    printf '%s\n' '${item[4]}' > 't12_${finalist[0]}/phase3_crystal_id.txt'
+    """
+}

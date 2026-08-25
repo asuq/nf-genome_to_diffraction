@@ -106,6 +106,23 @@ def _scientific_fanout_command(root: Path) -> tuple[list[str], Path]:
         ),
         encoding="ascii",
     )
+    phase3_finalists = inputs / "phase3-finalists.tsv"
+    phase3_finalists.write_text(
+        finalists.read_text(encoding="ascii").replace("sol_finalist_", "sol_phase3_"),
+        encoding="ascii",
+    )
+    phase3_dispatch = inputs / "phase3-dispatch"
+    phase3_dispatch.mkdir()
+    copy2(model, phase3_dispatch / "input.mtz")
+    (phase3_dispatch / "crystal_id.txt").write_text(
+        "test_crystal_01\n", encoding="ascii"
+    )
+    (phase3_dispatch / "phase3_diffraction_selection.json").write_text(
+        '{"selection":"original"}\n', encoding="ascii"
+    )
+    (phase3_dispatch / "phase3_free_r_identity.json").write_text(
+        '{"free_r":"original"}\n', encoding="ascii"
+    )
     output = root / "scientific-fanout-results"
     command = [
         "nextflow",
@@ -126,6 +143,10 @@ def _scientific_fanout_command(root: Path) -> tuple[list[str], Path]:
         str(STUBS / "exact_predicted_funnel/mr_hypotheses.jsonl"),
         "--finalists",
         str(finalists),
+        "--phase3_finalists",
+        str(phase3_finalists),
+        "--phase3_dispatch",
+        str(phase3_dispatch),
         "--sequence_groups",
         str(STUBS / "sequence_groups.jsonl"),
         "--source_records",
@@ -155,6 +176,7 @@ def _check_complete_scientific_fanout(root: Path, environment: dict[str, str]) -
         "RUN_FIRST_COPY_PHASER": 3,
         "RUN_ADDITIONAL_COPY_PHASER": 2,
         "RUN_BRIEF_REFINEMENT": 2,
+        "RUN_PHASE3_BRIEF_REFINEMENT": 2,
     }
     if counts != expected:
         raise RuntimeError(
@@ -170,6 +192,8 @@ def _check_complete_scientific_fanout(root: Path, environment: dict[str, str]) -
         "add-copy:sol_seed_b",
         "t12:sol_finalist_a",
         "t12:sol_finalist_b",
+        "phase3-t12:sol_phase3_a",
+        "phase3-t12:sol_phase3_b",
     }
     if not required_tags.issubset(tags):
         raise RuntimeError("scientific fan-out omitted a distinct task identity")
@@ -191,6 +215,38 @@ def _check_complete_scientific_fanout(root: Path, environment: dict[str, str]) -
         if path.is_file() and "pipeline_info" not in path.relative_to(output).parts
     }:
         raise RuntimeError("scientific fan-out changed published bytes on resume")
+
+    selection = (
+        root
+        / "scientific-fanout-inputs"
+        / "phase3-dispatch"
+        / "phase3_diffraction_selection.json"
+    )
+    selection.write_text('{"selection":"mutated"}\n', encoding="ascii")
+    _run([*command, "-resume"], environment=environment)
+    mutated = _read_trace(output / "pipeline_info/trace.tsv")
+    rerun = Counter(
+        row["process"].split(":")[-1] for row in mutated if row["status"] == "COMPLETED"
+    )
+    if rerun != {"RUN_PHASE3_BRIEF_REFINEMENT": 2}:
+        raise RuntimeError(
+            "diffraction mutation did not isolate both Phase III finalists: "
+            f"{dict(sorted(rerun.items()))}"
+        )
+    if sum(row["status"] == "CACHED" for row in mutated) != 7:
+        raise RuntimeError("diffraction mutation invalidated unrelated scientific jobs")
+    for label in ("a", "b"):
+        result = output / f"t12_sol_phase3_{label}"
+        if (result / "phase3_diffraction_selection.json").read_bytes() != (
+            selection.read_bytes()
+        ):
+            raise RuntimeError(
+                "Phase III refinement did not retain selected MTZ evidence"
+            )
+        if (result / "phase3_crystal_id.txt").read_text(encoding="ascii") != (
+            "test_crystal_01\n"
+        ):
+            raise RuntimeError("Phase III refinement lost its exact crystal identity")
 
 
 def main() -> int:

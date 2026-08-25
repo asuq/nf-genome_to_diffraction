@@ -5,7 +5,10 @@ nextflow.enable.types = true
 
 include { CONTROL_FIRST_COPY_MR_WORKFLOW } from '../../../../workflows/control_first_copy_mr_workflow'
 include { ADDITIONAL_COPY_WORKFLOW } from '../../../../workflows/additional_copy_workflow'
-include { BRIEF_REFINEMENT_WORKFLOW } from '../../../../workflows/brief_refinement_workflow'
+include {
+    BRIEF_REFINEMENT_WORKFLOW;
+    PHASE3_BRIEF_REFINEMENT_WORKFLOW
+} from '../../../../workflows/brief_refinement_workflow'
 
 params {
     control_bundle: Path
@@ -14,6 +17,8 @@ params {
     review_package: Path
     hypotheses: Path
     finalists: Path
+    phase3_finalists: Path
+    phase3_dispatch: Path
     sequence_groups: Path
     source_records: Path
     preflight: Path
@@ -47,5 +52,13 @@ workflow {
         channel.of(params.sequence_groups),
         channel.of(params.source_records),
         channel.of(params.phenix_manifest)
+    )
+    PHASE3_BRIEF_REFINEMENT_WORKFLOW(
+        channel.of(params.phase3_finalists),
+        channel.of(params.sequence_groups),
+        channel.of(params.source_records),
+        channel.of(params.phenix_manifest),
+        channel.of(params.phase3_dispatch),
+        channel.of(params.preflight)
     )
 }
