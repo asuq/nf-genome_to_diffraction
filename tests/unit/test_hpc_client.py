@@ -687,6 +687,55 @@ def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
     )
 
 
+def _owned_terminal_files(
+    controller: HpcController,
+    run_id: str,
+    *,
+    failure_class: str = "test_failure",
+    exit_code: int = 1,
+    scheduler_state: str = "FAILED",
+) -> dict[str, bytes]:
+    record = controller._owned_run(run_id)
+    job_id = "12345"
+    manifest = {
+        "schema_version": "1.0",
+        "run_id": run_id,
+        "site_id": record.site_id,
+        "project": "nf-genome_to_diffraction",
+        "profile": record.profile,
+        "iteration": record.iteration,
+        "commit": record.commit,
+        "nf_helper_commit": "2" * 40,
+        "pixi_lock_sha256": hashlib.sha256(
+            (controller.config.repository / "pixi.lock").read_bytes()
+        ).hexdigest(),
+        "pixi_executable": "/approved/pixi",
+        "pixi_version": "0.76.2",
+        "source_snapshot_status": "immutable",
+    }
+    result = {
+        "schema_version": "1.0",
+        "run_id": run_id,
+        "profile": record.profile,
+        "job_id": job_id,
+        "started_at": "2026-08-25T00:00:00Z",
+        "completed_at": "2026-08-25T00:01:00Z",
+        "scheduler_state": scheduler_state,
+        "exit_code": exit_code,
+        "failure_class": failure_class,
+        "standard_output": f"logs/slurm-{job_id}.out",
+        "standard_error": f"logs/slurm-{job_id}.out",
+        "application_log": f"logs/{record.profile}.log",
+        "structured_test_reports": [],
+        "retained_artifacts": [],
+    }
+    return {
+        "manifest.json": json.dumps(manifest).encode(),
+        "state/job-id": f"{job_id}\n".encode(),
+        "state/job-result.json": json.dumps(result).encode(),
+    }
+
+
 def test_viper_controller_rejects_legacy_marmic_run_record(tmp_path: Path) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
@@ -1916,16 +1965,12 @@ def test_database_start_has_a_separate_local_authority_boundary(
 def test_database_failed_staging_archive_requires_collected_owned_evidence(
     tmp_path: Path,
 ) -> None:
-    job_result = json.dumps(
-        {
-            "failure_class": "software_failure",
-            "exit_code": 1,
-            "scheduler_state": "FAILED",
-        }
-    ).encode()
-    transport = FakeTransport(archive=_archive({"state/job-result.json": job_result}))
+    transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     run_id = str(controller.database_stage("HEAD")["run_id"])
+    transport.archive = _archive(
+        _owned_terminal_files(controller, run_id, failure_class="software_failure")
+    )
 
     with pytest.raises(ValidationError, match="collect the terminal database run"):
         controller.database_archive_failed(run_id, run_id)
@@ -1945,6 +1990,20 @@ def test_database_failed_staging_archive_requires_collected_owned_evidence(
     cancelled_root.mkdir()
     cancelled_controller = _controller(cancelled_root, cancelled_transport)
     cancelled_run = str(cancelled_controller.database_stage("HEAD")["run_id"])
+
+    with pytest.raises(RemoteOperationError, match="required terminal evidence"):
+        cancelled_controller.collect(cancelled_run)
+    with pytest.raises(ValidationError, match="collect the terminal database run"):
+        cancelled_controller.database_archive_failed(cancelled_run, cancelled_run)
+
+    cancelled_transport.archive = _archive(
+        _owned_terminal_files(
+            cancelled_controller,
+            cancelled_run,
+            failure_class="unknown_failure",
+            scheduler_state="CANCELLED",
+        )
+    )
     cancelled_controller.collect(cancelled_run)
     assert (
         cancelled_controller.database_archive_failed(cancelled_run, cancelled_run)[
@@ -2046,24 +2105,12 @@ def test_wait_accepts_explicit_running_and_terminal_scheduler_evidence(
 
 
 def test_collection_extracts_regular_whitelisted_payload_safely(tmp_path: Path) -> None:
-    job_result = json.dumps(
-        {
-            "failure_class": "test_failure",
-            "exit_code": 1,
-            "scheduler_state": "FAILED",
-        }
-    ).encode()
-    transport = FakeTransport(
-        archive=_archive(
-            {
-                "manifest.json": b"{}\n",
-                "state/job-result.json": job_result,
-                "logs/smoke.log": b"failed\n",
-            }
-        )
-    )
+    transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    files = _owned_terminal_files(controller, run_id)
+    files["logs/smoke.log"] = b"failed\n"
+    transport.archive = _archive(files)
 
     result = controller.collect(run_id)
 
@@ -2071,6 +2118,119 @@ def test_collection_extracts_regular_whitelisted_payload_safely(tmp_path: Path) 
     assert (Path(str(result["destination"])) / "logs" / "smoke.log").read_text() == (
         "failed\n"
     )
+
+
+def test_collection_accepts_owned_successful_terminal_evidence(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    transport.archive = _archive(
+        _owned_terminal_files(
+            controller,
+            run_id,
+            failure_class="success",
+            exit_code=0,
+            scheduler_state="COMPLETED",
+        )
+    )
+
+    result = controller.collect(run_id)
+
+    assert result["failure_signature"] is None
+    assert (Path(str(result["destination"])) / "state" / "job-result.json").is_file()
+
+
+@pytest.mark.parametrize(
+    "tampering",
+    (
+        "missing_result",
+        "malformed_result",
+        "non_object_result",
+        "missing_failure_class",
+        "unsupported_failure_class",
+        "wrong_result_run",
+        "wrong_result_profile",
+        "wrong_manifest_run",
+        "wrong_manifest_profile",
+        "wrong_manifest_site",
+        "wrong_manifest_source",
+        "wrong_manifest_lock",
+        "missing_job_id",
+        "wrong_job_id",
+        "active_scheduler",
+        "success_nonzero",
+        "failed_zero",
+        "missing_started_at",
+        "wrong_application_log",
+        "invalid_retained_artifacts",
+    ),
+)
+def test_collection_rejects_unauthenticated_terminal_evidence_before_publication(
+    tmp_path: Path,
+    tampering: str,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    files = _owned_terminal_files(controller, run_id)
+    manifest = json.loads(files["manifest.json"])
+    result = json.loads(files["state/job-result.json"])
+
+    if tampering == "missing_result":
+        del files["state/job-result.json"]
+    elif tampering == "malformed_result":
+        files["state/job-result.json"] = b"{invalid"
+    elif tampering == "non_object_result":
+        files["state/job-result.json"] = b"[]"
+    elif tampering == "missing_failure_class":
+        del result["failure_class"]
+    elif tampering == "unsupported_failure_class":
+        result["failure_class"] = "invented_failure"
+    elif tampering == "wrong_result_run":
+        result["run_id"] = "gtd-smoke-20260825T000000Z-111111111111-00000000"
+    elif tampering == "wrong_result_profile":
+        result["profile"] = "p0"
+    elif tampering == "wrong_manifest_run":
+        manifest["run_id"] = "gtd-smoke-20260825T000000Z-111111111111-00000000"
+    elif tampering == "wrong_manifest_profile":
+        manifest["profile"] = "p0"
+    elif tampering == "wrong_manifest_site":
+        manifest["site_id"] = "viper-cpu"
+    elif tampering == "wrong_manifest_source":
+        manifest["commit"] = "f" * 40
+    elif tampering == "wrong_manifest_lock":
+        manifest["pixi_lock_sha256"] = "f" * 64
+    elif tampering == "missing_job_id":
+        del files["state/job-id"]
+    elif tampering == "wrong_job_id":
+        result["job_id"] = "54321"
+    elif tampering == "active_scheduler":
+        result["scheduler_state"] = "RUNNING"
+    elif tampering == "success_nonzero":
+        result["failure_class"] = "success"
+        result["scheduler_state"] = "COMPLETED"
+    elif tampering == "failed_zero":
+        result["exit_code"] = 0
+    elif tampering == "missing_started_at":
+        del result["started_at"]
+    elif tampering == "wrong_application_log":
+        result["application_log"] = "logs/p0.log"
+    elif tampering == "invalid_retained_artifacts":
+        result["retained_artifacts"] = "artifacts/smoke"
+    else:
+        raise AssertionError(tampering)
+
+    files["manifest.json"] = json.dumps(manifest).encode()
+    if tampering not in {"missing_result", "malformed_result", "non_object_result"}:
+        files["state/job-result.json"] = json.dumps(result).encode()
+    transport.archive = _archive(files)
+    destination = controller.config.local_state_root / run_id / "collected"
+
+    with pytest.raises(RemoteOperationError) as error:
+        controller.collect(run_id)
+
+    assert error.value.failure_class == FailureClass.TRANSFER_FAILURE
+    assert not destination.exists()
 
 
 def test_collection_accepts_control_mtz_above_the_previous_file_limit(
@@ -2100,9 +2260,12 @@ def test_collection_rejects_path_traversal(tmp_path: Path) -> None:
 
 
 def test_collection_rejects_symlinked_parent(tmp_path: Path) -> None:
-    transport = FakeTransport(archive=_archive({"logs/smoke.log": b"bad"}))
+    transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    files = _owned_terminal_files(controller, run_id)
+    files["logs/smoke.log"] = b"bad"
+    transport.archive = _archive(files)
     destination = tmp_path / ".untracked" / "hpc-test" / run_id / "collected"
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -2312,18 +2475,13 @@ def test_review_collection_does_not_filter_on_numeric_screen(tmp_path: Path) -> 
 
 
 def test_same_failure_twice_stops_the_feedback_chain(tmp_path: Path) -> None:
-    job_result = json.dumps(
-        {
-            "failure_class": "test_failure",
-            "exit_code": 1,
-            "scheduler_state": "FAILED",
-        }
-    ).encode()
-    transport = FakeTransport(archive=_archive({"state/job-result.json": job_result}))
+    transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     first = str(controller.stage("smoke", "HEAD")["run_id"])
+    transport.archive = _archive(_owned_terminal_files(controller, first))
     controller.collect(first)
     second = str(controller.stage("smoke", "HEAD", parent_run_id=first)["run_id"])
+    transport.archive = _archive(_owned_terminal_files(controller, second))
     controller.collect(second)
 
     with pytest.raises(ValidationError, match="occurred twice"):
@@ -2331,36 +2489,52 @@ def test_same_failure_twice_stops_the_feedback_chain(tmp_path: Path) -> None:
 
 
 def test_distinct_application_diagnostics_do_not_collide(tmp_path: Path) -> None:
-    job_result = json.dumps(
-        {
-            "failure_class": "environment_failure",
-            "exit_code": 1,
-            "scheduler_state": "FAILED",
-            "application_log": "logs/smoke.log",
-        }
-    ).encode()
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     first = str(controller.stage("smoke", "HEAD")["run_id"])
-    transport.archive = _archive(
-        {
-            "state/job-result.json": job_result,
-            "logs/smoke.log": b"package resolution failed\n",
-        }
+    files = _owned_terminal_files(
+        controller, first, failure_class="environment_failure"
     )
+    files["logs/smoke.log"] = b"package resolution failed\n"
+    transport.archive = _archive(files)
     first_result = controller.collect(first)
     second = str(controller.stage("smoke", "HEAD", parent_run_id=first)["run_id"])
-    transport.archive = _archive(
-        {
-            "state/job-result.json": job_result,
-            "logs/smoke.log": b"phenix.xtriage probe timed out\n",
-        }
+    files = _owned_terminal_files(
+        controller, second, failure_class="environment_failure"
     )
+    files["logs/smoke.log"] = b"phenix.xtriage probe timed out\n"
+    transport.archive = _archive(files)
     second_result = controller.collect(second)
 
     assert first_result["failure_signature"] != second_result["failure_signature"]
     third = controller.stage("smoke", "HEAD", parent_run_id=second)
     assert third["iteration"] == 3
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        None,
+        b"{invalid",
+        b"[]",
+        b'{"failure_class":"invented_failure","exit_code":1,"scheduler_state":"FAILED"}',
+        b'{"failure_class":"success","exit_code":1,"scheduler_state":"COMPLETED"}',
+        b'{"failure_class":"test_failure","exit_code":0,"scheduler_state":"FAILED"}',
+    ),
+)
+def test_failure_signature_rejects_missing_or_contradictory_terminal_evidence(
+    tmp_path: Path,
+    payload: bytes | None,
+) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    if payload is not None:
+        (state / "job-result.json").write_bytes(payload)
+
+    with pytest.raises(RemoteOperationError) as error:
+        _failure_signature(tmp_path)
+
+    assert error.value.failure_class == FailureClass.TRANSFER_FAILURE
 
 
 @pytest.mark.parametrize("profile", ("heteromer-smoke", "phase3-phenix-probe"))

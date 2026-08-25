@@ -2524,6 +2524,14 @@ class HpcController:
         record = self._owned_run(run_id)
         self.logger.info("collecting HPC run artefacts", extra={"run_id": run_id})
         archive = self.transport.collect(run_id, record.owner_id)
+        source_lock_sha256 = hashlib.sha256(
+            self.git.read_file_at_commit(record.commit, PurePosixPath("pixi.lock"))
+        ).hexdigest()
+        _validated_owned_terminal_result(
+            archive,
+            record,
+            source_lock_sha256=source_lock_sha256,
+        )
         destination = self.config.local_state_root / run_id / "collected"
         files = _extract_approved_archive(
             archive,
@@ -2805,6 +2813,217 @@ def _extract_approved_archive(
             failure_class=FailureClass.TRANSFER_FAILURE,
         ) from error
     return sorted(extracted)
+
+
+def _terminal_evidence_error(reason: str) -> RemoteOperationError:
+    return RemoteOperationError(
+        f"owned terminal HPC evidence is invalid: {reason}",
+        failure_class=FailureClass.TRANSFER_FAILURE,
+    )
+
+
+def _terminal_evidence_mapping(payload: bytes, *, label: str) -> Mapping[str, object]:
+    try:
+        value = parse_json_document(payload.decode("utf-8"), label=label)
+    except (UnicodeDecodeError, ContractLoadError) as error:
+        raise _terminal_evidence_error(f"{label} is not strict UTF-8 JSON") from error
+    if not isinstance(value, Mapping):
+        raise _terminal_evidence_error(f"{label} must be a JSON object")
+    return value
+
+
+def _validated_failure_outcome(result: Mapping[str, object]) -> FailureClass:
+    failure_value = result.get("failure_class")
+    if not isinstance(failure_value, str):
+        raise _terminal_evidence_error("failure_class must be explicitly declared")
+    try:
+        failure = FailureClass(failure_value)
+    except ValueError as error:
+        raise _terminal_evidence_error(
+            f"failure_class is unsupported: {failure_value!r}"
+        ) from error
+
+    scheduler_state = result.get("scheduler_state")
+    if not isinstance(scheduler_state, str) or scheduler_state not in _TERMINAL_STATES:
+        raise _terminal_evidence_error("scheduler_state is not a terminal state")
+    exit_code = result.get("exit_code")
+    if type(exit_code) is not int or exit_code < 0:
+        raise _terminal_evidence_error("exit_code must be a non-negative integer")
+    if failure is FailureClass.SUCCESS:
+        if scheduler_state != "COMPLETED" or exit_code != 0:
+            raise _terminal_evidence_error(
+                "success requires COMPLETED and exit_code zero"
+            )
+    elif scheduler_state == "COMPLETED" or exit_code == 0:
+        raise _terminal_evidence_error(
+            "failure requires a non-success terminal state and nonzero exit_code"
+        )
+    return failure
+
+
+def _validated_terminal_timestamps(result: Mapping[str, object]) -> None:
+    parsed: list[datetime] = []
+    for field in ("started_at", "completed_at"):
+        value = result.get(field)
+        if not isinstance(value, str):
+            raise _terminal_evidence_error(f"{field} must be an explicit timestamp")
+        try:
+            parsed.append(datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ"))
+        except ValueError as error:
+            raise _terminal_evidence_error(
+                f"{field} must be a canonical UTC timestamp"
+            ) from error
+    if parsed[1] < parsed[0]:
+        raise _terminal_evidence_error("completed_at precedes started_at")
+
+
+def _validated_terminal_inventory(result: Mapping[str, object]) -> None:
+    for field in ("structured_test_reports", "retained_artifacts"):
+        inventory = result.get(field)
+        if not isinstance(inventory, list):
+            raise _terminal_evidence_error(f"{field} must be an explicit list")
+        seen: set[str] = set()
+        for value in inventory:
+            if not isinstance(value, str):
+                raise _terminal_evidence_error(f"{field} contains a non-path value")
+            relative = PurePosixPath(value)
+            if (
+                relative.is_absolute()
+                or ".." in relative.parts
+                or not relative.parts
+                or relative.parts[0] != "artifacts"
+                or value != relative.as_posix()
+                or value in seen
+            ):
+                raise _terminal_evidence_error(
+                    f"{field} contains an unsafe or duplicated path"
+                )
+            seen.add(value)
+
+
+def _owned_terminal_archive_evidence(archive: bytes) -> dict[str, bytes]:
+    required = frozenset({"manifest.json", "state/job-id", "state/job-result.json"})
+    if len(archive) > MAX_ARTIFACT_TOTAL_BYTES:
+        raise _terminal_evidence_error(
+            "compressed archive exceeds the collection limit"
+        )
+    evidence: dict[str, bytes] = {}
+    seen: set[str] = set()
+    total = 0
+    try:
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
+            for member in tar.getmembers():
+                relative = PurePosixPath(member.name)
+                if (
+                    not member.isfile()
+                    or relative.is_absolute()
+                    or ".." in relative.parts
+                    or not relative.parts
+                ):
+                    raise _terminal_evidence_error(
+                        f"unsafe archive member: {member.name!r}"
+                    )
+                name = relative.as_posix()
+                if name in seen:
+                    raise _terminal_evidence_error(
+                        f"archive member is duplicated: {name}"
+                    )
+                seen.add(name)
+                if member.size > MAX_ARTIFACT_FILE_BYTES:
+                    raise _terminal_evidence_error(
+                        f"artefact exceeds per-file limit: {name}"
+                    )
+                total += member.size
+                if total > MAX_ARTIFACT_TOTAL_BYTES:
+                    raise _terminal_evidence_error(
+                        "artefacts exceed total collection limit"
+                    )
+                if name in required:
+                    if member.size > MAX_LOG_BYTES:
+                        raise _terminal_evidence_error(
+                            f"terminal evidence exceeds its bounded size: {name}"
+                        )
+                    source = tar.extractfile(member)
+                    if source is None:
+                        raise _terminal_evidence_error(
+                            f"cannot read required terminal evidence: {name}"
+                        )
+                    evidence[name] = source.read()
+    except (OSError, EOFError, tarfile.TarError) as error:
+        raise _terminal_evidence_error("remote artefact archive is invalid") from error
+
+    missing = sorted(required - evidence.keys())
+    if missing:
+        raise _terminal_evidence_error(
+            f"required terminal evidence is absent: {', '.join(missing)}"
+        )
+    return evidence
+
+
+def _validated_owned_terminal_result(
+    archive: bytes,
+    record: LocalRunRecord,
+    *,
+    source_lock_sha256: str,
+) -> Mapping[str, object]:
+    evidence = _owned_terminal_archive_evidence(archive)
+    manifest = _terminal_evidence_mapping(
+        evidence["manifest.json"], label="manifest.json"
+    )
+    expected_manifest = {
+        "schema_version": "1.0",
+        "run_id": record.run_id,
+        "site_id": record.site_id,
+        "project": "nf-genome_to_diffraction",
+        "profile": record.profile,
+        "iteration": record.iteration,
+        "commit": record.commit,
+        "pixi_lock_sha256": source_lock_sha256,
+        "source_snapshot_status": "immutable",
+    }
+    for field, expected in expected_manifest.items():
+        if manifest.get(field) != expected:
+            raise _terminal_evidence_error(
+                f"manifest {field} does not match the owned immutable run"
+            )
+    helper_commit = manifest.get("nf_helper_commit")
+    if not isinstance(helper_commit, str) or not COMMIT_PATTERN.fullmatch(
+        helper_commit
+    ):
+        raise _terminal_evidence_error("manifest nf_helper_commit is invalid")
+    for field in ("pixi_executable", "pixi_version"):
+        value = manifest.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise _terminal_evidence_error(f"manifest {field} is absent")
+
+    try:
+        job_id = evidence["state/job-id"].decode("ascii").removesuffix("\n")
+    except UnicodeDecodeError as error:
+        raise _terminal_evidence_error("scheduler job ID is not ASCII") from error
+    if not re.fullmatch(r"[0-9]+", job_id):
+        raise _terminal_evidence_error("scheduler job ID is not canonical")
+
+    result = _terminal_evidence_mapping(
+        evidence["state/job-result.json"], label="state/job-result.json"
+    )
+    expected_result = {
+        "schema_version": "1.0",
+        "run_id": record.run_id,
+        "profile": record.profile,
+        "job_id": job_id,
+        "standard_output": f"logs/slurm-{job_id}.out",
+        "standard_error": f"logs/slurm-{job_id}.out",
+        "application_log": f"logs/{record.profile}.log",
+    }
+    for field, expected in expected_result.items():
+        if result.get(field) != expected:
+            raise _terminal_evidence_error(
+                f"job result {field} does not match the owned scheduler run"
+            )
+    _validated_terminal_timestamps(result)
+    _validated_failure_outcome(result)
+    _validated_terminal_inventory(result)
+    return result
 
 
 def _safe_local_evidence_file(root: Path, relative: PurePosixPath) -> Path:
@@ -3273,21 +3492,23 @@ def _atomic_write_bytes(path: Path, payload: bytes) -> None:
 def _failure_signature(destination: Path) -> str | None:
     result_path = destination / "state" / "job-result.json"
     if not result_path.is_file():
-        return None
+        raise _terminal_evidence_error("job-result.json is absent after collection")
     try:
         value = load_json_document(result_path)
-    except ContractLoadError:
-        return None
+    except ContractLoadError as error:
+        raise _terminal_evidence_error(
+            "job-result.json is invalid after collection"
+        ) from error
     if not isinstance(value, Mapping):
+        raise _terminal_evidence_error("job-result.json must be a JSON object")
+    failure = _validated_failure_outcome(value)
+    if failure is FailureClass.SUCCESS:
         return None
-    failure = str(value.get("failure_class", "unknown_failure"))
-    if failure == FailureClass.SUCCESS:
-        return None
-    exit_code = str(value.get("exit_code", "unknown"))
-    scheduler_state = str(value.get("scheduler_state", "unknown"))
+    exit_code = str(value["exit_code"])
+    scheduler_state = str(value["scheduler_state"])
     diagnostic = _failure_log_digest(destination, value)
     return hashlib.sha256(
-        f"{failure}\0{exit_code}\0{scheduler_state}\0{diagnostic}".encode()
+        f"{failure.value}\0{exit_code}\0{scheduler_state}\0{diagnostic}".encode()
     ).hexdigest()
 
 

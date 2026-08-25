@@ -13163,3 +13163,31 @@ with a collapsed combined parent or a guessed command.
   `unresolved` until human review rather than asserting unsupported identity.
 - No existing scheduler run, installed dispatcher, scientific threshold, or
   historical v1 result was changed.
+
+## 2026-08-25 - Terminal HPC collection authenticates owned failure evidence
+
+- `FCB-P1-11` first reproduced 20 independent cases in which a missing,
+  malformed, unsupported, cross-run, cross-site, cross-profile, cross-source,
+  contradictory, or still-running scheduler result was accepted and published.
+  The same absence fabricated authorisation to archive failed database staging.
+- Collection now examines the complete bounded archive before writing any
+  destination and requires exactly one immutable source manifest, independent
+  numeric scheduler-job record, and complete strict-JSON terminal result. The
+  manifest must match the owned run, site, profile, iteration, project,
+  immutable source commit, and the Pixi-lock digest read from that exact
+  commit; helper, Pixi executable, and Pixi version provenance must be present.
+- The scheduler result independently binds the owned run/profile/job, canonical
+  ordered UTC timestamps, approved log paths, explicitly typed report/artifact
+  inventories, and a supported terminal state/failure class. Only `COMPLETED`
+  with exit zero and explicit `success` suppresses a failure signature; every
+  supported failed/cancelled outcome requires a nonzero exit and a real stable
+  failure signature. Missing or corrupt local results now raise a transfer
+  failure rather than silently becoming success.
+- All 20 prior collection attacks and six direct missing/corrupt/contradictory
+  signature cases now fail closed before publication. Genuine successful,
+  failed, and cancelled owned runs, distinct stable diagnostics, repeated
+  failure guards, all 137 neighbouring HPC client/CLI cases, and the real
+  reviewed dispatcher scheduler lifecycle remain green.
+- The correction changes only the local controller: no remote dispatcher,
+  existing scheduler run, retained scientific result, or collection limit was
+  modified.
