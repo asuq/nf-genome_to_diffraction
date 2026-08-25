@@ -651,5 +651,5 @@ def test_nextflow_finishes_sibling_attempts_after_contract_failure() -> None:
         encoding="utf-8"
     )
 
-    assert "errorStrategy 'finish'" in module
+    assert "errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }" in module
     assert "--until-expected" in module

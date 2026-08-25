@@ -1,7 +1,9 @@
 """Tests for exact-accession AlphaFold DB retrieval and caching."""
 
 import hashlib
+import io
 import json
+import urllib.error
 from pathlib import Path
 
 import gemmi
@@ -10,9 +12,49 @@ import pytest
 from genome_to_diffraction.databases.cache import initialise_coordinate_cache
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.schemas.results import SequenceGroupRecord
-from genome_to_diffraction.status import ExecutionStatus, ResultParseError
+from genome_to_diffraction.status import (
+    ExecutionStatus,
+    InfrastructureError,
+    ResultParseError,
+    TransientInfrastructureError,
+)
 from genome_to_diffraction.structure_search import AfdbExactRequest, search_afdb_exact
 from genome_to_diffraction.structure_search import afdb_exact as afdb_module
+
+
+@pytest.mark.parametrize(
+    ("http_status", "expected_error"),
+    (
+        (503, TransientInfrastructureError),
+        (429, TransientInfrastructureError),
+        (403, InfrastructureError),
+    ),
+)
+def test_afdb_only_marks_temporary_http_failures_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+    http_status: int,
+    expected_error: type[InfrastructureError],
+) -> None:
+    def fail(*_args: object, **_kwargs: object) -> object:
+        raise urllib.error.HTTPError(
+            "https://alphafold.ebi.ac.uk/test",
+            http_status,
+            "test failure",
+            {},
+            io.BytesIO(b""),
+        )
+
+    monkeypatch.setattr(afdb_module.urllib.request, "urlopen", fail)
+
+    with pytest.raises(expected_error) as captured:
+        afdb_module._http_get(
+            "https://alphafold.ebi.ac.uk/test",
+            accept="application/json",
+            timeout_seconds=1,
+            retry_count=1,
+            maximum_bytes=1024,
+        )
+    assert type(captured.value) is expected_error
 
 
 def _sequence_group(sequence: str) -> SequenceGroupRecord:

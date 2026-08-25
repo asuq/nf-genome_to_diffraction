@@ -312,6 +312,24 @@ def test_scientific_profiles_use_run_owned_apptainer_caches(
     assert "/ptmp/ashima/apptainer-cache" not in body
 
 
+def test_only_explicit_transient_failures_receive_one_nextflow_retry() -> None:
+    """Retain scientific finish semantics without retrying deterministic failures."""
+
+    base = (REPOSITORY / "conf/base.config").read_text(encoding="utf-8")
+    assert "errorStrategy = { task.exitStatus == 75 ? 'retry' : 'terminate' }" in base
+    assert "maxRetries = 1" in base
+    for relative_path in (
+        "modules/local/run_additional_copy_phaser.nf",
+        "modules/local/run_approved_partner_phaser.nf",
+        "modules/local/run_planned_partner_phaser.nf",
+        "modules/local/run_brief_refinement.nf",
+    ):
+        process = (REPOSITORY / relative_path).read_text(encoding="utf-8")
+        assert "errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }" in (
+            process
+        )
+
+
 def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     """Prevent a return to one multi-sample Python/Slurm allocation."""
 

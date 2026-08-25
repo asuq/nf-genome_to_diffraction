@@ -6,7 +6,14 @@ from pathlib import Path
 
 import pytest
 
+import genome_to_diffraction.cli as cli_module
 from genome_to_diffraction.cli import main
+from genome_to_diffraction.status import (
+    InfrastructureError,
+    InputContractError,
+    ResultParseError,
+    TransientInfrastructureError,
+)
 
 
 @pytest.mark.parametrize("action", ["run-control-slice", "run-control-matrix"])
@@ -60,6 +67,29 @@ def test_schema_check_reports_missing_schema_directory(
 ) -> None:
     assert main(["schema-check", "--repository", str(tmp_path)]) == 1
     assert "schema directory not found" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status"),
+    (
+        (TransientInfrastructureError("temporary staging failure"), 75),
+        (InfrastructureError("permanent infrastructure failure"), 1),
+        (InputContractError("invalid scientific input"), 1),
+        (ResultParseError("unparseable scientific result"), 1),
+    ),
+)
+def test_only_classified_transient_failures_request_a_scheduler_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+    expected_status: int,
+) -> None:
+    def fail(_repository: Path) -> list[str]:
+        raise error
+
+    monkeypatch.setattr(cli_module, "validate_repository", fail)
+
+    assert main(["schema-check", "--repository", str(tmp_path)]) == expected_status
 
 
 def test_contract_canonicalise_writes_stable_json(

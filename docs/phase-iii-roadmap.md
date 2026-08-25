@@ -72,6 +72,14 @@ exact AFDB retrieval, and M6 coordinate staging therefore cannot silently fall
 back to a site Slurm worker. Explicit compute-worker socket denial and real
 provider staging remain separate qualification gates.
 
+Transient infrastructure recovery now uses one explicit boundary instead of a
+general retry framework. Classified temporary transport/HTTP failures return
+`EX_TEMPFAIL` 75; Nextflow retries that exit exactly once. Permanent provider,
+input-contract, parser, and scientific failures are never retried, and the
+existing candidate-level sibling `finish` behaviour is retained. A real local
+Nextflow fixture proves both the two-attempt recovery and one-attempt contract
+failure; real scheduler-node/preemption qualification remains separate.
+
 One schema-v2 `PhaseIIIExecutionIdentity` now binds every raw catalogue FAA and
 annotation, crystal MTZ, database inventory, source commit/tree, nf-helper,
 Pixi lock, execution policy, required Phenix executable, and adapter version

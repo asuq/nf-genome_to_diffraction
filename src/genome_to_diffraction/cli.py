@@ -207,7 +207,10 @@ from genome_to_diffraction.schemas.io import (
     contract_kinds,
     load_contract,
 )
-from genome_to_diffraction.status import GenomeToDiffractionError
+from genome_to_diffraction.status import (
+    GenomeToDiffractionError,
+    TransientInfrastructureError,
+)
 from genome_to_diffraction.structure_search import (
     AfdbExactRequest,
     DisabledProviderBundleRequest,
@@ -3306,6 +3309,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             extra={"error": str(error), "exit_status": error.returncode},
         )
         return error.returncode
+    except TransientInfrastructureError as error:
+        logger.error(
+            "classified transient infrastructure failure",
+            extra={"error": str(error), "exit_status": 75},
+        )
+        return 75
     except (
         ContractError,
         GenomeToDiffractionError,

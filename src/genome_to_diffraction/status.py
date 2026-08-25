@@ -51,5 +51,9 @@ class InfrastructureError(GenomeToDiffractionError):
     """The execution environment could not satisfy a runtime requirement."""
 
 
+class TransientInfrastructureError(InfrastructureError):
+    """A classified temporary infrastructure failure permits one scheduler retry."""
+
+
 class FoundationOnlyError(GenomeToDiffractionError):
     """A caller requested scientific work before its milestone is implemented."""

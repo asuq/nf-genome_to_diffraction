@@ -3,7 +3,7 @@ nextflow.enable.types = true
 process RUN_BRIEF_REFINEMENT {
     tag "t12:${finalist[0]}"
     label 'process_refine'
-    errorStrategy 'finish'
+    errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }
     publishDir params.outdir, mode: 'copy', overwrite: true
 
     input:

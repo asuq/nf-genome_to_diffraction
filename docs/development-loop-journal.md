@@ -12088,3 +12088,22 @@ with a collapsed combined parent or a guessed command.
 - Preserve the single 30-minute automation for Slurm job `634097`. Its exact
   6RTZ/3U7Q grouped-component inventories must be classified before starting a
   multi-fixed Phaser command, `9ECN`, M6, localisation, or unknown analysis.
+
+## 2026-08-25 - Classified temporary failures receive exactly one retry
+
+- The original execution configuration disabled every scheduler retry, even
+  for explicitly transient failures. The existing candidate-level modules
+  separately required `finish` semantics so deterministic scientific failures
+  could not simply inherit an unconditional retry policy.
+- A dedicated temporary-infrastructure error now maps to exit 75. Exhausted
+  HTTP 408/425/429/5xx and transport failures use that classification; permanent
+  infrastructure, HTTP, input-contract, parsing, and scientific failures do
+  not. Nextflow retries exit 75 once, while candidate-level modules preserve
+  `finish` for every other exit.
+- A real local two-scenario Nextflow fixture proves one failed/successful
+  attempt pair for exit 75 and exactly one failed attempt for an input exit.
+  Focused CLI, provider, repository-policy, and existing add-copy tests pass.
+  Actual scheduler-node/preemption behaviour remains a later HPC qualification.
+- Keep the existing 30-minute automation as the sole monitor of Slurm job
+  `634097`; classify its exact known-control component evidence before any
+  multi-fixed Phaser, `9ECN`, M6, localisation, or unknown execution.

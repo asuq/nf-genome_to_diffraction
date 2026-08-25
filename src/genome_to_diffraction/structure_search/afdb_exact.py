@@ -61,6 +61,7 @@ from genome_to_diffraction.status import (
     InfrastructureError,
     InputContractError,
     ResultParseError,
+    TransientInfrastructureError,
 )
 from genome_to_diffraction.structure_search.provider_plan import (
     load_enabled_provider_route,
@@ -397,13 +398,18 @@ def _http_get(
                     headers=_selected_headers(error.headers),
                     body=body,
                 )
-            if error.code < 500 or attempt == retry_count:
+            retryable = error.code in {408, 425, 429} or 500 <= error.code < 600
+            if not retryable:
                 raise InfrastructureError(
                     f"AFDB request failed with HTTP {error.code}: {url}"
                 ) from error
+            if attempt == retry_count:
+                raise TransientInfrastructureError(
+                    f"AFDB request failed with temporary HTTP {error.code}: {url}"
+                ) from error
         except (OSError, TimeoutError, urllib.error.URLError) as error:
             if attempt == retry_count:
-                raise InfrastructureError(
+                raise TransientInfrastructureError(
                     f"AFDB request failed: {url}: {error}"
                 ) from error
         if attempt < retry_count:
