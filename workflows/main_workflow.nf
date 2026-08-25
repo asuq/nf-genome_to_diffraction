@@ -17,7 +17,10 @@ include { STAGE_APPROVED_MR_SEEDS } from '../modules/local/stage_approved_mr_see
 include {
     STAGE_PHASE3_APPROVED_MR_SEEDS
 } from '../modules/local/stage_phase3_approved_mr_seeds'
-include { STAGE_LIVE_T12 } from '../modules/local/stage_live_t12'
+include {
+    STAGE_LIVE_T12;
+    STAGE_PHASE3_CRYSTAL_T12
+} from '../modules/local/stage_live_t12'
 include { VALIDATE_TASK05_INPUTS } from '../modules/local/validate_task05_inputs'
 include {
     ADDITIONAL_COPY_WORKFLOW;
@@ -73,7 +76,6 @@ workflow MAIN_WORKFLOW {
     phase3_owned_parent_run_id: String?
     phase3_a_seed_review_stage: Path?
     phase3_a_seed_review_package: Path?
-    phase3_a_seed_legacy_review_package: Path?
     phase3_reviewed_crystal_manifest: Path?
     phase3_owned_run_registry: Path?
     phase3_owned_sequence_parent_run_id: String?
@@ -148,7 +150,6 @@ workflow MAIN_WORKFLOW {
                 (routes.crystals as List).collect { item ->
                     def required = [
                         'crystal_id',
-                        'review_package',
                         'review_stage',
                         'hypotheses'
                     ] as Set
@@ -164,7 +165,6 @@ workflow MAIN_WORKFLOW {
                     }
                     tuple(
                         item.crystal_id as String,
-                        file(item.review_package as String, checkIfExists: true),
                         file(item.review_stage as String, checkIfExists: true),
                         file(
                             phase3_owned_run_registry.resolve(
@@ -190,14 +190,13 @@ workflow MAIN_WORKFLOW {
             .combine(preflight_jsonl.first())
             .combine(channel.value(phenix_manifest))
             .map { item, preflight, phenix ->
-                Path dispatch = item[5] as Path
-                Path catalogue = item[6] as Path
+                Path dispatch = item[4] as Path
+                Path catalogue = item[5] as Path
                 tuple(
                     item[0],
                     item[1],
                     item[2],
                     item[3],
-                    item[4],
                     file(catalogue.resolve('sequence_groups.jsonl'), checkIfExists: true),
                     file(catalogue.resolve('source_records.jsonl'), checkIfExists: true),
                     preflight,
@@ -364,18 +363,19 @@ workflow MAIN_WORKFLOW {
                 if (phase3_a_seed_review_stage != null) {
                     if (
                         phase3_a_seed_review_package == null ||
-                        phase3_a_seed_legacy_review_package == null
+                        phase3_owned_run_registry == null ||
+                        phase3_execution_identity == null ||
+                        phase3_owned_parent_run_id == null
                     ) {
-                        error 'Phase III A-seed execution lacks complete review evidence'
+                        error 'Phase III A-seed execution lacks complete owned evidence'
                     }
-                    selected_review_package = channel.value(
-                        phase3_a_seed_legacy_review_package
-                    )
                     approved_stage = STAGE_PHASE3_APPROVED_MR_SEEDS(
-                        selected_review_package,
                         channel.value(phase3_a_seed_review_stage),
                         channel.value(phase3_a_seed_review_package),
-                        first_copy_hypotheses
+                        first_copy_hypotheses,
+                        channel.value(phase3_owned_run_registry),
+                        channel.value(phase3_execution_identity),
+                        channel.value(phase3_owned_parent_run_id)
                     )
                 } else {
                     selected_review_package = mr_seed_review
@@ -418,15 +418,8 @@ workflow MAIN_WORKFLOW {
                 additional_seeds = approved_stage.map { Path bundle ->
                     bundle.resolve('additional_copy_seeds.tsv')
                 }
-                review_validation = approved_stage.map { Path bundle ->
-                    bundle.resolve('validated_mr_seed_decisions.json')
-                }
-                review_manifest = selected_review_package.map { Path bundle ->
-                    bundle.resolve('mr_seed_review_manifest.json')
-                }
                 if (phase3_a_seed_review_stage != null) {
                     reviewed_crystals = approved_stage
-                        .combine(review_manifest.first())
                         .combine(first_copy_hypotheses.first())
                         .combine(sequence_groups.first())
                         .combine(preflight_jsonl.first())
@@ -435,7 +428,6 @@ workflow MAIN_WORKFLOW {
                         .combine(crystal_dispatch.first())
                         .map {
                             approved,
-                            review,
                             hypotheses,
                             sequences,
                             preflight,
@@ -445,7 +437,6 @@ workflow MAIN_WORKFLOW {
                             tuple(
                                 dispatch.resolve('crystal_id.txt').toFile().text.trim(),
                                 approved,
-                                review,
                                 hypotheses,
                                 sequences,
                                 preflight,
@@ -458,6 +449,12 @@ workflow MAIN_WORKFLOW {
                         reviewed_crystals
                     ).map { crystalId, seedId, result -> result }
                 } else {
+                    review_validation = approved_stage.map { Path bundle ->
+                        bundle.resolve('validated_mr_seed_decisions.json')
+                    }
+                    review_manifest = selected_review_package.map { Path bundle ->
+                        bundle.resolve('mr_seed_review_manifest.json')
+                    }
                     additional_copy = ADDITIONAL_COPY_WORKFLOW(
                         additional_seeds,
                         review_validation,
@@ -473,22 +470,66 @@ workflow MAIN_WORKFLOW {
                     copy_results = additional_copy
                         .collect()
                         .ifEmpty([])
-                    live_t12_stage = STAGE_LIVE_T12(
-                        approved_stage.filter { Path bundle ->
+                    if (phase3_a_seed_review_stage != null) {
+                        phase3_t12_inputs = approved_stage
+                            .filter { Path bundle ->
+                                def stageManifest = new groovy.json.JsonSlurper().parse(
+                                    bundle.resolve('phase3_seed_stage_manifest.json').toFile()
+                                )
+                                (stageManifest.approved_seed_count as Integer) > 0
+                            }
+                            .combine(copy_results)
+                            .combine(first_copy_hypotheses.first())
+                            .combine(sequence_groups.first())
+                            .combine(source_records.first())
+                            .combine(preflight_jsonl.first())
+                            .combine(selected_mtz.first())
+                            .combine(channel.value(phenix_manifest))
+                            .combine(crystal_dispatch.first())
+                            .map {
+                                approved,
+                                results,
+                                hypotheses,
+                                sequences,
+                                sources,
+                                preflight,
+                                mtz,
+                                phenix,
+                                dispatch ->
+                                tuple(
+                                    dispatch.resolve('crystal_id.txt').toFile().text.trim(),
+                                    approved,
+                                    results,
+                                    hypotheses,
+                                    sequences,
+                                    sources,
+                                    preflight,
+                                    mtz,
+                                    phenix,
+                                    dispatch
+                                )
+                            }
+                        live_t12_stage = STAGE_PHASE3_CRYSTAL_T12(
+                            phase3_t12_inputs
+                        ).map { crystalId, stage, dispatch -> stage }
+                    } else {
+                        live_t12_stage = STAGE_LIVE_T12(
+                            approved_stage.filter { Path bundle ->
                             def stageManifest = new groovy.json.JsonSlurper().parse(
                                 bundle.resolve('live_m4_stage_manifest.json').toFile()
                             )
                             (stageManifest.approved_seed_count as Integer) > 0
-                        },
-                        selected_review_package,
-                        copy_results,
-                        first_copy_hypotheses,
-                        sequence_groups,
-                        source_records,
-                        preflight_jsonl,
-                        selected_mtz,
-                        phenix_manifest
-                    )
+                            },
+                            selected_review_package,
+                            copy_results,
+                            first_copy_hypotheses,
+                            sequence_groups,
+                            source_records,
+                            preflight_jsonl,
+                            selected_mtz,
+                            phenix_manifest
+                        )
+                    }
                     t12_finalists = live_t12_stage.map { Path bundle ->
                         bundle.resolve('finalists.tsv')
                     }

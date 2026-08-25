@@ -11,10 +11,13 @@ include {
 } from '../../../../workflows/additional_copy_workflow'
 
 params {
-    review_package: Path
     review_stage: Path
     phase3_package: Path
     hypotheses: Path
+    owned_run_registry: Path
+    execution_identity: Path
+    owned_parent_run_id: String
+    crystal_id: String
     sequence_groups: Path
     preflight: Path
     mtz: Path
@@ -27,16 +30,17 @@ params {
 workflow {
     main:
     approved = STAGE_PHASE3_APPROVED_MR_SEEDS(
-        channel.value(params.review_package),
         channel.value(params.review_stage),
         channel.value(params.phase3_package),
-        channel.value(params.hypotheses)
+        channel.value(params.hypotheses),
+        channel.value(params.owned_run_registry),
+        channel.value(params.execution_identity),
+        channel.value(params.owned_parent_run_id)
     )
     reviewed = approved.map { Path bundle ->
         tuple(
-            'test_crystal_01',
+            params.crystal_id,
             bundle,
-            params.review_package.resolve('mr_seed_review_manifest.json'),
             params.hypotheses,
             params.sequence_groups,
             params.preflight,

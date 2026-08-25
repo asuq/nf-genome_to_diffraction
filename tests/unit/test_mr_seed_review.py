@@ -5,7 +5,7 @@ import json
 import os
 import subprocess
 from collections import Counter
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from shutil import copy2
@@ -17,7 +17,9 @@ from genome_to_diffraction.cli import main
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.mr.stage_add_copy import (
     LiveAddCopyStageRequest,
+    PhaseIIISeedStageRequest,
     prepare_live_add_copy_stage,
+    prepare_phase3_seed_stage,
 )
 from genome_to_diffraction.review import (
     MrSeedApprovalRequest,
@@ -415,6 +417,82 @@ def _owned_phase3_a_seed_inputs(
         package.manifest.parent,
         stage.stage_manifest.parent,
         solution_id,
+    )
+
+
+@dataclass(frozen=True)
+class _OwnedPhase3SeedFixture:
+    request: MrSeedReviewRequest
+    legacy_review: Path
+    package: Path
+    review_stage: Path
+    solution_id: str
+    execution_identity: Path
+    owned_registry: Path
+    parent_run: str
+    owned_registry_id: str
+
+    def stage_request(self, output: Path) -> PhaseIIISeedStageRequest:
+        return PhaseIIISeedStageRequest(
+            review_stage=self.review_stage,
+            review_package_manifest=(
+                self.package / "phase3_review_package_manifest.json"
+            ),
+            hypotheses_jsonl=self.request.hypotheses_jsonl,
+            owned_run_registry=self.owned_registry,
+            execution_identity=self.execution_identity,
+            owned_parent_run_id=self.parent_run,
+            output_directory=output,
+            progress=False,
+        )
+
+
+def _registered_phase3_a_seed_fixture(
+    tmp_path: Path,
+    *,
+    decision: PhaseIIIReviewDecisionValue,
+    expected_copies: int = 3,
+) -> _OwnedPhase3SeedFixture:
+    public_root = tmp_path / "public-fixture"
+    public_root.mkdir()
+    public = materialise_unknown_pass1_public_fixture(public_root)
+    parent_run = "gtd-unknown-screen-owned-fixture"
+    crystal_id = PUBLIC_STUB_CRYSTAL_IDS[0]
+    crystal_root = tmp_path / crystal_id
+    crystal_root.mkdir()
+    request, legacy, package, stage, solution_id = _owned_phase3_a_seed_inputs(
+        crystal_root,
+        crystal_id=crystal_id,
+        execution_identity=public.execution_identity,
+        owned_parent_run_id=parent_run,
+        decision=decision,
+        expected_copies=expected_copies,
+    )
+    registry = tmp_path / "completed-screen-registry"
+    registry.mkdir()
+    record = register_phase3_owned_run(
+        parent=OwnedPhaseIIIParentRun(parent_run, "unknown-screen", "phase3-pass1"),
+        completed_at=datetime.now(UTC),
+        execution_identity=public.execution_identity,
+        packages=(
+            OwnedPhaseIIIReviewPackageSource(
+                crystal_id=crystal_id,
+                checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+                package_directory=package,
+            ),
+        ),
+        output_directory=registry,
+    )
+    return _OwnedPhase3SeedFixture(
+        request=request,
+        legacy_review=legacy,
+        package=package,
+        review_stage=stage,
+        solution_id=solution_id,
+        execution_identity=public.execution_identity,
+        owned_registry=registry,
+        parent_run=parent_run,
+        owned_registry_id=record.owned_run_registry_id,
     )
 
 
@@ -925,37 +1003,9 @@ def test_phase3_a_decisions_feed_only_approved_existing_copy_workflow(
     tmp_path: Path,
     decision: PhaseIIIReviewDecisionValue,
 ) -> None:
-    request = _request(tmp_path)
-    hypothesis = _hypothesis().model_copy(update={"copy_count_expected": 3})
-    request.hypotheses_jsonl.write_text(
-        f"{canonical_json_text(hypothesis)}\n", encoding="utf-8"
-    )
-    matthews = _matthews().model_copy(
-        update={"copy_count": 3, "total_mass_da": 3 * 436.4375}
-    )
-    request.matthews_hypotheses_jsonl.write_text(
-        f"{canonical_json_text(matthews)}\n", encoding="utf-8"
-    )
-    legacy = build_mr_seed_review(request)
-    legacy_document = json.loads(legacy.manifest_json.read_text(encoding="utf-8"))
-    solution_id = legacy_document["items"][0]["solution_id"]
-    stage, phase3_manifest = _phase3_a_seed_stage(
-        tmp_path,
-        review_manifest=legacy.manifest_json,
-        solution_id=solution_id,
-        decision=decision,
-    )
-
-    output = prepare_live_add_copy_stage(
-        LiveAddCopyStageRequest(
-            review_package=legacy.manifest_json.parent,
-            decisions=stage / "phase3_review_decision.json",
-            hypotheses_jsonl=request.hypotheses_jsonl,
-            output_directory=tmp_path / "phase3 approved A state",
-            progress=False,
-            phase3_review_stage=stage,
-            phase3_review_package_manifest=phase3_manifest,
-        )
+    fixture = _registered_phase3_a_seed_fixture(tmp_path, decision=decision)
+    output = prepare_phase3_seed_stage(
+        fixture.stage_request(tmp_path / "phase3 approved A state")
     )
 
     expected_count = int(decision is PhaseIIIReviewDecisionValue.APPROVE)
@@ -968,67 +1018,55 @@ def test_phase3_a_decisions_feed_only_approved_existing_copy_workflow(
         )
     )
     assert tuple(row["seed_solution_id"] for row in rows) == (
-        (solution_id,) if expected_count else ()
+        (fixture.solution_id,) if expected_count else ()
     )
-    validation = json.loads(output.validation_json.read_text(encoding="utf-8"))
-    provenance = validation["phase3_approval_provenance"]
-    assert provenance["crystal_id"] == "test_crystal_01"
+    manifest = json.loads(output.stage_manifest.read_text(encoding="utf-8"))
+    provenance = manifest["approval_provenance"]
+    assert provenance["crystal_id"] == PUBLIC_STUB_CRYSTAL_IDS[0]
     assert provenance["parent_profile"] == "unknown-screen"
     assert provenance["approved_solution_ids"] == (
-        [solution_id] if expected_count else []
+        [fixture.solution_id] if expected_count else []
     )
     disposition_field = {
         PhaseIIIReviewDecisionValue.APPROVE: "approved_solution_ids",
         PhaseIIIReviewDecisionValue.REJECT: "rejected_solution_ids",
         PhaseIIIReviewDecisionValue.DEFER: "deferred_solution_ids",
     }[decision]
-    assert provenance[disposition_field] == [solution_id]
-    assert validation["execution_status"] == "completed_success"
-    manifest = json.loads(output.stage_manifest.read_text(encoding="utf-8"))
-    assert manifest["phase3_approval_provenance"] == provenance
-    for name in (
-        "phase3_review_decision.json",
-        "phase3_review_stage_manifest.json",
-        "phase3_review_package_manifest.json",
+    assert provenance[disposition_field] == [fixture.solution_id]
+    assert provenance["owned_run_registry_id"] == fixture.owned_registry_id
+    assert manifest["schema_version"] == "2.0"
+    assert manifest["execution_status"] == "completed_success"
+    assert set(path.name for path in output.stage_manifest.parent.iterdir()) == set(
+        manifest["output_allowlist"]
+    )
+    for forbidden in (
+        "approved_mr_seeds.tsv",
+        "validated_mr_seed_decisions.json",
+        "live_m4_stage_manifest.json",
     ):
-        assert (output.stage_manifest.parent / name).is_file()
+        assert not (output.stage_manifest.parent / forbidden).exists()
 
 
 @pytest.mark.parametrize("mutation", ("non-object", "missing-id", "duplicate"))
-def test_phase3_a_stage_rejects_nonconserving_review_inventory(
+def test_phase3_a_stage_rejects_tampered_owned_review_inventory(
     tmp_path: Path, mutation: str
 ) -> None:
-    request = _request(tmp_path)
-    legacy = build_mr_seed_review(request)
-    document = json.loads(legacy.manifest_json.read_text(encoding="utf-8"))
-    solution_id = document["items"][0]["solution_id"]
+    fixture = _registered_phase3_a_seed_fixture(
+        tmp_path, decision=PhaseIIIReviewDecisionValue.DEFER
+    )
+    embedded = fixture.package / "evidence/mr_seed_review_manifest.json"
+    document = json.loads(embedded.read_text(encoding="utf-8"))
     if mutation == "non-object":
         document["items"].append(None)
     elif mutation == "missing-id":
         document["items"].append({"hypothesis_id": HYPOTHESIS_ID})
     else:
         document["items"].append(dict(document["items"][0]))
-    legacy.manifest_json.write_text(json.dumps(document), encoding="utf-8")
-    stage, phase3_manifest = _phase3_a_seed_stage(
-        tmp_path,
-        review_manifest=legacy.manifest_json,
-        solution_id=solution_id,
-        decision=PhaseIIIReviewDecisionValue.DEFER,
-    )
+    embedded.write_text(json.dumps(document), encoding="utf-8")
     destination = tmp_path / "nonconserving-a-stage"
 
-    with pytest.raises(ValueError, match=r"review (?:item |solution )?inventory"):
-        prepare_live_add_copy_stage(
-            LiveAddCopyStageRequest(
-                review_package=legacy.manifest_json.parent,
-                decisions=stage / "phase3_review_decision.json",
-                hypotheses_jsonl=request.hypotheses_jsonl,
-                output_directory=destination,
-                progress=False,
-                phase3_review_stage=stage,
-                phase3_review_package_manifest=phase3_manifest,
-            )
-        )
+    with pytest.raises(ValueError):
+        prepare_phase3_seed_stage(fixture.stage_request(destination))
 
     assert not destination.exists()
 
@@ -1045,7 +1083,7 @@ def test_phase3_a_seed_stage_authenticates_completed_owned_screen(
     crystal_id = PUBLIC_STUB_CRYSTAL_IDS[0]
     crystal_root = tmp_path / crystal_id
     crystal_root.mkdir()
-    request, legacy, package, stage, solution_id = _owned_phase3_a_seed_inputs(
+    request, _legacy, package, stage, solution_id = _owned_phase3_a_seed_inputs(
         crystal_root,
         crystal_id=crystal_id,
         execution_identity=fixture.execution_identity,
@@ -1076,27 +1114,25 @@ def test_phase3_a_seed_stage_authenticates_completed_owned_screen(
     elif mutation == "registry":
         registry = fixture.owned_run_registry
     output_root = tmp_path / "owned-reviewed-stage"
-    stage_request = LiveAddCopyStageRequest(
-        review_package=legacy,
-        decisions=stage / "phase3_review_decision.json",
+    stage_request = PhaseIIISeedStageRequest(
+        review_stage=stage,
+        review_package_manifest=package / "phase3_review_package_manifest.json",
         hypotheses_jsonl=request.hypotheses_jsonl,
+        owned_run_registry=registry,
+        execution_identity=execution_identity,
+        owned_parent_run_id=parent_run,
         output_directory=output_root,
         progress=False,
-        phase3_review_stage=stage,
-        phase3_review_package_manifest=package / "phase3_review_package_manifest.json",
-        phase3_owned_run_registry=registry,
-        phase3_execution_identity=execution_identity,
-        phase3_owned_parent_run_id=parent_run,
     )
     if mutation != "none":
         with pytest.raises(ValueError, match=r"owned|ownership"):
-            prepare_live_add_copy_stage(stage_request)
+            prepare_phase3_seed_stage(stage_request)
         assert not output_root.exists()
         return
 
-    output = prepare_live_add_copy_stage(stage_request)
-    provenance = json.loads(output.validation_json.read_text(encoding="utf-8"))[
-        "phase3_approval_provenance"
+    output = prepare_phase3_seed_stage(stage_request)
+    provenance = json.loads(output.stage_manifest.read_text(encoding="utf-8"))[
+        "approval_provenance"
     ]
     assert provenance["owned_run_registry_id"] == record.owned_run_registry_id
     assert provenance["owned_parent_run_id"] == parent_run
@@ -1104,48 +1140,33 @@ def test_phase3_a_seed_stage_authenticates_completed_owned_screen(
 
 
 @pytest.mark.parametrize("failure", ("canonical", "legacy", "stage", "package"))
-def test_phase3_a_seed_bridge_rejects_cross_evidence_before_publication(
+def test_phase3_a_seed_stage_rejects_cross_evidence_before_publication(
     tmp_path: Path,
     failure: str,
 ) -> None:
-    request = _request(tmp_path)
-    legacy = build_mr_seed_review(request)
-    document = json.loads(legacy.manifest_json.read_text(encoding="utf-8"))
-    solution_id = document["items"][0]["solution_id"]
-    stage, phase3_manifest = _phase3_a_seed_stage(
-        tmp_path,
-        review_manifest=legacy.manifest_json,
-        solution_id=solution_id,
-        decision=PhaseIIIReviewDecisionValue.APPROVE,
+    fixture = _registered_phase3_a_seed_fixture(
+        tmp_path, decision=PhaseIIIReviewDecisionValue.APPROVE
     )
-    decision_path = stage / "phase3_review_decision.json"
     if failure == "canonical":
-        decision_path = tmp_path / "another-decision.json"
-        decision_path.write_bytes((stage / "phase3_review_decision.json").read_bytes())
+        decision_path = fixture.review_stage / "phase3_review_decision.json"
+        decision_path.write_bytes(decision_path.read_bytes() + b"\n")
     elif failure == "legacy":
-        legacy.manifest_json.write_text(
-            legacy.manifest_json.read_text(encoding="utf-8") + "\n",
+        legacy_manifest = fixture.package / "evidence/mr_seed_review_manifest.json"
+        legacy_manifest.write_text(
+            legacy_manifest.read_text(encoding="utf-8") + "\n",
             encoding="utf-8",
         )
     elif failure == "stage":
-        (stage / "unexpected.json").write_text("{}\n", encoding="utf-8")
+        (fixture.review_stage / "unexpected.json").write_text(
+            "{}\n", encoding="utf-8"
+        )
     else:
-        evidence = next((phase3_manifest.parent / "evidence").rglob("*.json"))
+        evidence = next((fixture.package / "evidence").rglob("*.json"))
         evidence.write_text("{}\n", encoding="utf-8")
     destination = tmp_path / "must-not-publish-a-state"
 
     with pytest.raises(ValueError):
-        prepare_live_add_copy_stage(
-            LiveAddCopyStageRequest(
-                review_package=legacy.manifest_json.parent,
-                decisions=decision_path,
-                hypotheses_jsonl=request.hypotheses_jsonl,
-                output_directory=destination,
-                progress=False,
-                phase3_review_stage=stage,
-                phase3_review_package_manifest=phase3_manifest,
-            )
-        )
+        prepare_phase3_seed_stage(fixture.stage_request(destination))
 
     assert not destination.exists()
 
@@ -1153,15 +1174,8 @@ def test_phase3_a_seed_bridge_rejects_cross_evidence_before_publication(
 def test_cli_passes_canonical_phase3_a_approval_to_same_component_stage(
     tmp_path: Path,
 ) -> None:
-    request = _request(tmp_path)
-    package = build_mr_seed_review(request)
-    manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
-    solution_id = manifest["items"][0]["solution_id"]
-    stage, phase3_package_manifest = _phase3_a_seed_stage(
-        tmp_path,
-        review_manifest=package.manifest_json,
-        solution_id=solution_id,
-        decision=PhaseIIIReviewDecisionValue.APPROVE,
+    fixture = _registered_phase3_a_seed_fixture(
+        tmp_path, decision=PhaseIIIReviewDecisionValue.APPROVE
     )
     destination = tmp_path / "cli reviewed phase3 seed"
 
@@ -1169,17 +1183,19 @@ def test_cli_passes_canonical_phase3_a_approval_to_same_component_stage(
         [
             "--no-progress",
             "mr",
-            "stage-approved-seeds",
-            "--review-package",
-            str(package.manifest_json.parent),
-            "--decisions",
-            str(stage / "phase3_review_decision.json"),
+            "stage-phase3-seeds",
+            "--review-stage",
+            str(fixture.review_stage),
+            "--review-package-manifest",
+            str(fixture.package / "phase3_review_package_manifest.json"),
             "--hypotheses",
-            str(request.hypotheses_jsonl),
-            "--phase3-review-stage",
-            str(stage),
-            "--phase3-review-package-manifest",
-            str(phase3_package_manifest),
+            str(fixture.request.hypotheses_jsonl),
+            "--owned-run-registry",
+            str(fixture.owned_registry),
+            "--execution-identity",
+            str(fixture.execution_identity),
+            "--owned-parent-run",
+            fixture.parent_run,
             "--outdir",
             str(destination),
         ]
@@ -1187,10 +1203,10 @@ def test_cli_passes_canonical_phase3_a_approval_to_same_component_stage(
 
     assert exit_code == 0
     result = json.loads(
-        (destination / "live_m4_stage_manifest.json").read_text(encoding="utf-8")
+        (destination / "phase3_seed_stage_manifest.json").read_text(encoding="utf-8")
     )
-    assert result["phase3_approval_provenance"]["approved_solution_ids"] == [
-        solution_id
+    assert result["approval_provenance"]["approved_solution_ids"] == [
+        fixture.solution_id
     ]
 
 
@@ -1206,25 +1222,10 @@ def test_phase3_a_decision_controls_the_actual_same_component_process(
     tmp_path: Path,
     decision: PhaseIIIReviewDecisionValue,
 ) -> None:
-    request = _request(tmp_path)
-    hypothesis = _hypothesis().model_copy(update={"copy_count_expected": 3})
-    request.hypotheses_jsonl.write_text(
-        f"{canonical_json_text(hypothesis)}\n", encoding="utf-8"
-    )
-    matthews = _matthews().model_copy(
-        update={"copy_count": 3, "total_mass_da": 3 * 436.4375}
-    )
-    request.matthews_hypotheses_jsonl.write_text(
-        f"{canonical_json_text(matthews)}\n", encoding="utf-8"
-    )
-    package = build_mr_seed_review(request)
-    manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
-    solution_id = manifest["items"][0]["solution_id"]
-    stage, phase3_package_manifest = _phase3_a_seed_stage(
+    fixture = _registered_phase3_a_seed_fixture(
         tmp_path,
-        review_manifest=package.manifest_json,
-        solution_id=solution_id,
         decision=decision,
+        expected_copies=3,
     )
     project = tmp_path / "nextflow-project"
     project.mkdir()
@@ -1256,14 +1257,20 @@ def test_phase3_a_decision_controls_the_actual_same_component_process(
         "run",
         str(project / "main.nf"),
         "-stub-run",
-        "--review_package",
-        str(package.manifest_json.parent),
         "--review_stage",
-        str(stage),
+        str(fixture.review_stage),
         "--phase3_package",
-        str(phase3_package_manifest.parent),
+        str(fixture.package),
         "--hypotheses",
-        str(request.hypotheses_jsonl),
+        str(fixture.request.hypotheses_jsonl),
+        "--owned_run_registry",
+        str(fixture.owned_registry),
+        "--execution_identity",
+        str(fixture.execution_identity),
+        "--owned_parent_run_id",
+        fixture.parent_run,
+        "--crystal_id",
+        PUBLIC_STUB_CRYSTAL_IDS[0],
         "--sequence_groups",
         str(STUBS / "sequence_groups.jsonl"),
         "--preflight",
@@ -1310,12 +1317,14 @@ def test_phase3_a_decision_controls_the_actual_same_component_process(
     assert Counter(row["process"].split(":")[-1] for row in first) == expected_processes
     assert {row["status"] for row in first} == {"COMPLETED"}
     staged = json.loads(
-        (output / "approved_mr_seed_stage/live_m4_stage_manifest.json").read_text(
+        (output / "phase3_seed_stage/phase3_seed_stage_manifest.json").read_text(
             encoding="utf-8"
         )
     )
-    assert staged["phase3_approval_provenance"]["approved_solution_ids"] == (
-        [solution_id] if decision is PhaseIIIReviewDecisionValue.APPROVE else []
+    assert staged["approval_provenance"]["approved_solution_ids"] == (
+        [fixture.solution_id]
+        if decision is PhaseIIIReviewDecisionValue.APPROVE
+        else []
     )
 
     resumed = subprocess.run(
@@ -1354,7 +1363,7 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
     for crystal_id, decision, expected_copies in decisions:
         root = tmp_path / crystal_id
         root.mkdir()
-        request, legacy, package, stage, solution_id = _owned_phase3_a_seed_inputs(
+        request, _legacy, package, stage, solution_id = _owned_phase3_a_seed_inputs(
             root,
             crystal_id=crystal_id,
             execution_identity=fixture.execution_identity,
@@ -1388,7 +1397,6 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
         records.append(
             {
                 "crystal_id": crystal_id,
-                "review_package": str(legacy),
                 "review_stage": str(stage),
                 "phase3_package": str(package),
                 "hypotheses": str(request.hypotheses_jsonl),
@@ -1510,11 +1518,11 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
     assert {row["status"] for row in first} == {"COMPLETED"}
     for crystal_id, decision, expected_copies in decisions:
         stage_manifest = output / (
-            f"phase3_approved_mr_seed_{crystal_id}/live_m4_stage_manifest.json"
+            f"phase3_seed_stage_{crystal_id}/phase3_seed_stage_manifest.json"
         )
         stage = json.loads(stage_manifest.read_text(encoding="utf-8"))
-        assert stage["phase3_approval_provenance"]["crystal_id"] == crystal_id
-        assert stage["phase3_approval_provenance"]["approved_solution_ids"] == (
+        assert stage["approval_provenance"]["crystal_id"] == crystal_id
+        assert stage["approval_provenance"]["approved_solution_ids"] == (
             [approved_ids[crystal_id]]
             if decision is PhaseIIIReviewDecisionValue.APPROVE
             else []
@@ -1685,7 +1693,7 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
     ):
         root = tmp_path / crystal_id
         root.mkdir()
-        request, legacy, package, stage, _ = _owned_phase3_a_seed_inputs(
+        request, _legacy, package, stage, _ = _owned_phase3_a_seed_inputs(
             root,
             crystal_id=crystal_id,
             execution_identity=fixture.execution_identity,
@@ -1696,7 +1704,6 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         routes.append(
             {
                 "crystal_id": crystal_id,
-                "review_package": str(legacy),
                 "review_stage": str(stage),
                 "hypotheses": str(request.hypotheses_jsonl),
             }
@@ -1813,10 +1820,10 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         approved = json.loads(
             (
                 output
-                / f"phase3_approved_mr_seed_{crystal_id}/live_m4_stage_manifest.json"
+                / f"phase3_seed_stage_{crystal_id}/phase3_seed_stage_manifest.json"
             ).read_text(encoding="utf-8")
         )
-        assert approved["phase3_approval_provenance"]["owned_run_registry_id"] == (
+        assert approved["approval_provenance"]["owned_run_registry_id"] == (
             record.owned_run_registry_id
         )
     for crystal_id in PUBLIC_STUB_CRYSTAL_IDS[:2]:

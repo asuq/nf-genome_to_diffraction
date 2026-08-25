@@ -41,7 +41,6 @@ params {
     phase3_owned_parent_run_id: String? = null
     phase3_a_seed_review_stage: Path? = null
     phase3_a_seed_review_package: Path? = null
-    phase3_a_seed_legacy_review_package: Path? = null
     phase3_reviewed_crystal_manifest: Path? = null
     phase3_owned_run_registry: Path? = null
     phase3_owned_sequence_parent_run_id: String? = null
@@ -69,17 +68,22 @@ workflow {
     }
     def phase3SeedInputs = [
         params.phase3_a_seed_review_stage,
-        params.phase3_a_seed_review_package,
-        params.phase3_a_seed_legacy_review_package
+        params.phase3_a_seed_review_package
     ]
     if (phase3SeedInputs.any { item -> item != null }) {
         if (phase3SeedInputs.any { item -> item == null }) {
-            error 'Phase III A-seed execution requires its stage, owned package, and reviewed MR evidence'
+            error 'Phase III A-seed execution requires its stage and owned package'
         }
         if (!(params.analysis_stage in ['additional_copy', 't12'])) {
             error 'Phase III A-seed decisions permit only same-component or refinement execution'
         }
-        if (params.approved_mr_seeds != null || !params.phase3_joint_first_copy) {
+        if (
+            params.approved_mr_seeds != null ||
+            !params.phase3_joint_first_copy ||
+            params.phase3_owned_run_registry == null ||
+            params.phase3_execution_identity == null ||
+            params.phase3_owned_parent_run_id == null
+        ) {
             error 'Phase III A-seed execution requires joint hypotheses and no legacy decision override'
         }
     }
@@ -176,7 +180,6 @@ workflow {
         params.phase3_owned_parent_run_id,
         params.phase3_a_seed_review_stage,
         params.phase3_a_seed_review_package,
-        params.phase3_a_seed_legacy_review_package,
         params.phase3_reviewed_crystal_manifest,
         params.phase3_owned_run_registry,
         params.phase3_owned_sequence_parent_run_id

@@ -92,12 +92,12 @@ process STAGE_PHASE3_CRYSTAL_T12 {
     stage: Tuple = tuple(
         item[0],
         file("phase3_live_t12_${item[0]}"),
-        item[10]
+        item[9]
     )
 
     script:
     def outputName = "phase3_live_t12_${item[0]}"
-    def resultFlags = (item[3] as List<Path>)
+    def resultFlags = (item[2] as List<Path>)
         .sort { left, right -> left.name <=> right.name }
         .collect { result -> "--additional-copy-result '${result}'" }
         .join(' ')
@@ -107,21 +107,21 @@ process STAGE_PHASE3_CRYSTAL_T12 {
         --log-format json \
         refinement stage-live \
         --approved-stage '${item[1]}' \
-        --review-package '${item[2]}' \
+        --phase3-seed-stage-manifest '${item[1]}/phase3_seed_stage_manifest.json' \
         ${resultFlags} \
-        --hypotheses '${item[4]}' \
-        --sequence-groups '${item[5]}' \
-        --source-records '${item[6]}' \
-        --preflight '${item[7]}' \
-        --mtz '${item[8]}' \
-        --phenix-manifest '${item[9]}' \
+        --hypotheses '${item[3]}' \
+        --sequence-groups '${item[4]}' \
+        --source-records '${item[5]}' \
+        --preflight '${item[6]}' \
+        --mtz '${item[7]}' \
+        --phenix-manifest '${item[8]}' \
         --outdir '${outputName}'
     """
 
     stub:
     def outputName = "phase3_live_t12_${item[0]}"
     def approved = new groovy.json.JsonSlurper().parse(
-        item[1].resolve('live_m4_stage_manifest.json').toFile()
+        item[1].resolve('phase3_seed_stage_manifest.json').toFile()
     )
     def group = 'seq_f50b9a1db8767fb7cdc8b89cf1a78c9fac1e0e2d5bb5367aeec14709396d5c5e'
     def copies = (approved.approved_solution_ids as List).collect { seed ->
@@ -137,17 +137,17 @@ process STAGE_PHASE3_CRYSTAL_T12 {
     }.join('\n')
     """
     mkdir -p '${outputName}/inputs'
-    cp '${item[5]}' '${outputName}/inputs/sequence_groups.jsonl'
-    cp '${item[6]}' '${outputName}/inputs/source_records.jsonl'
-    cp '${item[7]}' '${outputName}/inputs/preflight.jsonl'
-    cp '${item[9]}' '${outputName}/inputs/phenix_manifest.json'
-    cp '${item[8]}' '${outputName}/inputs/diffraction.mtz'
+    cp '${item[4]}' '${outputName}/inputs/sequence_groups.jsonl'
+    cp '${item[5]}' '${outputName}/inputs/source_records.jsonl'
+    cp '${item[6]}' '${outputName}/inputs/preflight.jsonl'
+    cp '${item[8]}' '${outputName}/inputs/phenix_manifest.json'
+    cp '${item[7]}' '${outputName}/inputs/diffraction.mtz'
     printf '%s\n' \
         'seed_solution_id\tsequence_group_id\tinput_copy_count\tparent_coordinate\tparent_coordinate_sha256\tparent_mtz\tparent_mtz_sha256\tresolution\tobservation_labels' \
         > '${outputName}/finalists.tsv'
     ${copies}
     printf '%s\n' \
-        '{"schema_version":"1.0","seed_count":${approved.approved_solution_ids.size()},"execution_status":"completed_success"}' \
+        '{"schema_version":"2.0","profile":"phase3_reviewed_single_component","seed_count":${approved.approved_solution_ids.size()},"execution_status":"completed_success"}' \
         > '${outputName}/t12_stage_manifest.json'
     """
 }

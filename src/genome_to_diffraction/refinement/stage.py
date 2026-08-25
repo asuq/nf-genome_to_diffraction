@@ -70,7 +70,7 @@ class LiveT12StageRequest:
     """Normal-workflow inputs after explicit MR-seed approval and copy search."""
 
     approved_stage: Path
-    review_package: Path
+    review_package: Path | None
     additional_copy_results: tuple[Path, ...]
     hypotheses_jsonl: Path
     sequence_groups_jsonl: Path
@@ -80,6 +80,7 @@ class LiveT12StageRequest:
     phenix_manifest: Path
     output_directory: Path
     progress: bool = True
+    phase3_seed_stage_manifest: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -648,80 +649,129 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
     """
 
     approved_root = _directory(request.approved_stage, "approved M4 stage")
-    review_root = _directory(request.review_package, "MR review package")
     output_path = request.output_directory
     if output_path.is_symlink() or output_path.exists():
         raise T12StageError(f"live T12 stage output already exists: {output_path}")
     output = output_path.absolute()
     output.mkdir(parents=True)
 
-    approved_manifest_path = _regular(
-        approved_root / "live_m4_stage_manifest.json", "live M4 stage manifest"
-    )
-    approved_manifest = _load_object(approved_manifest_path, "live M4 stage manifest")
-    if (
-        approved_manifest.get("stage_kind") != "normal_workflow_post_mr_seed"
-        or approved_manifest.get("all_approved_seeds_retained") is not True
-        or approved_manifest.get("numeric_score_filter_applied") is not False
-        or approved_manifest.get("execution_status")
-        != ExecutionStatus.COMPLETED_SUCCESS.value
-    ):
-        raise T12StageError("live M4 stage is not accepted retain-all evidence")
-    approved_ids = _string_list(
-        approved_manifest.get("approved_solution_ids"), "approved solution IDs"
-    )
+    validation_path: Path | None = None
+    decisions_path: Path | None = None
+    if request.phase3_seed_stage_manifest is None:
+        if request.review_package is None:
+            raise T12StageError("legacy live T12 requires its MR review package")
+        review_root = _directory(request.review_package, "MR review package")
+        approved_manifest_path = _regular(
+            approved_root / "live_m4_stage_manifest.json", "live M4 stage manifest"
+        )
+        approved_manifest = _load_object(
+            approved_manifest_path, "live M4 stage manifest"
+        )
+        if (
+            approved_manifest.get("stage_kind") != "normal_workflow_post_mr_seed"
+            or approved_manifest.get("all_approved_seeds_retained") is not True
+            or approved_manifest.get("numeric_score_filter_applied") is not False
+            or approved_manifest.get("execution_status")
+            != ExecutionStatus.COMPLETED_SUCCESS.value
+        ):
+            raise T12StageError("live M4 stage is not accepted retain-all evidence")
+        approved_ids = _string_list(
+            approved_manifest.get("approved_solution_ids"), "approved solution IDs"
+        )
+        approved_seeds_path = _regular(
+            approved_root / "approved_seeds.tsv", "approved seed table"
+        )
+        additional_seeds_path = _regular(
+            approved_root / "additional_copy_seeds.tsv", "additional-copy seed table"
+        )
+        validation_path = _regular(
+            approved_root / "validated_mr_seed_decisions.json",
+            "MR decision validation",
+        )
+        decisions_path = _regular(
+            approved_root / "approved_mr_seeds.tsv", "MR seed decisions"
+        )
+        if (
+            sha256_file(approved_seeds_path)
+            != approved_manifest.get("approved_seeds_sha256")
+            or sha256_file(additional_seeds_path)
+            != approved_manifest.get("additional_copy_seeds_sha256")
+            or sha256_file(validation_path)
+            != approved_manifest.get("validation_sha256")
+            or sha256_file(decisions_path)
+            != approved_manifest.get("decisions_sha256")
+        ):
+            raise T12StageError(
+                "live M4 stage file checksum differs from its manifest"
+            )
+        validation = _load_object(validation_path, "MR decision validation")
+        review_id = _required_string(validation.get("review_id"), "MR review ID")
+        if (
+            validation.get("execution_status")
+            != ExecutionStatus.COMPLETED_SUCCESS.value
+            or validation.get("checkpoint") != "mr_seed"
+            or validation.get("approved_solution_ids") != list(approved_ids)
+            or approved_manifest.get("review_id") != review_id
+        ):
+            raise T12StageError(
+                "MR decision validation differs from the live M4 stage"
+            )
+        review_manifest_path = _regular(
+            review_root / "mr_seed_review_manifest.json", "MR review manifest"
+        )
+        review_manifest_sha = sha256_file(review_manifest_path)
+        review_manifest = _load_object(review_manifest_path, "MR review manifest")
+        if (
+            review_manifest_sha != approved_manifest.get("review_manifest_sha256")
+            or review_manifest_sha != validation.get("package_manifest_sha256")
+            or review_manifest.get("package_id")
+            != approved_manifest.get("review_package_id")
+            or review_manifest.get("package_id") != validation.get("package_id")
+        ):
+            raise T12StageError(
+                "MR review package differs from the approved live stage"
+            )
+    else:
+        from genome_to_diffraction.mr.stage_add_copy import (
+            validate_phase3_seed_stage,
+        )
+
+        if request.review_package is not None:
+            raise T12StageError("Phase III live T12 rejects a legacy review package")
+        try:
+            phase3 = validate_phase3_seed_stage(
+                request.phase3_seed_stage_manifest,
+                hypotheses_jsonl=request.hypotheses_jsonl,
+            )
+        except (OSError, ValueError) as error:
+            raise T12StageError(f"Phase III seed stage is invalid: {error}") from error
+        if phase3.root != approved_root:
+            raise T12StageError("Phase III seed-stage manifest belongs to another root")
+        approved_manifest_path = request.phase3_seed_stage_manifest.resolve(strict=True)
+        approved_manifest = _load_object(
+            approved_manifest_path, "Phase III seed-stage manifest"
+        )
+        approved_ids = phase3.approved_solution_ids
+        if not approved_ids:
+            raise T12StageError("Phase III live T12 has no approved A seed")
+        approved_seeds_path = _regular(
+            approved_root / "approved_seeds.tsv", "approved seed table"
+        )
+        additional_seeds_path = _regular(
+            approved_root / "additional_copy_seeds.tsv", "additional-copy seed table"
+        )
+        review_root = phase3.review_root
+        review_manifest_path = phase3.review_manifest
+        review_manifest_sha = sha256_file(review_manifest_path)
+        review_manifest = phase3.review_document
+        review_id = phase3.review_id
+
     if approved_manifest.get("approved_seed_count") != len(approved_ids):
         raise T12StageError("live M4 approved seed count is inconsistent")
-
-    approved_seeds_path = _regular(
-        approved_root / "approved_seeds.tsv", "approved seed table"
-    )
-    additional_seeds_path = _regular(
-        approved_root / "additional_copy_seeds.tsv", "additional-copy seed table"
-    )
-    validation_path = _regular(
-        approved_root / "validated_mr_seed_decisions.json", "MR decision validation"
-    )
-    decisions_path = _regular(
-        approved_root / "approved_mr_seeds.tsv", "MR seed decisions"
-    )
-    if (
-        sha256_file(approved_seeds_path)
-        != approved_manifest.get("approved_seeds_sha256")
-        or sha256_file(additional_seeds_path)
-        != approved_manifest.get("additional_copy_seeds_sha256")
-        or sha256_file(validation_path) != approved_manifest.get("validation_sha256")
-        or sha256_file(decisions_path) != approved_manifest.get("decisions_sha256")
-    ):
-        raise T12StageError("live M4 stage file checksum differs from its manifest")
     approved_rows = _read_approved_seed_rows(approved_seeds_path)
     additional_rows = _read_approved_seed_rows(additional_seeds_path, allow_empty=True)
     if set(approved_rows) != set(approved_ids):
         raise T12StageError("approved seed table identities differ from the stage")
-
-    validation = _load_object(validation_path, "MR decision validation")
-    review_id = _required_string(validation.get("review_id"), "MR review ID")
-    if (
-        validation.get("execution_status") != ExecutionStatus.COMPLETED_SUCCESS.value
-        or validation.get("checkpoint") != "mr_seed"
-        or validation.get("approved_solution_ids") != list(approved_ids)
-        or approved_manifest.get("review_id") != review_id
-    ):
-        raise T12StageError("MR decision validation differs from the live M4 stage")
-
-    review_manifest_path = _regular(
-        review_root / "mr_seed_review_manifest.json", "MR review manifest"
-    )
-    review_manifest_sha = sha256_file(review_manifest_path)
-    review_manifest = _load_object(review_manifest_path, "MR review manifest")
-    if (
-        review_manifest_sha != approved_manifest.get("review_manifest_sha256")
-        or review_manifest_sha != validation.get("package_manifest_sha256")
-        or review_manifest.get("package_id")
-        != approved_manifest.get("review_package_id")
-        or review_manifest.get("package_id") != validation.get("package_id")
-    ):
-        raise T12StageError("MR review package differs from the approved live stage")
     raw_items = review_manifest.get("items")
     if not isinstance(raw_items, list):
         raise T12StageError("MR review manifest has no item inventory")
@@ -1168,13 +1218,29 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
             for item in candidate_documents
         ],
     }
+    if request.phase3_seed_stage_manifest is None:
+        assert decisions_path is not None
+        assert validation_path is not None
+        approval_identity = {
+            "approved_decisions_sha256": sha256_file(decisions_path),
+            "approved_validation_sha256": sha256_file(validation_path),
+        }
+        schema_version = "1.0"
+        profile = "normal_workflow"
+    else:
+        approval_identity = {
+            "phase3_seed_stage_id": approved_manifest.get("stage_id"),
+            "phase3_decision_file_id": review_id,
+        }
+        schema_version = "2.0"
+        profile = "phase3_reviewed_single_component"
     manifest = output / "t12_stage_manifest.json"
     atomic_write_json(
         manifest,
         {
-            "schema_version": "1.0",
+            "schema_version": schema_version,
             "stage_id": content_id("t12stage_", stage_identity),
-            "profile": "normal_workflow",
+            "profile": profile,
             "selection_policy": "retain_all_best_checksum_authenticated_copy_states",
             "review_id": review_id,
             "seed_count": len(candidate_documents),
@@ -1182,8 +1248,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
             "numeric_score_filter_applied": False,
             "failed_addition_proves_absence": False,
             **stage_identity,
-            "approved_decisions_sha256": sha256_file(decisions_path),
-            "approved_validation_sha256": sha256_file(validation_path),
+            **approval_identity,
             "diffraction_mtz_free_flag_status": selected_preflight.free_flag_status,
             "observation_labels": selected_preflight.selected_observation_labels,
             "resolution_high_a": selected_preflight.resolution_high_a,

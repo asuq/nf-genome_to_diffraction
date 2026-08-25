@@ -21,6 +21,7 @@ from genome_to_diffraction.mr import (
     run_additional_copy_series,
 )
 from genome_to_diffraction.mr.add_copy import _phaser_placement_count
+from genome_to_diffraction.mr.stage_add_copy import PhaseIIISeedStageEvidence
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
     CrystalEntry,
@@ -221,7 +222,7 @@ def _fake_runtime(
 ) -> None:
     placement_counts = iter(
         (placement_count,) if isinstance(placement_count, int) else placement_count
-    )
+        )
 
     def fake_validate(path: Path) -> PhenixInstallManifest:
         del path
@@ -327,6 +328,65 @@ def test_phase3_additional_copy_command_binds_selected_diffraction(
     assert 'space_group = "P 21 21 21"' in parameters
     assert f"low = {selection['resolution_low_a']:.12g}" in parameters
     assert f"high = {selection['resolution_high_a']:.12g}" in parameters
+
+
+def test_phase3_additional_copy_uses_only_canonical_seed_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    legacy = _phase3_request(tmp_path)
+    assert legacy.review_package_manifest is not None
+    review_manifest = legacy.review_package_manifest
+    review_document = json.loads(review_manifest.read_text(encoding="utf-8"))
+    stage_root = tmp_path / "phase3 seed stage"
+    stage_root.mkdir()
+    stage_manifest = stage_root / "phase3_seed_stage_manifest.json"
+    stage_manifest.write_text("{}\n", encoding="ascii")
+    model_sha = sha256_file(legacy.search_model)
+    evidence = PhaseIIISeedStageEvidence(
+        stage_id="phase3seedstage_" + "1" * 64,
+        review_id=REVIEW_ID,
+        approved_solution_ids=(SEED_ID,),
+        root=stage_root,
+        review_root=review_manifest.parent,
+        review_manifest=review_manifest,
+        review_document=review_document,
+        model_sources={
+            SEED_ID: {
+                "original_first_copy_model_sha256": model_sha,
+                "staged_search_model_sha256": model_sha,
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "genome_to_diffraction.mr.stage_add_copy.validate_phase3_seed_stage",
+        lambda *args, **kwargs: evidence,
+    )
+    request = replace(
+        legacy,
+        review_validation_json=None,
+        review_package_manifest=None,
+        phase3_seed_stage_manifest=stage_manifest,
+        expected_search_model_sha256=model_sha,
+    )
+    _fake_runtime(monkeypatch, log_text=POSITIVE_LOG, write_solution=True)
+
+    output = run_additional_copy_phaser(request)
+
+    assert output.result.review_id == REVIEW_ID
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert command["adapter_version"] == "phenix-add-copy-mr-v7"
+
+
+def test_phase3_additional_copy_rejects_dual_approval_authority(
+    tmp_path: Path,
+) -> None:
+    request = replace(
+        _phase3_request(tmp_path),
+        phase3_seed_stage_manifest=tmp_path / "another-stage.json",
+    )
+
+    with pytest.raises(PhaserInputError, match="rejects legacy approval"):
+        run_additional_copy_phaser(request)
 
 
 def test_phase3_additional_copy_rejects_stale_diffraction_before_runtime(
@@ -742,9 +802,11 @@ def test_changed_search_model_fails_before_runtime(
 
 def test_changed_parent_result_fails_before_runtime(tmp_path: Path) -> None:
     request = _request(tmp_path)
-    manifest = json.loads(request.review_package_manifest.read_text(encoding="utf-8"))
+    assert request.review_package_manifest is not None
+    review_manifest = request.review_package_manifest
+    manifest = json.loads(review_manifest.read_text(encoding="utf-8"))
     relative = manifest["items"][0]["copied_assets"]["normalised_result"]
-    parent_result = request.review_package_manifest.parent / relative
+    parent_result = review_manifest.parent / relative
     parent_result.write_text("{}\n", encoding="utf-8")
 
     with pytest.raises(PhaserInputError, match="parent result checksum differs"):
@@ -800,5 +862,6 @@ def test_nextflow_finishes_sibling_attempts_after_contract_failure() -> None:
     assert "errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }" in module
     assert "--until-expected" in module
     assert "process RUN_PHASE3_ADDITIONAL_COPY_PHASER" in module
-    assert "--diffraction-selection '${item[11]}'" in module
+    assert "--phase3-seed-stage-manifest '${item[4]}'" in module
+    assert "--diffraction-selection '${item[10]}'" in module
     assert "phase3-add-copy:${item[0]}:${item[1]}" in module

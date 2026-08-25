@@ -2,12 +2,14 @@
 
 import csv
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.mr.stage_add_copy import PhaseIIISeedStageEvidence
 from genome_to_diffraction.refinement.stage import (
     LiveT12StageRequest,
     T12StageError,
@@ -431,6 +433,71 @@ def test_live_stage_retains_best_supported_parent_for_every_typed_outcome(
     assert "does not prove that the copy is absent" in (
         output.copy_report_markdown.read_text(encoding="utf-8")
     )
+
+
+def test_phase3_live_stage_uses_only_canonical_seed_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    legacy = _live_request(tmp_path, expected_copy_count=2, outcome="supported")
+    assert legacy.review_package is not None
+    review_root = legacy.review_package
+    review_manifest = review_root / "mr_seed_review_manifest.json"
+    review_document = json.loads(review_manifest.read_text(encoding="utf-8"))
+    approved_root = legacy.approved_stage
+    legacy_stage = json.loads(
+        (approved_root / "live_m4_stage_manifest.json").read_text(encoding="utf-8")
+    )
+    stage_manifest = approved_root / "phase3_seed_stage_manifest.json"
+    stage_manifest.write_text(
+        json.dumps(
+            {
+                "stage_id": "phase3seedstage_" + "1" * 64,
+                "approved_seed_count": 1,
+                "additional_copy_seed_count": 1,
+                "hypotheses_sha256": sha256_file(legacy.hypotheses_jsonl),
+                "model_sources": legacy_stage["model_sources"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    evidence = PhaseIIISeedStageEvidence(
+        stage_id="phase3seedstage_" + "1" * 64,
+        review_id=REVIEW_ID,
+        approved_solution_ids=(SEED_ID,),
+        root=approved_root,
+        review_root=review_root,
+        review_manifest=review_manifest,
+        review_document=review_document,
+        model_sources=legacy_stage["model_sources"],
+    )
+    monkeypatch.setattr(
+        "genome_to_diffraction.mr.stage_add_copy.validate_phase3_seed_stage",
+        lambda *args, **kwargs: evidence,
+    )
+    request = replace(
+        legacy,
+        review_package=None,
+        phase3_seed_stage_manifest=stage_manifest,
+    )
+
+    output = stage_live_t12_inputs(request)
+
+    manifest = json.loads(output.manifest.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == "2.0"
+    assert manifest["profile"] == "phase3_reviewed_single_component"
+    assert manifest["phase3_seed_stage_id"] == evidence.stage_id
+    assert "approved_decisions_sha256" not in manifest
+    assert "approved_validation_sha256" not in manifest
+
+
+def test_phase3_live_stage_rejects_dual_review_authority(tmp_path: Path) -> None:
+    request = replace(
+        _live_request(tmp_path, expected_copy_count=2, outcome="supported"),
+        phase3_seed_stage_manifest=tmp_path / "phase3_seed_stage_manifest.json",
+    )
+
+    with pytest.raises(T12StageError, match="rejects a legacy review package"):
+        stage_live_t12_inputs(request)
 
 
 def test_live_stage_rejects_changed_supported_child_asset(tmp_path: Path) -> None:

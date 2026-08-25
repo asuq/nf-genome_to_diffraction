@@ -21,10 +21,10 @@ include {
 workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
     take:
     reviewed_crystals: Tuple
-    owned_run_registry: Path?
-    execution_identity: Path?
-    owned_parent_run_id: String?
-    owned_sequence_parent_run_id: String?
+    owned_run_registry: Path
+    execution_identity: Path
+    owned_parent_run_id: String
+    owned_sequence_parent_run_id: String
 
     main:
     if (
@@ -43,12 +43,11 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
             item[2],
             item[3],
             item[4],
-            item[5],
+            item[6],
             item[7],
             item[8],
-            item[9],
             file(
-                item[10].resolve('phase3_diffraction_selection.json'),
+                item[9].resolve('phase3_diffraction_selection.json'),
                 checkIfExists: true
             )
         )
@@ -61,20 +60,20 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
     )
     active_stages = placements.stage.filter { crystalId, stage ->
         def manifest = new groovy.json.JsonSlurper().parse(
-            stage.resolve('live_m4_stage_manifest.json').toFile()
+            stage.resolve('phase3_seed_stage_manifest.json').toFile()
         )
         (manifest.approved_seed_count as Integer) > 0
     }
     needs_placement = active_stages.filter { crystalId, stage ->
         def manifest = new groovy.json.JsonSlurper().parse(
-            stage.resolve('live_m4_stage_manifest.json').toFile()
+            stage.resolve('phase3_seed_stage_manifest.json').toFile()
         )
         (manifest.additional_copy_seed_count as Integer) > 0
     }
     already_complete = active_stages
         .filter { crystalId, stage ->
             def manifest = new groovy.json.JsonSlurper().parse(
-                stage.resolve('live_m4_stage_manifest.json').toFile()
+                stage.resolve('phase3_seed_stage_manifest.json').toFile()
             )
             (manifest.additional_copy_seed_count as Integer) == 0
         }
@@ -90,7 +89,6 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
             approved,
             seedIds,
             results,
-            review,
             decision,
             phase3Package,
             hypotheses,
@@ -103,7 +101,6 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
             tuple(
                 crystalId,
                 approved,
-                review,
                 results,
                 hypotheses,
                 sequences,

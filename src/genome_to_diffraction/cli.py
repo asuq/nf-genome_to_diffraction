@@ -145,8 +145,10 @@ from genome_to_diffraction.mr import (
 from genome_to_diffraction.mr.stage_add_copy import (
     AddCopyStageRequest,
     LiveAddCopyStageRequest,
+    PhaseIIISeedStageRequest,
     prepare_add_copy_stage,
     prepare_live_add_copy_stage,
+    prepare_phase3_seed_stage,
 )
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
@@ -1299,8 +1301,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "add-copy",
         help="fix one approved MR seed and search one additional same-component copy",
     )
-    add_copy_parser.add_argument("--review-validation", type=Path, required=True)
-    add_copy_parser.add_argument("--review-package-manifest", type=Path, required=True)
+    add_copy_parser.add_argument("--review-validation", type=Path)
+    add_copy_parser.add_argument("--review-package-manifest", type=Path)
+    add_copy_parser.add_argument(
+        "--phase3-seed-stage-manifest",
+        type=Path,
+        help="canonical schema-v2 owned A-seed stage; rejects legacy approvals",
+    )
     add_copy_parser.add_argument("--seed-solution-id", required=True)
     add_copy_parser.add_argument("--hypotheses", type=Path, required=True)
     add_copy_parser.add_argument("--sequence-groups", type=Path, required=True)
@@ -1462,30 +1469,25 @@ def _build_parser() -> argparse.ArgumentParser:
     live_stage_parser.add_argument("--decisions", type=Path, required=True)
     live_stage_parser.add_argument("--hypotheses", type=Path, required=True)
     live_stage_parser.add_argument("--outdir", type=Path, required=True)
-    live_stage_parser.add_argument(
-        "--phase3-review-stage",
-        type=Path,
-        help="canonical checksum-bound Phase III A-seed decision stage",
+    phase3_seed_stage_parser = mr_actions.add_parser(
+        "stage-phase3-seeds",
+        help="stage one canonical owned Phase III A-review checkpoint",
     )
-    live_stage_parser.add_argument(
-        "--phase3-review-package-manifest",
-        type=Path,
-        help="exact owned Phase III A-seed review-package manifest",
+    phase3_seed_stage_parser.add_argument(
+        "--review-stage", type=Path, required=True
     )
-    live_stage_parser.add_argument(
-        "--phase3-owned-run-registry",
-        type=Path,
-        help="exact completed unknown-screen owned-run package registry",
+    phase3_seed_stage_parser.add_argument(
+        "--review-package-manifest", type=Path, required=True
     )
-    live_stage_parser.add_argument(
-        "--phase3-execution-identity",
-        type=Path,
-        help="full content-bound execution identity for the owned screen",
+    phase3_seed_stage_parser.add_argument("--hypotheses", type=Path, required=True)
+    phase3_seed_stage_parser.add_argument(
+        "--owned-run-registry", type=Path, required=True
     )
-    live_stage_parser.add_argument(
-        "--phase3-owned-parent-run",
-        help="exact completed unknown-screen parent-run identifier",
+    phase3_seed_stage_parser.add_argument(
+        "--execution-identity", type=Path, required=True
     )
+    phase3_seed_stage_parser.add_argument("--owned-parent-run", required=True)
+    phase3_seed_stage_parser.add_argument("--outdir", type=Path, required=True)
     copy_report_parser = mr_actions.add_parser(
         "copy-report",
         help="compare Matthews-intended and empirically supported copy counts",
@@ -1560,7 +1562,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="retain every approved normal-workflow copy state for T12",
     )
     live_stage_parser.add_argument("--approved-stage", type=Path, required=True)
-    live_stage_parser.add_argument("--review-package", type=Path, required=True)
+    live_stage_parser.add_argument("--review-package", type=Path)
+    live_stage_parser.add_argument(
+        "--phase3-seed-stage-manifest",
+        type=Path,
+        help="canonical schema-v2 owned A-seed stage; rejects legacy review inputs",
+    )
     live_stage_parser.add_argument(
         "--additional-copy-result", type=Path, action="append", default=[]
     )
@@ -3001,17 +3008,31 @@ def _run_mr(args: argparse.Namespace) -> int:
                 hypotheses_jsonl=args.hypotheses,
                 output_directory=args.outdir,
                 progress=not args.no_progress,
-                phase3_review_stage=args.phase3_review_stage,
-                phase3_review_package_manifest=args.phase3_review_package_manifest,
-                phase3_owned_run_registry=args.phase3_owned_run_registry,
-                phase3_execution_identity=args.phase3_execution_identity,
-                phase3_owned_parent_run_id=args.phase3_owned_parent_run,
             )
         )
         print(
             f"Staged {live_staged.approved_seed_count} approved MR seed(s); "
             f"{live_staged.additional_copy_seed_count} require additional-copy "
             f"search: {live_staged.stage_manifest}"
+        )
+        return 0
+    if args.mr_action == "stage-phase3-seeds":
+        staged = prepare_phase3_seed_stage(
+            PhaseIIISeedStageRequest(
+                review_stage=args.review_stage,
+                review_package_manifest=args.review_package_manifest,
+                hypotheses_jsonl=args.hypotheses,
+                owned_run_registry=args.owned_run_registry,
+                execution_identity=args.execution_identity,
+                owned_parent_run_id=args.owned_parent_run,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Staged {staged.approved_seed_count} owned Phase III A seed(s); "
+            f"{staged.additional_copy_seed_count} require additional-copy "
+            f"search: {staged.stage_manifest}"
         )
         return 0
     if args.mr_action == "add-copy":
@@ -3033,6 +3054,7 @@ def _run_mr(args: argparse.Namespace) -> int:
             threads=args.threads,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,
+            phase3_seed_stage_manifest=args.phase3_seed_stage_manifest,
         )
         if args.until_expected:
             series = run_additional_copy_series(request)
@@ -3372,6 +3394,7 @@ def _run_refinement(args: argparse.Namespace) -> int:
                 phenix_manifest=args.phenix_manifest,
                 output_directory=args.outdir,
                 progress=not args.no_progress,
+                phase3_seed_stage_manifest=args.phase3_seed_stage_manifest,
             )
         )
         print(

@@ -24,7 +24,6 @@ workflow {
         (records.crystals as List).collect { item ->
             tuple(
                 item.crystal_id as String,
-                file(item.review_package as String, checkIfExists: true),
                 file(item.review_stage as String, checkIfExists: true),
                 file(item.phase3_package as String, checkIfExists: true),
                 file(item.hypotheses as String, checkIfExists: true),

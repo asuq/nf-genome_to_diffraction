@@ -45,6 +45,27 @@ model checksums. Unit tests cover runnable and already-complete seeds; the
 integrated parser-v2 stub and `-resume` test prove the file gate precedes the
 sequential-copy fan-out.
 
+Phase III uses a separate clean-break boundary. It does not accept or generate
+the normal-workflow approval TSV or schema-v1 validation/stage records:
+
+```text
+genome-to-diffraction mr stage-phase3-seeds \
+  --review-stage phase3_a_review_stage \
+  --review-package-manifest owned_a_package/phase3_review_package_manifest.json \
+  --hypotheses mr_hypotheses.jsonl \
+  --owned-run-registry completed_unknown_screen \
+  --execution-identity phase3_execution_identity.json \
+  --owned-parent-run gtd-unknown-screen-... \
+  --outdir phase3_seed_stage
+```
+
+The output contains `phase3_seed_stage_manifest.json`, the two seed tables,
+checksum-named models, and byte-identical snapshots of the canonical package
+and decision stage. The stage is revalidated from its content identity,
+allow-list, checksums, typed decisions, package evidence, model inventory, and
+owned-run provenance before either Phaser or refinement reads it. Reviewed
+crystal routes therefore carry no external legacy MR review directory.
+
 `--analysis_stage t12` adds the normal-workflow retained-parent handoff after
 that fan-out. The `refinement stage-live` adapter authenticates the approved
 stage, exact review package, hypothesis catalogue, every typed copy-series
@@ -82,6 +103,19 @@ genome-to-diffraction mr add-copy \
   --threads 4 \
   --outdir additional_copy_sol_SHA256
 ```
+
+The Phase III invocation replaces both legacy approval arguments with the one
+canonical authority and also requires its selected diffraction record:
+
+```text
+  --phase3-seed-stage-manifest phase3_seed_stage/phase3_seed_stage_manifest.json \
+  --diffraction-selection phase3_diffraction_selection.json
+```
+
+Supplying either legacy approval argument together with the Phase III stage is
+an input-contract failure before Phenix execution. The same exclusivity applies
+to `refinement stage-live`; Phase III supplies the seed-stage manifest and no
+legacy review-package argument.
 
 For copy 3..n, repeat the command with both arguments pointing to the
 immediately preceding supported child:

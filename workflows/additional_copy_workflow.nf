@@ -66,9 +66,9 @@ workflow PHASE3_ADDITIONAL_COPY_WORKFLOW {
             error "Phase III approved seed headers differ for ${crystalId}"
         }
         def stageManifest = new groovy.json.JsonSlurper().parse(
-            approved.resolve('live_m4_stage_manifest.json').toFile()
+            approved.resolve('phase3_seed_stage_manifest.json').toFile()
         )
-        if (stageManifest.phase3_approval_provenance?.crystal_id != crystalId) {
+        if (stageManifest.approval_provenance?.crystal_id != crystalId) {
             error "Phase III approved seeds belong to another crystal: ${crystalId}"
         }
         lines.drop(1).findAll { String line -> !line.isEmpty() }.collect {
@@ -83,7 +83,7 @@ workflow PHASE3_ADDITIONAL_COPY_WORKFLOW {
                 file(columns[1], checkIfExists: true),
                 columns[2],
                 file(
-                    approved.resolve('validated_mr_seed_decisions.json'),
+                    approved.resolve('phase3_seed_stage_manifest.json'),
                     checkIfExists: true
                 ),
                 file(item[2], checkIfExists: true),
@@ -91,8 +91,7 @@ workflow PHASE3_ADDITIONAL_COPY_WORKFLOW {
                 file(item[4], checkIfExists: true),
                 file(item[5], checkIfExists: true),
                 file(item[6], checkIfExists: true),
-                file(item[7], checkIfExists: true),
-                file(item[8], checkIfExists: true)
+                file(item[7], checkIfExists: true)
             )
         }
     }
@@ -108,26 +107,21 @@ workflow PHASE3_ADDITIONAL_COPY_WORKFLOW {
 workflow PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW {
     take:
     reviewed_crystals: Tuple
-    owned_run_registry: Path?
-    execution_identity: Path?
-    owned_parent_run_id: String?
+    owned_run_registry: Path
+    execution_identity: Path
+    owned_parent_run_id: String
 
     main:
     stage_items = reviewed_crystals.map { item ->
-        if (owned_run_registry != null) {
-            tuple(
-                item[0],
-                item[1],
-                item[2],
-                item[3],
-                item[4],
-                owned_run_registry,
-                execution_identity,
-                owned_parent_run_id
-            )
-        } else {
-            tuple(item[0], item[1], item[2], item[3], item[4])
-        }
+        tuple(
+            item[0],
+            item[1],
+            item[2],
+            item[3],
+            owned_run_registry,
+            execution_identity,
+            owned_parent_run_id
+        )
     }
     staged = STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS(stage_items)
     complete_crystals = staged
@@ -135,7 +129,6 @@ workflow PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW {
         .map {
             crystalId,
             approved,
-            legacyReview,
             reviewedDecision,
             phase3Package,
             hypotheses,
@@ -147,10 +140,6 @@ workflow PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW {
             tuple(
                 crystalId,
                 approved,
-                file(
-                    legacyReview.resolve('mr_seed_review_manifest.json'),
-                    checkIfExists: true
-                ),
                 hypotheses,
                 sequences,
                 preflight,

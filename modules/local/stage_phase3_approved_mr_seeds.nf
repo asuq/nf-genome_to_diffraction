@@ -1,8 +1,8 @@
 nextflow.enable.types = true
 
 // Cross the Phase III A checkpoint only through its canonical owned-run stage.
-// The existing Python adapter independently binds the legacy review asset
-// manifest to the schema-v2 evidence and retains rejected/deferred outcomes.
+// The schema-v2 adapter reads the complete evidence copied into the owned
+// package and never translates the decision into a legacy approval record.
 process STAGE_PHASE3_APPROVED_MR_SEEDS {
     tag 'phase3-approved-mr-seeds'
     label 'process_low'
@@ -10,26 +10,29 @@ process STAGE_PHASE3_APPROVED_MR_SEEDS {
     stageInMode 'copy'
 
     input:
-    review_package: Path
     review_stage: Path
     phase3_package: Path
     hypotheses: Path
+    owned_run_registry: Path
+    execution_identity: Path
+    owned_parent_run_id: String
 
     output:
-    stage: Path = file('approved_mr_seed_stage')
+    stage: Path = file('phase3_seed_stage')
 
     script:
     """
     genome-to-diffraction \
         --no-progress \
         --log-format json \
-        mr stage-approved-seeds \
-        --review-package ${review_package} \
-        --decisions ${review_stage}/phase3_review_decision.json \
-        --phase3-review-stage ${review_stage} \
-        --phase3-review-package-manifest ${phase3_package}/phase3_review_package_manifest.json \
+        mr stage-phase3-seeds \
+        --review-stage ${review_stage} \
+        --review-package-manifest ${phase3_package}/phase3_review_package_manifest.json \
         --hypotheses ${hypotheses} \
-        --outdir approved_mr_seed_stage
+        --owned-run-registry ${owned_run_registry} \
+        --execution-identity ${execution_identity} \
+        --owned-parent-run '${owned_parent_run_id}' \
+        --outdir phase3_seed_stage
     """
 
     stub:
@@ -37,13 +40,14 @@ process STAGE_PHASE3_APPROVED_MR_SEEDS {
     genome-to-diffraction \
         --no-progress \
         --log-format json \
-        mr stage-approved-seeds \
-        --review-package ${review_package} \
-        --decisions ${review_stage}/phase3_review_decision.json \
-        --phase3-review-stage ${review_stage} \
-        --phase3-review-package-manifest ${phase3_package}/phase3_review_package_manifest.json \
+        mr stage-phase3-seeds \
+        --review-stage ${review_stage} \
+        --review-package-manifest ${phase3_package}/phase3_review_package_manifest.json \
         --hypotheses ${hypotheses} \
-        --outdir approved_mr_seed_stage
+        --owned-run-registry ${owned_run_registry} \
+        --execution-identity ${execution_identity} \
+        --owned-parent-run '${owned_parent_run_id}' \
+        --outdir phase3_seed_stage
     """
 }
 
@@ -63,48 +67,44 @@ process STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS {
     output:
     stage: Tuple = tuple(
         item[0],
-        file("phase3_approved_mr_seed_${item[0]}")
+        file("phase3_seed_stage_${item[0]}")
     )
 
     script:
-    def outputName = "phase3_approved_mr_seed_${item[0]}"
-    def ownershipArguments = item.size() == 8
-        ? "--phase3-owned-run-registry '${item[5]}' " +
-            "--phase3-execution-identity '${item[6]}' " +
-            "--phase3-owned-parent-run '${item[7]}'"
-        : ''
+    if (item.size() != 7) {
+        error "Phase III seed stage requires one complete owned-run item"
+    }
+    def outputName = "phase3_seed_stage_${item[0]}"
     """
     genome-to-diffraction \
         --no-progress \
         --log-format json \
-        mr stage-approved-seeds \
-        --review-package '${item[1]}' \
-        --decisions '${item[2]}/phase3_review_decision.json' \
-        --phase3-review-stage '${item[2]}' \
-        --phase3-review-package-manifest '${item[3]}/phase3_review_package_manifest.json' \
-        --hypotheses '${item[4]}' \
-        ${ownershipArguments} \
+        mr stage-phase3-seeds \
+        --review-stage '${item[1]}' \
+        --review-package-manifest '${item[2]}/phase3_review_package_manifest.json' \
+        --hypotheses '${item[3]}' \
+        --owned-run-registry '${item[4]}' \
+        --execution-identity '${item[5]}' \
+        --owned-parent-run '${item[6]}' \
         --outdir '${outputName}'
     """
 
     stub:
-    def outputName = "phase3_approved_mr_seed_${item[0]}"
-    def ownershipArguments = item.size() == 8
-        ? "--phase3-owned-run-registry '${item[5]}' " +
-            "--phase3-execution-identity '${item[6]}' " +
-            "--phase3-owned-parent-run '${item[7]}'"
-        : ''
+    if (item.size() != 7) {
+        error "Phase III seed stage requires one complete owned-run item"
+    }
+    def outputName = "phase3_seed_stage_${item[0]}"
     """
     genome-to-diffraction \
         --no-progress \
         --log-format json \
-        mr stage-approved-seeds \
-        --review-package '${item[1]}' \
-        --decisions '${item[2]}/phase3_review_decision.json' \
-        --phase3-review-stage '${item[2]}' \
-        --phase3-review-package-manifest '${item[3]}/phase3_review_package_manifest.json' \
-        --hypotheses '${item[4]}' \
-        ${ownershipArguments} \
+        mr stage-phase3-seeds \
+        --review-stage '${item[1]}' \
+        --review-package-manifest '${item[2]}/phase3_review_package_manifest.json' \
+        --hypotheses '${item[3]}' \
+        --owned-run-registry '${item[4]}' \
+        --execution-identity '${item[5]}' \
+        --owned-parent-run '${item[6]}' \
         --outdir '${outputName}'
     """
 }

@@ -433,30 +433,27 @@ crystals schedule no A review. The scheduler-owned parent run is explicit and
 cannot be inferred from the preceding crystallographic review parent. Historical
 review output remains unchanged when ownership is not requested.
 
-Status: the fixed local A-seed handoff now authenticates one ASCII decision TSV
-and its independently confirmed SHA-256 against an exact owned `unknown-screen`
-run. It infers the single crystal from the typed decision file, resolves only
-the registered A-seed package, preserves approval/rejection/deferral, and
-enforces the existing three-state approval cap before publishing the canonical
-two-file stage. Arbitrary package paths and crystal selectors are not accepted.
-The actual application now independently validates the canonical two-file
-A-seed stage, the complete owned schema-v2 package, its exact checksum-bound
-legacy MR evidence, every crystal/hypothesis/target, and reviewer dispositions.
-Only approved states enter the existing same-component Nextflow adapter; rejected
-or deferred checkpoints complete with empty approved/placement tables instead of
-fabricating a seed. Original decision, stage, and package records remain retained
-in the downstream evidence. The complete-item continuation independently
-authenticates and publishes each crystal's owned A-seed stage, joins placement
-and supported-finalist inputs only by crystal identity, and retains deferred
-decisions without launching Phaser or refinement. A real three-crystal local
-workflow schedules three review stages, one required additional placement, two
-independent finalist stages, two selected-diffraction/Free-R-bound refinements,
-and two complete-catalogue sequence checkpoints. The already-complete approved
-A state reaches refinement without a fabricated additional-copy search. All ten
-tasks cache on resume; mutating one crystal's selected diffraction reruns only
-its placement, finalist stage, refinement, and sequence checkpoint while six
-sibling/review tasks remain cached. Historical schema-v1 approvals, refinements,
-and sequence checkpoints remain unchanged.
+Status: the A-seed handoff authenticates the canonical schema-v2 decision stage,
+registered owned package, complete execution identity, exact `unknown-screen`
+parent, and original crystal-bound hypotheses. The package now contains every
+checksum-bound MR review output and per-solution scientific asset, so active
+execution has no external legacy review-directory input. The resulting
+`phase3_seed_stage_manifest.json` binds approval/rejection/deferral, hypotheses,
+models, complete byte-identical package/stage snapshots, and both seed tables.
+It does not translate decisions into `approved_mr_seeds.tsv`,
+`validated_mr_seed_decisions.json`, or a schema-v1 live-M4 manifest.
+
+Current same-component Phaser and T12 adapters explicitly consume that exact
+schema-v2 seed stage and reject legacy or dual approval authority. Only approved
+states schedule work; rejected or deferred checkpoints retain header-only seed
+tables, and an approved state already at its expected copy count reaches
+refinement without a fabricated addition. The complete-item continuation joins
+placement and supported-finalist inputs only by crystal identity. One- and
+three-crystal local workflows preserve cached replay, selected diffraction,
+Free-R, refinement, and sequence checkpoints while changing one crystal cannot
+cross-consume a sibling's review. Historical fixed and normal-workflow schema-v1
+controls remain immutable on their genuinely separate route. Exact-source CI
+and owned-HPC qualification remain before the finding is final evidence.
 The actual `main.nf` application now also accepts a bounded private reviewed-
 crystal route manifest plus its exact completed-screen registry, complete
 execution identity, and owned parent. Each A package is resolved exclusively

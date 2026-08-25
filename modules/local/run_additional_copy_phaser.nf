@@ -91,17 +91,16 @@ process RUN_PHASE3_ADDITIONAL_COPY_PHASER {
         --no-progress \
         --log-format json \
         mr add-copy \
-        --review-validation '${item[4]}' \
-        --review-package-manifest '${item[5]}' \
+        --phase3-seed-stage-manifest '${item[4]}' \
         --seed-solution-id '${item[1]}' \
-        --hypotheses '${item[6]}' \
-        --sequence-groups '${item[7]}' \
-        --preflight '${item[8]}' \
-        --mtz '${item[9]}' \
+        --hypotheses '${item[5]}' \
+        --sequence-groups '${item[6]}' \
+        --preflight '${item[7]}' \
+        --mtz '${item[8]}' \
         --search-model '${item[2]}' \
         --expected-search-model-sha256 '${item[3]}' \
-        --phenix-manifest '${item[10]}' \
-        --diffraction-selection '${item[11]}' \
+        --phenix-manifest '${item[9]}' \
+        --diffraction-selection '${item[10]}' \
         --threads '${task.cpus}' \
         --until-expected \
         --outdir '${outputName}'
@@ -127,7 +126,7 @@ process RUN_PHASE3_ADDITIONAL_COPY_PHASER {
     cp \
         '${projectDir}/tests/fixtures/stubs/additional_copy_series_summary.json' \
         '${outputName}/additional_copy_series_summary.json'
-    cp '${item[11]}' '${outputName}/phase3_diffraction_selection.json'
+    cp '${item[10]}' '${outputName}/phase3_diffraction_selection.json'
     printf '%s\n' '${item[0]}' > '${outputName}/phase3_crystal_id.txt'
     """
 }

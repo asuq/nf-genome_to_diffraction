@@ -106,8 +106,8 @@ def _reported_no_additional_solution(text: str) -> bool:
 class AddCopyRunRequest:
     """Immutable inputs for one approved fixed-parent additional-copy search."""
 
-    review_validation_json: Path
-    review_package_manifest: Path
+    review_validation_json: Path | None
+    review_package_manifest: Path | None
     seed_solution_id: str
     hypotheses_jsonl: Path
     sequence_groups_jsonl: Path
@@ -123,6 +123,7 @@ class AddCopyRunRequest:
     threads: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
+    phase3_seed_stage_manifest: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -220,24 +221,63 @@ def _owned(root: Path, relative: object, *, label: str) -> Path:
 
 
 def _resolve(request: AddCopyRunRequest) -> _Resolved:
-    validation = _json_object(request.review_validation_json, label="MR approval")
-    manifest_path = request.review_package_manifest.resolve(strict=True)
-    manifest = _json_object(manifest_path, label="MR review manifest")
-    if (
-        validation.get("execution_status") != ExecutionStatus.COMPLETED_SUCCESS.value
-        or validation.get("checkpoint") != "mr_seed"
-        or validation.get("package_id") != manifest.get("package_id")
-        or validation.get("package_manifest_sha256") != sha256_file(manifest_path)
-    ):
-        raise PhaserInputError("MR approval does not match the review package")
-    approved = validation.get("approved_solution_ids")
-    review_id = validation.get("review_id")
-    if (
-        not isinstance(approved, list)
-        or request.seed_solution_id not in approved
-        or not isinstance(review_id, str)
-    ):
-        raise PhaserInputError("seed is not explicitly approved for M4")
+    phase3_source: dict[str, object] | None = None
+    if request.phase3_seed_stage_manifest is None:
+        if (
+            request.review_validation_json is None
+            or request.review_package_manifest is None
+        ):
+            raise PhaserInputError(
+                "legacy additional-copy execution requires its approval pair"
+            )
+        validation = _json_object(request.review_validation_json, label="MR approval")
+        manifest_path = request.review_package_manifest.resolve(strict=True)
+        manifest = _json_object(manifest_path, label="MR review manifest")
+        if (
+            validation.get("execution_status")
+            != ExecutionStatus.COMPLETED_SUCCESS.value
+            or validation.get("checkpoint") != "mr_seed"
+            or validation.get("package_id") != manifest.get("package_id")
+            or validation.get("package_manifest_sha256") != sha256_file(manifest_path)
+        ):
+            raise PhaserInputError("MR approval does not match the review package")
+        approved = validation.get("approved_solution_ids")
+        review_id = validation.get("review_id")
+        if (
+            not isinstance(approved, list)
+            or request.seed_solution_id not in approved
+            or not isinstance(review_id, str)
+        ):
+            raise PhaserInputError("seed is not explicitly approved for M4")
+        root = manifest_path.parent
+    else:
+        from genome_to_diffraction.mr.stage_add_copy import (
+            validate_phase3_seed_stage,
+        )
+
+        if (
+            request.review_validation_json is not None
+            or request.review_package_manifest is not None
+        ):
+            raise PhaserInputError(
+                "Phase III additional-copy execution rejects legacy approval inputs"
+            )
+        try:
+            phase3 = validate_phase3_seed_stage(
+                request.phase3_seed_stage_manifest,
+                hypotheses_jsonl=request.hypotheses_jsonl,
+            )
+        except (OSError, ValueError) as error:
+            raise PhaserInputError(
+                f"Phase III seed stage is invalid: {error}"
+            ) from error
+        if request.seed_solution_id not in phase3.approved_solution_ids:
+            raise PhaserInputError("seed is not approved by the Phase III stage")
+        manifest = phase3.review_document
+        manifest_path = phase3.review_manifest
+        root = phase3.review_root
+        review_id = phase3.review_id
+        phase3_source = phase3.model_sources[request.seed_solution_id]
     raw_items = manifest.get("items")
     if not isinstance(raw_items, list):
         raise PhaserInputError("MR review manifest has no items")
@@ -254,7 +294,6 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     copied_sha = item.get("copied_asset_sha256")
     if not isinstance(copied, dict) or not isinstance(copied_sha, dict):
         raise PhaserInputError("approved seed lacks an asset inventory")
-    root = manifest_path.parent
     root_parent = _owned(
         root, copied.get("solution_coordinate"), label="root parent coordinate"
     )
@@ -379,6 +418,10 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     selection: DiffractionSelection | None = None
     phase3_hypothesis: DiffractionBoundHypothesis | None = None
     diffraction_binding: DiffractionCommandBinding | None = None
+    if phase3_source is not None and request.diffraction_selection_json is None:
+        raise PhaserInputError(
+            "Phase III additional-copy execution requires diffraction selection"
+        )
     if request.diffraction_selection_json is not None:
         selection = load_diffraction_selection(request.diffraction_selection_json)
         verify_diffraction_selection(selection, preflight)
@@ -407,8 +450,21 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     search_model_sha = sha256_file(
         search_model, progress=request.progress, logger=_LOGGER
     )
-    staged_model_sha = request.expected_search_model_sha256 or expected_model_sha
-    if not re.fullmatch(r"[0-9a-f]{64}", staged_model_sha):
+    if phase3_source is None:
+        staged_model_sha = request.expected_search_model_sha256 or expected_model_sha
+    else:
+        staged_model_sha = phase3_source.get("staged_search_model_sha256")
+        if (
+            phase3_source.get("original_first_copy_model_sha256")
+            != expected_model_sha
+            or request.expected_search_model_sha256 != staged_model_sha
+        ):
+            raise PhaserInputError(
+                "Phase III staged model authority differs from the MR evidence"
+            )
+    if not isinstance(staged_model_sha, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", staged_model_sha
+    ):
         raise PhaserInputError("expected search model checksum is invalid")
     if search_model_sha != staged_model_sha:
         raise PhaserInputError("search model checksum differs from staged seed")

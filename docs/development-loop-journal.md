@@ -13268,3 +13268,33 @@ with a collapsed combined parent or a guessed command.
   pass-1 continuation.
 - No scheduler run, installed dispatcher, scientific threshold, Phenix runtime,
   known control, or unknown-crystal profile was started or modified.
+
+## 2026-08-25 - Phase III A approval no longer crosses a legacy bridge
+
+- `FCB-P1-04` was reproduced as three synthetic current outputs: the canonical
+  schema-v2 A decision was translated into `approved_mr_seeds.tsv`,
+  `validated_mr_seed_decisions.json`, and `live_m4_stage_manifest.json`, while
+  additional-copy and T12 still required the external legacy review directory.
+- Active Phase III staging is now a separate `stage-phase3-seeds` contract. It
+  requires the canonical two-file decision stage, registry-owned portable A
+  package, exact execution identity, completed `unknown-screen` parent, and
+  hypotheses. It emits one content-derived schema-v2 seed-stage manifest, two
+  seed tables, checksum-named models, and byte-identical package/stage snapshots;
+  none of the three synthetic legacy approval files is written.
+- The shared validator independently rechecks the stage content ID, fixed path
+  allow-list, every authority/seed/model checksum, typed package and decision
+  identities, approval dispositions, counts, and retained-model provenance.
+  Current additional-copy and T12 adapters accept only this authority and reject
+  legacy or dual inputs before Phenix. Phase III refinement publishes a v2 T12
+  stage without fabricated decision/validation digests. Historical fixed and
+  normal-workflow v1 controls remain unchanged.
+- Reviewed-crystal manifests and complete Nextflow items no longer carry an
+  external legacy MR review directory. Real local one- and three-crystal
+  parser-v2 workflows preserve approve/reject/defer, no-unneeded-addition,
+  crystal isolation, and byte-identical cached replay.
+- Fifteen focused ownership/tamper/disposition cases, 45 A-review/continuation
+  tests, 32 add-copy/refinement tests, ten unknown-wiring tests, both reviewed
+  crystal workflows, Ruff, ty, and the complete Nextflow syntax gate pass.
+  Exact-source CI and owned-HPC qualification remain; no running scheduler job,
+  remote tool, Phenix installation, scientific threshold, known control, or
+  unknown crystal was touched.
