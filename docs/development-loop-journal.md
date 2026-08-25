@@ -12451,3 +12451,24 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Production crystal tasks now bind diffraction and Free-R
+
+- The schema-v2 diffraction and Free-R foundations were individually tested,
+  but actual Phase III multi-crystal dispatch still published only its legacy
+  bundle and first-copy Phaser silently used its v1 command path.
+- Each production crystal dispatch now explicitly publishes one exact
+  dataset-qualified diffraction selection and source HKL-to-Free-R identity.
+  Missing, constant, or cross-dataset flags fail before output publication;
+  unresolved work/test conventions are never inferred.
+- Every real Phase III first-copy task now consumes its own selected dataset,
+  derives the immutable bound hypothesis from the complete task inputs, and
+  applies the previously qualified explicit observation, space-group, and
+  resolution parameters. Legacy v1 dispatch and commands remain unchanged.
+- Eighty-one focused dispatch, selection, Free-R, Phaser, and refinement
+  regressions pass. The actual three-crystal reviewed Nextflow stub and cached
+  resume, Nextflow syntax, targeted Ruff/type, schema, and documentation
+  checks pass without invoking a licensed runtime or launching an HPC job.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

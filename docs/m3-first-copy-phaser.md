@@ -74,6 +74,25 @@ No Phaser timeout is imposed by default. An operator can provide
 `--timeout-seconds`, but unpredictable shared-filesystem startup is not treated
 as a reason to impose a short scientific deadline.
 
+The opt-in Phase III multi-crystal application first runs the same
+manifest-owned dispatch with `--phase3-diffraction`. Besides the unchanged v1
+dispatch files, it publishes `phase3_diffraction_selection.json` and
+`phase3_free_r_identity.json` for that crystal. The first record content-binds
+the exact MTZ, selected dataset/observation labels, selected space group,
+resolution limits, and manifest overrides; the second binds the complete
+same-dataset HKL-to-Free-R mapping and leaves an unknown test-value convention
+explicitly unresolved. Missing, ambiguous, constant, or cross-dataset Free-R
+flags fail before the dispatch directory is created.
+
+Each independent Phase III first-copy task then passes
+`--diffraction-selection` and `--derive-phase3-hypothesis-id`. The existing
+Phaser adapter derives the schema-v2 identity directly from that exact
+hypothesis and diffraction record, retains it in the command evidence, and
+passes explicitly qualified space-group and resolution parameters. An
+independently supplied bound identity remains supported, but supplying both or
+neither identity policy is refused. Historical single-crystal commands and
+dispatch evidence are unchanged.
+
 The adapter verifies that the hypothesis is queued, independent, first-copy,
 and exact-mapped. It revalidates the model path and checksum, observation
 labels, space group, preflight status, MTZ checksum, sequence group, and Phenix

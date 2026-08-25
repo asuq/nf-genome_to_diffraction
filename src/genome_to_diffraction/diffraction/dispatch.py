@@ -1,9 +1,10 @@
 """Select one manifest-owned crystal for a per-crystal MR boundary.
 
-The v1 workflow selects the sole crystal implicitly.  Phase III fan-out passes
-an explicit manifest-owned crystal identifier for each Nextflow item.  Both
-paths verify the MTZ against the completed preflight record and publish the
-same immutable dispatch bundle.  A caller-supplied MTZ path is never accepted.
+The v1 workflow selects the sole crystal implicitly. Phase III fan-out passes
+an explicit manifest-owned crystal identifier for each Nextflow item and opts
+into content-addressed diffraction-selection and exact Free-R identities. Both
+paths verify the MTZ against the completed preflight record. A caller-supplied
+MTZ path or guessed Free-R test convention is never accepted.
 """
 
 import logging
@@ -20,6 +21,14 @@ from genome_to_diffraction.checksums import (
     atomic_write_json,
     atomic_write_text,
     sha256_file,
+)
+from genome_to_diffraction.diffraction.free_r_identity import (
+    FreeRIdentityError,
+    build_free_r_identity,
+)
+from genome_to_diffraction.diffraction.selection import (
+    DiffractionSelectionError,
+    build_diffraction_selection,
 )
 from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.schemas.base import (
@@ -63,6 +72,7 @@ class CrystalDispatchRequest:
     output_directory: Path
     progress: bool = True
     crystal_id: str | None = None
+    phase3_diffraction: bool = False
 
 
 @dataclass(frozen=True)
@@ -73,6 +83,8 @@ class CrystalDispatchOutput:
     dispatch_json: Path
     crystal_id_txt: Path
     mtz: Path
+    diffraction_selection: Path | None = None
+    free_r_identity: Path | None = None
 
 
 def _read_preflights(path: Path) -> tuple[MtzPreflightRecord, ...]:
@@ -202,6 +214,33 @@ def prepare_crystal_dispatch(
             "manifest MTZ checksum does not match the completed preflight record"
         )
 
+    manifest_sha256 = sha256_file(manifest_path, progress=False)
+    diffraction_selection = None
+    free_r_identity = None
+    if request.phase3_diffraction:
+        if preflight.free_flag_status not in {"present", "generated"} or (
+            preflight.free_flag_labels is None
+        ):
+            raise CrystalDispatchError(
+                "Phase III dispatch requires one existing selected Free-R array"
+            )
+        try:
+            diffraction_selection = build_diffraction_selection(
+                crystal=crystal,
+                preflight=preflight,
+                crystal_manifest_sha256=manifest_sha256,
+            )
+            free_r_identity = build_free_r_identity(
+                selection=diffraction_selection,
+                mtz_path=source_mtz,
+                free_r_dataset_id=diffraction_selection.observation_dataset_id,
+                free_r_label=preflight.free_flag_labels,
+            )
+        except (DiffractionSelectionError, FreeRIdentityError) as error:
+            raise CrystalDispatchError(
+                f"Phase III diffraction selection is not safely bound: {error}"
+            ) from error
+
     requested_output = request.output_directory
     if requested_output.is_symlink():
         raise CrystalDispatchError(
@@ -214,7 +253,6 @@ def prepare_crystal_dispatch(
         raise CrystalDispatchError(f"dispatch output is not empty: {output}")
     output.mkdir(parents=True, exist_ok=True)
 
-    manifest_sha256 = sha256_file(manifest_path, progress=False)
     preflight_sha256 = sha256_file(preflight_path, progress=False)
     identity = {
         "crystal_id": crystal.crystal_id,
@@ -243,6 +281,13 @@ def prepare_crystal_dispatch(
     crystal_id_txt = output / "crystal_id.txt"
     atomic_write_json(dispatch_json, record.model_dump(mode="json"))
     atomic_write_text(crystal_id_txt, f"{crystal.crystal_id}\n")
+    selection_json = None
+    free_r_json = None
+    if diffraction_selection is not None and free_r_identity is not None:
+        selection_json = output / "phase3_diffraction_selection.json"
+        free_r_json = output / "phase3_free_r_identity.json"
+        atomic_write_json(selection_json, diffraction_selection.model_dump(mode="json"))
+        atomic_write_json(free_r_json, free_r_identity.model_dump(mode="json"))
     _LOGGER.info(
         "single-crystal MR dispatch prepared",
         extra={
@@ -252,4 +297,11 @@ def prepare_crystal_dispatch(
             "output": str(output),
         },
     )
-    return CrystalDispatchOutput(record, dispatch_json, crystal_id_txt, staged_mtz)
+    return CrystalDispatchOutput(
+        record,
+        dispatch_json,
+        crystal_id_txt,
+        staged_mtz,
+        selection_json,
+        free_r_json,
+    )

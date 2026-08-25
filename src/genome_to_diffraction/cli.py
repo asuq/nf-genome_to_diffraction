@@ -1121,6 +1121,11 @@ def _build_parser() -> argparse.ArgumentParser:
             "contains more than one crystal"
         ),
     )
+    dispatch_parser.add_argument(
+        "--phase3-diffraction",
+        action="store_true",
+        help="bind the selected MTZ dataset and exact existing Free-R membership",
+    )
 
     matthews_parser = subparsers.add_parser(
         "matthews", help="enumerate candidate-specific ASU copy hypotheses"
@@ -1318,6 +1323,11 @@ def _build_parser() -> argparse.ArgumentParser:
     first_copy_parser.add_argument(
         "--phase3-hypothesis-id",
         help="content identity binding the v1 hypothesis to --diffraction-selection",
+    )
+    first_copy_parser.add_argument(
+        "--derive-phase3-hypothesis-id",
+        action="store_true",
+        help="derive the bound identity from this complete hypothesis and selection",
     )
     first_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
     first_copy_parser.add_argument("--outdir", type=Path, required=True)
@@ -2555,6 +2565,7 @@ def _run_diffraction(args: argparse.Namespace) -> int:
                 output_directory=args.outdir,
                 progress=not args.no_progress,
                 crystal_id=args.crystal_id,
+                phase3_diffraction=args.phase3_diffraction,
             )
         )
         print(
@@ -3151,6 +3162,7 @@ def _run_mr(args: argparse.Namespace) -> int:
             output_directory=args.outdir,
             diffraction_selection_json=args.diffraction_selection,
             phase3_hypothesis_id=args.phase3_hypothesis_id,
+            derive_phase3_hypothesis_id=args.derive_phase3_hypothesis_id,
             threads=args.threads,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,

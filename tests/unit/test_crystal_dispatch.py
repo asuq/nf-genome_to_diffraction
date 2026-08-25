@@ -3,13 +3,21 @@
 import json
 from pathlib import Path
 
+import gemmi
+import numpy as np
 import pytest
 
 from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.cli import main
 from genome_to_diffraction.diffraction.dispatch import (
     CrystalDispatchError,
     CrystalDispatchRequest,
     prepare_crystal_dispatch,
+)
+from genome_to_diffraction.schemas.v2 import (
+    DiffractionSelection,
+    FreeRConventionStatus,
+    FreeRIdentity,
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -58,6 +66,54 @@ def _inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
     return crystals, preflight, mtz
 
 
+def _phase3_inputs(
+    tmp_path: Path,
+    *,
+    free_dataset_id: int = 1,
+    flags: tuple[int, ...] = (0, 1, 0, 0, 1, 0),
+) -> tuple[Path, Path, Path]:
+    crystals, preflight, path = _inputs(tmp_path)
+    mtz = gemmi.Mtz(with_base=True)
+    mtz.spacegroup = gemmi.find_spacegroup_by_name("P 21 21 21")
+    mtz.set_cell_for_all(gemmi.UnitCell(100, 100, 100, 90, 90, 90))
+    observations = mtz.add_dataset("observations")
+    observation_dataset_id = observations.id
+    other = mtz.add_dataset("other")
+    assert observation_dataset_id == 1
+    assert other.id == 2
+    mtz.add_column("I", "J", observation_dataset_id)
+    mtz.add_column("SIGI", "Q", observation_dataset_id)
+    mtz.add_column("FreeR_flag", "I", free_dataset_id)
+    indices = ((1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 1, 0), (1, 0, 1), (0, 1, 1))
+    mtz.set_data(
+        np.asarray(
+            [
+                (*hkl, float(100 + index), float(10 + index), float(flags[index]))
+                for index, hkl in enumerate(indices)
+            ],
+            dtype=np.float32,
+        )
+    )
+    mtz.update_reso()
+    mtz.write_to_file(str(path))
+    record = json.loads(preflight.read_text(encoding="utf-8"))
+    record.update(
+        {
+            "mtz_sha256": sha256_file(path, progress=False),
+            "selected_observation_dataset_id": observation_dataset_id,
+            "observation_candidate_identities": [
+                {
+                    "dataset_id": observation_dataset_id,
+                    "labels": ["I", "SIGI"],
+                    "observation_type": "intensity",
+                }
+            ],
+        }
+    )
+    preflight.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    return crystals, preflight, path
+
+
 def test_dispatch_resolves_and_verifies_manifest_owned_mtz(tmp_path: Path) -> None:
     crystals, preflight, mtz = _inputs(tmp_path)
 
@@ -77,6 +133,96 @@ def test_dispatch_resolves_and_verifies_manifest_owned_mtz(tmp_path: Path) -> No
     assert json.loads(first.dispatch_json.read_text(encoding="utf-8")) == (
         first.record.model_dump(mode="json")
     )
+    assert first.diffraction_selection is None
+    assert first.free_r_identity is None
+
+
+def test_phase3_dispatch_binds_selected_dataset_and_exact_free_r_membership(
+    tmp_path: Path,
+) -> None:
+    crystals, preflight, mtz = _phase3_inputs(tmp_path)
+
+    output = prepare_crystal_dispatch(
+        CrystalDispatchRequest(
+            crystal_manifest=crystals,
+            preflight_jsonl=preflight,
+            output_directory=tmp_path / "phase3-dispatch",
+            progress=False,
+            phase3_diffraction=True,
+        )
+    )
+
+    assert output.diffraction_selection is not None
+    assert output.free_r_identity is not None
+    selection = DiffractionSelection.model_validate_json(
+        output.diffraction_selection.read_bytes()
+    )
+    identity = FreeRIdentity.model_validate_json(output.free_r_identity.read_bytes())
+    assert selection.crystal_id == "crystal_01"
+    assert selection.mtz_sha256 == sha256_file(mtz, progress=False)
+    assert selection.observation_dataset_id == 1
+    assert selection.observation_labels == ("I", "SIGI")
+    assert identity.diffraction_selection_id == selection.diffraction_selection_id
+    assert identity.free_r_dataset_id == 1
+    assert identity.free_r_label == "FreeR_flag"
+    assert identity.distribution.reflection_count == 6
+    assert identity.convention_status is FreeRConventionStatus.UNRESOLVED
+
+
+def test_cli_phase3_dispatch_publishes_both_crystal_owned_diffraction_records(
+    tmp_path: Path,
+) -> None:
+    crystals, preflight, _ = _phase3_inputs(tmp_path)
+    output = tmp_path / "phase3-cli-dispatch"
+
+    result = main(
+        [
+            "--no-progress",
+            "diffraction",
+            "select-single",
+            "--crystals",
+            str(crystals),
+            "--preflight",
+            str(preflight),
+            "--phase3-diffraction",
+            "--outdir",
+            str(output),
+        ]
+    )
+
+    assert result == 0
+    assert (output / "phase3_diffraction_selection.json").is_file()
+    assert (output / "phase3_free_r_identity.json").is_file()
+
+
+@pytest.mark.parametrize("failure", ("missing", "wrong_dataset", "constant"))
+def test_phase3_dispatch_refuses_missing_or_invalid_free_r_before_publication(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    crystals, preflight, _ = _phase3_inputs(
+        tmp_path,
+        free_dataset_id=2 if failure == "wrong_dataset" else 1,
+        flags=(0, 0, 0, 0, 0, 0) if failure == "constant" else (0, 1, 0, 0, 1, 0),
+    )
+    if failure == "missing":
+        record = json.loads(preflight.read_text(encoding="utf-8"))
+        record.update({"free_flag_labels": None, "free_flag_status": "missing"})
+        preflight.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    destination = tmp_path / "invalid-phase3-dispatch"
+
+    with pytest.raises(CrystalDispatchError, match=r"Free-R|diffraction selection"):
+        prepare_crystal_dispatch(
+            CrystalDispatchRequest(
+                crystal_manifest=crystals,
+                preflight_jsonl=preflight,
+                output_directory=destination,
+                progress=False,
+                phase3_diffraction=True,
+            )
+        )
+
+    assert not destination.exists()
 
 
 def test_dispatch_rejects_multi_crystal_manifest(tmp_path: Path) -> None:

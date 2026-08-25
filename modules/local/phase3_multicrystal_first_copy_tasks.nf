@@ -115,6 +115,8 @@ process RUN_PHASE3_FIRST_COPY_PHASER {
         --model-preparation-manifest '${item[2]}/model_registry/model_preparation_manifest.json' \
         --preflight '${item[9]}' \
         --mtz '${item[3]}/input.mtz' \
+        --diffraction-selection '${item[3]}/phase3_diffraction_selection.json' \
+        --derive-phase3-hypothesis-id \
         --phenix-manifest '${item[11]}' \
         --threads '${task.cpus}' \
         --outdir '${outputName}'

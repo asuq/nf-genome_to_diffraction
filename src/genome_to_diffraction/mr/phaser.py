@@ -20,11 +20,12 @@ approve them. Final packing, placed-copy checks, raw metrics, and advisories are
 preserved independently for human review.
 
 The opt-in Phase III path additionally verifies a schema-v2 diffraction
-selection and bound hypothesis identity. Observation labels, space group, and
-both resolution limits use exact PHIL names retained from the installed
-``phenix.phaser --show_defaults`` qualification; selected dataset identity
-remains checksum/preflight-verified because Phaser has no dataset-qualified
-label parameter.
+selection and a bound hypothesis identity, either independently confirmed or
+derived from the same complete immutable task inputs. Observation labels, space
+group, and both resolution limits use exact PHIL names retained from the
+installed ``phenix.phaser --show_defaults`` qualification; selected dataset
+identity remains checksum/preflight-verified because Phaser has no
+dataset-qualified label parameter.
 """
 
 import logging
@@ -139,6 +140,7 @@ class PhaserRunRequest:
     output_directory: Path
     diffraction_selection_json: Path | None = None
     phase3_hypothesis_id: str | None = None
+    derive_phase3_hypothesis_id: bool = False
     threads: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
@@ -375,11 +377,17 @@ def _model_execution_policy(
 
 
 def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
-    if (request.diffraction_selection_json is None) != (
-        request.phase3_hypothesis_id is None
+    if request.diffraction_selection_json is None and (
+        request.phase3_hypothesis_id is not None or request.derive_phase3_hypothesis_id
     ):
         raise PhaserInputError(
-            "Phase III requires both diffraction selection and bound hypothesis ID"
+            "Phase III hypothesis identity requires its diffraction selection"
+        )
+    if request.diffraction_selection_json is not None and (
+        (request.phase3_hypothesis_id is None) != request.derive_phase3_hypothesis_id
+    ):
+        raise PhaserInputError(
+            "Phase III requires either one confirmed or one derived hypothesis identity"
         )
     hypotheses = _read_jsonl(
         request.hypotheses_jsonl, MrHypothesis, label="MR hypotheses"
@@ -465,7 +473,9 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
         if selection.mtz_sha256 != mtz_sha256:
             raise PhaserInputError("Phase III diffraction selection MTZ differs")
         phase3_hypothesis = bind_phase3_hypothesis(hypothesis, selection)
-        if phase3_hypothesis.hypothesis_id != request.phase3_hypothesis_id:
+        if request.phase3_hypothesis_id is not None and (
+            phase3_hypothesis.hypothesis_id != request.phase3_hypothesis_id
+        ):
             raise PhaserInputError("Phase III bound hypothesis identity differs")
         command_binding = build_diffraction_command_binding(
             consumer=DiffractionCommandConsumer.FIRST_COPY_PHASER,

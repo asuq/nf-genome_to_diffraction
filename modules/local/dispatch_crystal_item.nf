@@ -35,6 +35,7 @@ process DISPATCH_CRYSTAL_ITEM {
         --crystals '${item[1]}' \
         --preflight '${item[2]}' \
         --crystal-id '${item[0]}' \
+        --phase3-diffraction \
         --outdir '${outputName}'
     """
 

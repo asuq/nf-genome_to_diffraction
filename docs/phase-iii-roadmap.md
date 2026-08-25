@@ -111,8 +111,14 @@ dataset-qualified observations, space group, resolution range, overrides, and
 command identities. Observation labels, Phaser/refinement space group,
 Phaser/refinement low/high limits, and sequence-from-map high resolution are
 explicit. The Phaser PHIL names are bound to the previously retained no-data
-installed-runtime defaults; legacy commands are unchanged. Real Phase III
-Phaser execution remains a separate qualification gate. Phase III refinement
+installed-runtime defaults; legacy commands are unchanged. The real Phase III
+multi-crystal production path now explicitly creates one crystal-owned
+diffraction-selection record plus its complete same-dataset raw Free-R identity
+before scheduling Phaser. Each first-copy task consumes that exact selection,
+derives its content-bound hypothesis from the same immutable item, and applies
+the qualified space-group/resolution parameters; ambiguous, missing, constant,
+or cross-dataset Free-R arrays refuse publication. Real installed-tool execution
+remains a separate qualification gate. Phase III refinement
 now verifies its exact checksum-bound raw source before comparing the parent
 against the selected dataset, every HKL-to-observation/sigma value, and the
 complete source HKL-to-Free-R mapping. These permutation-invariant derivation

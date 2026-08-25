@@ -456,6 +456,67 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
     )
 
 
+def test_phase3_adapter_derives_bound_hypothesis_from_complete_task_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    explicit = _phase3_inputs(tmp_path)
+    request = replace(
+        explicit,
+        phase3_hypothesis_id=None,
+        derive_phase3_hypothesis_id=True,
+    )
+    commands = _fake_runtime(monkeypatch, log_text=PACKING_NO_SOLUTION_LOG)
+
+    output = run_first_copy_phaser(request)
+
+    record = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert record["phase3_hypothesis_id"] == explicit.phase3_hypothesis_id
+    assert record["diffraction_selection"]["observation_dataset_id"] == 1
+    assert "phaser.crystal_symmetry.space_group=P 21 21 21" in commands[0]
+
+
+def test_production_phase3_nextflow_requires_bound_crystal_diffraction_inputs() -> None:
+    dispatch = (REPOSITORY / "modules/local/dispatch_crystal_item.nf").read_text(
+        encoding="ascii"
+    )
+    phaser = (
+        REPOSITORY / "modules/local/phase3_multicrystal_first_copy_tasks.nf"
+    ).read_text(encoding="ascii")
+
+    assert "--phase3-diffraction" in dispatch
+    assert "--diffraction-selection '${item[3]}/phase3_diffraction_selection.json'" in (
+        phaser
+    )
+    assert "--derive-phase3-hypothesis-id" in phaser
+
+
+@pytest.mark.parametrize("ambiguous", ("missing", "both", "selection_missing"))
+def test_phase3_adapter_rejects_ambiguous_hypothesis_identity_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    ambiguous: str,
+) -> None:
+    request = _phase3_inputs(tmp_path)
+    if ambiguous == "missing":
+        request = replace(request, phase3_hypothesis_id=None)
+    elif ambiguous == "both":
+        request = replace(request, derive_phase3_hypothesis_id=True)
+    else:
+        request = replace(
+            request,
+            diffraction_selection_json=None,
+            phase3_hypothesis_id=None,
+            derive_phase3_hypothesis_id=True,
+        )
+    commands = _fake_runtime(monkeypatch, log_text=PACKING_NO_SOLUTION_LOG)
+
+    with pytest.raises(PhaserInputError, match="hypothesis identity"):
+        run_first_copy_phaser(request)
+
+    assert commands == []
+
+
 def test_phase3_adapter_rejects_bound_hypothesis_mismatch_before_runtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
