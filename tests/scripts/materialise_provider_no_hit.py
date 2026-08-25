@@ -50,7 +50,7 @@ def materialise_enabled_no_hit(
         provider_entry_json=provider_entry_json,
         database_manifest=database_manifest,
         expected_provider=ProviderKey.PDB_SEQUENCE,
-        expected_adapter_version="pdb-sequence-mmseqs-v3",
+        expected_adapter_version="pdb-sequence-mmseqs-v4",
     )
     if route.entry.execution_class is not ProviderExecutionClass.LOCAL_COMPUTE:
         raise ValueError("stub refuses a non-local provider entry")

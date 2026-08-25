@@ -6,12 +6,16 @@ import json
 import urllib.error
 from email.message import Message
 from pathlib import Path
+from typing import TypedDict, cast
 
 import gemmi
 import pytest
 
 from genome_to_diffraction.databases.cache import initialise_coordinate_cache
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.manifests import PipelineConfig
+from genome_to_diffraction.schemas.providers import ProviderKey
 from genome_to_diffraction.schemas.results import SequenceGroupRecord
 from genome_to_diffraction.status import (
     ExecutionStatus,
@@ -21,6 +25,41 @@ from genome_to_diffraction.status import (
 )
 from genome_to_diffraction.structure_search import AfdbExactRequest, search_afdb_exact
 from genome_to_diffraction.structure_search import afdb_exact as afdb_module
+from genome_to_diffraction.structure_search.provider_plan import (
+    ProviderPlanRequest,
+    resolve_provider_plan,
+)
+
+REPOSITORY = Path(__file__).resolve().parents[2]
+
+
+class _ProviderRoute(TypedDict):
+    provider_plan_json: Path
+    provider_entry_json: Path
+
+
+def _provider_route(tmp_path: Path, database_manifest: Path) -> _ProviderRoute:
+    config = load_contract(
+        REPOSITORY / "examples/config.yaml", "pipeline-config", progress=False
+    )
+    assert isinstance(config, PipelineConfig)
+    document = config.model_dump(mode="json")
+    providers = cast(dict[str, object], document["providers"])
+    for key, value in providers.items():
+        cast(dict[str, object], value)["enabled"] = key == ProviderKey.AFDB_EXACT.value
+    config_path = tmp_path / "afdb-provider-config.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+    output = resolve_provider_plan(
+        ProviderPlanRequest(
+            pipeline_config=config_path,
+            database_manifest=database_manifest,
+            output_directory=tmp_path / "afdb-provider-plan",
+        )
+    )
+    return {
+        "provider_plan_json": output.plan_json,
+        "provider_entry_json": output.entry_json[ProviderKey.AFDB_EXACT],
+    }
 
 
 @pytest.mark.parametrize(
@@ -212,6 +251,7 @@ def test_afdb_exact_verifies_api_and_coordinate_sequence_and_caches_model(
             source_records_jsonl=source_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "output with spaces",
+            **_provider_route(tmp_path, manifest_path),
             accession_map_tsv=accession_map,
             progress=False,
         )
@@ -258,6 +298,7 @@ def test_afdb_exact_refseq_only_record_is_ineligible_without_network(
             source_records_jsonl=source_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "ineligible output",
+            **_provider_route(tmp_path, manifest_path),
             progress=False,
         )
     )
@@ -295,6 +336,7 @@ def test_afdb_exact_rejects_non_exact_api_mapping_without_fetching_coordinates(
             source_records_jsonl=source_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "mismatch output",
+            **_provider_route(tmp_path, manifest_path),
             progress=False,
         )
     )
@@ -335,6 +377,7 @@ def test_afdb_exact_fails_loudly_when_coordinate_sequence_disagrees(
                 source_records_jsonl=source_path,
                 database_manifest=manifest_path,
                 output_directory=tmp_path / "bad coordinate output",
+                **_provider_route(tmp_path, manifest_path),
                 progress=False,
             )
         )

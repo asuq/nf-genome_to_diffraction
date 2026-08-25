@@ -834,7 +834,8 @@ stage_run_common() {
     local database_config_sha256="" database_config_json="null"
     local database_source_bundle_sha256="" database_source_bundle_json="null"
     local p1_prefetch_sha256="" p1_prefetch_json="null"
-    local p1_catalogue p1_prefetch p1_prefetch_checksums p1_prefetch_tmp
+    local p1_catalogue p1_provider_plan p1_prefetch p1_prefetch_checksums
+    local p1_prefetch_tmp
     local p2_diverse_sha256="" p2_diverse_json="null"
     local p2_diverse_search p2_diverse_registration p2_diverse_checksums
     local p2_diverse_tmp mapping_count source_count
@@ -1244,6 +1245,7 @@ stage_run_common() {
         [[ "${#p0_values[@]}" -eq 7 ]] || \
             fail wrapper_failure "P0 configuration changed during P1 staging"
         p1_catalogue="$run/artifacts/p1/catalogue"
+        p1_provider_plan="$run/artifacts/p1/provider-plan"
         p1_prefetch="$run/artifacts/p1/afdb-login-prefetch"
         mkdir -p "$run/artifacts/p1"
         printf 'phase=p1_login_catalogue_import profile=%s\n' "$profile" \
@@ -1258,6 +1260,19 @@ stage_run_common() {
             append_event "$run" "stage_p1_catalogue_failed"
             fail software_failure "P1 catalogue staging failed on the login node"
         fi
+        printf 'phase=p1_login_provider_plan profile=%s\n' "$profile" \
+            >> "$run/logs/p1-login-prefetch.log"
+        if ! "$gtd" --log-format json --no-progress \
+            structure-search resolve-provider-plan \
+            --config "${p0_values[3]}" \
+            --database-manifest "${p0_values[5]}" \
+            --outdir "$p1_provider_plan" \
+            >> "$run/logs/p1-login-prefetch.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "software_failure"
+            append_event "$run" "stage_p1_provider_plan_failed"
+            fail software_failure "reviewed provider-plan resolution failed"
+        fi
         printf 'phase=p1_login_afdb_prefetch profile=%s\n' "$profile" \
             >> "$run/logs/p1-login-prefetch.log"
         if ! PATH="$hpc_path" "$gtd" --log-format json --no-progress \
@@ -1265,6 +1280,8 @@ stage_run_common() {
             --sequence-groups "$p1_catalogue/sequence_groups.jsonl" \
             --source-records "$p1_catalogue/source_records.jsonl" \
             --database-manifest "${p0_values[5]}" \
+            --provider-plan "$p1_provider_plan/provider_plan.json" \
+            --provider-entry "$p1_provider_plan/entries/afdb_exact.json" \
             --accession-map \
             "$run/source/benchmarks/public-controls/afdb_accessions.tsv" \
             --outdir "$p1_prefetch" \
@@ -1278,6 +1295,11 @@ stage_run_common() {
             "$p1_catalogue/catalogue_import_manifest.json" \
             "$p1_catalogue/sequence_groups.jsonl" \
             "$p1_catalogue/source_records.jsonl" \
+            "$p1_provider_plan/provider_plan.json" \
+            "$p1_provider_plan/entries/afdb_exact.json" \
+            "$p1_provider_plan/entries/esm_atlas.json" \
+            "$p1_provider_plan/entries/foldseek_prostt5_pdb.json" \
+            "$p1_provider_plan/entries/pdb_sequence.json" \
             "$p1_prefetch/search_manifest.json" \
             "$p1_prefetch/search_results.jsonl" \
             "$p1_prefetch/structural_hits.jsonl" \
@@ -1305,6 +1327,11 @@ stage_run_common() {
             "$p1_catalogue/catalogue_import_manifest.json" \
             "$p1_catalogue/sequence_groups.jsonl" \
             "$p1_catalogue/source_records.jsonl" \
+            "$p1_provider_plan/provider_plan.json" \
+            "$p1_provider_plan/entries/afdb_exact.json" \
+            "$p1_provider_plan/entries/esm_atlas.json" \
+            "$p1_provider_plan/entries/foldseek_prostt5_pdb.json" \
+            "$p1_provider_plan/entries/pdb_sequence.json" \
             "$p1_prefetch/search_manifest.json" \
             "$p1_prefetch/search_results.jsonl" \
             "$p1_prefetch/structural_hits.jsonl" \
@@ -1328,9 +1355,10 @@ stage_run_common() {
             structure-search pdb-sequence \
             --sequence-groups "$p1_catalogue/sequence_groups.jsonl" \
             --database-manifest "${p0_values[5]}" \
+            --provider-plan "$p1_provider_plan/provider_plan.json" \
+            --provider-entry "$p1_provider_plan/entries/pdb_sequence.json" \
             --outdir "$p2_diverse_search" \
             --threads 2 \
-            --maximum-hits-per-query 25 \
             --maximum-evalue 1e-5 \
             --minimum-query-coverage 0.5 \
             --maximum-query-length 10000 \
@@ -3643,6 +3671,11 @@ collect_run() {
         artifacts/p0/preflight/preflight_report.md \
         artifacts/p0/matthews/matthews_report.md \
         artifacts/p1/catalogue/catalogue_import_manifest.json \
+        artifacts/p1/provider-plan/provider_plan.json \
+        artifacts/p1/provider-plan/entries/afdb_exact.json \
+        artifacts/p1/provider-plan/entries/esm_atlas.json \
+        artifacts/p1/provider-plan/entries/foldseek_prostt5_pdb.json \
+        artifacts/p1/provider-plan/entries/pdb_sequence.json \
         artifacts/p1/discovery/pdb_sequence_search/search_manifest.json \
         artifacts/p1/discovery/pdb_sequence_search/raw/mmseqs.log \
         artifacts/p1/discovery/prostt5_foldseek_search/search_manifest.json \

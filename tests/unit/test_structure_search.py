@@ -6,10 +6,14 @@ import os
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TypedDict, cast
 
 import pytest
 
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.manifests import PipelineConfig
+from genome_to_diffraction.schemas.providers import ProviderKey
 from genome_to_diffraction.schemas.results import (
     EligibilityStatus,
     SearchScientificStatus,
@@ -32,8 +36,52 @@ from genome_to_diffraction.structure_search import (
     prostt5_foldseek as prostt5_foldseek_module,
 )
 from genome_to_diffraction.structure_search import qualification as qualification_module
+from genome_to_diffraction.structure_search.provider_plan import (
+    ProviderPlanRequest,
+    resolve_provider_plan,
+)
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+
+
+class _ProviderRoute(TypedDict):
+    provider_plan_json: Path
+    provider_entry_json: Path
+
+
+def _provider_route(
+    tmp_path: Path,
+    database_manifest: Path,
+    provider: ProviderKey,
+    *,
+    maximum_hits: int = 3,
+) -> _ProviderRoute:
+    root = tmp_path / f"provider-plan-{provider.value}-{maximum_hits}"
+    if not root.exists():
+        config = load_contract(
+            REPOSITORY / "examples/config.yaml", "pipeline-config", progress=False
+        )
+        assert isinstance(config, PipelineConfig)
+        document = config.model_dump(mode="json")
+        providers = cast(dict[str, object], document["providers"])
+        for key, value in providers.items():
+            entry = cast(dict[str, object], value)
+            entry["enabled"] = key == provider.value
+            if key == provider.value:
+                entry["max_hits"] = maximum_hits
+        config_path = tmp_path / f"provider-config-{provider.value}-{maximum_hits}.json"
+        config_path.write_text(json.dumps(document), encoding="utf-8")
+        resolve_provider_plan(
+            ProviderPlanRequest(
+                pipeline_config=config_path,
+                database_manifest=database_manifest,
+                output_directory=root,
+            )
+        )
+    return {
+        "provider_plan_json": root / "provider_plan.json",
+        "provider_entry_json": root / "entries" / f"{provider.value}.json",
+    }
 
 
 def _sequence_group(
@@ -80,6 +128,8 @@ def _write_inputs(tmp_path: Path) -> tuple[Path, Path, tuple[SequenceGroupRecord
 
     resource_root = tmp_path / "database with spaces"
     resource_root.mkdir()
+    coordinate_cache = tmp_path / "coordinate cache fixture"
+    coordinate_cache.mkdir()
     (resource_root / "pdb_seqres").write_text("mock database\n", encoding="utf-8")
     (resource_root / "target_mapping.tsv").write_text(
         "target_id\tpdb_id\tidentifier_namespace\tseqres_token\t"
@@ -106,7 +156,21 @@ def _write_inputs(tmp_path: Path) -> tuple[Path, Path, tuple[SequenceGroupRecord
                         "manifest_sha256": "b" * 64,
                         "smoke_test_status": "passed",
                         "status": "ready",
-                    }
+                    },
+                    {
+                        "database_id": "db_test_coordinate_cache",
+                        "name": "coordinate_cache",
+                        "source": "test",
+                        "root_path": str(coordinate_cache),
+                        "prepared_with": {
+                            "tool": "genome-to-diffraction",
+                            "version": "mock-1.0",
+                        },
+                        "prepared_at": "2026-08-09T00:00:00Z",
+                        "manifest_sha256": "d" * 64,
+                        "smoke_test_status": "passed",
+                        "status": "ready",
+                    },
                 ],
             }
         ),
@@ -145,6 +209,12 @@ def test_pdb_sequence_search_preserves_hit_no_hit_and_ineligible_states(
             sequence_groups_jsonl=sequence_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "output with spaces",
+            **_provider_route(
+                tmp_path,
+                manifest_path,
+                ProviderKey.PDB_SEQUENCE,
+                maximum_hits=5,
+            ),
             threads=3,
             maximum_hits_per_query=5,
             progress=False,
@@ -174,7 +244,10 @@ def test_pdb_sequence_search_preserves_hit_no_hit_and_ineligible_states(
     assert manifest["query_count"] == 3
     assert manifest["eligible_query_count"] == 2
     assert manifest["hit_count"] == 1
-    assert manifest["adapter_version"] == "pdb-sequence-mmseqs-v3"
+    assert manifest["adapter_version"] == "pdb-sequence-mmseqs-v4"
+    assert manifest["provider_authorisation"]["authorisation_scope"] == (
+        "reviewed_provider_plan"
+    )
     command_log = (output.search_manifest.parent / "raw" / "mmseqs.log").read_text(
         encoding="utf-8"
     )
@@ -200,6 +273,7 @@ def test_pdb_sequence_search_rejects_unmapped_hit(
                 sequence_groups_jsonl=sequence_path,
                 database_manifest=manifest_path,
                 output_directory=tmp_path / "output",
+                **_provider_route(tmp_path, manifest_path, ProviderKey.PDB_SEQUENCE),
                 progress=False,
             )
         )
@@ -228,6 +302,7 @@ def _write_foldseek_inputs(
     }
     resources = [
         sequence_resource,
+        sequence_manifest["resources"][1],
         {
             **common,
             "database_id": "db_test_pdb_foldseek",
@@ -324,6 +399,9 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
             sequence_groups_jsonl=sequence_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "Foldseek output with spaces",
+            **_provider_route(
+                tmp_path, manifest_path, ProviderKey.FOLDSEEK_PROSTT5_PDB
+            ),
             threads=7,
             progress=False,
         )
@@ -351,7 +429,10 @@ def test_prostt5_foldseek_search_preserves_states_and_safe_fields(
     assert hit.raw_metrics["foldseek_target_chain"] == "A-2"
     assert hit.raw_metrics["biological_assembly_number"] == 1
     assert hit.raw_metrics["assembly_operator_indices"] == [2]
-    assert manifest["adapter_version"] == "prostt5-foldseek-pdb-v5"
+    assert manifest["adapter_version"] == "prostt5-foldseek-pdb-v6"
+    assert manifest["provider_authorisation"]["authorisation_scope"] == (
+        "reviewed_provider_plan"
+    )
     assert "prob" not in manifest["parameters"]["output_fields"]
     assert manifest["resource_ids"] == {
         "pdb_foldseek": "db_test_pdb_foldseek",
@@ -399,6 +480,9 @@ def test_prostt5_foldseek_m6_mode_retains_unmapped_hit(
                 sequence_groups_jsonl=sequence_path,
                 database_manifest=manifest_path,
                 output_directory=tmp_path / "strict output",
+                **_provider_route(
+                    tmp_path, manifest_path, ProviderKey.FOLDSEEK_PROSTT5_PDB
+                ),
                 progress=False,
             )
         )
@@ -408,6 +492,9 @@ def test_prostt5_foldseek_m6_mode_retains_unmapped_hit(
             sequence_groups_jsonl=sequence_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "M6 retain output",
+            **_provider_route(
+                tmp_path, manifest_path, ProviderKey.FOLDSEEK_PROSTT5_PDB
+            ),
             retain_unmapped_targets=True,
             progress=False,
         )
@@ -446,6 +533,9 @@ def test_prostt5_foldseek_query_cap_is_deterministic_and_not_a_no_hit(
             sequence_groups_jsonl=sequence_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "capped output",
+            **_provider_route(
+                tmp_path, manifest_path, ProviderKey.FOLDSEEK_PROSTT5_PDB
+            ),
             maximum_queries=1,
             progress=False,
         )
@@ -505,6 +595,9 @@ def test_prostt5_foldseek_failure_includes_bounded_native_log_tail(
                 sequence_groups_jsonl=sequence_path,
                 database_manifest=manifest_path,
                 output_directory=tmp_path / "failed output",
+                **_provider_route(
+                    tmp_path, manifest_path, ProviderKey.FOLDSEEK_PROSTT5_PDB
+                ),
                 progress=False,
             )
         )
@@ -530,6 +623,9 @@ def test_prostt5_foldseek_gpu_is_explicit(
             sequence_groups_jsonl=sequence_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "gpu-output",
+            **_provider_route(
+                tmp_path, manifest_path, ProviderKey.FOLDSEEK_PROSTT5_PDB
+            ),
             gpu=True,
             progress=False,
         )
@@ -560,6 +656,9 @@ def test_prostt5_foldseek_rejects_non_positive_bit_score(
                 sequence_groups_jsonl=sequence_path,
                 database_manifest=manifest_path,
                 output_directory=tmp_path / "bad-bit-score",
+                **_provider_route(
+                    tmp_path, manifest_path, ProviderKey.FOLDSEEK_PROSTT5_PDB
+                ),
                 progress=False,
             )
         )

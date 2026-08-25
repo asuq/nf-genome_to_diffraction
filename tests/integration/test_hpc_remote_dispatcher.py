@@ -292,6 +292,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "control_6rtz_preparation=\n"
         "control_3u7q_preparation=\n"
         "catalogue_sequence_groups=\n"
+        "provider_plan=\n"
+        "provider_entry=\n"
         "partner_plan=\n"
         "crystal_id=\n"
         "search_id=\n"
@@ -300,6 +302,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "parent_model_uncertainty_source=\n"
         'case " $* " in\n'
         '  *" catalogue import "*) mode=catalogue ;;\n'
+        '  *" structure-search resolve-provider-plan "*) mode=provider_plan ;;\n'
         '  *" structure-search afdb-exact "*) mode=afdb ;;\n'
         '  *" structure-search pdb-sequence "*) mode=pdb ;;\n'
         '  *" structure-search register-pdb-coordinates "*) mode=register ;;\n'
@@ -348,6 +351,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         'control_3u7q_preparation="$argument"\n'
         '  [[ "$previous" != --catalogue-sequence-groups ]] || '
         'catalogue_sequence_groups="$argument"\n'
+        '  [[ "$previous" != --provider-plan ]] || provider_plan="$argument"\n'
+        '  [[ "$previous" != --provider-entry ]] || provider_entry="$argument"\n'
         '  [[ "$previous" != --partner-plan ]] || partner_plan="$argument"\n'
         '  previous="$argument"\n'
         "done\n"
@@ -359,7 +364,18 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"$outdir/sequence_groups.jsonl"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > '
         '"$outdir/source_records.jsonl"\n'
+        'elif [[ "$mode" == provider_plan ]]; then\n'
+        '  [[ "${FAKE_PROVIDER_PLAN_FAIL:-0}" != 1 ]] || exit 17\n'
+        '  mkdir -p "$outdir/entries"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/provider_plan.json"\n'
+        "  for provider in afdb_exact esm_atlas foldseek_prostt5_pdb "
+        "pdb_sequence; do\n"
+        '    printf \'{"schema_version":"1.0","provider":"%s"}\\n\' '
+        '"$provider" > "$outdir/entries/$provider.json"\n'
+        "  done\n"
         'elif [[ "$mode" == afdb ]]; then\n'
+        '  [[ -f "$provider_plan" && -f "$provider_entry" ]] || exit 18\n'
         '  [[ "${FAKE_AFDB_PREFETCH_FAIL:-0}" != 1 ]] || exit 13\n'
         '  mkdir -p "$outdir/raw"\n'
         '  printf \'{"schema_version":"1.0","coordinate_source_count":1}\\n\' '
@@ -372,6 +388,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"$outdir/coordinate_sources.jsonl"\n'
         "  printf 'fake login-node HTTP provenance\\n' > \"$outdir/raw/http.log\"\n"
         'elif [[ "$mode" == pdb ]]; then\n'
+        '  [[ -f "$provider_plan" && -f "$provider_entry" ]] || exit 18\n'
         '  [[ "${FAKE_PDB_SEARCH_FAIL:-0}" != 1 ]] || exit 14\n'
         "  command -v mmseqs >/dev/null || exit 16\n"
         '  mkdir -p "$outdir/raw"\n'
@@ -4214,7 +4231,9 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
         encoding="utf-8"
     )
     assert "phase=p1_login_catalogue_import profile=p1" in login_prefetch_log
+    assert "phase=p1_login_provider_plan profile=p1" in login_prefetch_log
     assert "phase=p1_login_afdb_prefetch profile=p1" in login_prefetch_log
+    assert (run / "artifacts/p1/provider-plan/provider_plan.json").is_file()
     assert (run / "state/p1-login-prefetch.sha256").is_file()
     assert (run / "artifacts/p1/afdb-login-prefetch/coordinate_sources.jsonl").is_file()
     _install_fake_p1_runtime(run)
@@ -4297,8 +4316,39 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
     ) in names
     assert "state/p1-login-prefetch.sha256" in names
     assert "logs/p1-login-prefetch.log" in names
+    assert "artifacts/p1/provider-plan/provider_plan.json" in names
+    assert "artifacts/p1/provider-plan/entries/afdb_exact.json" in names
+    assert "artifacts/p1/provider-plan/entries/pdb_sequence.json" in names
     assert "artifacts/p1/afdb-login-prefetch/search_manifest.json" in names
     assert "artifacts/p1/afdb-login-prefetch/coordinate_sources.jsonl" in names
+
+
+def test_p1_stage_refuses_missing_reviewed_provider_plan(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    _write_p0_paths(smoke_job.parent.parent)
+    failing_environment = dict(environment)
+    failing_environment["FAKE_PROVIDER_PLAN_FAIL"] = "1"
+
+    failed = _run(
+        [
+            str(dispatcher),
+            "stage",
+            P1_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "p1",
+        ],
+        cwd=tmp_path,
+        environment=failing_environment,
+        success=False,
+    )
+
+    assert _decode_protocol(failed.stdout)["failure_class"] == "software_failure"
+    run = smoke_job.parent.parent / "runs" / P1_RUN_ID
+    assert (run / "state/phase").read_text(encoding="ascii").strip() == ("stage_failed")
+    assert not (run / "artifacts/p1/afdb-login-prefetch").exists()
 
 
 def test_p1_stage_classifies_login_node_afdb_transfer_failure(tmp_path: Path) -> None:

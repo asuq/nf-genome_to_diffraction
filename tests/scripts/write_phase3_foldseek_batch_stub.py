@@ -78,7 +78,7 @@ def write_phase3_foldseek_batch_stub(*, batch: Path, output: Path) -> Path:
             database_id="db_phase3_public_stub",
             tool="foldseek",
             tool_version="phase3-public-stub-not-executed",
-            adapter_version="prostt5-foldseek-pdb-v5",
+            adapter_version="prostt5-foldseek-pdb-v6",
             cache_key=canonical_digest({"sequence_sha256": group.sha256}),
             execution_status=ExecutionStatus.COMPLETED_NO_HIT,
             scientific_status=SearchScientificStatus.NO_HIT,

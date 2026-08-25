@@ -22,23 +22,27 @@ replacement and does not claim that a hit explains a crystal.
 `structure-search pdb-sequence` requires:
 
 - canonical `sequence_groups.jsonl` records from trusted catalogue import;
+- the exact reviewed `provider_plan.json` and matching enabled
+  `entries/pdb_sequence.json` route;
 - a qualified `database-manifest` containing exactly one ready
-  `pdb_sequences` resource with a passed smoke test;
+  `pdb_sequences` resource with a passed smoke test and a ready coordinate cache;
 - `pdb_seqres` and `target_mapping.tsv` below that resource root; and
 - the exact MMseqs2 version recorded in the resource provenance.
 
 Queries containing non-standard residues, records excluded by catalogue policy,
 and sequences above the configured length cap are retained as explicit
-ineligible results rather than silently dropped. The default bounded search uses
-25 targets per query, E-value at most `1e-5`, query coverage at least `0.5`, and
-a maximum query length of 10,000 residues. Alignment mode 3 is requested so the
+ineligible results rather than silently dropped. The reviewed provider entry
+sets the exact per-query cap; the current application configuration permits
+three hits. E-value is at most `1e-5`, query coverage at least `0.5`, and the
+maximum query length is 10,000 residues. Alignment mode 3 is requested so the
 reported `fident` fraction comes from the alignment rather than an estimated
 identity; the field scale follows the
 [official MMseqs2 user guide](https://mmseqs.com/latest/userguide.pdf).
 
 `structure-search prostt5-foldseek` additionally requires exactly one ready,
 smoke-qualified `pdb_foldseek` and `prostt5` resource prepared by the same
-Foldseek version, plus the qualified `pdb_sequences` crosswalk. Its CPU-default
+Foldseek version, plus the qualified `pdb_sequences` crosswalk, coordinate
+cache, and reviewed `entries/foldseek_prostt5_pdb.json` route. Its CPU-default
 search retains the best three normalised hits per query after preserving up to
 1,000 raw Foldseek alignments, uses E-value at most `1e-3`, and requires at least
 `0.5` query coverage. GPU execution is available only with explicit `--gpu`.
@@ -76,7 +80,8 @@ remain `skipped_policy` / `not_interpretable`, the cap enters cache identity,
 and no deferred record becomes a scientific no-hit.
 
 `structure-search afdb-exact` additionally requires `source_records.jsonl` and
-one ready, smoke-qualified `coordinate_cache` resource. A source
+one ready, smoke-qualified `coordinate_cache` resource, plus the exact reviewed
+`entries/afdb_exact.json` route. A source
 `original_protein_id` is accepted only when it is a strict UniProt accession or
 `sp|ACCESSION|...`/`tr|ACCESSION|...` identifier. Otherwise, the optional mapping
 TSV must have exactly these headers:
@@ -109,6 +114,8 @@ pixi run genome-to-diffraction \
   structure-search pdb-sequence \
   --sequence-groups /absolute/catalogue/sequence_groups.jsonl \
   --database-manifest /absolute/databases/database_manifest.json \
+  --provider-plan /absolute/providers/provider_plan.json \
+  --provider-entry /absolute/providers/entries/pdb_sequence.json \
   --outdir /absolute/results/pdb-sequence \
   --threads 16
 
@@ -118,6 +125,8 @@ pixi run genome-to-diffraction \
   structure-search prostt5-foldseek \
   --sequence-groups /absolute/catalogue/sequence_groups.jsonl \
   --database-manifest /absolute/databases/database_manifest.json \
+  --provider-plan /absolute/providers/provider_plan.json \
+  --provider-entry /absolute/providers/entries/foldseek_prostt5_pdb.json \
   --outdir /absolute/results/prostt5-foldseek \
   --threads 16 \
   --maximum-queries 128
@@ -130,6 +139,8 @@ pixi run genome-to-diffraction \
   --source-records /absolute/catalogue/source_records.jsonl \
   --accession-map /absolute/input/afdb_accessions.tsv \
   --database-manifest /absolute/databases/database_manifest.json \
+  --provider-plan /absolute/providers/provider_plan.json \
+  --provider-entry /absolute/providers/entries/afdb_exact.json \
   --outdir /absolute/results/afdb-exact
 
 pixi run genome-to-diffraction \

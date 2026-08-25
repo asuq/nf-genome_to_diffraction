@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from genome_to_diffraction.checksums import atomic_write_text, sha256_file
-from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text, content_id
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
     DatabaseManifest,
@@ -70,6 +70,30 @@ class EnabledProviderRoute:
 
 
 @dataclass(frozen=True)
+class FrozenM6RawProviderAuthorisation:
+    """Frozen M6 task inputs authorising its separate blind discovery envelope."""
+
+    batch_task_json: Path
+    execution_policy: Path
+    software_lock: Path
+
+
+@dataclass(frozen=True)
+class FrozenM6RawProviderRoute:
+    """One independently verified, truthless M6 raw-discovery provider route."""
+
+    authorisation_id: str
+    provider: ProviderKey
+    site_id: str
+    batch_task_sha256: str
+    database_manifest_sha256: str
+    execution_policy_sha256: str
+    software_lock_sha256: str
+    raw_hit_cap: int
+    accepted_hit_cap: int
+
+
+@dataclass(frozen=True)
 class _ProviderCapability:
     result_provider: str
     execution_class: ProviderExecutionClass | None
@@ -83,7 +107,7 @@ _CAPABILITIES = {
         result_provider="afdb_exact",
         execution_class=ProviderExecutionClass.NEEDS_INTERNET,
         support_status=ProviderSupportStatus.AVAILABLE,
-        provider_adapter_version="afdb-exact-v2",
+        provider_adapter_version="afdb-exact-v3",
         required_resource_names=("coordinate_cache",),
     ),
     ProviderKey.ESM_ATLAS: _ProviderCapability(
@@ -97,7 +121,7 @@ _CAPABILITIES = {
         result_provider="foldseek_prostt5_pdb",
         execution_class=ProviderExecutionClass.LOCAL_COMPUTE,
         support_status=ProviderSupportStatus.AVAILABLE,
-        provider_adapter_version="prostt5-foldseek-pdb-v5",
+        provider_adapter_version="prostt5-foldseek-pdb-v6",
         required_resource_names=(
             "coordinate_cache",
             "pdb_foldseek",
@@ -109,7 +133,7 @@ _CAPABILITIES = {
         result_provider="pdb_sequence_mmseqs",
         execution_class=ProviderExecutionClass.LOCAL_COMPUTE,
         support_status=ProviderSupportStatus.AVAILABLE,
-        provider_adapter_version="pdb-sequence-mmseqs-v3",
+        provider_adapter_version="pdb-sequence-mmseqs-v4",
         required_resource_names=("coordinate_cache", "pdb_sequences"),
     ),
 }
@@ -233,6 +257,164 @@ def _database_bindings(
             )
         )
     return tuple(bindings)
+
+
+def load_frozen_m6_raw_provider_route(
+    *,
+    authorisation: FrozenM6RawProviderAuthorisation,
+    database_manifest: Path,
+    expected_provider: ProviderKey,
+    expected_adapter_version: str,
+    threads: int,
+    maximum_hits_per_query: int,
+) -> FrozenM6RawProviderRoute:
+    """Authenticate M6 blind discovery without weakening application policy.
+
+    M6 must retain 25 raw proposals before leakage filtering and only then cap
+    accepted models at three. Its truthless, frozen task contract is therefore
+    deliberately distinct from the ordinary reviewed application-provider plan.
+    """
+
+    from genome_to_diffraction.benchmarks import m6_nextflow
+    from genome_to_diffraction.benchmarks.m6_execution import load_m6_execution_policy
+    from genome_to_diffraction.benchmarks.m6_model_policy import (
+        M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE,
+        M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
+    )
+
+    if expected_provider not in {
+        ProviderKey.PDB_SEQUENCE,
+        ProviderKey.FOLDSEEK_PROSTT5_PDB,
+    }:
+        raise ProviderPlanError(
+            "frozen M6 authorisation does not support this provider"
+        )
+    if _CAPABILITIES[expected_provider].provider_adapter_version != (
+        expected_adapter_version
+    ):
+        raise ProviderPlanError("frozen M6 provider adapter version changed")
+    if (
+        M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE != 25
+        or M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE != 3
+        or maximum_hits_per_query != M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE
+    ):
+        raise ProviderPlanError("frozen M6 raw or accepted discovery hit cap changed")
+
+    try:
+        task_path = authorisation.batch_task_json.resolve(strict=True)
+        task = m6_nextflow.M6SearchBatchTask.model_validate_json(task_path.read_bytes())
+        policy_path = authorisation.execution_policy.resolve(strict=True)
+        lock_path = authorisation.software_lock.resolve(strict=True)
+        database_path = database_manifest.resolve(strict=True)
+    except (OSError, ValueError) as error:
+        raise ProviderPlanError(
+            f"invalid frozen M6 provider authorisation: {error}"
+        ) from error
+
+    expected_task_provider = {
+        ProviderKey.PDB_SEQUENCE: "pdb_sequence",
+        ProviderKey.FOLDSEEK_PROSTT5_PDB: "prostt5_foldseek",
+    }[expected_provider]
+    if task.provider != expected_task_provider:
+        raise ProviderPlanError("frozen M6 provider does not match its search batch")
+    policy = load_m6_execution_policy(policy_path)
+    expected_threads = (
+        policy.search_batching.mmseqs2.cpus
+        if expected_provider is ProviderKey.PDB_SEQUENCE
+        else policy.search_batching.foldseek.cpus
+    )
+    if task.threads != expected_threads or threads != expected_threads:
+        raise ProviderPlanError("frozen M6 provider thread allocation changed")
+
+    database_sha256 = sha256_file(database_path)
+    policy_sha256 = sha256_file(policy_path)
+    lock_sha256 = sha256_file(lock_path)
+    if (
+        task.database_manifest_sha256 != database_sha256
+        or task.execution_policy_sha256 != policy_sha256
+        or task.software_lock_sha256 != lock_sha256
+    ):
+        raise ProviderPlanError("frozen M6 provider provenance changed")
+
+    parameters: dict[str, int | float | bool] = {
+        "threads": threads,
+        "maximum_hits_per_query": M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
+        "maximum_evalue": 1.0e-5
+        if expected_provider is ProviderKey.PDB_SEQUENCE
+        else 1.0e-3,
+        "minimum_query_coverage": 0.5,
+        "maximum_query_length": 10_000,
+    }
+    task_adapter = m6_nextflow._PDB_ADAPTER
+    if expected_provider is ProviderKey.FOLDSEEK_PROSTT5_PDB:
+        parameters.update({"maximum_queries": 0, "retain_unmapped_targets": True})
+        task_adapter = m6_nextflow._FOLDSEEK_ADAPTER
+    expected_search_cache_key = canonical_digest(
+        {
+            "adapter_version": task_adapter,
+            "batch_id": task.batch_id,
+            "database_manifest_sha256": database_sha256,
+            "software_lock_sha256": lock_sha256,
+            "execution_policy_sha256": policy_sha256,
+            "parameters": parameters,
+        }
+    )
+    if task.search_cache_key != expected_search_cache_key:
+        raise ProviderPlanError("frozen M6 provider search-cache identity changed")
+
+    database = load_contract(database_path, "database-manifest", progress=False)
+    if not isinstance(database, DatabaseManifest):
+        raise AssertionError("frozen M6 provider loaded an unexpected database model")
+    _database_bindings(
+        expected_provider,
+        _CAPABILITIES[expected_provider],
+        _resource_index(database),
+    )
+
+    task_sha256 = sha256_file(task_path)
+    identity = {
+        "provider": expected_provider.value,
+        "provider_adapter_version": expected_adapter_version,
+        "site_id": policy.site_id,
+        "batch_task_sha256": task_sha256,
+        "search_cache_key": task.search_cache_key,
+        "database_manifest_sha256": database_sha256,
+        "execution_policy_sha256": policy_sha256,
+        "software_lock_sha256": lock_sha256,
+        "raw_hit_cap": M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
+        "accepted_hit_cap": M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE,
+    }
+    return FrozenM6RawProviderRoute(
+        authorisation_id=content_id("m6rawprovider_", identity),
+        provider=expected_provider,
+        site_id=policy.site_id,
+        batch_task_sha256=task_sha256,
+        database_manifest_sha256=database_sha256,
+        execution_policy_sha256=policy_sha256,
+        software_lock_sha256=lock_sha256,
+        raw_hit_cap=M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
+        accepted_hit_cap=M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE,
+    )
+
+
+def frozen_m6_raw_authorisation_payload(
+    route: FrozenM6RawProviderRoute,
+) -> dict[str, str | int | None]:
+    """Expose path-free M6 authorisation evidence for provider/cache identity."""
+
+    return {
+        "authorisation_scope": "m6_frozen_raw_discovery",
+        "authorisation_id": route.authorisation_id,
+        "provider_plan_sha256": None,
+        "provider_entry_sha256": None,
+        "site_id": route.site_id,
+        "batch_task_sha256": route.batch_task_sha256,
+        "database_manifest_sha256": route.database_manifest_sha256,
+        "execution_policy_sha256": route.execution_policy_sha256,
+        "software_lock_sha256": route.software_lock_sha256,
+        "raw_hit_cap": route.raw_hit_cap,
+        "accepted_hit_cap": route.accepted_hit_cap,
+    }
 
 
 def _entry(

@@ -42,12 +42,15 @@ from genome_to_diffraction.status import (
     ToolExecutionError,
 )
 from genome_to_diffraction.structure_search.provider_plan import (
+    FrozenM6RawProviderAuthorisation,
+    frozen_m6_raw_authorisation_payload,
     load_enabled_provider_route,
+    load_frozen_m6_raw_provider_route,
 )
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.pdb_sequence")
-_ADAPTER_VERSION = "pdb-sequence-mmseqs-v3"
+_ADAPTER_VERSION = "pdb-sequence-mmseqs-v4"
 _PROVIDER = "pdb_sequence_mmseqs"
 _STANDARD_AMINO_ACIDS = frozenset("ACDEFGHIKLMNPQRSTVWY")
 _RESULT_FIELDS = (
@@ -75,6 +78,7 @@ class PdbSequenceSearchRequest:
     output_directory: Path
     provider_plan_json: Path | None = None
     provider_entry_json: Path | None = None
+    frozen_m6_raw_authorisation: FrozenM6RawProviderAuthorisation | None = None
     threads: int = 4
     maximum_hits_per_query: int = 25
     maximum_evalue: float = 1.0e-5
@@ -120,8 +124,23 @@ class _TargetMapping:
 
 
 def _bind_provider_route(request: PdbSequenceSearchRequest) -> PdbSequenceSearchRequest:
-    if request.provider_plan_json is None and request.provider_entry_json is None:
-        return request
+    if request.frozen_m6_raw_authorisation is not None:
+        if (
+            request.provider_plan_json is not None
+            or request.provider_entry_json is not None
+        ):
+            raise InputContractError(
+                "PDB sequence search cannot mix reviewed and frozen M6 provider routes"
+            )
+        route = load_frozen_m6_raw_provider_route(
+            authorisation=request.frozen_m6_raw_authorisation,
+            database_manifest=request.database_manifest,
+            expected_provider=ProviderKey.PDB_SEQUENCE,
+            expected_adapter_version=_ADAPTER_VERSION,
+            threads=request.threads,
+            maximum_hits_per_query=request.maximum_hits_per_query,
+        )
+        return replace(request, maximum_hits_per_query=route.raw_hit_cap)
     if request.provider_plan_json is None or request.provider_entry_json is None:
         raise InputContractError(
             "PDB sequence search requires both provider plan and provider entry"
@@ -134,6 +153,32 @@ def _bind_provider_route(request: PdbSequenceSearchRequest) -> PdbSequenceSearch
         expected_adapter_version=_ADAPTER_VERSION,
     )
     return replace(request, maximum_hits_per_query=route.entry.effective_max_hits)
+
+
+def _provider_authorisation_payload(
+    request: PdbSequenceSearchRequest,
+) -> dict[str, str | int | None]:
+    if request.frozen_m6_raw_authorisation is not None:
+        route = load_frozen_m6_raw_provider_route(
+            authorisation=request.frozen_m6_raw_authorisation,
+            database_manifest=request.database_manifest,
+            expected_provider=ProviderKey.PDB_SEQUENCE,
+            expected_adapter_version=_ADAPTER_VERSION,
+            threads=request.threads,
+            maximum_hits_per_query=request.maximum_hits_per_query,
+        )
+        return frozen_m6_raw_authorisation_payload(route)
+    if request.provider_plan_json is None or request.provider_entry_json is None:
+        raise InputContractError(
+            "PDB sequence search requires both provider plan and provider entry"
+        )
+    return {
+        "authorisation_scope": "reviewed_provider_plan",
+        "provider_plan_sha256": sha256_file(request.provider_plan_json, progress=False),
+        "provider_entry_sha256": sha256_file(
+            request.provider_entry_json, progress=False
+        ),
+    }
 
 
 def _validate_request(request: PdbSequenceSearchRequest) -> None:
@@ -527,18 +572,10 @@ def search_pdb_sequences(
     eligible_records = tuple(eligible)
     _write_query_fasta(query_path, eligible_records)
 
+    authorisation_payload = _provider_authorisation_payload(request)
     identity_payload = {
         "adapter_version": _ADAPTER_VERSION,
-        "provider_plan_sha256": (
-            None
-            if request.provider_plan_json is None
-            else sha256_file(request.provider_plan_json, progress=False)
-        ),
-        "provider_entry_sha256": (
-            None
-            if request.provider_entry_json is None
-            else sha256_file(request.provider_entry_json, progress=False)
-        ),
+        **authorisation_payload,
         "database_id": resource.database_id,
         "sequence_groups_sha256": sha256_file(
             request.sequence_groups_jsonl, progress=request.progress, logger=_LOGGER
@@ -670,6 +707,7 @@ def search_pdb_sequences(
                 "database_id": resource.database_id,
                 "tool": "mmseqs",
                 "tool_version": mmseqs_version,
+                "provider_authorisation": authorisation_payload,
                 "parameters": identity_payload["parameters"],
                 "sequence_sha256": record.sha256,
                 "quality_flags": record.quality_flags,
@@ -725,6 +763,7 @@ def search_pdb_sequences(
             "schema_version": "1.0",
             "provider": _PROVIDER,
             "adapter_version": _ADAPTER_VERSION,
+            "provider_authorisation": authorisation_payload,
             "provider_plan_sha256": identity_payload["provider_plan_sha256"],
             "provider_entry_sha256": identity_payload["provider_entry_sha256"],
             "database_id": resource.database_id,

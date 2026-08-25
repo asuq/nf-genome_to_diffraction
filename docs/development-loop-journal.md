@@ -13075,3 +13075,36 @@ with a collapsed combined parent or a guessed command.
 - Prior integration source `2fc46463e07bfdc61c7c8917cf31c7b830ca59c1`
   completed GitHub Actions run `32882784812` successfully. No deployed
   dispatcher was changed and known-control Slurm `634369` remains untouched.
+
+## 2026-08-25 - Provider execution requires independently approved authority
+
+- `FCB-P0-04` first reproduced all three provider adapters accepting an absent
+  reviewed route. Their public command-line flags were optional, and historical
+  login-side AFDB/PDB staging bypassed the same configured authority.
+- PDB sequence, ProstT5/Foldseek, and exact AFDB application routes now require
+  both the exact provider plan and matching enabled entry before output,
+  provider execution, or network access. Entry/database/adapter identities and
+  the reviewed hit cap are independently verified and included in per-batch,
+  per-sequence, and retained-manifest provenance.
+- The scientifically distinct M6 truthless discovery route now has a narrow
+  explicit frozen authorisation. It independently checks the strict batch task,
+  approved site/execution policy, exact database and Pixi-lock digests,
+  provider-specific CPU allocation, complete content-addressed task identity,
+  25 raw hits before leakage filtering, and the downstream three-hit accepted
+  cap. It cannot be mixed with an ordinary application plan; its identity
+  remains path-free and shared between truthless M6 tracks.
+- Login staging now resolves, verifies, retains, and checksums the complete
+  reviewed provider plan before AFDB execution; legacy PDB login discovery
+  follows that same configured route instead of its previously unreviewed raw
+  cap. Disabled, no-hit, and ineligible providers retain their typed outcomes.
+- Missing/mixed provider routes; unsupported provider; wrong adapter, provider,
+  CPU count, discovery cap, database, execution policy, software lock, and
+  task-cache identity; public CLI omission; failed login-plan resolution; and
+  the fixed ordinary/M6 cap distinction all have focused negative coverage.
+  The complete neighbouring provider/AFDB/M6 suites pass 115 tests, both
+  relevant provider Nextflow stubs pass, and reviewed login staging remains
+  covered by the real dispatcher integration tests. All three adapter
+  identities and the canonical example provider plan advance together.
+- The modified dispatcher is source-only. Nothing was deployed, and the
+  existing known-control Slurm `634369` and its installed protocol remain
+  untouched pending terminal evidence collection.

@@ -123,6 +123,9 @@ from genome_to_diffraction.structure_search import (
     search_pdb_sequences,
     search_prostt5_foldseek,
 )
+from genome_to_diffraction.structure_search.provider_plan import (
+    FrozenM6RawProviderAuthorisation,
+)
 
 _PLAN_ADAPTER = "m6-nextflow-plan-v1"
 _CATALOGUE_ADAPTER = "m6-nextflow-catalogue-v1"
@@ -964,6 +967,11 @@ def run_m6_pdb_search_task(
             sequence_groups_jsonl=batch / "sequence_groups.jsonl",
             database_manifest=database,
             output_directory=output / "search",
+            frozen_m6_raw_authorisation=FrozenM6RawProviderAuthorisation(
+                batch_task_json=batch / "task.json",
+                execution_policy=policy_path,
+                software_lock=lock_path,
+            ),
             threads=threads,
             maximum_hits_per_query=M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
             maximum_evalue=1.0e-5,
@@ -1026,6 +1034,11 @@ def run_m6_foldseek_search_task(
             sequence_groups_jsonl=batch / "sequence_groups.jsonl",
             database_manifest=database,
             output_directory=output / "search",
+            frozen_m6_raw_authorisation=FrozenM6RawProviderAuthorisation(
+                batch_task_json=batch / "task.json",
+                execution_policy=policy_path,
+                software_lock=lock_path,
+            ),
             threads=threads,
             maximum_hits_per_query=M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
             maximum_evalue=1.0e-3,
