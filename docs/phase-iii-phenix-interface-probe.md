@@ -57,14 +57,25 @@ hit, no-hit, identity, placement, or composition status.
 Focused unit tests use a checksum-verified fake Phenix installation to prove
 the fixed command, exact byte retention, content identity, and refusal to
 overwrite an existing directory. A fake managed lifecycle proves fixed staging,
-submission, terminal success, and bounded collection. The real Marmic probe is
-still required before any PHIL field or native output adapter is implemented.
+submission, terminal success, and bounded collection.
 
-After collection, the exact observed PHIL scope will be used to request the
-officially documented `XYZOUT ON ENSEMBLE ON` output on a known control. That
-control must retain the exact `.sol`, combined PDB, and every
-`FILEROOT.<solution>.<SOLU-6DIM-ordinal>.pdb` before component-coordinate
-derivation can replace the current blocked boundary.
+The real Marmic probe passed as Slurm job `633758` with retained defaults
+SHA-256 `35eeb2a1349e47f91860b54270f4017bf97a1b10e92cb1e9d107e56531b4283b`.
+Its exact installed PHIL paths include:
+
+```text
+phaser.crystal_symmetry.space_group
+phaser.keywords.resolution.low
+phaser.keywords.resolution.high
+phaser.keywords.general.xyzout_ensemble
+```
+
+The opt-in schema-v2 first-copy command now passes the selected space group and
+both resolution limits explicitly through these observed names; historical v1
+commands remain unchanged. A later real known-control run demonstrated that the
+installed Phenix frontend silently drops the advertised ensemble-output flag,
+so component recovery instead uses exact model-bound combined-PDB chains and a
+complete verified atom partition. Multi-fixed Phaser syntax remains unqualified.
 
 ## Primary documentation
 

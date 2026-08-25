@@ -409,13 +409,13 @@ class DiffractionCommandBinding(_ContentAddressedContract):
     ] = "verified_by_mtz_preflight_no_dataset_qualified_phenix_parameter"
     selected_space_group: NonEmptyString
     space_group_command_binding: Literal[
-        "verified_by_mtz_preflight_explicit_parameter_pending",
+        "explicit_phaser_crystal_symmetry_parameter",
         "explicit_refinement_crystal_symmetry_parameter",
-    ] = "verified_by_mtz_preflight_explicit_parameter_pending"
+    ] = "explicit_phaser_crystal_symmetry_parameter"
     resolution_low_a: PositiveFloat
     resolution_high_a: PositiveFloat
     resolution_command_binding: Literal[
-        "verified_by_mtz_preflight_explicit_refinement_limits_pending",
+        "explicit_phaser_resolution_low_high_parameters",
         "refinement_low_high_and_sequence_map_high_explicit",
     ]
     free_r_identity_id: FreeRIdentityIdentifier | None = None
@@ -440,14 +440,14 @@ class DiffractionCommandBinding(_ContentAddressedContract):
         if self.resolution_high_a > self.resolution_low_a:
             raise ValueError("command resolution limits are inverted")
         expected_resolution_binding = (
-            "verified_by_mtz_preflight_explicit_refinement_limits_pending"
+            "explicit_phaser_resolution_low_high_parameters"
             if self.consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
             else "refinement_low_high_and_sequence_map_high_explicit"
         )
         if self.resolution_command_binding != expected_resolution_binding:
             raise ValueError("resolution command boundary does not match the consumer")
         expected_space_group_binding = (
-            "verified_by_mtz_preflight_explicit_parameter_pending"
+            "explicit_phaser_crystal_symmetry_parameter"
             if self.consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
             else "explicit_refinement_crystal_symmetry_parameter"
         )

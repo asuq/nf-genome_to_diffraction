@@ -86,10 +86,11 @@ separate pending slices.
 
 An opt-in schema-v2 diffraction selection now binds the MTZ dataset,
 dataset-qualified observations, space group, resolution range, overrides, and
-command identities. Observation labels, refinement space group, refinement
-low/high limits, and sequence-from-map high resolution are explicit where
-qualified. Phaser space-group/resolution parameters and parent-MTZ derivation
-remain deliberately pending rather than guessed.
+command identities. Observation labels, Phaser/refinement space group,
+Phaser/refinement low/high limits, and sequence-from-map high resolution are
+explicit. The Phaser PHIL names are bound to the previously retained no-data
+installed-runtime defaults; legacy commands are unchanged. Real Phase III
+Phaser execution and parent-MTZ derivation remain separate qualification gates.
 
 A separate schema-v2 Free-R foundation now binds an exact label and MTZ dataset
 to the diffraction selection, rejects non-finite, non-integral, constant, and

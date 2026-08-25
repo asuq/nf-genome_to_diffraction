@@ -12014,3 +12014,23 @@ with a collapsed combined parent or a guessed command.
   running Marmic control was altered.
 - Keep the existing 30-minute automation for Slurm job `634097`; qualify both
   exact grouped-component control inventories before any `9ECN` execution.
+
+## 2026-08-25 - Installed Phaser defaults bind real diffraction parameters
+
+- The already accepted no-data Marmic probe, Slurm job `633758`, retained
+  `phenix.phaser --show_defaults` with SHA-256
+  `35eeb2a1349e47f91860b54270f4017bf97a1b10e92cb1e9d107e56531b4283b`.
+  Its exact output qualifies `phaser.crystal_symmetry.space_group` and
+  `phaser.keywords.resolution.low/high`; no scientific execution or new remote
+  command was required to resolve those names.
+- The opt-in Phase III first-copy adapter now explicitly passes the reviewed
+  selected space group and both selected resolution limits, records their
+  typed command binding, and increments its adapter/cache identity. Historical
+  v1 Phaser and refinement commands remain unchanged.
+- Focused command-construction, diffraction-selection, and resolution-mutation
+  regressions pass. Actual execution of those newly explicit parameters against
+  a real Phaser runtime remains a later fixed-control qualification, not a
+  claimed success.
+- Continue the existing 30-minute polling of Slurm job `634097`. Both grouped
+  6RTZ/3U7Q inventories must pass before implementing a multi-fixed command or
+  submitting the 9ECN depth-three control.

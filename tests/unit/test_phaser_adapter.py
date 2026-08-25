@@ -437,12 +437,23 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
     assert selection["observation_dataset_id"] == 1
     assert selection["observation_labels"] == ["I", "SIGI"]
     assert binding["observation_command_binding"].startswith("explicit_parameter")
-    assert binding["space_group_command_binding"].endswith("parameter_pending")
-    assert binding["resolution_command_binding"].endswith("limits_pending")
+    assert binding["space_group_command_binding"] == (
+        "explicit_phaser_crystal_symmetry_parameter"
+    )
+    assert binding["resolution_command_binding"] == (
+        "explicit_phaser_resolution_low_high_parameters"
+    )
     assert binding["command_mtz_binding"] == "exact_selected_mtz"
     assert "phaser.labin=I,SIGI" in commands[0]
-    assert not any("resolution" in argument for argument in commands[0])
-    assert not any("space_group" in argument for argument in commands[0])
+    assert "phaser.crystal_symmetry.space_group=P 21 21 21" in commands[0]
+    assert (
+        f"phaser.keywords.resolution.low={selection['resolution_low_a']:.12g}"
+        in commands[0]
+    )
+    assert (
+        f"phaser.keywords.resolution.high={selection['resolution_high_a']:.12g}"
+        in commands[0]
+    )
 
 
 def test_phase3_adapter_rejects_bound_hypothesis_mismatch_before_runtime(

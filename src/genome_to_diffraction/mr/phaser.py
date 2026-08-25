@@ -20,10 +20,11 @@ approve them. Final packing, placed-copy checks, raw metrics, and advisories are
 preserved independently for human review.
 
 The opt-in Phase III path additionally verifies a schema-v2 diffraction
-selection and bound hypothesis identity. Observation labels are a qualified
-Phaser argument. Selected dataset identity, space group, and resolution remain
-checksum/preflight-verified command-record evidence; explicit Phenix parameters
-for the latter values are deliberately pending real-runtime qualification.
+selection and bound hypothesis identity. Observation labels, space group, and
+both resolution limits use exact PHIL names retained from the installed
+``phenix.phaser --show_defaults`` qualification; selected dataset identity
+remains checksum/preflight-verified because Phaser has no dataset-qualified
+label parameter.
 """
 
 import logging
@@ -85,7 +86,7 @@ from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
 _ADAPTER_VERSION = "phenix-first-copy-mr-v6"
-_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v7-phase3-diffraction"
+_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v8-phase3-diffraction"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -595,12 +596,13 @@ def parse_completed_phaser_outputs(text: str, output: Path) -> ParsedPhaserLog:
 
 def _command(resolved: _ResolvedInput, sequence_fasta: Path, threads: int) -> list[str]:
     hypothesis = resolved.hypothesis
+    selection = resolved.diffraction_selection
     observation_labels = (
-        resolved.diffraction_selection.rendered_observation_labels
-        if resolved.diffraction_selection is not None
+        selection.rendered_observation_labels
+        if selection is not None
         else hypothesis.obs_labels
     )
-    return [
+    arguments = [
         "phenix.phaser",
         "phaser.mode=MR_AUTO",
         f"phaser.hklin={resolved.mtz_path}",
@@ -614,6 +616,15 @@ def _command(resolved: _ResolvedInput, sequence_fasta: Path, threads: int) -> li
         f"phaser.keywords.general.jobs={threads}",
         "phaser.keywords.sgalternative.select=none",
     ]
+    if selection is not None:
+        arguments.extend(
+            (
+                f"phaser.crystal_symmetry.space_group={selection.selected_space_group}",
+                f"phaser.keywords.resolution.low={selection.resolution_low_a:.12g}",
+                f"phaser.keywords.resolution.high={selection.resolution_high_a:.12g}",
+            )
+        )
+    return arguments
 
 
 def _phase3_command_identity(

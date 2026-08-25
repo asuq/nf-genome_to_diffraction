@@ -207,5 +207,9 @@ def test_selection_mutation_changes_hypothesis_and_command_identities() -> None:
     assert bound_first.hypothesis_id != bound_second.hypothesis_id
     assert command_first.binding_id != command_second.binding_id
     assert command_first.observation_command_binding.startswith("explicit_parameter")
-    assert command_first.space_group_command_binding.endswith("parameter_pending")
-    assert command_first.resolution_command_binding.endswith("limits_pending")
+    assert command_first.space_group_command_binding == (
+        "explicit_phaser_crystal_symmetry_parameter"
+    )
+    assert command_first.resolution_command_binding == (
+        "explicit_phaser_resolution_low_high_parameters"
+    )

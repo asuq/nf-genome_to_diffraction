@@ -11,9 +11,9 @@ execution so stale selections fail before any licensed command is launched.
 The selection itself retains no inferred Free-R convention.  Phase III Free-R
 label, distribution, and raw HKL-to-flag identities are validated in the
 separate :mod:`genome_to_diffraction.diffraction.free_r_identity` foundation.
-The brief-refinement command binding requires that exact identity while stating
-that an explicit Phenix Free-R parameter still awaits real-runtime
-qualification; this builder remains independent of MTZ file access.
+First-copy Phaser space-group/resolution names and brief-refinement Free-R
+selection use explicitly qualified PHIL parameters; this builder remains
+independent of MTZ file access.
 """
 
 import math
@@ -291,12 +291,12 @@ def build_diffraction_command_binding(
         )
 
     resolution_binding = (
-        "verified_by_mtz_preflight_explicit_refinement_limits_pending"
+        "explicit_phaser_resolution_low_high_parameters"
         if consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
         else "refinement_low_high_and_sequence_map_high_explicit"
     )
     space_group_binding = (
-        "verified_by_mtz_preflight_explicit_parameter_pending"
+        "explicit_phaser_crystal_symmetry_parameter"
         if consumer is DiffractionCommandConsumer.FIRST_COPY_PHASER
         else "explicit_refinement_crystal_symmetry_parameter"
     )
