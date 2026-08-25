@@ -453,17 +453,17 @@ def _free_r_arguments(identity: FreeRIdentity) -> tuple[str, ...]:
 
     if not identity.free_r_label.strip() or "\n" in identity.free_r_label:
         raise T12InputError("Free-R label must be one non-empty line")
-    arguments = [
+    if identity.test_flag_value is None:
+        raise T12InputError(
+            "Phase III refinement requires an explicit Free-R test flag value"
+        )
+    return (
         f"data_manager.miller_array.labels.name={identity.free_r_label}",
         "data_manager.fmodel.xray_data.r_free_flags.required=True",
         "data_manager.fmodel.xray_data.r_free_flags.generate=False",
-    ]
-    if identity.test_flag_value is not None:
-        arguments.append(
-            "data_manager.fmodel.xray_data.r_free_flags.test_flag_value="
-            f"{identity.test_flag_value}"
-        )
-    return tuple(arguments)
+        "data_manager.fmodel.xray_data.r_free_flags.test_flag_value="
+        f"{identity.test_flag_value}",
+    )
 
 
 def _phase3_refinement_selection_arguments(
@@ -724,8 +724,10 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     if phase3_diffraction is None:
         diffraction_selection = None
         free_r_identity = None
+        free_r_arguments: tuple[str, ...] = ()
     else:
         diffraction_selection, free_r_identity = phase3_diffraction
+        free_r_arguments = _free_r_arguments(free_r_identity)
     observation_label_argument = _observation_label_argument(request.observation_labels)
     parent_coordinate = _verified_file(
         request.parent_coordinate,
@@ -830,8 +832,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         refine_args.extend(
             _phase3_refinement_selection_arguments(diffraction_selection)
         )
-    if free_r_identity is not None:
-        refine_args.extend(_free_r_arguments(free_r_identity))
+    refine_args.extend(free_r_arguments)
     command_path = outdir / "t12_command.json"
     command_inputs: dict[str, object] = {
         "parent_coordinate_sha256": request.parent_coordinate_sha256,

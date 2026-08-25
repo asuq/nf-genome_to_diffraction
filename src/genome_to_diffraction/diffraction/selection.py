@@ -287,6 +287,10 @@ def build_diffraction_command_binding(
                 "Phase III brief refinement requires a Free-R identity"
             )
         verify_free_r_identity_selection(free_r_identity, selection)
+        if free_r_identity.test_flag_value is None:
+            raise DiffractionSelectionError(
+                "Phase III brief refinement requires an explicit Free-R test flag value"
+            )
         if parent_mtz_comparison is None:
             raise DiffractionSelectionError(
                 "Phase III brief refinement requires verified parent MTZ derivation"
@@ -364,11 +368,7 @@ def build_diffraction_command_binding(
             if consumer is DiffractionCommandConsumer.ADDITIONAL_COPY_PHASER
             else "not_applicable_first_copy_phaser"
             if free_r_identity is None
-            else (
-                "selected_label_explicit_generation_disabled_test_value_automatic"
-                if free_r_identity.test_flag_value is None
-                else "selected_label_and_test_value_explicit_generation_disabled"
-            )
+            else "selected_label_and_test_value_explicit_generation_disabled"
         ),
         free_r_membership_binding=(
             "validated_source_identity_post_refinement_exact_comparison_required"

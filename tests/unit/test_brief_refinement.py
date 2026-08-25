@@ -318,7 +318,7 @@ def _write_phase3_mtz(
 def _phase3_request(
     tmp_path: Path,
     *,
-    test_flag_value: int | None = None,
+    test_flag_value: int | None = 1,
 ) -> T12RunRequest:
     tmp_path.mkdir(parents=True, exist_ok=True)
     parent_coordinate = tmp_path / "parent.pdb"
@@ -489,6 +489,20 @@ def test_phase3_refinement_requires_free_r_identity(tmp_path: Path) -> None:
         run_t12_candidate(request)
 
 
+def test_phase3_refinement_rejects_unresolved_free_r_before_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _phase3_request(tmp_path, test_flag_value=None)
+    commands = _install_phase3_runtime(monkeypatch)
+
+    with pytest.raises(T12InputError, match="explicit Free-R test flag value"):
+        run_t12_candidate(request)
+
+    assert commands == []
+    assert not request.output_directory.exists()
+
+
 def test_phase3_refinement_requires_exact_raw_source_mtz(tmp_path: Path) -> None:
     request = replace(_phase3_request(tmp_path), source_mtz=None)
 
@@ -562,9 +576,9 @@ def test_phase3_refinement_promotes_permuted_synthetic_mtz_after_free_r_comparis
     assert record["diffraction_selection"]["observation_dataset_id"] == 1
     assert record["free_r_identity"]["free_r_label"] == "FreeR_flag"
     assert record["free_r_identity"]["convention_status"] == (
-        "unresolved_raw_flag_values_only"
+        FreeRConventionStatus.EXPLICIT_TEST_VALUE.value
     )
-    assert record["free_r_identity"]["test_flag_value"] is None
+    assert record["free_r_identity"]["test_flag_value"] == 1
     assert record["free_r_membership_comparison_status"] == "preserved_exact"
     assert record["free_r_membership_comparison"]["comparison_id"] == (
         output.free_r_comparison.comparison_id
@@ -587,16 +601,18 @@ def test_phase3_refinement_promotes_permuted_synthetic_mtz_after_free_r_comparis
     )
     assert len(record["inputs"]["parent_observation_membership_sha256"]) == 64
     assert binding["free_r_label"] == "FreeR_flag"
-    assert binding["free_r_convention_status"] == ("unresolved_raw_flag_values_only")
-    assert binding["free_r_test_flag_value"] is None
+    assert binding["free_r_convention_status"] == (
+        FreeRConventionStatus.EXPLICIT_TEST_VALUE.value
+    )
+    assert binding["free_r_test_flag_value"] == 1
     assert binding["free_r_command_binding"] == (
-        "selected_label_explicit_generation_disabled_test_value_automatic"
+        "selected_label_and_test_value_explicit_generation_disabled"
     )
     assert "data_manager.miller_array.labels.name=I,SIGI" in commands[0]
     assert "data_manager.miller_array.labels.name=FreeR_flag" in commands[0]
     assert "data_manager.fmodel.xray_data.r_free_flags.required=True" in commands[0]
     assert "data_manager.fmodel.xray_data.r_free_flags.generate=False" in commands[0]
-    assert not any("test_flag_value" in argument for argument in commands[0])
+    assert "data_manager.fmodel.xray_data.r_free_flags.test_flag_value=1" in commands[0]
     assert (
         f"refinement.crystal_symmetry.space_group={binding['selected_space_group']}"
         in commands[0]
@@ -777,18 +793,16 @@ def test_phase3_refinement_refuses_changed_or_missing_free_r_flags(
     assert len(commands) == 1
 
 
-def test_phase3_refinement_command_identity_changes_with_free_r_convention(
+def test_phase3_refinement_command_identity_changes_with_explicit_free_r_value(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    unresolved_request = _phase3_request(tmp_path)
-    assert unresolved_request.diffraction_selection_json is not None
-    selection = load_diffraction_selection(
-        unresolved_request.diffraction_selection_json
-    )
+    first_request = _phase3_request(tmp_path, test_flag_value=0)
+    assert first_request.diffraction_selection_json is not None
+    selection = load_diffraction_selection(first_request.diffraction_selection_json)
     explicit_identity = build_free_r_identity(
         selection=selection,
-        mtz_path=unresolved_request.parent_mtz,
+        mtz_path=first_request.parent_mtz,
         free_r_dataset_id=1,
         free_r_label="FreeR_flag",
         test_flag_value=1,
@@ -798,41 +812,41 @@ def test_phase3_refinement_command_identity_changes_with_free_r_convention(
         canonical_json_text(explicit_identity),
         encoding="utf-8",
     )
-    explicit_request = replace(
-        unresolved_request,
+    second_request = replace(
+        first_request,
         free_r_identity_json=explicit_identity_path,
         output_directory=tmp_path / "refinement_explicit",
     )
     commands = _install_phase3_runtime(monkeypatch)
 
-    unresolved = run_t12_candidate(unresolved_request)
-    explicit = run_t12_candidate(explicit_request)
+    first = run_t12_candidate(first_request)
+    second = run_t12_candidate(second_request)
 
-    unresolved_record = json.loads(unresolved.command_json.read_text(encoding="utf-8"))
-    explicit_record = json.loads(explicit.command_json.read_text(encoding="utf-8"))
+    first_record = json.loads(first.command_json.read_text(encoding="utf-8"))
+    second_record = json.loads(second.command_json.read_text(encoding="utf-8"))
     assert (
-        unresolved_record["diffraction_selection"]["diffraction_selection_id"]
-        == (explicit_record["diffraction_selection"]["diffraction_selection_id"])
+        first_record["diffraction_selection"]["diffraction_selection_id"]
+        == (second_record["diffraction_selection"]["diffraction_selection_id"])
     )
     assert (
-        unresolved_record["phase3_refine_command_id"]
-        != (explicit_record["phase3_refine_command_id"])
+        first_record["phase3_refine_command_id"]
+        != (second_record["phase3_refine_command_id"])
     )
-    assert unresolved_record["free_r_identity"]["convention_status"] == (
-        FreeRConventionStatus.UNRESOLVED.value
-    )
-    assert unresolved_record["free_r_identity"]["test_flag_value"] is None
-    assert explicit_record["free_r_identity"]["convention_status"] == (
+    assert first_record["free_r_identity"]["convention_status"] == (
         FreeRConventionStatus.EXPLICIT_TEST_VALUE.value
     )
-    assert explicit_record["free_r_identity"]["test_flag_value"] == 1
-    assert (
-        unresolved_record["diffraction_command_binding"]["free_r_command_binding"]
-        == "selected_label_explicit_generation_disabled_test_value_automatic"
+    assert first_record["free_r_identity"]["test_flag_value"] == 0
+    assert second_record["free_r_identity"]["convention_status"] == (
+        FreeRConventionStatus.EXPLICIT_TEST_VALUE.value
     )
+    assert second_record["free_r_identity"]["test_flag_value"] == 1
     assert (
-        explicit_record["diffraction_command_binding"]["free_r_command_binding"]
+        first_record["diffraction_command_binding"]["free_r_command_binding"]
         == "selected_label_and_test_value_explicit_generation_disabled"
     )
-    assert not any("test_flag_value" in argument for argument in commands[0])
+    assert (
+        second_record["diffraction_command_binding"]["free_r_command_binding"]
+        == "selected_label_and_test_value_explicit_generation_disabled"
+    )
+    assert "data_manager.fmodel.xray_data.r_free_flags.test_flag_value=0" in commands[0]
     assert "data_manager.fmodel.xray_data.r_free_flags.test_flag_value=1" in commands[2]

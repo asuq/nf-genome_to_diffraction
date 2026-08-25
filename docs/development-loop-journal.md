@@ -12880,3 +12880,21 @@ with a collapsed combined parent or a guessed command.
 - Continue only the already submitted owned Marmic control, Slurm `634369`;
   do not stage any new scientific operation before its terminal evidence is
   independently collected and classified.
+
+## 2026-08-25 - Refinement refuses an unresolved Free-R convention
+
+- The `FCB-P0-03` adverse regression first proved that Phase III refinement
+  accepted an unresolved raw Free-R convention, omitted its test flag from the
+  Phenix command, and still published positive scientific evidence.
+- The refinement boundary now checks the explicit test value before creating
+  output or executing Phenix. Its command builder and schema-v2 command
+  contract independently require the same resolved convention; the active
+  automatic-test-value compatibility branch has been removed.
+- Unresolved Free-R identity records remain representable as honest upstream
+  crystallographic-review holds, but they cannot become an executable
+  refinement command. Distinct user-supplied test values still produce
+  distinct immutable command identities.
+- Eighty-one focused refinement, Free-R, diffraction-selection,
+  sequence-checkpoint, and component-input regressions pass. Unknown datasets
+  still require an independently approved authoritative flag convention; no
+  control, unknown, M6, or other scientific HPC job was added.

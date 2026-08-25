@@ -89,7 +89,7 @@ ordered `RG0`-`RG7` milestones and both scientific stop gates.
 | --- | --- | --- |
 | `FCB-P0-01` Fabricated final Phaser packing | Open | RG2; reject absent packing rows before 9ECN acceptance and unknown pass 1. |
 | `FCB-P0-02` Self-asserted credible unknown assessment | Open | RG3; parse owned scientific records and all four human decisions before pass 1. |
-| `FCB-P0-03` Unresolved Free-R test convention | Open | RG2; require authoritative explicit test reflection value before pass 1. |
+| `FCB-P0-03` Unresolved Free-R test convention | Fixed locally; authoritative unknown-dataset review and exact-source CI pending | RG2; Phase III rejects unresolved Free-R flags before output creation or Phenix execution, all command contracts require an explicit test value, and the automatic-value branch is deleted. One red/green pre-execution regression and 81 focused refinement/diffraction/sequence cases pass. |
 | `FCB-P0-04` Optional reviewed provider policy | Open | RG1; require exact provider plan and route entry before pass 1. |
 | `FCB-P0-05` Executable cross-crystal legacy report | Open | RG3; remove legacy claim producer and require owned v2 reporting before pass 1. |
 | `FCB-P0-06` Missing mandatory final review channels | Open | RG1; require distinct owned parent and sequence/composition packages before pass 1. |

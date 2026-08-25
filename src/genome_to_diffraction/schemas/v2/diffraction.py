@@ -428,7 +428,6 @@ class DiffractionCommandBinding(_ContentAddressedContract):
     free_r_command_binding: Literal[
         "not_applicable_first_copy_phaser",
         "not_applicable_additional_copy_phaser",
-        "selected_label_explicit_generation_disabled_test_value_automatic",
         "selected_label_and_test_value_explicit_generation_disabled",
     ] = "not_applicable_first_copy_phaser"
     free_r_membership_binding: Literal[
@@ -506,22 +505,17 @@ class DiffractionCommandBinding(_ContentAddressedContract):
             "validated_source_identity_post_refinement_exact_comparison_required"
         ):
             raise ValueError("Free-R membership boundary does not match the consumer")
-        if self.free_r_convention_status is FreeRConventionStatus.UNRESOLVED:
-            if self.free_r_test_flag_value is not None:
-                raise ValueError(
-                    "unresolved command binding cannot carry a Free-R test value"
-                )
-            expected_command_binding = (
-                "selected_label_explicit_generation_disabled_test_value_automatic"
-            )
-        elif self.free_r_test_flag_value is None:
+        if self.free_r_convention_status is not (
+            FreeRConventionStatus.EXPLICIT_TEST_VALUE
+        ):
+            raise ValueError("brief refinement requires an explicit Free-R convention")
+        if self.free_r_test_flag_value is None:
             raise ValueError(
                 "explicit command binding requires a Free-R test flag value"
             )
-        else:
-            expected_command_binding = (
-                "selected_label_and_test_value_explicit_generation_disabled"
-            )
+        expected_command_binding = (
+            "selected_label_and_test_value_explicit_generation_disabled"
+        )
         if self.free_r_command_binding != expected_command_binding:
             raise ValueError("Free-R command boundary does not match the convention")
         return self
