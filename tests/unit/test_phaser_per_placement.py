@@ -202,6 +202,25 @@ def test_maps_exact_model_sequences_and_recombines_all_atoms(tmp_path: Path) -> 
     assert (request.output_directory / "component_B.pdb").is_file()
 
 
+def test_recombines_multicopy_atoms_after_negative_zero_is_normalised(
+    tmp_path: Path,
+) -> None:
+    request = _request(tmp_path)
+    combined = request.output_directory / "PHASER.1.pdb"
+    combined.write_text(
+        combined.read_text(encoding="ascii").replace("  10.000", "  -0.000", 1),
+        encoding="ascii",
+    )
+
+    result = collect_phaser_per_placement_outputs(request)
+
+    assert result.inventory.combined_atom_count == 16
+    assert result.inventory.recombined_atom_count == 16
+    assert result.inventory.recombination_status == (
+        "verified_exact_combined_atom_partition"
+    )
+
+
 def test_combined_coordinate_mutation_changes_inventory_identity(
     tmp_path: Path,
 ) -> None:

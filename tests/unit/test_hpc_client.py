@@ -23,6 +23,7 @@ from genome_to_diffraction.hpc.client import (
     HpcController,
     SshTransport,
     SubprocessGitRepository,
+    _extract_approved_archive,
     _failure_signature,
 )
 from genome_to_diffraction.hpc.models import (
@@ -1864,6 +1865,22 @@ def test_collection_extracts_regular_whitelisted_payload_safely(tmp_path: Path) 
     assert (Path(str(result["destination"])) / "logs" / "smoke.log").read_text() == (
         "failed\n"
     )
+
+
+def test_collection_accepts_control_mtz_above_the_previous_file_limit(
+    tmp_path: Path,
+) -> None:
+    relative = "artifacts/heteromer-smoke/inputs/multicopy/derived/3U7Q.mtz"
+    archive = _archive({relative: bytes(20 * 1024 * 1024 + 1)})
+
+    extracted = _extract_approved_archive(
+        archive,
+        tmp_path / "collected",
+        progress=False,
+    )
+
+    assert extracted == [relative]
+    assert (tmp_path / "collected" / relative).stat().st_size == (20 * 1024 * 1024 + 1)
 
 
 def test_collection_rejects_path_traversal(tmp_path: Path) -> None:

@@ -193,8 +193,11 @@ parser binds exact `SOLU 6DIM` entries to source-model-matched combined-PDB
 chains because the installed wrapper does not emit native per-ensemble PDBs.
 The local bridge validates atom-complete grouped coordinates against the packed
 parent and preserves each component's independent original uncertainty in the
-existing fixed-execution contract. Real two-control qualification and
-multi-fixed command syntax remain pending.
+existing fixed-execution contract. A retained real 3U7Q replay reconstructs
+all 16,116 atoms after canonicalising mathematically equivalent signed-zero
+coordinates. The reviewed collector now permits 128 MB per file and 512 MB
+overall, retaining the 40,035,916-byte 3U7Q input MTZ and partner output.
+Fresh two-control qualification and multi-fixed command syntax remain pending.
 
 The isolated complete-item workflow now proves three crystal items can reuse
 one catalogue and one provider preparation through a byte-identical cached

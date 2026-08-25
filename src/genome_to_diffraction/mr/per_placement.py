@@ -177,9 +177,9 @@ def _atom_records(structure: gemmi.Structure) -> tuple[tuple[str, ...], ...]:
                         atom.name,
                         str(atom.altloc),
                         str(atom.element.name),
-                        f"{atom.pos.x:.3f}",
-                        f"{atom.pos.y:.3f}",
-                        f"{atom.pos.z:.3f}",
+                        f"{atom.pos.x + 0.0:.3f}",
+                        f"{atom.pos.y + 0.0:.3f}",
+                        f"{atom.pos.z + 0.0:.3f}",
                         f"{atom.occ:.2f}",
                         f"{atom.b_iso:.2f}",
                     )

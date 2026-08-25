@@ -12793,3 +12793,26 @@ with a collapsed combined parent or a guessed command.
   correction, watch one CI run, deploy its matching fixed wrapper, and submit
   exactly one fresh component-control successor. Do not launch 9ECN, unknown
   crystals, M6, or another scientific profile before that successor passes.
+
+## 2026-08-25 - Multicopy control preserves signed-zero atom identity
+
+- The owned successor, Slurm `634320` at source `b2f638c`, failed its software
+  gate after both licensed Phaser searches completed. 6RTZ recovered `1A+1B`;
+  3U7Q recovered `2A+2B` with joint-B incremental LLG `229112.711` and TFZ
+  `371.4`. These remain known-control search results, not sequence-identity or
+  scientific composition claims.
+- Retained v0.2 3U7Q coordinates and exact source models reproduced the new
+  defect locally: one `TRP B 253 O` atom had an X coordinate of `-0.000`, but
+  Gemmi rewrote the numerically identical value as `0.000`. Canonicalising IEEE
+  signed zero preserves the exact atom comparison and reconstructs all 16,116
+  real atoms, including 7,622 A atoms and 8,494 B atoms.
+- Collection independently rejected the newly retained multicopy evidence
+  under the obsolete 20 MB file ceiling; the immutable 3U7Q input MTZ alone is
+  40,035,916 bytes. Local and remote fixed collectors now share simple 128 MB
+  per-file and 512 MB aggregate limits, and the complete 46-file Phase III
+  evidence allow-list includes the exact 3U7Q input MTZ.
+- Focused signed-zero, local collection, remote collection, oversized-file,
+  and complete fake two-control regressions pass. Commit/push once, watch one
+  CI run, deploy the matching reviewed dispatcher, and submit exactly one fresh
+  two-control successor. Do not launch 9ECN, unknown crystals, M6, or another
+  scientific profile until that successor is collected and classified.

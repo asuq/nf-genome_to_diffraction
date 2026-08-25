@@ -5042,6 +5042,53 @@ def test_heteromer_collection_allowlist_has_no_duplicate_p6_report() -> None:
     )
 
 
+def test_heteromer_collection_accepts_large_3u7q_mtz_evidence(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    p0_paths = _write_p0_paths(remote_root)
+    phenix_manifest = Path(p0_paths.read_text(encoding="ascii").splitlines()[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    p0_paths.unlink()
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            HETEROMER_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "heteromer-smoke",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    run = remote_root / "runs" / HETEROMER_RUN_ID
+    fixed_paths = (
+        "artifacts/heteromer-smoke/inputs/multicopy/derived/3U7Q.mtz",
+        "artifacts/heteromer-smoke/multicopy/partner/PHASER.1.mtz",
+    )
+    for relative in fixed_paths:
+        path = run / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+        os.truncate(path, 20 * 1024 * 1024 + 1)
+
+    archive = _run(
+        [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+
+    assert set(fixed_paths) <= names
+
+
 def test_heteromer_p6_no_hit_omits_only_conditional_solution_assets(
     tmp_path: Path,
 ) -> None:
@@ -5843,7 +5890,7 @@ def test_remote_dispatcher_classifies_node_failure_and_oversized_collection(
 
     smoke_log = tmp_path / "remote-root" / "runs" / RUN_ID / "logs" / "smoke.log"
     smoke_log.touch()
-    os.truncate(smoke_log, 20 * 1024 * 1024 + 1)
+    os.truncate(smoke_log, 128 * 1024 * 1024 + 1)
     oversized = _run(
         [str(dispatcher), "collect", RUN_ID, OWNER_ID],
         cwd=tmp_path,
