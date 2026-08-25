@@ -137,6 +137,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/p2-control.log",
         "logs/heteromer-smoke.log",
         "logs/phase3-phenix-probe.log",
+        "logs/phase3-network-probe.log",
         "logs/control-slice.log",
         "logs/control-matrix.log",
         "logs/m6-inputs.log",
@@ -149,7 +150,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -1414,12 +1415,15 @@ class HpcController:
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
         approved_source_branch = source_branch or (
-            "dev/phase3" if profile == "phase3-phenix-probe" else "main"
+            "dev/phase3"
+            if profile in {"phase3-phenix-probe", "phase3-network-probe"}
+            else "main"
         )
         if approved_source_branch == "dev/phase3":
             if profile not in {
                 "heteromer-smoke",
                 "phase3-phenix-probe",
+                "phase3-network-probe",
                 "m6-nextflow-smoke",
             }:
                 raise ValidationError(

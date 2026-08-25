@@ -96,6 +96,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "p2-control",
             "heteromer-smoke",
             "phase3-phenix-probe",
+            "phase3-network-probe",
             "m6-nextflow-smoke",
         ),
     )
@@ -119,6 +120,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "p2-control",
             "heteromer-smoke",
             "phase3-phenix-probe",
+            "phase3-network-probe",
             "control-slice",
             "control-matrix",
             "m6-inputs",

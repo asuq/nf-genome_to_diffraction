@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -853,6 +853,7 @@ stage_run_common() {
     local source_archive=false source_archive_sha256="" source_archive_size=""
     local expected_submodule_commit="" source_archive_json="null"
     local m6_site_contract_json="null"
+    local phase3_network_site_contract_json="null"
     local -a p0_values=() heteromer_p6_values=()
 
     if [[ "$profile" == heteromer-smoke || \
@@ -1067,6 +1068,43 @@ stage_run_common() {
         append_event "$run" "stage_m6_site_policy_bound"
     fi
 
+    if [[ "$profile" == phase3-network-probe ]]; then
+        local network_nextflow_profile network_site_config_relative
+        local network_site_config network_site_config_sha256
+        local network_shell_relative network_shell network_shell_sha256
+        [[ "$SITE_ID" == marmic ]] || \
+            fail environment_failure \
+                "fixed Phase III network probe is currently qualified only on Marmic"
+        network_nextflow_profile=marmic
+        network_site_config_relative=conf/marmic.config
+        network_shell_relative=bootstrap/nf-gtd-worker-offline-shell
+        network_site_config="$run/source/$network_site_config_relative"
+        network_shell="$run/source/$network_shell_relative"
+        for candidate in "$network_site_config" "$network_shell"; do
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || \
+                fail filesystem_failure \
+                    "fixed Phase III network policy is absent or unsafe"
+        done
+        git -C "$run/source" ls-files --error-unmatch \
+            "$network_site_config_relative" "$network_shell_relative" \
+            <"$DISCARD" >"$DISCARD" 2>&1 || \
+            fail wrapper_failure "fixed Phase III network policy is not tracked"
+        network_site_config_sha256="$(sha256sum "$network_site_config" | awk '{print $1}')"
+        network_shell_sha256="$(sha256sum "$network_shell" | awk '{print $1}')"
+        [[ "$network_site_config_sha256" =~ $CHECKSUM_RE && \
+           "$network_shell_sha256" =~ $CHECKSUM_RE ]] || \
+            fail filesystem_failure "fixed Phase III network policy checksum failed"
+        atomic_text "$run/state/nextflow-profile" "$network_nextflow_profile"
+        atomic_text "$run/state/network-site-config-relative" \
+            "$network_site_config_relative"
+        atomic_text "$run/state/network-site-config-sha256" \
+            "$network_site_config_sha256"
+        atomic_text "$run/state/network-shell-relative" "$network_shell_relative"
+        atomic_text "$run/state/network-shell-sha256" "$network_shell_sha256"
+        phase3_network_site_contract_json="{\"nextflow_profile\":\"$network_nextflow_profile\",\"site_config\":\"$network_site_config_relative\",\"site_config_sha256\":\"$network_site_config_sha256\",\"worker_shell\":\"$network_shell_relative\",\"worker_shell_sha256\":\"$network_shell_sha256\"}"
+        append_event "$run" "stage_phase3_network_policy_bound"
+    fi
+
     if [[ "$profile" == heteromer-smoke || \
           "$profile" == phase3-phenix-probe ]]; then
         [[ "$SITE_ID" == marmic ]] || \
@@ -1167,6 +1205,7 @@ stage_run_common() {
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == heteromer-smoke || \
           "$profile" == phase3-phenix-probe || \
+          "$profile" == phase3-network-probe || \
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-inputs || "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
@@ -1208,6 +1247,16 @@ stage_run_common() {
                 atomic_text "$run/state/failure-class" "environment_failure"
                 append_event "$run" "stage_p0_runtime_absent"
                 fail environment_failure "locked P0 scientific runtime is unavailable"
+            }
+        elif [[ "$profile" == phase3-network-probe ]]; then
+            nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
+            java="$run/source/.pixi/envs/hpc/lib/jvm/bin/java"
+            [[ -x "$nextflow" && -x "$java" ]] || {
+                atomic_text "$run/state/phase" "stage_failed"
+                atomic_text "$run/state/failure-class" "environment_failure"
+                append_event "$run" "stage_phase3_network_runtime_absent"
+                fail environment_failure \
+                    "locked Phase III network-probe runtime is unavailable"
             }
         fi
         atomic_text "$run/state/hpc-environment-status" "ready"
@@ -1821,6 +1870,7 @@ PY
   "heteromer_login_stage_sha256": $heteromer_json,
   "heteromer_phenix_manifest_sha256": $heteromer_phenix_json,
   "phase3_phenix_probe_manifest_sha256": $phase3_probe_phenix_json,
+  "phase3_network_site_contract": $phase3_network_site_contract_json,
   "m6_site_contract": $m6_site_contract_json,
   "source_archive_sha256": $source_archive_json,
   "staged_at": "$(now_utc)",
@@ -3408,6 +3458,8 @@ collect_run() {
         logs/p2-control.log \
         logs/heteromer-smoke.log \
         logs/phase3-phenix-probe.log \
+        logs/phase3-network-probe.log \
+        logs/phase3-network-probe-nextflow.log \
         logs/m4-copy.log \
         logs/database.log \
         logs/nextflow-first.log \
@@ -3524,6 +3576,11 @@ collect_run() {
         artifacts/qualification/phaser-interface-probe.json \
         artifacts/qualification/phenix-phaser-show-defaults.txt \
         artifacts/qualification/phase3-phenix-probe-checksums.sha256 \
+        artifacts/qualification/phase3-network-probe-summary.json \
+        artifacts/qualification/phase3-network-probe-checksums.sha256 \
+        artifacts/qualification/phase3-network-probe-trace.tsv \
+        artifacts/qualification/network-probe/phase3-network-probe-child.json \
+        artifacts/qualification/network-probe/phase3-network-probe-controller.json \
         artifacts/qualification/control-slice-summary.json \
         artifacts/qualification/control-slice-case-results.jsonl \
         artifacts/qualification/control-slice-first-copy-results.jsonl \

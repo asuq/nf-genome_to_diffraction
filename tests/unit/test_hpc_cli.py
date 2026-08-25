@@ -134,6 +134,22 @@ def test_phase3_phenix_probe_exposes_no_runtime_command_or_path() -> None:
     assert submitted.profile == "phase3-phenix-probe"
 
 
+def test_phase3_network_probe_exposes_no_address_command_or_path() -> None:
+    parser = _build_parser()
+
+    staged = parser.parse_args(["stage", "phase3-network-probe", "--revision", "HEAD"])
+    submitted = parser.parse_args(
+        ["submit", "phase3-network-probe", "--run-id", "RUN_ID"]
+    )
+
+    assert staged.profile == "phase3-network-probe"
+    assert staged.source_branch is None
+    assert (
+        not {"address", "path", "command", "shell", "arguments"} & vars(staged).keys()
+    )
+    assert submitted.profile == "phase3-network-probe"
+
+
 def test_m4_copy_uses_explicit_checksum_gated_stage() -> None:
     parser = _build_parser()
 

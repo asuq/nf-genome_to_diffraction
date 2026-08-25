@@ -1284,6 +1284,24 @@ def test_phenix_bound_stage_uses_only_the_preserved_runtime_identity(
     assert arguments[5:] == (profile, phenix_path, phenix_sha256)
 
 
+def test_network_probe_defaults_to_phase3_without_exposing_probe_inputs(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+
+    staged = controller.stage("phase3-network-probe", "HEAD")
+
+    assert staged["profile"] == "phase3-network-probe"
+    assert staged["source_branch"] == "dev/phase3"
+    assert isinstance(controller.git, FakeGit)
+    assert controller.git.main_checks == []
+    assert controller.git.branch_checks == [(COMMIT, "dev/phase3")]
+    operation, arguments = transport.calls[-1]
+    assert operation == "stage"
+    assert arguments[5:] == ("phase3-network-probe",)
+
+
 def test_dev_phase3_stage_rejects_non_phase3_profiles(tmp_path: Path) -> None:
     controller = _controller(tmp_path, FakeTransport())
 

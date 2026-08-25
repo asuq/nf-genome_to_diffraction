@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -172,6 +172,9 @@ finalise() {
         retained_json='["artifacts/heteromer-smoke","artifacts/qualification"]'
     elif [[ "$PROFILE" == phase3-phenix-probe ]]; then
         reports_json='["artifacts/qualification/phaser-interface-probe.json"]'
+        retained_json='["artifacts/qualification"]'
+    elif [[ "$PROFILE" == phase3-network-probe ]]; then
+        reports_json='["artifacts/qualification/phase3-network-probe-summary.json","artifacts/qualification/network-probe/phase3-network-probe-child.json","artifacts/qualification/network-probe/phase3-network-probe-controller.json"]'
         retained_json='["artifacts/qualification"]'
     elif [[ "$PROFILE" == control-slice ]]; then
         reports_json='["artifacts/qualification/control-slice-summary.json","artifacts/qualification/control-slice-case-results.jsonl","artifacts/qualification/control-slice-first-copy-results.jsonl","artifacts/qualification/control-slice-copy-two-results.jsonl","artifacts/qualification/control-slice-refinement-results.jsonl","artifacts/qualification/control-slice-sequence-results.jsonl"]'
@@ -1711,6 +1714,105 @@ run_phase3_phenix_probe() {
     [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
         return 3
     printf 'phase3_phenix_probe_status=defaults_captured_no_scientific_execution\n'
+}
+
+run_phase3_network_probe() {
+    local qualification="$RUN/artifacts/qualification"
+    local output="$qualification/network-probe"
+    local execution="$RUN/execution/phase3-network-probe"
+    local nextflow_profile site_config_relative site_config_sha256
+    local worker_shell_relative worker_shell_sha256
+    local site_config worker_shell actual_site_config_sha256
+    local actual_worker_shell_sha256 outer_network_namespace
+    local nextflow java python source_commit helper_commit checksums_tmp
+    local candidate checksum relative
+
+    [[ -f "$RUN/state/hpc-environment-status" && \
+       "$(<"$RUN/state/hpc-environment-status")" == ready ]] || return 2
+    [[ -f "$RUN/state/nextflow-profile" && \
+       -f "$RUN/state/network-site-config-relative" && \
+       -f "$RUN/state/network-site-config-sha256" && \
+       -f "$RUN/state/network-shell-relative" && \
+       -f "$RUN/state/network-shell-sha256" ]] || return 2
+    nextflow_profile="$(<"$RUN/state/nextflow-profile")"
+    site_config_relative="$(<"$RUN/state/network-site-config-relative")"
+    site_config_sha256="$(<"$RUN/state/network-site-config-sha256")"
+    worker_shell_relative="$(<"$RUN/state/network-shell-relative")"
+    worker_shell_sha256="$(<"$RUN/state/network-shell-sha256")"
+    [[ "$(<"$RUN/state/site-id")" == marmic && \
+       "$nextflow_profile" == marmic && \
+       "$site_config_relative" == conf/marmic.config && \
+       "$worker_shell_relative" == bootstrap/nf-gtd-worker-offline-shell && \
+       "$site_config_sha256" =~ $CHECKSUM_RE && \
+       "$worker_shell_sha256" =~ $CHECKSUM_RE ]] || return 2
+    site_config="$RUN/source/$site_config_relative"
+    worker_shell="$RUN/source/$worker_shell_relative"
+    [[ -f "$site_config" && ! -L "$site_config" && \
+       -f "$worker_shell" && ! -L "$worker_shell" ]] || return 2
+    actual_site_config_sha256="$(sha256sum "$site_config" | awk '{print $1}')"
+    actual_worker_shell_sha256="$(sha256sum "$worker_shell" | awk '{print $1}')"
+    [[ "$actual_site_config_sha256" == "$site_config_sha256" && \
+       "$actual_worker_shell_sha256" == "$worker_shell_sha256" ]] || return 2
+
+    nextflow="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    java="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    python="$RUN/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$nextflow" && -x "$java" && -x "$python" && \
+       -x /usr/bin/unshare ]] || return 2
+    outer_network_namespace="$(readlink /proc/self/ns/net)"
+    [[ "$outer_network_namespace" =~ ^net:\[[0-9]+\]$ ]] || return 2
+    source_commit="$(<"$RUN/state/commit")"
+    helper_commit="$(git -C "$RUN/source" rev-parse HEAD:external/nf-helper)"
+    [[ "$source_commit" =~ ^[0-9a-f]{40}$ && \
+       "$helper_commit" =~ ^[0-9a-f]{40}$ ]] || return 2
+
+    mkdir -p "$qualification" "$output" "$execution" "$RUN/cache/nextflow-home"
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD="$java"
+    export NXF_HOME="$RUN/cache/nextflow-home"
+
+    PHASE=test
+    printf 'phase=phase3_network_probe profile=phase3-network-probe\n'
+    cd "$execution"
+    "$nextflow" \
+        -log "$RUN/logs/phase3-network-probe-nextflow.log" \
+        run "$RUN/source" \
+        -main-script workflows/qualification/phase3_network_probe.nf \
+        -profile "$nextflow_profile" \
+        -work-dir "$execution/work" \
+        -with-trace "$qualification/phase3-network-probe-trace.tsv" \
+        --outer_job_id "$SLURM_JOB_ID" \
+        --outer_network_namespace "$outer_network_namespace" \
+        --outdir "$output"
+
+    "$python" -m genome_to_diffraction.execution.network_probe summarise \
+        --child-report "$output/phase3-network-probe-child.json" \
+        --controller-report "$output/phase3-network-probe-controller.json" \
+        --run-id "$RUN_ID" \
+        --site-id marmic \
+        --source-commit "$source_commit" \
+        --nf-helper-commit "$helper_commit" \
+        --output "$qualification/phase3-network-probe-summary.json"
+
+    checksums_tmp="$qualification/phase3-network-probe-checksums.sha256.tmp.$$"
+    : > "$checksums_tmp"
+    for candidate in \
+        "$qualification/phase3-network-probe-summary.json" \
+        "$qualification/phase3-network-probe-trace.tsv" \
+        "$output/phase3-network-probe-child.json" \
+        "$output/phase3-network-probe-controller.json"; do
+        checksum="$(sha256sum "$candidate" | awk '{print $1}')"
+        relative="${candidate#"$RUN/"}"
+        printf '%s  %s\n' "$checksum" "$relative" >> "$checksums_tmp"
+    done
+    mv -f -- "$checksums_tmp" \
+        "$qualification/phase3-network-probe-checksums.sha256"
+
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == "$source_commit" ]] || return 3
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
+        return 3
+    printf 'phase3_network_probe_status=child_and_controller_sockets_denied\n'
 }
 
 run_heteromer_smoke() {
@@ -4226,6 +4328,7 @@ case "$PROFILE" in
     p2-control) run_p2_control ;;
     heteromer-smoke) run_heteromer_smoke ;;
     phase3-phenix-probe) run_phase3_phenix_probe ;;
+    phase3-network-probe) run_phase3_network_probe ;;
     control-slice) run_control_slice ;;
     control-matrix) run_control_matrix ;;
     m6-inputs) run_m6_inputs ;;

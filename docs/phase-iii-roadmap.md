@@ -95,8 +95,12 @@ network permission. Every child and controller-local Nextflow task enters a
 fail-closed Linux user/network namespace through the fixed site process shell;
 absence of the runtime or a numeric Slurm context fails rather than restoring
 network access. Provider objects must be staged by the reviewed dispatcher on
-the login node before submission. Real child/controller socket denial and
-bounded provider staging remain separate per-site qualification gates; only the
+the login node before submission. A fixed Marmic `phase3-network-probe` now
+binds the tracked site/shell checksums and schedules one ordinary Slurm child
+plus one controller-local task; both must prove distinct worker namespaces and
+explicit TEST-NET-1 socket denial. Its focused local contracts and dispatcher
+stage/submit integration pass, but exact-source CI and the real Marmic result
+remain. Bounded provider staging is a separate qualification gate; only the
 selected scientific execution site gates the next run.
 
 Transient infrastructure recovery now uses one explicit boundary instead of a

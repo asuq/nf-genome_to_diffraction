@@ -28,6 +28,9 @@ HETEROMER_RUN_ID = "gtd-heteromer-smoke-20260802T120000Z-0123456789ab-01234567"
 PHASE3_PHENIX_PROBE_RUN_ID = (
     "gtd-phase3-phenix-probe-20260802T120000Z-0123456789ab-01234567"
 )
+PHASE3_NETWORK_PROBE_RUN_ID = (
+    "gtd-phase3-network-probe-20260802T120000Z-0123456789ab-01234567"
+)
 CONTROL_MATRIX_RUN_ID = "gtd-control-matrix-20260802T120000Z-0123456789ab-01234567"
 M6_INPUTS_RUN_ID = "gtd-m6-inputs-20260802T120000Z-0123456789ab-01234567"
 M6_NEXTFLOW_SMOKE_RUN_ID = (
@@ -149,6 +152,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         "nf-gtd-hpc-remote",
         "nf-gtd-hpc-smoke-job",
         "nf-gtd-hpc-recover-tools",
+        "nf-gtd-worker-offline-shell",
     ):
         shutil.copy2(REPOSITORY / "bootstrap" / name, bootstrap / name)
         (bootstrap / name).chmod(0o755)
@@ -164,6 +168,15 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     shutil.copy2(
         REPOSITORY / "screen_first_copy_controls.nf",
         source / "screen_first_copy_controls.nf",
+    )
+    conf = source / "conf"
+    conf.mkdir()
+    shutil.copy2(REPOSITORY / "conf/marmic.config", conf / "marmic.config")
+    qualification_workflows = source / "workflows" / "qualification"
+    qualification_workflows.mkdir(parents=True)
+    shutil.copy2(
+        REPOSITORY / "workflows/qualification/phase3_network_probe.nf",
+        qualification_workflows / "phase3_network_probe.nf",
     )
     m6_benchmarks = source / "benchmarks" / "m6"
     m6_benchmarks.mkdir(parents=True)
@@ -197,6 +210,8 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         "prepare_pdb_models.nf",
         "screen_diverse_first_copy.nf",
         "screen_first_copy_controls.nf",
+        "conf",
+        "workflows",
         "benchmarks",
     )
     _git(
@@ -4727,6 +4742,66 @@ def test_phase3_phenix_probe_is_fixed_and_collectable(tmp_path: Path) -> None:
     assert "artifacts/qualification/phaser-interface-probe.json" in names
     assert "artifacts/qualification/phenix-phaser-show-defaults.txt" in names
     assert "artifacts/qualification/phase3-phenix-probe-checksums.sha256" in names
+
+
+def test_phase3_network_probe_stages_only_the_tracked_marmic_policy(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                PHASE3_NETWORK_PROBE_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "phase3-network-probe",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert staged["profile"] == "phase3-network-probe"
+    run = remote_root / "runs" / PHASE3_NETWORK_PROBE_RUN_ID
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    contract = manifest["phase3_network_site_contract"]
+    assert contract["nextflow_profile"] == "marmic"
+    assert contract["site_config"] == "conf/marmic.config"
+    assert contract["worker_shell"] == "bootstrap/nf-gtd-worker-offline-shell"
+    assert (
+        contract["site_config_sha256"]
+        == hashlib.sha256((run / "source/conf/marmic.config").read_bytes()).hexdigest()
+    )
+    assert (
+        contract["worker_shell_sha256"]
+        == hashlib.sha256(
+            (run / "source/bootstrap/nf-gtd-worker-offline-shell").read_bytes()
+        ).hexdigest()
+    )
+
+    submitted = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "submit",
+                PHASE3_NETWORK_PROBE_RUN_ID,
+                OWNER_ID,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert submitted["profile"] == "phase3-network-probe"
+    arguments = (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    assert "--cpus-per-task=2" in arguments
+    assert "--mem=8G" in arguments
+    assert "--time=00:45:00" in arguments
 
 
 def test_heteromer_multicopy_partner_preserves_parent_model_uncertainty() -> None:

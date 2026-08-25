@@ -67,9 +67,12 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   provider staging separately from compute-worker socket denial. Completed
   locally: every Marmic and Viper in-job Nextflow task uses the fixed
   fail-closed user/network-namespace shell; controller-local labels are not a
-  network exception. Exact-source CI, bounded pre-submit login staging, and
-  qualification on the selected execution site remain; the other site must
-  qualify before it is used scientifically.
+  network exception. The fixed argument-free Marmic qualification profile now
+  schedules one independent Slurm child and one controller-local task, binds
+  both policy checksums, and accepts only distinct namespaces plus explicit
+  TEST-NET-1 socket denial. Exact-source CI, one real Marmic result, and bounded
+  pre-submit login staging remain; the other site must qualify before it is
+  used scientifically.
 - Require a distinct owned single-component parent and both final human
   checkpoints for every eligible Phase III continuation.
 - Consume the approved schema-v2 A review, exact decisions, and execution

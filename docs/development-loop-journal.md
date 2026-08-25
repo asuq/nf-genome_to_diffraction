@@ -13379,3 +13379,24 @@ with a collapsed combined parent or a guessed command.
   mandatory before pass 1. Marmic is the current target, and Viper must qualify
   only before use there. No installed remote tool, scheduler run, provider
   data, control, or unknown crystal was changed.
+
+## 2026-08-25 - Fixed Marmic probe covers both in-job execution classes
+
+- Exact-source CI `32906315134` completed successfully on
+  `59b5abc5192bef3e72791f329d8595890ea56940`, qualifying the fail-closed
+  process-shell boundary under Pixi 0.76.2 before the separate live-site probe.
+- A fixed `phase3-network-probe` profile now binds the tracked Marmic
+  configuration and worker-shell checksums. It exposes no address, command,
+  shell, or path input and performs no scientific execution.
+- The profile schedules one ordinary Slurm child and one controller-local task.
+  Both must retain their expected Slurm relationship to the outer allocation,
+  enter namespaces distinct from the outer controller and each other, and
+  receive an explicit denied-socket result against the fixed TEST-NET-1
+  address. Any successful or ambiguous socket result fails the run.
+- Four probe regressions, 153 neighbouring HPC unit cases, one real dispatcher
+  stage/submit integration, Ruff, ty, documentation, Nextflow syntax, wrapper
+  syntax, and diff validation pass locally. Exact-source CI for this profile,
+  one collected Marmic result, and complete bounded login-side provider staging
+  remain mandatory before unknown pass 1.
+- No installed dispatcher, active scheduler run, provider data, control,
+  scientific threshold, M6 input, or unknown crystal was changed.

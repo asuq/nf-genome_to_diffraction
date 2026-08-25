@@ -54,13 +54,23 @@ The focused repository regression checks the exact namespace command, rejects
 an invocation outside numeric Slurm context before its payload, verifies both
 site defaults, forbids an in-job ordinary-shell exception, and permits only the
 three reviewed network-labelled modules. The complete Nextflow syntax and HPC
-wrapper syntax checks pass locally. Before unknown pass 1, the selected
-execution site must have one reviewed probe showing that an external socket
-fails in both a child worker and controller-local task while bounded provider
-staging succeeds before submission on the login node. Marmic is the current
-target; Viper must be qualified only before running this scientific path there.
-Until the Marmic record exists, `FCB-P1-15` is fixed locally but not qualified
-for unknown pass 1.
+wrapper syntax checks pass locally.
+
+The fixed `phase3-network-probe` profile exposes no address, command, shell, or
+path argument. Its exact source binds the Marmic site configuration and worker
+shell checksums, then schedules one ordinary Slurm child and one controller-
+local task. Each attempts only `192.0.2.1:443`, an IANA documentation address,
+and must independently retain its Slurm role, enter a network namespace that
+differs from the outer controller, and receive an `ENETDOWN`, `ENETUNREACH`, or
+`EHOSTUNREACH` result. The collector rejects same-job child execution, changed
+outer ownership, shared worker namespaces, or any successful/ambiguous socket
+result. This is execution-policy qualification, not scientific execution.
+
+Before unknown pass 1, the Marmic probe must pass from the exact pushed commit
+and bounded provider staging must separately succeed before Slurm submission on
+the login node. Viper must receive its own site-specific qualification only
+before this scientific path is used there. Until both selected-site records
+exist, `FCB-P1-15` is locally implemented but not qualified for unknown pass 1.
 
 ## References
 
@@ -68,3 +78,5 @@ for unknown pass 1.
   for the fixed interpreter command configured per process selector.
 - [util-linux `unshare(1)` manual](https://man7.org/linux/man-pages/man1/unshare.1.html)
   for user and network namespace creation semantics.
+- [RFC 5737](https://www.rfc-editor.org/rfc/rfc5737.html) for the TEST-NET-1
+  documentation-only IPv4 block containing the fixed probe address.
