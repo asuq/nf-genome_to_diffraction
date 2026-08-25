@@ -17,15 +17,15 @@ tool execution. Real Phenix qualification remains mandatory on Viper.
 
 The optional Phase III path verifies the dataset-qualified selection against
 its exact preflight and requires a content-address-valid Free-R identity bound
-to that selection. Before Phenix starts, its parent MTZ must retain the exact
-selected observation dataset/labels and the source HKL-to-Free-R mapping; the
-content-addressed comparison is retained beside the command. A successful
-refined MTZ must independently preserve the same mapping. The command also
-records the exact Free-R label and explicit or unresolved test-value convention.
-No observation-value equivalence, Free-R convention, flag, or unqualified
-Phenix parameter is inferred.
+to that selection. Before Phenix starts, its checksum-bound source MTZ and
+derived parent must retain the exact selected observation dataset/labels,
+HKL-to-observation values, and HKL-to-Free-R mapping; the comparisons are
+retained beside the command. A successful refined MTZ must independently
+preserve the same Free-R mapping. No symmetry/reindexing equivalence, Free-R
+convention, flag, or unqualified Phenix parameter is inferred.
 """
 
+import hashlib
 import logging
 import math
 import re
@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import gemmi
+import numpy as np
 from pydantic import BaseModel, ValidationError
 from tqdm import tqdm
 
@@ -77,7 +78,7 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
 _PROTOCOL_VERSION = "phenix-t12-brief-v5"
-_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v8-phase3-parent-mtz-preservation"
+_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v9-phase3-source-observations"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -123,6 +124,7 @@ class T12RunRequest:
     phenix_manifest: Path
     output_directory: Path
     crystal_id: str | None = None
+    source_mtz: Path | None = None
     diffraction_selection_json: Path | None = None
     preflight_jsonl: Path | None = None
     free_r_identity_json: Path | None = None
@@ -195,6 +197,7 @@ def _resolve_phase3_diffraction(
 ) -> tuple[DiffractionSelection, FreeRIdentity] | None:
     supplied = (
         request.crystal_id is not None,
+        request.source_mtz is not None,
         request.diffraction_selection_json is not None,
         request.preflight_jsonl is not None,
         request.free_r_identity_json is not None,
@@ -203,8 +206,8 @@ def _resolve_phase3_diffraction(
         return None
     if not all(supplied):
         raise T12InputError(
-            "Phase III refinement requires crystal ID, diffraction selection, "
-            "preflight, and Free-R identity"
+            "Phase III refinement requires crystal ID, source MTZ, diffraction "
+            "selection, preflight, and Free-R identity"
         )
     assert request.crystal_id is not None
     assert request.diffraction_selection_json is not None
@@ -253,32 +256,70 @@ def _resolve_phase3_diffraction(
 
 def _verify_phase3_parent_mtz(
     *,
+    source_mtz: Path,
     parent_mtz: Path,
     selection: DiffractionSelection,
     free_r_identity: FreeRIdentity,
-) -> FreeRMembershipComparison:
+) -> tuple[FreeRMembershipComparison, str]:
     try:
+        source = gemmi.read_mtz_file(str(source_mtz))
         parent = gemmi.read_mtz_file(str(parent_mtz))
     except (OSError, RuntimeError, ValueError) as error:
-        raise T12InputError("Phase III parent MTZ cannot be inspected") from error
-    for label in selection.observation_labels:
-        matches = tuple(
-            column
-            for column in parent.columns
-            if column.label == label
-            and column.dataset_id == selection.observation_dataset_id
-        )
-        if len(matches) != 1:
-            raise T12InputError(
-                "parent MTZ lacks the selected observation dataset and unique labels"
-            )
+        raise T12InputError(
+            "Phase III source or parent MTZ cannot be inspected"
+        ) from error
     try:
-        return compare_free_r_membership(
+        free_r_comparison = compare_free_r_membership(
             source=free_r_identity,
             derived_mtz_path=parent_mtz,
         )
     except FreeRIdentityError as error:
         raise T12InputError(f"parent MTZ {error}") from error
+
+    source_hkl = np.asarray(source.make_miller_array(), dtype=np.int32)
+    parent_hkl = np.asarray(parent.make_miller_array(), dtype=np.int32)
+    source_order = np.lexsort((source_hkl[:, 2], source_hkl[:, 1], source_hkl[:, 0]))
+    parent_order = np.lexsort((parent_hkl[:, 2], parent_hkl[:, 1], parent_hkl[:, 0]))
+    sorted_source_hkl = source_hkl[source_order]
+    if not np.array_equal(sorted_source_hkl, parent_hkl[parent_order]):
+        raise T12InputError(
+            "parent MTZ changed the selected observation HKL membership"
+        )
+    observation_digest = hashlib.sha256()
+    observation_digest.update(sorted_source_hkl.astype("<i4", copy=False).tobytes())
+    for label in selection.observation_labels:
+        source_matches = tuple(
+            column
+            for column in source.columns
+            if column.label == label
+            and column.dataset_id == selection.observation_dataset_id
+        )
+        parent_matches = tuple(
+            column
+            for column in parent.columns
+            if column.label == label
+            and column.dataset_id == selection.observation_dataset_id
+        )
+        if len(source_matches) != 1 or len(parent_matches) != 1:
+            raise T12InputError(
+                "parent MTZ lacks the selected observation dataset and unique labels"
+            )
+        source_values = np.asarray(source_matches[0].array, dtype=np.float32)[
+            source_order
+        ]
+        parent_values = np.asarray(parent_matches[0].array, dtype=np.float32)[
+            parent_order
+        ]
+        if not np.array_equal(source_values, parent_values, equal_nan=True):
+            raise T12InputError(
+                f"parent MTZ changed the selected observation values for {label}"
+            )
+        canonical_values = source_values.copy()
+        canonical_values[np.isnan(canonical_values)] = np.float32(np.nan)
+        observation_digest.update(label.encode("ascii"))
+        observation_digest.update(b"\0")
+        observation_digest.update(canonical_values.astype("<f4", copy=False).tobytes())
+    return free_r_comparison, observation_digest.hexdigest()
 
 
 def _write_catalogue_fasta(
@@ -699,12 +740,23 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         progress=request.progress,
     )
     parent_mtz_comparison: FreeRMembershipComparison | None = None
+    parent_observation_membership_sha256: str | None = None
     if diffraction_selection is not None:
         assert free_r_identity is not None
-        parent_mtz_comparison = _verify_phase3_parent_mtz(
-            parent_mtz=parent_mtz,
-            selection=diffraction_selection,
-            free_r_identity=free_r_identity,
+        assert request.source_mtz is not None
+        source_mtz = _verified_file(
+            request.source_mtz,
+            diffraction_selection.mtz_sha256,
+            label="source MTZ",
+            progress=request.progress,
+        )
+        parent_mtz_comparison, parent_observation_membership_sha256 = (
+            _verify_phase3_parent_mtz(
+                source_mtz=source_mtz,
+                parent_mtz=parent_mtz,
+                selection=diffraction_selection,
+                free_r_identity=free_r_identity,
+            )
         )
     groups = _read_jsonl(
         request.sequence_groups_jsonl, SequenceGroupRecord, label="sequence group"
@@ -750,6 +802,10 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         )
         assert free_r_identity is not None
         refinement_identity["free_r_identity_id"] = free_r_identity.free_r_identity_id
+        refinement_identity["source_mtz_sha256"] = diffraction_selection.mtz_sha256
+        refinement_identity["parent_observation_membership_sha256"] = (
+            parent_observation_membership_sha256
+        )
     refinement_id = content_id("refine_", refinement_identity)
     refined_model, refined_mtz, map_path, difference_map_path = (
         _refinement_output_paths(outdir)
@@ -796,6 +852,11 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     if diffraction_selection is not None:
         assert free_r_identity is not None
         assert parent_mtz_comparison is not None
+        assert parent_observation_membership_sha256 is not None
+        command_inputs["source_mtz_sha256"] = diffraction_selection.mtz_sha256
+        command_inputs["parent_observation_membership_sha256"] = (
+            parent_observation_membership_sha256
+        )
         diffraction_binding = build_diffraction_command_binding(
             consumer=DiffractionCommandConsumer.BRIEF_REFINEMENT,
             command_owner_id=refinement_id,

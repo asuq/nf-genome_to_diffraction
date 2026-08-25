@@ -250,6 +250,8 @@ def _write_phase3_mtz(
     include_free_r: bool = True,
     include_map_coefficients: bool = False,
     observation_labels: tuple[str, str] = ("I", "SIGI"),
+    observation_offset: float = 0.0,
+    sigma_offset: float = 0.0,
 ) -> None:
     if len(hkl) != len(free_r_flags):
         raise ValueError("test HKL and Free-R arrays must have equal length")
@@ -269,12 +271,13 @@ def _write_phase3_mtz(
         mtz.add_column("PHFOFCWT", "P", observations.id)
     rows: list[tuple[float, ...]] = []
     for row_index, indices in enumerate(hkl):
+        observation_index = _HKL.index(indices) if indices in _HKL else row_index
         values: list[float] = [
             float(indices[0]),
             float(indices[1]),
             float(indices[2]),
-            float(100 + row_index),
-            float(10 + row_index),
+            float(100 + observation_index) + observation_offset,
+            float(10 + observation_index) + sigma_offset,
         ]
         if include_free_r:
             values.append(float(free_r_flags[row_index]))
@@ -294,6 +297,8 @@ def _phase3_request(
     tmp_path.mkdir(parents=True, exist_ok=True)
     parent_coordinate = tmp_path / "parent.pdb"
     parent_coordinate.write_text("MODEL\nEND\n", encoding="ascii")
+    source_mtz = tmp_path / "raw.mtz"
+    _write_phase3_mtz(source_mtz)
     parent_mtz = tmp_path / "parent.mtz"
     _write_phase3_mtz(parent_mtz)
     base_preflight = MtzPreflightRecord.model_validate_json(
@@ -307,7 +312,7 @@ def _phase3_request(
     payload = base_preflight.model_dump(mode="python")
     payload.update(
         {
-            "mtz_sha256": sha256_file(parent_mtz, progress=False),
+            "mtz_sha256": sha256_file(source_mtz, progress=False),
             "selected_observation_dataset_id": 1,
             "observation_candidate_identities": (candidate,),
         }
@@ -331,7 +336,7 @@ def _phase3_request(
     selection_path.write_text(canonical_json_text(selection), encoding="utf-8")
     free_r_identity = build_free_r_identity(
         selection=selection,
-        mtz_path=parent_mtz,
+        mtz_path=source_mtz,
         free_r_dataset_id=1,
         free_r_label="FreeR_flag",
         test_flag_value=test_flag_value,
@@ -361,6 +366,7 @@ def _phase3_request(
         phenix_manifest=STUBS / "phenix_install_manifest.json",
         output_directory=tmp_path / "refinement",
         crystal_id=preflight.crystal_id,
+        source_mtz=source_mtz,
         diffraction_selection_json=selection_path,
         preflight_jsonl=preflight_path,
         free_r_identity_json=free_r_identity_path,
@@ -430,6 +436,7 @@ def test_version_1_refinement_path_does_not_require_free_r_identity(
     request = replace(
         _phase3_request(tmp_path),
         crystal_id=None,
+        source_mtz=None,
         diffraction_selection_json=None,
         preflight_jsonl=None,
         free_r_identity_json=None,
@@ -453,6 +460,13 @@ def test_phase3_refinement_requires_free_r_identity(tmp_path: Path) -> None:
     )
 
     with pytest.raises(T12InputError, match="Free-R identity"):
+        run_t12_candidate(request)
+
+
+def test_phase3_refinement_requires_exact_raw_source_mtz(tmp_path: Path) -> None:
+    request = replace(_phase3_request(tmp_path), source_mtz=None)
+
+    with pytest.raises(T12InputError, match="source MTZ"):
         run_t12_candidate(request)
 
 
@@ -541,6 +555,11 @@ def test_phase3_refinement_promotes_permuted_synthetic_mtz_after_free_r_comparis
     assert record["parent_free_r_membership_comparison"]["derived_mtz_sha256"] == (
         request.parent_mtz_sha256
     )
+    assert (
+        record["inputs"]["source_mtz_sha256"]
+        == (record["diffraction_selection"]["mtz_sha256"])
+    )
+    assert len(record["inputs"]["parent_observation_membership_sha256"]) == 64
     assert binding["free_r_label"] == "FreeR_flag"
     assert binding["free_r_convention_status"] == ("unresolved_raw_flag_values_only")
     assert binding["free_r_test_flag_value"] is None
@@ -584,6 +603,74 @@ def test_phase3_refinement_accepts_proven_derived_parent_before_execution(
     assert output.refinement.execution_status is ExecutionStatus.COMPLETED_SUCCESS
     assert parent_proof["source_mtz_sha256"] != parent_proof["derived_mtz_sha256"]
     assert parent_proof["derived_mtz_sha256"] == request.parent_mtz_sha256
+
+
+@pytest.mark.parametrize(
+    ("observation_offset", "sigma_offset", "label"),
+    ((1.0, 0.0, "I"), (0.0, 1.0, "SIGI")),
+)
+def test_phase3_refinement_rejects_changed_observations_before_phenix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    observation_offset: float,
+    sigma_offset: float,
+    label: str,
+) -> None:
+    original = _phase3_request(tmp_path)
+    _write_phase3_mtz(
+        original.parent_mtz,
+        observation_offset=observation_offset,
+        sigma_offset=sigma_offset,
+    )
+    request = replace(
+        original,
+        parent_mtz_sha256=sha256_file(original.parent_mtz, progress=False),
+    )
+    commands = _install_phase3_runtime(monkeypatch)
+
+    with pytest.raises(T12InputError, match=f"parent MTZ.*observation values.*{label}"):
+        run_t12_candidate(request)
+
+    assert commands == []
+
+
+def test_phase3_refinement_accepts_permuted_parent_observations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = _phase3_request(tmp_path)
+    order = (5, 2, 0, 4, 1, 3)
+    _write_phase3_mtz(
+        original.parent_mtz,
+        hkl=tuple(_HKL[index] for index in order),
+        free_r_flags=tuple(_FREE_R_FLAGS[index] for index in order),
+        include_map_coefficients=True,
+    )
+    request = replace(
+        original,
+        parent_mtz_sha256=sha256_file(original.parent_mtz, progress=False),
+    )
+    commands = _install_phase3_runtime(monkeypatch)
+
+    output = run_t12_candidate(request)
+
+    assert output.refinement.execution_status is ExecutionStatus.COMPLETED_SUCCESS
+    assert len(commands) == 2
+
+
+def test_phase3_refinement_rejects_changed_raw_source_before_phenix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _phase3_request(tmp_path)
+    assert request.source_mtz is not None
+    _write_phase3_mtz(request.source_mtz, observation_offset=1.0)
+    commands = _install_phase3_runtime(monkeypatch)
+
+    with pytest.raises(T12InputError, match="source MTZ checksum mismatch"):
+        run_t12_candidate(request)
+
+    assert commands == []
 
 
 @pytest.mark.parametrize(

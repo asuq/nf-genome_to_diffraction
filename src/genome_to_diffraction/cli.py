@@ -1506,6 +1506,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="optional schema-v2 dataset-qualified diffraction selection",
     )
     brief_parser.add_argument(
+        "--source-mtz",
+        type=Path,
+        help="required with --diffraction-selection to verify exact raw observations",
+    )
+    brief_parser.add_argument(
         "--preflight",
         type=Path,
         help="required with --diffraction-selection for exact preflight verification",
@@ -3237,6 +3242,7 @@ def _run_refinement(args: argparse.Namespace) -> int:
             phenix_manifest=args.phenix_manifest,
             output_directory=args.outdir,
             crystal_id=args.crystal_id,
+            source_mtz=args.source_mtz,
             diffraction_selection_json=args.diffraction_selection,
             preflight_jsonl=args.preflight,
             free_r_identity_json=args.free_r_identity,

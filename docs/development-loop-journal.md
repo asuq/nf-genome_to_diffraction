@@ -12127,3 +12127,21 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact two grouped-component controls before starting a multi-fixed Phaser
   command, `9ECN`, M6, localisation, or unknown analysis.
+
+## 2026-08-25 - Raw diffraction values remain bound through refinement
+
+- A focused mutation proved the previous parent gate still accepted changed
+  intensity/sigma values when selected labels and the complete Free-R mapping
+  were preserved. Those altered observations reached the Phenix boundary.
+- Opt-in Phase III refinement now requires the checksum-bound original MTZ,
+  validates each selected observation array against its exact HKL identity,
+  and records a canonical observation-membership digest in command/cache
+  identity. Missing source, changed source bytes, altered intensity, and
+  altered sigma fail before tool execution; permuted HKL rows and genuine
+  derived MTZs remain valid. Historical v1 requests are unchanged.
+- Focused refinement, completion, diffraction, Free-R, and CLI regressions
+  pass. No symmetry/reindexing equivalence or real Phenix qualification is
+  inferred from this local evidence.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
