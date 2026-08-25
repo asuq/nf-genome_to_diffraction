@@ -12983,3 +12983,17 @@ with a collapsed combined parent or a guessed command.
   the existing bounded queue-timeout case, and all 77 owned-run client tests
   pass. No remote tool was redeployed and Slurm `634369` remains the only
   submitted known-control job.
+
+## 2026-08-25 - Review assets cannot escape their owned checkpoint
+
+- `FCB-P1-14` first reproduced two parent-traversal paths and one
+  intermediate-directory symlink that allowed an externally controlled file
+  and its valid checksum to be accepted as reviewed checkpoint evidence.
+- The existing checkpoint/report verifier now reuses the authoritative Phase
+  III schema-v2 portable relative-path contract instead of adding another
+  parser. It refuses every symlink component and independently resolves each
+  asset beneath the exact owned checkpoint root before reading its bytes.
+- All three external-evidence cases fail before report publication; the
+  genuine existing legacy checkpoint remains readable. Twenty-six focused
+  crystal-report, resource-summary, and Phase III review-package cases pass.
+  The current known-control HPC job and its deployed tools remain untouched.

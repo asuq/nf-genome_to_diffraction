@@ -4,8 +4,11 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.review.crystal_report import (
+    CrystalReportError,
     CrystalReportRequest,
     build_crystal_report,
 )
@@ -122,3 +125,43 @@ def test_report_links_to_every_verified_local_asset(tmp_path: Path) -> None:
     assert manifest["outputs"][output.report_html.name] == sha256_file(
         output.report_html
     )
+
+
+@pytest.mark.parametrize("relative", ["../outside.tsv", "assets/../../outside.tsv"])
+def test_report_rejects_checkpoint_parent_traversal(
+    tmp_path: Path, relative: str
+) -> None:
+    status, checkpoint = _write_checkpoint(tmp_path / "checkpoint")
+    outside = tmp_path / "outside.tsv"
+    outside.write_text("unowned scientific evidence\n", encoding="utf-8")
+    manifest_path = checkpoint / "sequence_checkpoint_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outputs"][relative] = sha256_file(outside)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(CrystalReportError, match="checkpoint path"):
+        build_crystal_report(
+            CrystalReportRequest(status_json=status, checkpoint_directory=checkpoint)
+        )
+
+    assert not (checkpoint / "crystal_report.html").exists()
+
+
+def test_report_rejects_intermediate_checkpoint_symlink(tmp_path: Path) -> None:
+    status, checkpoint = _write_checkpoint(tmp_path / "checkpoint")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    stolen = outside / "stolen.tsv"
+    stolen.write_text("unowned scientific evidence\n", encoding="utf-8")
+    (checkpoint / "assets" / "redirect").symlink_to(outside, target_is_directory=True)
+    manifest_path = checkpoint / "sequence_checkpoint_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outputs"]["assets/redirect/stolen.tsv"] = sha256_file(stolen)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(CrystalReportError, match="symlink"):
+        build_crystal_report(
+            CrystalReportRequest(status_json=status, checkpoint_directory=checkpoint)
+        )
+
+    assert not (checkpoint / "crystal_report.html").exists()

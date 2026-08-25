@@ -3,7 +3,7 @@
 import csv
 import html
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -14,6 +14,7 @@ from genome_to_diffraction.checksums import (
 )
 from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.schemas.results import ScientificStatusRecord
+from genome_to_diffraction.schemas.v2.review import validate_phase3_review_relative_path
 from genome_to_diffraction.status import InputContractError
 
 _REPORT_ASSETS = (
@@ -94,15 +95,32 @@ def _load_checkpoint(root: Path) -> tuple[_CheckpointManifest, Path]:
 
 
 def _verify_checkpoint(root: Path, manifest: _CheckpointManifest) -> None:
+    resolved_root = root.resolve(strict=True)
     for relative, expected in {**manifest.outputs, **manifest.identity.assets}.items():
-        path = root / relative
         try:
-            path.relative_to(root)
+            validate_phase3_review_relative_path(relative)
         except ValueError as exc:
             raise CrystalReportError(
-                f"checkpoint path escapes package: {relative}"
+                f"checkpoint path is unsafe or escapes package: {relative}"
             ) from exc
-        if path.is_symlink() or not path.is_file() or sha256_file(path) != expected:
+        path = resolved_root
+        for part in PurePosixPath(relative).parts:
+            path = path / part
+            if path.is_symlink():
+                raise CrystalReportError(
+                    f"checkpoint asset contains a symlink: {relative}"
+                )
+        try:
+            resolved = path.resolve(strict=True)
+        except OSError as exc:
+            raise CrystalReportError(
+                f"checkpoint asset failed verification: {relative}"
+            ) from exc
+        if (
+            not resolved.is_relative_to(resolved_root)
+            or not resolved.is_file()
+            or sha256_file(resolved) != expected
+        ):
             raise CrystalReportError(
                 f"checkpoint asset failed verification: {relative}"
             )
