@@ -178,6 +178,31 @@ def _load_hypotheses(path: Path) -> dict[str, MrHypothesis]:
     return hypotheses
 
 
+def _review_item_inventory(manifest: dict[str, object]) -> dict[str, dict[str, object]]:
+    raw_items = manifest.get("items")
+    if not isinstance(raw_items, list):
+        raise ValueError("MR review item inventory is absent")
+    items: dict[str, dict[str, object]] = {}
+    for index, raw_item in enumerate(raw_items):
+        if not isinstance(raw_item, dict):
+            raise ValueError(
+                f"MR review item inventory contains a non-object at row {index}"
+            )
+        item = cast(dict[str, object], raw_item)
+        solution_id = item.get("solution_id")
+        if not isinstance(solution_id, str) or not solution_id:
+            raise ValueError(
+                f"MR review item inventory has an invalid solution ID at row {index}"
+            )
+        if solution_id in items:
+            raise ValueError(
+                "MR review solution inventory contains a duplicate solution ID: "
+                f"{solution_id}"
+            )
+        items[solution_id] = item
+    return items
+
+
 def _seed_table(rows: list[tuple[str, str, str, int, str]]) -> str:
     buffer = io.StringIO(newline="")
     writer = csv.writer(buffer, delimiter="\t", lineterminator="\n")
@@ -270,14 +295,7 @@ def _load_phase3_seed_approval(
     ):
         raise ValueError("Phase III A-seed package does not bind the exact MR review")
     legacy = _load_object(review_manifest, "MR review manifest")
-    raw_items = legacy.get("items")
-    if not isinstance(raw_items, list):
-        raise ValueError("MR review manifest has no item inventory")
-    items = {
-        str(item["solution_id"]): cast(dict[str, object], item)
-        for item in raw_items
-        if isinstance(item, dict) and isinstance(item.get("solution_id"), str)
-    }
+    items = _review_item_inventory(legacy)
     permitted = {target.item_id for target in package.permitted_targets}
     if permitted != set(items):
         raise ValueError("Phase III A-seed package omits or adds MR review targets")
@@ -527,14 +545,7 @@ def prepare_live_add_copy_stage(
             validation["phase3_approval_provenance"] = phase3_provenance
             atomic_write_json(validation_json, validation)
     manifest = _load_object(review_manifest, "MR review manifest")
-    raw_items = manifest.get("items")
-    if not isinstance(raw_items, list):
-        raise ValueError("MR review manifest has no item inventory")
-    items = {
-        str(item["solution_id"]): cast(dict[str, object], item)
-        for item in raw_items
-        if isinstance(item, dict) and isinstance(item.get("solution_id"), str)
-    }
+    items = _review_item_inventory(manifest)
 
     models = output / "models"
     models.mkdir()

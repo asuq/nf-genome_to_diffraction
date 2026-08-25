@@ -988,6 +988,45 @@ def test_phase3_a_decisions_feed_only_approved_existing_copy_workflow(
         assert (output.stage_manifest.parent / name).is_file()
 
 
+@pytest.mark.parametrize("mutation", ("non-object", "missing-id", "duplicate"))
+def test_phase3_a_stage_rejects_nonconserving_review_inventory(
+    tmp_path: Path, mutation: str
+) -> None:
+    request = _request(tmp_path)
+    legacy = build_mr_seed_review(request)
+    document = json.loads(legacy.manifest_json.read_text(encoding="utf-8"))
+    solution_id = document["items"][0]["solution_id"]
+    if mutation == "non-object":
+        document["items"].append(None)
+    elif mutation == "missing-id":
+        document["items"].append({"hypothesis_id": HYPOTHESIS_ID})
+    else:
+        document["items"].append(dict(document["items"][0]))
+    legacy.manifest_json.write_text(json.dumps(document), encoding="utf-8")
+    stage, phase3_manifest = _phase3_a_seed_stage(
+        tmp_path,
+        review_manifest=legacy.manifest_json,
+        solution_id=solution_id,
+        decision=PhaseIIIReviewDecisionValue.DEFER,
+    )
+    destination = tmp_path / "nonconserving-a-stage"
+
+    with pytest.raises(ValueError, match=r"review (?:item |solution )?inventory"):
+        prepare_live_add_copy_stage(
+            LiveAddCopyStageRequest(
+                review_package=legacy.manifest_json.parent,
+                decisions=stage / "phase3_review_decision.json",
+                hypotheses_jsonl=request.hypotheses_jsonl,
+                output_directory=destination,
+                progress=False,
+                phase3_review_stage=stage,
+                phase3_review_package_manifest=phase3_manifest,
+            )
+        )
+
+    assert not destination.exists()
+
+
 @pytest.mark.parametrize("mutation", ("none", "parent", "identity", "registry"))
 def test_phase3_a_seed_stage_authenticates_completed_owned_screen(
     tmp_path: Path,

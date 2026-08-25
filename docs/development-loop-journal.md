@@ -12997,3 +12997,18 @@ with a collapsed combined parent or a guessed command.
   genuine existing legacy checkpoint remains readable. Twenty-six focused
   crystal-report, resource-summary, and Phase III review-package cases pass.
   The current known-control HPC job and its deployed tools remain untouched.
+
+## 2026-08-25 - Reviewed A inventories conserve every original row
+
+- `FCB-P1-08` reproduced three silently accepted review inventories: an
+  appended non-object, an item without a solution ID, and a duplicated
+  reviewed solution. A deferred human decision previously allowed all three
+  malformed inputs to publish a nominally valid approved-A staging directory.
+- One shared inventory reader now validates each row and rejects missing,
+  malformed, or duplicate IDs before the A-stage output exists. Both active
+  indexing sites use that reader; approved, rejected, and deferred authentic
+  human decisions retain their current separate outcomes.
+- Three adversarial red/green cases, 15 focused owned A-review/decision cases,
+  and 36 additional staging/raw-loader parity cases pass. Deleting the
+  remaining compatibility bridge is still separately required by
+  `FCB-P1-04`; the existing known-control HPC run remains untouched.
