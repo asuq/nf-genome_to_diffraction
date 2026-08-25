@@ -9,6 +9,10 @@ include {
 
 params {
     reviewed_manifest: Path
+    owned_run_registry: Path
+    execution_identity: Path
+    owned_parent_run_id: String
+    owned_sequence_parent_run_id: String
     outdir: Path = file('results')
     cache_root: Path = file('.cache')
 }
@@ -33,5 +37,11 @@ workflow {
             )
         }
     }
-    PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW(reviewed, null, null, null, null)
+    PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW(
+        reviewed,
+        params.owned_run_registry,
+        params.execution_identity,
+        params.owned_parent_run_id,
+        params.owned_sequence_parent_run_id
+    )
 }

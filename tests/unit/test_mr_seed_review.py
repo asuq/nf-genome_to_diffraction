@@ -1331,50 +1331,37 @@ def test_phase3_a_decision_controls_the_actual_same_component_process(
 def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
     tmp_path: Path,
 ) -> None:
+    fixture_root = tmp_path / "public-fixture"
+    fixture_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(fixture_root)
+    parent_run = "gtd-unknown-screen-owned-fanout"
+    single_component_run = "gtd-unknown-single-component-owned-fanout"
     records: list[dict[str, str]] = []
+    sources: list[OwnedPhaseIIIReviewPackageSource] = []
     approved_ids: dict[str, str] = {}
     selection_paths: dict[str, Path] = {}
     decisions = (
-        ("test_crystal_a", "a", PhaseIIIReviewDecisionValue.APPROVE, 3),
-        ("test_crystal_b", "b", PhaseIIIReviewDecisionValue.APPROVE, 1),
-        ("test_crystal_c", "c", PhaseIIIReviewDecisionValue.DEFER, 3),
+        (PUBLIC_STUB_CRYSTAL_IDS[0], PhaseIIIReviewDecisionValue.APPROVE, 3),
+        (PUBLIC_STUB_CRYSTAL_IDS[1], PhaseIIIReviewDecisionValue.APPROVE, 1),
+        (PUBLIC_STUB_CRYSTAL_IDS[2], PhaseIIIReviewDecisionValue.DEFER, 3),
     )
-    for crystal_id, digest, decision, expected_copies in decisions:
+    for crystal_id, decision, expected_copies in decisions:
         root = tmp_path / crystal_id
         root.mkdir()
-        hypothesis_id = f"mrhyp_{digest * 64}"
-        request = _request(
+        request, legacy, package, stage, solution_id = _owned_phase3_a_seed_inputs(
             root,
             crystal_id=crystal_id,
-            hypothesis_id=hypothesis_id,
-        )
-        hypothesis = _hypothesis(
-            crystal_id=crystal_id,
-            hypothesis_id=hypothesis_id,
-        ).model_copy(update={"copy_count_expected": expected_copies})
-        request.hypotheses_jsonl.write_text(
-            f"{canonical_json_text(hypothesis)}\n",
-            encoding="utf-8",
-        )
-        matthews = _matthews(crystal_id=crystal_id).model_copy(
-            update={
-                "copy_count": expected_copies,
-                "total_mass_da": expected_copies * 436.4375,
-            }
-        )
-        request.matthews_hypotheses_jsonl.write_text(
-            f"{canonical_json_text(matthews)}\n",
-            encoding="utf-8",
-        )
-        package = build_mr_seed_review(request)
-        manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
-        solution_id = manifest["items"][0]["solution_id"]
-        stage, phase3_manifest = _phase3_a_seed_stage(
-            root,
-            review_manifest=package.manifest_json,
-            solution_id=solution_id,
+            execution_identity=fixture.execution_identity,
+            owned_parent_run_id=parent_run,
             decision=decision,
-            crystal_id=crystal_id,
+            expected_copies=expected_copies,
+        )
+        sources.append(
+            OwnedPhaseIIIReviewPackageSource(
+                crystal_id=crystal_id,
+                checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+                package_directory=package,
+            )
         )
         dispatch = root / "crystal-dispatch"
         dispatch.mkdir()
@@ -1395,9 +1382,9 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
         records.append(
             {
                 "crystal_id": crystal_id,
-                "review_package": str(package.manifest_json.parent),
+                "review_package": str(legacy),
                 "review_stage": str(stage),
-                "phase3_package": str(phase3_manifest.parent),
+                "phase3_package": str(package),
                 "hypotheses": str(request.hypotheses_jsonl),
                 "sequence_groups": str(STUBS / "sequence_groups.jsonl"),
                 "source_records": str(STUBS / "source_records.jsonl"),
@@ -1408,6 +1395,15 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
             }
         )
 
+    registry = tmp_path / "owned-screen-registry"
+    registry.mkdir()
+    register_phase3_owned_run(
+        parent=OwnedPhaseIIIParentRun(parent_run, "unknown-screen", "phase3-pass1"),
+        completed_at=datetime.now(UTC),
+        execution_identity=fixture.execution_identity,
+        packages=tuple(sources),
+        output_directory=registry,
+    )
     input_manifest = tmp_path / "reviewed-crystals.json"
     input_manifest.write_text(json.dumps({"crystals": records}), encoding="ascii")
     project = tmp_path / "nextflow-project"
@@ -1439,6 +1435,12 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
     copy2(
         STUBS / "predicted_model_preparation/models/stub.pdb", model_root / "stub.pdb"
     )
+    scripts = project / "tests/scripts"
+    scripts.mkdir()
+    copy2(
+        REPOSITORY / "tests/scripts/build_phase3_owned_sequence_stub.py",
+        scripts / "build_phase3_owned_sequence_stub.py",
+    )
     output = tmp_path / "reviewed-crystal-results"
     command = [
         "nextflow",
@@ -1449,6 +1451,14 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
         "-stub-run",
         "--reviewed_manifest",
         str(input_manifest),
+        "--owned_run_registry",
+        str(registry),
+        "--execution_identity",
+        str(fixture.execution_identity),
+        "--owned_parent_run_id",
+        parent_run,
+        "--owned_sequence_parent_run_id",
+        single_component_run,
         "--outdir",
         str(output),
         "--cache_root",
@@ -1488,9 +1498,11 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
         "STAGE_PHASE3_CRYSTAL_T12": 2,
         "RUN_PHASE3_BRIEF_REFINEMENT": 2,
         "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT": 2,
+        "BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE": 2,
+        "BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE": 2,
     }
     assert {row["status"] for row in first} == {"COMPLETED"}
-    for crystal_id, _, decision, expected_copies in decisions:
+    for crystal_id, decision, expected_copies in decisions:
         stage_manifest = output / (
             f"phase3_approved_mr_seed_{crystal_id}/live_m4_stage_manifest.json"
         )
@@ -1506,10 +1518,10 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
             if decision is PhaseIIIReviewDecisionValue.APPROVE and expected_copies > 1
             else 0
         )
-    first_selection = (
-        output
-        / f"phase3_t12_test_crystal_b_{approved_ids['test_crystal_b']}"
-        / "phase3_diffraction_selection.json"
+    untouched_crystal = PUBLIC_STUB_CRYSTAL_IDS[1]
+    first_selection = output / (
+        f"phase3_t12_{untouched_crystal}_{approved_ids[untouched_crystal]}"
+        "/phase3_diffraction_selection.json"
     )
     first_digest = sha256_file(first_selection)
     for crystal_id, solution_id in approved_ids.items():
@@ -1533,27 +1545,117 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
         assert manifest["automatic_approval"] is False
         assert (checkpoint / "provenance/sequence_groups.jsonl").is_file()
         assert (checkpoint / "provenance/source_records.jsonl").is_file()
-    assert not (output / "phase3_sequence_checkpoint_test_crystal_c").exists()
+        for review_name, checkpoint_type in (
+            ("sequence", PhaseIIIReviewCheckpoint.SEQUENCE),
+            ("composition", PhaseIIIReviewCheckpoint.COMPOSITION),
+        ):
+            owned_review = validate_phase3_review_package(
+                output / f"phase3_owned_{review_name}_review_{crystal_id}"
+            )
+            assert owned_review.checkpoint is checkpoint_type
+            assert owned_review.owned_parent_run_id == single_component_run
+    deferred_crystal = PUBLIC_STUB_CRYSTAL_IDS[2]
+    assert not (output / f"phase3_sequence_checkpoint_{deferred_crystal}").exists()
+    assert not (output / f"phase3_owned_sequence_review_{deferred_crystal}").exists()
+    assert not (output / f"phase3_owned_composition_review_{deferred_crystal}").exists()
 
     cached = run(resume=True)
     assert {row["status"] for row in cached} == {"CACHED"}
     assert {row["hash"] for row in cached} == {row["hash"] for row in first}
 
-    selection_paths["test_crystal_a"].write_text(
-        '{"crystal":"test_crystal_a","revision":2}\n',
+    changed_crystal = PUBLIC_STUB_CRYSTAL_IDS[0]
+    selection_paths[changed_crystal].write_text(
+        f'{{"crystal":"{changed_crystal}","revision":2}}\n',
         encoding="ascii",
     )
     changed = run(resume=True)
-    assert Counter(row["status"] for row in changed) == {"CACHED": 6, "COMPLETED": 4}
+    assert Counter(row["status"] for row in changed) == {"CACHED": 8, "COMPLETED": 6}
     rerun = tuple(row for row in changed if row["status"] == "COMPLETED")
     assert {row["process"].split(":")[-1] for row in rerun} == {
         "RUN_PHASE3_ADDITIONAL_COPY_PHASER",
         "STAGE_PHASE3_CRYSTAL_T12",
         "RUN_PHASE3_BRIEF_REFINEMENT",
         "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT",
+        "BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE",
+        "BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE",
     }
-    assert all("test_crystal_a" in row["tag"] for row in rerun)
+    assert all(changed_crystal in row["tag"] for row in rerun)
     assert sha256_file(first_selection) == first_digest
+
+
+@pytest.mark.parametrize("single_component_parent", (None, "gtd-owned-screen"))
+def test_main_application_requires_distinct_owned_final_review_parent(
+    tmp_path: Path,
+    single_component_parent: str | None,
+) -> None:
+    reviewed = tmp_path / "reviewed-crystals.json"
+    atomic_write_json(reviewed, {"crystals": []})
+    registry = tmp_path / "owned-screen-registry"
+    registry.mkdir()
+    identity = tmp_path / "execution-identity.json"
+    identity.write_text("{}\n", encoding="ascii")
+    output = tmp_path / "refused-reviewed-output"
+    command = [
+        "nextflow",
+        "run",
+        "main.nf",
+        "-profile",
+        "test",
+        "-stub-run",
+        "-params-file",
+        "tests/fixtures/stubs/main_params.yaml",
+        "--analysis_stage",
+        "t12",
+        "--phase3_joint_first_copy",
+        "true",
+        "--phase3_reviewed_crystal_manifest",
+        str(reviewed),
+        "--phase3_owned_run_registry",
+        str(registry),
+        "--phase3_execution_identity",
+        str(identity),
+        "--phase3_owned_parent_run_id",
+        "gtd-owned-screen",
+        "--outdir",
+        str(output),
+        "--cache_root",
+        str(tmp_path / "refused-cache"),
+    ]
+    if single_component_parent is not None:
+        command.extend(
+            ("--phase3_owned_sequence_parent_run_id", single_component_parent)
+        )
+    environment = dict(os.environ)
+    environment.update(
+        {
+            "NXF_AGENT_MODE": "true",
+            "NXF_ANSI_LOG": "false",
+            "NXF_DISABLE_CHECK_LATEST": "true",
+            "NXF_HOME": str(tmp_path / "nxf-home"),
+            "NXF_SYNTAX_PARSER": "v2",
+        }
+    )
+
+    result = subprocess.run(
+        command,
+        cwd=REPOSITORY,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+
+    assert result.returncode != 0
+    assert (
+        "Owned Phase III final reviews require a distinct single-component run"
+        in f"{result.stdout}\n{result.stderr}"
+    )
+    assert not tuple(output.glob("phase3_*"))
+    trace = output / "pipeline_info/trace.tsv"
+    if trace.is_file():
+        with trace.open(encoding="utf-8", newline="") as stream:
+            assert tuple(csv.DictReader(stream, delimiter="\t")) == ()
 
 
 def test_main_application_continues_owned_reviewed_crystals_independently(

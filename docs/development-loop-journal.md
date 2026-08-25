@@ -13012,3 +13012,22 @@ with a collapsed combined parent or a guessed command.
   and 36 additional staging/raw-loader parity cases pass. Deleting the
   remaining compatibility bridge is still separately required by
   `FCB-P1-04`; the existing known-control HPC run remains untouched.
+
+## 2026-08-25 - Final review checkpoints require a distinct owned parent
+
+- `FCB-P0-06` reproduced reviewed Phase III continuation without its current
+  single-component parent; both mandatory sequence and composition channels
+  silently became empty while execution remained possible. Reusing the
+  preceding screen parent independently violated final-checkpoint ownership.
+- The application now refuses absent or shared parents before any scientific
+  task is scheduled. The reviewed workflow independently requires the exact
+  completed screen registry, execution identity, distinct current owner, and
+  both per-crystal final review-package processes; its empty-channel escape
+  route is deleted.
+- The previous unauthenticated three-crystal stub now uses complete owned
+  A-review packages and the registered screen. Approved crystals receive both
+  owned final packages, deferred crystals retain an honest no-finalist
+  outcome, and crystal-specific resume/cache invalidation remains covered.
+- Two red/green missing/shared-parent cases, both owned Nextflow integrations,
+  and all 45 focused review/decision cases pass. Known-control Slurm `634369`
+  and its deployed dispatcher remain untouched.

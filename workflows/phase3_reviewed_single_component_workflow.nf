@@ -27,6 +27,15 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
     owned_sequence_parent_run_id: String?
 
     main:
+    if (
+        owned_run_registry == null ||
+        execution_identity == null ||
+        owned_parent_run_id == null ||
+        owned_sequence_parent_run_id == null ||
+        owned_sequence_parent_run_id == owned_parent_run_id
+    ) {
+        error 'Owned Phase III final reviews require a distinct single-component run'
+    }
     placement_inputs = reviewed_crystals.map { item ->
         tuple(
             item[0],
@@ -114,31 +123,20 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
             tuple(crystalId, stage, results)
         }
     checkpoints = BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT(checkpoint_inputs)
-    owned_sequence_reviews = channel.empty()
-    owned_composition_reviews = channel.empty()
-    if (owned_sequence_parent_run_id != null) {
-        if (
-            execution_identity == null ||
-            owned_parent_run_id == null ||
-            owned_sequence_parent_run_id == owned_parent_run_id
-        ) {
-            error 'Owned sequence reviews require a distinct single-component run'
-        }
-        sequence_review_inputs = checkpoints.map { crystalId, checkpoint ->
-            tuple(
-                crystalId,
-                checkpoint,
-                execution_identity,
-                owned_sequence_parent_run_id
-            )
-        }
-        owned_sequence_reviews = BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE(
-            sequence_review_inputs
-        )
-        owned_composition_reviews = BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE(
-            sequence_review_inputs
+    sequence_review_inputs = checkpoints.map { crystalId, checkpoint ->
+        tuple(
+            crystalId,
+            checkpoint,
+            execution_identity,
+            owned_sequence_parent_run_id
         )
     }
+    owned_sequence_reviews = BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE(
+        sequence_review_inputs
+    )
+    owned_composition_reviews = BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE(
+        sequence_review_inputs
+    )
 
     emit:
     approval_stage: Tuple = placements.stage

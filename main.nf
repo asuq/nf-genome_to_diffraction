@@ -96,16 +96,19 @@ workflow {
         ) {
             error 'Reviewed Phase III continuation requires its exact owned screen, execution identity, and T12 stage'
         }
+        if (
+            params.phase3_owned_sequence_parent_run_id == null ||
+            params.phase3_owned_sequence_parent_run_id ==
+            params.phase3_owned_parent_run_id
+        ) {
+            error 'Owned Phase III final reviews require a distinct single-component run'
+        }
     } else if (params.phase3_owned_run_registry != null) {
         error 'A Phase III owned-run registry requires reviewed multi-crystal continuation'
     }
     if (
         params.phase3_owned_sequence_parent_run_id != null &&
-        (
-            params.phase3_reviewed_crystal_manifest == null ||
-            params.phase3_owned_sequence_parent_run_id ==
-            params.phase3_owned_parent_run_id
-        )
+        params.phase3_reviewed_crystal_manifest == null
     ) {
         error 'Owned Phase III sequence packages require their separate reviewed single-component run'
     }
