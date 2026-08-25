@@ -184,6 +184,24 @@ def test_registry_order_and_identity_ignore_input_permutation(tmp_path: Path) ->
     )
 
 
+def test_registry_publishes_only_canonical_schema_v2_authority(tmp_path: Path) -> None:
+    inputs, groups = _two_group_inputs()
+
+    output = build_all_eligible_model_registry(
+        models=inputs,
+        sequence_groups=groups,
+        output_directory=tmp_path / "registry",
+    )
+
+    assert output.registry.schema_version == "2.0"
+    assert {path.name for path in output.registry_directory.iterdir()} == {
+        "all_model_registry.json",
+        "processed_models.jsonl",
+        "models",
+    }
+    assert not (output.registry_directory / "model_preparation_manifest.json").exists()
+
+
 def test_source_and_model_mutations_change_registry_identity(tmp_path: Path) -> None:
     inputs, groups = _two_group_inputs()
     baseline = build_all_eligible_model_registry(

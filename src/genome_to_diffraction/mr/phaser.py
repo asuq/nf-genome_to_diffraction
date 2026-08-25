@@ -52,6 +52,10 @@ from genome_to_diffraction.diffraction.selection import (
     verify_diffraction_selection,
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.model_registry import (
+    AllEligibleModelRegistryError,
+    load_all_eligible_model_registry,
+)
 from genome_to_diffraction.mr.policy import (
     SCORE_GATE_LLG,
     SCORE_GATE_OPERATOR,
@@ -88,7 +92,7 @@ from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
 _ADAPTER_VERSION = "phenix-first-copy-mr-v8"
-_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v10-phase3-diffraction"
+_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v11-phase3-registry"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -145,11 +149,12 @@ class PhaserRunRequest:
     hypothesis_id: str
     sequence_groups_jsonl: Path
     processed_models_jsonl: Path
-    model_preparation_manifest: Path
+    model_preparation_manifest: Path | None
     preflight_jsonl: Path
     mtz: Path
     phenix_manifest: Path
     output_directory: Path
+    all_model_registry_json: Path | None = None
     diffraction_selection_json: Path | None = None
     phase3_hypothesis_id: str | None = None
     derive_phase3_hypothesis_id: bool = False
@@ -194,6 +199,8 @@ class _ResolvedInput:
     mtz_path: Path
     model_identity_percent: float
     model_uncertainty_source: str
+    all_model_registry_id: str | None = None
+    all_model_registry_sha256: str | None = None
     diffraction_selection: DiffractionSelection | None = None
     phase3_hypothesis: DiffractionBoundHypothesis | None = None
     diffraction_command_binding: DiffractionCommandBinding | None = None
@@ -284,6 +291,47 @@ def _resolve_model_path(
     if actual != model.model_sha256:
         raise PhaserInputError("processed-model checksum mismatch")
     return model_path
+
+
+def _resolve_registered_model_path(
+    registry_json: Path,
+    processed_models_jsonl: Path,
+    model: ProcessedModelRecord,
+    group: SequenceGroupRecord,
+) -> tuple[Path, str, str]:
+    try:
+        registry_path = registry_json.resolve(strict=True)
+        registry = load_all_eligible_model_registry(registry_path)
+        registered_models = (
+            registry.root / registry.manifest.processed_models_path
+        ).resolve(strict=True)
+        supplied_models = processed_models_jsonl.resolve(strict=True)
+    except (AllEligibleModelRegistryError, OSError) as error:
+        raise PhaserInputError(
+            f"invalid all-model registry authority: {error}"
+        ) from error
+    if supplied_models != registered_models:
+        raise PhaserInputError("processed-model records differ from all-model registry")
+    matches = tuple(
+        item
+        for item in registry.lookup(group.sequence_group_id).models
+        if item.model_id == model.model_id
+    )
+    if len(matches) != 1:
+        raise PhaserInputError(
+            f"all-model registry does not uniquely map {model.model_id}"
+        )
+    entry = matches[0]
+    if (
+        entry.sequence_sha256 != group.sha256
+        or entry.model_sha256 != model.model_sha256
+    ):
+        raise PhaserInputError("all-model registry entry differs from search inputs")
+    return (
+        registry.root / Path(*PurePosixPath(entry.model_path).parts),
+        registry.manifest.registry_id,
+        sha256_file(registry_path, progress=False),
+    )
 
 
 def _normalise_space_group(value: str) -> str:
@@ -389,6 +437,14 @@ def _model_execution_policy(
 
 
 def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
+    if (request.model_preparation_manifest is None) == (
+        request.all_model_registry_json is None
+    ):
+        raise PhaserInputError("exactly one model authority must be supplied")
+    if request.diffraction_selection_json is not None and (
+        request.all_model_registry_json is None
+    ):
+        raise PhaserInputError("Phase III requires its canonical all-model registry")
     if request.diffraction_selection_json is None and (
         request.phase3_hypothesis_id is not None or request.derive_phase3_hypothesis_id
     ):
@@ -442,9 +498,21 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
     model_identity_percent, model_uncertainty_source = _model_execution_policy(
         hypothesis, model
     )
-    model_path = _resolve_model_path(
-        request.model_preparation_manifest, model, progress=request.progress
-    )
+    registry_id: str | None = None
+    registry_sha256: str | None = None
+    if request.all_model_registry_json is not None:
+        model_path, registry_id, registry_sha256 = _resolve_registered_model_path(
+            request.all_model_registry_json,
+            request.processed_models_jsonl,
+            model,
+            group,
+        )
+    elif request.model_preparation_manifest is not None:
+        model_path = _resolve_model_path(
+            request.model_preparation_manifest, model, progress=request.progress
+        )
+    else:
+        raise AssertionError("model authority validation did not select one source")
     preflights = _read_jsonl(
         request.preflight_jsonl, MtzPreflightRecord, label="MTZ preflights"
     )
@@ -503,6 +571,8 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
         mtz_path=mtz_path,
         model_identity_percent=model_identity_percent,
         model_uncertainty_source=model_uncertainty_source,
+        all_model_registry_id=registry_id,
+        all_model_registry_sha256=registry_sha256,
         diffraction_selection=selection,
         phase3_hypothesis=phase3_hypothesis,
         diffraction_command_binding=command_binding,
@@ -674,8 +744,10 @@ def _phase3_command_identity(
         resolved.diffraction_selection is None
         or resolved.phase3_hypothesis is None
         or resolved.diffraction_command_binding is None
+        or resolved.all_model_registry_id is None
+        or resolved.all_model_registry_sha256 is None
     ):
-        raise PhaserInputError("Phase III command identity lacks diffraction binding")
+        raise PhaserInputError("Phase III command identity lacks its complete binding")
     return content_id(
         "phasercmd_",
         {
@@ -694,6 +766,8 @@ def _phase3_command_identity(
             "model_sha256": resolved.model.model_sha256,
             "sequence_sha256": resolved.group.sha256,
             "phenix_manifest_sha256": phenix_manifest_sha256,
+            "all_model_registry_id": resolved.all_model_registry_id,
+            "all_model_registry_sha256": resolved.all_model_registry_sha256,
         },
     )
 
@@ -879,6 +953,16 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
         "sequence_sha256": resolved.group.sha256,
         "phenix_manifest_sha256": phenix_manifest_sha256,
     }
+    if (
+        resolved.all_model_registry_id is not None
+        and resolved.all_model_registry_sha256 is not None
+    ):
+        command_record.update(
+            {
+                "all_model_registry_id": resolved.all_model_registry_id,
+                "all_model_registry_sha256": resolved.all_model_registry_sha256,
+            }
+        )
     if (
         resolved.diffraction_selection is not None
         and resolved.phase3_hypothesis is not None

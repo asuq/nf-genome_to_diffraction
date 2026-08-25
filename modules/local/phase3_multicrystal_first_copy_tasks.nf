@@ -112,7 +112,7 @@ process RUN_PHASE3_FIRST_COPY_PHASER {
         --hypothesis-id '${item[13].baseName}' \
         --sequence-groups '${item[6]}' \
         --processed-models '${item[2]}/model_registry/processed_models.jsonl' \
-        --model-preparation-manifest '${item[2]}/model_registry/model_preparation_manifest.json' \
+        --all-model-registry '${item[2]}/model_registry/all_model_registry.json' \
         --preflight '${item[9]}' \
         --mtz '${item[3]}/input.mtz' \
         --diffraction-selection '${item[3]}/phase3_diffraction_selection.json' \

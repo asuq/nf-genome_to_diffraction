@@ -13213,3 +13213,34 @@ with a collapsed combined parent or a guessed command.
   retained without alteration.
 - No scheduler run, remote dispatcher, M6 scientific protocol, known control,
   or unknown-crystal profile was started or modified.
+
+## 2026-08-25 - Canonical model registries replace synthetic compatibility
+
+- `FCB-P1-06` first reproduced the Phase III registry publishing a fabricated
+  schema-v1 preparation manifest alongside its supposedly authoritative
+  schema-v2 model universe. This created two competing current descriptions of
+  model identity, ownership, and coordinate paths.
+- The compatibility writer, synthetic output, digest fields, and stale
+  compatibility adapter identity are deleted. Every catalogue sequence group,
+  provider model, typed no-model outcome, canonical processed-model record,
+  and content-addressed coordinate remains represented by exactly one
+  deterministic schema-v2 registry.
+- First-copy Phaser now accepts one explicitly selected authority. Historical
+  fixed controls retain their genuine original preparation manifests, while
+  all current Phase III, diverse-search, and frozen M6 registry consumers pass
+  the canonical all-model manifest directly. Phase III refuses any legacy or
+  competing authority before creating output or running Phenix.
+- The registry loader independently verifies the complete sequence/model
+  inventory, exact owned processed-record path, group and model identities,
+  source/model evidence, and each coordinate checksum. Phase III immutable
+  command identities additionally bind the exact registry identity and digest.
+- One red/green synthetic-writer regression and four legacy, dual-authority,
+  substituted-record, and tampered-coordinate regressions pass together with
+  171 focused registry, first-copy Phaser, ranking, empty-provider, component,
+  composition-planner, partner, M6, and pass-1 screen cases; the complete local
+  Nextflow stub matrix, real M6 cache/resume mutation workflow, three-crystal
+  first-copy dispatch/review/resume workflow, and isolated unknown-pass-1
+  cached fan-out remain green. Exact-source CI and fixed-HPC qualification
+  remain required before the finding receives a final disposition.
+- No scheduler run, remote dispatcher, Phenix installation, M6 discovery
+  threshold, known control, or unknown-crystal profile was started or changed.

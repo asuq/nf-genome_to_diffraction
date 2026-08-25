@@ -36,7 +36,8 @@ workflow FIRST_COPY_MR_WORKFLOW {
         prepared_models.first(),
         preflight.first(),
         mtz.first(),
-        phenix_manifest.first()
+        phenix_manifest.first(),
+        false
     )
 
     emit:

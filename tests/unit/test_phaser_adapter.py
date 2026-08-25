@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,10 @@ from genome_to_diffraction.diffraction.selection import (
     build_diffraction_selection,
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.model_registry import (
+    ValidatedProcessedModelInput,
+    build_all_eligible_model_registry,
+)
 from genome_to_diffraction.mr import (
     PhaserInputError,
     PhaserParseError,
@@ -31,12 +36,14 @@ from genome_to_diffraction.schemas.manifests import (
     PrototypeProfile,
 )
 from genome_to_diffraction.schemas.results import (
+    CoordinateSourceRecord,
     MrHypothesis,
     MrHypothesisStatus,
     MrSearchStage,
     MtzObservationCandidateRecord,
     MtzPreflightRecord,
     ProcessedModelRecord,
+    SequenceGroupRecord,
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -147,8 +154,46 @@ def _phase3_inputs(
         request.hypotheses_jsonl.read_text(encoding="utf-8")
     )
     bound = bind_phase3_hypothesis(hypothesis, selection)
+    model = ProcessedModelRecord.model_validate_json(
+        request.processed_models_jsonl.read_text(encoding="utf-8")
+    )
+    group = SequenceGroupRecord.model_validate_json(
+        request.sequence_groups_jsonl.read_text(encoding="utf-8")
+    )
+    coordinate = CoordinateSourceRecord(
+        schema_version="1.0",
+        coordinate_id=model.coordinate_id,
+        provider="afdb",
+        provider_accession="AF-STUB-F1",
+        retrieval_date=datetime(2026, 8, 23, tzinfo=UTC),
+        source_release="v6",
+        coordinate_path="coordinates/stub.cif",
+        coordinate_sha256="b" * 64,
+        source_sequence_sha256=group.sha256,
+        confidence_summary={"mean_plddt": 93.8},
+        license_or_provenance="Phase III first-copy registry fixture",
+    )
+    assert request.model_preparation_manifest is not None
+    registry = build_all_eligible_model_registry(
+        models=(
+            ValidatedProcessedModelInput(
+                model=model,
+                coordinate=coordinate,
+                sequence_group=group,
+                model_path=(
+                    request.model_preparation_manifest.parent / "models/stub.pdb"
+                ),
+                retained_fraction=1.0,
+            ),
+        ),
+        sequence_groups=(group,),
+        output_directory=tmp_path / "canonical phase3 registry",
+    )
     return replace(
         request,
+        processed_models_jsonl=registry.processed_models_jsonl,
+        model_preparation_manifest=None,
+        all_model_registry_json=registry.registry_json,
         diffraction_selection_json=selection_path,
         phase3_hypothesis_id=bound.hypothesis_id,
     )
@@ -156,6 +201,7 @@ def _phase3_inputs(
 
 def _experimental_inputs(tmp_path: Path) -> PhaserRunRequest:
     request = _inputs(tmp_path)
+    assert request.model_preparation_manifest is not None
     preparation = request.model_preparation_manifest.parent
     shutil.rmtree(preparation)
     shutil.copytree(STUBS / "experimental_model_preparation", preparation)
@@ -471,7 +517,7 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
     binding = record["diffraction_command_binding"]
     selection = record["diffraction_selection"]
     assert record["schema_version"] == "2.0"
-    assert record["adapter_version"] == "phenix-first-copy-mr-v10-phase3-diffraction"
+    assert record["adapter_version"] == "phenix-first-copy-mr-v11-phase3-registry"
     assert record["phase3_hypothesis_id"] == request.phase3_hypothesis_id
     assert record["phase3_command_id"].startswith("phasercmd_")
     command_identity = {
@@ -486,6 +532,8 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
         "model_sha256": record["model_sha256"],
         "sequence_sha256": record["sequence_sha256"],
         "phenix_manifest_sha256": record["phenix_manifest_sha256"],
+        "all_model_registry_id": record["all_model_registry_id"],
+        "all_model_registry_sha256": record["all_model_registry_sha256"],
     }
     assert content_id("phasercmd_", command_identity) == record["phase3_command_id"]
     previous_identity = {
@@ -531,6 +579,7 @@ def test_phase3_adapter_derives_bound_hypothesis_from_complete_task_inputs(
 
     record = json.loads(output.command_json.read_text(encoding="utf-8"))
     assert record["phase3_hypothesis_id"] == explicit.phase3_hypothesis_id
+    assert record["all_model_registry_id"].startswith("allmodelreg_")
     assert record["diffraction_selection"]["observation_dataset_id"] == 1
     assert "phaser.crystal_symmetry.space_group=P 21 21 21" in commands[0]
 
@@ -548,6 +597,48 @@ def test_production_phase3_nextflow_requires_bound_crystal_diffraction_inputs() 
         phaser
     )
     assert "--derive-phase3-hypothesis-id" in phaser
+    assert (
+        "--all-model-registry "
+        "'${item[2]}/model_registry/all_model_registry.json'" in phaser
+    )
+    assert "--model-preparation-manifest" not in phaser
+
+
+@pytest.mark.parametrize("invalid", ("legacy", "both", "foreign_records", "tampered"))
+def test_phase3_adapter_rejects_noncanonical_model_authority_before_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    invalid: str,
+) -> None:
+    request = _phase3_inputs(tmp_path)
+    assert request.all_model_registry_json is not None
+    legacy = tmp_path / "model preparation with spaces/model_preparation_manifest.json"
+    if invalid == "legacy":
+        request = replace(
+            request,
+            model_preparation_manifest=legacy,
+            all_model_registry_json=None,
+        )
+        expected = "canonical all-model registry"
+    elif invalid == "both":
+        request = replace(request, model_preparation_manifest=legacy)
+        expected = "exactly one model authority"
+    elif invalid == "foreign_records":
+        foreign = tmp_path / "foreign processed models.jsonl"
+        foreign.write_bytes(request.processed_models_jsonl.read_bytes())
+        request = replace(request, processed_models_jsonl=foreign)
+        expected = "processed-model records differ"
+    else:
+        model = next((request.all_model_registry_json.parent / "models").rglob("*.pdb"))
+        model.write_bytes(b"tampered coordinate evidence")
+        expected = "invalid all-model registry authority"
+    commands = _fake_runtime(monkeypatch, log_text=NO_SOLUTION_LOG)
+
+    with pytest.raises(PhaserInputError, match=expected):
+        run_first_copy_phaser(request)
+
+    assert commands == []
+    assert not request.output_directory.exists()
 
 
 @pytest.mark.parametrize("ambiguous", ("missing", "both", "selection_missing"))

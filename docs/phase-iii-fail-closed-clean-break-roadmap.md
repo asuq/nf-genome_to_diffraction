@@ -134,6 +134,9 @@ Scope: `FCB-P1-03`, `FCB-P1-06`, and `FCB-P1-07`.
   evidence; absent masses remain explicitly unsearchable.
 - Migrate ranking, Phaser, and partner search to content-bound v2 all-model
   registry entries; delete the synthetic v1 compatibility manifest.
+  The synthetic writer is now deleted locally; active first-copy consumers use
+  the independently verified v2 registry, while exact-source CI and owned-HPC
+  qualification remain outstanding.
 - Perform one reviewed migration to a strict, complete, executable-hashed
   Phenix runtime manifest. Update owned staging, fixed profile contracts, and
   focused fake-HPC tests atomically; then remove per-run refresh/inference.

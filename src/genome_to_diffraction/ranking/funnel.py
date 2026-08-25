@@ -1333,9 +1333,6 @@ def build_diverse_first_copy_funnel(
                 "processed_models_sha256": (
                     registry_output.registry.processed_models_sha256
                 ),
-                "manifest_sha256": (
-                    registry_output.registry.preparation_manifest_sha256
-                ),
                 "sequence_group_count": (registry_output.registry.sequence_group_count),
                 "model_count": registry_output.registry.model_count,
                 "unavailable_sequence_group_count": (

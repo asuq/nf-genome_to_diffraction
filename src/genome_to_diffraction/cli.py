@@ -1266,9 +1266,11 @@ def _build_parser() -> argparse.ArgumentParser:
     first_copy_parser.add_argument("--hypothesis-id", required=True)
     first_copy_parser.add_argument("--sequence-groups", type=Path, required=True)
     first_copy_parser.add_argument("--processed-models", type=Path, required=True)
-    first_copy_parser.add_argument(
-        "--model-preparation-manifest", type=Path, required=True
+    first_copy_model_authority = first_copy_parser.add_mutually_exclusive_group(
+        required=True
     )
+    first_copy_model_authority.add_argument("--model-preparation-manifest", type=Path)
+    first_copy_model_authority.add_argument("--all-model-registry", type=Path)
     first_copy_parser.add_argument("--preflight", type=Path, required=True)
     first_copy_parser.add_argument("--mtz", type=Path, required=True)
     first_copy_parser.add_argument(
@@ -3169,6 +3171,7 @@ def _run_mr(args: argparse.Namespace) -> int:
             mtz=args.mtz,
             phenix_manifest=args.phenix_manifest,
             output_directory=args.outdir,
+            all_model_registry_json=args.all_model_registry,
             diffraction_selection_json=args.diffraction_selection,
             phase3_hypothesis_id=args.phase3_hypothesis_id,
             derive_phase3_hypothesis_id=args.derive_phase3_hypothesis_id,

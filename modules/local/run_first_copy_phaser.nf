@@ -12,11 +12,15 @@ process RUN_FIRST_COPY_PHASER {
     preflight: Path
     mtz: Path
     phenix_manifest: Path
+    all_model_registry: Boolean
 
     output:
     result: Path = file("first_copy_phaser_${hypothesis.baseName}")
 
     script:
+    def modelAuthority = all_model_registry
+        ? "--all-model-registry '${prepared_models}/all_model_registry.json'"
+        : "--model-preparation-manifest '${prepared_models}/model_preparation_manifest.json'"
     """
     genome-to-diffraction \
         --no-progress \
@@ -26,7 +30,7 @@ process RUN_FIRST_COPY_PHASER {
         --hypothesis-id '${hypothesis.baseName}' \
         --sequence-groups '${sequence_groups}' \
         --processed-models '${prepared_models}/processed_models.jsonl' \
-        --model-preparation-manifest '${prepared_models}/model_preparation_manifest.json' \
+        ${modelAuthority} \
         --preflight '${preflight}' \
         --mtz '${mtz}' \
         --phenix-manifest '${phenix_manifest}' \

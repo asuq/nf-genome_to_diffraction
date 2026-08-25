@@ -12,10 +12,10 @@ processed model retain the typed ``no_eligible_model`` reason.
 
 Inputs are immutable sequence-group, coordinate-source, optional PDB mapping,
 and processed-model records plus their model files.  Outputs are a deterministic
-JSON registry, canonical ``processed_models.jsonl``, a backwards-compatible
-model-preparation manifest, and content-addressed model files.  No external
-command is run and no provider, Phaser, localisation, or candidate-search work
-is performed.
+schema-v2 JSON registry, canonical ``processed_models.jsonl``, and
+content-addressed model files.  No compatibility manifest or competing model
+authority is generated.  No external command is run and no provider, Phaser,
+localisation, or candidate-search work is performed.
 
 Any malformed identity, unsupported provider mapping, duplicate, unsafe path,
 or checksum mismatch raises :class:`AllEligibleModelRegistryError` before the
@@ -60,11 +60,10 @@ from genome_to_diffraction.schemas.v2.composition import (
 )
 from genome_to_diffraction.status import InputContractError
 
-_ADAPTER_VERSION = "all-eligible-model-registry-v1"
+_ADAPTER_VERSION = "all-eligible-model-registry-v2"
 _PREDICTED_PROVIDERS = frozenset({"afdb", "esm_atlas"})
 _REGISTRY_FILENAME = "all_model_registry.json"
 _PROCESSED_MODELS_FILENAME = "processed_models.jsonl"
-_PREPARATION_MANIFEST_FILENAME = "model_preparation_manifest.json"
 
 SequenceGroupIdentifier = Annotated[
     str,
@@ -155,12 +154,10 @@ class AllEligibleModelRegistryManifest(ContractModel):
 
     schema_version: Literal["2.0"]
     registry_id: AllModelRegistryIdentifier
-    adapter_version: Literal["all-eligible-model-registry-v1"]
+    adapter_version: Literal["all-eligible-model-registry-v2"]
     scope: Literal["all_eligible_processed_models"]
     processed_models_path: Literal["processed_models.jsonl"]
     processed_models_sha256: Sha256Hex
-    preparation_manifest_path: Literal["model_preparation_manifest.json"]
-    preparation_manifest_sha256: Sha256Hex
     sequence_group_count: int = Field(ge=1)
     model_count: int = Field(ge=0)
     unavailable_sequence_group_count: int = Field(ge=0)
@@ -220,7 +217,6 @@ class AllEligibleModelRegistryOutput:
     registry_directory: Path
     registry_json: Path
     processed_models_jsonl: Path
-    model_preparation_manifest: Path
 
 
 @dataclass(frozen=True)
@@ -390,40 +386,6 @@ def _validate_source(
     return model, coordinate, group, mapping, path, digest, item.retained_fraction
 
 
-def _compatibility_manifest(
-    entries: Sequence[AllEligibleModelEntry], processed_models_sha256: str
-) -> dict[str, object]:
-    model_entries = [
-        {
-            "model_id": entry.model_id,
-            "model_path": entry.model_path,
-            "model_sha256": entry.model_sha256,
-            "retained_fraction": entry.retained_fraction,
-        }
-        for entry in entries
-    ]
-    identity = {
-        "adapter_version": _ADAPTER_VERSION,
-        "scope": "all_eligible_processed_models",
-        "processed_models_sha256": processed_models_sha256,
-        "entries": model_entries,
-    }
-    return {
-        "schema_version": "1.0",
-        "preparation_id": content_id("modelreg_", identity),
-        "adapter_version": _ADAPTER_VERSION,
-        "scope": "all_eligible_processed_models",
-        "processed_model_count": len(entries),
-        "entries": model_entries,
-        "outputs": {
-            "processed_models": {
-                "path": _PROCESSED_MODELS_FILENAME,
-                "sha256": processed_models_sha256,
-            }
-        },
-    }
-
-
 def build_all_eligible_model_registry(
     *,
     models: Sequence[ValidatedProcessedModelInput],
@@ -541,11 +503,6 @@ def build_all_eligible_model_registry(
     )
     processed_models_sha256 = sha256_file(processed_models_path, progress=False)
 
-    preparation_manifest = _compatibility_manifest(entries, processed_models_sha256)
-    preparation_manifest_path = output / _PREPARATION_MANIFEST_FILENAME
-    atomic_write_json(preparation_manifest_path, preparation_manifest)
-    preparation_manifest_sha256 = sha256_file(preparation_manifest_path, progress=False)
-
     entries_by_group: dict[str, list[AllEligibleModelEntry]] = {
         group_id: [] for group_id in validated_groups
     }
@@ -571,8 +528,6 @@ def build_all_eligible_model_registry(
         "scope": "all_eligible_processed_models",
         "processed_models_path": _PROCESSED_MODELS_FILENAME,
         "processed_models_sha256": processed_models_sha256,
-        "preparation_manifest_path": _PREPARATION_MANIFEST_FILENAME,
-        "preparation_manifest_sha256": preparation_manifest_sha256,
         "sequence_group_count": len(inventories),
         "model_count": len(entries),
         "unavailable_sequence_group_count": sum(
@@ -593,14 +548,13 @@ def build_all_eligible_model_registry(
         registry_directory=output,
         registry_json=registry_path,
         processed_models_jsonl=processed_models_path,
-        model_preparation_manifest=preparation_manifest_path,
     )
 
 
 def load_all_eligible_model_registry(
     registry_json: Path,
 ) -> AllEligibleModelRegistry:
-    """Load a registry and verify every retained record, manifest, and model."""
+    """Load a registry and verify every retained processed record and model."""
 
     resolved = registry_json.resolve(strict=True)
     if not resolved.is_file():
@@ -617,20 +571,12 @@ def load_all_eligible_model_registry(
         ) from error
     root = resolved.parent
     processed_models = root / manifest.processed_models_path
-    preparation_manifest = root / manifest.preparation_manifest_path
     if sha256_file(processed_models, progress=False) != (
         manifest.processed_models_sha256
     ):
         raise AllEligibleModelRegistryError(
             "all-model processed-record checksum mismatch"
         )
-    if sha256_file(preparation_manifest, progress=False) != (
-        manifest.preparation_manifest_sha256
-    ):
-        raise AllEligibleModelRegistryError(
-            "all-model preparation-manifest checksum mismatch"
-        )
-
     records: dict[str, ProcessedModelRecord] = {}
     with processed_models.open(encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, start=1):

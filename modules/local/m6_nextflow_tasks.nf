@@ -268,7 +268,7 @@ process M6_FIRST_COPY {
         --hypothesis-id '${item[3].baseName}' \
         --sequence-groups '${item[2]}/selected-candidates/sequence_groups.jsonl' \
         --processed-models '${item[2]}/first-copy-funnel/model_registry/processed_models.jsonl' \
-        --model-preparation-manifest '${item[2]}/first-copy-funnel/model_registry/model_preparation_manifest.json' \
+        --all-model-registry '${item[2]}/first-copy-funnel/model_registry/all_model_registry.json' \
         --preflight '${item[2]}/preflight_bundle/preflight/mtz_preflight.jsonl' \
         --mtz '${item[2]}/reflections.mtz' \
         --phenix-manifest '${item[4]}' \

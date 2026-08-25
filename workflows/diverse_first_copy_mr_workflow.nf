@@ -50,7 +50,8 @@ workflow DIVERSE_FIRST_COPY_MR_WORKFLOW {
         aggregate_model_registry,
         preflight.first(),
         mtz.first(),
-        phenix_manifest.first()
+        phenix_manifest.first(),
+        true
     )
 
     emit:
