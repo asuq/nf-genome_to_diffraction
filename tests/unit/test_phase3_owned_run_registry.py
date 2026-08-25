@@ -262,6 +262,55 @@ def test_registers_path_free_records_and_resolves_exact_owned_package(
     assert "package_directory" not in record_text
 
 
+@pytest.mark.parametrize(
+    "checkpoint",
+    (
+        PhaseIIIReviewCheckpoint.COMPOSITION,
+        PhaseIIIReviewCheckpoint.SEQUENCE,
+    ),
+)
+def test_registers_and_resolves_composition_or_sequence_review_package(
+    tmp_path: Path,
+    checkpoint: PhaseIIIReviewCheckpoint,
+) -> None:
+    execution_path, identity = _write_execution_identity(tmp_path)
+    package = _build_package(
+        tmp_path,
+        name="final-review",
+        identity=identity,
+        crystal_id=CRYSTAL_A,
+        checkpoint=checkpoint,
+    )
+    output = tmp_path / "local-owned-run-registry"
+    output.mkdir()
+
+    register_phase3_owned_run(
+        parent=_parent(),
+        completed_at=RUN_COMPLETED_AT,
+        execution_identity=execution_path,
+        packages=(
+            OwnedPhaseIIIReviewPackageSource(
+                crystal_id=CRYSTAL_A,
+                checkpoint=checkpoint,
+                package_directory=package,
+            ),
+        ),
+        output_directory=output,
+    )
+
+    registry = validate_phase3_owned_run_registry(output)
+    resolved = resolve_phase3_owned_review_package(
+        output,
+        run_id=RUN_ID,
+        crystal_id=CRYSTAL_A,
+        checkpoint=checkpoint,
+    )
+
+    assert registry.adapter_version == "phase3-owned-run-registry-v2"
+    assert resolved.checkpoint is checkpoint
+    assert resolved.execution_identity_id == identity.execution_identity_id
+
+
 def test_package_order_does_not_change_registry_bytes(tmp_path: Path) -> None:
     execution_path, identity = _write_execution_identity(tmp_path)
     sources = _sources(tmp_path, identity)

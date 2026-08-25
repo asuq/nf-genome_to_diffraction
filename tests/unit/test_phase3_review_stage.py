@@ -67,7 +67,15 @@ def _write_package(
         ),
     )
     package = PhaseIIIReviewPackageManifest.from_content(
-        adapter_version="phase3-review-package-v1",
+        adapter_version=(
+            "phase3-review-package-v1"
+            if checkpoint
+            in {
+                PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+                PhaseIIIReviewCheckpoint.A_SEED,
+            }
+            else "phase3-review-package-v2"
+        ),
         checkpoint=checkpoint,
         owned_parent_run_id=parent.run_id,
         parent_profile=parent.profile,
@@ -138,10 +146,11 @@ def _request(
     output: Path,
     parent: OwnedPhaseIIIParentRun = PARENT,
     confirmed_sha256: str | None = None,
+    checkpoint: PhaseIIIReviewCheckpoint = PhaseIIIReviewCheckpoint.A_SEED,
 ) -> PhaseIIIReviewStageRequest:
     return PhaseIIIReviewStageRequest(
         parent=parent,
-        checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+        checkpoint=checkpoint,
         review_package_manifest=package,
         decisions=decisions,
         confirmed_decisions_sha256=(
@@ -209,6 +218,56 @@ def test_happy_path_publishes_only_canonical_decision_and_stage_manifest(
         "phase3_review_decision.json",
         "phase3_review_stage_manifest.json",
     )
+
+
+@pytest.mark.parametrize(
+    ("checkpoint", "decision"),
+    (
+        (
+            PhaseIIIReviewCheckpoint.COMPOSITION,
+            PhaseIIIReviewDecisionValue.RETAIN_PARTIAL,
+        ),
+        (
+            PhaseIIIReviewCheckpoint.SEQUENCE,
+            PhaseIIIReviewDecisionValue.RETAIN_ALTERNATIVE,
+        ),
+    ),
+)
+def test_stages_composition_and_sequence_reviews_without_promoting_claims(
+    tmp_path: Path,
+    checkpoint: PhaseIIIReviewCheckpoint,
+    decision: PhaseIIIReviewDecisionValue,
+) -> None:
+    package, package_sha256, package_id = _write_package(
+        tmp_path / "review-package.json",
+        (("unknown_1", "state_1"),),
+        checkpoint=checkpoint,
+    )
+    decisions_path = tmp_path / "decisions.json"
+    expected = _write_decisions(
+        decisions_path,
+        package_sha256,
+        (_decision("state_1", decision),),
+        checkpoint=checkpoint,
+        package_id=package_id,
+    )
+
+    output = stage_phase3_review_decisions(
+        _request(
+            package=package,
+            decisions=decisions_path,
+            output=tmp_path / "staged",
+            checkpoint=checkpoint,
+        )
+    )
+
+    observed = load_contract(
+        output.canonical_decision,
+        "phase3-review-decisions",
+        progress=False,
+    )
+    assert observed == expected
+    assert observed.decisions[0].decision is decision
 
 
 @pytest.mark.parametrize(

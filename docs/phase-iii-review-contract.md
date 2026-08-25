@@ -16,11 +16,12 @@ manifest, target membership, transported decision-file checksum, canonical
 content identifier, and whether every decision timestamp is not older than the
 package.
 
-`phase3-review-package-v1` currently generates packages only for the
-`crystallographic` and `a_seed` checkpoints. Composition and sequence decisions
-remain defined, but their package generators are deferred until those workflows
-have exact evidence inventories. Historical `review-decisions` schema-v1 files
-and their `mr_seed` and `sequence_candidate` semantics are unchanged.
+`phase3-review-package-v1` preserves existing `crystallographic` and `a_seed`
+packages without changing their content identifiers. The same generator emits
+`phase3-review-package-v2` for `composition` and `sequence` checkpoints, using
+each checkpoint's existing restricted decision vocabulary. Historical
+`review-decisions` schema-v1 files and their `mr_seed` and `sequence_candidate`
+semantics are unchanged.
 
 ## Review-package generator
 
@@ -52,9 +53,11 @@ inspection worksheet, not a valid `phase3-review-decisions` file by itself; the
 operator decision adapter also requires the package ID and an independently
 calculated manifest-file SHA-256.
 
-The path-free manifest records `phase3-review-package-v1`, the exact parent and
-execution identities, checkpoint, crystal, creation time, all permitted targets,
-every evidence role/relative path/SHA-256/size, and the generated table's
+The path-free manifest records `phase3-review-package-v1` for existing
+crystallographic/A-seed checkpoints or `phase3-review-package-v2` for
+composition/sequence checkpoints, together with the exact parent and execution
+identities, checkpoint, crystal, creation time, all permitted targets, every
+evidence role/relative path/SHA-256/size, and the generated table's
 SHA-256/size/row coverage. `package_content_sha256` is the RFC-8785 digest of the
 complete evidence/table inventory. `review_package_id` is derived from the full
 canonical manifest except for that identifier, so any parent, execution, target,
@@ -84,6 +87,14 @@ revalidates source and copy, then atomically publishes one path-free
 content-addressed package directories. The run record stores each package ID,
 manifest checksum, and package-content digest; the package manifest remains the
 authoritative per-file checksum and size allow-list.
+
+Registries containing only historical crystallographic/A-seed packages retain
+`phase3-owned-run-registry-v1` and their existing content identifiers. A registry
+containing a composition or sequence package instead records
+`phase3-owned-run-registry-v2`; a v1 registry cannot silently admit either newer
+checkpoint. Package generation, registration, or staging never promotes a
+composition claim or an exact sequence/locus assignment without independently
+verified review evidence.
 
 `resolve_phase3_owned_review_package` accepts only the registry directory plus
 an exact run/crystal/checkpoint key. It first revalidates the canonical run and
@@ -159,8 +170,8 @@ package-level fields repeat on every TSV row and must be identical. The adapter
 derives the canonical `decision_file_id`; JSON input must carry and validate the
 same identifier.
 
-This slice defines no Nextflow process, profile, remote staging operation,
-composition package, or sequence package.
+This slice defines no Nextflow process, fixed HPC profile, remote staging
+operation, or automatic scientific promotion.
 
 ## Local staging boundary
 

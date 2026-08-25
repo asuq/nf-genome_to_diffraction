@@ -299,13 +299,15 @@ exact package-manifest and transported-decision checksums, canonical decision
 identity, permitted target membership, and review chronology before publishing
 only canonical decisions plus a typed stage manifest into a new directory.
 A focused local generator now emits one content-addressed, path-free package for
-exactly one crystallographic or A-seed checkpoint/crystal. It binds the exact
-Phase III execution identity, complete targets, copied evidence roles/relative
-paths/checksums/sizes, and a checksum-qualified complete target worksheet; it
-rejects source mutation, symlinks, escape, duplicate roles/paths, incomplete
-coverage, and non-empty publication targets. Composition/sequence package
-generation, fixed HPC profiles, and remote staging remain pending rather than
-inferred.
+exactly one crystallographic, A-seed, composition, or sequence checkpoint and
+crystal. It binds the exact Phase III execution identity, complete targets,
+copied evidence roles/relative paths/checksums/sizes, and a checksum-qualified
+complete checkpoint-specific target worksheet; it rejects source mutation,
+symlinks, escape, duplicate roles/paths, incomplete coverage, and non-empty
+publication targets. Existing package and registry identities remain unchanged;
+composition/sequence packages and mixed registries receive explicit v2 adapter
+identities and remain resolvable through the same owned-run trust boundary.
+Fixed HPC profiles, remote staging, and live application wiring remain pending.
 
 The unknown-pass-1 crystallographic bridge now accepts one exact owned-run ID
 and exactly three crystal-bound decision files/checksums, resolves every

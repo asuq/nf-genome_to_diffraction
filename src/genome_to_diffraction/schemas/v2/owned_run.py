@@ -35,17 +35,6 @@ class PhaseIIIOwnedReviewPackage(ContractModel):
     review_package_manifest_sha256: Sha256Hex
     package_content_sha256: Sha256Hex
 
-    @model_validator(mode="after")
-    def _validate_checkpoint(self) -> Self:
-        if self.checkpoint not in {
-            PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
-            PhaseIIIReviewCheckpoint.A_SEED,
-        }:
-            raise ValueError(
-                "owned-run registry supports crystallographic and A-seed packages only"
-            )
-        return self
-
 
 class PhaseIIIOwnedRunRegistry(_ContentAddressedContract):
     """Canonical registration of one completed local Phase III parent run."""
@@ -54,7 +43,10 @@ class PhaseIIIOwnedRunRegistry(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "phase3ownedrun_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["phase3-owned-run-registry-v1"]
+    adapter_version: Literal[
+        "phase3-owned-run-registry-v1",
+        "phase3-owned-run-registry-v2",
+    ]
     owned_run_registry_id: OwnedRunRegistryIdentifier
     run_id: OperatorIdentifier
     profile: OperatorIdentifier
@@ -70,6 +62,18 @@ class PhaseIIIOwnedRunRegistry(_ContentAddressedContract):
 
     @model_validator(mode="after")
     def _validate_packages(self) -> Self:
+        if self.adapter_version == "phase3-owned-run-registry-v1" and any(
+            item.checkpoint
+            not in {
+                PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+                PhaseIIIReviewCheckpoint.A_SEED,
+            }
+            for item in self.packages
+        ):
+            raise ValueError(
+                "owned-run registry v1 supports crystallographic and A-seed "
+                "packages only"
+            )
         keys = tuple(
             (item.crystal_id, item.checkpoint.value, item.review_package_id)
             for item in self.packages

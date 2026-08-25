@@ -1,6 +1,6 @@
 """Local ownership boundary for completed Phase III review packages.
 
-One completed run, its exact execution identity, and crystallographic or A-seed
+One completed run, its exact execution identity, and human-review checkpoint
 packages are snapshotted into caller-selected ignored storage.  Records contain
 no machine paths.  Lookup revalidates parent/source/execution bindings and every
 package's existing per-file checksum allow-list before returning runtime paths.
@@ -39,7 +39,12 @@ from genome_to_diffraction.schemas.v2 import (
 )
 from genome_to_diffraction.status import InputContractError
 
-_ADAPTER_VERSION = "phase3-owned-run-registry-v1"
+_LEGACY_CHECKPOINTS = frozenset(
+    {
+        PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+        PhaseIIIReviewCheckpoint.A_SEED,
+    }
+)
 _REGISTRY = "phase3_owned_run_registry.json"
 _EXECUTION = "phase3_execution_identity.json"
 _PACKAGES = "packages"
@@ -83,17 +88,9 @@ def _identifier(value: object, label: str) -> str:
 
 def _checkpoint(value: object) -> PhaseIIIReviewCheckpoint:
     try:
-        checkpoint = PhaseIIIReviewCheckpoint(value)
+        return PhaseIIIReviewCheckpoint(value)
     except (TypeError, ValueError) as error:
         raise PhaseIIIOwnedRunError("owned package checkpoint is invalid") from error
-    if checkpoint not in {
-        PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
-        PhaseIIIReviewCheckpoint.A_SEED,
-    }:
-        raise PhaseIIIOwnedRunError(
-            "owned-run registry supports crystallographic and A-seed packages only"
-        )
-    return checkpoint
 
 
 def _directory(path: Path, label: str, *, empty: bool = False) -> Path:
@@ -380,7 +377,11 @@ def register_phase3_owned_run(
             )
         )
         registry = PhaseIIIOwnedRunRegistry.from_content(
-            adapter_version=_ADAPTER_VERSION,
+            adapter_version=(
+                "phase3-owned-run-registry-v1"
+                if all(record.checkpoint in _LEGACY_CHECKPOINTS for record in records)
+                else "phase3-owned-run-registry-v2"
+            ),
             run_id=parent.run_id,
             profile=parent.profile,
             phase=parent.phase,

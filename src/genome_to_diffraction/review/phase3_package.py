@@ -1,4 +1,4 @@
-"""Build one immutable Phase III crystallographic or A-seed review package.
+"""Build one immutable Phase III human-review checkpoint package.
 
 Scientific purpose
 ------------------
@@ -56,7 +56,12 @@ from genome_to_diffraction.schemas.v2.review import (
 )
 from genome_to_diffraction.status import InputContractError
 
-_ADAPTER_VERSION = "phase3-review-package-v1"
+_LEGACY_CHECKPOINTS = frozenset(
+    {
+        PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+        PhaseIIIReviewCheckpoint.A_SEED,
+    }
+)
 _MANIFEST_NAME = "phase3_review_package_manifest.json"
 _REVIEW_TABLE_NAME = "review_targets.tsv"
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -75,6 +80,17 @@ _TABLE_FIELDS = (
 _ALLOWED_DECISIONS = {
     PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC: ("hold", "proceed"),
     PhaseIIIReviewCheckpoint.A_SEED: ("approve", "defer", "reject"),
+    PhaseIIIReviewCheckpoint.COMPOSITION: (
+        "approve",
+        "defer",
+        "reject",
+        "retain_partial",
+    ),
+    PhaseIIIReviewCheckpoint.SEQUENCE: (
+        "approve",
+        "no_assignment",
+        "retain_alternative",
+    ),
 }
 
 
@@ -120,14 +136,9 @@ class PhaseIIIReviewPackageOutput:
 
 def _checkpoint(value: object) -> PhaseIIIReviewCheckpoint:
     try:
-        checkpoint = PhaseIIIReviewCheckpoint(value)
+        return PhaseIIIReviewCheckpoint(value)
     except (TypeError, ValueError) as error:
         raise PhaseIIIReviewPackageError("review checkpoint is invalid") from error
-    if checkpoint not in _ALLOWED_DECISIONS:
-        raise PhaseIIIReviewPackageError(
-            "review-package-v1 supports crystallographic and A-seed review only"
-        )
-    return checkpoint
 
 
 def _identifier(value: object, *, label: str) -> str:
@@ -473,7 +484,11 @@ def build_phase3_review_package(
             review_tables=review_tables,
         )
         manifest = PhaseIIIReviewPackageManifest.from_content(
-            adapter_version=_ADAPTER_VERSION,
+            adapter_version=(
+                "phase3-review-package-v1"
+                if checkpoint in _LEGACY_CHECKPOINTS
+                else "phase3-review-package-v2"
+            ),
             checkpoint=checkpoint,
             owned_parent_run_id=parent_run_id,
             parent_profile=parent_profile,

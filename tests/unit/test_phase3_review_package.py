@@ -88,15 +88,35 @@ def _tree_bytes(root: Path) -> dict[str, bytes]:
 
 
 @pytest.mark.parametrize(
-    "checkpoint",
+    ("checkpoint", "adapter_version", "allowed_decisions"),
     (
-        PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
-        PhaseIIIReviewCheckpoint.A_SEED,
+        (
+            PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+            "phase3-review-package-v1",
+            "hold|proceed",
+        ),
+        (
+            PhaseIIIReviewCheckpoint.A_SEED,
+            "phase3-review-package-v1",
+            "approve|defer|reject",
+        ),
+        (
+            PhaseIIIReviewCheckpoint.COMPOSITION,
+            "phase3-review-package-v2",
+            "approve|defer|reject|retain_partial",
+        ),
+        (
+            PhaseIIIReviewCheckpoint.SEQUENCE,
+            "phase3-review-package-v2",
+            "approve|no_assignment|retain_alternative",
+        ),
     ),
 )
 def test_builds_one_path_free_content_addressed_package(
     tmp_path: Path,
     checkpoint: PhaseIIIReviewCheckpoint,
+    adapter_version: str,
+    allowed_decisions: str,
 ) -> None:
     input_root = _inputs(tmp_path)
     output = tmp_path / "review-package"
@@ -113,6 +133,7 @@ def test_builds_one_path_free_content_addressed_package(
     manifest = validate_phase3_review_package(output)
     assert manifest.review_package_id == result.review_package_id
     assert manifest.review_package_id.startswith("phase3reviewpkg_")
+    assert manifest.adapter_version == adapter_version
     assert manifest.execution_identity_id == EXECUTION_ID
     assert manifest.crystal_id == "AD4QS1P4G2_18"
     assert tuple(target.item_id for target in manifest.permitted_targets) == (
@@ -127,6 +148,7 @@ def test_builds_one_path_free_content_addressed_package(
     assert result.evidence_files[0].read_text(encoding="ascii").startswith("item_id")
     manifest_text = result.manifest.read_text(encoding="ascii")
     table_text = result.review_table.read_text(encoding="ascii")
+    assert table_text.count(allowed_decisions) == 2
     assert str(input_root) not in manifest_text
     assert str(input_root) not in table_text
     assert str(output) not in manifest_text

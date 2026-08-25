@@ -12052,3 +12052,23 @@ with a collapsed combined parent or a guessed command.
 - Keep the existing 30-minute poll for job `634097`; do not submit another
   control, `9ECN`, M6, localisation, or unknown dataset before that exact
   running control is classified.
+
+## 2026-08-25 - Composition and sequence checkpoints become reviewable
+
+- The schema already recognised composition and sequence decisions, but the
+  actual package generator and owned-run registry both rejected those
+  checkpoints. Focused regressions reproduced the resulting missing human
+  review boundary before changing the existing implementation.
+- The same content-addressed package generator now emits checkpoint-specific
+  composition/sequence worksheets and versioned v2 package manifests. Its
+  existing evidence checksum/size allow-list, owned parent/execution/crystal
+  identity, and target coverage remain mandatory. Registries containing either
+  new checkpoint likewise use v2 while historical crystallographic/A-seed
+  packages and registries retain their original v1 identifiers unchanged.
+- Composition `retain_partial` and sequence `retain_alternative` now pass the
+  existing trusted package, registry, and decision-staging boundaries without
+  creating an automatic scientific or exact-locus claim. Live fixed profiles,
+  remote collection, and map-supported final review remain separate gates.
+- The existing 30-minute automation remains the sole monitor for Slurm job
+  `634097`. Classify its exact grouped 6RTZ/3U7Q component evidence before any
+  multi-fixed Phaser command, `9ECN`, M6, localisation, or unknown analysis.

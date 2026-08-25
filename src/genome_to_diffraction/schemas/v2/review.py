@@ -178,7 +178,7 @@ class PhaseIIIReviewPackageManifest(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "phase3reviewpkg_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["phase3-review-package-v1"]
+    adapter_version: Literal["phase3-review-package-v1", "phase3-review-package-v2"]
     review_package_id: PhaseIIIReviewPackageIdentifier
     checkpoint: PhaseIIIReviewCheckpoint
     owned_parent_run_id: OperatorIdentifier
@@ -194,10 +194,14 @@ class PhaseIIIReviewPackageManifest(_ContentAddressedContract):
 
     @model_validator(mode="after")
     def _validate_package_metadata(self) -> Self:
-        if self.checkpoint not in {
-            PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
-            PhaseIIIReviewCheckpoint.A_SEED,
-        }:
+        if (
+            self.adapter_version == "phase3-review-package-v1"
+            and self.checkpoint
+            not in {
+                PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+                PhaseIIIReviewCheckpoint.A_SEED,
+            }
+        ):
             raise ValueError(
                 "review-package-v1 supports crystallographic and A-seed review only"
             )
