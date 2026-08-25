@@ -42,6 +42,7 @@ workflow {
         params.prostt5_gpu,
         params.afdb_accession_map,
         params.afdb_request_timeout_seconds.toFloat(),
-        params.afdb_retry_count
+        params.afdb_retry_count,
+        false
     )
 }

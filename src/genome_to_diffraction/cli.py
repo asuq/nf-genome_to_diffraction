@@ -223,8 +223,10 @@ from genome_to_diffraction.structure_search import (
     ProstT5FoldseekSearchRequest,
     ProviderHitMergeRequest,
     ProviderPlanRequest,
+    build_phase3_foldseek_batches,
     emit_disabled_provider_bundle,
     merge_pdb_provider_hits,
+    merge_phase3_foldseek_batches,
     qualify_p1_search,
     register_pdb_coordinates,
     resolve_provider_plan,
@@ -1722,6 +1724,24 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     merge_provider_hits_parser.add_argument("--foldseek-hits", type=Path, required=True)
     merge_provider_hits_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_batch_plan_parser = search_actions.add_parser(
+        "plan-phase3-foldseek-batches",
+        help="partition the complete catalogue into fixed 128-query Foldseek batches",
+    )
+    phase3_batch_plan_parser.add_argument("--sequence-groups", type=Path, required=True)
+    phase3_batch_plan_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_batch_merge_parser = search_actions.add_parser(
+        "merge-phase3-foldseek-batches",
+        help="verify and combine all fixed complete-catalogue Foldseek batches",
+    )
+    phase3_batch_merge_parser.add_argument(
+        "--sequence-groups", type=Path, required=True
+    )
+    phase3_batch_merge_parser.add_argument("--batch-plan", type=Path, required=True)
+    phase3_batch_merge_parser.add_argument(
+        "--batch", type=Path, action="append", required=True
+    )
+    phase3_batch_merge_parser.add_argument("--outdir", type=Path, required=True)
     pdb_sequence_parser = search_actions.add_parser(
         "pdb-sequence",
         help="search exact catalogue sequences against the local PDB SEQRES database",
@@ -2655,6 +2675,22 @@ def _run_structure_search(args: argparse.Namespace) -> int:
             )
         )
         print(f"Merged {len(merged.hits)} PDB provider hits: {merged.manifest_json}")
+        return 0
+    if args.structure_search_action == "plan-phase3-foldseek-batches":
+        batches = build_phase3_foldseek_batches(
+            sequence_groups=args.sequence_groups,
+            output_directory=args.outdir,
+        )
+        print(f"Planned complete fixed-128-query Foldseek batches: {batches}")
+        return 0
+    if args.structure_search_action == "merge-phase3-foldseek-batches":
+        merged = merge_phase3_foldseek_batches(
+            sequence_groups=args.sequence_groups,
+            batch_plan=args.batch_plan,
+            batch_outputs=tuple(args.batch),
+            output_directory=args.outdir,
+        )
+        print(f"Merged complete bounded Foldseek batch results: {merged}")
         return 0
     if args.structure_search_action == "qualify-p1":
         report = qualify_p1_search(

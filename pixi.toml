@@ -74,6 +74,7 @@ composition-attempt-stub = "python tests/scripts/check_composition_attempt_fanou
 localisation-wave-stub = "python tests/scripts/check_nextflow.py --localisation-wave-stub"
 unknown-pass1-screen-stub = "python -m tests.scripts.check_unknown_pass1_screen"
 phase3-multicrystal-stub = "python -m tests.scripts.check_multicrystal_fanout"
+phase3-foldseek-batch-stub = "python -m tests.scripts.check_phase3_foldseek_batches"
 provider-empty-graph-stub = "python -m tests.scripts.check_provider_empty_graph"
 offline-wheel-check = "python -m tests.scripts.check_offline_wheel --repository ."
 hpc-wrapper-check = "bash -n bootstrap/nf-gtd-hpc-remote bootstrap/nf-gtd-hpc-smoke-job bootstrap/nf-gtd-hpc-recover-tools"
@@ -82,4 +83,4 @@ prepare-project-layout = "bootstrap/prepare_project_layout.sh"
 prepare-public-control = "genome-to-diffraction benchmark prepare-public-control --specification benchmarks/public-controls/pdb_8oox.yaml"
 public-panel-check = "genome-to-diffraction benchmark check-public-panel --panel benchmarks/public-controls/panel.yaml"
 prepare-public-panel = "genome-to-diffraction benchmark prepare-public-panel --panel benchmarks/public-controls/panel.yaml --outdir .untracked/public-controls/panel-v2"
-check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "public-panel-check", "docs-check", "actionlint-check", "nextflow-check", "nextflow-stub", "heteromer-application-stub", "m6-cache-mutation-stub", "composition-attempt-stub", "localisation-wave-stub", "unknown-pass1-screen-stub", "phase3-multicrystal-stub", "provider-empty-graph-stub", "offline-wheel-check", "hpc-wrapper-check"] }
+check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "public-panel-check", "docs-check", "actionlint-check", "nextflow-check", "nextflow-stub", "heteromer-application-stub", "m6-cache-mutation-stub", "composition-attempt-stub", "localisation-wave-stub", "unknown-pass1-screen-stub", "phase3-multicrystal-stub", "phase3-foldseek-batch-stub", "provider-empty-graph-stub", "offline-wheel-check", "hpc-wrapper-check"] }

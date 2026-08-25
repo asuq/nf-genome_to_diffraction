@@ -107,7 +107,8 @@ workflow MAIN_WORKFLOW {
             prostt5_gpu,
             afdb_accession_map,
             afdb_request_timeout_seconds,
-            afdb_retry_count
+            afdb_retry_count,
+            phase3_joint_first_copy
         )
         direct_pdb_hits = discovery.pdb_provider_hits.map { Path bundle ->
             bundle.resolve('structural_hits.jsonl')

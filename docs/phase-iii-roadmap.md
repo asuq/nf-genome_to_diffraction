@@ -356,6 +356,16 @@ queries, one large-memory batch at a time. AFDB exact remains explicit-mapping
 only and ESM Atlas remains disabled. Run at most 25 first-copy hypotheses per
 crystal and emit three seed-review packages.
 
+Status: the explicit Phase III application now plans complete deterministic
+Foldseek batches of at most 128 exact sequence groups, invokes the existing
+provider-bound adapter in one Nextflow task per batch, enforces one concurrent
+large-memory search, and independently merges every typed query, hit, and raw
+tool/log checksum. A synthetic 1,621-group catalogue fans out exactly 13
+searches and retains byte-identical fully cached resume; missing, duplicated,
+deferred, or changed batches fail closed. Direct PDB search and historical
+single-batch application modes remain unchanged. Real full-catalogue provider
+and fixed-HPC execution remain pending.
+
 `unknown-stage-selected` accepts only an owned parent run, review TSV, and
 confirmation SHA. Approve at most three A states per crystal.
 `unknown-single-component` performs same-component placement, refinement, maps,

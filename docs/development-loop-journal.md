@@ -12408,3 +12408,24 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Complete Foldseek discovery no longer stops at its pilot cap
+
+- The ordinary application submitted one whole catalogue to ProstT5/Foldseek;
+  its existing 128-query pilot could therefore leave later candidate proteins
+  unsearched while still publishing a superficially completed provider run.
+- Explicit Phase III mode now sorts every exact sequence group into immutable
+  batches of at most 128, schedules one existing provider-bound Foldseek task
+  per batch, limits high-memory concurrency to one, and independently verifies
+  all result/hit/raw-log checksums before emitting the historical bundle.
+- A synthetic 1,621-group catalogue executes exactly 13 bounded search tasks;
+  resume caches every planning, provider, search, and merge task with unchanged
+  hashes and output bytes. Missing, duplicated, deferred, or altered batch/raw
+  evidence fails closed instead of becoming a scientific no-hit.
+- Thirty-one focused provider/batching regressions, the complete cached batch
+  workflow, reviewed multi-crystal application, historical heteromer route,
+  repository type checking, Nextflow syntax, Ruff, schema, and documentation
+  checks pass. No real Foldseek, network service, or HPC profile was started.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

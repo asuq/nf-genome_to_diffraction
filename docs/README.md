@@ -51,6 +51,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III multi-crystal first-copy application](phase-iii-multicrystal-first-copy.md):
   one shared catalogue/provider preparation, independent manifest-owned
   crystal funnels, complete joint-A attempts, and separate unapproved reviews.
+- [Phase III complete-catalogue Foldseek batching](phase-iii-foldseek-batching.md):
+  deterministic 128-query Nextflow items, one high-memory task at a time,
+  exact catalogue coverage, retained raw evidence, and cached replay.
 - [Phase III unknown-pass-1 local screen stub](phase-iii-unknown-pass1-screen-stub.md):
   path-closed synthetic three-crystal fan-out, staged crystallographic review,
   shared preparation, exact 25-A inventory, typed no-work paths, and cached
