@@ -164,6 +164,19 @@ canonical decision JSON plus stage manifest. Wrong parent/profile/checkpoint,
 mutated package evidence, and mismatched independent checksums fail before
 publication. The local CLI is `review stage-owned-a-seeds`.
 
+`stage_unknown_pass1_sequence_decisions` uses the same owned-package boundary
+for one human sequence checkpoint. The parent must be the completed
+`unknown-single-component` run, use the `phase3-pass1` phase, and have the
+fixed `gtd-unknown-single-component-` run-ID prefix; the preceding screen
+cannot own these later decisions. The exact crystal is inferred from an
+ASCII, independently checksum-confirmed operator TSV, and the matching
+`sequence` package is resolved only through the owned-run registry. Only
+`approve`, `retain_alternative`, and `no_assignment` are valid; unknown locus
+targets, cross-crystal substitutions, package mutations, and stale decisions
+fail before publication. The fixed local CLI is
+`review stage-owned-sequences`; it exposes neither a crystal selector nor an
+arbitrary package path and does not itself promote a scientific claim.
+
 The production same-component stage accepts these decisions through explicit
 `--phase3-review-stage` and `--phase3-review-package-manifest` options. It first
 revalidates the stage's exact two-file allow-list, canonical decision checksum,

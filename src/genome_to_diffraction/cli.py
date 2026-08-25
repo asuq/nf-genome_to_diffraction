@@ -107,6 +107,7 @@ from genome_to_diffraction.execution import (
     complete_provider_empty_graph,
     publish_unknown_pass1_crystallographic_review_routes,
     stage_unknown_pass1_selected_a_seeds,
+    stage_unknown_pass1_sequence_decisions,
 )
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.localisation import (
@@ -1643,6 +1644,19 @@ def _build_parser() -> argparse.ArgumentParser:
     owned_a_seed_stage_parser.add_argument("--decisions", type=Path, required=True)
     owned_a_seed_stage_parser.add_argument("--confirm-decisions-sha256", required=True)
     owned_a_seed_stage_parser.add_argument("--outdir", type=Path, required=True)
+    owned_sequence_stage_parser = review_actions.add_parser(
+        "stage-owned-sequences",
+        help="stage an owned single-component sequence decision TSV",
+    )
+    owned_sequence_stage_parser.add_argument(
+        "--owned-run-registry", type=Path, required=True
+    )
+    owned_sequence_stage_parser.add_argument("--parent-run", required=True)
+    owned_sequence_stage_parser.add_argument("--decisions", type=Path, required=True)
+    owned_sequence_stage_parser.add_argument(
+        "--confirm-decisions-sha256", required=True
+    )
+    owned_sequence_stage_parser.add_argument("--outdir", type=Path, required=True)
     owned_a_seed_package_parser = review_actions.add_parser(
         "build-owned-a-package",
         help="publish one owned A-seed package from verified first-copy evidence",
@@ -3258,6 +3272,20 @@ def _run_review(args: argparse.Namespace) -> int:
         )
         print(
             f"Staged {output.decision_count} owned A-seed decisions: {output.stage_id}"
+        )
+        return 0
+    if args.review_action == "stage-owned-sequences":
+        output = stage_unknown_pass1_sequence_decisions(
+            owned_run_registry=args.owned_run_registry,
+            owned_run_id=args.parent_run,
+            decisions=args.decisions,
+            confirmed_decisions_sha256=args.confirm_decisions_sha256,
+            output_directory=args.outdir,
+            progress=not args.no_progress,
+        )
+        print(
+            f"Staged {output.decision_count} owned sequence decisions: "
+            f"{output.stage_id}"
         )
         return 0
     if args.review_action == "build-owned-a-package":

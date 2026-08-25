@@ -10,6 +10,7 @@ from genome_to_diffraction.cli import main
 from genome_to_diffraction.execution import (
     UnknownPass1ScreenError,
     stage_unknown_pass1_selected_a_seeds,
+    stage_unknown_pass1_sequence_decisions,
 )
 from genome_to_diffraction.review import (
     OwnedPhaseIIIParentRun,
@@ -33,6 +34,7 @@ from genome_to_diffraction.schemas.v2 import (
 )
 
 RUN_ID = "gtd-phase3-owned-run"
+SEQUENCE_RUN_ID = "gtd-unknown-single-component-20260825-owned"
 PROFILE = "unknown-screen"
 PHASE = "phase3-pass1"
 SOURCE_COMMIT = "1" * 40
@@ -246,10 +248,11 @@ def _a_seed_tsv(
     *,
     rows: tuple[tuple[str, str, str], ...] | None = None,
     checkpoint: PhaseIIIReviewCheckpoint = PhaseIIIReviewCheckpoint.A_SEED,
+    owned_run_id: str = RUN_ID,
 ) -> tuple[Path, str]:
     package = resolve_phase3_owned_review_package(
         registry,
-        run_id=RUN_ID,
+        run_id=owned_run_id,
         crystal_id=CRYSTAL_A,
         checkpoint=checkpoint,
     )
@@ -277,7 +280,7 @@ def _a_seed_tsv(
             "\t".join(
                 (
                     checkpoint.value,
-                    RUN_ID,
+                    owned_run_id,
                     manifest.review_package_id,
                     sha256_file(package.package_manifest, progress=False),
                     crystal_id,
@@ -293,6 +296,42 @@ def _a_seed_tsv(
     path = tmp_path / "operator-a-seeds.tsv"
     path.write_text("\n".join(records) + "\n", encoding="ascii")
     return path, sha256_file(path, progress=False)
+
+
+def _register_sequence(
+    tmp_path: Path,
+    *,
+    run_id: str = SEQUENCE_RUN_ID,
+    profile: str = "unknown-single-component",
+    phase: str = PHASE,
+) -> Path:
+    execution_path, identity = _write_execution_identity(tmp_path)
+    package = _build_package(
+        tmp_path,
+        name="owned-sequence-review",
+        identity=identity,
+        crystal_id=CRYSTAL_A,
+        checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        run_id=run_id,
+        profile=profile,
+        phase=phase,
+    )
+    registry = tmp_path / "owned-sequence-registry"
+    registry.mkdir()
+    register_phase3_owned_run(
+        parent=OwnedPhaseIIIParentRun(run_id, profile, phase),
+        completed_at=RUN_COMPLETED_AT,
+        execution_identity=execution_path,
+        packages=(
+            OwnedPhaseIIIReviewPackageSource(
+                crystal_id=CRYSTAL_A,
+                checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+                package_directory=package,
+            ),
+        ),
+        output_directory=registry,
+    )
+    return registry
 
 
 def test_registers_path_free_records_and_resolves_exact_owned_package(
@@ -520,6 +559,181 @@ def test_cli_stages_owned_a_seed_decisions_without_package_or_crystal_selector(
             str(registry),
             "--parent-run",
             RUN_ID,
+            "--decisions",
+            str(decisions),
+            "--confirm-decisions-sha256",
+            checksum,
+            "--outdir",
+            str(destination),
+        ]
+    )
+
+    assert exit_code == 0
+    assert (destination / "phase3_review_stage_manifest.json").is_file()
+
+
+@pytest.mark.parametrize("decision", ("approve", "retain_alternative", "no_assignment"))
+def test_stages_sequence_decisions_only_through_owned_single_component_run(
+    tmp_path: Path,
+    decision: str,
+) -> None:
+    registry = _register_sequence(tmp_path)
+    decisions, checksum = _a_seed_tsv(
+        tmp_path,
+        registry,
+        checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        owned_run_id=SEQUENCE_RUN_ID,
+        rows=((CRYSTAL_A, f"{CRYSTAL_A}_target", decision),),
+    )
+    destination = tmp_path / "approved-sequences"
+
+    output = stage_unknown_pass1_sequence_decisions(
+        owned_run_registry=registry,
+        owned_run_id=SEQUENCE_RUN_ID,
+        decisions=decisions,
+        confirmed_decisions_sha256=checksum,
+        output_directory=destination,
+    )
+
+    staged = PhaseIIIReviewDecisionFile.model_validate_json(
+        output.canonical_decision.read_bytes()
+    )
+    assert staged.checkpoint is PhaseIIIReviewCheckpoint.SEQUENCE
+    assert staged.decisions[0].crystal_id == CRYSTAL_A
+    assert staged.decisions[0].decision is PhaseIIIReviewDecisionValue(decision)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    (
+        "checksum",
+        "parent",
+        "checkpoint",
+        "package",
+        "cross_crystal",
+        "unknown_target",
+        "invalid_decision",
+        "non_ascii",
+    ),
+)
+def test_sequence_staging_refuses_unowned_or_changed_inputs_before_publication(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    registry = _register_sequence(tmp_path)
+    rows = ((CRYSTAL_A, f"{CRYSTAL_A}_target", "approve"),)
+    if failure == "cross_crystal":
+        rows += ((CRYSTAL_B, f"{CRYSTAL_B}_target", "no_assignment"),)
+    if failure == "unknown_target":
+        rows = ((CRYSTAL_A, "unreviewed_locus", "approve"),)
+    if failure == "invalid_decision":
+        rows = ((CRYSTAL_A, f"{CRYSTAL_A}_target", "reject"),)
+    decisions, checksum = _a_seed_tsv(
+        tmp_path,
+        registry,
+        checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        owned_run_id=SEQUENCE_RUN_ID,
+        rows=rows,
+    )
+    if failure == "checkpoint":
+        decisions.write_text(
+            decisions.read_text(encoding="ascii").replace("sequence\t", "a_seed\t"),
+            encoding="ascii",
+        )
+        checksum = sha256_file(decisions, progress=False)
+    if failure == "non_ascii":
+        decisions.write_text(
+            decisions.read_text(encoding="ascii").replace(
+                "map inspected", "map caf\u00e9"
+            ),
+            encoding="utf-8",
+        )
+        checksum = sha256_file(decisions, progress=False)
+    if failure == "package":
+        package = resolve_phase3_owned_review_package(
+            registry,
+            run_id=SEQUENCE_RUN_ID,
+            crystal_id=CRYSTAL_A,
+            checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        )
+        evidence = next((package.package_manifest.parent / "evidence").iterdir())
+        evidence.write_bytes(b"x" * evidence.stat().st_size)
+    destination = tmp_path / "must-not-publish-sequence"
+
+    with pytest.raises(UnknownPass1ScreenError):
+        stage_unknown_pass1_sequence_decisions(
+            owned_run_registry=registry,
+            owned_run_id="another-run" if failure == "parent" else SEQUENCE_RUN_ID,
+            decisions=decisions,
+            confirmed_decisions_sha256="0" * 64 if failure == "checksum" else checksum,
+            output_directory=destination,
+        )
+
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize(
+    ("run_id", "profile", "phase", "message"),
+    (
+        (RUN_ID, "unknown-screen", PHASE, "unknown-single-component profile"),
+        (RUN_ID, "unknown-single-component", PHASE, "must begin"),
+        (SEQUENCE_RUN_ID, "unknown-single-component", "phase3-pass2", "pass-1 run"),
+    ),
+)
+def test_sequence_staging_rejects_predecessor_profile_run_or_phase(
+    tmp_path: Path,
+    run_id: str,
+    profile: str,
+    phase: str,
+    message: str,
+) -> None:
+    registry = _register_sequence(
+        tmp_path,
+        run_id=run_id,
+        profile=profile,
+        phase=phase,
+    )
+    decisions, checksum = _a_seed_tsv(
+        tmp_path,
+        registry,
+        checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        owned_run_id=run_id,
+    )
+    destination = tmp_path / "wrong-sequence-parent"
+
+    with pytest.raises(UnknownPass1ScreenError, match=message):
+        stage_unknown_pass1_sequence_decisions(
+            owned_run_registry=registry,
+            owned_run_id=run_id,
+            decisions=decisions,
+            confirmed_decisions_sha256=checksum,
+            output_directory=destination,
+        )
+
+    assert not destination.exists()
+
+
+def test_cli_stages_owned_sequence_decisions_without_package_or_crystal_selector(
+    tmp_path: Path,
+) -> None:
+    registry = _register_sequence(tmp_path)
+    decisions, checksum = _a_seed_tsv(
+        tmp_path,
+        registry,
+        checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        owned_run_id=SEQUENCE_RUN_ID,
+    )
+    destination = tmp_path / "cli-sequence-stage"
+
+    exit_code = main(
+        [
+            "--no-progress",
+            "review",
+            "stage-owned-sequences",
+            "--owned-run-registry",
+            str(registry),
+            "--parent-run",
+            SEQUENCE_RUN_ID,
             "--decisions",
             str(decisions),
             "--confirm-decisions-sha256",

@@ -12725,3 +12725,25 @@ with a collapsed combined parent or a guessed command.
   claims real Phenix or Coot-map qualification. Fixed unknown HPC profiles and
   licensed execution remain open; preserve the independent 30-minute monitor
   for Slurm job `634097` and classify it before new scientific HPC operations.
+
+## 2026-08-25 - Sequence review decisions use the exact owned parent
+
+- The production application already published one schema-v2 sequence review
+  package per crystal, but the only fixed operator handoff accepted earlier
+  A-seed decisions. Sequence review therefore lacked a package-owned route back
+  into the Phase III application.
+- One narrow sibling command now resolves the exact sequence package solely
+  through its owned-run registry. It infers one crystal from an ASCII operator
+  TSV, independently confirms its checksum, and requires the completed
+  `unknown-single-component` parent, fixed run-ID prefix, and pass-1 phase.
+- Existing typed decisions preserve `approve`, `retain_alternative`, and
+  `no_assignment`; a preceding screen parent, wrong checkpoint/phase/profile,
+  cross-crystal row, invented sequence target, changed evidence, or stale
+  confirmation publishes nothing. Human locus support is never fabricated.
+- Seventy-seven focused owned-registry, generic package, and staging tests
+  pass, including every sequence outcome and the unchanged A-seed CLI;
+  targeted Ruff/type checks and documentation/schema checks also pass. The
+  local interface exposes no package path or crystal selector; fixed HPC
+  profiles and actual supervised unknown runs remain pending. Preserve the
+  independent 30-minute monitor for Slurm job `634097` and classify it before
+  new scientific HPC operations.

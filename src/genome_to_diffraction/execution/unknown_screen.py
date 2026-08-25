@@ -449,6 +449,95 @@ def stage_unknown_pass1_crystallographic_reviews(
     )
 
 
+def _stage_unknown_pass1_owned_decisions(
+    *,
+    owned_run_registry: Path,
+    owned_run_id: str,
+    decisions: Path,
+    confirmed_decisions_sha256: str,
+    output_directory: Path,
+    checkpoint: PhaseIIIReviewCheckpoint,
+    expected_profile: str,
+    expected_run_prefix: str | None = None,
+    progress: bool = False,
+) -> PhaseIIIReviewStageOutput:
+    label = "A-seed" if checkpoint is PhaseIIIReviewCheckpoint.A_SEED else "sequence"
+
+    decision_path = _regular_file(decisions, label=f"{label} decision file")
+    if decision_path.suffix != ".tsv":
+        raise UnknownPass1ScreenError(f"{label} decisions must use an operator TSV")
+    try:
+        if not decision_path.read_bytes().isascii():
+            raise UnknownPass1ScreenError(
+                f"{label} decision TSV must contain only ASCII"
+            )
+        if sha256_file(decision_path, progress=False) != confirmed_decisions_sha256:
+            raise UnknownPass1ScreenError(
+                f"{label} decision checksum differs from the independent confirmation"
+            )
+        decision_file = load_contract(
+            decision_path,
+            "phase3-review-decisions",
+            progress=False,
+        )
+    except (ContractError, OSError) as error:
+        raise UnknownPass1ScreenError(
+            f"{label} decision TSV violates its typed contract: {error}"
+        ) from error
+    if not isinstance(decision_file, PhaseIIIReviewDecisionFile):
+        raise UnknownPass1ScreenError(
+            f"{label} decision loader returned another contract"
+        )
+    if decision_file.checkpoint is not checkpoint:
+        raise UnknownPass1ScreenError(f"decision checkpoint must be {label} review")
+    if decision_file.owned_parent_run_id != owned_run_id:
+        raise UnknownPass1ScreenError(f"{label} decisions belong to another parent run")
+    crystal_ids = {decision.crystal_id for decision in decision_file.decisions}
+    if len(crystal_ids) != 1:
+        raise UnknownPass1ScreenError(f"{label} decisions must belong to one crystal")
+
+    try:
+        package = resolve_phase3_owned_review_package(
+            owned_run_registry,
+            run_id=owned_run_id,
+            crystal_id=next(iter(crystal_ids)),
+            checkpoint=checkpoint,
+        )
+    except PhaseIIIOwnedRunError as error:
+        raise UnknownPass1ScreenError(
+            f"owned {label} package resolution failed: {error}"
+        ) from error
+    if package.parent.profile != expected_profile:
+        raise UnknownPass1ScreenError(
+            f"{label} parent must use the {expected_profile} profile"
+        )
+    if expected_run_prefix is not None:
+        if not package.parent.run_id.startswith(expected_run_prefix):
+            raise UnknownPass1ScreenError(
+                f"{label} parent run must begin with {expected_run_prefix}"
+            )
+        if package.parent.phase != "phase3-pass1":
+            raise UnknownPass1ScreenError(
+                f"{label} parent must be a Phase III pass-1 run"
+            )
+    try:
+        return stage_phase3_review_decisions(
+            PhaseIIIReviewStageRequest(
+                parent=package.parent,
+                checkpoint=checkpoint,
+                review_package_manifest=package.package_manifest,
+                decisions=decision_path,
+                confirmed_decisions_sha256=confirmed_decisions_sha256,
+                output_directory=output_directory,
+                progress=progress,
+            )
+        )
+    except PhaseIIIReviewStageError as error:
+        raise UnknownPass1ScreenError(
+            f"{label} decision staging failed: {error}"
+        ) from error
+
+
 def stage_unknown_pass1_selected_a_seeds(
     *,
     owned_run_registry: Path,
@@ -460,68 +549,40 @@ def stage_unknown_pass1_selected_a_seeds(
 ) -> PhaseIIIReviewStageOutput:
     """Stage one A-seed decision TSV through its independently owned package."""
 
-    decision_path = _regular_file(decisions, label="A-seed decision file")
-    if decision_path.suffix != ".tsv":
-        raise UnknownPass1ScreenError("A-seed decisions must use an operator TSV")
-    try:
-        if not decision_path.read_bytes().isascii():
-            raise UnknownPass1ScreenError("A-seed decision TSV must contain only ASCII")
-        if sha256_file(decision_path, progress=False) != confirmed_decisions_sha256:
-            raise UnknownPass1ScreenError(
-                "A-seed decision checksum differs from the independent confirmation"
-            )
-        decision_file = load_contract(
-            decision_path,
-            "phase3-review-decisions",
-            progress=False,
-        )
-    except (ContractError, OSError) as error:
-        raise UnknownPass1ScreenError(
-            f"A-seed decision TSV violates its typed contract: {error}"
-        ) from error
-    if not isinstance(decision_file, PhaseIIIReviewDecisionFile):
-        raise UnknownPass1ScreenError(
-            "A-seed decision loader returned another contract"
-        )
-    if decision_file.checkpoint is not PhaseIIIReviewCheckpoint.A_SEED:
-        raise UnknownPass1ScreenError("decision checkpoint must be A-seed review")
-    if decision_file.owned_parent_run_id != owned_run_id:
-        raise UnknownPass1ScreenError("A-seed decisions belong to another parent run")
-    crystal_ids = {decision.crystal_id for decision in decision_file.decisions}
-    if len(crystal_ids) != 1:
-        raise UnknownPass1ScreenError("A-seed decisions must belong to one crystal")
+    return _stage_unknown_pass1_owned_decisions(
+        owned_run_registry=owned_run_registry,
+        owned_run_id=owned_run_id,
+        decisions=decisions,
+        confirmed_decisions_sha256=confirmed_decisions_sha256,
+        output_directory=output_directory,
+        checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+        expected_profile="unknown-screen",
+        progress=progress,
+    )
 
-    try:
-        package = resolve_phase3_owned_review_package(
-            owned_run_registry,
-            run_id=owned_run_id,
-            crystal_id=next(iter(crystal_ids)),
-            checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
-        )
-    except PhaseIIIOwnedRunError as error:
-        raise UnknownPass1ScreenError(
-            f"owned A-seed package resolution failed: {error}"
-        ) from error
-    if package.parent.profile != "unknown-screen":
-        raise UnknownPass1ScreenError(
-            "A-seed parent must use the unknown-screen profile"
-        )
-    try:
-        return stage_phase3_review_decisions(
-            PhaseIIIReviewStageRequest(
-                parent=package.parent,
-                checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
-                review_package_manifest=package.package_manifest,
-                decisions=decision_path,
-                confirmed_decisions_sha256=confirmed_decisions_sha256,
-                output_directory=output_directory,
-                progress=progress,
-            )
-        )
-    except PhaseIIIReviewStageError as error:
-        raise UnknownPass1ScreenError(
-            f"A-seed decision staging failed: {error}"
-        ) from error
+
+def stage_unknown_pass1_sequence_decisions(
+    *,
+    owned_run_registry: Path,
+    owned_run_id: str,
+    decisions: Path,
+    confirmed_decisions_sha256: str,
+    output_directory: Path,
+    progress: bool = False,
+) -> PhaseIIIReviewStageOutput:
+    """Stage one sequence decision TSV from its owned single-component run."""
+
+    return _stage_unknown_pass1_owned_decisions(
+        owned_run_registry=owned_run_registry,
+        owned_run_id=owned_run_id,
+        decisions=decisions,
+        confirmed_decisions_sha256=confirmed_decisions_sha256,
+        output_directory=output_directory,
+        checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+        expected_profile="unknown-single-component",
+        expected_run_prefix="gtd-unknown-single-component-",
+        progress=progress,
+    )
 
 
 def publish_unknown_pass1_crystallographic_review_routes(
@@ -947,5 +1008,6 @@ __all__ = [
     "publish_unknown_pass1_crystallographic_review_routes",
     "stage_unknown_pass1_crystallographic_reviews",
     "stage_unknown_pass1_selected_a_seeds",
+    "stage_unknown_pass1_sequence_decisions",
     "write_unknown_pass1_screen_inventory",
 ]

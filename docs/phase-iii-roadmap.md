@@ -474,7 +474,12 @@ symlinks, escape, duplicate roles/paths, incomplete coverage, and non-empty
 publication targets. Existing package and registry identities remain unchanged;
 composition/sequence packages and mixed registries receive explicit v2 adapter
 identities and remain resolvable through the same owned-run trust boundary.
-Sequence packages are now published by the actual reviewed application; fixed
+Sequence packages are now published by the actual reviewed application. A
+fixed local sequence-decision handoff independently resolves one crystal's
+package from its completed `unknown-single-component` run, requires the exact
+pass-1 run/profile/phase and confirmed ASCII decision checksum, and retains
+only explicit `approve`, `retain_alternative`, or `no_assignment` review;
+neither the predecessor screen nor an unreviewed locus can substitute. Fixed
 HPC profiles, remote staging, and live composition-package wiring remain
 pending.
 

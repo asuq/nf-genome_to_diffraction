@@ -23,6 +23,7 @@ from genome_to_diffraction.execution.unknown_screen import (
     publish_unknown_pass1_crystallographic_review_routes,
     stage_unknown_pass1_crystallographic_reviews,
     stage_unknown_pass1_selected_a_seeds,
+    stage_unknown_pass1_sequence_decisions,
     write_unknown_pass1_screen_inventory,
 )
 
@@ -44,6 +45,7 @@ __all__ = [
     "publish_unknown_pass1_crystallographic_review_routes",
     "stage_unknown_pass1_crystallographic_reviews",
     "stage_unknown_pass1_selected_a_seeds",
+    "stage_unknown_pass1_sequence_decisions",
     "write_composition_attempt_inventory",
     "write_unknown_pass1_screen_inventory",
 ]
