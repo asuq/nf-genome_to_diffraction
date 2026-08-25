@@ -4,8 +4,8 @@ nextflow.enable.dsl = 2
 nextflow.enable.types = true
 
 include {
-    PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW
-} from '../../../../workflows/additional_copy_workflow'
+    PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW
+} from '../../../../workflows/phase3_reviewed_single_component_workflow'
 
 params {
     reviewed_manifest: Path
@@ -25,12 +25,13 @@ workflow {
                 file(item.phase3_package as String, checkIfExists: true),
                 file(item.hypotheses as String, checkIfExists: true),
                 file(item.sequence_groups as String, checkIfExists: true),
+                file(item.source_records as String, checkIfExists: true),
                 file(item.preflight as String, checkIfExists: true),
                 file(item.mtz as String, checkIfExists: true),
                 file(item.phenix_manifest as String, checkIfExists: true),
-                file(item.diffraction_selection as String, checkIfExists: true)
+                file(item.dispatch as String, checkIfExists: true)
             )
         }
     }
-    PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW(reviewed)
+    PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW(reviewed)
 }

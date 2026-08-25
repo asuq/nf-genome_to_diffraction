@@ -208,8 +208,8 @@ def _check_complete_scientific_fanout(root: Path, environment: dict[str, str]) -
         "phase3-add-copy:test_crystal_01:sol_seed_b",
         "t12:sol_finalist_a",
         "t12:sol_finalist_b",
-        "phase3-t12:sol_phase3_a",
-        "phase3-t12:sol_phase3_b",
+        "phase3-t12:test_crystal_01:sol_phase3_a",
+        "phase3-t12:test_crystal_01:sol_phase3_b",
     }
     if not required_tags.issubset(tags):
         raise RuntimeError("scientific fan-out omitted a distinct task identity")
@@ -266,7 +266,7 @@ def _check_complete_scientific_fanout(root: Path, environment: dict[str, str]) -
             "test_crystal_01\n"
         ):
             raise RuntimeError("Phase III same-component placement crossed crystals")
-        result = output / f"t12_sol_phase3_{label}"
+        result = output / f"phase3_t12_test_crystal_01_sol_phase3_{label}"
         if (result / "phase3_diffraction_selection.json").read_bytes() != (
             selection.read_bytes()
         ):

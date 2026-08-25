@@ -56,7 +56,7 @@ process RUN_BRIEF_REFINEMENT {
 // diffraction evidence. Deep content hashing makes source, selected dataset,
 // Free-R flags, preflight, and licensed-runtime changes visible to resume.
 process RUN_PHASE3_BRIEF_REFINEMENT {
-    tag "phase3-t12:${item[0][0]}"
+    tag "phase3-t12:${item[4]}:${item[0][0]}"
     label 'process_refine'
     cache 'deep'
     errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }
@@ -66,10 +66,15 @@ process RUN_PHASE3_BRIEF_REFINEMENT {
     item: Tuple
 
     output:
-    result: Path = file("t12_${item[0][0]}")
+    result: Tuple = tuple(
+        item[4],
+        item[0][0],
+        file("phase3_t12_${item[4]}_${item[0][0]}")
+    )
 
     script:
     def finalist = item[0]
+    def outputName = "phase3_t12_${item[4]}_${finalist[0]}"
     """
     genome-to-diffraction \
         --no-progress \
@@ -93,24 +98,25 @@ process RUN_PHASE3_BRIEF_REFINEMENT {
         --preflight '${item[7]}' \
         --free-r-identity '${item[8]}' \
         --threads '${task.cpus}' \
-        --outdir 't12_${finalist[0]}'
+        --outdir '${outputName}'
     """
 
     stub:
     def finalist = item[0]
+    def outputName = "phase3_t12_${item[4]}_${finalist[0]}"
     """
-    mkdir -p 't12_${finalist[0]}'
+    mkdir -p '${outputName}'
     cp \
         '${projectDir}/tests/fixtures/stubs/brief_refinement_result.json' \
-        't12_${finalist[0]}/brief_refinement_result.json'
+        '${outputName}/brief_refinement_result.json'
     cp \
         '${projectDir}/tests/fixtures/stubs/sequence_map_result.json' \
-        't12_${finalist[0]}/sequence_map_result.json'
+        '${outputName}/sequence_map_result.json'
     cp \
         '${projectDir}/tests/fixtures/stubs/t12_command.json' \
-        't12_${finalist[0]}/t12_command.json'
-    cp '${item[5]}' 't12_${finalist[0]}/phase3_diffraction_selection.json'
-    cp '${item[8]}' 't12_${finalist[0]}/phase3_free_r_identity.json'
-    printf '%s\n' '${item[4]}' > 't12_${finalist[0]}/phase3_crystal_id.txt'
+        '${outputName}/t12_command.json'
+    cp '${item[5]}' '${outputName}/phase3_diffraction_selection.json'
+    cp '${item[8]}' '${outputName}/phase3_free_r_identity.json'
+    printf '%s\n' '${item[4]}' > '${outputName}/phase3_crystal_id.txt'
     """
 }

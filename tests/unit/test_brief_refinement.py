@@ -135,6 +135,8 @@ def test_phase3_nextflow_refinement_passes_every_bound_diffraction_input() -> No
 
     assert "process RUN_PHASE3_BRIEF_REFINEMENT" in process
     assert "cache 'deep'" in process
+    assert 'tag "phase3-t12:${item[4]}:${item[0][0]}"' in process
+    assert 'file("phase3_t12_${item[4]}_${item[0][0]}")' in process
     for argument in (
         "--crystal-id '${item[4]}'",
         "--diffraction-selection '${item[5]}'",

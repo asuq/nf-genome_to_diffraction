@@ -869,11 +869,11 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
     approved_ids: dict[str, str] = {}
     selection_paths: dict[str, Path] = {}
     decisions = (
-        ("test_crystal_a", "a", PhaseIIIReviewDecisionValue.APPROVE),
-        ("test_crystal_b", "b", PhaseIIIReviewDecisionValue.APPROVE),
-        ("test_crystal_c", "c", PhaseIIIReviewDecisionValue.DEFER),
+        ("test_crystal_a", "a", PhaseIIIReviewDecisionValue.APPROVE, 3),
+        ("test_crystal_b", "b", PhaseIIIReviewDecisionValue.APPROVE, 1),
+        ("test_crystal_c", "c", PhaseIIIReviewDecisionValue.DEFER, 3),
     )
-    for crystal_id, digest, decision in decisions:
+    for crystal_id, digest, decision, expected_copies in decisions:
         root = tmp_path / crystal_id
         root.mkdir()
         hypothesis_id = f"mrhyp_{digest * 64}"
@@ -885,13 +885,16 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
         hypothesis = _hypothesis(
             crystal_id=crystal_id,
             hypothesis_id=hypothesis_id,
-        ).model_copy(update={"copy_count_expected": 3})
+        ).model_copy(update={"copy_count_expected": expected_copies})
         request.hypotheses_jsonl.write_text(
             f"{canonical_json_text(hypothesis)}\n",
             encoding="utf-8",
         )
         matthews = _matthews(crystal_id=crystal_id).model_copy(
-            update={"copy_count": 3, "total_mass_da": 3 * 436.4375}
+            update={
+                "copy_count": expected_copies,
+                "total_mass_da": expected_copies * 436.4375,
+            }
         )
         request.matthews_hypotheses_jsonl.write_text(
             f"{canonical_json_text(matthews)}\n",
@@ -907,8 +910,19 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
             decision=decision,
             crystal_id=crystal_id,
         )
-        selection = root / "selected-diffraction.json"
+        dispatch = root / "crystal-dispatch"
+        dispatch.mkdir()
+        (dispatch / "crystal_id.txt").write_text(f"{crystal_id}\n", encoding="ascii")
+        copy2(
+            STUBS / "predicted_model_preparation/models/stub.pdb",
+            dispatch / "input.mtz",
+        )
+        selection = dispatch / "phase3_diffraction_selection.json"
         selection.write_text(f'{{"crystal":"{crystal_id}"}}\n', encoding="ascii")
+        (dispatch / "phase3_free_r_identity.json").write_text(
+            f'{{"crystal":"{crystal_id}","free_r":"fixture"}}\n',
+            encoding="ascii",
+        )
         selection_paths[crystal_id] = selection
         if decision is PhaseIIIReviewDecisionValue.APPROVE:
             approved_ids[crystal_id] = solution_id
@@ -920,10 +934,11 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
                 "phase3_package": str(phase3_manifest.parent),
                 "hypotheses": str(request.hypotheses_jsonl),
                 "sequence_groups": str(STUBS / "sequence_groups.jsonl"),
+                "source_records": str(STUBS / "source_records.jsonl"),
                 "preflight": str(STUBS / "mtz_preflight.jsonl"),
                 "mtz": str(STUBS / "predicted_model_preparation/models/stub.pdb"),
                 "phenix_manifest": str(STUBS / "phenix_install_manifest.json"),
-                "diffraction_selection": str(selection),
+                "dispatch": str(dispatch),
             }
         )
 
@@ -948,8 +963,16 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
         "add_copy.eff",
         "additional_copy_series_results.jsonl",
         "additional_copy_series_summary.json",
+        "brief_refinement_result.json",
+        "sequence_map_result.json",
+        "t12_command.json",
     ):
         copy2(STUBS / name, local_stubs / name)
+    model_root = local_stubs / "predicted_model_preparation/models"
+    model_root.mkdir(parents=True)
+    copy2(
+        STUBS / "predicted_model_preparation/models/stub.pdb", model_root / "stub.pdb"
+    )
     output = tmp_path / "reviewed-crystal-results"
     command = [
         "nextflow",
@@ -995,10 +1018,12 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
     first = run()
     assert Counter(row["process"].split(":")[-1] for row in first) == {
         "STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS": 3,
-        "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 2,
+        "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 1,
+        "STAGE_PHASE3_CRYSTAL_T12": 2,
+        "RUN_PHASE3_BRIEF_REFINEMENT": 2,
     }
     assert {row["status"] for row in first} == {"COMPLETED"}
-    for crystal_id, _, decision in decisions:
+    for crystal_id, _, decision, expected_copies in decisions:
         stage_manifest = output / (
             f"phase3_approved_mr_seed_{crystal_id}/live_m4_stage_manifest.json"
         )
@@ -1009,26 +1034,45 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
             if decision is PhaseIIIReviewDecisionValue.APPROVE
             else []
         )
+        assert stage["additional_copy_seed_count"] == (
+            1
+            if decision is PhaseIIIReviewDecisionValue.APPROVE and expected_copies > 1
+            else 0
+        )
     first_selection = (
         output
-        / f"phase3_additional_copy_test_crystal_a_{approved_ids['test_crystal_a']}"
+        / f"phase3_t12_test_crystal_b_{approved_ids['test_crystal_b']}"
         / "phase3_diffraction_selection.json"
     )
     first_digest = sha256_file(first_selection)
+    for crystal_id, solution_id in approved_ids.items():
+        refinement = output / f"phase3_t12_{crystal_id}_{solution_id}"
+        assert (refinement / "phase3_crystal_id.txt").read_text(encoding="ascii") == (
+            f"{crystal_id}\n"
+        )
+        assert (refinement / "phase3_free_r_identity.json").read_bytes() == (
+            (
+                selection_paths[crystal_id].parent / "phase3_free_r_identity.json"
+            ).read_bytes()
+        )
 
     cached = run(resume=True)
     assert {row["status"] for row in cached} == {"CACHED"}
     assert {row["hash"] for row in cached} == {row["hash"] for row in first}
 
-    selection_paths["test_crystal_b"].write_text(
-        '{"crystal":"test_crystal_b","revision":2}\n',
+    selection_paths["test_crystal_a"].write_text(
+        '{"crystal":"test_crystal_a","revision":2}\n',
         encoding="ascii",
     )
     changed = run(resume=True)
-    assert Counter(row["status"] for row in changed) == {"CACHED": 4, "COMPLETED": 1}
-    rerun = next(row for row in changed if row["status"] == "COMPLETED")
-    assert rerun["process"].endswith("RUN_PHASE3_ADDITIONAL_COPY_PHASER")
-    assert "test_crystal_b" in rerun["tag"]
+    assert Counter(row["status"] for row in changed) == {"CACHED": 5, "COMPLETED": 3}
+    rerun = tuple(row for row in changed if row["status"] == "COMPLETED")
+    assert {row["process"].split(":")[-1] for row in rerun} == {
+        "RUN_PHASE3_ADDITIONAL_COPY_PHASER",
+        "STAGE_PHASE3_CRYSTAL_T12",
+        "RUN_PHASE3_BRIEF_REFINEMENT",
+    }
+    assert all("test_crystal_a" in row["tag"] for row in rerun)
     assert sha256_file(first_selection) == first_digest
 
 

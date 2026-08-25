@@ -12592,3 +12592,29 @@ with a collapsed combined parent or a guessed command.
   multi-crystal refinement, fixed unknown profiles, and real licensed execution
   remain separate gates. Preserve the existing 30-minute monitor for Slurm job
   `634097` and classify it before any new scientific HPC operation.
+
+## 2026-08-25 - Approved multi-crystal states continue through refinement
+
+- Although reviewed A-seed placement was independently crystal-keyed, finalist
+  preparation still published one shared stage and Phase III refinement used a
+  seed-only output identity, so a complete three-crystal continuation could not
+  preserve sibling ownership.
+- The existing approved-seed and T12 adapters now form one narrow reviewed
+  same-component workflow. Placement results are grouped and joined only by
+  crystal; each accepted crystal receives its own complete finalist stage,
+  selected observation/symmetry/resolution evidence, raw MTZ, Free-R mapping,
+  catalogue crosswalk, and uniquely named refinement output.
+- One real local three-crystal Nextflow regression schedules exactly three
+  authenticated A stages, one required additional placement, two finalist
+  stages, and two refinement tasks. An approved already-complete A state reaches
+  refinement without an unnecessary Phaser job, while the deferred crystal
+  reaches no scientific task. All eight tasks cache; mutating one selected-
+  diffraction record reruns only that crystal's three-task placement/finalist/
+  refinement chain while five sibling/review tasks remain cached.
+- Seventy focused approval, placement, and refinement regressions plus the
+  existing control-independent application stub, typed Nextflow syntax, targeted
+  Ruff/type checks, schema validation, and documentation links pass.
+- Historical v1 tasks, scores, controls, and output paths remain unchanged.
+  Real Phenix execution, owned main-entry wiring, and fixed unknown/HPC profiles
+  remain open. Preserve the existing 30-minute monitor for Slurm job `634097`
+  and classify it before any new scientific HPC operation.
