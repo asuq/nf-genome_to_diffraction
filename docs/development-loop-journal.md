@@ -12861,3 +12861,22 @@ with a collapsed combined parent or a guessed command.
   no full gate was run for this isolated fix. The existing approved control
   remains Slurm job `634369` at source `26e69b95` and must be collected and
   classified before another scientific HPC operation.
+
+## 2026-08-25 - Component candidates require actual physical mass evidence
+
+- Review finding `FCB-P1-03` exposed two independently reproduced fail-open
+  states: an omitted `physical_assessed` flag silently became `true`, and an
+  explicitly mass-unavailable component could be selected as physically
+  eligible.
+- The schema-v2 candidate contract now requires an explicit physical decision
+  and refuses any assessed hypothesis without either its exact component mass
+  or both validated mass bounds. Existing planner output already supplied the
+  physical decision; current direct consumers and focused tests now do so
+  explicitly as well.
+- Two focused regressions first demonstrated both incorrect acceptances; all
+  46 composition-contract, planning, candidate-generation, and execution-input
+  tests now pass. No uncertainty was fabricated and no full integration gate
+  was run for this isolated correction.
+- Continue only the already submitted owned Marmic control, Slurm `634369`;
+  do not stage any new scientific operation before its terminal evidence is
+  independently collected and classified.

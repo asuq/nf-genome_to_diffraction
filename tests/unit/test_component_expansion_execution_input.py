@@ -200,6 +200,7 @@ def _execution_input() -> ComponentExpansionExecutionInput:
         rank=1,
         disposition=ExpansionDisposition.SELECTED,
         disposition_reason="highest deterministic rank within shared depth budget",
+        physical_assessed=True,
         physical_possible=True,
         model_available=True,
     )

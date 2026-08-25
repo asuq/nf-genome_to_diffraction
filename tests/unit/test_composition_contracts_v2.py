@@ -291,6 +291,7 @@ def test_expansion_plan_binds_ranking_inventory_and_budgets() -> None:
         rank=1,
         disposition=ExpansionDisposition.SELECTED,
         disposition_reason="highest deterministic rank within depth budget",
+        physical_assessed=True,
         physical_possible=True,
         model_available=True,
     )
@@ -299,6 +300,7 @@ def test_expansion_plan_binds_ranking_inventory_and_budgets() -> None:
         rank=2,
         disposition=ExpansionDisposition.DEFERRED_DEPTH_BUDGET,
         disposition_reason="per-depth attempt budget exhausted",
+        physical_assessed=True,
         physical_possible=True,
         model_available=True,
     )
@@ -337,6 +339,7 @@ def test_expansion_plan_binds_ranking_inventory_and_budgets() -> None:
                         rank=3,
                         disposition=ExpansionDisposition.DEFERRED_DEPTH_BUDGET,
                         disposition_reason="per-depth attempt budget exhausted",
+                        physical_assessed=True,
                         physical_possible=True,
                         model_available=True,
                     ),
@@ -381,6 +384,43 @@ def test_unassessed_physical_evidence_has_a_distinct_disposition() -> None:
         )
 
 
+def test_component_physical_assessment_must_be_explicit() -> None:
+    with pytest.raises(ValidationError, match="physical_assessed"):
+        CompositionCandidateHypothesis.from_content(
+            component=_component("B", HASHES[1]),
+            rank=1,
+            disposition=ExpansionDisposition.SELECTED,
+            disposition_reason="missing explicit physical evidence decision",
+            physical_possible=True,
+            model_available=True,
+        )
+
+
+def test_missing_component_mass_cannot_be_physically_assessed() -> None:
+    component = ComponentSpec.from_content(
+        label="B",
+        sequence_group_id=f"seq_{HASHES[1]}",
+        sequence_sha256=HASHES[1],
+        model_id="model_b",
+        model_sha256=HASHES[10],
+        requested_copy_count=1,
+        mass_evidence_sha256=HASHES[11],
+        model_evidence_sha256=HASHES[12],
+        warnings=("sequence_mass_unavailable",),
+    )
+
+    with pytest.raises(ValidationError, match="component mass evidence"):
+        CompositionCandidateHypothesis.from_content(
+            component=component,
+            rank=1,
+            disposition=ExpansionDisposition.SELECTED,
+            disposition_reason="mass was unavailable but asserted as eligible",
+            physical_assessed=True,
+            physical_possible=True,
+            model_available=True,
+        )
+
+
 def test_expansion_plan_rejects_existing_sequence_group() -> None:
     parent = _component("A", HASHES[0])
     duplicate_group = _component("B", HASHES[0])
@@ -389,6 +429,7 @@ def test_expansion_plan_rejects_existing_sequence_group() -> None:
         rank=1,
         disposition=ExpansionDisposition.SELECTED,
         disposition_reason="synthetic invalid duplicate",
+        physical_assessed=True,
         physical_possible=True,
         model_available=True,
     )

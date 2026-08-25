@@ -530,12 +530,18 @@ class CompositionCandidateHypothesis(_ContentAddressedContract):
     rank: PositiveInt
     disposition: ExpansionDisposition
     disposition_reason: NonEmptyString
-    physical_assessed: bool = True
+    physical_assessed: bool
     physical_possible: bool
     model_available: bool
 
     @model_validator(mode="after")
     def _validate_disposition(self) -> Self:
+        mass_available = self.component.sequence_mass_da is not None or (
+            self.component.sequence_mass_lower_da is not None
+            and self.component.sequence_mass_upper_da is not None
+        )
+        if self.physical_assessed and not mass_available:
+            raise ValueError("physical assessment requires component mass evidence")
         if self.disposition in {
             ExpansionDisposition.SELECTED,
             ExpansionDisposition.DEFERRED_DEPTH_BUDGET,

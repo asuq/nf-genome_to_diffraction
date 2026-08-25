@@ -98,7 +98,7 @@ ordered `RG0`-`RG7` milestones and both scientific stop gates.
 | `FCB-P0-09` No reviewed fixed unknown HPC profiles | Open | RG1; add owned fixed screen/single-component execution before pass 1 and gated pass-2 execution before pass 2. |
 | `FCB-P1-01` Malformed sequence output becomes no-hit | Open | RG2; reject corrupt, truncated, and non-finite output before pass 1. |
 | `FCB-P1-02` Lossy scientific coordinate/log decoding | Open | RG2; require strict authoritative evidence decoding before pass 1. |
-| `FCB-P1-03` Missing sequence mass becomes assessed | Open | RG4; derive physical eligibility from actual mass evidence before pass 2. |
+| `FCB-P1-03` Missing sequence mass becomes assessed | Fixed locally; exact-source CI pending | RG4; physical assessment is mandatory rather than defaulted, and assessed candidates require exact or complete bounded component mass. Two red/green absent-assessment/missing-mass regressions and 46 focused composition/planner/candidate tests pass. |
 | `FCB-P1-04` Synthetic legacy Phase III approval records | Open | RG1; consume owned schema-v2 reviews directly before pass-1 continuation. |
 | `FCB-P1-05` Competing current application authorities | Open | RG1; require one typed Phase III application route before pass 1. |
 | `FCB-P1-06` Synthetic v1 all-model registry manifest | Open | RG4; migrate all active consumers to exact v2 entries before pass 2. |
