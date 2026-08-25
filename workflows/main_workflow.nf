@@ -66,6 +66,7 @@ workflow MAIN_WORKFLOW {
     phase3_joint_first_copy: Boolean
     phase3_crystallographic_review_stage: Path?
     phase3_execution_identity: Path?
+    phase3_owned_parent_run_id: String?
     phase3_a_seed_review_stage: Path?
     phase3_a_seed_review_package: Path?
     phase3_a_seed_legacy_review_package: Path?
@@ -194,7 +195,8 @@ workflow MAIN_WORKFLOW {
                     maximum_first_copy_jobs,
                     channel.value(phenix_manifest),
                     phase3_crystallographic_review_stage,
-                    phase3_execution_identity
+                    phase3_execution_identity,
+                    phase3_owned_parent_run_id
                 )
             } else {
             if (phase3_a_seed_review_stage != null) {

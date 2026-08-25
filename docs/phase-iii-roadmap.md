@@ -391,6 +391,16 @@ confirmation SHA. Approve at most three A states per crystal.
 complete-catalogue sequence narrowing, and Coot review while retaining mixed
 terminal outcomes.
 
+Status: the explicit production first-copy workflow can now publish one
+authenticated, owned schema-v2 A-seed package per proceeding crystal. The narrow
+adapter independently verifies its complete execution identity, crystal-bound
+hypotheses, original hypothesis checksum, content-derived legacy review/solution
+identities, retained result assets, review outputs, and exact candidate counts.
+Completed no-model crystals receive an honest empty target worksheet; held
+crystals schedule no A review. The scheduler-owned parent run is explicit and
+cannot be inferred from the preceding crystallographic review parent. Historical
+review output remains unchanged when ownership is not requested.
+
 Status: the fixed local A-seed handoff now authenticates one ASCII decision TSV
 and its independently confirmed SHA-256 against an exact owned `unknown-screen`
 run. It infers the single crystal from the typed decision file, resolves only
@@ -414,8 +424,8 @@ fabricated additional-copy search. All eight tasks cache on resume; mutating one
 crystal's selected diffraction reruns only its placement, finalist stage, and
 refinement while five sibling/review tasks remain cached. Historical schema-v1
 approvals and refinements remain unchanged.
-Main-entry wiring, the fixed remote profile, and real licensed execution remain
-pending.
+Complete reviewed main-entry continuation, the fixed remote profile, and real
+licensed execution remain pending.
 
 A scientifically completed zero-model crystal now also receives its own
 content-bound schema-v2 A-seed package and an empty target worksheet. This

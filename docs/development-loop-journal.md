@@ -12618,3 +12618,26 @@ with a collapsed combined parent or a guessed command.
   Real Phenix execution, owned main-entry wiring, and fixed unknown/HPC profiles
   remain open. Preserve the existing 30-minute monitor for Slurm job `634097`
   and classify it before any new scientific HPC operation.
+
+## 2026-08-25 - First-copy reviews publish owned crystal-bound A packages
+
+- The production Phase III first-copy workflow still stopped at historical MR
+  review directories even though continuation requires content-addressed owned
+  A-seed packages. Empty candidates were supported by the generic generator but
+  were never connected to actual review evidence or workflow fan-out.
+- One narrow opt-in adapter now authenticates the complete execution identity,
+  exact crystal/hypothesis membership and checksum, historical review/solution
+  identities, retained result assets, all review output checksums, candidate
+  counts, and the explicit scheduler-owned parent before publishing one existing
+  schema-v2 package per proceeding crystal.
+- A real local three-crystal Nextflow regression publishes two populated A
+  packages and one honest empty target worksheet, caches all three tasks, and
+  reruns only the crystal whose review bytes changed. Cross-crystal hypotheses,
+  tampered outputs, inconsistent counts, and failed legacy execution publish no
+  package; the historical non-owned path remains unchanged.
+- Fifty-four focused MR-review/package regressions, the existing three-crystal
+  first-copy/resume stub, targeted Ruff/type checks, schema validation,
+  documentation links, and typed Nextflow syntax pass.
+  Complete reviewed main-entry continuation, fixed unknown profiles, and real
+  licensed execution remain open. Preserve the existing 30-minute monitor for
+  Slurm job `634097` and classify it before any new scientific HPC operation.

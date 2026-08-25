@@ -25,12 +25,15 @@ from genome_to_diffraction.review import (
     MrSeedReviewRequest,
     OwnedPhaseIIIParentRun,
     PhaseIIIReviewEvidenceSource,
+    PhaseIIIReviewPackageError,
     PhaseIIIReviewPackageRequest,
     PhaseIIIReviewStageRequest,
     build_mr_seed_review,
+    build_owned_phase3_a_seed_review_package,
     build_phase3_review_package,
     stage_phase3_review_decisions,
     validate_mr_seed_approvals,
+    validate_phase3_review_package,
 )
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import PrototypeProfile
@@ -44,12 +47,17 @@ from genome_to_diffraction.schemas.results import (
     ReviewDecisionManifest,
 )
 from genome_to_diffraction.schemas.v2 import (
+    PhaseIIIExecutionIdentity,
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
     PhaseIIIReviewDecisionValue,
 )
 from genome_to_diffraction.status import ExecutionStatus
+from tests.support.unknown_pass1_fixture import (
+    PUBLIC_STUB_CRYSTAL_IDS,
+    materialise_unknown_pass1_public_fixture,
+)
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 STUBS = REPOSITORY / "tests/fixtures/stubs"
@@ -417,6 +425,275 @@ def test_no_model_funnel_emits_an_honest_empty_mr_seed_review(
     assert package["adapter_version"] == "phase3-review-package-v2"
     assert package["permitted_targets"] == []
     assert package["review_tables"][0]["row_count"] == 0
+
+
+@pytest.mark.parametrize("empty", (False, True), ids=("complete", "no-model"))
+def test_owned_phase3_a_package_binds_real_crystal_review_evidence(
+    tmp_path: Path, *, empty: bool
+) -> None:
+    fixture_root = tmp_path / "public execution"
+    fixture_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(fixture_root)
+    crystal_id = PUBLIC_STUB_CRYSTAL_IDS[0]
+    review_root = tmp_path / "first-copy evidence"
+    review_root.mkdir()
+    request = _request(review_root, crystal_id=crystal_id)
+    if empty:
+        request.hypotheses_jsonl.write_text("", encoding="utf-8")
+        request.results_jsonl.write_text("", encoding="utf-8")
+        funnel = json.loads(request.funnel_manifest.read_text(encoding="utf-8"))
+        funnel["selected_hypothesis_count"] = 0
+        funnel["hypotheses"] = []
+        atomic_write_json(request.funnel_manifest, funnel)
+    review = build_mr_seed_review(request)
+
+    output = build_owned_phase3_a_seed_review_package(
+        review_package=review.manifest_json.parent,
+        hypotheses_jsonl=request.hypotheses_jsonl,
+        execution_identity=fixture.execution_identity,
+        owned_parent_run_id="gtd-unknown-screen-owned-fixture",
+        crystal_id=crystal_id,
+        output_directory=tmp_path / "owned A package",
+    )
+
+    package = validate_phase3_review_package(output.manifest.parent)
+    execution = PhaseIIIExecutionIdentity.model_validate_json(
+        fixture.execution_identity.read_bytes()
+    )
+    legacy = json.loads(review.manifest_json.read_text(encoding="utf-8"))
+    assert package.owned_parent_run_id == "gtd-unknown-screen-owned-fixture"
+    assert package.parent_profile == "unknown-screen"
+    assert package.parent_phase == "phase3-pass1"
+    assert package.crystal_id == crystal_id
+    assert package.execution_identity_id == execution.execution_identity_id
+    assert tuple(item.item_id for item in package.permitted_targets) == tuple(
+        sorted(item["solution_id"] for item in legacy["items"])
+    )
+    assert package.review_tables[0].row_count == (0 if empty else 1)
+    evidence = next(
+        item
+        for item in package.evidence_inventory
+        if item.role == "mr_seed_review_manifest"
+    )
+    assert evidence.sha256 == sha256_file(review.manifest_json, progress=False)
+
+
+@pytest.mark.parametrize(
+    "mutation", ("crystal", "output", "hypotheses", "count", "failure")
+)
+def test_owned_phase3_a_package_rejects_inconsistent_review_before_publication(
+    tmp_path: Path, mutation: str
+) -> None:
+    fixture_root = tmp_path / "public execution"
+    fixture_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(fixture_root)
+    crystal_id = PUBLIC_STUB_CRYSTAL_IDS[0]
+    review_root = tmp_path / "first-copy evidence"
+    review_root.mkdir()
+    request = _request(review_root, crystal_id=crystal_id)
+    review = build_mr_seed_review(request)
+    if mutation == "crystal":
+        crystal_id = PUBLIC_STUB_CRYSTAL_IDS[1]
+    elif mutation == "output":
+        review.review_tsv.write_text("mutated review\n", encoding="utf-8")
+    elif mutation == "hypotheses":
+        request.hypotheses_jsonl.write_text("", encoding="utf-8")
+    else:
+        document = json.loads(review.manifest_json.read_text(encoding="utf-8"))
+        if mutation == "count":
+            document["candidate_count"] = 2
+        else:
+            document["execution_status"] = "execution_failure"
+        atomic_write_json(review.manifest_json, document)
+    destination = tmp_path / "must not publish"
+
+    with pytest.raises(PhaseIIIReviewPackageError):
+        build_owned_phase3_a_seed_review_package(
+            review_package=review.manifest_json.parent,
+            hypotheses_jsonl=request.hypotheses_jsonl,
+            execution_identity=fixture.execution_identity,
+            owned_parent_run_id="gtd-unknown-screen-owned-fixture",
+            crystal_id=crystal_id,
+            output_directory=destination,
+        )
+
+    assert not destination.exists()
+
+
+def test_cli_builds_owned_phase3_a_review_from_exact_execution_evidence(
+    tmp_path: Path,
+) -> None:
+    fixture_root = tmp_path / "public execution"
+    fixture_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(fixture_root)
+    review_root = tmp_path / "first-copy evidence"
+    review_root.mkdir()
+    crystal_id = PUBLIC_STUB_CRYSTAL_IDS[0]
+    request = _request(review_root, crystal_id=crystal_id)
+    review = build_mr_seed_review(request)
+    destination = tmp_path / "cli owned A package"
+
+    assert (
+        main(
+            [
+                "--no-progress",
+                "review",
+                "build-owned-a-package",
+                "--review-package",
+                str(review.manifest_json.parent),
+                "--hypotheses",
+                str(request.hypotheses_jsonl),
+                "--execution-identity",
+                str(fixture.execution_identity),
+                "--owned-parent-run",
+                "gtd-unknown-screen-owned-fixture",
+                "--crystal-id",
+                crystal_id,
+                "--outdir",
+                str(destination),
+            ]
+        )
+        == 0
+    )
+
+    assert validate_phase3_review_package(destination).crystal_id == crystal_id
+
+
+def test_owned_a_review_tasks_keep_crystals_and_no_model_outcomes_independent(
+    tmp_path: Path,
+) -> None:
+    fixture_root = tmp_path / "public execution"
+    fixture_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(fixture_root)
+    records: list[dict[str, str]] = []
+    review_manifests: dict[str, Path] = {}
+    for index, crystal_id in enumerate(PUBLIC_STUB_CRYSTAL_IDS):
+        root = tmp_path / crystal_id
+        root.mkdir()
+        request = _request(
+            root,
+            crystal_id=crystal_id,
+            hypothesis_id=f"mrhyp_{format(index + 1, 'x') * 64}",
+        )
+        if index == 2:
+            request.hypotheses_jsonl.write_text("", encoding="utf-8")
+            request.results_jsonl.write_text("", encoding="utf-8")
+            funnel = json.loads(request.funnel_manifest.read_text(encoding="utf-8"))
+            funnel["selected_hypothesis_count"] = 0
+            funnel["hypotheses"] = []
+            atomic_write_json(request.funnel_manifest, funnel)
+        review = build_mr_seed_review(request)
+        review_manifests[crystal_id] = review.manifest_json
+        records.append(
+            {
+                "crystal_id": crystal_id,
+                "review_package": str(review.manifest_json.parent),
+                "hypotheses": str(request.hypotheses_jsonl),
+            }
+        )
+    input_manifest = tmp_path / "complete crystal reviews.json"
+    atomic_write_json(input_manifest, {"crystals": records})
+    output = tmp_path / "owned A packages"
+    command = [
+        "nextflow",
+        "-C",
+        "tests/fixtures/stubs/p6_empty_partner/nextflow.config",
+        "run",
+        str(STUBS / "phase3_owned_a_review/main.nf"),
+        "-stub-run",
+        "--review_manifest",
+        str(input_manifest),
+        "--execution_identity",
+        str(fixture.execution_identity),
+        "--owned_parent_run_id",
+        "gtd-unknown-screen-owned-fixture",
+        "--outdir",
+        str(output),
+        "--cache_root",
+        str(tmp_path / "nextflow-cache"),
+    ]
+    environment = dict(os.environ)
+    environment.update(
+        {
+            "NXF_AGENT_MODE": "true",
+            "NXF_ANSI_LOG": "false",
+            "NXF_DISABLE_CHECK_LATEST": "true",
+            "NXF_HOME": str(tmp_path / "nxf-home"),
+            "NXF_SYNTAX_PARSER": "v2",
+        }
+    )
+
+    first = subprocess.run(
+        command,
+        cwd=REPOSITORY,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert first.returncode == 0, f"{first.stdout}\n{first.stderr}"
+    trace = output / "pipeline_info/trace.tsv"
+    with trace.open(encoding="utf-8", newline="") as stream:
+        first_rows = tuple(csv.DictReader(stream, delimiter="\t"))
+    assert len(first_rows) == 3
+    assert {row["status"] for row in first_rows} == {"COMPLETED"}
+    for index, crystal_id in enumerate(PUBLIC_STUB_CRYSTAL_IDS):
+        package = validate_phase3_review_package(
+            output / f"phase3_owned_a_review_{crystal_id}"
+        )
+        assert package.crystal_id == crystal_id
+        assert len(package.permitted_targets) == (0 if index == 2 else 1)
+
+    resumed = subprocess.run(
+        [*command, "-resume"],
+        cwd=REPOSITORY,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert resumed.returncode == 0, f"{resumed.stdout}\n{resumed.stderr}"
+    with trace.open(encoding="utf-8", newline="") as stream:
+        cached = tuple(csv.DictReader(stream, delimiter="\t"))
+    assert {row["status"] for row in cached} == {"CACHED"}
+    assert {row["hash"] for row in cached} == {row["hash"] for row in first_rows}
+
+    changed_crystal = PUBLIC_STUB_CRYSTAL_IDS[0]
+    changed_manifest = review_manifests[changed_crystal]
+    changed_document = json.loads(changed_manifest.read_text(encoding="utf-8"))
+    changed_html = (
+        changed_manifest.parent / changed_document["outputs"]["review_html"]["path"]
+    )
+    changed_html.write_text(
+        changed_html.read_text(encoding="utf-8") + "\n",
+        encoding="utf-8",
+    )
+    changed_document["outputs"]["review_html"]["sha256"] = sha256_file(
+        changed_html,
+        progress=False,
+    )
+    atomic_write_json(changed_manifest, changed_document)
+
+    mutated = subprocess.run(
+        [*command, "-resume"],
+        cwd=REPOSITORY,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert mutated.returncode == 0, f"{mutated.stdout}\n{mutated.stderr}"
+    with trace.open(encoding="utf-8", newline="") as stream:
+        rerun = tuple(csv.DictReader(stream, delimiter="\t"))
+    assert Counter(row["status"] for row in rerun) == {
+        "COMPLETED": 1,
+        "CACHED": 2,
+    }
+    changed = next(row for row in rerun if row["status"] == "COMPLETED")
+    assert changed_crystal in changed["tag"]
 
 
 def test_validates_explicit_approval_and_rejects_stale_identifier(

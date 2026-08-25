@@ -38,6 +38,7 @@ params {
     phase3_joint_first_copy: Boolean = false
     phase3_crystallographic_review_stage: Path? = null
     phase3_execution_identity: Path? = null
+    phase3_owned_parent_run_id: String? = null
     phase3_a_seed_review_stage: Path? = null
     phase3_a_seed_review_package: Path? = null
     phase3_a_seed_legacy_review_package: Path? = null
@@ -93,6 +94,17 @@ workflow {
     ) {
         error 'Phase III crystallographic reviews require explicit joint first-copy mode'
     }
+    if (
+        params.phase3_owned_parent_run_id != null &&
+        (
+            params.analysis_stage != 'first_copy' ||
+            !params.phase3_joint_first_copy ||
+            params.phase3_crystallographic_review_stage == null ||
+            params.phase3_execution_identity == null
+        )
+    ) {
+        error 'Owned Phase III A packages require reviewed joint first-copy execution'
+    }
     MAIN_WORKFLOW(
         params.catalogues,
         params.crystals,
@@ -124,6 +136,7 @@ workflow {
         params.phase3_joint_first_copy,
         params.phase3_crystallographic_review_stage,
         params.phase3_execution_identity,
+        params.phase3_owned_parent_run_id,
         params.phase3_a_seed_review_stage,
         params.phase3_a_seed_review_package,
         params.phase3_a_seed_legacy_review_package

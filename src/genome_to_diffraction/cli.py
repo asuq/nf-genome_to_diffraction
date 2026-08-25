@@ -198,6 +198,7 @@ from genome_to_diffraction.review import (
     build_crystal_report,
     build_live_sequence_checkpoint,
     build_mr_seed_review,
+    build_owned_phase3_a_seed_review_package,
     build_resource_summary,
     build_sequence_checkpoint,
     build_status_record,
@@ -1627,6 +1628,20 @@ def _build_parser() -> argparse.ArgumentParser:
     owned_a_seed_stage_parser.add_argument("--decisions", type=Path, required=True)
     owned_a_seed_stage_parser.add_argument("--confirm-decisions-sha256", required=True)
     owned_a_seed_stage_parser.add_argument("--outdir", type=Path, required=True)
+    owned_a_seed_package_parser = review_actions.add_parser(
+        "build-owned-a-package",
+        help="publish one owned A-seed package from verified first-copy evidence",
+    )
+    owned_a_seed_package_parser.add_argument(
+        "--review-package", type=Path, required=True
+    )
+    owned_a_seed_package_parser.add_argument("--hypotheses", type=Path, required=True)
+    owned_a_seed_package_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    owned_a_seed_package_parser.add_argument("--owned-parent-run", required=True)
+    owned_a_seed_package_parser.add_argument("--crystal-id", required=True)
+    owned_a_seed_package_parser.add_argument("--outdir", type=Path, required=True)
     mr_seed_review_parser = review_actions.add_parser(
         "build-mr-seed",
         help="assemble a bounded first-copy MR review package",
@@ -3212,6 +3227,17 @@ def _run_review(args: argparse.Namespace) -> int:
         print(
             f"Staged {output.decision_count} owned A-seed decisions: {output.stage_id}"
         )
+        return 0
+    if args.review_action == "build-owned-a-package":
+        package = build_owned_phase3_a_seed_review_package(
+            review_package=args.review_package,
+            hypotheses_jsonl=args.hypotheses,
+            execution_identity=args.execution_identity,
+            owned_parent_run_id=args.owned_parent_run,
+            crystal_id=args.crystal_id,
+            output_directory=args.outdir,
+        )
+        print(f"Built owned Phase III A-seed review package: {package.manifest}")
         return 0
     if args.review_action == "build-resource-summary":
         resources = build_resource_summary(

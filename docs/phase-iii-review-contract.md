@@ -134,6 +134,19 @@ name.
 
 ## Unknown-screen A-seed staging bridge
 
+The opt-in multi-crystal first-copy workflow can publish one owned A-seed
+package per proceeding crystal after its existing historical MR review
+completes. `review build-owned-a-package` first verifies the complete
+`PhaseIIIExecutionIdentity`, exact crystal membership, content-derived legacy
+review/solution identifiers, every retained result asset and review-table
+checksum, the exact original hypothesis-file digest, hypothesis-to-crystal
+membership, and candidate/inspectable counts. It then uses the existing package
+generator with the explicit scheduler-owned `unknown-screen` parent run. A
+completed zero-candidate review receives a valid empty target worksheet;
+cross-crystal, failed, edited, missing, or contradictory evidence publishes
+nothing. A held crystal does not enter this package process, and the historical
+review output remains unchanged when owned publication is not requested.
+
 `stage_unknown_pass1_selected_a_seeds` accepts one exact owned `unknown-screen`
 parent run, an ASCII operator TSV, and the independently confirmed SHA-256 of
 that TSV. The checkpoint is fixed to `a_seed`; the single crystal is inferred

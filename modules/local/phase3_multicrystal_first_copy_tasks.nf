@@ -185,3 +185,52 @@ process BUILD_PHASE3_MR_SEED_REVIEW {
         '${outputName}'
     """
 }
+
+
+// Promote only complete, crystal-bound historical review evidence into the
+// content-addressed owned A checkpoint required by later human decisions.
+process BUILD_PHASE3_OWNED_A_REVIEW_PACKAGE {
+    tag "phase3-owned-a-review:${item[0]}"
+    label 'process_low'
+    publishDir params.outdir, mode: 'copy', overwrite: true
+    stageInMode 'copy'
+
+    input:
+    item: Tuple
+
+    output:
+    owned_review: Tuple = tuple(
+        item[0],
+        file("phase3_owned_a_review_${item[0]}")
+    )
+
+    script:
+    def outputName = "phase3_owned_a_review_${item[0]}"
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        review build-owned-a-package \
+        --review-package '${item[1]}' \
+        --hypotheses '${item[2]}' \
+        --execution-identity '${item[3]}' \
+        --owned-parent-run '${item[4]}' \
+        --crystal-id '${item[0]}' \
+        --outdir '${outputName}'
+    """
+
+    stub:
+    def outputName = "phase3_owned_a_review_${item[0]}"
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        review build-owned-a-package \
+        --review-package '${item[1]}' \
+        --hypotheses '${item[2]}' \
+        --execution-identity '${item[3]}' \
+        --owned-parent-run '${item[4]}' \
+        --crystal-id '${item[0]}' \
+        --outdir '${outputName}'
+    """
+}

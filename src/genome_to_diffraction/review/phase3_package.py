@@ -35,7 +35,7 @@ import re
 import shutil
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
 from pydantic import ValidationError
@@ -45,8 +45,13 @@ from genome_to_diffraction.checksums import (
     atomic_write_json,
     sha256_file,
 )
+from genome_to_diffraction.review.mr_seed import (
+    MrSeedReviewError,
+    validate_mr_seed_review_evidence,
+)
 from genome_to_diffraction.schemas.io import ContractError, load_json_document
 from genome_to_diffraction.schemas.v2 import (
+    PhaseIIIExecutionIdentity,
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewEvidenceArtifact,
     PhaseIIIReviewPackageManifest,
@@ -569,11 +574,79 @@ def build_phase3_review_package(
     )
 
 
+def build_owned_phase3_a_seed_review_package(
+    *,
+    review_package: Path,
+    hypotheses_jsonl: Path,
+    execution_identity: Path,
+    owned_parent_run_id: str,
+    crystal_id: str,
+    output_directory: Path,
+) -> PhaseIIIReviewPackageOutput:
+    """Publish one owned A checkpoint from complete crystal-bound MR evidence."""
+
+    try:
+        identity = PhaseIIIExecutionIdentity.model_validate_json(
+            execution_identity.read_bytes()
+        )
+        matching_crystals = tuple(
+            item
+            for item in identity.crystal_artifacts
+            if item.owner_id == crystal_id and item.role == "mtz"
+        )
+        if len(matching_crystals) != 1:
+            raise PhaseIIIReviewPackageError(
+                "A-seed crystal is absent from the complete execution identity"
+            )
+        review_root = _input_root(review_package)
+        manifest = _source_file(review_root, "mr_seed_review_manifest.json")
+        solution_ids = validate_mr_seed_review_evidence(
+            package_manifest=manifest,
+            hypotheses_jsonl=hypotheses_jsonl,
+            crystal_id=crystal_id,
+            progress=False,
+        )
+    except PhaseIIIReviewPackageError:
+        raise
+    except (MrSeedReviewError, OSError, ValidationError, ValueError) as error:
+        raise PhaseIIIReviewPackageError(
+            f"owned A-seed review evidence is inconsistent: {error}"
+        ) from error
+
+    try:
+        output_directory.mkdir(parents=True, exist_ok=False)
+    except OSError as error:
+        raise PhaseIIIReviewPackageError(
+            "owned A-seed review output must be a new directory"
+        ) from error
+    return build_phase3_review_package(
+        PhaseIIIReviewPackageRequest(
+            checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+            owned_parent_run_id=owned_parent_run_id,
+            parent_profile="unknown-screen",
+            parent_phase="phase3-pass1",
+            execution_identity_id=identity.execution_identity_id,
+            crystal_id=crystal_id,
+            target_item_ids=solution_ids,
+            created_at=datetime.now(UTC),
+            input_root=review_root,
+            evidence_sources=(
+                PhaseIIIReviewEvidenceSource(
+                    role="mr_seed_review_manifest",
+                    relative_path=manifest.name,
+                ),
+            ),
+            output_directory=output_directory,
+        )
+    )
+
+
 __all__ = [
     "PhaseIIIReviewEvidenceSource",
     "PhaseIIIReviewPackageError",
     "PhaseIIIReviewPackageOutput",
     "PhaseIIIReviewPackageRequest",
+    "build_owned_phase3_a_seed_review_package",
     "build_phase3_review_package",
     "validate_phase3_review_package",
 ]

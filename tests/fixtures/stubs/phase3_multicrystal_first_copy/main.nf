@@ -22,6 +22,7 @@ params {
     phenix_manifest: Path
     phase3_crystallographic_review_stage: Path? = null
     phase3_execution_identity: Path? = null
+    phase3_owned_parent_run_id: String? = null
     outdir: Path = file('results')
     cache_root: Path = file('.cache')
 }
@@ -100,6 +101,7 @@ workflow {
         25,
         channel.value(params.phenix_manifest),
         params.phase3_crystallographic_review_stage,
-        params.phase3_execution_identity
+        params.phase3_execution_identity,
+        params.phase3_owned_parent_run_id
     )
 }

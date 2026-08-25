@@ -4,6 +4,7 @@ include {
     BUILD_DIVERSE_FIRST_COPY_FUNNEL
 } from '../modules/local/build_diverse_first_copy_funnel'
 include {
+    BUILD_PHASE3_OWNED_A_REVIEW_PACKAGE;
     BUILD_PHASE3_MR_SEED_REVIEW;
     RETAIN_PHASE3_CRYSTALLOGRAPHIC_HOLD;
     RUN_PHASE3_FIRST_COPY_PHASER;
@@ -32,6 +33,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
     phenix_manifest: Path
     crystallographic_review_stage: Path?
     execution_identity: Path?
+    owned_parent_run_id: String?
 
     main:
     dispatched = CRYSTAL_FANOUT_WORKFLOW(
@@ -75,6 +77,9 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
                 tuple(crystalId, dispatch, catalogue, provider, stage)
             }
     } else {
+        if (owned_parent_run_id != null) {
+            error 'Owned Phase III A packages require reviewed crystallographic stages'
+        }
         if (execution_identity != null) {
             error 'Phase III execution identity lacks reviewed crystallographic stages'
         }
@@ -279,10 +284,27 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
         )
     }
     reviews = BUILD_PHASE3_MR_SEED_REVIEW(active_reviews.mix(empty_reviews))
+    if (owned_parent_run_id != null) {
+        owned_inputs = reviews
+            .join(funnel_items, by: 0)
+            .map { crystalId, review, funnel ->
+                tuple(
+                    crystalId,
+                    review,
+                    funnel.resolve('mr_hypotheses.jsonl'),
+                    execution_identity,
+                    owned_parent_run_id
+                )
+            }
+        owned_reviews = BUILD_PHASE3_OWNED_A_REVIEW_PACKAGE(owned_inputs)
+    } else {
+        owned_reviews = channel.empty()
+    }
 
     emit:
     funnel: Tuple = funnel_items
     results: Tuple = first_copy
     review: Tuple = reviews
+    owned_review: Tuple = owned_reviews
     hold: Tuple = holds
 }
