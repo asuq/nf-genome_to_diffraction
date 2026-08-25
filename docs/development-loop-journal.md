@@ -12668,3 +12668,32 @@ with a collapsed combined parent or a guessed command.
   v1 approvals remain unchanged. Fixed unknown HPC profiles and real licensed
   execution remain open; preserve the existing independent 30-minute monitor
   for Slurm job `634097` and classify it before new scientific HPC operations.
+
+## 2026-08-25 - Reviewed crystals publish independent sequence checkpoints
+
+- The approved multi-crystal continuation previously stopped after refinement,
+  and the existing T12.5 checkpoint adapter rejected crystal-qualified Phase III
+  result directories. Consequently, complete-catalogue human sequence review
+  could not be reached from the actual production application.
+- The existing sequence-checkpoint adapter now accepts an explicit optional
+  crystal identity, validates each exact crystal-qualified result directory and
+  schema-v2 refinement command, and binds the selected diffraction dataset,
+  source MTZ, preflight, and exact Free-R identity across every retained
+  finalist. Legacy schema-v1 checkpoints and their identifiers are unchanged.
+- One crystal-keyed Nextflow task joins each independently staged finalist set
+  to only its own refinement outputs and publishes the existing full-catalogue
+  checkpoint with source-record crosswalk and an empty human approval table.
+  Rejected/deferred crystals never fabricate sequence reviews.
+- A three-crystal real local workflow now schedules ten tasks, including two
+  independent checkpoints; mutating one selected diffraction record reruns only
+  its placement, finalist, refinement, and checkpoint while six sibling/review
+  tasks stay cached. The actual `main.nf` regression schedules 16 tasks and
+  revising one A decision reruns only that crystal's approval, placement,
+  finalist, and sequence-checkpoint tasks.
+- Fifty-one focused sequence-checkpoint/MR-review regressions, targeted
+  Ruff/type checks, schema validation, documentation links, and typed Nextflow
+  syntax pass. Cross-crystal directory, preflight, selected-dataset, Free-R, and
+  refinement-command substitutions fail. Owned schema-v2 sequence-package
+  publication, fixed unknown profiles, and real licensed execution remain open.
+  Preserve the existing independent 30-minute monitor for Slurm job `634097`
+  and classify it before any new scientific HPC operation.

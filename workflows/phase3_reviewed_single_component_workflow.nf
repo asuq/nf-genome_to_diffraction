@@ -4,6 +4,9 @@ include {
     STAGE_PHASE3_CRYSTAL_T12
 } from '../modules/local/stage_live_t12'
 include {
+    BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT
+} from '../modules/local/build_live_sequence_checkpoint'
+include {
     PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW
 } from './additional_copy_workflow'
 include {
@@ -101,10 +104,18 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
         }
     finalist_stages = STAGE_PHASE3_CRYSTAL_T12(staged_inputs)
     refinements = PHASE3_MULTICRYSTAL_BRIEF_REFINEMENT_WORKFLOW(finalist_stages)
+    grouped_refinements = refinements.groupTuple(by: 0)
+    checkpoint_inputs = finalist_stages
+        .join(grouped_refinements, by: 0, failOnDuplicate: true, failOnMismatch: true)
+        .map { crystalId, stage, dispatch, seedIds, results ->
+            tuple(crystalId, stage, results)
+        }
+    checkpoints = BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT(checkpoint_inputs)
 
     emit:
     approval_stage: Tuple = placements.stage
     placement: Tuple = placements.results
     finalist_stage: Tuple = finalist_stages
     refinement: Tuple = refinements
+    sequence_checkpoint: Tuple = checkpoints
 }

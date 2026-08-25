@@ -1448,6 +1448,7 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
         "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 1,
         "STAGE_PHASE3_CRYSTAL_T12": 2,
         "RUN_PHASE3_BRIEF_REFINEMENT": 2,
+        "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT": 2,
     }
     assert {row["status"] for row in first} == {"COMPLETED"}
     for crystal_id, _, decision, expected_copies in decisions:
@@ -1482,6 +1483,18 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
                 selection_paths[crystal_id].parent / "phase3_free_r_identity.json"
             ).read_bytes()
         )
+        checkpoint = output / f"phase3_sequence_checkpoint_{crystal_id}"
+        manifest = json.loads(
+            (checkpoint / "sequence_checkpoint_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert manifest["crystal_context"]["crystal_id"] == crystal_id
+        assert manifest["finalist_count"] == 1
+        assert manifest["automatic_approval"] is False
+        assert (checkpoint / "provenance/sequence_groups.jsonl").is_file()
+        assert (checkpoint / "provenance/source_records.jsonl").is_file()
+    assert not (output / "phase3_sequence_checkpoint_test_crystal_c").exists()
 
     cached = run(resume=True)
     assert {row["status"] for row in cached} == {"CACHED"}
@@ -1492,12 +1505,13 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
         encoding="ascii",
     )
     changed = run(resume=True)
-    assert Counter(row["status"] for row in changed) == {"CACHED": 5, "COMPLETED": 3}
+    assert Counter(row["status"] for row in changed) == {"CACHED": 6, "COMPLETED": 4}
     rerun = tuple(row for row in changed if row["status"] == "COMPLETED")
     assert {row["process"].split(":")[-1] for row in rerun} == {
         "RUN_PHASE3_ADDITIONAL_COPY_PHASER",
         "STAGE_PHASE3_CRYSTAL_T12",
         "RUN_PHASE3_BRIEF_REFINEMENT",
+        "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT",
     }
     assert all("test_crystal_a" in row["tag"] for row in rerun)
     assert sha256_file(first_selection) == first_digest
@@ -1640,6 +1654,7 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 1,
         "STAGE_PHASE3_CRYSTAL_T12": 2,
         "RUN_PHASE3_BRIEF_REFINEMENT": 2,
+        "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT": 2,
     }
     assert {row["status"] for row in first} == {"COMPLETED"}
     for crystal_id in PUBLIC_STUB_CRYSTAL_IDS:
@@ -1652,6 +1667,20 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         assert approved["phase3_approval_provenance"]["owned_run_registry_id"] == (
             record.owned_run_registry_id
         )
+    for crystal_id in PUBLIC_STUB_CRYSTAL_IDS[:2]:
+        checkpoint = output / f"phase3_sequence_checkpoint_{crystal_id}"
+        document = json.loads(
+            (checkpoint / "sequence_checkpoint_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert document["crystal_context"]["crystal_id"] == crystal_id
+        assert document["finalist_count"] == 1
+        assert document["automatic_approval"] is False
+        assert (checkpoint / "provenance/sequence_groups.jsonl").is_file()
+    assert not (
+        output / f"phase3_sequence_checkpoint_{PUBLIC_STUB_CRYSTAL_IDS[2]}"
+    ).exists()
     cached = run(resume=True)
     assert {row["status"] for row in cached} == {"CACHED"}
     assert {row["hash"] for row in cached} == {row["hash"] for row in first}
@@ -1695,6 +1724,7 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         "STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS": 1,
         "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 1,
         "STAGE_PHASE3_CRYSTAL_T12": 1,
+        "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT": 1,
     }
     assert all(crystal_id in row["tag"] for row in rerun)
 

@@ -1,5 +1,6 @@
 import csv
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,15 @@ from genome_to_diffraction.review.sequence_checkpoint import (
     SequenceCheckpointRequest,
     build_live_sequence_checkpoint,
     build_sequence_checkpoint,
+)
+from genome_to_diffraction.schemas.v2.diffraction import (
+    DiffractionSelection,
+    DiffractionValueSource,
+    FreeRConventionStatus,
+    FreeRDistributionSummary,
+    FreeRFlagCount,
+    FreeRIdentity,
+    diffraction_dataset_id,
 )
 
 
@@ -387,6 +397,78 @@ def _live_request(
     )
 
 
+def _phase3_live_request(tmp_path: Path) -> LiveSequenceCheckpointRequest:
+    request = _live_request(tmp_path)
+    preflight = json.loads(
+        (request.stage_bundle / "inputs/preflight.jsonl").read_text(encoding="utf-8")
+    )
+    crystal_id = str(preflight["crystal_id"])
+    mtz_sha256 = str(preflight["mtz_sha256"])
+    dataset_id = diffraction_dataset_id(crystal_id=crystal_id, mtz_sha256=mtz_sha256)
+    selection = DiffractionSelection.from_content(
+        crystal_id=crystal_id,
+        diffraction_dataset_id=dataset_id,
+        mtz_sha256=mtz_sha256,
+        preflight_id=str(preflight["preflight_id"]),
+        preflight_record_sha256="a" * 64,
+        crystal_manifest_sha256="b" * 64,
+        observation_dataset_id=1,
+        observation_labels=("F", "SIGF"),
+        observation_type="amplitude",
+        selected_space_group="P 1",
+        resolution_low_a=50.0,
+        resolution_high_a=2.0,
+        observation_source=DiffractionValueSource.MTZ_PREFLIGHT_AUTOMATIC,
+        space_group_source=DiffractionValueSource.MTZ_HEADER,
+        resolution_low_source=DiffractionValueSource.MTZ_RESOLUTION_RANGE,
+        resolution_high_source=DiffractionValueSource.MTZ_RESOLUTION_RANGE,
+    )
+    free_r = FreeRIdentity.from_content(
+        diffraction_selection_id=selection.diffraction_selection_id,
+        diffraction_dataset_id=dataset_id,
+        crystal_id=crystal_id,
+        mtz_sha256=mtz_sha256,
+        observation_dataset_id=1,
+        free_r_dataset_id=1,
+        free_r_label="FreeR_flag",
+        distribution=FreeRDistributionSummary(
+            reflection_count=2,
+            distinct_flag_values=2,
+            flag_counts=(
+                FreeRFlagCount(flag_value=0, reflection_count=1),
+                FreeRFlagCount(flag_value=1, reflection_count=1),
+            ),
+        ),
+        hkl_set_sha256="c" * 64,
+        hkl_to_flag_membership_sha256="d" * 64,
+        convention_status=FreeRConventionStatus.UNRESOLVED,
+    )
+    directories: list[Path] = []
+    for original in request.candidate_result_directories:
+        refinement = json.loads(
+            (original / "brief_refinement_result.json").read_text(encoding="utf-8")
+        )
+        directory = original.with_name(
+            f"phase3_t12_{crystal_id}_{refinement['seed_solution_id']}"
+        )
+        original.rename(directory)
+        command = {
+            "schema_version": "2.0",
+            "refinement_id": refinement["refinement_id"],
+            "diffraction_selection": selection.model_dump(mode="json"),
+            "free_r_identity": free_r.model_dump(mode="json"),
+        }
+        (directory / "t12_command.json").write_text(
+            json.dumps(command, sort_keys=True), encoding="utf-8"
+        )
+        directories.append(directory)
+    return replace(
+        request,
+        crystal_id=crystal_id,
+        candidate_result_directories=tuple(directories),
+    )
+
+
 def test_sequence_checkpoint_publishes_bounded_and_full_views(tmp_path: Path) -> None:
     output = build_sequence_checkpoint(_request(tmp_path))
 
@@ -504,6 +586,67 @@ def test_live_sequence_checkpoint_retains_typed_candidate_failure(
     assert (
         output.manifest_json.parent / f"assets/{failed_seed}/staged_parent.pdb"
     ).is_file()
+
+
+def test_phase3_live_sequence_checkpoint_binds_one_crystal_and_full_catalogue(
+    tmp_path: Path,
+) -> None:
+    request = _phase3_live_request(tmp_path)
+    output = build_live_sequence_checkpoint(request)
+
+    manifest = json.loads(output.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["execution_mode"] == "phase3_reviewed_single_component"
+    assert manifest["crystal_context"]["crystal_id"] == request.crystal_id
+    assert manifest["diffraction_selection_id"].startswith("diffsel_")
+    assert manifest["free_r_identity_id"].startswith("freerid_")
+    assert manifest["finalist_count"] == 2
+    assert manifest["full_scored_row_count"] == 60
+    assert manifest["automatic_approval"] is False
+    assert (output.manifest_json.parent / "provenance/sequence_groups.jsonl").is_file()
+    assert (output.manifest_json.parent / "provenance/source_records.jsonl").is_file()
+
+
+@pytest.mark.parametrize("mutation", ["directory", "selection", "free_r", "refinement"])
+def test_phase3_live_sequence_checkpoint_rejects_cross_crystal_evidence(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    request = _phase3_live_request(tmp_path)
+    directory = request.candidate_result_directories[0]
+    if mutation == "directory":
+        renamed = directory.with_name(
+            directory.name.replace(str(request.crystal_id), "other")
+        )
+        directory.rename(renamed)
+        request = replace(
+            request,
+            candidate_result_directories=(
+                renamed,
+                *request.candidate_result_directories[1:],
+            ),
+        )
+    else:
+        command_path = directory / "t12_command.json"
+        command = json.loads(command_path.read_text(encoding="utf-8"))
+        if mutation == "selection":
+            command["diffraction_selection"]["crystal_id"] = "other"
+        elif mutation == "free_r":
+            command["free_r_identity"]["crystal_id"] = "other"
+        else:
+            command["refinement_id"] = "refine_" + "f" * 64
+        command_path.write_text(json.dumps(command, sort_keys=True), encoding="utf-8")
+
+    with pytest.raises(SequenceCheckpointError, match=r"identities|diffraction"):
+        build_live_sequence_checkpoint(request)
+
+
+def test_phase3_live_sequence_checkpoint_rejects_mismatched_preflight_crystal(
+    tmp_path: Path,
+) -> None:
+    request = replace(_phase3_live_request(tmp_path), crystal_id="other")
+
+    with pytest.raises(SequenceCheckpointError, match="crystal differs"):
+        build_live_sequence_checkpoint(request)
 
 
 def test_live_sequence_checkpoint_rejects_changed_stage_parent(

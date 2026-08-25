@@ -1710,6 +1710,7 @@ def _build_parser() -> argparse.ArgumentParser:
     live_sequence_checkpoint_parser.add_argument(
         "--candidate-result", type=Path, action="append", default=[]
     )
+    live_sequence_checkpoint_parser.add_argument("--crystal-id")
     live_sequence_checkpoint_parser.add_argument("--outdir", type=Path, required=True)
     status_parser = review_actions.add_parser(
         "build-status",
@@ -3308,6 +3309,7 @@ def _run_review(args: argparse.Namespace) -> int:
                 stage_bundle=args.stage_bundle,
                 candidate_result_directories=tuple(args.candidate_result),
                 output_directory=args.outdir,
+                crystal_id=args.crystal_id,
                 progress=not args.no_progress,
             )
         )

@@ -418,12 +418,13 @@ authenticates and publishes each crystal's owned A-seed stage, joins placement
 and supported-finalist inputs only by crystal identity, and retains deferred
 decisions without launching Phaser or refinement. A real three-crystal local
 workflow schedules three review stages, one required additional placement, two
-independent finalist stages, and two selected-diffraction/Free-R-bound
-refinements. The already-complete approved A state reaches refinement without a
-fabricated additional-copy search. All eight tasks cache on resume; mutating one
-crystal's selected diffraction reruns only its placement, finalist stage, and
-refinement while five sibling/review tasks remain cached. Historical schema-v1
-approvals and refinements remain unchanged.
+independent finalist stages, two selected-diffraction/Free-R-bound refinements,
+and two complete-catalogue sequence checkpoints. The already-complete approved
+A state reaches refinement without a fabricated additional-copy search. All ten
+tasks cache on resume; mutating one crystal's selected diffraction reruns only
+its placement, finalist stage, refinement, and sequence checkpoint while six
+sibling/review tasks remain cached. Historical schema-v1 approvals, refinements,
+and sequence checkpoints remain unchanged.
 The actual `main.nf` application now also accepts a bounded private reviewed-
 crystal route manifest plus its exact completed-screen registry, complete
 execution identity, and owned parent. Each A package is resolved exclusively
@@ -432,11 +433,16 @@ package, original MR evidence, and execution identity before placement. A-seed
 packages produced during the screening job may correctly predate that job's
 completion; pre-completion crystallographic packages remain rejected. A real
 three-crystal main-entry regression schedules three owned approvals, one
-required additional placement, two finalist stages, and two refinements, while
-retaining the deferred crystal without scientific work. All tasks cache on
-resume; revising one review reruns only its approval, required placement, and
-finalist stage while unchanged refinement and sibling tasks remain cached.
-The fixed remote profile and real licensed execution remain pending.
+required additional placement, two finalist stages, two refinements, and two
+independent sequence-review checkpoints, while retaining the deferred crystal
+without scientific work. Each real checkpoint independently verifies its exact
+crystal-owned refinement directory, schema-v2 selected dataset, Free-R identity,
+source MTZ, preflight, complete catalogue/source inventory, final result, and
+Phenix command. Original human sequence approvals remain empty. All tasks
+cache on resume; revising one review reruns only its approval, required
+placement, finalist stage, and sequence checkpoint while unchanged refinement
+and sibling tasks remain cached. The fixed remote profile, schema-v2 owned
+sequence-package publication, and real licensed execution remain pending.
 
 A scientifically completed zero-model crystal now also receives its own
 content-bound schema-v2 A-seed package and an empty target worksheet. This
