@@ -79,6 +79,9 @@ input-contract, parser, and scientific failures are never retried, and the
 existing candidate-level sibling `finish` behaviour is retained. A real local
 Nextflow fixture proves both the two-attempt recovery and one-attempt contract
 failure; real scheduler-node/preemption qualification remains separate.
+Both approved Phase III control profiles now also retain their own normalised
+application-log diagnostics in the existing controller failure signature, so
+different root causes cannot collapse into one feedback-chain failure.
 
 One schema-v2 `PhaseIIIExecutionIdentity` now binds every raw catalogue FAA and
 annotation, crystal MTZ, database inventory, source commit/tree, nf-helper,

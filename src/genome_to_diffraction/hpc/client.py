@@ -118,6 +118,8 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/p2.log",
         "logs/p2-diverse.log",
         "logs/p2-control.log",
+        "logs/heteromer-smoke.log",
+        "logs/phase3-phenix-probe.log",
         "logs/control-slice.log",
         "logs/control-matrix.log",
         "logs/m6-inputs.log",
@@ -130,7 +132,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )

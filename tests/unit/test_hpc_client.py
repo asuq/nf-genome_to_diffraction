@@ -23,6 +23,7 @@ from genome_to_diffraction.hpc.client import (
     HpcController,
     SshTransport,
     SubprocessGitRepository,
+    _failure_signature,
 )
 from genome_to_diffraction.hpc.models import (
     ConfigurationError,
@@ -2018,6 +2019,46 @@ def test_distinct_application_diagnostics_do_not_collide(tmp_path: Path) -> None
     assert first_result["failure_signature"] != second_result["failure_signature"]
     third = controller.stage("smoke", "HEAD", parent_run_id=second)
     assert third["iteration"] == 3
+
+
+@pytest.mark.parametrize("profile", ("heteromer-smoke", "phase3-phenix-probe"))
+def test_phase3_failure_signatures_bind_normalised_application_logs(
+    tmp_path: Path,
+    profile: str,
+) -> None:
+    signatures: list[str | None] = []
+    diagnostics = ("same Phaser error", "same Phaser error", "different Phaser error")
+    for index, diagnostic in enumerate(diagnostics, start=1):
+        destination = tmp_path / profile / str(index)
+        state = destination / "state"
+        logs = destination / "logs"
+        state.mkdir(parents=True)
+        logs.mkdir()
+        (state / "job-result.json").write_text(
+            json.dumps(
+                {
+                    "failure_class": "test_failure",
+                    "exit_code": 1,
+                    "scheduler_state": "FAILED",
+                    "application_log": f"logs/{profile}.log",
+                }
+            ),
+            encoding="utf-8",
+        )
+        run_id = f"gtd-{profile}-20260825T01000{index}Z-{index:012x}-{index:08x}"
+        (logs / f"{profile}.log").write_text(
+            f"run={run_id}\n"
+            f"time=2026-08-25T01:00:0{index}Z\n"
+            f"source={index:040x}\n"
+            f"slurm-{index}\n"
+            f"error={diagnostic}\n",
+            encoding="utf-8",
+        )
+        signatures.append(_failure_signature(destination))
+
+    assert signatures[0] is not None
+    assert signatures[0] == signatures[1]
+    assert signatures[0] != signatures[2]
 
 
 def test_unowned_run_cannot_be_cancelled(tmp_path: Path) -> None:

@@ -12145,3 +12145,19 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Phase III control failure diagnostics remain distinguishable
+
+- The reviewed controller accepted `heteromer-smoke` and
+  `phase3-phenix-probe` runs, but its failure-signature log allow-list and
+  owned-run normaliser still omitted both profiles. Focused regressions proved
+  unrelated Phase III root causes therefore collapsed into one signature.
+- The existing allow-list and exact run-ID expression now include only those
+  two already approved profiles. Repeated identical errors remain stable across
+  run IDs, timestamps, source digests, and Slurm IDs; genuinely different
+  diagnostics retain different signatures.
+- Existing feedback-chain limits and legacy smoke signatures remain covered;
+  no profile, scheduler resource, remote action, or running run was changed.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
