@@ -1920,7 +1920,7 @@ PY
         --outdir "$partner"
 
     PHASE=test
-    printf 'phase=heteromer_partner_native_placements profile=heteromer-smoke\n'
+    printf 'phase=heteromer_partner_component_coordinates profile=heteromer-smoke\n'
     mapfile -t partner_native_values < <(
         "$PYTHON" - "$partner_result" <<'PY'
 import json
@@ -1951,7 +1951,9 @@ PY
         --command-record "$partner/phaser_command.json" \
         --result-record "$partner_result" \
         --expected-component A:fixed_parent:1 \
-        --expected-component B:search_partner:1
+        --expected-component B:search_partner:1 \
+        --component-model "A:$inputs/models/component_A.pdb" \
+        --component-model "B:$inputs/models/component_B.pdb"
 
     PHASE=test
     printf 'phase=heteromer_gate profile=heteromer-smoke\n'
@@ -2140,7 +2142,7 @@ PY
         --outdir "$multicopy_partner"
 
     PHASE=test
-    printf 'phase=heteromer_multicopy_native_placements profile=heteromer-smoke\n'
+    printf 'phase=heteromer_multicopy_component_coordinates profile=heteromer-smoke\n'
     mapfile -t multicopy_native_values < <(
         "$PYTHON" - "$multicopy_partner_result" <<'PY'
 import json
@@ -2171,7 +2173,9 @@ PY
         --command-record "$multicopy_partner/phaser_command.json" \
         --result-record "$multicopy_partner_result" \
         --expected-component A:fixed_parent:2 \
-        --expected-component B:search_partner:2
+        --expected-component B:search_partner:2 \
+        --component-model "A:$multicopy_inputs/models/component_A.pdb" \
+        --component-model "B:$multicopy_inputs/models/component_B.pdb"
 
     PHASE=test
     printf 'phase=heteromer_multicopy_gate profile=heteromer-smoke\n'
@@ -2641,7 +2645,7 @@ for inventory_path in inventory_paths:
         row.get("component_label"): (
             row.get("ensemble_id"),
             row.get("expected_copy_count"),
-            len(row.get("placement_ordinals", [])),
+            row.get("observed_copy_count"),
         )
         for row in document.get("component_groups", [])
         if isinstance(row, dict)
@@ -2654,14 +2658,15 @@ for inventory_path in inventory_paths:
     }
     if (
         document.get("schema_version") != "2.0"
-        or document.get("adapter_version") != "phaser-per-placement-inventory-v1"
+        or document.get("adapter_version") != "phaser-component-coordinate-inventory-v2"
         or expected_groups is None
         or observed_groups != expected_groups
         or document.get("ordinal_mapping_status")
-        != "verified_exact_sol_to_native_pdb"
+        != "verified_exact_sol_to_model_bound_chains"
         or document.get("recombination_status")
-        != "not_assessed_pending_real_control"
-        or document.get("can_create_fixed_component_evidence") is not False
+        != "verified_exact_combined_atom_partition"
+        or document.get("can_create_fixed_component_evidence") is not True
+        or document.get("combined_atom_count") != document.get("recombined_atom_count")
     ):
         raise SystemExit(f"invalid native placement inventory for {crystal_id!r}")
     controls.append(
@@ -2680,10 +2685,10 @@ summary = {
     "adapter_version": "phase3-placement-known-controls-v1",
     "profile": "heteromer-smoke",
     "controls": controls,
-    "native_mapping_passed": True,
-    "recombination_qualified": False,
-    "next_gate": "compare_native_component_groups_with_combined_coordinates",
-    "checksum_file_count": 48,
+    "component_mapping_passed": True,
+    "recombination_qualified": True,
+    "next_gate": "build_evidence_bound_multi_fixed_component_search",
+    "checksum_file_count": 46,
 }
 summary_path.write_text(
     json.dumps(summary, indent=2, sort_keys=True) + "\n",
@@ -2713,8 +2718,8 @@ PY
             artifacts/heteromer-smoke/partner/PHASER.sol \
             artifacts/heteromer-smoke/partner/PHASER.1.pdb \
             artifacts/heteromer-smoke/partner/PHASER.1.mtz \
-            artifacts/heteromer-smoke/partner/PHASER.1.1.pdb \
-            artifacts/heteromer-smoke/partner/PHASER.1.2.pdb \
+            artifacts/heteromer-smoke/partner/component_A.pdb \
+            artifacts/heteromer-smoke/partner/component_B.pdb \
             artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json \
             artifacts/qualification/heteromer-smoke-summary.json \
             artifacts/heteromer-smoke/inputs/multicopy/preparation_manifest.json \
@@ -2735,10 +2740,8 @@ PY
             artifacts/heteromer-smoke/multicopy/partner/PHASER.sol \
             artifacts/heteromer-smoke/multicopy/partner/PHASER.1.pdb \
             artifacts/heteromer-smoke/multicopy/partner/PHASER.1.mtz \
-            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.1.pdb \
-            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.2.pdb \
-            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.3.pdb \
-            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.4.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/component_A.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/component_B.pdb \
             artifacts/heteromer-smoke/multicopy/partner/phaser_per_placement_inventory.json \
             artifacts/qualification/heteromer-multicopy-summary.json \
             artifacts/qualification/phase3-placement-control-summary.json

@@ -259,6 +259,15 @@ def _expected_phaser_component(value: str) -> ExpectedPhaserComponent:
     return ExpectedPhaserComponent(label, ensemble_id, copy_count)
 
 
+def _phaser_component_model(value: str) -> tuple[str, Path]:
+    label, separator, raw_path = value.partition(":")
+    if not separator or not label or not raw_path:
+        raise argparse.ArgumentTypeError(
+            "component model must be LABEL:SOURCE_MODEL_PATH"
+        )
+    return label, Path(raw_path)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="genome-to-diffraction")
     parser.add_argument("--version", action="version", version=__version__)
@@ -1421,6 +1430,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="append",
         required=True,
         help="repeat LABEL:ENSEMBLE_ID:COPY_COUNT for each known component",
+    )
+    placement_parser.add_argument(
+        "--component-model",
+        type=_phaser_component_model,
+        action="append",
+        required=True,
+        help="repeat LABEL:SOURCE_MODEL_PATH for each known component",
     )
     stage_add_copy_parser = mr_actions.add_parser(
         "stage-add-copy",
@@ -2915,6 +2931,7 @@ def _run_mr(args: argparse.Namespace) -> int:
                 command_record=args.command_record,
                 result_record=args.result_record,
                 expected_components=tuple(args.expected_component),
+                component_models=tuple(args.component_model),
             )
         )
         print(f"Mapped native Phaser placements: {placement_output.inventory_json}")

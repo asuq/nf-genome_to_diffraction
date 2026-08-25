@@ -36,9 +36,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III Phaser interface probe](phase-iii-phenix-interface-probe.md): fixed
   no-data Marmic capture of the installed `phenix.phaser --show_defaults`
   interface before per-ensemble output syntax is used.
-- [Phase III native Phaser placement output](phase-iii-phaser-placement-output.md):
-  exact `.sol`-to-per-ensemble PDB ordinal retention for the next known-control
-  qualification, with recombination claims still blocked.
+- [Phase III Phaser component-coordinate recovery](phase-iii-phaser-placement-output.md):
+  exact source-model-to-combined-chain assignment, `.sol` binding, grouped
+  component PDBs, and atom-complete recombination without guessed chain order.
 - [Phase III 9ECN control preparation](phase-iii-9ecn-control.md): frozen
   `2A+2B+2C` identities, expression-tag alignment, modified McrA residues,
   three component models, and the joint two-copy McrA hypothesis.

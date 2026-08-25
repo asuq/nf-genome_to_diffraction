@@ -747,21 +747,14 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '    printf "fake combined pdb\\n" > "$outdir/PHASER.1.pdb"\n'
         '    printf "fake combined mtz\\n" > "$outdir/PHASER.1.mtz"\n'
         '    printf "SOLU SET LLG=270 TFZ=12\\n" > "$outdir/PHASER.sol"\n'
-        "    placement=0\n"
-        "    for ((i=1; i<=parent_copies; i++)); do\n"
-        "      placement=$((placement + 1))\n"
-        '      printf "SOLU 6DIM ENSE fixed_parent EULER %s 0 0 FRAC 0 0 0 BFAC 0\\n" '
+        "    placement=1\n"
+        '    printf "SOLU 6DIM ENSE fixed_parent EULER %s 0 0 FRAC 0 0 0 BFAC 0\\n" '
         '"$placement" >> "$outdir/PHASER.sol"\n'
-        '      printf "REMARK ENSEMBLE fixed_parent\\nATOM %s\\n" '
-        '"$placement" > "$outdir/PHASER.1.$placement.pdb"\n'
-        "    done\n"
         "    for ((i=1; i<=partner_copies; i++)); do\n"
         "      placement=$((placement + 1))\n"
         '      printf "SOLU 6DIM ENSE search_partner EULER %s 0 0 '
         'FRAC 0 0 0 BFAC 0\\n" '
         '"$placement" >> "$outdir/PHASER.sol"\n'
-        '      printf "REMARK ENSEMBLE search_partner\\nATOM %s\\n" '
-        '"$placement" > "$outdir/PHASER.1.$placement.pdb"\n'
         "    done\n"
         '    combined_sha="$(sha256sum "$outdir/PHASER.1.pdb" '
         "| awk '{print $1}')\"\n"
@@ -798,19 +791,25 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '-n "$phaser_version" ]] || exit 20\n'
         "  copies=1\n"
         '  [[ "$outdir" != */multicopy/* ]] || copies=2\n'
+        '  printf "fake grouped A coordinates\\n" > "$outdir/component_A.pdb"\n'
+        '  printf "fake grouped B coordinates\\n" > "$outdir/component_B.pdb"\n'
         '  printf \'{"schema_version":"2.0",'
         '"inventory_id":"phaserplacements_%s",'
-        '"adapter_version":"phaser-per-placement-inventory-v1",'
+        '"adapter_version":"phaser-component-coordinate-inventory-v2",'
         '"crystal_id":"%s","search_id":"%s","phaser_version":"%s",'
-        '"ordinal_mapping_status":"verified_exact_sol_to_native_pdb",'
-        '"recombination_status":"not_assessed_pending_real_control",'
-        '"can_create_fixed_component_evidence":false,'
+        '"ordinal_mapping_status":"verified_exact_sol_to_model_bound_chains",'
+        '"recombination_status":"verified_exact_combined_atom_partition",'
+        '"can_create_fixed_component_evidence":true,'
+        '"combined_atom_count":%s,"recombined_atom_count":%s,'
         '"placements":[\' '
         '"$(printf \'a%.0s\' {1..64})" "$crystal_id" "$search_id" '
-        '"$phaser_version" > "$outdir/phaser_per_placement_inventory.json"\n'
+        '"$phaser_version" "$((2 * copies))" "$((2 * copies))" '
+        '> "$outdir/phaser_per_placement_inventory.json"\n'
         "  placement=0\n"
         "  for component in A B; do\n"
-        "    for ((i=1; i<=copies; i++)); do\n"
+        "    component_placements=$copies\n"
+        '    [[ "$component" != A ]] || component_placements=1\n'
+        "    for ((i=1; i<=component_placements; i++)); do\n"
         "      placement=$((placement + 1))\n"
         "      [[ \"$placement\" -eq 1 ]] || printf ',' "
         '>> "$outdir/phaser_per_placement_inventory.json"\n'
@@ -824,20 +823,17 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "  printf '],\"component_groups\":[' "
         '>> "$outdir/phaser_per_placement_inventory.json"\n'
         '  printf \'{"component_label":"A","ensemble_id":"fixed_parent",'
-        '"expected_copy_count":%s,"placement_ordinals":[\' "$copies" '
+        '"expected_copy_count":%s,"observed_copy_count":%s,'
+        '"placement_ordinals":[1]}\' "$copies" "$copies" '
+        '>> "$outdir/phaser_per_placement_inventory.json"\n'
+        '  printf \',{ "component_label":"B","ensemble_id":"search_partner",'
+        '"expected_copy_count":%s,"observed_copy_count":%s,'
+        '"placement_ordinals":[\' "$copies" "$copies" '
         '>> "$outdir/phaser_per_placement_inventory.json"\n'
         "  for ((i=1; i<=copies; i++)); do\n"
         "    [[ \"$i\" -eq 1 ]] || printf ',' "
         '>> "$outdir/phaser_per_placement_inventory.json"\n'
-        '    printf \'%s\' "$i" >> "$outdir/phaser_per_placement_inventory.json"\n'
-        "  done\n"
-        '  printf \']},{"component_label":"B","ensemble_id":"search_partner",'
-        '"expected_copy_count":%s,"placement_ordinals":[\' "$copies" '
-        '>> "$outdir/phaser_per_placement_inventory.json"\n'
-        "  for ((i=1; i<=copies; i++)); do\n"
-        "    [[ \"$i\" -eq 1 ]] || printf ',' "
-        '>> "$outdir/phaser_per_placement_inventory.json"\n'
-        "    printf '%s' \"$((copies + i))\" "
+        "    printf '%s' \"$((1 + i))\" "
         '>> "$outdir/phaser_per_placement_inventory.json"\n'
         "  done\n"
         "  printf ']}] }\\n' >> \"$outdir/phaser_per_placement_inventory.json\"\n"
@@ -4724,17 +4720,15 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         .read_text(encoding="utf-8")
         .splitlines()
     }
-    assert len(placement_checksum_paths) == 48
+    assert len(placement_checksum_paths) == 46
     assert {
         "artifacts/heteromer-smoke/partner/PHASER.sol",
-        "artifacts/heteromer-smoke/partner/PHASER.1.1.pdb",
-        "artifacts/heteromer-smoke/partner/PHASER.1.2.pdb",
+        "artifacts/heteromer-smoke/partner/component_A.pdb",
+        "artifacts/heteromer-smoke/partner/component_B.pdb",
         "artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json",
         "artifacts/heteromer-smoke/multicopy/partner/PHASER.sol",
-        "artifacts/heteromer-smoke/multicopy/partner/PHASER.1.1.pdb",
-        "artifacts/heteromer-smoke/multicopy/partner/PHASER.1.2.pdb",
-        "artifacts/heteromer-smoke/multicopy/partner/PHASER.1.3.pdb",
-        "artifacts/heteromer-smoke/multicopy/partner/PHASER.1.4.pdb",
+        "artifacts/heteromer-smoke/multicopy/partner/component_A.pdb",
+        "artifacts/heteromer-smoke/multicopy/partner/component_B.pdb",
         "artifacts/heteromer-smoke/multicopy/partner/phaser_per_placement_inventory.json",
         "artifacts/qualification/phase3-placement-control-summary.json",
     } <= placement_checksum_paths
@@ -4743,8 +4737,8 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
             run / "artifacts/qualification/phase3-placement-control-summary.json"
         ).read_text(encoding="utf-8")
     )
-    assert placement_summary["native_mapping_passed"] is True
-    assert placement_summary["recombination_qualified"] is False
+    assert placement_summary["component_mapping_passed"] is True
+    assert placement_summary["recombination_qualified"] is True
     assert [row["crystal_id"] for row in placement_summary["controls"]] == [
         "3U7Q",
         "6RTZ",
@@ -4753,10 +4747,14 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert "phase=heteromer_parent_A profile=heteromer-smoke" in log
     assert "phase=heteromer_component_review profile=heteromer-smoke" in log
     assert "phase=heteromer_partner_B profile=heteromer-smoke" in log
-    assert "phase=heteromer_partner_native_placements profile=heteromer-smoke" in log
+    assert (
+        "phase=heteromer_partner_component_coordinates profile=heteromer-smoke" in log
+    )
     assert "phase=heteromer_multicopy_parent_A profile=heteromer-smoke" in log
     assert "phase=heteromer_multicopy_partner_B profile=heteromer-smoke" in log
-    assert "phase=heteromer_multicopy_native_placements profile=heteromer-smoke" in log
+    assert (
+        "phase=heteromer_multicopy_component_coordinates profile=heteromer-smoke" in log
+    )
     assert "phase=heteromer_catalogue_plan profile=heteromer-smoke" in log
     assert "phase=heteromer_catalogue_partner profile=heteromer-smoke" in log
     assert "phase=heteromer_p6_missing_partner profile=heteromer-smoke" in log
@@ -4786,8 +4784,9 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     ) in names
     assert "artifacts/heteromer-smoke/partner/partner_search_result.json" in names
     assert "artifacts/heteromer-smoke/partner/PHASER.sol" in names
-    assert "artifacts/heteromer-smoke/partner/PHASER.1.1.pdb" in names
-    assert "artifacts/heteromer-smoke/partner/PHASER.1.2.pdb" in names
+    assert "artifacts/heteromer-smoke/partner/component_A.pdb" in names
+    assert "artifacts/heteromer-smoke/partner/component_B.pdb" in names
+    assert "artifacts/heteromer-smoke/partner/PHASER.1.1.pdb" not in names
     assert (
         "artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json" in names
     )
@@ -4818,10 +4817,8 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     )
     for relative in (
         "PHASER.sol",
-        "PHASER.1.1.pdb",
-        "PHASER.1.2.pdb",
-        "PHASER.1.3.pdb",
-        "PHASER.1.4.pdb",
+        "component_A.pdb",
+        "component_B.pdb",
         "phaser_per_placement_inventory.json",
     ):
         assert f"artifacts/heteromer-smoke/multicopy/partner/{relative}" in names

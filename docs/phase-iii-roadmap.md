@@ -181,10 +181,11 @@ every disposition, enforces the 100-attempt global bound, and binds the
 independent all-model registry without consulting the A shortlist. A stub-only
 Nextflow fan-out now proves exact complete task identities and resume caching;
 live general-component Phaser execution remains a separate pending slice. The
-fixed 6RTZ/3U7Q control profile now retains `.sol`, combined outputs, and every
-native per-placement PDB in a separate 48-file Phase III checksum boundary;
-its local lifecycle and allow-listed collection are green, while exact real
-component recombination remains the next Marmic gate. The pure-Python
+fixed 6RTZ/3U7Q control profile now binds `.sol` entries to exact source-model
+polymer sequences, derives one multi-copy coordinate per component, and proves
+complete atom recombination in a separate 46-file Phase III checksum boundary.
+The retained real 6RTZ result reconstructs all 3,543 atoms locally; fresh
+two-control Marmic qualification remains the next gate. The pure-Python
 candidate generator now supplies complete parent/catalogue rows with four
 parent-specific total-composition copy assessments, typed gel/localisation
 priors, cap-independent model selection, quality/diversity evidence, and exact

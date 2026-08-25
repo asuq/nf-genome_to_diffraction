@@ -11908,3 +11908,50 @@ with a collapsed combined parent or a guessed command.
 - Focused preparation and existing 6RTZ/3U7Q tests pass. The next scientific
   gate remains classification and exact native component recombination from
   job `633943`; do not start 9ECN before that evidence is accepted.
+
+## 2026-08-25 - Real Phaser ignores per-ensemble output; exact chain recovery works
+
+### Retained failure classification
+
+- The immutable fixed run
+  `gtd-heteromer-smoke-20260824T162036Z-5d59801356a7-3a72cb00`, Slurm
+  `633943`, ended `FAILED`, exit `1`, `failure_class=test_failure`, with retained
+  failure signature
+  `427dc127f56053167d5957f90fe4d8977da068d8452dcb35e8232ded30d60241`.
+  Separate bounded logs and allow-listed collection were completed; the obsolete
+  heartbeat was deleted. No failed run was resumed, cleaned, or reused.
+- Exact 6RTZ preflight, the approved A checkpoint, and the fixed-A/B Phaser
+  search all passed. The partner produced TFZ `71.2`, incremental LLG
+  `5054.654`, a valid `PHASER.sol`, and a 3,543-atom combined model.
+- Although the reviewed PHIL file explicitly sets `xyzout_ensemble=True`, the
+  installed `phenix.phaser` wrapper emits only native `XYZOUT ON`; its log and
+  collected inventory prove that no `PHASER.1.<ordinal>.pdb` files exist. The
+  failure was therefore an unsupported output assumption, not a scientific
+  no-hit or infrastructure fault.
+
+### Smallest evidence-backed correction
+
+- The Phase III collector now binds each combined-PDB polymer chain to exactly
+  one checksum-verified source-model residue sequence. It groups all copies by
+  the actual component, retains exact `.sol` solution entries, writes
+  component-only multi-copy coordinates, and proves that the complete derived
+  atom partition exactly reconstructs the combined parent. It never assigns
+  components from chain order or rounded transforms.
+- A fixed two-copy A parent is one solution entry containing two exact A chains;
+  searched B copies retain one solution entry per copy. Ambiguous model
+  sequences, unknown chains, extra non-protein atoms, missing models, copy
+  mismatches, and incomplete atom coverage fail closed.
+- The corrected local regression replays the real failed 6RTZ evidence and
+  recovers all 3,543 atoms. Twenty-three focused parser/partner/fake-HPC tests
+  pass, including a reversed-chain `2A+2B` fixture and unchanged P6 no-hit
+  semantics. The successor uses a separate 46-file Phase III evidence manifest;
+  the accepted 47-file v0.2 P6 manifest remains unchanged.
+- Independent fixed 9ECN preparation commit
+  `1b7c40955d4918aac4846c9951f8f769c0ec2c2f` passed CI run `32807444796`.
+
+### Exact next starting point
+
+- Integrate the corrected component collector into `dev/phase3`, run one
+  focused gate and one CI run, deploy the exact reviewed scripts, and submit
+  exactly one fresh Marmic 6RTZ/3U7Q control. Only after both atom-complete
+  inventories pass may the multi-fixed adapter or 9ECN search begin.

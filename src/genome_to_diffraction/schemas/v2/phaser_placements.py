@@ -1,10 +1,9 @@
-"""Native Phaser per-placement output inventory for Phase III controls.
+"""Exact Phaser component-coordinate derivation for Phase III controls.
 
-This schema records the exact ``.sol`` entry-to-PDB ordinal mapping produced by
-the installed Phaser ``XYZOUT ON ENSEMBLE ON`` interface.  It intentionally
-does not claim that independently written placement coordinates recombine to
-the combined solution; that scientific/coordinate check requires a retained
-real control output and remains a separate gate.
+The installed Phenix wrapper emits ``PHASER.sol`` and a combined PDB but does
+not honour its advertised per-ensemble output switch.  Components are therefore
+assigned by exact source-model polymer identity, never PDB chain order, and
+their full atom partition is verified against the combined solution.
 """
 
 from pathlib import PurePosixPath
@@ -37,7 +36,7 @@ def _portable_basename(value: str, *, suffix: str) -> None:
 
 
 class PhaserPlacementArtifact(_ContentAddressedContract):
-    """One exact ``SOLU 6DIM`` entry and its native placement PDB."""
+    """One exact ``SOLU 6DIM`` entry and its derived component PDB."""
 
     _identity_field: ClassVar[str] = "placement_artifact_id"
     _identity_prefix: ClassVar[str] = "phaserplacement_"
@@ -58,14 +57,14 @@ class PhaserPlacementArtifact(_ContentAddressedContract):
     @model_validator(mode="after")
     def _validate_coordinate_name(self) -> Self:
         _portable_basename(self.coordinate_path, suffix=".pdb")
-        expected = f"PHASER.{self.solution_number}.{self.placement_ordinal}.pdb"
+        expected = f"component_{self.component_label}.pdb"
         if self.coordinate_path != expected:
-            raise ValueError("placement coordinate name does not match its ordinal")
+            raise ValueError("placement coordinate does not match its component")
         return self
 
 
 class PhaserPlacementComponentGroup(_ContentAddressedContract):
-    """Expected and observed native placements for one component ensemble."""
+    """Complete exact-model chain group for one component ensemble."""
 
     _identity_field: ClassVar[str] = "component_group_id"
     _identity_prefix: ClassVar[str] = "phasercompgroup_"
@@ -78,26 +77,40 @@ class PhaserPlacementComponentGroup(_ContentAddressedContract):
     component_label: ComponentLabel
     ensemble_id: NonEmptyString
     expected_copy_count: PositiveInt = Field(le=4)
+    observed_copy_count: PositiveInt = Field(le=4)
     placement_ordinals: tuple[PositiveInt, ...] = Field(min_length=1, max_length=4)
+    combined_chain_ids: tuple[NonEmptyString, ...] = Field(min_length=1, max_length=4)
+    source_model_sha256: Sha256Hex
+    source_model_polymer_sha256: Sha256Hex
+    coordinate_path: NonEmptyString
+    coordinate_sha256: Sha256Hex
+    atom_count: PositiveInt
 
     @model_validator(mode="after")
     def _validate_ordinals(self) -> Self:
         if self.placement_ordinals != tuple(sorted(set(self.placement_ordinals))):
             raise ValueError("component placement ordinals must be unique and sorted")
-        if len(self.placement_ordinals) != self.expected_copy_count:
-            raise ValueError("component placement count differs from expectation")
+        if self.observed_copy_count != self.expected_copy_count:
+            raise ValueError("component copy count differs from expectation")
+        if self.combined_chain_ids != tuple(sorted(set(self.combined_chain_ids))):
+            raise ValueError("component chain IDs must be unique and sorted")
+        if len(self.combined_chain_ids) != self.observed_copy_count:
+            raise ValueError("component chains do not match observed copy count")
+        _portable_basename(self.coordinate_path, suffix=".pdb")
+        if self.coordinate_path != f"component_{self.component_label}.pdb":
+            raise ValueError("component coordinate name does not match its label")
         return self
 
 
 class PhaserPerPlacementInventory(_ContentAddressedContract):
-    """Complete exact mapping for the top native Phaser solution."""
+    """Complete exact solution/chain mapping and verified atom partition."""
 
     _identity_field: ClassVar[str] = "inventory_id"
     _identity_prefix: ClassVar[str] = "phaserplacements_"
 
     schema_version: Literal["2.0"]
     inventory_id: PhaserPlacementInventoryIdentifier
-    adapter_version: Literal["phaser-per-placement-inventory-v1"]
+    adapter_version: Literal["phaser-component-coordinate-inventory-v2"]
     crystal_id: NonEmptyString
     search_id: NonEmptyString
     phaser_version: NonEmptyString
@@ -115,9 +128,12 @@ class PhaserPerPlacementInventory(_ContentAddressedContract):
     ]
     placements: tuple[PhaserPlacementArtifact, ...] = Field(min_length=2)
     component_groups: tuple[PhaserPlacementComponentGroup, ...] = Field(min_length=2)
-    ordinal_mapping_status: Literal["verified_exact_sol_to_native_pdb"]
-    recombination_status: Literal["not_assessed_pending_real_control"]
-    can_create_fixed_component_evidence: Literal[False] = False
+    combined_atom_count: PositiveInt
+    recombined_atom_count: PositiveInt
+    recombined_atom_sha256: Sha256Hex
+    ordinal_mapping_status: Literal["verified_exact_sol_to_model_bound_chains"]
+    recombination_status: Literal["verified_exact_combined_atom_partition"]
+    can_create_fixed_component_evidence: Literal[True] = True
 
     @model_validator(mode="after")
     def _validate_complete_mapping(self) -> Self:
@@ -139,11 +155,29 @@ class PhaserPerPlacementInventory(_ContentAddressedContract):
         }
         if len(group_by_ensemble) != len(self.component_groups):
             raise ValueError("one ensemble cannot map to several components")
+        all_chain_ids = tuple(
+            chain_id
+            for group in self.component_groups
+            for chain_id in group.combined_chain_ids
+        )
+        if len(set(all_chain_ids)) != len(all_chain_ids):
+            raise ValueError("one combined chain cannot belong to several components")
+        if (
+            self.combined_atom_count != self.recombined_atom_count
+            or sum(group.atom_count for group in self.component_groups)
+            != self.combined_atom_count
+        ):
+            raise ValueError("component atoms do not reconstruct the combined model")
         observed: dict[str, list[int]] = {}
         for placement in self.placements:
             group = group_by_ensemble.get(placement.ensemble_id)
             if group is None or group.component_label != placement.component_label:
                 raise ValueError("placement is not covered by its component group")
+            if (
+                placement.coordinate_path != group.coordinate_path
+                or placement.coordinate_sha256 != group.coordinate_sha256
+            ):
+                raise ValueError("placement coordinate differs from its component")
             observed.setdefault(placement.ensemble_id, []).append(
                 placement.placement_ordinal
             )
