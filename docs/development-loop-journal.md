@@ -12429,3 +12429,25 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - A-seed decisions resolve only through their owned parent run
+
+- The crystallographic checkpoint already required its trusted owned-run
+  registry, but first-component decisions still depended on callers supplying
+  an arbitrary review-package manifest instead of resolving the owned package.
+- The fixed local A-seed bridge now accepts one exact `unknown-screen` parent,
+  an ASCII operator decision TSV, and its independently confirmed SHA-256. It
+  infers the single crystal from typed decisions and resolves only the fully
+  checksum-validated A-seed package registered to that run.
+- Existing checkpoint semantics preserve approval, rejection, and deferral,
+  reject more than three approved A states, and publish only canonical
+  decisions plus the stage manifest. Cross-run/crystal/checkpoint/profile,
+  changed package evidence, non-ASCII decisions, and incorrect confirmation
+  all fail without publishing an output.
+- Fifty-two focused owned-registry, review-stager, and crystallographic-wiring
+  tests pass together with targeted Ruff/type, schema, and documentation
+  checks. The fixed remote profile and actual same-component execution remain
+  separate gates; no scientific or HPC job was launched.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

@@ -372,6 +372,15 @@ confirmation SHA. Approve at most three A states per crystal.
 complete-catalogue sequence narrowing, and Coot review while retaining mixed
 terminal outcomes.
 
+Status: the fixed local A-seed handoff now authenticates one ASCII decision TSV
+and its independently confirmed SHA-256 against an exact owned `unknown-screen`
+run. It infers the single crystal from the typed decision file, resolves only
+the registered A-seed package, preserves approval/rejection/deferral, and
+enforces the existing three-state approval cap before publishing the canonical
+two-file stage. Arbitrary package paths and crystal selectors are not accepted.
+The fixed remote profile and actual downstream same-component execution remain
+pending.
+
 Status: the opt-in schema-v2 file contract for crystallographic, A-seed,
 composition, and sequence decisions is implemented and documented in
 `docs/phase-iii-review-contract.md`. It content-binds one checkpoint to an owned

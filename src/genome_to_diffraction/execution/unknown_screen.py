@@ -47,10 +47,12 @@ from genome_to_diffraction.review.owned_run import (
 from genome_to_diffraction.review.phase3_stage import (
     PhaseIIIReviewStageError,
     PhaseIIIReviewStageManifest,
+    PhaseIIIReviewStageOutput,
     PhaseIIIReviewStageRequest,
     stage_phase3_review_decisions,
 )
 from genome_to_diffraction.schemas.io import (
+    ContractError,
     ContractLoadError,
     load_contract,
     parse_json_document,
@@ -445,6 +447,81 @@ def stage_unknown_pass1_crystallographic_reviews(
         index_path=output / _STAGE_INDEX_NAME,
         stage_directory=output / _STAGE_STORE_NAME,
     )
+
+
+def stage_unknown_pass1_selected_a_seeds(
+    *,
+    owned_run_registry: Path,
+    owned_run_id: str,
+    decisions: Path,
+    confirmed_decisions_sha256: str,
+    output_directory: Path,
+    progress: bool = False,
+) -> PhaseIIIReviewStageOutput:
+    """Stage one A-seed decision TSV through its independently owned package."""
+
+    decision_path = _regular_file(decisions, label="A-seed decision file")
+    if decision_path.suffix != ".tsv":
+        raise UnknownPass1ScreenError("A-seed decisions must use an operator TSV")
+    try:
+        if not decision_path.read_bytes().isascii():
+            raise UnknownPass1ScreenError("A-seed decision TSV must contain only ASCII")
+        if sha256_file(decision_path, progress=False) != confirmed_decisions_sha256:
+            raise UnknownPass1ScreenError(
+                "A-seed decision checksum differs from the independent confirmation"
+            )
+        decision_file = load_contract(
+            decision_path,
+            "phase3-review-decisions",
+            progress=False,
+        )
+    except (ContractError, OSError) as error:
+        raise UnknownPass1ScreenError(
+            f"A-seed decision TSV violates its typed contract: {error}"
+        ) from error
+    if not isinstance(decision_file, PhaseIIIReviewDecisionFile):
+        raise UnknownPass1ScreenError(
+            "A-seed decision loader returned another contract"
+        )
+    if decision_file.checkpoint is not PhaseIIIReviewCheckpoint.A_SEED:
+        raise UnknownPass1ScreenError("decision checkpoint must be A-seed review")
+    if decision_file.owned_parent_run_id != owned_run_id:
+        raise UnknownPass1ScreenError("A-seed decisions belong to another parent run")
+    crystal_ids = {decision.crystal_id for decision in decision_file.decisions}
+    if len(crystal_ids) != 1:
+        raise UnknownPass1ScreenError("A-seed decisions must belong to one crystal")
+
+    try:
+        package = resolve_phase3_owned_review_package(
+            owned_run_registry,
+            run_id=owned_run_id,
+            crystal_id=next(iter(crystal_ids)),
+            checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+        )
+    except PhaseIIIOwnedRunError as error:
+        raise UnknownPass1ScreenError(
+            f"owned A-seed package resolution failed: {error}"
+        ) from error
+    if package.parent.profile != "unknown-screen":
+        raise UnknownPass1ScreenError(
+            "A-seed parent must use the unknown-screen profile"
+        )
+    try:
+        return stage_phase3_review_decisions(
+            PhaseIIIReviewStageRequest(
+                parent=package.parent,
+                checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+                review_package_manifest=package.package_manifest,
+                decisions=decision_path,
+                confirmed_decisions_sha256=confirmed_decisions_sha256,
+                output_directory=output_directory,
+                progress=progress,
+            )
+        )
+    except PhaseIIIReviewStageError as error:
+        raise UnknownPass1ScreenError(
+            f"A-seed decision staging failed: {error}"
+        ) from error
 
 
 def publish_unknown_pass1_crystallographic_review_routes(
@@ -869,5 +946,6 @@ __all__ = [
     "load_unknown_pass1_screen_inventory",
     "publish_unknown_pass1_crystallographic_review_routes",
     "stage_unknown_pass1_crystallographic_reviews",
+    "stage_unknown_pass1_selected_a_seeds",
     "write_unknown_pass1_screen_inventory",
 ]

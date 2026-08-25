@@ -132,6 +132,22 @@ state before creating crystal or hypothesis items. Crystal-named storage is
 only an indexed lookup key; ownership is never inferred from the directory
 name.
 
+## Unknown-screen A-seed staging bridge
+
+`stage_unknown_pass1_selected_a_seeds` accepts one exact owned `unknown-screen`
+parent run, an ASCII operator TSV, and the independently confirmed SHA-256 of
+that TSV. The checkpoint is fixed to `a_seed`; the single crystal is inferred
+from validated decision rows rather than accepted as a caller-selected value.
+Its review package is resolved only through the checksum-closed owned-run
+registry. An arbitrary package path cannot bypass ownership validation.
+
+The existing review stager retains `approve`, `reject`, and `defer` outcomes,
+rejects more than three approved A states per crystal, and publishes only its
+canonical decision JSON plus stage manifest. Wrong parent/profile/checkpoint,
+mutated package evidence, and mismatched independent checksums fail before
+publication. The local CLI is `review stage-owned-a-seeds`; a remote fixed
+profile and actual downstream same-component execution remain separate gates.
+
 ## Checkpoints and values
 
 | `checkpoint` | Allowed `decision` values | Retained-state rule |

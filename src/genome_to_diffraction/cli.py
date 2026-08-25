@@ -106,6 +106,7 @@ from genome_to_diffraction.execution import (
     ProviderEmptyGraphRequest,
     complete_provider_empty_graph,
     publish_unknown_pass1_crystallographic_review_routes,
+    stage_unknown_pass1_selected_a_seeds,
 )
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.localisation import (
@@ -1590,6 +1591,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     crystallographic_stage_parser.add_argument("--crystals", type=Path, required=True)
     crystallographic_stage_parser.add_argument("--outdir", type=Path, required=True)
+    owned_a_seed_stage_parser = review_actions.add_parser(
+        "stage-owned-a-seeds",
+        help="stage an owned unknown-screen A-seed decision TSV",
+    )
+    owned_a_seed_stage_parser.add_argument(
+        "--owned-run-registry", type=Path, required=True
+    )
+    owned_a_seed_stage_parser.add_argument("--parent-run", required=True)
+    owned_a_seed_stage_parser.add_argument("--decisions", type=Path, required=True)
+    owned_a_seed_stage_parser.add_argument("--confirm-decisions-sha256", required=True)
+    owned_a_seed_stage_parser.add_argument("--outdir", type=Path, required=True)
     mr_seed_review_parser = review_actions.add_parser(
         "build-mr-seed",
         help="assemble a bounded first-copy MR review package",
@@ -3157,6 +3169,19 @@ def _run_review(args: argparse.Namespace) -> int:
             output_directory=args.outdir,
         )
         print(f"Validated three crystallographic review stages: {output}")
+        return 0
+    if args.review_action == "stage-owned-a-seeds":
+        output = stage_unknown_pass1_selected_a_seeds(
+            owned_run_registry=args.owned_run_registry,
+            owned_run_id=args.parent_run,
+            decisions=args.decisions,
+            confirmed_decisions_sha256=args.confirm_decisions_sha256,
+            output_directory=args.outdir,
+            progress=not args.no_progress,
+        )
+        print(
+            f"Staged {output.decision_count} owned A-seed decisions: {output.stage_id}"
+        )
         return 0
     if args.review_action == "build-resource-summary":
         resources = build_resource_summary(
