@@ -65,6 +65,13 @@ candidate-level typed sequence-map parse failure are implemented on
 `dev/phase3`. The remaining PH1 boundaries are still open or partial as
 recorded in the finding ledger.
 
+All three existing network-capable processes now carry both reviewed site
+aliases: `run_local` forces Marmic login/controller execution and
+`needs_internet` forces the same local executor on Viper. Direct PDB retrieval,
+exact AFDB retrieval, and M6 coordinate staging therefore cannot silently fall
+back to a site Slurm worker. Explicit compute-worker socket denial and real
+provider staging remain separate qualification gates.
+
 One schema-v2 `PhaseIIIExecutionIdentity` now binds every raw catalogue FAA and
 annotation, crystal MTZ, database inventory, source commit/tree, nf-helper,
 Pixi lock, execution policy, required Phenix executable, and adapter version

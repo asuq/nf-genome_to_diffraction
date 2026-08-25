@@ -12034,3 +12034,21 @@ with a collapsed combined parent or a guessed command.
 - Continue the existing 30-minute polling of Slurm job `634097`. Both grouped
   6RTZ/3U7Q inventories must pass before implementing a multi-fixed command or
   submitting the 9ECN depth-three control.
+
+## 2026-08-25 - Network providers resolve to reviewed site login executors
+
+- A focused policy regression found that the direct PDB and exact AFDB Nextflow
+  processes carried only the generic `process_network` label. Under both HPC
+  site defaults, that generic label alone leaves the process on the Slurm
+  executor, contrary to the approved login-staging boundary.
+- Both existing modules now additionally carry the same `needs_internet` and
+  `run_local` aliases already used by M6 coordinate staging. The pinned Viper
+  profile maps `needs_internet` to `executor='local'`; the pinned Marmic profile
+  does the same for `run_local`. No scientific/provider implementation,
+  network command, queue limit, or remote deployment was changed.
+- The focused provider/policy suite and resolved Marmic configuration pass.
+  `PIPE-P1-04` is partial rather than fixed because explicit socket denial on
+  compute workers and real provider staging still require separate evidence.
+- Keep the existing 30-minute poll for job `634097`; do not submit another
+  control, `9ECN`, M6, localisation, or unknown dataset before that exact
+  running control is classified.

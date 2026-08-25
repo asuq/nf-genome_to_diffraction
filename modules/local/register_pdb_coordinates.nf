@@ -3,6 +3,8 @@ nextflow.enable.types = true
 process REGISTER_PDB_COORDINATES {
     tag 'bounded-direct-pdb-coordinate-registration'
     label 'process_network'
+    label 'needs_internet'
+    label 'run_local'
     publishDir params.outdir, mode: 'copy', overwrite: true
 
     input:

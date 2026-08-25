@@ -68,6 +68,43 @@ def test_remote_sequence_submission_defaults_off() -> None:
     assert '"allow_remote_sequence_submission": false' in crystal
 
 
+def test_network_acquisition_processes_use_both_reviewed_login_executor_labels() -> (
+    None
+):
+    modules = {
+        "REGISTER_PDB_COORDINATES": "modules/local/register_pdb_coordinates.nf",
+        "RETRIEVE_AFDB_EXACT": "modules/local/retrieve_afdb_exact.nf",
+        "M6_STAGE_COORDINATES": "modules/local/m6_nextflow_tasks.nf",
+    }
+    for process_name, relative_path in modules.items():
+        source = (REPOSITORY / relative_path).read_text(encoding="utf-8")
+        process = source.split(f"process {process_name}", maxsplit=1)[1].split(
+            "input:",
+            maxsplit=1,
+        )[0]
+        assert "label 'process_network'" in process
+        assert "label 'needs_internet'" in process
+        assert "label 'run_local'" in process
+
+    sites = REPOSITORY / "external/nf-helper/conf/sites"
+    marmic = (sites / "marmic.config").read_text(encoding="utf-8")
+    viper = (sites / "viper-cpu.config").read_text(encoding="utf-8")
+    assert (
+        "executor = 'local'"
+        in marmic.split(
+            "withLabel: run_local",
+            maxsplit=1,
+        )[1].split("}", maxsplit=1)[0]
+    )
+    assert (
+        "executor = 'local'"
+        in viper.split(
+            "withLabel: needs_internet",
+            maxsplit=1,
+        )[1].split("}", maxsplit=1)[0]
+    )
+
+
 def test_pilot_retention_cap_preserves_the_qualified_8oox_copy_rank() -> None:
     config = yaml.safe_load(
         (REPOSITORY / "examples" / "config.yaml").read_text(encoding="utf-8")
