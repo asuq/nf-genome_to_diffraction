@@ -9,6 +9,7 @@ performs molecular replacement or makes a scientific selection.
 """
 
 import csv
+import io
 import logging
 import re
 import shutil
@@ -25,12 +26,25 @@ from genome_to_diffraction.checksums import (
 )
 from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.review.mr_seed import (
+    MrSeedApprovalOutput,
     MrSeedApprovalRequest,
     validate_mr_seed_approvals,
 )
+from genome_to_diffraction.review.phase3_package import (
+    PhaseIIIReviewPackageError,
+    validate_phase3_review_package,
+)
+from genome_to_diffraction.review.phase3_stage import PhaseIIIReviewStageManifest
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import MrHypothesis
+from genome_to_diffraction.schemas.v2 import (
+    PhaseIIIReviewCheckpoint,
+    PhaseIIIReviewDecisionFile,
+    PhaseIIIReviewDecisionValue,
+    PhaseIIIReviewPackageManifest,
+)
 from genome_to_diffraction.status import ExecutionStatus
+from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.stage_add_copy")
 
@@ -70,6 +84,8 @@ class LiveAddCopyStageRequest:
     hypotheses_jsonl: Path
     output_directory: Path
     progress: bool = True
+    phase3_review_stage: Path | None = None
+    phase3_review_package_manifest: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +98,16 @@ class LiveAddCopyStageOutput:
     stage_manifest: Path
     approved_seed_count: int
     additional_copy_seed_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class _PhaseIIISeedApproval:
+    stage: PhaseIIIReviewStageManifest
+    decisions: PhaseIIIReviewDecisionFile
+    package: PhaseIIIReviewPackageManifest
+    stage_manifest_path: Path
+    canonical_decisions_path: Path
+    package_manifest_path: Path
 
 
 def _load_object(path: Path, label: str) -> dict[str, object]:
@@ -142,9 +168,7 @@ def _load_hypotheses(path: Path) -> dict[str, MrHypothesis]:
 
 
 def _seed_table(rows: list[tuple[str, str, str, int, str]]) -> str:
-    from io import StringIO
-
-    buffer = StringIO(newline="")
+    buffer = io.StringIO(newline="")
     writer = csv.writer(buffer, delimiter="\t", lineterminator="\n")
     writer.writerow(
         (
@@ -157,6 +181,184 @@ def _seed_table(rows: list[tuple[str, str, str, int, str]]) -> str:
     )
     writer.writerows(rows)
     return buffer.getvalue()
+
+
+def _load_phase3_seed_approval(
+    request: LiveAddCopyStageRequest,
+    *,
+    review_manifest: Path,
+    hypotheses: dict[str, MrHypothesis],
+) -> _PhaseIIISeedApproval | None:
+    if request.phase3_review_stage is None:
+        if request.phase3_review_package_manifest is not None:
+            raise ValueError("Phase III review package requires its canonical stage")
+        return None
+    if request.phase3_review_package_manifest is None:
+        raise ValueError("Phase III A-seed stage requires its exact review package")
+    stage_root = request.phase3_review_stage
+    if stage_root.is_symlink() or not stage_root.resolve(strict=True).is_dir():
+        raise ValueError("Phase III A-seed stage must be a regular directory")
+    stage_root = stage_root.resolve(strict=True)
+    expected_files = {
+        "phase3_review_decision.json",
+        "phase3_review_stage_manifest.json",
+    }
+    if {path.name for path in stage_root.iterdir()} != expected_files:
+        raise ValueError("Phase III A-seed stage differs from its two-file allow-list")
+    stage_path = _regular_file(
+        stage_root / "phase3_review_stage_manifest.json",
+        "Phase III A-seed stage manifest",
+    )
+    decision_path = _regular_file(
+        stage_root / "phase3_review_decision.json",
+        "Phase III canonical A-seed decisions",
+    )
+    supplied_decisions = _regular_file(request.decisions, "Phase III A-seed decisions")
+    if supplied_decisions != decision_path:
+        raise ValueError("Phase III A-seed decisions must be the canonical staged file")
+    package_path = _regular_file(
+        request.phase3_review_package_manifest,
+        "Phase III A-seed review-package manifest",
+    )
+    try:
+        stage = PhaseIIIReviewStageManifest.model_validate_json(stage_path.read_bytes())
+        decisions = PhaseIIIReviewDecisionFile.model_validate_json(
+            decision_path.read_bytes()
+        )
+        package = validate_phase3_review_package(package_path.parent)
+    except (OSError, ValidationError, ValueError, PhaseIIIReviewPackageError) as error:
+        raise ValueError(
+            "Phase III A-seed evidence violates its typed contracts"
+        ) from error
+    if (
+        stage.checkpoint is not PhaseIIIReviewCheckpoint.A_SEED
+        or decisions.checkpoint is not PhaseIIIReviewCheckpoint.A_SEED
+        or package.checkpoint is not PhaseIIIReviewCheckpoint.A_SEED
+        or stage.parent_profile != "unknown-screen"
+        or stage.owned_parent_run_id != package.owned_parent_run_id
+        or stage.parent_profile != package.parent_profile
+        or stage.parent_phase != package.parent_phase
+        or stage.review_package_id != package.review_package_id
+        or stage.review_package_created_at != package.created_at
+        or stage.review_package_manifest_sha256 != sha256_file(package_path)
+        or stage.decision_file_id != decisions.decision_file_id
+        or stage.decision_count != len(decisions.decisions)
+        or stage.canonical_decision_sha256 != sha256_file(decision_path)
+        or decisions.owned_parent_run_id != package.owned_parent_run_id
+        or decisions.review_package_id != package.review_package_id
+        or decisions.review_package_manifest_sha256 != sha256_file(package_path)
+    ):
+        raise ValueError("Phase III A-seed stage differs from its owned review package")
+    legacy_evidence = tuple(
+        artifact
+        for artifact in package.evidence_inventory
+        if artifact.role == "mr_seed_review_manifest"
+    )
+    if len(legacy_evidence) != 1 or legacy_evidence[0].sha256 != sha256_file(
+        review_manifest
+    ):
+        raise ValueError("Phase III A-seed package does not bind the exact MR review")
+    legacy = _load_object(review_manifest, "MR review manifest")
+    raw_items = legacy.get("items")
+    if not isinstance(raw_items, list):
+        raise ValueError("MR review manifest has no item inventory")
+    items = {
+        str(item["solution_id"]): cast(dict[str, object], item)
+        for item in raw_items
+        if isinstance(item, dict) and isinstance(item.get("solution_id"), str)
+    }
+    permitted = {target.item_id for target in package.permitted_targets}
+    if permitted != set(items):
+        raise ValueError("Phase III A-seed package omits or adds MR review targets")
+    for item in items.values():
+        hypothesis_id = item.get("hypothesis_id")
+        if (
+            not isinstance(hypothesis_id, str)
+            or hypothesis_id not in hypotheses
+            or hypotheses[hypothesis_id].crystal_id != package.crystal_id
+        ):
+            raise ValueError("Phase III A-seed package mixes crystal-bound hypotheses")
+    if any(
+        decision.crystal_id != package.crystal_id
+        or decision.item_id not in permitted
+        or decision.reviewed_at < package.created_at
+        for decision in decisions.decisions
+    ):
+        raise ValueError(
+            "Phase III A-seed decisions are stale or target another crystal"
+        )
+    return _PhaseIIISeedApproval(
+        stage=stage,
+        decisions=decisions,
+        package=package,
+        stage_manifest_path=stage_path,
+        canonical_decisions_path=decision_path,
+        package_manifest_path=package_path,
+    )
+
+
+def _phase3_legacy_decisions(approval: _PhaseIIISeedApproval) -> str:
+    buffer = io.StringIO(newline="")
+    writer = csv.writer(buffer, delimiter="\t", lineterminator="\n")
+    writer.writerow(
+        (
+            "checkpoint",
+            "item_id",
+            "decision",
+            "reviewer",
+            "reviewed_at",
+            "comment",
+            "override_reason",
+        )
+    )
+    for decision in approval.decisions.decisions:
+        writer.writerow(
+            (
+                "mr_seed",
+                decision.item_id,
+                decision.decision.value,
+                decision.reviewer,
+                decision.reviewed_at.isoformat(),
+                decision.comment or decision.reason,
+                "",
+            )
+        )
+    return buffer.getvalue()
+
+
+def _phase3_approval_provenance(approval: _PhaseIIISeedApproval) -> dict[str, object]:
+    return {
+        "schema_version": "2.0",
+        "checkpoint": approval.stage.checkpoint.value,
+        "owned_parent_run_id": approval.stage.owned_parent_run_id,
+        "parent_profile": approval.stage.parent_profile,
+        "parent_phase": approval.stage.parent_phase,
+        "execution_identity_id": approval.package.execution_identity_id,
+        "crystal_id": approval.package.crystal_id,
+        "review_package_id": approval.package.review_package_id,
+        "review_package_manifest_sha256": approval.stage.review_package_manifest_sha256,
+        "review_stage_id": approval.stage.stage_id,
+        "review_stage_manifest_sha256": sha256_file(approval.stage_manifest_path),
+        "decision_file_id": approval.decisions.decision_file_id,
+        "canonical_decision_sha256": approval.stage.canonical_decision_sha256,
+        "source_decisions_sha256": approval.stage.source_decisions_sha256,
+        "decision_count": len(approval.decisions.decisions),
+        "approved_solution_ids": [
+            decision.item_id
+            for decision in approval.decisions.decisions
+            if decision.decision is PhaseIIIReviewDecisionValue.APPROVE
+        ],
+        "rejected_solution_ids": [
+            decision.item_id
+            for decision in approval.decisions.decisions
+            if decision.decision is PhaseIIIReviewDecisionValue.REJECT
+        ],
+        "deferred_solution_ids": [
+            decision.item_id
+            for decision in approval.decisions.decisions
+            if decision.decision is PhaseIIIReviewDecisionValue.DEFER
+        ],
+    }
 
 
 def prepare_live_add_copy_stage(
@@ -175,30 +377,89 @@ def prepare_live_add_copy_stage(
     if review.is_symlink() or not review.resolve(strict=True).is_dir():
         raise ValueError("MR review package must be a regular non-symlink directory")
     review = review.resolve(strict=True)
+    review_manifest = _regular_file(
+        review / "mr_seed_review_manifest.json", "MR review manifest"
+    )
+    hypotheses = _load_hypotheses(request.hypotheses_jsonl)
+    phase3_approval = _load_phase3_seed_approval(
+        request,
+        review_manifest=review_manifest,
+        hypotheses=hypotheses,
+    )
     output_path = request.output_directory
     if output_path.is_symlink() or output_path.exists():
         raise ValueError(f"live M4 stage output already exists: {output_path}")
     output = output_path.absolute()
     output.mkdir(parents=True)
 
-    review_manifest = _regular_file(
-        review / "mr_seed_review_manifest.json", "MR review manifest"
-    )
-    decisions = _copy_file(
-        request.decisions,
-        output / "approved_mr_seeds.tsv",
-        "MR seed decisions",
-    )
-    validation_json = output / "validated_mr_seed_decisions.json"
-    approval = validate_mr_seed_approvals(
-        MrSeedApprovalRequest(
-            package_manifest=review_manifest,
-            decisions=decisions,
-            output_json=validation_json,
-            progress=request.progress,
+    decisions = output / "approved_mr_seeds.tsv"
+    if phase3_approval is None:
+        decisions = _copy_file(request.decisions, decisions, "MR seed decisions")
+    else:
+        atomic_write_text(decisions, _phase3_legacy_decisions(phase3_approval))
+        _copy_file(
+            phase3_approval.canonical_decisions_path,
+            output / "phase3_review_decision.json",
+            "canonical Phase III A-seed decisions",
         )
+        _copy_file(
+            phase3_approval.stage_manifest_path,
+            output / "phase3_review_stage_manifest.json",
+            "Phase III A-seed stage manifest",
+        )
+        _copy_file(
+            phase3_approval.package_manifest_path,
+            output / "phase3_review_package_manifest.json",
+            "Phase III A-seed review-package manifest",
+        )
+    validation_json = output / "validated_mr_seed_decisions.json"
+    phase3_provenance = (
+        _phase3_approval_provenance(phase3_approval)
+        if phase3_approval is not None
+        else None
     )
-    hypotheses = _load_hypotheses(request.hypotheses_jsonl)
+    if phase3_provenance is not None and not phase3_provenance["approved_solution_ids"]:
+        review_id = content_id(
+            "rev_",
+            {
+                "adapter_version": "phase3-a-seed-validation-v1",
+                "review_package_id": phase3_provenance["review_package_id"],
+                "review_stage_id": phase3_provenance["review_stage_id"],
+                "decision_file_id": phase3_provenance["decision_file_id"],
+                "approved_solution_ids": [],
+            },
+        )
+        legacy_manifest = _load_object(review_manifest, "MR review manifest")
+        atomic_write_json(
+            validation_json,
+            {
+                "schema_version": "1.0",
+                "review_id": review_id,
+                "checkpoint": "mr_seed",
+                "package_id": legacy_manifest.get("package_id"),
+                "package_manifest_sha256": sha256_file(review_manifest),
+                "decisions_sha256": sha256_file(decisions),
+                "validated_at": utc_now_iso(),
+                "decision_count": phase3_provenance["decision_count"],
+                "approved_solution_ids": [],
+                "phase3_approval_provenance": phase3_provenance,
+                "execution_status": ExecutionStatus.COMPLETED_SUCCESS.value,
+            },
+        )
+        approval = MrSeedApprovalOutput(review_id, (), validation_json)
+    else:
+        approval = validate_mr_seed_approvals(
+            MrSeedApprovalRequest(
+                package_manifest=review_manifest,
+                decisions=decisions,
+                output_json=validation_json,
+                progress=request.progress,
+            )
+        )
+        if phase3_provenance is not None:
+            validation = _load_object(validation_json, "validated MR decisions")
+            validation["phase3_approval_provenance"] = phase3_provenance
+            atomic_write_json(validation_json, validation)
     manifest = _load_object(review_manifest, "MR review manifest")
     raw_items = manifest.get("items")
     if not isinstance(raw_items, list):
@@ -301,6 +562,8 @@ def prepare_live_add_copy_stage(
         "approved_solution_ids": list(approval.approved_solution_ids),
         "model_sources": model_sources,
     }
+    if phase3_provenance is not None:
+        stage_identity["phase3_approval_provenance"] = phase3_provenance
     stage_manifest = output / "live_m4_stage_manifest.json"
     atomic_write_json(
         stage_manifest,

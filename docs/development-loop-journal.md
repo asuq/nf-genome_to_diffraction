@@ -12472,3 +12472,29 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Reviewed Phase III A seeds now reach same-component tasks
+
+- The owned A-seed TSV checkpoint was authenticated, but production sequential
+  placement still consumed only legacy human-approval records; schema-v2
+  decisions could not cross the actual scientific workflow boundary.
+- The opt-in bridge now independently verifies the canonical two-file stage,
+  complete owned `unknown-screen` review package, exact legacy MR-manifest
+  checksum, every crystal-bound hypothesis, and all permitted target IDs.
+  Only approved states enter the existing same-component adapter. Rejected and
+  deferred decisions retain complete provenance and emit empty seed tables
+  without scheduling Phaser or claiming a scientific result.
+- The reviewed production Nextflow process preserves the original decision,
+  stage, and package manifests, carries their identities into downstream
+  validation, handles paths containing spaces, and leaves historical v1
+  approval/control behaviour unchanged. Refinement is skipped when no state
+  was approved.
+- Eighty-four focused review, staging, refinement, package, and owned-run tests
+  pass, including actual Nextflow approve/reject/defer routes and byte-stable
+  cached resumes. The existing reviewed three-crystal and legacy heteromer
+  Nextflow workflows, syntax, targeted Ruff/type, schema, and documentation
+  gates also pass.
+- Continue with complete multi-crystal continuation and production Phase III
+  refinement diffraction/Free-R propagation. Preserve the existing 30-minute
+  monitor for Slurm job `634097`; classify the exact grouped 6RTZ/3U7Q controls
+  before any multi-fixed command, `9ECN`, M6, localisation, or unknown run.

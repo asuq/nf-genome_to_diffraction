@@ -2,12 +2,18 @@
 
 import csv
 import json
+import os
+import subprocess
+from collections import Counter
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
+from shutil import copy2
 
 import pytest
 
-from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.checksums import atomic_write_json, sha256_file
+from genome_to_diffraction.cli import main
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.mr.stage_add_copy import (
     LiveAddCopyStageRequest,
@@ -17,7 +23,13 @@ from genome_to_diffraction.review import (
     MrSeedApprovalRequest,
     MrSeedReviewError,
     MrSeedReviewRequest,
+    OwnedPhaseIIIParentRun,
+    PhaseIIIReviewEvidenceSource,
+    PhaseIIIReviewPackageRequest,
+    PhaseIIIReviewStageRequest,
     build_mr_seed_review,
+    build_phase3_review_package,
+    stage_phase3_review_decisions,
     validate_mr_seed_approvals,
 )
 from genome_to_diffraction.schemas.io import load_contract
@@ -30,6 +42,12 @@ from genome_to_diffraction.schemas.results import (
     NormalisedMrResult,
     PhysicalStatus,
     ReviewDecisionManifest,
+)
+from genome_to_diffraction.schemas.v2 import (
+    PhaseIIIReviewCheckpoint,
+    PhaseIIIReviewDecision,
+    PhaseIIIReviewDecisionFile,
+    PhaseIIIReviewDecisionValue,
 )
 from genome_to_diffraction.status import ExecutionStatus
 
@@ -230,6 +248,72 @@ def _decision(path: Path, solution_id: str, *, override: str = "") -> None:
         )
 
 
+def _phase3_a_seed_stage(
+    tmp_path: Path,
+    *,
+    review_manifest: Path,
+    solution_id: str,
+    decision: PhaseIIIReviewDecisionValue,
+) -> tuple[Path, Path]:
+    package_directory = tmp_path / "phase3 A review package"
+    package_directory.mkdir()
+    package = build_phase3_review_package(
+        PhaseIIIReviewPackageRequest(
+            checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+            owned_parent_run_id="gtd-unknown-screen-fixture",
+            parent_profile="unknown-screen",
+            parent_phase="phase3-pass1",
+            execution_identity_id=f"phase3exec_{'a' * 64}",
+            crystal_id="test_crystal_01",
+            target_item_ids=(solution_id,),
+            created_at=datetime.now(UTC),
+            input_root=review_manifest.parent,
+            evidence_sources=(
+                PhaseIIIReviewEvidenceSource(
+                    role="mr_seed_review_manifest",
+                    relative_path=review_manifest.name,
+                ),
+            ),
+            output_directory=package_directory,
+        )
+    )
+    source = tmp_path / "phase3-a-decisions.json"
+    record = PhaseIIIReviewDecisionFile.from_content(
+        checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+        owned_parent_run_id="gtd-unknown-screen-fixture",
+        review_package_id=package.review_package_id,
+        review_package_manifest_sha256=sha256_file(package.manifest),
+        decisions=(
+            PhaseIIIReviewDecision(
+                crystal_id="test_crystal_01",
+                item_id=solution_id,
+                decision=decision,
+                reviewer="phase3-reviewer",
+                reviewed_at=datetime(2099, 1, 1, tzinfo=UTC),
+                reason="Coot evidence inspected",
+                comment="original human decision retained",
+            ),
+        ),
+    )
+    atomic_write_json(source, record.model_dump(mode="json", exclude_none=False))
+    output = stage_phase3_review_decisions(
+        PhaseIIIReviewStageRequest(
+            parent=OwnedPhaseIIIParentRun(
+                "gtd-unknown-screen-fixture",
+                "unknown-screen",
+                "phase3-pass1",
+            ),
+            checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+            review_package_manifest=package.manifest,
+            decisions=source,
+            confirmed_decisions_sha256=sha256_file(source),
+            output_directory=tmp_path / "phase3 A staged decisions",
+            progress=False,
+        )
+    )
+    return output.stage_manifest.parent, package.manifest
+
+
 def test_builds_content_bound_review_and_schema_valid_empty_template(
     tmp_path: Path,
 ) -> None:
@@ -422,6 +506,314 @@ def test_live_stage_retains_approved_one_copy_seed_without_phaser_dispatch(
     assert stage_manifest["additional_copy_seed_count"] == 0
     assert stage_manifest["already_at_expected_copy_count"] == 1
     assert stage_manifest["all_approved_seeds_retained"] is True
+
+
+@pytest.mark.parametrize(
+    "decision",
+    (
+        PhaseIIIReviewDecisionValue.APPROVE,
+        PhaseIIIReviewDecisionValue.REJECT,
+        PhaseIIIReviewDecisionValue.DEFER,
+    ),
+)
+def test_phase3_a_decisions_feed_only_approved_existing_copy_workflow(
+    tmp_path: Path,
+    decision: PhaseIIIReviewDecisionValue,
+) -> None:
+    request = _request(tmp_path)
+    hypothesis = _hypothesis().model_copy(update={"copy_count_expected": 3})
+    request.hypotheses_jsonl.write_text(
+        f"{canonical_json_text(hypothesis)}\n", encoding="utf-8"
+    )
+    matthews = _matthews().model_copy(
+        update={"copy_count": 3, "total_mass_da": 3 * 436.4375}
+    )
+    request.matthews_hypotheses_jsonl.write_text(
+        f"{canonical_json_text(matthews)}\n", encoding="utf-8"
+    )
+    legacy = build_mr_seed_review(request)
+    legacy_document = json.loads(legacy.manifest_json.read_text(encoding="utf-8"))
+    solution_id = legacy_document["items"][0]["solution_id"]
+    stage, phase3_manifest = _phase3_a_seed_stage(
+        tmp_path,
+        review_manifest=legacy.manifest_json,
+        solution_id=solution_id,
+        decision=decision,
+    )
+
+    output = prepare_live_add_copy_stage(
+        LiveAddCopyStageRequest(
+            review_package=legacy.manifest_json.parent,
+            decisions=stage / "phase3_review_decision.json",
+            hypotheses_jsonl=request.hypotheses_jsonl,
+            output_directory=tmp_path / "phase3 approved A state",
+            progress=False,
+            phase3_review_stage=stage,
+            phase3_review_package_manifest=phase3_manifest,
+        )
+    )
+
+    expected_count = int(decision is PhaseIIIReviewDecisionValue.APPROVE)
+    assert output.approved_seed_count == expected_count
+    assert output.additional_copy_seed_count == expected_count
+    rows = tuple(
+        csv.DictReader(
+            output.additional_copy_seeds_tsv.open(encoding="ascii"),
+            delimiter="\t",
+        )
+    )
+    assert tuple(row["seed_solution_id"] for row in rows) == (
+        (solution_id,) if expected_count else ()
+    )
+    validation = json.loads(output.validation_json.read_text(encoding="utf-8"))
+    provenance = validation["phase3_approval_provenance"]
+    assert provenance["crystal_id"] == "test_crystal_01"
+    assert provenance["parent_profile"] == "unknown-screen"
+    assert provenance["approved_solution_ids"] == (
+        [solution_id] if expected_count else []
+    )
+    disposition_field = {
+        PhaseIIIReviewDecisionValue.APPROVE: "approved_solution_ids",
+        PhaseIIIReviewDecisionValue.REJECT: "rejected_solution_ids",
+        PhaseIIIReviewDecisionValue.DEFER: "deferred_solution_ids",
+    }[decision]
+    assert provenance[disposition_field] == [solution_id]
+    assert validation["execution_status"] == "completed_success"
+    manifest = json.loads(output.stage_manifest.read_text(encoding="utf-8"))
+    assert manifest["phase3_approval_provenance"] == provenance
+    for name in (
+        "phase3_review_decision.json",
+        "phase3_review_stage_manifest.json",
+        "phase3_review_package_manifest.json",
+    ):
+        assert (output.stage_manifest.parent / name).is_file()
+
+
+@pytest.mark.parametrize("failure", ("canonical", "legacy", "stage", "package"))
+def test_phase3_a_seed_bridge_rejects_cross_evidence_before_publication(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    request = _request(tmp_path)
+    legacy = build_mr_seed_review(request)
+    document = json.loads(legacy.manifest_json.read_text(encoding="utf-8"))
+    solution_id = document["items"][0]["solution_id"]
+    stage, phase3_manifest = _phase3_a_seed_stage(
+        tmp_path,
+        review_manifest=legacy.manifest_json,
+        solution_id=solution_id,
+        decision=PhaseIIIReviewDecisionValue.APPROVE,
+    )
+    decision_path = stage / "phase3_review_decision.json"
+    if failure == "canonical":
+        decision_path = tmp_path / "another-decision.json"
+        decision_path.write_bytes((stage / "phase3_review_decision.json").read_bytes())
+    elif failure == "legacy":
+        legacy.manifest_json.write_text(
+            legacy.manifest_json.read_text(encoding="utf-8") + "\n",
+            encoding="utf-8",
+        )
+    elif failure == "stage":
+        (stage / "unexpected.json").write_text("{}\n", encoding="utf-8")
+    else:
+        evidence = next((phase3_manifest.parent / "evidence").rglob("*.json"))
+        evidence.write_text("{}\n", encoding="utf-8")
+    destination = tmp_path / "must-not-publish-a-state"
+
+    with pytest.raises(ValueError):
+        prepare_live_add_copy_stage(
+            LiveAddCopyStageRequest(
+                review_package=legacy.manifest_json.parent,
+                decisions=decision_path,
+                hypotheses_jsonl=request.hypotheses_jsonl,
+                output_directory=destination,
+                progress=False,
+                phase3_review_stage=stage,
+                phase3_review_package_manifest=phase3_manifest,
+            )
+        )
+
+    assert not destination.exists()
+
+
+def test_cli_passes_canonical_phase3_a_approval_to_same_component_stage(
+    tmp_path: Path,
+) -> None:
+    request = _request(tmp_path)
+    package = build_mr_seed_review(request)
+    manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
+    solution_id = manifest["items"][0]["solution_id"]
+    stage, phase3_package_manifest = _phase3_a_seed_stage(
+        tmp_path,
+        review_manifest=package.manifest_json,
+        solution_id=solution_id,
+        decision=PhaseIIIReviewDecisionValue.APPROVE,
+    )
+    destination = tmp_path / "cli reviewed phase3 seed"
+
+    exit_code = main(
+        [
+            "--no-progress",
+            "mr",
+            "stage-approved-seeds",
+            "--review-package",
+            str(package.manifest_json.parent),
+            "--decisions",
+            str(stage / "phase3_review_decision.json"),
+            "--hypotheses",
+            str(request.hypotheses_jsonl),
+            "--phase3-review-stage",
+            str(stage),
+            "--phase3-review-package-manifest",
+            str(phase3_package_manifest),
+            "--outdir",
+            str(destination),
+        ]
+    )
+
+    assert exit_code == 0
+    result = json.loads(
+        (destination / "live_m4_stage_manifest.json").read_text(encoding="utf-8")
+    )
+    assert result["phase3_approval_provenance"]["approved_solution_ids"] == [
+        solution_id
+    ]
+
+
+@pytest.mark.parametrize(
+    "decision",
+    (
+        PhaseIIIReviewDecisionValue.APPROVE,
+        PhaseIIIReviewDecisionValue.REJECT,
+        PhaseIIIReviewDecisionValue.DEFER,
+    ),
+)
+def test_phase3_a_decision_controls_the_actual_same_component_process(
+    tmp_path: Path,
+    decision: PhaseIIIReviewDecisionValue,
+) -> None:
+    request = _request(tmp_path)
+    hypothesis = _hypothesis().model_copy(update={"copy_count_expected": 3})
+    request.hypotheses_jsonl.write_text(
+        f"{canonical_json_text(hypothesis)}\n", encoding="utf-8"
+    )
+    matthews = _matthews().model_copy(
+        update={"copy_count": 3, "total_mass_da": 3 * 436.4375}
+    )
+    request.matthews_hypotheses_jsonl.write_text(
+        f"{canonical_json_text(matthews)}\n", encoding="utf-8"
+    )
+    package = build_mr_seed_review(request)
+    manifest = json.loads(package.manifest_json.read_text(encoding="utf-8"))
+    solution_id = manifest["items"][0]["solution_id"]
+    stage, phase3_package_manifest = _phase3_a_seed_stage(
+        tmp_path,
+        review_manifest=package.manifest_json,
+        solution_id=solution_id,
+        decision=decision,
+    )
+    project = tmp_path / "nextflow-project"
+    project.mkdir()
+    source = STUBS / "phase3_reviewed_seed_fanout/main.nf"
+    (project / "main.nf").write_text(
+        source.read_text(encoding="ascii")
+        .replace("'../../../../modules/", f"'{REPOSITORY}/modules/")
+        .replace("'../../../../workflows/", f"'{REPOSITORY}/workflows/"),
+        encoding="ascii",
+    )
+    local_stubs = project / "tests/fixtures/stubs"
+    local_stubs.mkdir(parents=True)
+    for name in (
+        "additional_copy_result.jsonl",
+        "additional_copy_result.json",
+        "phaser_command.json",
+        "add_copy.eff",
+        "additional_copy_series_results.jsonl",
+        "additional_copy_series_summary.json",
+    ):
+        copy2(STUBS / name, local_stubs / name)
+    output = tmp_path / "reviewed-copy-results"
+    command = [
+        "nextflow",
+        "-C",
+        "tests/fixtures/stubs/p6_empty_partner/nextflow.config",
+        "run",
+        str(project / "main.nf"),
+        "-stub-run",
+        "--review_package",
+        str(package.manifest_json.parent),
+        "--review_stage",
+        str(stage),
+        "--phase3_package",
+        str(phase3_package_manifest.parent),
+        "--hypotheses",
+        str(request.hypotheses_jsonl),
+        "--sequence_groups",
+        str(STUBS / "sequence_groups.jsonl"),
+        "--preflight",
+        str(STUBS / "mtz_preflight.jsonl"),
+        "--mtz",
+        str(STUBS / "predicted_model_preparation/models/stub.pdb"),
+        "--phenix_manifest",
+        str(STUBS / "phenix_install_manifest.json"),
+        "--outdir",
+        str(output),
+        "--cache_root",
+        str(tmp_path / "nextflow-cache"),
+    ]
+    environment = dict(os.environ)
+    environment.update(
+        {
+            "NXF_AGENT_MODE": "true",
+            "NXF_ANSI_LOG": "false",
+            "NXF_DISABLE_CHECK_LATEST": "true",
+            "NXF_HOME": str(tmp_path / "nxf-home"),
+            "NXF_SYNTAX_PARSER": "v2",
+        }
+    )
+    result = subprocess.run(
+        command,
+        cwd=REPOSITORY,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    trace = output / "pipeline_info/trace.tsv"
+    with trace.open(encoding="utf-8", newline="") as stream:
+        first = tuple(csv.DictReader(stream, delimiter="\t"))
+    expected_processes = {
+        "STAGE_PHASE3_APPROVED_MR_SEEDS": 1,
+    }
+    if decision is PhaseIIIReviewDecisionValue.APPROVE:
+        expected_processes["RUN_ADDITIONAL_COPY_PHASER"] = 1
+    assert Counter(row["process"].split(":")[-1] for row in first) == expected_processes
+    assert {row["status"] for row in first} == {"COMPLETED"}
+    staged = json.loads(
+        (output / "approved_mr_seed_stage/live_m4_stage_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert staged["phase3_approval_provenance"]["approved_solution_ids"] == (
+        [solution_id] if decision is PhaseIIIReviewDecisionValue.APPROVE else []
+    )
+
+    resumed = subprocess.run(
+        [*command, "-resume"],
+        cwd=REPOSITORY,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert resumed.returncode == 0, f"{resumed.stdout}\n{resumed.stderr}"
+    with trace.open(encoding="utf-8", newline="") as stream:
+        cached = tuple(csv.DictReader(stream, delimiter="\t"))
+    assert {row["status"] for row in cached} == {"CACHED"}
+    assert {row["hash"] for row in cached} == {row["hash"] for row in first}
 
 
 def test_approval_without_inspectable_assets_requires_explicit_override(

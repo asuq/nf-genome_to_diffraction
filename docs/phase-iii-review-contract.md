@@ -145,8 +145,26 @@ The existing review stager retains `approve`, `reject`, and `defer` outcomes,
 rejects more than three approved A states per crystal, and publishes only its
 canonical decision JSON plus stage manifest. Wrong parent/profile/checkpoint,
 mutated package evidence, and mismatched independent checksums fail before
-publication. The local CLI is `review stage-owned-a-seeds`; a remote fixed
-profile and actual downstream same-component execution remain separate gates.
+publication. The local CLI is `review stage-owned-a-seeds`.
+
+The production same-component stage accepts these decisions through explicit
+`--phase3-review-stage` and `--phase3-review-package-manifest` options. It first
+revalidates the stage's exact two-file allow-list, canonical decision checksum,
+owned `unknown-screen` parent/profile/phase, complete schema-v2 package, and an
+evidence artifact named `mr_seed_review_manifest` matching the exact historical
+MR review bytes. All reviewed targets and hypotheses must belong to the same
+crystal and match that complete MR evidence inventory.
+
+Only explicit `approve` decisions can enter the existing additional-copy
+adapter. `reject` and `defer` are preserved separately; a checkpoint without an
+approval completes successfully with empty seed tables and schedules no
+same-component search. A bounded compatibility projection preserves the
+reviewer, timestamp, disposition, and comment but never invents an inspectable
+asset override. The canonical schema-v2 decision, stage, and package manifest
+are copied into the resulting stage, and their content identities/checksums are
+bound into both downstream validation and stage provenance. The normal v1
+approval path remains unchanged. Fixed remote staging, complete multi-crystal
+continuation, and real Phenix execution remain separate gates.
 
 ## Checkpoints and values
 

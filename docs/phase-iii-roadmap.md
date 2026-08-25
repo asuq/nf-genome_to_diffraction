@@ -384,8 +384,15 @@ run. It infers the single crystal from the typed decision file, resolves only
 the registered A-seed package, preserves approval/rejection/deferral, and
 enforces the existing three-state approval cap before publishing the canonical
 two-file stage. Arbitrary package paths and crystal selectors are not accepted.
-The fixed remote profile and actual downstream same-component execution remain
-pending.
+The actual application now independently validates the canonical two-file
+A-seed stage, the complete owned schema-v2 package, its exact checksum-bound
+legacy MR evidence, every crystal/hypothesis/target, and reviewer dispositions.
+Only approved states enter the existing same-component Nextflow adapter; rejected
+or deferred checkpoints complete with empty approved/placement tables instead of
+fabricating a seed. Original decision, stage, and package records remain retained
+in the downstream evidence. Historical schema-v1 approvals remain unchanged. The
+fixed remote profile, multi-crystal continuation, and real licensed execution
+remain pending.
 
 Status: the opt-in schema-v2 file contract for crystallographic, A-seed,
 composition, and sequence decisions is implemented and documented in

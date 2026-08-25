@@ -38,6 +38,9 @@ params {
     phase3_joint_first_copy: Boolean = false
     phase3_crystallographic_review_stage: Path? = null
     phase3_execution_identity: Path? = null
+    phase3_a_seed_review_stage: Path? = null
+    phase3_a_seed_review_package: Path? = null
+    phase3_a_seed_legacy_review_package: Path? = null
 }
 
 workflow {
@@ -54,9 +57,26 @@ workflow {
     }
     if (
         params.analysis_stage in ['additional_copy', 'heteromer', 't12'] &&
-        params.approved_mr_seeds == null
+        params.approved_mr_seeds == null &&
+        params.phase3_a_seed_review_stage == null
     ) {
         error "analysis_stage=${params.analysis_stage} requires --approved_mr_seeds"
+    }
+    def phase3SeedInputs = [
+        params.phase3_a_seed_review_stage,
+        params.phase3_a_seed_review_package,
+        params.phase3_a_seed_legacy_review_package
+    ]
+    if (phase3SeedInputs.any { item -> item != null }) {
+        if (phase3SeedInputs.any { item -> item == null }) {
+            error 'Phase III A-seed execution requires its stage, owned package, and reviewed MR evidence'
+        }
+        if (!(params.analysis_stage in ['additional_copy', 't12'])) {
+            error 'Phase III A-seed decisions permit only same-component or refinement execution'
+        }
+        if (params.approved_mr_seeds != null || !params.phase3_joint_first_copy) {
+            error 'Phase III A-seed execution requires joint hypotheses and no legacy decision override'
+        }
     }
     if (params.analysis_stage == 'heteromer' && params.partner_copy_count < 1) {
         error 'analysis_stage=heteromer requires a positive --partner_copy_count'
@@ -103,6 +123,9 @@ workflow {
         params.maximum_first_copy_jobs,
         params.phase3_joint_first_copy,
         params.phase3_crystallographic_review_stage,
-        params.phase3_execution_identity
+        params.phase3_execution_identity,
+        params.phase3_a_seed_review_stage,
+        params.phase3_a_seed_review_package,
+        params.phase3_a_seed_legacy_review_package
     )
 }

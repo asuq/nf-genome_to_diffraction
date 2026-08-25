@@ -1499,6 +1499,16 @@ def _build_parser() -> argparse.ArgumentParser:
     live_stage_parser.add_argument("--decisions", type=Path, required=True)
     live_stage_parser.add_argument("--hypotheses", type=Path, required=True)
     live_stage_parser.add_argument("--outdir", type=Path, required=True)
+    live_stage_parser.add_argument(
+        "--phase3-review-stage",
+        type=Path,
+        help="canonical checksum-bound Phase III A-seed decision stage",
+    )
+    live_stage_parser.add_argument(
+        "--phase3-review-package-manifest",
+        type=Path,
+        help="exact owned Phase III A-seed review-package manifest",
+    )
     copy_report_parser = mr_actions.add_parser(
         "copy-report",
         help="compare Matthews-intended and empirically supported copy counts",
@@ -2996,6 +3006,8 @@ def _run_mr(args: argparse.Namespace) -> int:
                 hypotheses_jsonl=args.hypotheses,
                 output_directory=args.outdir,
                 progress=not args.no_progress,
+                phase3_review_stage=args.phase3_review_stage,
+                phase3_review_package_manifest=args.phase3_review_package_manifest,
             )
         )
         print(

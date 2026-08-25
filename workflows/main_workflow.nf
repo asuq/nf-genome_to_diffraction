@@ -11,6 +11,9 @@ include { REGISTER_PDB_COORDINATES } from '../modules/local/register_pdb_coordin
 include { RUN_APPROVED_PARTNER_PHASER } from '../modules/local/run_approved_partner_phaser'
 include { SELECT_SINGLE_CRYSTAL } from '../modules/local/select_single_crystal'
 include { STAGE_APPROVED_MR_SEEDS } from '../modules/local/stage_approved_mr_seeds'
+include {
+    STAGE_PHASE3_APPROVED_MR_SEEDS
+} from '../modules/local/stage_phase3_approved_mr_seeds'
 include { STAGE_LIVE_T12 } from '../modules/local/stage_live_t12'
 include { VALIDATE_TASK05_INPUTS } from '../modules/local/validate_task05_inputs'
 include { ADDITIONAL_COPY_WORKFLOW } from './additional_copy_workflow'
@@ -54,6 +57,9 @@ workflow MAIN_WORKFLOW {
     phase3_joint_first_copy: Boolean
     phase3_crystallographic_review_stage: Path?
     phase3_execution_identity: Path?
+    phase3_a_seed_review_stage: Path?
+    phase3_a_seed_review_package: Path?
+    phase3_a_seed_legacy_review_package: Path?
 
     main:
     validation_scope = VALIDATE_TASK05_INPUTS(
@@ -214,22 +220,44 @@ workflow MAIN_WORKFLOW {
                 pipeline_config
             )
             if (analysis_stage in ['additional_copy', 'heteromer', 't12']) {
-                if (approved_mr_seeds == null) {
+                if (
+                    approved_mr_seeds == null &&
+                    phase3_a_seed_review_stage == null
+                ) {
                     error "${analysis_stage} stage requires approved MR seeds"
                 }
                 first_copy_hypotheses = first_copy.funnel.map { Path bundle ->
                     bundle.resolve('mr_hypotheses.jsonl')
                 }
-                approved_stage = STAGE_APPROVED_MR_SEEDS(
-                    mr_seed_review,
-                    approved_mr_seeds,
-                    first_copy_hypotheses
-                )
+                if (phase3_a_seed_review_stage != null) {
+                    if (
+                        phase3_a_seed_review_package == null ||
+                        phase3_a_seed_legacy_review_package == null
+                    ) {
+                        error 'Phase III A-seed execution lacks complete review evidence'
+                    }
+                    selected_review_package = channel.value(
+                        phase3_a_seed_legacy_review_package
+                    )
+                    approved_stage = STAGE_PHASE3_APPROVED_MR_SEEDS(
+                        selected_review_package,
+                        channel.value(phase3_a_seed_review_stage),
+                        channel.value(phase3_a_seed_review_package),
+                        first_copy_hypotheses
+                    )
+                } else {
+                    selected_review_package = mr_seed_review
+                    approved_stage = STAGE_APPROVED_MR_SEEDS(
+                        selected_review_package,
+                        approved_mr_seeds,
+                        first_copy_hypotheses
+                    )
+                }
                 if (analysis_stage == 'heteromer') {
                     if (heteromer_control_preparation != null) {
                         RUN_APPROVED_PARTNER_PHASER(
                             approved_stage,
-                            mr_seed_review,
+                            selected_review_package,
                             heteromer_control_preparation,
                             sequence_groups,
                             preflight_jsonl,
@@ -242,7 +270,7 @@ workflow MAIN_WORKFLOW {
                     }
                     PARTNER_SEARCH_WORKFLOW(
                         approved_stage,
-                        mr_seed_review,
+                        selected_review_package,
                         sequence_groups,
                         matthews_jsonl,
                         preflight_jsonl,
@@ -261,7 +289,7 @@ workflow MAIN_WORKFLOW {
                 review_validation = approved_stage.map { Path bundle ->
                     bundle.resolve('validated_mr_seed_decisions.json')
                 }
-                review_manifest = mr_seed_review.map { Path bundle ->
+                review_manifest = selected_review_package.map { Path bundle ->
                     bundle.resolve('mr_seed_review_manifest.json')
                 }
                 additional_copy = ADDITIONAL_COPY_WORKFLOW(
@@ -279,8 +307,13 @@ workflow MAIN_WORKFLOW {
                         .collect()
                         .ifEmpty([])
                     live_t12_stage = STAGE_LIVE_T12(
-                        approved_stage,
-                        mr_seed_review,
+                        approved_stage.filter { Path bundle ->
+                            def stageManifest = new groovy.json.JsonSlurper().parse(
+                                bundle.resolve('live_m4_stage_manifest.json').toFile()
+                            )
+                            (stageManifest.approved_seed_count as Integer) > 0
+                        },
+                        selected_review_package,
                         copy_results,
                         first_copy_hypotheses,
                         sequence_groups,
