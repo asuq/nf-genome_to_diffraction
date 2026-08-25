@@ -1157,9 +1157,7 @@ def test_phase3_a_seed_stage_rejects_cross_evidence_before_publication(
             encoding="utf-8",
         )
     elif failure == "stage":
-        (fixture.review_stage / "unexpected.json").write_text(
-            "{}\n", encoding="utf-8"
-        )
+        (fixture.review_stage / "unexpected.json").write_text("{}\n", encoding="utf-8")
     else:
         evidence = next((fixture.package / "evidence").rglob("*.json"))
         evidence.write_text("{}\n", encoding="utf-8")
@@ -1322,9 +1320,7 @@ def test_phase3_a_decision_controls_the_actual_same_component_process(
         )
     )
     assert staged["approval_provenance"]["approved_solution_ids"] == (
-        [fixture.solution_id]
-        if decision is PhaseIIIReviewDecisionValue.APPROVE
-        else []
+        [fixture.solution_id] if decision is PhaseIIIReviewDecisionValue.APPROVE else []
     )
 
     resumed = subprocess.run(

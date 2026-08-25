@@ -393,8 +393,7 @@ def _load_phase3_seed_approval(
         MrSeedReviewError,
     ) as error:
         raise ValueError(
-            "Phase III A-seed evidence is not owned by the completed "
-            f"screen: {error}"
+            f"Phase III A-seed evidence is not owned by the completed screen: {error}"
         ) from error
     if (
         owned.parent.profile != "unknown-screen"
@@ -576,9 +575,7 @@ def prepare_phase3_seed_stage(
         if artifact.role == "mr_seed_review_manifest"
     )
     if len(review_artifacts) != 1:
-        raise ValueError(
-            "Phase III A-seed package must contain one MR review manifest"
-        )
+        raise ValueError("Phase III A-seed package must contain one MR review manifest")
     review_manifest = _owned_review_asset(
         package_root,
         review_artifacts[0].relative_path,
@@ -747,8 +744,7 @@ def validate_phase3_seed_stage(
         document.get("schema_version") != "2.0"
         or document.get("adapter_version") != "phase3-owned-a-seed-stage-v2"
         or document.get("stage_kind") != "phase3_owned_a_seed"
-        or document.get("execution_status")
-        != ExecutionStatus.COMPLETED_SUCCESS.value
+        or document.get("execution_status") != ExecutionStatus.COMPLETED_SUCCESS.value
         or not isinstance(allowlist, list)
         or any(not isinstance(item, str) for item in allowlist)
         or len(set(allowlist)) != len(allowlist)
@@ -761,9 +757,8 @@ def validate_phase3_seed_stage(
         if key not in {"schema_version", "stage_id", "staged_at"}
     }
     stage_id = document.get("stage_id")
-    if (
-        not isinstance(stage_id, str)
-        or stage_id != content_id("phase3seedstage_", identity)
+    if not isinstance(stage_id, str) or stage_id != content_id(
+        "phase3seedstage_", identity
     ):
         raise ValueError("Phase III seed-stage identity differs from its content")
 
@@ -851,11 +846,9 @@ def validate_phase3_seed_stage(
     additional_seeds = _regular_file(
         root / "additional_copy_seeds.tsv", "additional-copy seeds"
     )
-    if (
-        sha256_file(approved_seeds) != document.get("approved_seeds_sha256")
-        or sha256_file(additional_seeds)
-        != document.get("additional_copy_seeds_sha256")
-    ):
+    if sha256_file(approved_seeds) != document.get(
+        "approved_seeds_sha256"
+    ) or sha256_file(additional_seeds) != document.get("additional_copy_seeds_sha256"):
         raise ValueError("Phase III seed-stage seed-table checksum differs")
     approved_rows = _load_seed_rows(approved_seeds, "approved seeds")
     additional_rows = _load_seed_rows(additional_seeds, "additional-copy seeds")
@@ -895,8 +888,7 @@ def validate_phase3_seed_stage(
             not isinstance(model_sha, str)
             or sha256_file(model) != model_sha
             or row.get("search_model_sha256") != model_sha
-            or row.get("expected_copy_count")
-            != str(source.get("expected_copy_count"))
+            or row.get("expected_copy_count") != str(source.get("expected_copy_count"))
             or row.get("requires_additional_copy")
             != str(source.get("requires_additional_copy")).lower()
         ):

@@ -455,8 +455,7 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     else:
         staged_model_sha = phase3_source.get("staged_search_model_sha256")
         if (
-            phase3_source.get("original_first_copy_model_sha256")
-            != expected_model_sha
+            phase3_source.get("original_first_copy_model_sha256") != expected_model_sha
             or request.expected_search_model_sha256 != staged_model_sha
         ):
             raise PhaserInputError(

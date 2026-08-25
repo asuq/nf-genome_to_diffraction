@@ -1473,9 +1473,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "stage-phase3-seeds",
         help="stage one canonical owned Phase III A-review checkpoint",
     )
-    phase3_seed_stage_parser.add_argument(
-        "--review-stage", type=Path, required=True
-    )
+    phase3_seed_stage_parser.add_argument("--review-stage", type=Path, required=True)
     phase3_seed_stage_parser.add_argument(
         "--review-package-manifest", type=Path, required=True
     )

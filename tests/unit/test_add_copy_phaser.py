@@ -222,7 +222,7 @@ def _fake_runtime(
 ) -> None:
     placement_counts = iter(
         (placement_count,) if isinstance(placement_count, int) else placement_count
-        )
+    )
 
     def fake_validate(path: Path) -> PhenixInstallManifest:
         del path

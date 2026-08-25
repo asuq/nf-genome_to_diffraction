@@ -698,12 +698,9 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
             != approved_manifest.get("additional_copy_seeds_sha256")
             or sha256_file(validation_path)
             != approved_manifest.get("validation_sha256")
-            or sha256_file(decisions_path)
-            != approved_manifest.get("decisions_sha256")
+            or sha256_file(decisions_path) != approved_manifest.get("decisions_sha256")
         ):
-            raise T12StageError(
-                "live M4 stage file checksum differs from its manifest"
-            )
+            raise T12StageError("live M4 stage file checksum differs from its manifest")
         validation = _load_object(validation_path, "MR decision validation")
         review_id = _required_string(validation.get("review_id"), "MR review ID")
         if (
@@ -713,9 +710,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
             or validation.get("approved_solution_ids") != list(approved_ids)
             or approved_manifest.get("review_id") != review_id
         ):
-            raise T12StageError(
-                "MR decision validation differs from the live M4 stage"
-            )
+            raise T12StageError("MR decision validation differs from the live M4 stage")
         review_manifest_path = _regular(
             review_root / "mr_seed_review_manifest.json", "MR review manifest"
         )
