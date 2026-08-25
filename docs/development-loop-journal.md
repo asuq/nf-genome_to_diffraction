@@ -12772,3 +12772,24 @@ with a collapsed combined parent or a guessed command.
   evidence-derived statuses, and real licensed runtime execution remain open.
   Preserve the independent 30-minute monitor for Slurm job `634097` and classify
   it before any new scientific HPC operation.
+
+## 2026-08-25 - Component control preserves multicopy parent uncertainty
+
+- The owned Phase III component control, Slurm `634097` at source `17c52e85`,
+  completed with exit 2 and `software_failure`. The pinned nf-helper, Pixi
+  0.76.2, Phenix 2.1-6048, and all seven tool identities matched their frozen
+  manifests. This retained diagnostic run is not accepted or reusable.
+- Its 6RTZ search completed with one A and one B; both source-model-bound
+  component groups exactly reconstruct all 3,543 combined atoms. The 3U7Q
+  parent also completed with two packed A copies, LLG 17887.289, and TFZ 127.4.
+  The subsequent B command failed before Phenix execution because its wrapper
+  omitted the newly required original parent identity and uncertainty source.
+- The fixed wrapper now reads both values from that exact first-copy Phaser
+  command, validates the parent identity, converts its percentage to the
+  required fraction, and passes the unchanged uncertainty provenance into the
+  joint-B search. A focused red/green regression and complete fake two-control
+  lifecycle preserve a deliberately non-default 35% parent identity.
+- Both focused regressions and wrapper syntax pass. Commit/push this minimal
+  correction, watch one CI run, deploy its matching fixed wrapper, and submit
+  exactly one fresh component-control successor. Do not launch 9ECN, unknown
+  crystals, M6, or another scientific profile before that successor passes.

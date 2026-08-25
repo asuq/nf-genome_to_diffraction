@@ -296,6 +296,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "crystal_id=\n"
         "search_id=\n"
         "phaser_version=\n"
+        "parent_model_identity_fraction=\n"
+        "parent_model_uncertainty_source=\n"
         'case " $* " in\n'
         '  *" catalogue import "*) mode=catalogue ;;\n'
         '  *" structure-search afdb-exact "*) mode=afdb ;;\n'
@@ -334,6 +336,10 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  [[ "$previous" != --crystal-id ]] || crystal_id="$argument"\n'
         '  [[ "$previous" != --search-id ]] || search_id="$argument"\n'
         '  [[ "$previous" != --phaser-version ]] || phaser_version="$argument"\n'
+        '  [[ "$previous" != --parent-model-identity-fraction ]] || '
+        'parent_model_identity_fraction="$argument"\n'
+        '  [[ "$previous" != --parent-model-uncertainty-source ]] || '
+        'parent_model_uncertainty_source="$argument"\n'
         '  [[ "$previous" != --verification-log ]] || verification_log="$argument"\n'
         '  [[ "$previous" != --protocol ]] || protocol="$argument"\n'
         '  [[ "$previous" != --control-6rtz-preparation ]] || '
@@ -724,10 +730,17 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '> "$outdir/normalised_mr_result.json"\n'
         '  cp "$outdir/normalised_mr_result.json" '
         '"$outdir/normalised_mr_result.jsonl"\n'
-        "  printf '{}\\n' > \"$outdir/phaser_command.json\"\n"
+        '  printf \'{"model_identity_percent":35.0,'
+        '"model_uncertainty_source":"fake registered parent model identity"}\\n\' '
+        '> "$outdir/phaser_command.json"\n'
         '  printf "fake parent log\\n" > "$outdir/PHASER.log"\n'
         '  printf "fake parent capture\\n" > "$outdir/phenix.phaser.capture.log"\n'
         'elif [[ "$mode" == partner ]]; then\n'
+        '  if [[ "$crystal_id" == 3U7Q ]]; then\n'
+        '    [[ "$parent_model_identity_fraction" == 0.35 ]] || exit 32\n'
+        '    [[ "$parent_model_uncertainty_source" == '
+        '"fake registered parent model identity" ]] || exit 33\n'
+        "  fi\n"
         '  mkdir -p "$outdir"\n'
         "  parent_copies=1\n"
         "  partner_copies=1\n"
@@ -4664,6 +4677,26 @@ def test_phase3_phenix_probe_is_fixed_and_collectable(tmp_path: Path) -> None:
     assert "artifacts/qualification/phaser-interface-probe.json" in names
     assert "artifacts/qualification/phenix-phaser-show-defaults.txt" in names
     assert "artifacts/qualification/phase3-phenix-probe-checksums.sha256" in names
+
+
+def test_heteromer_multicopy_partner_preserves_parent_model_uncertainty() -> None:
+    wrapper = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(
+        encoding="utf-8"
+    )
+    phase = wrapper.split(
+        "printf 'phase=heteromer_multicopy_partner_B profile=heteromer-smoke\\n'",
+        maxsplit=1,
+    )[1]
+    invocation = phase.split("\n\n", maxsplit=1)[0]
+
+    assert (
+        '--parent-model-identity-fraction "$multicopy_parent_model_identity_fraction"'
+        in invocation
+    )
+    assert (
+        '--parent-model-uncertainty-source "$multicopy_parent_model_uncertainty_source"'
+        in invocation
+    )
 
 
 def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(

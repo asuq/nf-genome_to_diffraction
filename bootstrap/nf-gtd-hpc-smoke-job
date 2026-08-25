@@ -2071,7 +2071,8 @@ PY
         --threads "${SLURM_CPUS_PER_TASK:-1}" \
         --outdir "$multicopy_parent"
     mapfile -t multicopy_parent_values < <(
-        "$PYTHON" - "$multicopy_parent_result" "$multicopy_parent_copies" <<'PY'
+        "$PYTHON" - "$multicopy_parent_result" "$multicopy_parent_copies" \
+            "$multicopy_parent/phaser_command.json" <<'PY'
 import json
 import math
 import re
@@ -2080,10 +2081,13 @@ from pathlib import Path, PurePosixPath
 
 document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 expected = int(sys.argv[2])
+command = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
 llg = document.get("llg")
 relative = document.get("solution_coordinate_path")
 sha256 = document.get("solution_coordinate_sha256")
 packing = document.get("packing_summary")
+identity_percent = command.get("model_identity_percent")
+uncertainty_source = command.get("model_uncertainty_source")
 if (
     document.get("execution_status") != "completed_hit"
     or isinstance(llg, bool)
@@ -2096,17 +2100,29 @@ if (
     or PurePosixPath(relative).name != relative
     or not isinstance(sha256, str)
     or re.fullmatch(r"[a-f0-9]{64}", sha256) is None
+    or isinstance(identity_percent, bool)
+    or not isinstance(identity_percent, (int, float))
+    or not math.isfinite(float(identity_percent))
+    or not 0 < float(identity_percent) <= 100
+    or not isinstance(uncertainty_source, str)
+    or not uncertainty_source.strip()
+    or "\n" in uncertainty_source
+    or "\r" in uncertainty_source
 ):
-    raise SystemExit("fixed 3U7Q A parent did not produce two packed copies")
+    raise SystemExit("fixed 3U7Q A parent lacks packed copies or model provenance")
 print(f"{float(llg):.12g}")
 print(relative)
 print(sha256)
+print(f"{float(identity_percent) / 100:.12g}")
+print(uncertainty_source)
 PY
     )
-    [[ "${#multicopy_parent_values[@]}" -eq 3 ]] || return 4
+    [[ "${#multicopy_parent_values[@]}" -eq 5 ]] || return 4
     multicopy_parent_llg="${multicopy_parent_values[0]}"
     multicopy_parent_relative="${multicopy_parent_values[1]}"
     multicopy_parent_sha256="${multicopy_parent_values[2]}"
+    multicopy_parent_model_identity_fraction="${multicopy_parent_values[3]}"
+    multicopy_parent_model_uncertainty_source="${multicopy_parent_values[4]}"
     multicopy_parent_coordinate="$multicopy_parent/$multicopy_parent_relative"
     [[ -f "$multicopy_parent_coordinate" && \
        "$(sha256sum "$multicopy_parent_coordinate" | awk '{print $1}')" == \
@@ -2130,6 +2146,8 @@ PY
         --parent-coordinate "$multicopy_parent_coordinate" \
         --expected-parent-coordinate-sha256 "$multicopy_parent_sha256" \
         --parent-llg "$multicopy_parent_llg" \
+        --parent-model-identity-fraction "$multicopy_parent_model_identity_fraction" \
+        --parent-model-uncertainty-source "$multicopy_parent_model_uncertainty_source" \
         --parent-copy-count "$multicopy_parent_copies" \
         --partner-model "$multicopy_inputs/models/component_B.pdb" \
         --expected-partner-model-sha256 "$multicopy_partner_sha256" \
