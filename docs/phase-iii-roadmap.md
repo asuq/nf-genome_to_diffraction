@@ -430,6 +430,13 @@ trees; existing tests cover all seed permutations and byte-identical outputs
 for reversed model-policy rows. Scientific adapter versions remain unchanged
 because no ranking, status, threshold, or record meaning changed.
 
+Status: `DEV-P2-02` is fixed locally for every remaining scientific wrapper.
+M6 operational/leakage, the archived M4 copy profile, and T12 now create and
+export the Apptainer cache inside their exact owned run. The already isolated
+M6 smoke retains its separately verified run-owned cache. No hard-coded user
+or shared account cache remains in the job wrapper; real-site execution
+evidence remains pending.
+
 Add a locked offline wheel build, isolated install, both entry points, packaged
 schemas, and version parity. Remove or migrate legacy nested thread-pool
 benchmark execution. Repeat the adverse review before release.

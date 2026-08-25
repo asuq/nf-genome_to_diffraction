@@ -12072,3 +12072,19 @@ with a collapsed combined parent or a guessed command.
 - The existing 30-minute automation remains the sole monitor for Slurm job
   `634097`. Classify its exact grouped 6RTZ/3U7Q component evidence before any
   multi-fixed Phaser command, `9ECN`, M6, localisation, or unknown analysis.
+
+## 2026-08-25 - Remaining scientific profiles use run-owned image caches
+
+- Three legacy scientific job functions still exported one hard-coded,
+  account-wide Apptainer cache, despite the M6 smoke already proving that a
+  cache can be safely owned by the exact immutable run. Focused regressions
+  reproduced the leak for M6 operational/leakage, M4 copy, and T12.
+- Each affected function now creates its own `cache/apptainer` below the owned
+  run and exports that exact path. The job already enforces `umask 077`; no
+  shared account path, account name, cleanup, scheduler setting, or scientific
+  output changed. Existing M6 smoke cache validation remains untouched.
+- The repository policy suite and Bash job-wrapper syntax pass. `DEV-P2-02` is
+  fixed locally; running-profile qualification remains separate evidence.
+- Preserve the single 30-minute automation for Slurm job `634097`. Its exact
+  6RTZ/3U7Q grouped-component inventories must be classified before starting a
+  multi-fixed Phaser command, `9ECN`, M6, localisation, or unknown analysis.

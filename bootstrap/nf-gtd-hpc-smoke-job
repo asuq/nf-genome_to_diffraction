@@ -3439,6 +3439,7 @@ run_m6_scientific() {
     mkdir -p \
         "$qualification" \
         "$M6_RESULTS_ROOT" \
+        "$RUN/cache/apptainer" \
         "$RUN/cache/m6-nextflow-$M6_TRACK" \
         "$RUN/execution"
     [[ -f "$RUN/state/hpc-environment-status" && \
@@ -3469,7 +3470,7 @@ run_m6_scientific() {
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
     export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
-    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
+    export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"
 
     PHASE=test
     printf 'phase=m6_phenix_verify profile=%s track=%s\n' "$PROFILE" "$M6_TRACK"
@@ -3665,7 +3666,12 @@ run_m4_copy() {
 
     M4_INPUTS="$RUN/artifacts/m4-copy-inputs"
     M4_RESULTS="$RUN/artifacts/m4-copy/copy-two"
-    mkdir -p "$qualification" "$M4_RESULTS" "$RUN/cache/m4-copy" "$RUN/execution"
+    mkdir -p \
+        "$qualification" \
+        "$M4_RESULTS" \
+        "$RUN/cache/apptainer" \
+        "$RUN/cache/m4-copy" \
+        "$RUN/execution"
     [[ -f "$RUN/state/m4-stage-manifest-sha256" && \
        "$(sha256sum "$M4_INPUTS/m4_copy_stage_manifest.json" | awk '{print $1}')" == \
        "$(<"$RUN/state/m4-stage-manifest-sha256")" ]] || {
@@ -3681,7 +3687,7 @@ run_m4_copy() {
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
     export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
-    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
+    export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"
 
     PHASE=test
     printf 'phase=m4_copy_phenix_verify profile=m4-copy\n'
@@ -3839,7 +3845,12 @@ run_t12() {
 
     T12_INPUTS="$RUN/artifacts/t12-inputs"
     T12_RESULTS="$RUN/artifacts/t12"
-    mkdir -p "$qualification" "$T12_RESULTS" "$RUN/cache/t12" "$RUN/execution"
+    mkdir -p \
+        "$qualification" \
+        "$T12_RESULTS" \
+        "$RUN/cache/apptainer" \
+        "$RUN/cache/t12" \
+        "$RUN/execution"
     [[ -f "$RUN/state/t12-stage-manifest-sha256" && \
        "$(sha256sum "$T12_INPUTS/t12_stage_manifest.json" | awk '{print $1}')" == \
        "$(<"$RUN/state/t12-stage-manifest-sha256")" ]] || {
@@ -3855,7 +3866,7 @@ run_t12() {
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
     export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
-    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
+    export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"
 
     PHASE=test
     printf 'phase=t12_phenix_verify profile=t12\n'

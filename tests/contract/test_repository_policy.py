@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import gemmi
+import pytest
 import yaml
 
 from genome_to_diffraction.schemas.results import ProcessedModelRecord
@@ -242,7 +243,7 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     )[0]
     assert "load_p0_config" not in m4_body
     assert "export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm" in m4_body
-    assert "export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache" in m4_body
+    assert 'export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"' in m4_body
     additional_copy_workflow = (
         REPOSITORY / "workflows" / "additional_copy_workflow.nf"
     ).read_text(encoding="utf-8")
@@ -285,6 +286,30 @@ def test_m6_scientific_stage_uses_viper_runtime_manifests() -> None:
     assert "P0_CONFIG" not in m6_body
     assert 'database_manifest="$(<"$run/state/database-manifest")"' in m6_body
     assert 'phenix_manifest="$(<"$run/state/phenix-manifest")"' in m6_body
+
+
+@pytest.mark.parametrize(
+    ("function_name", "next_function_name"),
+    (
+        ("run_m6_scientific", "run_m4_copy_nextflow"),
+        ("run_m4_copy", "run_t12_nextflow"),
+        ("run_t12", "run_database"),
+    ),
+)
+def test_scientific_profiles_use_run_owned_apptainer_caches(
+    function_name: str,
+    next_function_name: str,
+) -> None:
+    """Legacy scientific profiles must never share an account-owned cache."""
+
+    job = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(encoding="utf-8")
+    body = job.split(f"{function_name}() {{", maxsplit=1)[1].split(
+        f"{next_function_name}() {{", maxsplit=1
+    )[0]
+
+    assert '"$RUN/cache/apptainer"' in body
+    assert 'export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"' in body
+    assert "/ptmp/ashima/apptainer-cache" not in body
 
 
 def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
