@@ -440,10 +440,11 @@ executes both metadata-declared entry points, and checks release-version parity
 across package, Pixi,
 CLI, Nextflow, wheel, and installed metadata. Focused missing-schema,
 missing-entry-point, and version-divergence regressions pass. The positive task
-is still pending because this host's offline cache lacks one locked transitive
-build wheel; no package-index fetch was permitted. `PIPE-P3-01` therefore
-remains partial until CI or an already provisioned locked environment records a
-green real task.
+now passes completely with `pixi run --locked --offline offline-wheel-check` on
+clean source `1fd2a37`: the exact Hatchling 1.32.0 backend, both entry points,
+all nine packaged schemas, and package/CLI/Pixi/Nextflow version `0.2.0` were
+verified without contacting a package index. `PIPE-P3-01` is fixed; final
+release qualification must repeat this same gate after the version changes.
 
 ### PH7 - Unknown-dataset pass 2
 

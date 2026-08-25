@@ -11996,3 +11996,21 @@ with a collapsed combined parent or a guessed command.
 - The existing 30-minute automation remains the only monitor for Slurm job
   `634097`. Classify that exact known-control run before implementing the
   multi-fixed Phaser command or launching `9ECN`.
+
+## 2026-08-25 - Locked offline wheel gate passes without package downloads
+
+- The previously unavailable locked build dependencies are now present in the
+  existing local Pixi environment. On clean source
+  `1fd2a378309bb4eaeba0c2a6b0a36f6f02294ef4`,
+  `pixi run --locked --offline offline-wheel-check` completed successfully
+  without contacting a package index.
+- The real gate built with `hatchling==1.32.0`, installed the resulting wheel
+  into a fresh isolated environment without resolving dependencies, executed
+  both `genome-to-diffraction` and `nf-gtd-hpc-test` entry points, verified all
+  nine packaged schemas, and confirmed version parity at `0.2.0`.
+- Original adverse-review finding `PIPE-P3-01` is now fixed. Repeat the same
+  named gate against the final `v0.3.0` release candidate after its version
+  changes; no package dependency, scientific source, remote profile, or
+  running Marmic control was altered.
+- Keep the existing 30-minute automation for Slurm job `634097`; qualify both
+  exact grouped-component control inventories before any `9ECN` execution.
