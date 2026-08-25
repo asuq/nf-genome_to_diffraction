@@ -280,6 +280,7 @@ class FakeTransport:
         return {
             "run_id": arguments[0],
             "remote_operation": "m6-scientific-stage",
+            "site_id": self.stage_site_id,
         }
 
     def t12_stage(
@@ -1079,6 +1080,25 @@ def test_dev_phase3_stage_rejects_non_phase3_profiles(tmp_path: Path) -> None:
         controller.stage("smoke", "HEAD", source_branch="dev/phase3")
 
 
+def test_dev_phase3_stage_accepts_the_fixed_m6_nextflow_smoke(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport(stage_site_id="marmic")
+    controller = _controller(tmp_path, transport)
+
+    staged = controller.stage(
+        "m6-nextflow-smoke",
+        "HEAD",
+        source_branch="dev/phase3",
+    )
+
+    assert staged["profile"] == "m6-nextflow-smoke"
+    assert staged["source_branch"] == "dev/phase3"
+    assert isinstance(controller.git, FakeGit)
+    assert controller.git.branch_checks == [(COMMIT, "dev/phase3")]
+    assert controller.git.main_checks == []
+
+
 @pytest.mark.parametrize("site_id", ["marmic", "viper-cpu"])
 def test_m6_nextflow_smoke_staging_uses_the_fixed_configured_site(
     tmp_path: Path, site_id: str
@@ -1308,8 +1328,16 @@ def test_m6_inputs_stage_streams_confirmed_truth_isolated_archive(
 
 
 @pytest.mark.parametrize("track", ["operational", "leakage"])
+@pytest.mark.parametrize(
+    ("site_id", "source_branch"),
+    [("viper-cpu", "main"), ("marmic", "dev/phase3")],
+)
 def test_m6_scientific_stage_streams_one_fixed_bounded_track(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, track: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    track: str,
+    site_id: str,
+    source_branch: str,
 ) -> None:
     archive = tmp_path / ".untracked" / "m6-runner.tar"
     archive.parent.mkdir()
@@ -1330,13 +1358,26 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
         "genome_to_diffraction.hpc.client._inspect_m6_runner_archive",
         inspect,
     )
-    transport = FakeTransport()
+    transport = FakeTransport(stage_site_id=site_id)
     controller = _controller(tmp_path, transport)
-    controller.config = _config(tmp_path, site_id="viper-cpu")
+    controller.config = _config(tmp_path, site_id=site_id)
+    if site_id == "marmic":
+        monkeypatch.setattr(
+            "genome_to_diffraction.hpc.client._fixed_heteromer_phenix_binding",
+            lambda repository: ("/approved/site/phenix/manifest.json", "a" * 64),
+        )
 
-    result = controller.m6_scientific_stage("HEAD", archive, archive_sha256, track)
+    result = controller.m6_scientific_stage(
+        "HEAD",
+        archive,
+        archive_sha256,
+        track,
+        source_branch=source_branch,
+    )
 
     assert result["profile"] == f"m6-{track}"
+    assert result["site_id"] == site_id
+    assert result["source_branch"] == source_branch
     assert result["driver_cpu_count"] == 2
     assert result["driver_memory_gb"] == 8.0
     assert result["maximum_cpu_count"] == 32
@@ -1346,8 +1387,23 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
     assert transport.m6_scientific_archive == archive.read_bytes()
     operation, arguments = transport.calls[-1]
     assert operation == "m6-scientific-stage"
-    assert arguments[-1] == track
-    assert all("/" not in argument for argument in arguments)
+    assert arguments[9] == track
+    if site_id == "marmic":
+        assert arguments[10:] == (
+            "/approved/site/phenix/manifest.json",
+            "a" * 64,
+        )
+        assert all("/" not in argument for argument in arguments[:10])
+    else:
+        assert len(arguments) == 10
+        assert all("/" not in argument for argument in arguments)
+    assert isinstance(controller.git, FakeGit)
+    if source_branch == "dev/phase3":
+        assert controller.git.main_checks == []
+        assert controller.git.branch_checks == [(COMMIT, "dev/phase3")]
+    else:
+        assert controller.git.main_checks == [COMMIT]
+        assert controller.git.branch_checks == []
 
 
 @pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse", "p2-control"])

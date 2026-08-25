@@ -1382,9 +1382,14 @@ class HpcController:
             "dev/phase3" if profile == "phase3-phenix-probe" else "main"
         )
         if approved_source_branch == "dev/phase3":
-            if profile not in {"heteromer-smoke", "phase3-phenix-probe"}:
+            if profile not in {
+                "heteromer-smoke",
+                "phase3-phenix-probe",
+                "m6-nextflow-smoke",
+            }:
                 raise ValidationError(
-                    "dev/phase3 staging is limited to fixed Phase III controls"
+                    "dev/phase3 staging is limited to fixed Phase III controls "
+                    "and M6 orchestration"
                 )
             self.git.ensure_reachable_from_origin_branch(commit, "dev/phase3")
         elif approved_source_branch == "main":
@@ -1867,16 +1872,23 @@ class HpcController:
         archive: Path,
         expected_archive_sha256: str,
         track: str,
+        *,
+        source_branch: str = "main",
     ) -> dict[str, object]:
-        """Stage one fixed 8-CPU/16-GB truth-isolated M6 scientific track."""
+        """Stage one fixed truth-isolated M6 track at its reviewed site."""
 
-        if self.config.site_id != "viper-cpu":
-            raise ValidationError("m6-scientific-stage is available only for viper-cpu")
+        if self.config.site_id not in {"viper-cpu", "marmic"}:
+            raise ValidationError("M6 scientific staging requires a reviewed HPC site")
         if track not in {"operational", "leakage"}:
             raise ValidationError("M6 scientific track must be operational or leakage")
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
-        self.git.ensure_reachable_from_origin_main(commit)
+        if source_branch == "main":
+            self.git.ensure_reachable_from_origin_main(commit)
+        elif source_branch == "dev/phase3":
+            self.git.ensure_reachable_from_origin_branch(commit, source_branch)
+        else:
+            raise ValidationError("source branch is not approved for M6 staging")
         untracked_root = (self.config.repository / ".untracked").resolve(strict=True)
         try:
             archive.resolve(strict=True).relative_to(untracked_root)
@@ -1922,27 +1934,38 @@ class HpcController:
                 "object_count": object_count,
             },
         )
-        remote = self.transport.m6_scientific_stage(
-            [
-                run_id,
-                commit,
-                lock_checksum,
-                owner_id,
-                archive_sha256,
-                str(archive_size),
-                manifest_sha256,
-                str(case_count),
-                str(object_count),
-                track,
-            ],
-            archive_path,
-        )
+        arguments = [
+            run_id,
+            commit,
+            lock_checksum,
+            owner_id,
+            archive_sha256,
+            str(archive_size),
+            manifest_sha256,
+            str(case_count),
+            str(object_count),
+            track,
+        ]
+        if self.config.site_id == "marmic":
+            arguments.extend(_fixed_heteromer_phenix_binding(self.config.repository))
+        remote = self.transport.m6_scientific_stage(arguments, archive_path)
+        remote_site = remote.get("site_id")
+        if not isinstance(remote_site, str):
+            raise ValidationError("M6 stage response omits the fixed site identity")
+        validate_site_id(remote_site)
+        if remote_site != self.config.site_id:
+            replace(record, site_id=remote_site).write(self.config.local_state_root)
+            raise ValidationError(
+                "M6 stage endpoint site differs from the configured site: "
+                f"{remote_site} != {self.config.site_id}"
+            )
         return {
             **remote,
             "operation": "m6-scientific-stage",
             "run_id": run_id,
             "site_id": self.config.site_id,
             "commit": commit,
+            "source_branch": source_branch,
             "profile": profile,
             "track": track,
             "protocol_id": "m6_independent_prokaryote_homomer_v1",

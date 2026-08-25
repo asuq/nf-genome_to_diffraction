@@ -451,6 +451,17 @@ reconciles total tasks against both inventories without changing historical
 resource records. Real M6 execution remains blocked by the earlier Phase III
 control gates.
 
+Status: reviewed M6 scientific staging, scheduling, collection, and evaluation
+now support both immutable Viper and Marmic site contracts. Marmic accepts only
+its frozen Phenix manifest, the exact `m6_nextflow_slurm_marmic_v1` policy,
+the configured `marmic` Nextflow profile, and a run-owned Apptainer cache;
+Phase III source must be explicitly reachable from `origin/dev/phase3`.
+The controller refuses endpoint-site mismatch, and paired tracks cannot mix
+sites or policy identities. Historical Viper/main evidence remains readable.
+The local fake scheduler exercises complete Marmic staging and both reviewed
+submission policies. No scientific M6 profile has been launched; real
+execution remains behind the earlier Phase III control gates.
+
 Status: the local `DEV-P2-01` completion-order correction is implemented. The
 active discovery and policy writers already canonicalised validated provider,
 result, hit, accepted/rejected-model, and evidence-ranked candidate records;

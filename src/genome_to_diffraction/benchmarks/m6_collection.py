@@ -319,6 +319,8 @@ def _state_text(root: Path, name: str) -> str:
 def _load_track(
     root: Path,
     track: M6ScientificTrack,
+    expected_site_id: str,
+    expected_execution_policy_id: str,
     expected_execution_policy_sha256: str,
 ) -> _CollectedTrack:
     resolved = root.resolve(strict=True)
@@ -355,7 +357,7 @@ def _load_track(
     run_id = manifest.get("run_id")
     expected_case_ids = m6_track_case_ids(track)
     if (
-        manifest.get("site_id") != "viper-cpu"
+        manifest.get("site_id") != expected_site_id
         or manifest.get("profile") != profile
         or not isinstance(run_id, str)
         or not run_id.startswith(f"gtd-{profile}-")
@@ -425,9 +427,9 @@ def _load_track(
             or runtime.get("maximum_memory_gb") != 16.0
             or runtime.get("scheduler_ceiling_hours") != 24.0
             or runtime.get("tool_runtime_timeouts") is not False
-            or runtime.get("execution_policy") != "m6_nextflow_slurm_v1"
+            or runtime.get("execution_policy") != expected_execution_policy_id
             or resource_evidence.per_job_bounds_passed is not True
-            or resource_evidence.execution_policy_id != "m6_nextflow_slurm_v1"
+            or resource_evidence.execution_policy_id != expected_execution_policy_id
             or resource_evidence.execution_policy_sha256
             != expected_execution_policy_sha256
             or resource_evidence.child_job_count != runtime.get("child_job_count")
@@ -876,18 +878,45 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
         item.target_key: item for item in private_truth.verified_families
     }
     private_case_by_id = {item.case_id: item for item in private_truth.cases}
-    execution_policy_path = protocol_path.with_name("execution-nextflow-v1.yaml")
+    operational_manifest = _json_object(
+        request.operational_collection.resolve(strict=True) / "manifest.json",
+        "operational collection manifest",
+    )
+    leakage_manifest = _json_object(
+        request.leakage_collection.resolve(strict=True) / "manifest.json",
+        "leakage collection manifest",
+    )
+    site_id = operational_manifest.get("site_id")
+    site_policies = {
+        "viper-cpu": ("m6_nextflow_slurm_v1", "execution-nextflow-v1.yaml"),
+        "marmic": (
+            "m6_nextflow_slurm_marmic_v1",
+            "execution-nextflow-marmic-v1.yaml",
+        ),
+    }
+    if (
+        not isinstance(site_id, str)
+        or site_id not in site_policies
+        or leakage_manifest.get("site_id") != site_id
+    ):
+        raise PublicControlError("M6 tracks must use the same reviewed HPC site")
+    execution_policy_id, execution_policy_name = site_policies[site_id]
+    execution_policy_path = protocol_path.with_name(execution_policy_name)
     if not execution_policy_path.is_file():
         raise PublicControlError("M6 Nextflow execution policy is absent")
     execution_policy_sha256 = sha256_file(execution_policy_path)
     operational = _load_track(
         request.operational_collection,
         "operational",
+        site_id,
+        execution_policy_id,
         execution_policy_sha256,
     )
     leakage = _load_track(
         request.leakage_collection,
         "leakage",
+        site_id,
+        execution_policy_id,
         execution_policy_sha256,
     )
     tracks = (operational, leakage)
@@ -975,7 +1004,7 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
             cast(float, track.runtime["scheduler_ceiling_hours"]) for track in tracks
         ),
         execution_policy_id=(
-            "m6_nextflow_slurm_v1"
+            execution_policy_id
             if any(
                 track.runtime.get("execution_model") == "nextflow_dsl2_slurm_fanout"
                 for track in tracks

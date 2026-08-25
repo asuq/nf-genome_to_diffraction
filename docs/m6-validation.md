@@ -197,13 +197,16 @@ enabled model routes, and the leakage transition applies to every enabled
 route.
 
 The two scientific run IDs are staged and submitted separately from the same
-confirmed runner archive:
+confirmed runner archive. The reviewed controller accepts either the historical
+Viper site and `main` source or Marmic with the explicit immutable
+`--source-branch dev/phase3` option:
 
 ```bash
 nf-gtd-hpc-test --no-progress m6-scientific-stage \
   --revision HEAD \
   --archive .untracked/m6/runner.tar \
   --confirm-archive-sha256 ARCHIVE_SHA256 \
+  --source-branch dev/phase3 \
   --track operational
 nf-gtd-hpc-test --no-progress submit m6-operational --run-id RUN_ID
 
@@ -211,14 +214,18 @@ nf-gtd-hpc-test --no-progress m6-scientific-stage \
   --revision HEAD \
   --archive .untracked/m6/runner.tar \
   --confirm-archive-sha256 ARCHIVE_SHA256 \
+  --source-branch dev/phase3 \
   --track leakage
 nf-gtd-hpc-test --no-progress submit m6-leakage --run-id RUN_ID
 ```
 
-Scientific staging binds the checksum-validated Viper runtime database
-configuration and the fixed Viper Phenix manifest. It does not reuse the
-legacy P0 single-root path file, which cannot represent Viper's separate
-database and licensed-software mounts.
+Scientific staging binds the checksum-validated selected-site runtime database
+configuration, its exact reviewed Nextflow profile and execution policy, and a
+run-owned Apptainer cache. Viper retains its fixed site-manifest Phenix
+binding. Marmic reuses the independently frozen Phenix manifest and checksum
+already qualified by the Phase III control profile; it does not infer that
+path from Viper's incompatible site configuration. Both final tracks must use
+the same reviewed site and its exact frozen policy checksum.
 
 Each track retains its full raw output remotely, emits compact case evidence
 and a deterministic gzip of every candidate rank, verifies all output

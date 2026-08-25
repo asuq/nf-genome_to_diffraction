@@ -200,6 +200,12 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_scientific_stage.add_argument(
         "--track", choices=("operational", "leakage"), required=True
     )
+    m6_scientific_stage.add_argument(
+        "--source-branch",
+        choices=("main", "dev/phase3"),
+        default="main",
+        help="fixed remote branch containing the immutable M6 commit",
+    )
 
     t12_stage = actions.add_parser(
         "t12-stage",
@@ -268,6 +274,7 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.archive,
             args.confirm_archive_sha256,
             args.track,
+            source_branch=args.source_branch,
         )
     if args.operation == "t12-stage":
         return controller.t12_stage(args.revision, args.parent_run)

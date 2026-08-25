@@ -500,6 +500,9 @@ def _synthetic_collection_protocol(tmp_path: Path) -> Path:
     path = tmp_path / "synthetic-m6-protocol.yaml"
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     (tmp_path / "execution-nextflow-v1.yaml").write_bytes(EXECUTION_POLICY.read_bytes())
+    (tmp_path / "execution-nextflow-marmic-v1.yaml").write_bytes(
+        MARMIC_EXECUTION_POLICY.read_bytes()
+    )
     load_m6_protocol(path)
     return path
 
@@ -1003,6 +1006,7 @@ def _synthetic_collection(
     edge_observation_by_case: dict[str, M6EdgeObservation] | None = None,
     protocol_path: Path = PROTOCOL,
     controller_stage: bool = False,
+    site_id: str = "viper-cpu",
 ) -> Path:
     scientific = _synthetic_scientific_output(
         tmp_path,
@@ -1056,9 +1060,17 @@ def _synthetic_collection(
         "tool_runtime_timeouts": False,
     }
     if nextflow:
+        execution_policy_id = (
+            "m6_nextflow_slurm_marmic_v1"
+            if site_id == "marmic"
+            else "m6_nextflow_slurm_v1"
+        )
+        execution_policy_path = (
+            MARMIC_EXECUTION_POLICY if site_id == "marmic" else EXECUTION_POLICY
+        )
         runtime.update(
             execution_model="nextflow_dsl2_slurm_fanout",
-            execution_policy="m6_nextflow_slurm_v1",
+            execution_policy=execution_policy_id,
             child_job_count=1,
             peak_running_jobs=1,
             peak_aggregate_cpu_count=32,
@@ -1067,8 +1079,8 @@ def _synthetic_collection(
         )
         resources = {
             "schema_version": "1.0",
-            "execution_policy_id": "m6_nextflow_slurm_v1",
-            "execution_policy_sha256": sha256_file(EXECUTION_POLICY),
+            "execution_policy_id": execution_policy_id,
+            "execution_policy_sha256": sha256_file(execution_policy_path),
             "child_job_count": 1,
             "maximum_cpu_per_job": 32,
             "maximum_memory_gb_per_job": 16.0,
@@ -1130,7 +1142,7 @@ def _synthetic_collection(
         root / "manifest.json",
         {
             "run_id": run_id,
-            "site_id": "viper-cpu",
+            "site_id": site_id,
             "profile": profile,
             "commit": commit,
             "nf_helper_commit": "c" * 40,
@@ -1231,9 +1243,16 @@ def test_m6_collection_rehashes_private_cluster_lines(tmp_path: Path) -> None:
         )
 
 
-@pytest.mark.parametrize("controller_stage", [False, True])
+@pytest.mark.parametrize(
+    ("site_id", "policy_id", "controller_stage"),
+    [
+        ("viper-cpu", "m6_nextflow_slurm_v1", False),
+        ("viper-cpu", "m6_nextflow_slurm_v1", True),
+        ("marmic", "m6_nextflow_slurm_marmic_v1", True),
+    ],
+)
 def test_m6_collection_accepts_two_identity_bearing_tracks(
-    tmp_path: Path, controller_stage: bool
+    tmp_path: Path, site_id: str, policy_id: str, controller_stage: bool
 ) -> None:
     protocol_path = _synthetic_collection_protocol(tmp_path)
     protocol = load_m6_protocol(protocol_path)
@@ -1244,6 +1263,7 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(
         commit="a" * 40,
         protocol_path=protocol_path,
         controller_stage=controller_stage,
+        site_id=site_id,
     )
     leakage = _synthetic_collection(
         tmp_path,
@@ -1252,6 +1272,7 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(
         commit="b" * 40,
         protocol_path=protocol_path,
         controller_stage=controller_stage,
+        site_id=site_id,
     )
     truth = _private_truth_file(tmp_path, protocol_path, protocol)
 
@@ -1265,15 +1286,55 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(
         )
     )
 
-    assert result.evidence.execution_policy_id == "m6_nextflow_slurm_v1"
+    assert result.evidence.execution_policy_id == policy_id
     assert result.evidence.maximum_cpu_count == 32
     assert result.evidence.child_job_count == 2
-    assert result.evidence.execution_policy_sha256 == sha256_file(EXECUTION_POLICY)
+    assert result.evidence.execution_policy_sha256 == sha256_file(
+        MARMIC_EXECUTION_POLICY if site_id == "marmic" else EXECUTION_POLICY
+    )
     assert result.evidence.private_truth_map_sha256 == sha256_file(truth)
     assert result.evidence.provenance.track_source_commits == {
         "operational": "a" * 40,
         "leakage": "b" * 40,
     }
+
+
+def test_m6_collection_rejects_tracks_from_different_reviewed_sites(
+    tmp_path: Path,
+) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+        site_id="marmic",
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="b" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+        site_id="viper-cpu",
+    )
+
+    with pytest.raises(PublicControlError, match="same reviewed HPC site"):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=_private_truth_file(
+                    tmp_path, protocol_path, protocol
+                ),
+                operational_collection=operational,
+                leakage_collection=leakage,
+                output=tmp_path / "not-written.json",
+            )
+        )
 
 
 def test_collect_then_evaluate_holds_on_reported_wrong_open_set_identity(
@@ -1474,13 +1535,22 @@ def test_m6_evaluator_holds_on_an_unexpected_execution_failure(
     assert "unexpected_execution_failures" in result.failed_gates
 
 
-def test_m6_evaluator_binds_the_nextflow_execution_policy(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("policy_id", "policy_path"),
+    [
+        ("m6_nextflow_slurm_v1", EXECUTION_POLICY),
+        ("m6_nextflow_slurm_marmic_v1", MARMIC_EXECUTION_POLICY),
+    ],
+)
+def test_m6_evaluator_binds_the_nextflow_execution_policy(
+    tmp_path: Path, policy_id: str, policy_path: Path
+) -> None:
     protocol = load_m6_protocol(PROTOCOL)
     payload = _evidence(protocol).model_dump(mode="json")
     payload.update(
         maximum_cpu_count=32,
-        execution_policy_id="m6_nextflow_slurm_v1",
-        execution_policy_sha256=sha256_file(EXECUTION_POLICY),
+        execution_policy_id=policy_id,
+        execution_policy_sha256=sha256_file(policy_path),
         child_job_count=1,
     )
     evidence_path = tmp_path / "evidence.json"

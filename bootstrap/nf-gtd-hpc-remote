@@ -855,7 +855,9 @@ stage_run_common() {
     local -a p0_values=() heteromer_p6_values=()
 
     if [[ "$profile" == heteromer-smoke || \
-          "$profile" == phase3-phenix-probe ]]; then
+          "$profile" == phase3-phenix-probe || \
+          ( "$SITE_ID" == marmic && \
+            ( "$profile" == m6-operational || "$profile" == m6-leakage ) ) ]]; then
         [[ "$#" -eq 8 || "$#" -eq 11 ]] || \
             fail wrapper_failure "Phenix-bound stage expects its fixed manifest"
         heteromer_phenix_manifest="$7"
@@ -871,7 +873,9 @@ stage_run_common() {
     if [[ "$#" -eq 9 || "$#" -eq 11 ]]; then
         source_archive=true
         if [[ "$profile" == heteromer-smoke || \
-              "$profile" == phase3-phenix-probe ]]; then
+              "$profile" == phase3-phenix-probe || \
+              ( "$SITE_ID" == marmic && \
+                ( "$profile" == m6-operational || "$profile" == m6-leakage ) ) ]]; then
             source_archive_sha256="$9"
             source_archive_size="${10}"
             expected_submodule_commit="${11}"
@@ -1022,7 +1026,8 @@ stage_run_common() {
     ln -s "$run/environment/.pixi" "$run/source/.pixi" || \
         fail filesystem_failure "cannot attach the per-run Pixi environment"
 
-    if [[ "$profile" == m6-nextflow-smoke ]]; then
+    if [[ "$profile" == m6-nextflow-smoke || \
+          "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
         local nextflow_profile execution_policy_relative execution_policy
         local execution_policy_sha256 execution_policy_id apptainer_cache
         if [[ "$SITE_ID" == viper-cpu ]]; then
@@ -1118,7 +1123,14 @@ stage_run_common() {
         [[ "$database_config_sha256" =~ $CHECKSUM_RE && \
            "$database_manifest_sha256" =~ $CHECKSUM_RE ]] || \
             fail filesystem_failure "M6 database provenance checksum failed"
-        phenix_manifest="${startup_site_values[6]}"
+        if [[ "$SITE_ID" == marmic ]]; then
+            phenix_manifest="$heteromer_phenix_manifest"
+            [[ "$(sha256sum "$phenix_manifest" | awk '{print $1}')" == \
+               "$heteromer_phenix_sha256" ]] || \
+                fail environment_failure "fixed Marmic M6 Phenix manifest changed"
+        else
+            phenix_manifest="${startup_site_values[6]}"
+        fi
         [[ "$phenix_manifest" =~ $SAFE_PATH_RE && -f "$phenix_manifest" && \
            ! -L "$phenix_manifest" ]] || {
             atomic_text "$run/state/phase" "stage_failed"
@@ -2289,16 +2301,19 @@ PY
 }
 
 m6_runner_stage_common() {
-    [[ "$#" -eq 12 ]] || \
-        fail wrapper_failure "M6 runner stage expects twelve fixed arguments"
+    [[ "$#" -eq 12 || "$#" -eq 14 ]] || \
+        fail wrapper_failure "M6 runner stage expects its fixed site arguments"
     local operation="$1" profile="$2" track="$3"
     local run_id="$4" commit="$5" lock_sha256="$6" owner_id="$7"
     local archive_sha256="$8" archive_size="$9" manifest_sha256="${10}"
     local case_count="${11}" object_count="${12}"
+    local marmic_phenix_manifest="${13-}" marmic_phenix_sha256="${14-}"
     local run import_archive import_root python stage_log database_manifest
     local phenix_manifest expected_database_sha expected_phenix_sha
 
     if [[ "$operation" == m6-inputs-stage ]]; then
+        [[ "$#" -eq 12 ]] || \
+            fail wrapper_failure "M6 input staging received extra arguments"
         [[ "$profile" == m6-inputs && "$track" == qualification ]] || \
             fail wrapper_failure "invalid M6 input qualification profile"
         stage_log=m6-inputs-stage.log
@@ -2307,6 +2322,14 @@ m6_runner_stage_common() {
            ( "$profile" == m6-leakage && "$track" == leakage ) ]] || \
             fail wrapper_failure "invalid M6 scientific profile"
         stage_log=m6-scientific-stage.log
+        if [[ "$SITE_ID" == marmic ]]; then
+            [[ "$#" -eq 14 && \
+               "$marmic_phenix_manifest" =~ $SAFE_PATH_RE && \
+               "$marmic_phenix_sha256" =~ $CHECKSUM_RE ]] || \
+                fail wrapper_failure "Marmic M6 requires its fixed Phenix binding"
+        elif [[ "$#" -ne 12 ]]; then
+            fail wrapper_failure "Viper M6 staging received extra arguments"
+        fi
     else
         fail wrapper_failure "invalid M6 runner stage operation"
     fi
@@ -2322,11 +2345,20 @@ m6_runner_stage_common() {
     [[ "$case_count" -eq 63 && "$object_count" -ge 1 ]] || \
         fail wrapper_failure "M6 runner inventory is outside the fixed boundary"
     [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && \
-       "$(head -n 1 "$SITE_CONFIG")" == viper-cpu ]] || \
-        fail environment_failure "M6 runner staging requires the fixed Viper site"
+       "$(head -n 1 "$SITE_CONFIG")" == "$SITE_ID" ]] || \
+        fail environment_failure "M6 runner staging requires its reviewed fixed site"
+    if [[ "$operation" == m6-inputs-stage && "$SITE_ID" != viper-cpu ]]; then
+        fail environment_failure "M6 input staging requires the fixed Viper site"
+    fi
 
-    stage_run_common \
-        "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 "$profile"
+    if [[ "$operation" == m6-scientific-stage && "$SITE_ID" == marmic ]]; then
+        stage_run_common \
+            "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 "$profile" \
+            "$marmic_phenix_manifest" "$marmic_phenix_sha256"
+    else
+        stage_run_common \
+            "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 "$profile"
+    fi
     run="$(run_directory "$run_id")"
     atomic_text "$run/state/phase" m6_runner_importing
     import_archive="$run/m6-runner.tar"
@@ -2463,7 +2495,7 @@ PY
     append_event "$run" m6_runner_ready
     emit operation "$operation"
     emit run_id "$run_id"
-    emit site_id viper-cpu
+    emit site_id "$SITE_ID"
     emit protocol_id m6_independent_prokaryote_homomer_v1
     emit profile "$profile"
     emit track "$track"
@@ -2481,13 +2513,19 @@ m6_inputs_stage_run() {
 }
 
 m6_scientific_stage_run() {
-    [[ "$#" -eq 10 ]] || \
-        fail wrapper_failure "m6-scientific-stage expects ten fixed arguments"
+    [[ "$#" -eq 10 || "$#" -eq 12 ]] || \
+        fail wrapper_failure "m6-scientific-stage expects its fixed site arguments"
     local track="${10}"
     [[ "$track" == operational || "$track" == leakage ]] || \
         fail wrapper_failure "invalid M6 scientific track"
-    m6_runner_stage_common \
-        m6-scientific-stage "m6-${track}" "$track" "${@:1:9}"
+    if [[ "$#" -eq 12 ]]; then
+        m6_runner_stage_common \
+            m6-scientific-stage "m6-${track}" "$track" "${@:1:9}" \
+            "${11}" "${12}"
+    else
+        m6_runner_stage_common \
+            m6-scientific-stage "m6-${track}" "$track" "${@:1:9}"
+    fi
 }
 
 m4_import_stage_run() {
@@ -2714,7 +2752,8 @@ submit_run() {
         fail wrapper_failure "database profile requires database-submit"
     [[ "$run_id" == "gtd-${profile}-"* ]] || \
         fail wrapper_failure "recorded profile does not match the run ID"
-    if [[ "$profile" == m6-nextflow-smoke ]]; then
+    if [[ "$profile" == m6-nextflow-smoke || \
+          "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
         validate_m6_smoke_site_state "$run"
     fi
     walltime=00:45:00

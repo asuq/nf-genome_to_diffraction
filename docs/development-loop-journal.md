@@ -12198,3 +12198,25 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Scientific M6 honours the reviewed Marmic site contract
+
+- Focused regressions showed that real M6 staging, command construction,
+  resource policy, scientific collection, and evaluation still hard-coded
+  Viper/main even though its orchestration smoke already recognised Marmic.
+  Marmic also lacks the seven-line Viper site configuration previously used to
+  discover Phenix.
+- The reviewed M6 controller now permits only the fixed Marmic/Viper sites and
+  literal approved source branches. Marmic independently supplies the same
+  checksum-frozen Phenix binding already qualified by the Phase III control;
+  both sites derive their exact Nextflow profile, frozen policy checksum, and
+  run-owned Apptainer cache before submission or execution.
+- Scientific collection rejects mixed-site track pairs and verifies the exact
+  selected-site policy; evaluation accepts only either reviewed immutable
+  policy/checksum pair. Historical Viper/main evidence remains readable, and a
+  complete fake Marmic stage plus both fake scheduler policies pass.
+- Focused M6, controller, CLI, and fake-dispatcher coverage passes 135 tests;
+  Bash syntax, targeted Ruff, and targeted `ty` checks pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

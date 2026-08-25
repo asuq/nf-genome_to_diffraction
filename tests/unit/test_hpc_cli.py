@@ -208,12 +208,15 @@ def test_m6_scientific_stage_accepts_only_a_confirmed_archive_and_track(
             "a" * 64,
             "--track",
             track,
+            "--source-branch",
+            "dev/phase3",
         ]
     )
     submitted = parser.parse_args(["submit", f"m6-{track}", "--run-id", "RUN_ID"])
 
     assert staged.operation == "m6-scientific-stage"
     assert staged.track == track
+    assert staged.source_branch == "dev/phase3"
     assert submitted.profile == f"m6-{track}"
 
 

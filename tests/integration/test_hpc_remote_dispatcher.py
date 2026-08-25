@@ -1171,16 +1171,42 @@ def test_m6_input_qualification_uses_small_fixed_resources(tmp_path: Path) -> No
     assert "benchmark verify-m6-runner" in m6_body
 
 
-def test_m6_scientific_submit_uses_approved_bounded_resources(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("site_id", "policy_name", "policy_id"),
+    [
+        ("marmic", "execution-nextflow-marmic-v1.yaml", "m6_nextflow_slurm_marmic_v1"),
+        ("viper-cpu", "execution-nextflow-v1.yaml", "m6_nextflow_slurm_v1"),
+    ],
+)
+def test_m6_scientific_submit_uses_approved_bounded_resources(
+    tmp_path: Path, site_id: str, policy_name: str, policy_id: str
+) -> None:
     dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    _select_fake_dispatcher_site(dispatcher, site_id)
     remote_root = smoke_job.parent.parent
     run = remote_root / "runs" / M6_OPERATIONAL_RUN_ID
     state = run / "state"
     state.mkdir(parents=True)
     (run / "logs").mkdir()
+    policy_relative = f"benchmarks/m6/{policy_name}"
+    policy = run / "source" / policy_relative
+    policy.parent.mkdir(parents=True)
+    shutil.copy2(REPOSITORY / policy_relative, policy)
+    apptainer_cache = run / "cache" / "apptainer"
+    apptainer_cache.mkdir(parents=True)
     (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="utf-8")
     (state / "phase").write_text("staged\n", encoding="utf-8")
     (state / "profile").write_text("m6-operational\n", encoding="utf-8")
+    (state / "site-id").write_text(f"{site_id}\n", encoding="utf-8")
+    (state / "nextflow-profile").write_text(f"{site_id}\n", encoding="utf-8")
+    (state / "execution-policy-relative").write_text(
+        f"{policy_relative}\n", encoding="utf-8"
+    )
+    (state / "execution-policy-id").write_text(f"{policy_id}\n", encoding="utf-8")
+    (state / "execution-policy-sha256").write_text(
+        f"{hashlib.sha256(policy.read_bytes()).hexdigest()}\n", encoding="utf-8"
+    )
+    (state / "apptainer-cache-dir").write_text(f"{apptainer_cache}\n", encoding="utf-8")
 
     submitted = _decode_protocol(
         _run(
@@ -1191,24 +1217,132 @@ def test_m6_scientific_submit_uses_approved_bounded_resources(tmp_path: Path) ->
     )
 
     assert submitted["job_id"] == "123"
+    assert submitted["site_id"] == site_id
     submitted_arguments = (
         (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
     )
     assert "--cpus-per-task=2" in submitted_arguments
     assert "--mem=8G" in submitted_arguments
     assert "--time=24:00:00" in submitted_arguments
-    m6_body = (
-        smoke_job.read_text(encoding="utf-8")
-        .split("run_m6_scientific() {", maxsplit=1)[1]
-        .split("run_m4_copy_nextflow() {", maxsplit=1)[0]
-    )
+    job_text = smoke_job.read_text(encoding="utf-8")
+    m6_command = job_text.split("run_m6_nextflow() {", maxsplit=1)[1].split(
+        "run_m6_scientific() {", maxsplit=1
+    )[0]
+    m6_body = job_text.split("run_m6_scientific() {", maxsplit=1)[1].split(
+        "run_m4_copy_nextflow() {", maxsplit=1
+    )[0]
     assert "run_m6_nextflow first" in m6_body
     assert "run_m6_nextflow resume -resume" in m6_body
-    assert "m6_validation.nf" in smoke_job.read_text(encoding="utf-8")
+    assert "m6_validation.nf" in job_text
+    assert "load_m6_smoke_site_contract || return 2" in m6_body
+    assert '-profile "$M6_NEXTFLOW_PROFILE"' in m6_command
+    assert '--execution_policy "$M6_EXECUTION_POLICY"' in m6_command
+    assert '--apptainer_cache_dir "$M6_APPTAINER_CACHE"' in m6_command
+    assert "-profile viper-cpu" not in m6_command
+    assert 'if [[ "$M6_SITE_ID" == viper-cpu ]]' in m6_body
     assert "NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm" in m6_body
+    assert "unset NF_HELPER_VIPER_COMPUTE_CONTROLLER" in m6_body
+    assert 'export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"' in m6_body
+    assert '--execution-policy "$M6_EXECUTION_POLICY"' in m6_body
+    assert '"execution_policy": "$M6_EXECUTION_POLICY_ID"' in m6_body
     assert "m6-child-resource-evidence.json" in m6_body
     assert "benchmark run-m6-scientific" not in m6_body
     assert "tool_runtime_timeouts" in m6_body
+
+
+def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    site_config = dispatcher.parent / "site.paths"
+    site_config.write_text("marmic\n", encoding="ascii")
+    site_config.chmod(0o600)
+    database_paths = _write_database_paths(remote_root)
+    database_manifest = Path(database_paths.read_text().splitlines()[2])
+    database_manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    phenix_manifest = tmp_path / "approved-phenix.json"
+    phenix_manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+
+    object_bytes = b"bounded M6 object\n"
+    object_sha256 = hashlib.sha256(object_bytes).hexdigest()
+    manifest_bytes = json.dumps(
+        {
+            "schema_version": "1.0",
+            "protocol_id": "m6_independent_prokaryote_homomer_v1",
+            "case_count": 63,
+            "object_count": 1,
+            "cases": [{"case_id": f"M6C{index:03d}"} for index in range(1, 64)],
+            "objects": {
+                object_sha256: {
+                    "sha256": object_sha256,
+                    "size_bytes": len(object_bytes),
+                }
+            },
+        },
+        sort_keys=True,
+    ).encode("ascii")
+    archive_buffer = io.BytesIO()
+    with tarfile.open(fileobj=archive_buffer, mode="w:") as archive:
+        for name, payload in (
+            ("runner_manifest.json", manifest_bytes),
+            (f"objects/{object_sha256}", object_bytes),
+        ):
+            member = tarfile.TarInfo(name)
+            member.size = len(payload)
+            archive.addfile(member, io.BytesIO(payload))
+    archive_bytes = archive_buffer.getvalue()
+    arguments = [
+        M6_OPERATIONAL_RUN_ID,
+        commit,
+        _lock_checksum(tmp_path),
+        OWNER_ID,
+        hashlib.sha256(archive_bytes).hexdigest(),
+        str(len(archive_bytes)),
+        hashlib.sha256(manifest_bytes).hexdigest(),
+        "63",
+        "1",
+        "operational",
+    ]
+
+    rejected = _run(
+        [str(dispatcher), "m6-scientific-stage", *arguments],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=archive_bytes,
+        success=False,
+    )
+    assert _decode_protocol(rejected.stdout)["message"] == (
+        "Marmic M6 requires its fixed Phenix binding"
+    )
+
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "m6-scientific-stage",
+                *arguments,
+                str(phenix_manifest),
+                phenix_sha256,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+            input_data=archive_bytes,
+        ).stdout
+    )
+
+    state = remote_root / "runs" / M6_OPERATIONAL_RUN_ID / "state"
+    assert staged["site_id"] == "marmic"
+    assert (state / "site-id").read_text().strip() == "marmic"
+    assert (state / "nextflow-profile").read_text().strip() == "marmic"
+    assert (state / "execution-policy-id").read_text().strip() == (
+        "m6_nextflow_slurm_marmic_v1"
+    )
+    assert (state / "phenix-manifest").read_text().strip() == str(phenix_manifest)
+    assert (state / "phenix-manifest-sha256").read_text().strip() == phenix_sha256
+    assert (state / "m6-runner-case-count").read_text().strip() == "63"
+    assert (state / "phase").read_text().strip() == "staged"
 
 
 @pytest.mark.parametrize(

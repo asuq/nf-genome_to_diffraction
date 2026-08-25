@@ -3420,10 +3420,11 @@ run_m6_nextflow() {
         -log "$RUN/logs/nextflow-m6-${M6_TRACK}-${label}.log" \
         run "$RUN/source/m6_validation.nf" \
         "$@" \
-        -profile viper-cpu \
+        -profile "$M6_NEXTFLOW_PROFILE" \
+        --apptainer_cache_dir "$M6_APPTAINER_CACHE" \
         --runner_root "$M6_IMPORT_ROOT" \
         --protocol "$RUN/source/benchmarks/m6/protocol.yaml" \
-        --execution_policy "$RUN/source/benchmarks/m6/execution-nextflow-v1.yaml" \
+        --execution_policy "$M6_EXECUTION_POLICY" \
         --software_lock "$RUN/source/pixi.lock" \
         --database_manifest "$M6_DATABASE_MANIFEST" \
         --phenix_manifest "$M6_PHENIX_MANIFEST" \
@@ -3445,6 +3446,7 @@ run_m6_scientific() {
     else
         return 2
     fi
+    load_m6_smoke_site_contract || return 2
     M6_IMPORT_ROOT="$RUN/artifacts/m6-runner-inputs"
     M6_RESULTS_ROOT="$RUN/artifacts/m6-nextflow-results"
     output="$M6_RESULTS_ROOT/m6_scientific"
@@ -3481,8 +3483,12 @@ run_m6_scientific() {
     [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
-    export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
-    export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"
+    if [[ "$M6_SITE_ID" == viper-cpu ]]; then
+        export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
+    else
+        unset NF_HELPER_VIPER_COMPUTE_CONTROLLER
+    fi
+    export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"
 
     PHASE=test
     printf 'phase=m6_phenix_verify profile=%s track=%s\n' "$PROFILE" "$M6_TRACK"
@@ -3497,7 +3503,7 @@ run_m6_scientific() {
     cp -a "$M6_RESULTS_ROOT/pipeline_info" \
         "$qualification/m6-first-pipeline-info"
     "$GTD" --log-format json --no-progress benchmark collect-m6-resources \
-        --execution-policy "$RUN/source/benchmarks/m6/execution-nextflow-v1.yaml" \
+        --execution-policy "$M6_EXECUTION_POLICY" \
         --trace "$qualification/m6-first-pipeline-info/trace.tsv" \
         --output "$qualification/m6-child-resource-evidence.json"
     before="$qualification/m6-before-resume.sha256"
@@ -3597,7 +3603,7 @@ EOF
   "peak_running_jobs": $peak_jobs,
   "peak_aggregate_cpu_count": $peak_cpu,
   "peak_aggregate_memory_gb": $peak_memory,
-  "execution_policy": "m6_nextflow_slurm_v1"
+  "execution_policy": "$M6_EXECUTION_POLICY_ID"
 }
 EOF
     cp "$output/m6_scientific_summary.json" \

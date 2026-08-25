@@ -300,11 +300,20 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
 
     protocol_path = request.protocol.resolve(strict=True)
     protocol = load_m6_protocol(protocol_path)
-    execution_policy_path = protocol_path.with_name("execution-nextflow-v1.yaml")
-    expected_execution_policy_sha256 = (
-        sha256_file(execution_policy_path) if execution_policy_path.is_file() else None
-    )
     evidence = load_m6_evidence(request.evidence)
+    policy_names = {
+        "m6_nextflow_slurm_v1": "execution-nextflow-v1.yaml",
+        "m6_nextflow_slurm_marmic_v1": "execution-nextflow-marmic-v1.yaml",
+    }
+    policy_name = policy_names.get(evidence.execution_policy_id or "")
+    execution_policy_path = (
+        protocol_path.with_name(policy_name) if policy_name is not None else None
+    )
+    expected_execution_policy_sha256 = (
+        sha256_file(execution_policy_path)
+        if execution_policy_path is not None and execution_policy_path.is_file()
+        else None
+    )
     if evidence.protocol_id != protocol.protocol_id:
         raise PublicControlError("M6 evidence and protocol IDs disagree")
     if evidence.protocol_sha256 != sha256_file(protocol_path):
@@ -446,7 +455,7 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
                 and evidence.maximum_cpu_count <= 8
             )
             or (
-                evidence.execution_policy_id == "m6_nextflow_slurm_v1"
+                evidence.execution_policy_id in policy_names
                 and evidence.execution_policy_sha256 == expected_execution_policy_sha256
                 and evidence.child_job_count > 0
             )
