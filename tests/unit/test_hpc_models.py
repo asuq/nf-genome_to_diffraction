@@ -178,3 +178,35 @@ def test_legacy_run_records_are_marmic_only() -> None:
     )
 
     assert record.site_id == "marmic"
+
+
+@pytest.mark.parametrize(
+    ("schema_version", "site_id", "message"),
+    [
+        ("1.1", None, "schema 1.1 requires site_id"),
+        ("1.0", "viper-cpu", "schema 1.0 requires the Marmic site"),
+        ("2.0", "marmic", "unsupported local run record schema"),
+        (None, "marmic", "unsupported local run record schema"),
+    ],
+)
+def test_run_record_rejects_unknown_or_cross_site_schema(
+    schema_version: str | None,
+    site_id: str | None,
+    message: str,
+) -> None:
+    value: dict[str, object] = {
+        "run_id": "gtd-smoke-20260802T120000Z-0123456789ab-01234567",
+        "commit": "1" * 40,
+        "owner_id": "2" * 32,
+        "profile": "smoke",
+        "iteration": 1,
+        "parent_run_id": None,
+        "failure_signature": None,
+    }
+    if schema_version is not None:
+        value["schema_version"] = schema_version
+    if site_id is not None:
+        value["site_id"] = site_id
+
+    with pytest.raises(ValidationError, match=message):
+        LocalRunRecord.from_json(value)

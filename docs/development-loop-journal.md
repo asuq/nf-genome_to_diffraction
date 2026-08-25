@@ -12843,3 +12843,21 @@ with a collapsed combined parent or a guessed command.
   6RTZ/3U7Q control independently; do not launch 9ECN, M6, localisation,
   unknown crystals, or another scientific profile before that control is
   classified.
+
+## 2026-08-25 - Current owned HPC runs cannot invent site identity
+
+- The first clean-break review remediation targets `FCB-P1-09`. Current
+  schema-1.1 local run records previously inherited the legacy Marmic default
+  when their site was missing; unsupported and absent schema versions also
+  passed without verification.
+- Four focused regressions first reproduced acceptance of a missing current
+  site, a legacy record relabelled as Viper, an unsupported future version, and
+  an absent schema version. The exact schema-aware reader now rejects all four.
+- Existing immutable schema-1.0 records remain readable only as the explicitly
+  documented Marmic site. Every newly written schema-1.1 record must carry its
+  own exact site; the existing valid Marmic/Viper clients retain their
+  authorised site and profile unchanged.
+- All 76 focused HPC configuration, owned-run, and client regressions pass;
+  no full gate was run for this isolated fix. The existing approved control
+  remains Slurm job `634369` at source `26e69b95` and must be collected and
+  classified before another scientific HPC operation.

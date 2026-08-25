@@ -230,8 +230,19 @@ class LocalRunRecord:
         if not isinstance(value, dict):
             raise ValidationError("local run record must be a JSON object")
         run_id = str(value.get("run_id", ""))
-        # Version 1.0 records pre-date site isolation and are Marmic-only.
-        site_id = str(value.get("site_id", "marmic"))
+        schema_version = value.get("schema_version")
+        if schema_version == "1.0":
+            site_id = value.get("site_id", "marmic")
+            if site_id != "marmic":
+                raise ValidationError(
+                    "local run record schema 1.0 requires the Marmic site"
+                )
+        elif schema_version == "1.1":
+            site_id = value.get("site_id")
+            if not isinstance(site_id, str):
+                raise ValidationError("local run record schema 1.1 requires site_id")
+        else:
+            raise ValidationError("unsupported local run record schema")
         commit = str(value.get("commit", ""))
         owner_id = str(value.get("owner_id", ""))
         profile = str(value.get("profile", ""))
