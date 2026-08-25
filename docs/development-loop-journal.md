@@ -12275,3 +12275,27 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Scientific provider-empty outcomes reach the real application
+
+- Focused regressions exposed five ordinary-application failures hidden by the
+  earlier synthetic provider graph: genuine no-hit or disabled-provider output
+  aborted PDB registration, predicted-model processing, experimental-model
+  processing, first-copy ranking, and MR-seed review.
+- Registration now accepts zero hits only with complete typed PDB/Foldseek
+  results covering every catalogue sequence. Disabled/no-hit AFDB requires
+  equivalent typed results, and empty experimental preparation requires the
+  exact checksum-bound zero-count registration. Missing, truncated, or
+  contradictory evidence still fails; no coordinate download or Phenix model
+  processing is started for those branches.
+- The ordinary DSL2 workflow carries each upstream evidence file through its
+  process boundary. Mixed provider batches retain their real models; an
+  all-empty batch publishes the complete typed no-eligible-model registry and
+  an honest zero-candidate, human-approval-free checkpoint.
+- Forty-four focused provider, registration, preparation, ranking, and review
+  tests pass. The cached provider-empty graph, normal/control heteromer stub,
+  historical standalone registration, Nextflow syntax, Ruff, `ty`, schema, and
+  documentation checks pass. Real provider execution remains a separate gate.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

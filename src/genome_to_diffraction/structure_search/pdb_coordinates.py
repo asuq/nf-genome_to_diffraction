@@ -51,8 +51,13 @@ from genome_to_diffraction.schemas.results import (
     EligibilityStatus,
     SequenceGroupRecord,
     StructuralSearchHit,
+    StructuralSearchResult,
 )
-from genome_to_diffraction.status import InputContractError, ResultParseError
+from genome_to_diffraction.status import (
+    ExecutionStatus,
+    InputContractError,
+    ResultParseError,
+)
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.pdb_coordinates")
@@ -80,6 +85,7 @@ class PdbCoordinateRegistrationRequest:
     sequence_groups_jsonl: Path
     database_manifest: Path
     output_directory: Path
+    provider_search_results_jsonl: tuple[Path, ...] = ()
     maximum_hits_per_sequence_group: int = 3
     maximum_mappings: int = 25
     hit_ids: tuple[str, ...] = ()
@@ -118,6 +124,7 @@ def _read_jsonl[T: ContractModel](
     label: str,
     identifier: Callable[[T], str],
     progress: bool,
+    allow_empty: bool = False,
 ) -> tuple[T, ...]:
     resolved = path.resolve(strict=True)
     if not resolved.is_file():
@@ -147,9 +154,62 @@ def _read_jsonl[T: ContractModel](
                 raise PdbCoordinateInputError(f"duplicate {label} ID: {record_id}")
             seen.add(record_id)
             records.append(record)
-    if not records:
+    if not records and not allow_empty:
         raise PdbCoordinateInputError(f"{label} input is empty: {resolved}")
     return tuple(records)
+
+
+def _validate_empty_provider_results(
+    request: PdbCoordinateRegistrationRequest,
+    groups: Sequence[SequenceGroupRecord],
+) -> None:
+    if not request.provider_search_results_jsonl:
+        raise PdbCoordinateInputError(
+            "empty structural hits require typed provider search results"
+        )
+    expected_groups = {group.sequence_group_id for group in groups}
+    seen_providers: set[str] = set()
+    for path in request.provider_search_results_jsonl:
+        results = _read_jsonl(
+            path,
+            StructuralSearchResult,
+            label="provider search results",
+            identifier=lambda item: item.search_id,
+            progress=request.progress,
+        )
+        providers = {result.provider for result in results}
+        if len(providers) != 1 or not providers <= _PROVIDERS:
+            raise PdbCoordinateInputError(
+                "provider search results must describe one approved PDB route"
+            )
+        provider = next(iter(providers))
+        if provider in seen_providers:
+            raise PdbCoordinateInputError("duplicate provider search-result route")
+        seen_providers.add(provider)
+        if (
+            len(results) != len(expected_groups)
+            or {result.sequence_group_id for result in results} != expected_groups
+        ):
+            raise PdbCoordinateInputError(
+                "provider search results do not cover every sequence group"
+            )
+        if any(
+            result.hit_count != 0
+            or result.execution_status
+            not in {
+                ExecutionStatus.COMPLETED_NO_HIT,
+                ExecutionStatus.SKIPPED_POLICY,
+                ExecutionStatus.SKIPPED_INELIGIBLE,
+            }
+            for result in results
+        ):
+            raise PdbCoordinateInputError(
+                "empty structural hits contradict typed provider search results"
+            )
+    if seen_providers != _PROVIDERS:
+        raise PdbCoordinateInputError(
+            "empty structural hits require both approved PDB provider routes"
+        )
 
 
 def _resources(
@@ -455,7 +515,10 @@ def register_pdb_coordinates(
         label="structural hits",
         identifier=lambda item: item.hit_id,
         progress=request.progress,
+        allow_empty=True,
     )
+    if not hits:
+        _validate_empty_provider_results(request, groups)
     for hit in hits:
         _validate_hit(hit, group_index)
     sequence_resource, foldseek_resource, cache_resource = _resources(
@@ -470,8 +533,6 @@ def register_pdb_coordinates(
             "PDB hit database_id differs from its qualified discovery resource"
         )
     selected = _select_hits(hits, request)
-    if not selected:
-        raise PdbCoordinateInputError("no direct-PDB hits were selected")
     output = request.output_directory.resolve()
     if output.exists() and any(output.iterdir()):
         raise PdbCoordinateInputError(
@@ -643,6 +704,12 @@ def register_pdb_coordinates(
         "sequence_groups": sha256_file(request.sequence_groups_jsonl, progress=False),
         "database_manifest": sha256_file(request.database_manifest, progress=False),
     }
+    input_sha256.update(
+        {
+            f"provider_search_results_{index}": sha256_file(path, progress=False)
+            for index, path in enumerate(request.provider_search_results_jsonl, start=1)
+        }
+    )
     manifest_identity = {
         "adapter_version": _ADAPTER_VERSION,
         "input_sha256": input_sha256,

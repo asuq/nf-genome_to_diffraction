@@ -155,6 +155,7 @@ def _read_jsonl[T: BaseModel](
     *,
     label: str,
     progress: bool,
+    allow_empty: bool = False,
 ) -> tuple[T, ...]:
     resolved = path.resolve(strict=True)
     if not resolved.is_file():
@@ -176,7 +177,7 @@ def _read_jsonl[T: BaseModel](
                 raise FunnelInputError(
                     f"invalid {label} record at line {line_number}: {resolved}"
                 ) from error
-    if not records:
+    if not records and (not allow_empty or resolved.stat().st_size != 0):
         raise FunnelInputError(f"{label} input is empty: {resolved}")
     return tuple(records)
 
@@ -727,6 +728,7 @@ def _load_diverse_inputs(
             CoordinateSourceRecord,
             label="coordinate sources",
             progress=request.progress,
+            allow_empty=True,
         )
     )
     model_batches = tuple(
@@ -735,6 +737,7 @@ def _load_diverse_inputs(
             ProcessedModelRecord,
             label="processed models",
             progress=request.progress,
+            allow_empty=True,
         )
         for path in request.processed_models_jsonl
     )
@@ -744,6 +747,7 @@ def _load_diverse_inputs(
             CoordinateHitMappingRecord,
             label="coordinate-hit mappings",
             progress=request.progress,
+            allow_empty=True,
         )
         if request.coordinate_hit_mappings_jsonl is not None
         else ()

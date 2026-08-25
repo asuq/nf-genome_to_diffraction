@@ -1148,6 +1148,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="confidence-process selected AFDB/Atlas coordinates with Phenix",
     )
     predicted_parser.add_argument("--coordinate-sources", type=Path, required=True)
+    predicted_parser.add_argument("--provider-search-results", type=Path)
     predicted_parser.add_argument("--sequence-groups", type=Path, required=True)
     predicted_parser.add_argument("--phenix-manifest", type=Path, required=True)
     predicted_parser.add_argument("--outdir", type=Path, required=True)
@@ -1171,6 +1172,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--coordinate-hit-mappings", type=Path, required=True
     )
     experimental_parser.add_argument("--sequence-groups", type=Path, required=True)
+    experimental_parser.add_argument("--registration-manifest", type=Path)
     experimental_parser.add_argument("--outdir", type=Path, required=True)
     experimental_parser.add_argument(
         "--mapping-id",
@@ -1714,6 +1716,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="cache and register a bounded, diversity-reserved set of direct-PDB hits",
     )
     pdb_coordinates_parser.add_argument("--structural-hits", type=Path, required=True)
+    pdb_coordinates_parser.add_argument(
+        "--provider-search-results", type=Path, action="append", default=[]
+    )
     pdb_coordinates_parser.add_argument("--sequence-groups", type=Path, required=True)
     pdb_coordinates_parser.add_argument("--database-manifest", type=Path, required=True)
     pdb_coordinates_parser.add_argument("--outdir", type=Path, required=True)
@@ -2678,6 +2683,7 @@ def _run_structure_search(args: argparse.Namespace) -> int:
                 sequence_groups_jsonl=args.sequence_groups,
                 database_manifest=args.database_manifest,
                 output_directory=args.outdir,
+                provider_search_results_jsonl=tuple(args.provider_search_results),
                 maximum_hits_per_sequence_group=(args.maximum_hits_per_sequence_group),
                 maximum_mappings=args.maximum_mappings,
                 hit_ids=tuple(args.hit_id),
@@ -2727,6 +2733,7 @@ def _run_model(args: argparse.Namespace) -> int:
                 coordinate_hit_mappings_jsonl=args.coordinate_hit_mappings,
                 sequence_groups_jsonl=args.sequence_groups,
                 output_directory=args.outdir,
+                registration_manifest=args.registration_manifest,
                 mapping_ids=tuple(args.mapping_id),
                 progress=not args.no_progress,
             )
@@ -2744,6 +2751,7 @@ def _run_model(args: argparse.Namespace) -> int:
             sequence_groups_jsonl=args.sequence_groups,
             phenix_manifest=args.phenix_manifest,
             output_directory=args.outdir,
+            provider_search_results_jsonl=args.provider_search_results,
             coordinate_ids=tuple(args.coordinate_id),
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,

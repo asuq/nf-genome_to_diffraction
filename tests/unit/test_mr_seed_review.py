@@ -268,6 +268,31 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
     assert template.decisions == ()
 
 
+def test_no_model_funnel_emits_an_honest_empty_mr_seed_review(
+    tmp_path: Path,
+) -> None:
+    request = _request(tmp_path)
+    request.hypotheses_jsonl.write_text("", encoding="utf-8")
+    request.results_jsonl.write_text("", encoding="utf-8")
+    funnel = json.loads(request.funnel_manifest.read_text(encoding="utf-8"))
+    funnel["selected_hypothesis_count"] = 0
+    funnel["hypotheses"] = []
+    request.funnel_manifest.write_text(json.dumps(funnel), encoding="utf-8")
+
+    output = build_mr_seed_review(request)
+
+    assert output.candidate_count == 0
+    rows = tuple(
+        csv.DictReader(output.review_tsv.open(encoding="utf-8"), delimiter="\t")
+    )
+    assert rows == ()
+    manifest = json.loads(output.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["candidate_count"] == 0
+    assert manifest["inspectable_solution_count"] == 0
+    assert manifest["items"] == []
+    assert manifest["approval_requires_explicit_human_decision"] is True
+
+
 def test_validates_explicit_approval_and_rejects_stale_identifier(
     tmp_path: Path,
 ) -> None:

@@ -262,6 +262,44 @@ def test_diverse_funnel_preserves_predicted_and_experimental_sources(
     ]
 
 
+@pytest.mark.parametrize("all_providers_empty", (False, True))
+def test_diverse_funnel_preserves_documented_empty_model_batches(
+    tmp_path: Path, *, all_providers_empty: bool
+) -> None:
+    request = _diverse_request(tmp_path)
+    empty_indexes = (0, 1) if all_providers_empty else (0,)
+    for index in empty_indexes:
+        request.coordinate_sources_jsonl[index].write_text("", encoding="utf-8")
+        request.processed_models_jsonl[index].write_text("", encoding="utf-8")
+        manifest_path = request.model_preparation_manifests[index]
+        preparation = json.loads(manifest_path.read_text(encoding="utf-8"))
+        preparation["processed_model_count"] = 0
+        preparation["entries"] = []
+        manifest_path.write_text(json.dumps(preparation), encoding="utf-8")
+    if all_providers_empty:
+        assert request.coordinate_hit_mappings_jsonl is not None
+        request.coordinate_hit_mappings_jsonl.write_text("", encoding="utf-8")
+
+    output = build_diverse_first_copy_funnel(request)
+    registry = load_all_eligible_model_registry(
+        output.model_registry_directory / "all_model_registry.json"
+    )
+
+    if all_providers_empty:
+        assert output.hypotheses == ()
+        assert output.hypotheses_jsonl.read_bytes() == b""
+        assert registry.manifest.model_count == 0
+        assert registry.manifest.unavailable_sequence_group_count == 1
+        assert registry.manifest.sequence_groups[0].unavailable_reason is not None
+    else:
+        assert len(output.hypotheses) == 2
+        assert all(
+            item.priority_features["structural_source_class"] == "experimental"
+            for item in output.hypotheses
+        )
+        assert registry.manifest.model_count == 1
+
+
 def test_diverse_funnel_reserves_exact_mapping_before_homologue(
     tmp_path: Path,
 ) -> None:

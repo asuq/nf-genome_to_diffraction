@@ -106,8 +106,16 @@ workflow MAIN_WORKFLOW {
         direct_pdb_hits = discovery.pdb_provider_hits.map { Path bundle ->
             bundle.resolve('structural_hits.jsonl')
         }
+        pdb_search_results = discovery.pdb_sequence_search.map { Path bundle ->
+            bundle.resolve('search_results.jsonl')
+        }
+        foldseek_search_results = discovery.prostt5_foldseek_search.map {
+            Path bundle -> bundle.resolve('search_results.jsonl')
+        }
         pdb_registration = REGISTER_PDB_COORDINATES(
             direct_pdb_hits,
+            pdb_search_results,
+            foldseek_search_results,
             sequence_groups,
             database_manifest,
             maximum_pdb_hits_per_sequence_group,
@@ -116,8 +124,12 @@ workflow MAIN_WORKFLOW {
         predicted_coordinate_sources = discovery.afdb_exact_search.map {
             Path bundle -> bundle.resolve('coordinate_sources.jsonl')
         }
+        predicted_search_results = discovery.afdb_exact_search.map {
+            Path bundle -> bundle.resolve('search_results.jsonl')
+        }
         predicted_models = PREPARE_PREDICTED_MODELS(
             predicted_coordinate_sources,
+            predicted_search_results,
             sequence_groups,
             phenix_manifest
         )
@@ -127,9 +139,13 @@ workflow MAIN_WORKFLOW {
         coordinate_hit_mappings = pdb_registration.map { Path bundle ->
             bundle.resolve('coordinate_hit_mappings.jsonl')
         }
+        registration_manifest = pdb_registration.map { Path bundle ->
+            bundle.resolve('registration_manifest.json')
+        }
         experimental_models = PREPARE_EXPERIMENTAL_MODELS(
             pdb_coordinate_sources,
             coordinate_hit_mappings,
+            registration_manifest,
             sequence_groups
         )
 
@@ -164,7 +180,7 @@ workflow MAIN_WORKFLOW {
             )
             mr_seed_review = BUILD_MR_SEED_REVIEW(
                 first_copy.funnel,
-                first_copy.results.collect(),
+                first_copy.results.collect().ifEmpty([]),
                 sequence_groups,
                 source_records,
                 matthews_jsonl,

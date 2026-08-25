@@ -218,7 +218,7 @@ def _read_jsonl[T: BaseModel](
                 raise MrSeedReviewError(
                     f"invalid {label} record at line {line_number}: {resolved}"
                 ) from error
-    if not records and not allow_empty:
+    if not records and (not allow_empty or resolved.stat().st_size != 0):
         raise MrSeedReviewError(f"{label} is empty: {resolved}")
     return tuple(records)
 
@@ -389,12 +389,14 @@ def _join_candidates(
         MrHypothesis,
         label="MR hypotheses",
         progress=request.progress,
+        allow_empty=True,
     )
     results = _read_jsonl(
         request.results_jsonl,
         NormalisedMrResult,
         label="normalised MR results",
         progress=request.progress,
+        allow_empty=True,
     )
     groups = _read_jsonl(
         request.sequence_groups_jsonl,

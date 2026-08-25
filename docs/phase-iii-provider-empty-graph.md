@@ -33,6 +33,29 @@ branch/result digests, and registry; this is the cache identity. A plan/config
 mismatch, missing/duplicate branch, non-empty hit/model output, malformed result,
 or enabled network route is a contract failure and publishes no terminal.
 
+## Application propagation
+
+The ordinary application now carries the same typed evidence beyond discovery.
+An empty combined PDB hit file is accepted only when both complete PDB and
+Foldseek result inventories independently record `completed_no_hit`,
+`skipped_policy`, or `skipped_ineligible` for every catalogue sequence group.
+Coordinate registration then publishes zero checksum-bound sources and
+mappings without a network request.
+
+Experimental model preparation accepts those empty files only with their exact
+zero-count registration manifest and matching output checksums. Predicted model
+preparation likewise requires complete AFDB/Atlas no-hit or disabled-result
+evidence before publishing zero models; it never invokes Phenix for that empty
+batch. Missing evidence, missing catalogue rows, contradictory hits, and
+unpaired source/mapping files remain contract failures.
+
+The first-copy funnel accepts independently checksum-bound empty preparation
+batches. A populated provider continues normally when another provider is empty;
+when every provider is empty, the existing complete model registry retains
+every sequence group as `no_eligible_model` and no Phaser hypothesis is emitted.
+The file-based MR-seed checkpoint still publishes an honest zero-candidate
+review package without inventing an approval or identity claim.
+
 ## Focused tests
 
 `tests/unit/test_provider_empty_graph.py` covers the complete mixed graph,
@@ -40,5 +63,9 @@ deterministic bytes, plan/config mismatch, missing coverage, and duplicate
 coverage. `pixi run --locked provider-empty-graph-stub` schedules all three
 empty-path classes together, requires six exact completed tasks, verifies the
 typed no-model registry, requires byte-identical cached resume, and checks the
-non-stub fail-closed boundary. No real provider, model preparation, remote
-service, operator input, or HPC profile is used.
+non-stub fail-closed boundary. Focused PDB registration, experimental and
+predicted model preparation, first-copy funnel, and MR-seed-review regressions
+exercise the real local adapter chain and reject unexplained empty files. The
+normal control-independent Nextflow application still retains its existing
+positive and explicit-control paths. No real provider, remote service, operator
+input, or HPC profile is used.

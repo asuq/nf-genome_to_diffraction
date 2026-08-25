@@ -194,8 +194,13 @@ One enabled local scientific no-hit, two configured-disabled routes, and one
 unsupported/provider-unavailable route retain every catalogue query and finish
 as one content-addressed `completed_no_model` all-model registry. Its dedicated
 stub resumes byte-identically and the normal enabled route fails before provider
-or network execution. Real provider no-hit qualification and integration into
-the live application graph remain separate pending gates.
+or network execution. The ordinary application now also propagates documented
+enabled no-hits and disabled routes through zero-coordinate registration,
+zero-model predicted/experimental preparation, the complete typed model
+registry, and a zero-candidate file-based MR-seed checkpoint. Each empty input
+requires its complete upstream typed result or checksum-bound registration
+manifest; unexplained truncation still fails. Real provider/HPC qualification
+remains a separate pending gate.
 
 ### PH2 - General component contracts and bounded search
 

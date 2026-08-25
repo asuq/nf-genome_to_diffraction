@@ -8,6 +8,7 @@ process PREPARE_EXPERIMENTAL_MODELS {
     input:
     coordinate_sources: Path
     coordinate_hit_mappings: Path
+    registration_manifest: Path?
     sequence_groups: Path
 
     output:
@@ -15,14 +16,21 @@ process PREPARE_EXPERIMENTAL_MODELS {
 
     script:
     """
+    args=(
+        --coordinate-sources '${coordinate_sources}'
+        --coordinate-hit-mappings '${coordinate_hit_mappings}'
+        --sequence-groups '${sequence_groups}'
+        --outdir experimental_model_preparation
+    )
+    if [[ -n '${registration_manifest ?: ''}' ]]; then
+        args+=(--registration-manifest '${registration_manifest ?: ''}')
+    fi
+
     genome-to-diffraction \
         --no-progress \
         --log-format json \
         model prepare-experimental \
-        --coordinate-sources '${coordinate_sources}' \
-        --coordinate-hit-mappings '${coordinate_hit_mappings}' \
-        --sequence-groups '${sequence_groups}' \
-        --outdir experimental_model_preparation
+        "\${args[@]}"
     """
 
     stub:

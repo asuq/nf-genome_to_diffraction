@@ -7,6 +7,7 @@ include { PREPARE_PREDICTED_MODELS } from './modules/local/prepare_predicted_mod
 
 params {
     coordinate_sources: Path
+    provider_search_results: Path? = null
     sequence_groups: Path
     phenix_manifest: Path
     outdir: Path = file('results')
@@ -17,6 +18,7 @@ workflow {
     main:
     PREPARE_PREDICTED_MODELS(
         params.coordinate_sources,
+        params.provider_search_results,
         params.sequence_groups,
         params.phenix_manifest
     )

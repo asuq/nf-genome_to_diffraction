@@ -8,6 +8,7 @@ include { PREPARE_EXPERIMENTAL_MODELS } from './modules/local/prepare_experiment
 params {
     coordinate_sources: Path
     coordinate_hit_mappings: Path
+    registration_manifest: Path? = null
     sequence_groups: Path
     outdir: Path = file('results')
     cache_root: Path = file('.cache')
@@ -18,6 +19,7 @@ workflow {
     PREPARE_EXPERIMENTAL_MODELS(
         params.coordinate_sources,
         params.coordinate_hit_mappings,
+        params.registration_manifest,
         params.sequence_groups
     )
 }

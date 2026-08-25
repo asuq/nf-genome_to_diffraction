@@ -25,8 +25,11 @@ process BUILD_MR_SEED_REVIEW {
         .sort { left, right -> left.name <=> right.name }
         .collect { result -> "'${result}/normalised_mr_result.jsonl'" }
         .join(' ')
+    def resultCommand = first_copy_results.isEmpty()
+        ? 'touch normalised_mr_results.jsonl'
+        : "cat ${resultJsonl} > normalised_mr_results.jsonl"
     """
-    cat ${resultJsonl} > normalised_mr_results.jsonl
+    ${resultCommand}
     genome-to-diffraction \
         --no-progress \
         --log-format json \

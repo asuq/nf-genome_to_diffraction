@@ -9,26 +9,42 @@ process REGISTER_PDB_COORDINATES {
 
     input:
     structural_hits: Path
+    pdb_search_results: Path?
+    foldseek_search_results: Path?
     sequence_groups: Path
     database_manifest: Path
     maximum_hits_per_sequence_group: Integer
     maximum_mappings: Integer
+
+    stage:
+    stageAs pdb_search_results, 'pdb_search_results.jsonl'
+    stageAs foldseek_search_results, 'foldseek_search_results.jsonl'
 
     output:
     registration: Path = file('pdb_coordinate_registration')
 
     script:
     """
+    args=(
+        --structural-hits '${structural_hits}'
+        --sequence-groups '${sequence_groups}'
+        --database-manifest '${database_manifest}'
+        --maximum-hits-per-sequence-group ${maximum_hits_per_sequence_group}
+        --maximum-mappings ${maximum_mappings}
+        --outdir pdb_coordinate_registration
+    )
+    if [[ -n '${pdb_search_results ?: ''}' ]]; then
+        args+=(--provider-search-results '${pdb_search_results ?: ''}')
+    fi
+    if [[ -n '${foldseek_search_results ?: ''}' ]]; then
+        args+=(--provider-search-results '${foldseek_search_results ?: ''}')
+    fi
+
     genome-to-diffraction \
         --no-progress \
         --log-format json \
         structure-search register-pdb-coordinates \
-        --structural-hits '${structural_hits}' \
-        --sequence-groups '${sequence_groups}' \
-        --database-manifest '${database_manifest}' \
-        --maximum-hits-per-sequence-group ${maximum_hits_per_sequence_group} \
-        --maximum-mappings ${maximum_mappings} \
-        --outdir pdb_coordinate_registration
+        "\${args[@]}"
     """
 
     stub:
