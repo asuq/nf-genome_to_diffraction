@@ -109,6 +109,7 @@ class FakeTransport:
     stage_error: RemoteOperationError | None = None
     stage_site_id: str = "marmic"
     log_payload: bytes = b"line one\nline two\n"
+    log_response: dict[str, str] | None = None
 
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         self.calls.append((operation, tuple(arguments)))
@@ -119,7 +120,10 @@ class FakeTransport:
         if operation == "status" and self.status_responses:
             return self.status_responses.pop(0)
         if operation == "logs":
+            if self.log_response is not None:
+                return self.log_response
             return {
+                "operation": "logs",
                 "run_id": arguments[0],
                 "content_base64": base64.b64encode(self.log_payload).decode(),
             }
@@ -1022,6 +1026,59 @@ def test_remote_log_payload_has_a_local_byte_limit(tmp_path: Path) -> None:
 
     with pytest.raises(RemoteOperationError, match="local byte limit"):
         controller.logs(run_id, 200)
+
+
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        ({"run_id": "OWNED_RUN", "content_base64": ""}, "operation"),
+        (
+            {
+                "operation": "status",
+                "run_id": "OWNED_RUN",
+                "content_base64": "",
+            },
+            "operation",
+        ),
+        ({"operation": "logs", "content_base64": ""}, "run identity"),
+        (
+            {
+                "operation": "logs",
+                "run_id": "different-run",
+                "content_base64": "",
+            },
+            "run identity",
+        ),
+        ({"operation": "logs", "run_id": "OWNED_RUN"}, "content"),
+    ],
+)
+def test_remote_logs_reject_missing_or_unowned_evidence(
+    tmp_path: Path, response: dict[str, str], message: str
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    transport.log_response = {
+        key: run_id if value == "OWNED_RUN" else value
+        for key, value in response.items()
+    }
+
+    with pytest.raises(RemoteOperationError, match=message) as error:
+        controller.logs(run_id, 200)
+
+    assert error.value.failure_class == FailureClass.TRANSFER_FAILURE
+
+
+def test_remote_logs_accept_explicit_owned_zero_byte_payload(tmp_path: Path) -> None:
+    transport = FakeTransport(log_payload=b"")
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+
+    result = controller.logs(run_id, 200)
+
+    assert result["operation"] == "logs"
+    assert result["run_id"] == run_id
+    assert result["log"] == ""
 
 
 @pytest.mark.parametrize("profile", ["heteromer-smoke", "phase3-phenix-probe"])

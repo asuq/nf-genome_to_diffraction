@@ -108,7 +108,7 @@ ordered `RG0`-`RG7` milestones and both scientific stop gates.
 | `FCB-P1-10` Malformed/duplicate remote protocol fields | Open | RG1; require strict complete operation/run/site response framing before pass 1. |
 | `FCB-P1-11` Missing failed-job evidence suppresses failure signature | Open | RG1; require owned complete terminal scheduler/failure records before pass 1. |
 | `FCB-P1-12` Unsupported scheduler state becomes executing | Open | RG1; reject unknown/missing inconsistent scheduler states before pass 1. |
-| `FCB-P1-13` Missing remote log payload becomes empty log | Open | RG1; require explicitly declared authenticated log bytes before pass 1. |
+| `FCB-P1-13` Missing remote log payload becomes empty log | Fixed locally; exact-source CI and owned-HPC qualification pending | RG1; bounded remote log collection now requires the authenticated `logs` operation, exact owned run identity, and an explicitly declared base64 payload. Five red/green missing/mismatched ownership or payload regressions, one genuine zero-byte control, 68 focused owned-run cases, and two real dispatcher-log integrations pass. |
 | `FCB-P1-14` Review checkpoint paths escape ownership | Open | RG1; reject traversal and intermediate symlink evidence before pass 1. |
 | `FCB-P1-15` Compute-worker network denial remains unenforced | Open | RG1; qualify bounded login acquisition and worker socket denial before pass 1. |
 | `FCB-P2-01` Competing root Nextflow application entry points | Open | RG5; migrate active reviewed callers/docs/tests and remove obsolete roots before pass 2. |

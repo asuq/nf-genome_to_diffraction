@@ -2438,7 +2438,22 @@ class HpcController:
         record = self._owned_run(run_id)
         validate_log_lines(lines)
         result = self.transport.run("logs", [run_id, record.owner_id, str(lines)])
-        encoded = result.pop("content_base64", "")
+        if result.get("operation") != "logs":
+            raise RemoteOperationError(
+                "remote log operation identity is missing or invalid",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if result.get("run_id") != run_id:
+            raise RemoteOperationError(
+                "remote log run identity does not match the owned run",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if "content_base64" not in result:
+            raise RemoteOperationError(
+                "remote log content was not explicitly declared",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        encoded = result.pop("content_base64")
         try:
             payload = base64.b64decode(encoded, validate=True)
         except ValueError as error:

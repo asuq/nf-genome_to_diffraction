@@ -12955,3 +12955,17 @@ with a collapsed combined parent or a guessed command.
   red/green corruption regressions, both authoritative-versus-diagnostic
   capture controls, and 78 focused Phaser/copy/partner/control tests pass.
   The existing known-control job `634369` remains the only submitted HPC run.
+
+## 2026-08-25 - Remote logs require owned operation and declared bytes
+
+- `FCB-P1-13` reproduced five independently fabricated log acceptances:
+  omitted or mismatched operation identity, omitted or cross-run ownership,
+  and a missing base64 payload that previously became a claimed empty log.
+- The local reviewed-wrapper boundary now authenticates the existing remote
+  `logs` operation, requires its exact locally owned run, and rejects absent
+  payload evidence as a classified transfer failure. An explicitly declared
+  zero-byte log remains a valid and separately tested result.
+- All five negative cases first failed before the fix; the complete 68-case
+  owned-run client suite and two existing real remote-dispatcher log
+  integrations now pass. No deployed dispatcher was changed, and known
+  control Slurm `634369` remains the sole submitted HPC run.
