@@ -70,6 +70,9 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
 - Consume the approved schema-v2 A review, exact decisions, and execution
   identity directly. Remove legacy review inputs, fabricated v1 TSVs/manifests,
   and duplicate/malformed inventory acceptance.
+  The owned A package is now independently portable with every checksum-bound
+  review output and per-solution asset; active execution-consumer migration is
+  the remaining work before deleting the synthetic bridge.
 - Replace optional Phase III/legacy application switches with one canonical
   typed application route while preserving genuinely separate reviewed control
   profiles.

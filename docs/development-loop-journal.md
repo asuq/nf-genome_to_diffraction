@@ -13244,3 +13244,27 @@ with a collapsed combined parent or a guessed command.
   remain required before the finding receives a final disposition.
 - No scheduler run, remote dispatcher, Phenix installation, M6 discovery
   threshold, known control, or unknown-crystal profile was started or changed.
+
+## 2026-08-25 - Owned A checkpoints retain complete scientific evidence
+
+- `FCB-P1-04` first reproduced a schema-v2 A-review package that copied only
+  the legacy manifest. Its declared review outputs, Phaser commands/results,
+  maps, and solution coordinates remained outside the owned package, so the
+  active Phase III path could not remove its legacy directory or synthetic
+  schema-v1 approval bridge.
+- The owned A-package builder now inventories and copies the complete validated
+  MR review output set and every checksum-bound per-solution asset. Evidence
+  roles and paths are deterministic, confined below the package root, and
+  covered by the existing package content identity and allow-list validation.
+- Both an active A candidate and the genuine completed zero-candidate channel
+  now pass the original strict MR review validator using only files inside the
+  owned schema-v2 package. Missing outputs, changed coordinates/results, unsafe
+  paths, duplicate identities, and source mutation still fail before package
+  publication.
+- Two red/green portability cases and 161 focused review-package, decision,
+  owned-run, unknown-pass, and continuation tests pass. This is a prerequisite
+  rather than closure: current execution consumers still generate synthetic
+  approval TSV and schema-v1 stage/validation records and remain blocked before
+  pass-1 continuation.
+- No scheduler run, installed dispatcher, scientific threshold, Phenix runtime,
+  known control, or unknown-crystal profile was started or modified.

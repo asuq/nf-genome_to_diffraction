@@ -37,6 +37,7 @@ from genome_to_diffraction.review import (
     validate_mr_seed_approvals,
     validate_phase3_review_package,
 )
+from genome_to_diffraction.review.mr_seed import validate_mr_seed_review_evidence
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import PrototypeProfile
 from genome_to_diffraction.schemas.results import (
@@ -556,6 +557,11 @@ def test_owned_phase3_a_package_binds_real_crystal_review_evidence(
         if item.role == "mr_seed_review_manifest"
     )
     assert evidence.sha256 == sha256_file(review.manifest_json, progress=False)
+    assert validate_mr_seed_review_evidence(
+        package_manifest=output.manifest.parent / evidence.relative_path,
+        hypotheses_jsonl=request.hypotheses_jsonl,
+        crystal_id=crystal_id,
+    ) == tuple(item.item_id for item in package.permitted_targets)
 
 
 @pytest.mark.parametrize(

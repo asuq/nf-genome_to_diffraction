@@ -608,6 +608,58 @@ def build_owned_phase3_a_seed_review_package(
             crystal_id=crystal_id,
             progress=False,
         )
+        review_document = load_json_document(manifest)
+        if not isinstance(review_document, dict):
+            raise PhaseIIIReviewPackageError("A-seed review manifest is not an object")
+        output_inventory = review_document.get("outputs")
+        review_items = review_document.get("items")
+        if not isinstance(output_inventory, dict) or not isinstance(review_items, list):
+            raise PhaseIIIReviewPackageError(
+                "A-seed review evidence inventory is absent"
+            )
+        evidence_by_path: dict[str, PhaseIIIReviewEvidenceSource] = {
+            manifest.name: PhaseIIIReviewEvidenceSource(
+                role="mr_seed_review_manifest",
+                relative_path=manifest.name,
+            )
+        }
+        for name, raw_output in sorted(output_inventory.items()):
+            if not isinstance(name, str) or not isinstance(raw_output, dict):
+                raise PhaseIIIReviewPackageError("A-seed review output is invalid")
+            relative = raw_output.get("path")
+            if not isinstance(relative, str):
+                raise PhaseIIIReviewPackageError("A-seed review output path is invalid")
+            evidence_by_path.setdefault(
+                relative,
+                PhaseIIIReviewEvidenceSource(
+                    role=f"mr_seed_output_{name}",
+                    relative_path=relative,
+                ),
+            )
+        for item in review_items:
+            if not isinstance(item, dict):
+                raise PhaseIIIReviewPackageError("A-seed review item is invalid")
+            copied_assets = item.get("copied_assets")
+            if not isinstance(copied_assets, dict):
+                raise PhaseIIIReviewPackageError(
+                    "A-seed review asset inventory is absent"
+                )
+            for relative in copied_assets.values():
+                if not isinstance(relative, str):
+                    raise PhaseIIIReviewPackageError(
+                        "A-seed review asset path is invalid"
+                    )
+                path_identity = hashlib.sha256(relative.encode("utf-8")).hexdigest()
+                evidence_by_path.setdefault(
+                    relative,
+                    PhaseIIIReviewEvidenceSource(
+                        role=f"mr_seed_asset_{path_identity}",
+                        relative_path=relative,
+                    ),
+                )
+        evidence_sources = tuple(
+            sorted(evidence_by_path.values(), key=lambda source: source.role)
+        )
     except PhaseIIIReviewPackageError:
         raise
     except (MrSeedReviewError, OSError, ValidationError, ValueError) as error:
@@ -632,12 +684,7 @@ def build_owned_phase3_a_seed_review_package(
             target_item_ids=solution_ids,
             created_at=datetime.now(UTC),
             input_root=review_root,
-            evidence_sources=(
-                PhaseIIIReviewEvidenceSource(
-                    role="mr_seed_review_manifest",
-                    relative_path=manifest.name,
-                ),
-            ),
+            evidence_sources=evidence_sources,
             output_directory=output_directory,
         )
     )
