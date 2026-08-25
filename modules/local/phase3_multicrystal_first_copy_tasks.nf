@@ -1,11 +1,82 @@
 nextflow.enable.types = true
 
+// Revalidate the exact owned three-crystal decision index, complete execution
+// identity, frozen MTZ bytes, and canonical stage files before any A search.
+process VALIDATE_PHASE3_CRYSTALLOGRAPHIC_REVIEWS {
+    tag 'phase3-crystallographic-review-stages'
+    label 'process_low'
+    stageInMode 'copy'
+
+    input:
+    review_stage: Path
+    execution_identity: Path
+    crystals: Path
+
+    output:
+    routes: Path = file('phase3_crystallographic_review_routes')
+
+    script:
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        review validate-crystallographic-stages \
+        --stage-index '${review_stage}/unknown_pass1_review_stage_index.json' \
+        --execution-identity '${execution_identity}' \
+        --crystals '${crystals}' \
+        --outdir phase3_crystallographic_review_routes
+    """
+
+    stub:
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        review validate-crystallographic-stages \
+        --stage-index '${review_stage}/unknown_pass1_review_stage_index.json' \
+        --execution-identity '${execution_identity}' \
+        --crystals '${crystals}' \
+        --outdir phase3_crystallographic_review_routes
+    """
+}
+
+
+// A held crystal retains its independently verified review evidence and never
+// reaches candidate ranking, Phaser, or scientific claim construction.
+process RETAIN_PHASE3_CRYSTALLOGRAPHIC_HOLD {
+    tag "phase3-crystallographic-hold:${item[0]}"
+    label 'process_low'
+    publishDir params.outdir, mode: 'copy', overwrite: true
+
+    input:
+    item: Tuple
+
+    output:
+    held: Tuple = tuple(
+        item[0],
+        file("phase3_crystallographic_hold_${item[0]}")
+    )
+
+    script:
+    def outputName = "phase3_crystallographic_hold_${item[0]}"
+    """
+    cp -R '${item[1]}' '${outputName}'
+    """
+
+    stub:
+    def outputName = "phase3_crystallographic_hold_${item[0]}"
+    """
+    cp -R '${item[1]}' '${outputName}'
+    """
+}
+
+
 // Each Phase III hypothesis receives its own crystal, exact MTZ, immutable
 // shared preparations, per-crystal funnel, and licensed Phenix binding. The
 // existing first-copy adapter owns command construction and typed failure
 // semantics; Nextflow owns one independent task per selected hypothesis.
 process RUN_PHASE3_FIRST_COPY_PHASER {
-    tag "phase3-first-copy:${item[1]}:${item[12].baseName}"
+    tag "phase3-first-copy:${item[1]}:${item[13].baseName}"
     label 'process_mr'
     publishDir params.outdir, mode: 'copy', overwrite: true
 
@@ -26,18 +97,19 @@ process RUN_PHASE3_FIRST_COPY_PHASER {
         item[9],
         item[10],
         item[11],
-        file("phase3_first_copy_${item[1]}_${item[12].baseName}")
+        item[12],
+        file("phase3_first_copy_${item[1]}_${item[13].baseName}")
     )
 
     script:
-    def outputName = "phase3_first_copy_${item[1]}_${item[12].baseName}"
+    def outputName = "phase3_first_copy_${item[1]}_${item[13].baseName}"
     """
     genome-to-diffraction \
         --no-progress \
         --log-format json \
         mr first-copy \
-        --hypotheses '${item[12]}' \
-        --hypothesis-id '${item[12].baseName}' \
+        --hypotheses '${item[13]}' \
+        --hypothesis-id '${item[13].baseName}' \
         --sequence-groups '${item[6]}' \
         --processed-models '${item[2]}/model_registry/processed_models.jsonl' \
         --model-preparation-manifest '${item[2]}/model_registry/model_preparation_manifest.json' \
@@ -49,7 +121,7 @@ process RUN_PHASE3_FIRST_COPY_PHASER {
     """
 
     stub:
-    def outputName = "phase3_first_copy_${item[1]}_${item[12].baseName}"
+    def outputName = "phase3_first_copy_${item[1]}_${item[13].baseName}"
     """
     cp -R \
         '${projectDir}/tests/fixtures/stubs/first_copy_phaser' \

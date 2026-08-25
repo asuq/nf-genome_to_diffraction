@@ -7,10 +7,12 @@ from pathlib import Path
 
 import pytest
 
+from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.execution.unknown_screen import (
     UnknownPass1ReviewDecisionInput,
     UnknownPass1ReviewStageIndexOutput,
     UnknownPass1ScreenError,
+    publish_unknown_pass1_crystallographic_review_routes,
     stage_unknown_pass1_crystallographic_reviews,
 )
 
@@ -147,3 +149,93 @@ def test_wrong_decision_confirmation_and_duplicate_crystal_fail_closed(
 
     assert not (tmp_path / "wrong-hash").exists()
     assert not (tmp_path / "duplicate-crystal").exists()
+
+
+def _crystal_manifest(fixture: UnknownPass1PublicFixture, path: Path) -> Path:
+    atomic_write_json(
+        path,
+        {
+            "schema_version": "1.0",
+            "crystals": [
+                {
+                    "crystal_id": crystal.crystal_id,
+                    "mtz": str(crystal.mtz),
+                    "catalogue_id": "public_stub_catalogue",
+                    "sds_page_mass_kda": [],
+                    "allow_remote_sequence_submission": False,
+                }
+                for crystal in fixture.crystals
+            ],
+        },
+    )
+    return path
+
+
+def test_review_routes_preserve_exact_owned_proceed_and_hold_stages(
+    tmp_path: Path,
+) -> None:
+    fixture = materialise_unknown_pass1_public_fixture(tmp_path)
+    output = publish_unknown_pass1_crystallographic_review_routes(
+        review_stage_index=fixture.review_stage_index,
+        execution_identity=fixture.execution_identity,
+        crystal_manifest=_crystal_manifest(fixture, tmp_path / "crystals.json"),
+        output_directory=tmp_path / "review-routes",
+    )
+
+    assert (
+        tuple(sorted(path.name for path in output.iterdir())) == PUBLIC_STUB_CRYSTAL_IDS
+    )
+    routes = {
+        crystal_id: json.loads(
+            (output / crystal_id / "crystallographic_review_routing.json").read_bytes()
+        )
+        for crystal_id in PUBLIC_STUB_CRYSTAL_IDS
+    }
+    assert tuple(route["decision"] for route in routes.values()) == (
+        "proceed",
+        "hold",
+        "proceed",
+    )
+    assert {route["execution_identity_id"] for route in routes.values()} == {
+        fixture.inventory.execution_identity.execution_identity_id
+    }
+    for crystal_id in PUBLIC_STUB_CRYSTAL_IDS:
+        stage = output / crystal_id / "crystallographic_review_stage"
+        assert {item.name for item in stage.iterdir()} == {
+            "phase3_review_decision.json",
+            "phase3_review_stage_manifest.json",
+        }
+
+
+@pytest.mark.parametrize(
+    "mutation", ("missing-crystal", "changed-mtz", "changed-stage")
+)
+def test_review_routes_reject_unbound_crystals_mtz_or_decisions(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    fixture = materialise_unknown_pass1_public_fixture(tmp_path)
+    manifest = _crystal_manifest(fixture, tmp_path / "crystals.json")
+    if mutation == "missing-crystal":
+        document = json.loads(manifest.read_bytes())
+        document["crystals"].pop()
+        atomic_write_json(manifest, document)
+    elif mutation == "changed-mtz":
+        fixture.crystals[0].mtz.write_bytes(b"changed-public-stub-mtz")
+    else:
+        decision = (
+            fixture.review_stage
+            / "stages"
+            / PUBLIC_STUB_CRYSTAL_IDS[0]
+            / "phase3_review_decision.json"
+        )
+        decision.write_text("{}\n", encoding="ascii")
+
+    with pytest.raises(UnknownPass1ScreenError):
+        publish_unknown_pass1_crystallographic_review_routes(
+            review_stage_index=fixture.review_stage_index,
+            execution_identity=fixture.execution_identity,
+            crystal_manifest=manifest,
+            output_directory=tmp_path / "review-routes",
+        )
+    assert not (tmp_path / "review-routes").exists()

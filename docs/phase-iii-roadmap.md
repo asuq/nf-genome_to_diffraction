@@ -391,6 +391,16 @@ registry. The screen builder requires that index and rejects missing, duplicate,
 mutated, cross-run, cross-crystal, cross-parent, or cross-execution state; it no
 longer accepts an arbitrary directory of caller-staged packages.
 
+The actual multi-crystal first-copy workflow now also consumes this reviewed
+index plus its exact Phase III execution identity. An existing-adapter command
+revalidates all three canonical stages, manifest-crystal membership, and frozen
+MTZ checksums before any scientific branch. A synthetic real Nextflow execution
+retains one held crystal separately, schedules only its two proceeding siblings,
+binds each decision bundle into the corresponding child cache item, and proves
+fully cached replay without fabricating approvals. Historical unreviewed control
+paths remain unchanged; the fixed unknown HPC profile and real Phaser run still
+require their own gates.
+
 A fixed local stub now binds one synthetic public-fixture
 `PhaseIIIExecutionIdentity`, three registry-resolved checksum-verified
 single-crystal packages and their indexed crystallographic review stages, one

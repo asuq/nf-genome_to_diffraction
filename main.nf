@@ -36,6 +36,8 @@ params {
     maximum_pdb_mappings: Integer = 25
     maximum_first_copy_jobs: Integer = 25
     phase3_joint_first_copy: Boolean = false
+    phase3_crystallographic_review_stage: Path? = null
+    phase3_execution_identity: Path? = null
 }
 
 workflow {
@@ -58,6 +60,18 @@ workflow {
     }
     if (params.analysis_stage == 'heteromer' && params.partner_copy_count < 1) {
         error 'analysis_stage=heteromer requires a positive --partner_copy_count'
+    }
+    if (
+        (params.phase3_crystallographic_review_stage == null) !=
+        (params.phase3_execution_identity == null)
+    ) {
+        error 'Phase III crystallographic reviews require both staged decisions and execution identity'
+    }
+    if (
+        params.phase3_crystallographic_review_stage != null &&
+        (params.analysis_stage != 'first_copy' || !params.phase3_joint_first_copy)
+    ) {
+        error 'Phase III crystallographic reviews require explicit joint first-copy mode'
     }
     MAIN_WORKFLOW(
         params.catalogues,
@@ -87,6 +101,8 @@ workflow {
         params.maximum_pdb_hits_per_sequence_group,
         params.maximum_pdb_mappings,
         params.maximum_first_copy_jobs,
-        params.phase3_joint_first_copy
+        params.phase3_joint_first_copy,
+        params.phase3_crystallographic_review_stage,
+        params.phase3_execution_identity
     )
 }

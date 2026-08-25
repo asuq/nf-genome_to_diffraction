@@ -12386,3 +12386,25 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Crystallographic hold decisions now prevent real A scheduling
+
+- The normal Phase III first-copy workflow accepted a three-crystal manifest
+  but did not yet consume its independently staged crystallographic decisions;
+  a held crystal could therefore enter scientific molecular replacement.
+- Reused the existing owned-run review index and complete execution identity
+  to revalidate exactly three canonical crystal decisions, frozen MTZ hashes,
+  package bindings, and manifest membership before the application fans out.
+  Proceeding child tasks carry only their own reviewed stage; held crystals
+  retain an explicit separate checkpoint and never reach ranking or Phaser.
+- The actual synthetic Nextflow application now schedules two proceeding
+  searches/reviews, one retained hold, and one shared catalogue/provider. Every
+  task hash and published output is unchanged on fully cached resume; the
+  legacy heteromer path and isolated unknown-screen fixture also remain green.
+- Thirty-nine focused review, CLI, dispatch, and unknown-screen tests pass;
+  changed MTZ bytes, missing crystals, and mutated decision files fail closed.
+  Repository type checking, Nextflow syntax, Ruff, schema, and documentation
+  checks pass without introducing a fixed unknown HPC profile or approvals.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

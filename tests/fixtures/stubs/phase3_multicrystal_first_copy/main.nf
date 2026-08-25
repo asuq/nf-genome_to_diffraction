@@ -20,6 +20,8 @@ params {
     matthews: Path
     pipeline_config: Path
     phenix_manifest: Path
+    phase3_crystallographic_review_stage: Path? = null
+    phase3_execution_identity: Path? = null
     outdir: Path = file('results')
     cache_root: Path = file('.cache')
 }
@@ -96,6 +98,8 @@ workflow {
         channel.value(params.matthews),
         channel.value(params.pipeline_config),
         25,
-        channel.value(params.phenix_manifest)
+        channel.value(params.phenix_manifest),
+        params.phase3_crystallographic_review_stage,
+        params.phase3_execution_identity
     )
 }

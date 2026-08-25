@@ -105,6 +105,7 @@ from genome_to_diffraction.diffraction import (
 from genome_to_diffraction.execution import (
     ProviderEmptyGraphRequest,
     complete_provider_empty_graph,
+    publish_unknown_pass1_crystallographic_review_routes,
 )
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.localisation import (
@@ -1575,6 +1576,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "review", help="build and validate file-based human checkpoints"
     )
     review_actions = review_parser.add_subparsers(dest="review_action", required=True)
+    crystallographic_stage_parser = review_actions.add_parser(
+        "validate-crystallographic-stages",
+        help="bind three owned proceed/hold stages before Phase III A searches",
+    )
+    crystallographic_stage_parser.add_argument(
+        "--stage-index", type=Path, required=True
+    )
+    crystallographic_stage_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    crystallographic_stage_parser.add_argument("--crystals", type=Path, required=True)
+    crystallographic_stage_parser.add_argument("--outdir", type=Path, required=True)
     mr_seed_review_parser = review_actions.add_parser(
         "build-mr-seed",
         help="assemble a bounded first-copy MR review package",
@@ -3100,6 +3113,15 @@ def _run_mr(args: argparse.Namespace) -> int:
 
 
 def _run_review(args: argparse.Namespace) -> int:
+    if args.review_action == "validate-crystallographic-stages":
+        output = publish_unknown_pass1_crystallographic_review_routes(
+            review_stage_index=args.stage_index,
+            execution_identity=args.execution_identity,
+            crystal_manifest=args.crystals,
+            output_directory=args.outdir,
+        )
+        print(f"Validated three crystallographic review stages: {output}")
+        return 0
     if args.review_action == "build-resource-summary":
         resources = build_resource_summary(
             ResourceSummaryRequest(

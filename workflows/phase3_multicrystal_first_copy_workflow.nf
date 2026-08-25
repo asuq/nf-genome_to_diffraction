@@ -5,7 +5,9 @@ include {
 } from '../modules/local/build_diverse_first_copy_funnel'
 include {
     BUILD_PHASE3_MR_SEED_REVIEW;
-    RUN_PHASE3_FIRST_COPY_PHASER
+    RETAIN_PHASE3_CRYSTALLOGRAPHIC_HOLD;
+    RUN_PHASE3_FIRST_COPY_PHASER;
+    VALIDATE_PHASE3_CRYSTALLOGRAPHIC_REVIEWS
 } from '../modules/local/phase3_multicrystal_first_copy_tasks'
 include { CRYSTAL_FANOUT_WORKFLOW } from './crystal_fanout_workflow'
 
@@ -28,6 +30,8 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
     pipeline_config: Path
     maximum_first_copy_jobs: Integer
     phenix_manifest: Path
+    crystallographic_review_stage: Path?
+    execution_identity: Path?
 
     main:
     dispatched = CRYSTAL_FANOUT_WORKFLOW(
@@ -36,8 +40,52 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
         catalogue_bundle,
         provider_bundle
     )
-    crystal_ids = dispatched.map { crystalId, dispatch, catalogue, provider ->
-        crystalId as String
+    if (crystallographic_review_stage != null) {
+        if (execution_identity == null) {
+            error 'Phase III crystallographic reviews lack their execution identity'
+        }
+        review_bundle = VALIDATE_PHASE3_CRYSTALLOGRAPHIC_REVIEWS(
+            crystallographic_review_stage,
+            execution_identity,
+            crystals.first()
+        )
+        review_routes = review_bundle.flatMap { root ->
+            root.list().sort().collect { String name ->
+                Path stage = root.resolve(name)
+                def route = new groovy.json.JsonSlurper().parse(
+                    stage.resolve('crystallographic_review_routing.json').toFile()
+                )
+                tuple(route.crystal_id as String, route.decision as String, stage)
+            }
+        }
+        reviewed_dispatch = dispatched.join(review_routes, by: 0)
+        held = reviewed_dispatch
+            .filter { crystalId, dispatch, catalogue, provider, decision, stage ->
+                decision == 'hold'
+            }
+            .map { crystalId, dispatch, catalogue, provider, decision, stage ->
+                tuple(crystalId, stage)
+            }
+        holds = RETAIN_PHASE3_CRYSTALLOGRAPHIC_HOLD(held)
+        active_dispatch = reviewed_dispatch
+            .filter { crystalId, dispatch, catalogue, provider, decision, stage ->
+                decision == 'proceed'
+            }
+            .map { crystalId, dispatch, catalogue, provider, decision, stage ->
+                tuple(crystalId, dispatch, catalogue, provider, stage)
+            }
+    } else {
+        if (execution_identity != null) {
+            error 'Phase III execution identity lacks reviewed crystallographic stages'
+        }
+        active_dispatch = dispatched.map {
+            crystalId, dispatch, catalogue, provider ->
+            tuple(crystalId, dispatch, catalogue, provider, dispatch)
+        }
+        holds = channel.empty()
+    }
+    crystal_ids = active_dispatch.map {
+        crystalId, dispatch, catalogue, provider, reviewStage -> crystalId as String
     }
     sequence_groups = catalogue_bundle.map { bundle ->
         bundle.resolve('sequence_groups.jsonl')
@@ -60,7 +108,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
         true
     )
     complete_funnels = funnel_items
-        .join(dispatched, by: 0)
+        .join(active_dispatch, by: 0)
         .combine(sequence_groups.first())
         .combine(source_records.first())
         .combine(matthews.first())
@@ -80,6 +128,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
             Path dispatch = crystal[2] as Path
             Path catalogue = crystal[3] as Path
             Path provider = crystal[4] as Path
+            Path reviewStage = crystal[5] as Path
             Path hypotheses = funnel.resolve('hypotheses')
             def records = hypotheses.list().sort().collect { String name ->
                 hypotheses.resolve(name)
@@ -96,6 +145,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
                 preflightRecords,
                 config,
                 phenix,
+                reviewStage,
                 records
             )
         }
@@ -111,6 +161,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
         preflightRecords,
         config,
         phenix,
+        reviewStage,
         records -> !records.isEmpty()
     }
     empty = complete_funnels.filter {
@@ -125,6 +176,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
         preflightRecords,
         config,
         phenix,
+        reviewStage,
         records -> records.isEmpty()
     }
     hypotheses = runnable.flatMap {
@@ -139,6 +191,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
         preflightRecords,
         config,
         phenix,
+        reviewStage,
         records ->
         if (records.size() > maximum_first_copy_jobs) {
             error "Phase III A-search cap changed for ${crystalId}"
@@ -157,6 +210,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
                 preflightRecords,
                 config,
                 phenix,
+                reviewStage,
                 hypothesis
             )
         }
@@ -177,6 +231,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
             preflightRecords,
             configs,
             phenixManifests,
+            reviewStages,
             results ->
             def orderedResults = (results as List<Path>).sort { left, right ->
                 left.name <=> right.name
@@ -191,7 +246,8 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
                 configs[0] as Path,
                 dispatches[0] as Path,
                 catalogues[0] as Path,
-                providers[0] as Path
+                providers[0] as Path,
+                reviewStages[0] as Path
             )
         }
     empty_reviews = empty.map {
@@ -206,6 +262,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
         preflightRecords,
         config,
         phenix,
+        reviewStage,
         records ->
         tuple(
             crystalId,
@@ -217,7 +274,8 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
             config,
             dispatch,
             catalogue,
-            provider
+            provider,
+            reviewStage
         )
     }
     reviews = BUILD_PHASE3_MR_SEED_REVIEW(active_reviews.mix(empty_reviews))
@@ -226,4 +284,5 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
     funnel: Tuple = funnel_items
     results: Tuple = first_copy
     review: Tuple = reviews
+    hold: Tuple = holds
 }

@@ -8,6 +8,13 @@ multi-crystal path only when `analysis_stage=first_copy` and
 `phase3_joint_first_copy=true`; historical single-crystal, heteromer-control,
 approved-seed, and refinement execution remain unchanged.
 
+Reviewed unknown applications additionally provide both
+`phase3_crystallographic_review_stage` and `phase3_execution_identity`.
+Supplying only one, or using either outside explicit Phase III joint-A mode,
+fails before scheduling. These are internal Nextflow inputs for a future fixed,
+reviewed operator profile; no arbitrary HPC path, crystal selector, or user
+approval is exposed by this slice.
+
 ## Inputs and execution boundaries
 
 One previously validated crystal manifest, preflight inventory, catalogue,
@@ -15,6 +22,17 @@ provider registration, predicted and experimental model preparations, Matthews
 records, pipeline configuration, and verified Phenix manifest are shared.
 `CRYSTAL_FANOUT_WORKFLOW` emits one manifest-owned, checksum-verified MTZ item
 per crystal; catalogue and provider preparation remain single shared tasks.
+
+When the reviewed inputs are present,
+`VALIDATE_PHASE3_CRYSTALLOGRAPHIC_REVIEWS` reuses the existing registry-owned
+three-crystal stage index and strict two-file stage validator. It checks the
+exact execution identity, canonical `proceed|hold` decisions, crystal coverage,
+package bindings, and every manifest MTZ checksum before publishing one
+crystal-local decision bundle. `hold` is retained by
+`RETAIN_PHASE3_CRYSTALLOGRAPHIC_HOLD`; it never reaches candidate ranking,
+Phaser, or an invented MR-seed checkpoint. Only `proceed` items enter the
+existing scientific workflow, and their own decision bundle remains in each
+child task/cache identity.
 
 `BUILD_DIVERSE_FIRST_COPY_FUNNEL` emits its crystal identity with the existing
 funnel and publishes Phase III outputs under a crystal-qualified directory.
@@ -43,7 +61,13 @@ and published output must remain unchanged on cached resume. The same gate
 checks that the ordinary `main.nf` application selects the explicit Phase III
 branch instead of the legacy one-crystal selector.
 
+The same gate runs an actual independently staged three-crystal reviewed
+fixture: one validation task, three dispatches, two proceeding funnels/Phaser
+tasks/MR-seed packages, one held output, and no scientific task for the held
+crystal. Every reviewed task and output remains byte-identical on cached resume.
+Focused mutations reject missing crystals, changed frozen MTZ bytes, and
+altered canonical decisions before any reviewed output is published.
+
 This local qualification uses synthetic fixtures only. Fixed unknown profiles,
-staged crystallographic review enforcement, real provider/Phenix execution,
-malformed-sibling isolation, and downstream multi-crystal review continuation
-remain separate Phase III gates.
+real provider/Phenix execution, malformed-sibling isolation, and downstream
+multi-crystal review continuation remain separate Phase III gates.

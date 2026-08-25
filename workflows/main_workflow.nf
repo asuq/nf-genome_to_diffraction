@@ -52,6 +52,8 @@ workflow MAIN_WORKFLOW {
     maximum_pdb_mappings: Integer
     maximum_first_copy_jobs: Integer
     phase3_joint_first_copy: Boolean
+    phase3_crystallographic_review_stage: Path?
+    phase3_execution_identity: Path?
 
     main:
     validation_scope = VALIDATE_TASK05_INPUTS(
@@ -174,7 +176,9 @@ workflow MAIN_WORKFLOW {
                     matthews_jsonl,
                     channel.value(pipeline_config),
                     maximum_first_copy_jobs,
-                    channel.value(phenix_manifest)
+                    channel.value(phenix_manifest),
+                    phase3_crystallographic_review_stage,
+                    phase3_execution_identity
                 )
             } else {
             crystal_dispatch = SELECT_SINGLE_CRYSTAL(crystals, preflight_bundle)

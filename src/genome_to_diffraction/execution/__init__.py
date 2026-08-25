@@ -20,6 +20,7 @@ from genome_to_diffraction.execution.unknown_screen import (
     UnknownPass1SharedPreparationInput,
     build_unknown_pass1_screen_inventory,
     load_unknown_pass1_screen_inventory,
+    publish_unknown_pass1_crystallographic_review_routes,
     stage_unknown_pass1_crystallographic_reviews,
     write_unknown_pass1_screen_inventory,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "complete_provider_empty_graph",
     "load_composition_attempt_inventory",
     "load_unknown_pass1_screen_inventory",
+    "publish_unknown_pass1_crystallographic_review_routes",
     "stage_unknown_pass1_crystallographic_reviews",
     "write_composition_attempt_inventory",
     "write_unknown_pass1_screen_inventory",

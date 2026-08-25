@@ -12,6 +12,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from shutil import copytree
 
+from genome_to_diffraction.checksums import atomic_write_json
+from tests.support.unknown_pass1_fixture import (
+    PUBLIC_STUB_CRYSTAL_IDS,
+    materialise_unknown_pass1_public_fixture,
+)
+
 REPOSITORY = Path(__file__).resolve().parents[2]
 FIXTURE = REPOSITORY / "tests/fixtures/stubs/multi_crystal_fanout"
 CRYSTAL_IDS = (
@@ -114,6 +120,85 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
         raise RuntimeError("Phase III multi-crystal resume changed task identities")
     if _output_digests(output) != before:
         raise RuntimeError("Phase III multi-crystal resume changed published outputs")
+
+    review_root = root / "reviewed-inputs"
+    review_root.mkdir()
+    reviewed = materialise_unknown_pass1_public_fixture(review_root)
+    reviewed_manifest = reviewed.input_root / "reviewed_crystals.json"
+    atomic_write_json(
+        reviewed_manifest,
+        {
+            "schema_version": "1.0",
+            "crystals": [
+                {
+                    "crystal_id": crystal.crystal_id,
+                    "mtz": str(crystal.mtz),
+                    "catalogue_id": "public_stub_catalogue",
+                    "sds_page_mass_kda": [],
+                    "allow_remote_sequence_submission": False,
+                }
+                for crystal in reviewed.crystals
+            ],
+        },
+    )
+    reviewed_output = root / "reviewed-first-copy-results"
+    reviewed_command = list(command)
+    reviewed_command[reviewed_command.index("--crystals") + 1] = str(reviewed_manifest)
+    reviewed_command[reviewed_command.index("--outdir") + 1] = str(reviewed_output)
+    reviewed_command[reviewed_command.index("--cache_root") + 1] = str(
+        root / "reviewed-first-copy-cache"
+    )
+    reviewed_command.extend(
+        [
+            "--phase3_crystallographic_review_stage",
+            str(reviewed.review_stage),
+            "--phase3_execution_identity",
+            str(reviewed.execution_identity),
+        ]
+    )
+    _run(reviewed_command, environment)
+    reviewed_trace = reviewed_output / "pipeline_info/trace.tsv"
+    reviewed_rows = _read_trace(reviewed_trace)
+    expected_reviewed = Counter(
+        {
+            "PREPARE_PHASE3_SHARED_CATALOGUE_FIXTURE": 1,
+            "PREPARE_PHASE3_SHARED_PROVIDER_FIXTURE": 1,
+            "DISPATCH_CRYSTAL_ITEM": 3,
+            "VALIDATE_PHASE3_CRYSTALLOGRAPHIC_REVIEWS": 1,
+            "RETAIN_PHASE3_CRYSTALLOGRAPHIC_HOLD": 1,
+            "BUILD_DIVERSE_FIRST_COPY_FUNNEL": 2,
+            "RUN_PHASE3_FIRST_COPY_PHASER": 2,
+            "BUILD_PHASE3_MR_SEED_REVIEW": 2,
+        }
+    )
+    if Counter(_process_name(row) for row in reviewed_rows) != expected_reviewed:
+        raise RuntimeError(
+            "reviewed crystal application ignored proceed/hold decisions"
+        )
+    held_id = PUBLIC_STUB_CRYSTAL_IDS[1]
+    held_route = reviewed_output / f"phase3_crystallographic_hold_{held_id}"
+    if not (held_route / "crystallographic_review_routing.json").is_file():
+        raise RuntimeError("held crystal lost its independently retained review")
+    if (reviewed_output / f"phase3_mr_seed_review_{held_id}").exists():
+        raise RuntimeError("held crystal unexpectedly reached molecular replacement")
+    for crystal_id in (PUBLIC_STUB_CRYSTAL_IDS[0], PUBLIC_STUB_CRYSTAL_IDS[2]):
+        if not (
+            reviewed_output
+            / f"phase3_mr_seed_review_{crystal_id}"
+            / "mr_seed_review_manifest.json"
+        ).is_file():
+            raise RuntimeError(f"proceeding crystal lost its own review: {crystal_id}")
+    reviewed_before = _output_digests(reviewed_output)
+    _run([*reviewed_command, "-resume"], environment)
+    reviewed_resumed = _read_trace(reviewed_trace)
+    if (
+        Counter(_process_name(row) for row in reviewed_resumed) != expected_reviewed
+        or {row["status"] for row in reviewed_resumed} != {"CACHED"}
+        or {row["hash"] for row in reviewed_resumed}
+        != {row["hash"] for row in reviewed_rows}
+        or _output_digests(reviewed_output) != reviewed_before
+    ):
+        raise RuntimeError("reviewed proceed/hold application changed on cached resume")
 
     application_output = root / "main-application-results"
     _run(

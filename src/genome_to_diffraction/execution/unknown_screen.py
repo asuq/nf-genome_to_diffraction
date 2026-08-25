@@ -50,7 +50,12 @@ from genome_to_diffraction.review.phase3_stage import (
     PhaseIIIReviewStageRequest,
     stage_phase3_review_decisions,
 )
-from genome_to_diffraction.schemas.io import ContractLoadError, parse_json_document
+from genome_to_diffraction.schemas.io import (
+    ContractLoadError,
+    load_contract,
+    parse_json_document,
+)
+from genome_to_diffraction.schemas.manifests import CrystalManifest
 from genome_to_diffraction.schemas.v2 import (
     PhaseIIIExecutionIdentity,
     PhaseIIIReviewCheckpoint,
@@ -442,6 +447,104 @@ def stage_unknown_pass1_crystallographic_reviews(
     )
 
 
+def publish_unknown_pass1_crystallographic_review_routes(
+    *,
+    review_stage_index: Path,
+    execution_identity: Path,
+    crystal_manifest: Path,
+    output_directory: Path,
+) -> Path:
+    """Revalidate owned review decisions before independent crystal scheduling."""
+
+    index, decisions = _load_review_stages(review_stage_index)
+    execution = _load_execution_identity(execution_identity)
+    if index.execution_identity_id != execution.execution_identity_id:
+        raise UnknownPass1ScreenError(
+            "crystallographic stages belong to another execution identity"
+        )
+    manifest_path = _regular_file(crystal_manifest, label="crystal manifest")
+    manifest = load_contract(manifest_path, "crystal-manifest", progress=False)
+    if not isinstance(manifest, CrystalManifest):
+        raise UnknownPass1ScreenError("crystal manifest has an unexpected contract")
+    crystals = {item.crystal_id: item for item in manifest.crystals}
+    if len(crystals) != 3 or set(crystals) != {
+        item.crystal_id for item in index.review_bindings
+    }:
+        raise UnknownPass1ScreenError(
+            "crystallographic stages must match exactly three manifest crystals"
+        )
+    artifacts = {
+        item.owner_id: item
+        for item in execution.crystal_artifacts
+        if item.role == "mtz"
+    }
+    if set(artifacts) != set(crystals):
+        raise UnknownPass1ScreenError(
+            "execution identity must bind exactly the reviewed crystal MTZs"
+        )
+
+    output = _new_review_stage_output(output_directory)
+    temporary = Path(tempfile.mkdtemp(prefix=f".{output.name}.", dir=output.parent))
+    published = False
+    try:
+        for binding, decision_file in zip(
+            index.review_bindings, decisions, strict=True
+        ):
+            crystal = crystals[binding.crystal_id]
+            source = Path(crystal.mtz)
+            if not source.is_absolute():
+                source = manifest_path.parent / source
+            mtz = _regular_file(source, label=f"{binding.crystal_id} MTZ")
+            artifact = artifacts[binding.crystal_id]
+            if (
+                sha256_file(mtz, progress=False) != artifact.sha256
+                or mtz.stat().st_size != artifact.size_bytes
+            ):
+                raise UnknownPass1ScreenError(
+                    f"{binding.crystal_id} MTZ differs from its execution identity"
+                )
+            destination = temporary / binding.crystal_id
+            destination.mkdir()
+            stage_source = (
+                review_stage_index.parent / _STAGE_STORE_NAME / binding.crystal_id
+            )
+            stage_copy = destination / "crystallographic_review_stage"
+            shutil.copytree(stage_source, stage_copy)
+            _, copied_decisions, copied_sha256 = _load_review_stage(stage_copy)
+            if copied_sha256 != binding.stage_manifest_sha256:
+                raise UnknownPass1ScreenError(
+                    "crystallographic stage changed during reviewed routing"
+                )
+            decision = copied_decisions.decisions[0]
+            if (
+                decision.crystal_id != binding.crystal_id
+                or copied_decisions != decision_file
+            ):
+                raise UnknownPass1ScreenError(
+                    "crystallographic decision changed during reviewed routing"
+                )
+            atomic_write_json(
+                destination / "crystallographic_review_routing.json",
+                {
+                    "schema_version": "2.0",
+                    "crystal_id": binding.crystal_id,
+                    "decision": decision.decision.value,
+                    "review_binding_id": binding.review_binding_id,
+                    "review_item_id": decision.item_id,
+                    "review_package_id": binding.review_package_id,
+                    "stage_index_id": index.stage_index_id,
+                    "execution_identity_id": execution.execution_identity_id,
+                    "owned_parent_run_id": index.owned_parent_run_id,
+                },
+            )
+        os.replace(temporary, output)
+        published = True
+    finally:
+        if not published and temporary.exists():
+            shutil.rmtree(temporary)
+    return output
+
+
 def _shared_preparation(
     execution_identity_id: str,
     request: UnknownPass1SharedPreparationInput,
@@ -764,6 +867,7 @@ __all__ = [
     "UnknownPass1SharedPreparationInput",
     "build_unknown_pass1_screen_inventory",
     "load_unknown_pass1_screen_inventory",
+    "publish_unknown_pass1_crystallographic_review_routes",
     "stage_unknown_pass1_crystallographic_reviews",
     "write_unknown_pass1_screen_inventory",
 ]
