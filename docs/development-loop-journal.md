@@ -13133,3 +13133,33 @@ with a collapsed combined parent or a guessed command.
   retained evidence while directing new scientific claims exclusively to the
   owned four-checkpoint Phase III route.
 - No existing scientific run or installed HPC dispatcher was modified.
+
+## 2026-08-25 - Component identities require independently owned human evidence
+
+- `FCB-P0-07` first reproduced the public wrong-B counterexample: a packed
+  component with TFZ `5.1` and incremental LLG `327.049` accepted both a
+  self-asserted exact sequence and a self-asserted sequence-equivalence group.
+  A separate complete-composition assessment accepted only a plausible opaque
+  decision digest without parsing any actual state or human decision.
+- Component placements now remain `unresolved` until a real owned schema-v2
+  sequence review package and actual decision JSON are independently parsed,
+  checksum-verified, and matched to their exact parent run, execution, crystal,
+  component, source model, requested copies, reviewed state, refinement,
+  complete sequence-map result, and physically readable CCP4 density map. The
+  reviewed map's source-record multiplicity determines exact-sequence versus
+  equivalence-group support; scores and packing never determine identity.
+- Composition support additionally requires a distinct owned composition
+  package and independent human approval covering the ordered component
+  identities, models, groups, copies, observed combined coordinates, reviewed
+  map, and completed refinement. A claimed composition independently parses
+  and checksums its complete actual state; the final approval must be the same
+  decision retained by that state. Retained partial/rejected decisions cannot
+  establish a complete claim.
+- Focused regressions preserve genuine packed search states without invented
+  identity, reject both wrong-B promotions and fabricated composition digests,
+  distinguish exact and equivalent groups, reject changed owner/execution/
+  crystal/state, and reject a checksum-matched non-CCP4 placeholder. The
+  canonical deterministic planning/fan-out fixtures were corrected to remain
+  `unresolved` until human review rather than asserting unsupported identity.
+- No existing scheduler run, installed dispatcher, scientific threshold, or
+  historical v1 result was changed.

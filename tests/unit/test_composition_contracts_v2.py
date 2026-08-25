@@ -56,9 +56,7 @@ def _placement(
     component: ComponentSpec,
     *,
     packed: bool = True,
-    identity_support: ComponentIdentitySupport = (
-        ComponentIdentitySupport.SEQUENCE_EQUIVALENCE_GROUP
-    ),
+    identity_support: ComponentIdentitySupport = ComponentIdentitySupport.UNRESOLVED,
 ) -> ComponentPlacement:
     return ComponentPlacement.from_content(
         component_spec_id=component.component_spec_id,
@@ -207,6 +205,36 @@ def test_component_placement_separates_packing_from_identity_support() -> None:
             packing_passed=True,
             coordinate_sha256=HASHES[2],
             identity_support=ComponentIdentitySupport.UNRESOLVED,
+        )
+
+
+@pytest.mark.parametrize(
+    "claimed_support",
+    (
+        ComponentIdentitySupport.SEQUENCE_EQUIVALENCE_GROUP,
+        ComponentIdentitySupport.EXACT_SEQUENCE,
+    ),
+)
+def test_wrong_b_packing_cannot_assert_unreviewed_sequence_identity(
+    claimed_support: ComponentIdentitySupport,
+) -> None:
+    component = _component("B", HASHES[1])
+
+    with pytest.raises(ValidationError, match="owned map-supported sequence review"):
+        ComponentPlacement.from_content(
+            component_spec_id=component.component_spec_id,
+            component_label=component.label,
+            sequence_group_id=component.sequence_group_id,
+            model_id=component.model_id,
+            model_sha256=component.model_sha256,
+            requested_copy_count=component.requested_copy_count,
+            observed_copy_count=component.requested_copy_count,
+            execution_status=ExecutionStatus.COMPLETED_HIT,
+            component_tfz=5.1,
+            incremental_llg=327.049,
+            packing_passed=True,
+            coordinate_sha256=HASHES[9],
+            identity_support=claimed_support,
         )
 
 
@@ -569,33 +597,52 @@ def test_assessment_requires_supported_status_and_final_review_for_claim() -> No
         claim_boundary=(CompositionClaimBoundary.COMPLETE_COMPOSITION_REVIEW_ELIGIBLE),
         complete_composition_claim_eligible=True,
     )
-    assessment = CompositionAssessment.from_content(
-        crystal_id="crystal_1",
-        state_id=decision.state_id,
-        scope_decision=decision,
-        execution_status=ExecutionStatus.COMPLETED_SUCCESS,
-        state_support_state=CompositionSupportState.COMPOSITION_SUPPORTED,
-        scientific_status=CompositionScientificStatus.COMPOSITION_SUPPORTED,
-        complete_composition_claim_eligible=True,
-        complete_composition_claimed=True,
-        final_review_decision_sha256=HASHES[4],
-        evidence_sha256={"composition_state": HASHES[5]},
-    )
-    assert assessment.complete_composition_claimed is True
-    assert (
-        CompositionAssessment.model_validate_json(assessment.model_dump_json())
-        == assessment
-    )
-
     with pytest.raises(ValidationError, match="final review"):
         CompositionAssessment.from_content(
-            **{
-                **assessment.model_dump(
-                    mode="python",
-                    exclude={"assessment_id", "final_review_decision_sha256"},
-                ),
-                "final_review_decision_sha256": None,
-            }
+            crystal_id="crystal_1",
+            state_id=decision.state_id,
+            scope_decision=decision,
+            execution_status=ExecutionStatus.COMPLETED_SUCCESS,
+            state_support_state=CompositionSupportState.COMPOSITION_SUPPORTED,
+            scientific_status=CompositionScientificStatus.COMPOSITION_SUPPORTED,
+            complete_composition_claim_eligible=True,
+            complete_composition_claimed=True,
+            final_review_decision_sha256=None,
+            evidence_sha256={"composition_state": HASHES[5]},
+        )
+
+
+def test_composition_claim_rejects_opaque_review_hash_without_owned_state() -> None:
+    decision = ComponentScopeDecision.from_content(
+        crystal_id="crystal_1",
+        state_id=f"compstate_{HASHES[0]}",
+        search_depth_reached=2,
+        maximum_search_depth=6,
+        validated_component_depth=3,
+        total_additional_attempt_budget=100,
+        total_additional_attempts_used=12,
+        remaining_physical_hypothesis_count=0,
+        retained_packed_state_count=1,
+        state_support_state=CompositionSupportState.COMPOSITION_SUPPORTED,
+        stop_reason=CompositionStopReason.NO_PHYSICALLY_POSSIBLE_REMAINING_COMPONENT,
+        residual_content_state=ResidualContentState.NONE_DETECTED,
+        scope_status=ComponentScopeStatus.WITHIN_VALIDATED_COMPONENT_DEPTH,
+        claim_boundary=CompositionClaimBoundary.COMPLETE_COMPOSITION_REVIEW_ELIGIBLE,
+        complete_composition_claim_eligible=True,
+    )
+
+    with pytest.raises(ValidationError, match="owned composition state and review"):
+        CompositionAssessment.from_content(
+            crystal_id="crystal_1",
+            state_id=decision.state_id,
+            scope_decision=decision,
+            execution_status=ExecutionStatus.COMPLETED_SUCCESS,
+            state_support_state=CompositionSupportState.COMPOSITION_SUPPORTED,
+            scientific_status=CompositionScientificStatus.COMPOSITION_SUPPORTED,
+            complete_composition_claim_eligible=True,
+            complete_composition_claimed=True,
+            final_review_decision_sha256=HASHES[4],
+            evidence_sha256={"composition_state": HASHES[5]},
         )
 
 

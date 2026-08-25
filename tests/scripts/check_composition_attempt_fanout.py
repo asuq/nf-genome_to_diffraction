@@ -133,7 +133,7 @@ def _parent(rank: int) -> ParentExpansionInput:
         incremental_llg=100.0 + rank,
         packing_passed=True,
         coordinate_sha256=_sha(900 + rank),
-        identity_support=ComponentIdentitySupport.SEQUENCE_EQUIVALENCE_GROUP,
+        identity_support=ComponentIdentitySupport.UNRESOLVED,
     )
     state = CompositionState.from_content(
         crystal_id=CRYSTAL_ID,

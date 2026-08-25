@@ -1,5 +1,12 @@
 """File-based human review checkpoints."""
 
+from genome_to_diffraction.review.component_identity import (
+    ComponentIdentityReviewError,
+    ComponentIdentityReviewRequest,
+    CompositionDecisionReviewRequest,
+    build_component_sequence_review_evidence,
+    build_composition_decision_review_evidence,
+)
 from genome_to_diffraction.review.historical_checkpoint import (
     HistoricalCheckpointError,
     HistoricalCheckpointManifest,
@@ -57,6 +64,9 @@ from genome_to_diffraction.review.sequence_checkpoint import (
 )
 
 __all__ = [
+    "ComponentIdentityReviewError",
+    "ComponentIdentityReviewRequest",
+    "CompositionDecisionReviewRequest",
     "HistoricalCheckpointError",
     "HistoricalCheckpointManifest",
     "LiveSequenceCheckpointRequest",
@@ -83,6 +93,8 @@ __all__ = [
     "SequenceCheckpointError",
     "SequenceCheckpointOutput",
     "SequenceCheckpointRequest",
+    "build_component_sequence_review_evidence",
+    "build_composition_decision_review_evidence",
     "build_live_sequence_checkpoint",
     "build_mr_seed_review",
     "build_owned_phase3_a_seed_review_package",

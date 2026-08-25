@@ -20,15 +20,17 @@ not widened or reinterpreted here; callers opt into these records through the
 ``genome_to_diffraction.schemas.v2`` namespace.
 """
 
+import hashlib
 from enum import StrEnum
 from typing import Annotated, Any, ClassVar, Literal, Self
 
-from pydantic import Field, ValidationInfo, model_validator
+from pydantic import Field, ValidationError, ValidationInfo, model_validator
 
-from genome_to_diffraction.ids import content_id
+from genome_to_diffraction.ids import canonical_digest, content_id
 from genome_to_diffraction.schemas.base import (
     ContractModel,
     NonEmptyString,
+    OperatorIdentifier,
     PositiveFloat,
     PositiveInt,
     Sha256Hex,
@@ -279,6 +281,257 @@ class ComponentSpec(_ContentAddressedContract):
         return self
 
 
+class OwnedComponentReviewEvidence(ContractModel):
+    """Actual owned review-package and human-decision bytes, not opaque hashes."""
+
+    checkpoint: Literal["sequence", "composition"]
+    owned_parent_run_id: OperatorIdentifier
+    execution_identity_id: Annotated[
+        str,
+        Field(pattern=r"^phase3exec_[a-f0-9]{64}$"),
+    ]
+    crystal_id: OperatorIdentifier
+    reviewed_state_id: OperatorIdentifier
+    reviewed_item_id: OperatorIdentifier
+    review_package_json: NonEmptyString
+    review_package_manifest_sha256: Sha256Hex
+    decision_file_json: NonEmptyString
+    decision_file_sha256: Sha256Hex
+
+    @model_validator(mode="after")
+    def _validate_owned_review_decision(self) -> Self:
+        from genome_to_diffraction.schemas.v2.review import (
+            PhaseIIIReviewDecisionFile,
+            PhaseIIIReviewDecisionValue,
+            PhaseIIIReviewPackageManifest,
+        )
+
+        if (
+            hashlib.sha256(self.review_package_json.encode("utf-8")).hexdigest()
+            != self.review_package_manifest_sha256
+        ):
+            raise ValueError("owned review-package bytes differ from their checksum")
+        if (
+            hashlib.sha256(self.decision_file_json.encode("utf-8")).hexdigest()
+            != self.decision_file_sha256
+        ):
+            raise ValueError("owned review-decision bytes differ from their checksum")
+        try:
+            package = PhaseIIIReviewPackageManifest.model_validate_json(
+                self.review_package_json
+            )
+            decisions = PhaseIIIReviewDecisionFile.model_validate_json(
+                self.decision_file_json
+            )
+        except (ValidationError, ValueError) as error:
+            raise ValueError("owned component review or decision is invalid") from error
+
+        if (
+            package.checkpoint.value != self.checkpoint
+            or package.parent_profile != "unknown-single-component"
+            or package.owned_parent_run_id != self.owned_parent_run_id
+            or package.execution_identity_id != self.execution_identity_id
+            or package.crystal_id != self.crystal_id
+            or decisions.checkpoint is not package.checkpoint
+            or decisions.owned_parent_run_id != package.owned_parent_run_id
+            or decisions.review_package_id != package.review_package_id
+            or decisions.review_package_manifest_sha256
+            != self.review_package_manifest_sha256
+        ):
+            raise ValueError("owned component review package or decision differs")
+
+        targets = tuple(
+            target
+            for target in package.permitted_targets
+            if target.crystal_id == self.crystal_id
+            and target.item_id == self.reviewed_item_id
+        )
+        approvals = tuple(
+            decision
+            for decision in decisions.decisions
+            if decision.crystal_id == self.crystal_id
+            and decision.item_id == self.reviewed_item_id
+        )
+        if (
+            len(targets) != 1
+            or len(approvals) != 1
+            or approvals[0].decision is not PhaseIIIReviewDecisionValue.APPROVE
+        ):
+            raise ValueError("owned component review lacks its exact human approval")
+        return self
+
+    def package_artifact_digests(self) -> frozenset[str]:
+        """Return the independently typed package's retained evidence inventory."""
+
+        from genome_to_diffraction.schemas.v2.review import (
+            PhaseIIIReviewPackageManifest,
+        )
+
+        package = PhaseIIIReviewPackageManifest.model_validate_json(
+            self.review_package_json
+        )
+        return frozenset(item.sha256 for item in package.evidence_inventory)
+
+
+class ComponentSequenceReviewEvidence(OwnedComponentReviewEvidence):
+    """One human-approved component identity backed by an actual reviewed map."""
+
+    checkpoint: Literal["sequence"] = "sequence"
+    component_spec_id: ComponentSpecIdentifier
+    component_label: ComponentLabel
+    sequence_group_id: SequenceGroupIdentifier
+    model_id: NonEmptyString
+    model_sha256: Sha256Hex
+    requested_copy_count: PositiveInt
+    sequence_map_result_json: NonEmptyString
+    sequence_map_result_sha256: Sha256Hex
+    refinement_result_json: NonEmptyString
+    refinement_result_sha256: Sha256Hex
+    review_map_sha256: Sha256Hex
+
+    @model_validator(mode="after")
+    def _validate_map_supported_sequence_review(self) -> Self:
+        from genome_to_diffraction.schemas.results import (
+            BriefRefinementResult,
+            SequenceMapResult,
+        )
+
+        if (
+            hashlib.sha256(self.sequence_map_result_json.encode("utf-8")).hexdigest()
+            != self.sequence_map_result_sha256
+            or hashlib.sha256(self.refinement_result_json.encode("utf-8")).hexdigest()
+            != self.refinement_result_sha256
+        ):
+            raise ValueError("owned component sequence-map evidence checksum differs")
+        try:
+            sequence = SequenceMapResult.model_validate_json(
+                self.sequence_map_result_json
+            )
+            refinement = BriefRefinementResult.model_validate_json(
+                self.refinement_result_json
+            )
+        except (ValidationError, ValueError) as error:
+            raise ValueError(
+                "owned component sequence-map evidence is invalid"
+            ) from error
+
+        matching = tuple(
+            candidate
+            for candidate in sequence.candidates
+            if candidate.sequence_group_id == self.sequence_group_id
+            and candidate.refinement_id == refinement.refinement_id
+        )
+        if (
+            self.reviewed_item_id != self.sequence_group_id
+            or sequence.execution_status is not ExecutionStatus.COMPLETED_HIT
+            or refinement.execution_status
+            not in {
+                ExecutionStatus.COMPLETED_SUCCESS,
+                ExecutionStatus.COMPLETED_WARNING,
+            }
+            or sequence.refinement_id != refinement.refinement_id
+            or sequence.seed_solution_id != self.reviewed_state_id
+            or refinement.seed_solution_id != self.reviewed_state_id
+            or refinement.sequence_group_id != self.sequence_group_id
+            or refinement.input_copy_count != self.requested_copy_count
+            or refinement.map_sha256 != self.review_map_sha256
+            or len(matching) != 1
+        ):
+            raise ValueError("owned component map, state, copies, or sequence differs")
+        if not {
+            self.model_sha256,
+            self.sequence_map_result_sha256,
+            self.refinement_result_sha256,
+            self.review_map_sha256,
+        }.issubset(self.package_artifact_digests()):
+            raise ValueError("owned sequence review lacks its complete map evidence")
+        return self
+
+    @property
+    def derived_identity_support(self) -> ComponentIdentitySupport:
+        """Distinguish a unique reviewed locus from an equivalent-sequence group."""
+
+        from genome_to_diffraction.schemas.results import SequenceMapResult
+
+        sequence = SequenceMapResult.model_validate_json(self.sequence_map_result_json)
+        matching = next(
+            item
+            for item in sequence.candidates
+            if item.sequence_group_id == self.sequence_group_id
+        )
+        return (
+            ComponentIdentitySupport.EXACT_SEQUENCE
+            if len(matching.source_record_ids) == 1
+            else ComponentIdentitySupport.SEQUENCE_EQUIVALENCE_GROUP
+        )
+
+
+class CompositionDecisionReviewEvidence(OwnedComponentReviewEvidence):
+    """One separately human-approved, map-supported complete composition."""
+
+    checkpoint: Literal["composition"] = "composition"
+    component_spec_ids: tuple[ComponentSpecIdentifier, ...] = Field(min_length=1)
+    component_labels: tuple[ComponentLabel, ...] = Field(min_length=1)
+    sequence_group_ids: tuple[SequenceGroupIdentifier, ...] = Field(min_length=1)
+    model_sha256s: tuple[Sha256Hex, ...] = Field(min_length=1)
+    requested_copy_counts: tuple[PositiveInt, ...] = Field(min_length=1)
+    combined_coordinate_sha256: Sha256Hex
+    refinement_result_json: NonEmptyString
+    refinement_result_sha256: Sha256Hex
+    review_map_sha256: Sha256Hex
+
+    @model_validator(mode="after")
+    def _validate_composition_approval(self) -> Self:
+        from genome_to_diffraction.schemas.results import BriefRefinementResult
+
+        component_count = len(self.component_spec_ids)
+        if any(
+            len(values) != component_count
+            for values in (
+                self.component_labels,
+                self.sequence_group_ids,
+                self.model_sha256s,
+                self.requested_copy_counts,
+            )
+        ):
+            raise ValueError("composition approval component inventory is incomplete")
+        if (
+            len(set(self.component_spec_ids)) != component_count
+            or len(set(self.sequence_group_ids)) != component_count
+        ):
+            raise ValueError("composition approval duplicates a component identity")
+        if (
+            hashlib.sha256(self.refinement_result_json.encode("utf-8")).hexdigest()
+            != self.refinement_result_sha256
+        ):
+            raise ValueError("composition refinement evidence checksum differs")
+        try:
+            refinement = BriefRefinementResult.model_validate_json(
+                self.refinement_result_json
+            )
+        except (ValidationError, ValueError) as error:
+            raise ValueError("composition refinement evidence is invalid") from error
+        if (
+            self.reviewed_item_id != self.reviewed_state_id
+            or refinement.seed_solution_id != self.reviewed_state_id
+            or refinement.execution_status
+            not in {
+                ExecutionStatus.COMPLETED_SUCCESS,
+                ExecutionStatus.COMPLETED_WARNING,
+            }
+            or refinement.map_sha256 != self.review_map_sha256
+        ):
+            raise ValueError("composition review state, map, or refinement differs")
+        if not {
+            self.combined_coordinate_sha256,
+            self.refinement_result_sha256,
+            self.review_map_sha256,
+            *self.model_sha256s,
+        }.issubset(self.package_artifact_digests()):
+            raise ValueError("composition review lacks complete component evidence")
+        return self
+
+
 class ComponentPlacement(_ContentAddressedContract):
     """Terminal evidence for placing one component into a composition state."""
 
@@ -300,6 +553,7 @@ class ComponentPlacement(_ContentAddressedContract):
     packing_passed: bool
     coordinate_sha256: Sha256Hex | None = None
     identity_support: ComponentIdentitySupport
+    sequence_review_evidence: ComponentSequenceReviewEvidence | None = None
     warnings: tuple[str, ...] = ()
 
     @model_validator(mode="after")
@@ -344,6 +598,27 @@ class ComponentPlacement(_ContentAddressedContract):
             and self.execution_status is not ExecutionStatus.COMPLETED_HIT
         ):
             raise ValueError("identity support requires a completed placement")
+        if self.identity_support is ComponentIdentitySupport.UNRESOLVED:
+            if self.sequence_review_evidence is not None:
+                raise ValueError("unresolved placement cannot retain sequence approval")
+        else:
+            review = self.sequence_review_evidence
+            if review is None:
+                raise ValueError(
+                    "identity support requires owned map-supported sequence review"
+                )
+            if (
+                review.component_spec_id != self.component_spec_id
+                or review.component_label != self.component_label
+                or review.sequence_group_id != self.sequence_group_id
+                or review.model_id != self.model_id
+                or review.model_sha256 != self.model_sha256
+                or review.requested_copy_count != self.requested_copy_count
+                or review.derived_identity_support is not self.identity_support
+            ):
+                raise ValueError(
+                    "owned component sequence approval differs from placement"
+                )
         return self
 
 
@@ -380,6 +655,7 @@ class CompositionState(_ContentAddressedContract):
     map_evidence_sha256: Sha256Hex | None = None
     review_evidence_sha256: Sha256Hex | None = None
     composition_decision_sha256: Sha256Hex | None = None
+    composition_review_evidence: CompositionDecisionReviewEvidence | None = None
     physical_mass_lower_da: PositiveFloat
     physical_mass_upper_da: PositiveFloat
     support_state: CompositionSupportState
@@ -491,13 +767,80 @@ class CompositionState(_ContentAddressedContract):
             or not identities_supported
         ):
             raise ValueError("review-supported state lacks map, review, or identity")
+        if review_or_higher:
+            reviews = tuple(
+                placement.sequence_review_evidence for placement in self.placements
+            )
+            if any(review is None for review in reviews):
+                raise ValueError("review-supported state lacks owned sequence reviews")
+            approved = tuple(review for review in reviews if review is not None)
+            if any(
+                review.crystal_id != self.crystal_id
+                or review.review_map_sha256 != self.map_evidence_sha256
+                for review in approved
+            ):
+                raise ValueError("component review differs from its composition state")
+            package_digests = tuple(
+                sorted({review.review_package_manifest_sha256 for review in approved})
+            )
+            expected_review_digest = (
+                package_digests[0]
+                if len(package_digests) == 1
+                else canonical_digest(package_digests)
+            )
+            if self.review_evidence_sha256 != expected_review_digest:
+                raise ValueError("component review-package evidence differs")
+            owners = {
+                (
+                    review.owned_parent_run_id,
+                    review.execution_identity_id,
+                    review.reviewed_state_id,
+                )
+                for review in approved
+            }
+            if len(owners) != 1:
+                raise ValueError("component sequence reviews have inconsistent owners")
 
         if self.support_state is CompositionSupportState.COMPOSITION_SUPPORTED:
-            if self.composition_decision_sha256 is None:
+            composition = self.composition_review_evidence
+            if self.composition_decision_sha256 is None or composition is None:
                 raise ValueError(
-                    "composition-supported state lacks its review decision"
+                    "composition-supported state lacks its owned review decision"
                 )
-        elif self.composition_decision_sha256 is not None:
+            approved = tuple(
+                review
+                for placement in self.placements
+                if (review := placement.sequence_review_evidence) is not None
+            )
+            if (
+                composition.crystal_id != self.crystal_id
+                or composition.component_spec_ids != component_ids
+                or composition.component_labels != labels
+                or composition.sequence_group_ids != sequence_groups
+                or composition.model_sha256s
+                != tuple(component.model_sha256 for component in self.components)
+                or composition.requested_copy_counts
+                != tuple(
+                    component.requested_copy_count for component in self.components
+                )
+                or composition.combined_coordinate_sha256
+                != self.combined_coordinate_sha256
+                or composition.refinement_result_sha256
+                != self.refinement_evidence_sha256
+                or composition.review_map_sha256 != self.map_evidence_sha256
+                or composition.decision_file_sha256 != self.composition_decision_sha256
+                or any(
+                    composition.owned_parent_run_id != review.owned_parent_run_id
+                    or composition.execution_identity_id != review.execution_identity_id
+                    or composition.reviewed_state_id != review.reviewed_state_id
+                    for review in approved
+                )
+            ):
+                raise ValueError("composition review differs from approved components")
+        elif (
+            self.composition_decision_sha256 is not None
+            or self.composition_review_evidence is not None
+        ):
             raise ValueError(
                 "only a composition-supported state may bind a composition decision"
             )
@@ -1104,6 +1447,7 @@ class CompositionAssessment(_ContentAddressedContract):
     complete_composition_claim_eligible: bool
     complete_composition_claimed: bool
     final_review_decision_sha256: Sha256Hex | None = None
+    composition_state_json: NonEmptyString | None = None
     evidence_sha256: dict[NonEmptyString, Sha256Hex] = Field(min_length=1)
     warnings: tuple[str, ...] = ()
 
@@ -1162,4 +1506,41 @@ class CompositionAssessment(_ContentAddressedContract):
             raise ValueError(
                 "complete composition claim requires eligibility and final review"
             )
+        if (
+            expected_status
+            in {
+                CompositionScientificStatus.COMPOSITION_SUPPORTED,
+                CompositionScientificStatus.CREDIBLE_PARTIAL_OR_RESIDUAL,
+            }
+            or self.complete_composition_claimed
+        ):
+            if self.composition_state_json is None:
+                raise ValueError(
+                    "composition claim requires owned composition state and review"
+                )
+            state_digest = hashlib.sha256(
+                self.composition_state_json.encode("utf-8")
+            ).hexdigest()
+            if self.evidence_sha256.get("composition_state") != state_digest:
+                raise ValueError("owned composition state checksum differs")
+            try:
+                state = CompositionState.model_validate_json(
+                    self.composition_state_json
+                )
+            except (ValidationError, ValueError) as error:
+                raise ValueError("owned composition state is invalid") from error
+            if (
+                state.state_id != self.state_id
+                or state.crystal_id != self.crystal_id
+                or state.support_state is not self.state_support_state
+            ):
+                raise ValueError("owned composition state differs from assessment")
+            if self.complete_composition_claimed and (
+                state.composition_review_evidence is None
+                or state.composition_review_evidence.decision_file_sha256
+                != self.final_review_decision_sha256
+            ):
+                raise ValueError(
+                    "composition claim differs from its owned final review"
+                )
         return self

@@ -176,7 +176,7 @@ def _parent(
         incremental_llg=120.0,
         packing_passed=True,
         coordinate_sha256=_sha(700),
-        identity_support=ComponentIdentitySupport.SEQUENCE_EQUIVALENCE_GROUP,
+        identity_support=ComponentIdentitySupport.UNRESOLVED,
     )
     state = CompositionState.from_content(
         crystal_id="crystal_registry_planner",

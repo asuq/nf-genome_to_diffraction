@@ -304,7 +304,7 @@ def _parent(
         incremental_llg=120.0,
         packing_passed=True,
         coordinate_sha256=_sha(300 + rank),
-        identity_support=ComponentIdentitySupport.SEQUENCE_EQUIVALENCE_GROUP,
+        identity_support=ComponentIdentitySupport.UNRESOLVED,
     )
     mass = group.molecular_mass_da
     assert mass is not None

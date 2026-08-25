@@ -499,15 +499,18 @@ def test_expansion_scores_reject_cross_bound_or_promoted_candidate_evidence(
         changes = {"result_record_sha256": _sha(999)}
         error = "result record checksum"
     else:
-        claimed_placement = ComponentPlacement.from_content(
-            **_replace_content(
-                evidence.placement,
-                "placement_id",
-                identity_support=ComponentIdentitySupport.EXACT_SEQUENCE,
+        with pytest.raises(
+            ValidationError,
+            match="owned map-supported sequence review",
+        ):
+            ComponentPlacement.from_content(
+                **_replace_content(
+                    evidence.placement,
+                    "placement_id",
+                    identity_support=ComponentIdentitySupport.EXACT_SEQUENCE,
+                )
             )
-        )
-        changes = {"placement": claimed_placement}
-        error = "cannot establish sequence identity"
+        return
 
     with pytest.raises(ValidationError, match=error):
         ComponentExpansionScoreEvidence.from_content(
