@@ -8,11 +8,10 @@ include {
 // Fixed pass-1 stub fan-out. The inventory has already revalidated the global
 // execution identity, exact MTZ/model bytes, one staged crystallographic
 // proceed|hold decision per crystal, shared preparation checksums, three-item
-// coverage, and the 25-A cap. Keyed operators attach each record to its exact
-// MTZ/model; `combine` broadcasts reusable models and immutable singleton inputs.
+// coverage, and the 25-A cap. Each item carries only its own complete record;
+// the independently retained panel inventory is not a child-task cache input.
 workflow UNKNOWN_PASS1_SCREEN_WORKFLOW {
     take:
-    inventory: Path
     execution_identity: Path
     crystallographic_review_stages: Channel<Tuple>
     shared_catalogue: Path
@@ -28,14 +27,12 @@ workflow UNKNOWN_PASS1_SCREEN_WORKFLOW {
         .join(mtz_items, by: 0)
         .join(crystallographic_review_stages, by: 0)
     crystal_inputs = crystal_bundles
-        .combine(inventory)
         .combine(execution_identity)
         .combine(shared_catalogue)
         .combine(shared_provider)
         .combine(shared_localisation)
         .map {
             crystal,
-            screenInventory,
             executionIdentity,
             catalogue,
             provider,
@@ -45,7 +42,6 @@ workflow UNKNOWN_PASS1_SCREEN_WORKFLOW {
                 crystal[1],
                 crystal[2],
                 crystal[3],
-                screenInventory,
                 executionIdentity,
                 crystal[4],
                 catalogue,
@@ -70,7 +66,6 @@ workflow UNKNOWN_PASS1_SCREEN_WORKFLOW {
             branch,
             crystalRecord,
             mtz,
-            screenInventory,
             executionIdentity,
             reviewStage,
             catalogue,
@@ -83,7 +78,6 @@ workflow UNKNOWN_PASS1_SCREEN_WORKFLOW {
                 model,
                 crystalRecord,
                 mtz,
-                screenInventory,
                 executionIdentity,
                 reviewStage,
                 catalogue,

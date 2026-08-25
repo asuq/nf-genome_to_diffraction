@@ -16,6 +16,7 @@ from genome_to_diffraction.execution.unknown_screen import (
     write_unknown_pass1_screen_inventory,
 )
 from genome_to_diffraction.schemas.v2 import (
+    ModelUnavailableReason,
     UnknownPass1AHypothesis,
     UnknownPass1AHypothesisDisposition,
     UnknownPass1CrystalBranch,
@@ -86,6 +87,37 @@ def test_inventory_write_and_reload_are_byte_stable(tmp_path: Path) -> None:
 
     assert first.read_bytes() == second.read_bytes()
     assert loaded.inventory_id == inventory.inventory_id
+
+
+def test_crystal_local_candidate_mutation_preserves_sibling_identities(
+    tmp_path: Path,
+) -> None:
+    fixture = materialise_unknown_pass1_public_fixture(tmp_path)
+    original = fixture.inventory
+    crystal = fixture.crystals[2]
+    payload = crystal.hypotheses[0].model_dump(
+        mode="python",
+        exclude={"hypothesis_id"},
+    )
+    payload["no_model_reason"] = ModelUnavailableReason.PROVIDER_UNAVAILABLE
+    changed = UnknownPass1AHypothesis.from_content(**payload)
+
+    updated = _build(
+        replace(
+            fixture,
+            crystals=(
+                *fixture.crystals[:2],
+                replace(crystal, hypotheses=(changed, *crystal.hypotheses[1:])),
+            ),
+        )
+    )
+
+    assert updated.execution_identity == original.execution_identity
+    assert updated.shared_preparation == original.shared_preparation
+    assert updated.crystals[:2] == original.crystals[:2]
+    assert updated.hypothesis_tasks == original.hypothesis_tasks
+    assert updated.crystals[2].crystal_item_id != original.crystals[2].crystal_item_id
+    assert updated.inventory_id != original.inventory_id
 
 
 def test_proceeding_crystal_can_emit_typed_empty_hypothesis_branch(

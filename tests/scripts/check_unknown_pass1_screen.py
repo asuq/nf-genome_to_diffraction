@@ -9,10 +9,21 @@ import sys
 import tempfile
 from collections import Counter
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
+from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.execution.unknown_screen import (
+    build_unknown_pass1_screen_inventory,
+    write_unknown_pass1_screen_inventory,
+)
+from genome_to_diffraction.schemas.v2 import (
+    ModelUnavailableReason,
+    UnknownPass1AHypothesis,
+)
 from tests.support.unknown_pass1_fixture import (
     PUBLIC_STUB_CRYSTAL_IDS,
+    UnknownPass1PublicFixture,
     materialise_unknown_pass1_public_fixture,
 )
 
@@ -129,18 +140,15 @@ def _assert_first_run(
 
     output = launch_root / "results"
     inventory_path = launch_root / "inputs/unknown_pass1_screen_inventory.json"
-    inventory_bytes = inventory_path.read_bytes()
-    inventory = json.loads(inventory_bytes)
+    inventory = json.loads(inventory_path.read_bytes())
     crystal_by_id = {item["crystal_id"]: item for item in inventory.get("crystals", [])}
     for crystal_id in PUBLIC_STUB_CRYSTAL_IDS:
         bundle = output / "crystals" / f"unknown_pass1_crystal_{crystal_id}"
         item = json.loads((bundle / "crystal_item.json").read_text(encoding="utf-8"))
         if item != crystal_by_id[crystal_id]:
             raise RuntimeError(f"complete crystal record changed for {crystal_id}")
-        if (
-            bundle / "unknown_pass1_screen_inventory.json"
-        ).read_bytes() != inventory_bytes:
-            raise RuntimeError(f"inventory bytes changed for {crystal_id}")
+        if (bundle / "unknown_pass1_screen_inventory.json").exists():
+            raise RuntimeError(f"full-panel inventory leaked into {crystal_id}")
         if (
             hashlib.sha256((bundle / "input.mtz").read_bytes()).hexdigest()
             != item["mtz_sha256"]
@@ -182,15 +190,46 @@ def _assert_first_run(
             != task["mtz_sha256"]
         ):
             raise RuntimeError("A task MTZ bytes differ from its exact identity")
-        if (
-            bundle / "unknown_pass1_screen_inventory.json"
-        ).read_bytes() != inventory_bytes:
-            raise RuntimeError("A task inventory bytes changed during fan-out")
+        if (bundle / "unknown_pass1_screen_inventory.json").exists():
+            raise RuntimeError("full-panel inventory leaked into an A task")
     if observed_task_ids != expected_task_ids or len(observed_task_ids) != 25:
         raise RuntimeError("retained A task outputs do not match the inventory")
 
     identities = {(row["process"], row["tag"]): row["hash"] for row in rows}
     return expected_counts, identities
+
+
+def _change_one_crystal_candidate(fixture: UnknownPass1PublicFixture) -> None:
+    """Change one crystal-local typed candidate while preserving shared inputs."""
+
+    crystal = fixture.crystals[2]
+    candidate = crystal.hypotheses[0].model_dump(
+        mode="python",
+        exclude={"hypothesis_id"},
+    )
+    candidate["no_model_reason"] = ModelUnavailableReason.PROVIDER_UNAVAILABLE
+    changed = UnknownPass1AHypothesis.from_content(**candidate)
+    crystals = (
+        *fixture.crystals[:2],
+        replace(crystal, hypotheses=(changed, *crystal.hypotheses[1:])),
+    )
+    inventory = build_unknown_pass1_screen_inventory(
+        execution_identity_path=fixture.execution_identity,
+        review_stage_index_path=fixture.review_stage_index,
+        shared_preparation_input=fixture.shared_preparation,
+        crystals=crystals,
+    )
+    write_unknown_pass1_screen_inventory(
+        inventory,
+        fixture.input_root / "unknown_pass1_screen_inventory.json",
+    )
+    item = inventory.crystals[2]
+    atomic_write_json(
+        fixture.input_root
+        / "crystal_items"
+        / f"{item.crystal_id}--{item.branch.value}.json",
+        item.model_dump(mode="json", exclude_none=False),
+    )
 
 
 def main() -> int:
@@ -248,6 +287,57 @@ def main() -> int:
         if _output_digests(launch_root / "results") != before_resume:
             raise RuntimeError("cached resume changed retained screen evidence")
 
+        _change_one_crystal_candidate(fixture)
+        _run(resume_command, launch_root=launch_root, environment=environment)
+        changed_rows = _read_trace(trace)
+        if Counter(_process_name(row) for row in changed_rows) != expected_counts:
+            raise RuntimeError(
+                "crystal-local mutation changed the exact task inventory"
+            )
+        completed = tuple(row for row in changed_rows if row["status"] == "COMPLETED")
+        expected_tag = (
+            f"unknown-pass1-crystal:{PUBLIC_STUB_CRYSTAL_IDS[2]}:empty_no_model"
+        )
+        if len(completed) != 1 or completed[0]["tag"] != expected_tag:
+            raise RuntimeError(
+                "one crystal-local candidate change invalidated unrelated work: "
+                f"{[(row['tag'], row['status']) for row in changed_rows]}"
+            )
+        if any(
+            row["status"] != "CACHED"
+            for row in changed_rows
+            if row["tag"] != expected_tag
+        ):
+            raise RuntimeError(
+                "unchanged crystal and preparation tasks were not cached"
+            )
+        unchanged_identities = {
+            (row["process"], row["tag"]): row["hash"]
+            for row in changed_rows
+            if row["tag"] != expected_tag
+        }
+        expected_identities = {
+            identity: digest
+            for identity, digest in first_identities.items()
+            if identity[1] != expected_tag
+        }
+        if unchanged_identities != expected_identities:
+            raise RuntimeError(
+                "a sibling crystal mutation changed unrelated cache keys"
+            )
+        unaffected_after = {
+            path: digest
+            for path, digest in _output_digests(launch_root / "results").items()
+            if PUBLIC_STUB_CRYSTAL_IDS[2] not in path
+        }
+        unaffected_before = {
+            path: digest
+            for path, digest in before_resume.items()
+            if PUBLIC_STUB_CRYSTAL_IDS[2] not in path
+        }
+        if unaffected_after != unaffected_before:
+            raise RuntimeError("a sibling crystal mutation changed unrelated outputs")
+
         live_result = _run(
             [*command[:5], "-resume"],
             launch_root=launch_root,
@@ -258,7 +348,7 @@ def main() -> int:
         if "unknown pass 1 crystal fan-out is stub-only" not in live_output:
             raise RuntimeError("non-stub unknown screen did not fail at its boundary")
 
-    print("Unknown-pass-1 three-crystal path-closed cached stub passed.")
+    print("Unknown-pass-1 three-crystal isolated cached stub passed.")
     return 0
 
 

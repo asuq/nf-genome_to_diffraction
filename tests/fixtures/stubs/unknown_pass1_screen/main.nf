@@ -141,7 +141,6 @@ workflow {
         .fromPath("${inputRoot}/models/*.pdb", checkIfExists: true)
         .map { model -> tuple(model.baseName, model) }
     UNKNOWN_PASS1_SCREEN_WORKFLOW(
-        channel.value(file("${inputRoot}/unknown_pass1_screen_inventory.json")),
         channel.value(file("${inputRoot}/phase3_execution_identity.json")),
         review,
         catalogue,

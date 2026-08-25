@@ -12238,3 +12238,21 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Independent unknown-crystal cache boundaries
+
+- A real local three-crystal Nextflow mutation exposed a cross-crystal cache
+  defect: changing one typed no-model candidate reran 28 tasks, including
+  all 25 unrelated first-crystal A hypotheses, because every child staged the
+  complete mutable three-crystal inventory.
+- Independent children now receive only their exact complete crystal/task
+  record, MTZ/model, immutable execution identity, review stage, and shared
+  preparation. The full content-addressed panel inventory remains available
+  once at the run boundary instead of entering every child cache identity.
+- The same focused mutation now reruns exactly one affected crystal while
+  all other 33 tasks retain their cache hashes and byte-identical published
+  outputs. Complete fresh/resumed stub execution, eleven focused unit tests,
+  Nextflow syntax, Ruff, targeted `ty`, and documentation checks pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

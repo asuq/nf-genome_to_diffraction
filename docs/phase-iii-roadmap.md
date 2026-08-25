@@ -89,8 +89,12 @@ Pixi lock, execution policy, required Phenix executable, and adapter version
 without retaining machine paths. Independent mutation tests change the identity
 for each surface and refuse missing annotations, MTZs, or Phenix commands.
 The composition-attempt fan-out now carries this identity into every selected
-task/cache item. Observed selective reruns for independent raw/tool mutations
-and consumption by the other Phase III task families remain pending.
+task/cache item. The complete unknown-screen panel inventory remains retained
+once outside independent child inputs: an actual local Nextflow candidate
+mutation reruns its one affected crystal while 33 shared/sibling tasks keep
+their exact cache hashes and published bytes. Selective reruns for independent
+raw/tool mutations and consumption by other Phase III task families remain
+pending.
 
 The all-eligible model registry is now separated from the A-search execution
 cap. It retains every validated catalogue sequence-group/model/provider/variant
@@ -351,7 +355,11 @@ catalogue/provider/offline-localisation
 preparation, exact MTZ/model bytes, three complete crystal items, and an exact
 25-task A inventory. It fans out three review-stage preparation items, retains
 one hold and one proceeding empty-no-model branch, and proves byte-identical
-cached resume. The stub exposes no scientific
+cached resume. Changing a typed candidate in the third crystal reruns only its
+own complete crystal item; both unaffected siblings, their shared/review
+preparations, and all 25 first-crystal A hypotheses remain cached with unchanged
+outputs. The full three-crystal inventory is retained at the run boundary,
+never inserted into an independent child cache key. The stub exposes no scientific
 paths, crystal selectors, thresholds, remote profile, or live Phaser execution;
 it is not an operator-data analysis or an unknown-screen qualification.
 

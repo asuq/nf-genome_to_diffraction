@@ -49,10 +49,11 @@ The fixed fixture contains:
   and scheduling no A task.
 
 Thus Nextflow receives exactly three complete crystal items and exactly 25 A
-tasks. Every crystal tuple carries its item record, exact MTZ, complete screen
-inventory, global execution identity, staged review directory, and all three
-shared preparations. Every A tuple additionally carries its exact model and
-task record. The stub A adapter emits only
+tasks. Every crystal tuple carries its item record, exact MTZ, complete global
+execution identity, staged review directory, and all three shared preparations.
+Every A tuple additionally carries its exact model and task record. The complete
+three-crystal inventory is retained once at the run boundary rather than copied
+into independent child tasks. The stub A adapter emits only
 `stub_only_no_scientific_result`; non-stub invocation fails deliberately.
 
 ## Status, failure, and cache semantics
@@ -69,7 +70,10 @@ content-addressed. Nextflow task hashes additionally consume all exact file
 bytes. The dedicated stub requires the first run to schedule one catalogue,
 one provider, one localisation, three crystal-bound review-stage preparations,
 three crystal items, and 25 A tasks. Resume must cache all 34 tasks with
-unchanged hashes and byte-identical retained outputs.
+unchanged hashes and byte-identical retained outputs. Changing one crystal's
+typed candidate inventory then reruns only its own crystal task; the other
+33 tasks, including all 25 sibling A hypotheses, remain cached and their
+published outputs remain byte-identical.
 
 ## Test command and boundary
 
