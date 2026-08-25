@@ -13343,3 +13343,17 @@ with a collapsed combined parent or a guessed command.
   Exact-source CI and owned-HPC qualification for this route split remain; no
   scheduler run, deployed tool, Phenix installation, threshold, control, M6,
   localisation, or unknown crystal was changed.
+
+## 2026-08-25 - Final application-owner fixtures follow the clean break
+
+- Exact-source CI `32903608294` reached 1,280 passing unit tests before exposing
+  two stale test authorities. One refinement wiring assertion still inspected
+  archival `main_workflow.nf`; one owned-A package test requested a non-
+  scientific stub marker and then treated it as a real validated package.
+- The refinement assertion now follows the canonical Phase III application,
+  multi-crystal continuation, and crystal-dispatch modules. The owned-package
+  regression now runs the real lightweight package process rather than
+  interpreting stub output as scientific evidence.
+- Both exact failing tests pass locally. A successor exact-source CI remains
+  required; no production adapter, scientific threshold, scheduler run,
+  deployed tool, control, or unknown crystal was changed.

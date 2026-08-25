@@ -764,7 +764,6 @@ def test_owned_a_review_tasks_keep_crystals_and_no_model_outcomes_independent(
         "tests/fixtures/stubs/p6_empty_partner/nextflow.config",
         "run",
         str(STUBS / "phase3_owned_a_review/main.nf"),
-        "-stub-run",
         "--review_manifest",
         str(input_manifest),
         "--execution_identity",
