@@ -199,6 +199,7 @@ from genome_to_diffraction.review import (
     build_live_sequence_checkpoint,
     build_mr_seed_review,
     build_owned_phase3_a_seed_review_package,
+    build_owned_phase3_sequence_review_package,
     build_resource_summary,
     build_sequence_checkpoint,
     build_status_record,
@@ -1656,6 +1657,19 @@ def _build_parser() -> argparse.ArgumentParser:
     owned_a_seed_package_parser.add_argument("--owned-parent-run", required=True)
     owned_a_seed_package_parser.add_argument("--crystal-id", required=True)
     owned_a_seed_package_parser.add_argument("--outdir", type=Path, required=True)
+    owned_sequence_package_parser = review_actions.add_parser(
+        "build-owned-sequence-package",
+        help="publish one owned sequence package from verified finalist evidence",
+    )
+    owned_sequence_package_parser.add_argument(
+        "--sequence-checkpoint", type=Path, required=True
+    )
+    owned_sequence_package_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    owned_sequence_package_parser.add_argument("--owned-parent-run", required=True)
+    owned_sequence_package_parser.add_argument("--crystal-id", required=True)
+    owned_sequence_package_parser.add_argument("--outdir", type=Path, required=True)
     mr_seed_review_parser = review_actions.add_parser(
         "build-mr-seed",
         help="assemble a bounded first-copy MR review package",
@@ -3256,6 +3270,16 @@ def _run_review(args: argparse.Namespace) -> int:
             output_directory=args.outdir,
         )
         print(f"Built owned Phase III A-seed review package: {package.manifest}")
+        return 0
+    if args.review_action == "build-owned-sequence-package":
+        package = build_owned_phase3_sequence_review_package(
+            sequence_checkpoint=args.sequence_checkpoint,
+            execution_identity=args.execution_identity,
+            owned_parent_run_id=args.owned_parent_run,
+            crystal_id=args.crystal_id,
+            output_directory=args.outdir,
+        )
+        print(f"Built owned Phase III sequence review package: {package.manifest}")
         return 0
     if args.review_action == "build-resource-summary":
         resources = build_resource_summary(

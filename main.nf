@@ -44,6 +44,7 @@ params {
     phase3_a_seed_legacy_review_package: Path? = null
     phase3_reviewed_crystal_manifest: Path? = null
     phase3_owned_run_registry: Path? = null
+    phase3_owned_sequence_parent_run_id: String? = null
 }
 
 workflow {
@@ -97,6 +98,16 @@ workflow {
         }
     } else if (params.phase3_owned_run_registry != null) {
         error 'A Phase III owned-run registry requires reviewed multi-crystal continuation'
+    }
+    if (
+        params.phase3_owned_sequence_parent_run_id != null &&
+        (
+            params.phase3_reviewed_crystal_manifest == null ||
+            params.phase3_owned_sequence_parent_run_id ==
+            params.phase3_owned_parent_run_id
+        )
+    ) {
+        error 'Owned Phase III sequence packages require their separate reviewed single-component run'
     }
     if (params.analysis_stage == 'heteromer' && params.partner_copy_count < 1) {
         error 'analysis_stage=heteromer requires a positive --partner_copy_count'
@@ -164,6 +175,7 @@ workflow {
         params.phase3_a_seed_review_package,
         params.phase3_a_seed_legacy_review_package,
         params.phase3_reviewed_crystal_manifest,
-        params.phase3_owned_run_registry
+        params.phase3_owned_run_registry,
+        params.phase3_owned_sequence_parent_run_id
     )
 }

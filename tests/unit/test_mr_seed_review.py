@@ -1524,6 +1524,7 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
     fixture_root.mkdir()
     fixture = materialise_unknown_pass1_public_fixture(fixture_root)
     parent_run = "gtd-unknown-screen-production-fixture"
+    single_component_run = "gtd-unknown-single-component-production-fixture"
     routes: list[dict[str, str]] = []
     sources: list[OwnedPhaseIIIReviewPackageSource] = []
     stages: dict[str, tuple[Path, Path]] = {}
@@ -1611,6 +1612,8 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         str(fixture.execution_identity),
         "--phase3_owned_parent_run_id",
         parent_run,
+        "--phase3_owned_sequence_parent_run_id",
+        single_component_run,
         "--outdir",
         str(output),
         "--cache_root",
@@ -1655,6 +1658,7 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         "STAGE_PHASE3_CRYSTAL_T12": 2,
         "RUN_PHASE3_BRIEF_REFINEMENT": 2,
         "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT": 2,
+        "BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE": 2,
     }
     assert {row["status"] for row in first} == {"COMPLETED"}
     for crystal_id in PUBLIC_STUB_CRYSTAL_IDS:
@@ -1678,8 +1682,19 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         assert document["finalist_count"] == 1
         assert document["automatic_approval"] is False
         assert (checkpoint / "provenance/sequence_groups.jsonl").is_file()
+        owned_review = validate_phase3_review_package(
+            output / f"phase3_owned_sequence_review_{crystal_id}"
+        )
+        assert owned_review.checkpoint is PhaseIIIReviewCheckpoint.SEQUENCE
+        assert owned_review.crystal_id == crystal_id
+        assert owned_review.owned_parent_run_id == single_component_run
+        assert owned_review.parent_profile == "unknown-single-component"
+        assert len(owned_review.permitted_targets) == 1
     assert not (
         output / f"phase3_sequence_checkpoint_{PUBLIC_STUB_CRYSTAL_IDS[2]}"
+    ).exists()
+    assert not (
+        output / f"phase3_owned_sequence_review_{PUBLIC_STUB_CRYSTAL_IDS[2]}"
     ).exists()
     cached = run(resume=True)
     assert {row["status"] for row in cached} == {"CACHED"}
@@ -1725,6 +1740,7 @@ def test_main_application_continues_owned_reviewed_crystals_independently(
         "RUN_PHASE3_ADDITIONAL_COPY_PHASER": 1,
         "STAGE_PHASE3_CRYSTAL_T12": 1,
         "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT": 1,
+        "BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE": 1,
     }
     assert all(crystal_id in row["tag"] for row in rerun)
 

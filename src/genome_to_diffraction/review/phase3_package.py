@@ -45,6 +45,7 @@ from genome_to_diffraction.checksums import (
     atomic_write_json,
     sha256_file,
 )
+from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.review.mr_seed import (
     MrSeedReviewError,
     validate_mr_seed_review_evidence,
@@ -641,12 +642,168 @@ def build_owned_phase3_a_seed_review_package(
     )
 
 
+def build_owned_phase3_sequence_review_package(
+    *,
+    sequence_checkpoint: Path,
+    execution_identity: Path,
+    owned_parent_run_id: str,
+    crystal_id: str,
+    output_directory: Path,
+) -> PhaseIIIReviewPackageOutput:
+    """Publish complete crystal-bound sequence/map evidence for human review."""
+
+    try:
+        identity = PhaseIIIExecutionIdentity.model_validate_json(
+            execution_identity.read_bytes()
+        )
+        matching_crystals = tuple(
+            item
+            for item in identity.crystal_artifacts
+            if item.owner_id == crystal_id and item.role == "mtz"
+        )
+        if len(matching_crystals) != 1:
+            raise PhaseIIIReviewPackageError(
+                "sequence-review crystal is absent from the execution identity"
+            )
+        root = _input_root(sequence_checkpoint)
+        manifest_path = _source_file(root, "sequence_checkpoint_manifest.json")
+        manifest = load_json_document(manifest_path)
+        if not isinstance(manifest, dict):
+            raise PhaseIIIReviewPackageError("sequence checkpoint manifest is invalid")
+        crystal = manifest.get("crystal_context")
+        checkpoint_identity = manifest.get("identity")
+        if not (
+            isinstance(crystal, dict)
+            and isinstance(checkpoint_identity, dict)
+            and manifest.get("schema_version") == "1.0"
+            and manifest.get("execution_mode") == "phase3_reviewed_single_component"
+            and manifest.get("automatic_approval") is False
+            and manifest.get("all_finalists_retained") is True
+            and manifest.get("typed_failures_are_evidence") is True
+            and crystal.get("crystal_id") == crystal_id
+            and crystal.get("mtz_sha256") == matching_crystals[0].sha256
+            and checkpoint_identity.get("crystal_id") == crystal_id
+            and checkpoint_identity.get("diffraction_selection_id")
+            == manifest.get("diffraction_selection_id")
+            and checkpoint_identity.get("free_r_identity_id")
+            == manifest.get("free_r_identity_id")
+            and manifest.get("package_id")
+            == content_id("seqreview_", checkpoint_identity)
+        ):
+            raise PhaseIIIReviewPackageError(
+                "owned sequence checkpoint crystal or content identity differs"
+            )
+        if not owned_parent_run_id.startswith("gtd-unknown-single-component-"):
+            raise PhaseIIIReviewPackageError(
+                "owned sequence review requires its single-component scheduler run"
+            )
+
+        expected_files: dict[str, str] = {
+            "sequence_checkpoint_manifest.json": sha256_file(manifest_path)
+        }
+        for inventory in (
+            manifest.get("outputs"),
+            checkpoint_identity.get("assets"),
+            checkpoint_identity.get("retained_evidence"),
+        ):
+            if not isinstance(inventory, dict):
+                raise PhaseIIIReviewPackageError(
+                    "sequence checkpoint checksum inventory is incomplete"
+                )
+            for relative, digest in inventory.items():
+                if not isinstance(relative, str) or not isinstance(digest, str):
+                    raise PhaseIIIReviewPackageError(
+                        "sequence checkpoint checksum inventory is invalid"
+                    )
+                if relative in expected_files:
+                    raise PhaseIIIReviewPackageError(
+                        "sequence checkpoint checksum inventory contains duplicates"
+                    )
+                source = _source_file(root, relative)
+                if sha256_file(source) != digest:
+                    raise PhaseIIIReviewPackageError(
+                        f"sequence checkpoint checksum differs: {relative}"
+                    )
+                expected_files[relative] = digest
+
+        actual_files: set[str] = set()
+        for item in root.rglob("*"):
+            if item.is_symlink():
+                raise PhaseIIIReviewPackageError(
+                    "sequence checkpoint contains an unsafe symlink"
+                )
+            if item.is_file():
+                actual_files.add(item.relative_to(root).as_posix())
+        if actual_files != set(expected_files):
+            raise PhaseIIIReviewPackageError(
+                "sequence checkpoint file inventory is incomplete or unexpected"
+            )
+
+        approvals = _source_file(root, "sequence_approval_candidates.tsv")
+        with approvals.open(encoding="utf-8", newline="") as stream:
+            reader = csv.DictReader(stream, delimiter="\t")
+            if not reader.fieldnames or "sequence_group_id" not in reader.fieldnames:
+                raise PhaseIIIReviewPackageError(
+                    "sequence approval table lacks catalogue sequence identities"
+                )
+            targets = tuple(str(row["sequence_group_id"]) for row in reader)
+        if (
+            not targets
+            or len(targets) != len(set(targets))
+            or manifest.get("approval_candidate_count") != len(targets)
+        ):
+            raise PhaseIIIReviewPackageError(
+                "sequence review targets are missing, duplicated, or incomplete"
+            )
+        decisions = _source_file(root, "approved_sequence_groups.tsv")
+        with decisions.open(encoding="utf-8", newline="") as stream:
+            if tuple(csv.DictReader(stream, delimiter="\t")):
+                raise PhaseIIIReviewPackageError(
+                    "sequence checkpoint contains unstaged automatic approvals"
+                )
+    except PhaseIIIReviewPackageError:
+        raise
+    except (ContractError, OSError, ValidationError, ValueError) as error:
+        raise PhaseIIIReviewPackageError(
+            f"owned sequence review evidence is inconsistent: {error}"
+        ) from error
+
+    try:
+        output_directory.mkdir(parents=True, exist_ok=False)
+    except OSError as error:
+        raise PhaseIIIReviewPackageError(
+            "owned sequence review output must be a new directory"
+        ) from error
+    return build_phase3_review_package(
+        PhaseIIIReviewPackageRequest(
+            checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
+            owned_parent_run_id=owned_parent_run_id,
+            parent_profile="unknown-single-component",
+            parent_phase="phase3-pass1",
+            execution_identity_id=identity.execution_identity_id,
+            crystal_id=crystal_id,
+            target_item_ids=targets,
+            created_at=datetime.now(UTC),
+            input_root=root,
+            evidence_sources=tuple(
+                PhaseIIIReviewEvidenceSource(
+                    role=f"sequence_evidence_{index:04d}",
+                    relative_path=relative,
+                )
+                for index, relative in enumerate(sorted(expected_files))
+            ),
+            output_directory=output_directory,
+        )
+    )
+
+
 __all__ = [
     "PhaseIIIReviewEvidenceSource",
     "PhaseIIIReviewPackageError",
     "PhaseIIIReviewPackageOutput",
     "PhaseIIIReviewPackageRequest",
     "build_owned_phase3_a_seed_review_package",
+    "build_owned_phase3_sequence_review_package",
     "build_phase3_review_package",
     "validate_phase3_review_package",
 ]

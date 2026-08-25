@@ -76,6 +76,7 @@ workflow MAIN_WORKFLOW {
     phase3_a_seed_legacy_review_package: Path?
     phase3_reviewed_crystal_manifest: Path?
     phase3_owned_run_registry: Path?
+    phase3_owned_sequence_parent_run_id: String?
 
     main:
     validation_scope = VALIDATE_TASK05_INPUTS(
@@ -209,7 +210,8 @@ workflow MAIN_WORKFLOW {
             complete_reviews,
             phase3_owned_run_registry,
             phase3_execution_identity,
-            phase3_owned_parent_run_id
+            phase3_owned_parent_run_id,
+            phase3_owned_sequence_parent_run_id
         )
     } else if (
         analysis_stage in ['discovery', 'first_copy', 'additional_copy', 'heteromer', 't12']

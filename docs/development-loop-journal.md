@@ -12697,3 +12697,31 @@ with a collapsed combined parent or a guessed command.
   publication, fixed unknown profiles, and real licensed execution remain open.
   Preserve the existing independent 30-minute monitor for Slurm job `634097`
   and classify it before any new scientific HPC operation.
+
+## 2026-08-25 - Sequence review packages belong to the single-component run
+
+- Crystal-specific T12.5 checkpoints reached the production application but
+  remained historical schema-v1 directories. Consequently, later human sequence
+  decisions could not be authenticated against the current owned scheduler run
+  and its exact complete Phase III execution identity.
+- One narrow adapter now independently verifies the full checkpoint content
+  identity, exact crystal-owned MTZ and selected diffraction/Free-R identities,
+  all reviewer-visible outputs, every retained map/model/command/provenance
+  checksum, complete sequence-equivalence-group targets, and the empty decision
+  worksheet before invoking the existing schema-v2 review-package builder.
+- The current `unknown-single-component` parent is explicit and must differ
+  from the completed `unknown-screen` parent used to authenticate A decisions.
+  Missing, duplicate, edited, extra, cross-crystal, or predecessor-owned
+  evidence cannot publish a sequence package; no exact paralogue/locus claim or
+  human approval is fabricated.
+- Production `main.nf` now publishes one independently scheduled owned
+  sequence package for each approved reviewed crystal. The three-crystal local
+  regression schedules 18 complete tasks, including two authenticated packages;
+  the deferred crystal has none. All tasks cache, and changing one A decision
+  reruns only its five approval/placement/finalist/checkpoint/package tasks.
+- Seventy-six focused sequence, generic-package, and MR-review regressions plus
+  targeted Ruff/type checks, documentation validation, and typed Nextflow
+  syntax pass. The dedicated workflow stub is explicitly synthetic and never
+  claims real Phenix or Coot-map qualification. Fixed unknown HPC profiles and
+  licensed execution remain open; preserve the independent 30-minute monitor
+  for Slurm job `634097` and classify it before new scientific HPC operations.

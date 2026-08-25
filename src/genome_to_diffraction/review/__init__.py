@@ -29,6 +29,7 @@ from genome_to_diffraction.review.phase3_package import (
     PhaseIIIReviewPackageOutput,
     PhaseIIIReviewPackageRequest,
     build_owned_phase3_a_seed_review_package,
+    build_owned_phase3_sequence_review_package,
     build_phase3_review_package,
     validate_phase3_review_package,
 )
@@ -94,6 +95,7 @@ __all__ = [
     "build_live_sequence_checkpoint",
     "build_mr_seed_review",
     "build_owned_phase3_a_seed_review_package",
+    "build_owned_phase3_sequence_review_package",
     "build_phase3_review_package",
     "build_resource_summary",
     "build_sequence_checkpoint",

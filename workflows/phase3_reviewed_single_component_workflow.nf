@@ -4,7 +4,8 @@ include {
     STAGE_PHASE3_CRYSTAL_T12
 } from '../modules/local/stage_live_t12'
 include {
-    BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT
+    BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT;
+    BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE
 } from '../modules/local/build_live_sequence_checkpoint'
 include {
     PHASE3_REVIEWED_ADDITIONAL_COPY_WORKFLOW
@@ -22,6 +23,7 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
     owned_run_registry: Path?
     execution_identity: Path?
     owned_parent_run_id: String?
+    owned_sequence_parent_run_id: String?
 
     main:
     placement_inputs = reviewed_crystals.map { item ->
@@ -111,6 +113,27 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
             tuple(crystalId, stage, results)
         }
     checkpoints = BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT(checkpoint_inputs)
+    owned_sequence_reviews = channel.empty()
+    if (owned_sequence_parent_run_id != null) {
+        if (
+            execution_identity == null ||
+            owned_parent_run_id == null ||
+            owned_sequence_parent_run_id == owned_parent_run_id
+        ) {
+            error 'Owned sequence reviews require a distinct single-component run'
+        }
+        sequence_review_inputs = checkpoints.map { crystalId, checkpoint ->
+            tuple(
+                crystalId,
+                checkpoint,
+                execution_identity,
+                owned_sequence_parent_run_id
+            )
+        }
+        owned_sequence_reviews = BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE(
+            sequence_review_inputs
+        )
+    }
 
     emit:
     approval_stage: Tuple = placements.stage
@@ -118,4 +141,5 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
     finalist_stage: Tuple = finalist_stages
     refinement: Tuple = refinements
     sequence_checkpoint: Tuple = checkpoints
+    owned_sequence_review: Tuple = owned_sequence_reviews
 }

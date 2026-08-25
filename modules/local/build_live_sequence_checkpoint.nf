@@ -121,3 +121,49 @@ process BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT {
         > '${outputName}/sequence_checkpoint_manifest.json'
     """
 }
+
+
+// Publish every crystal-owned review target and complete Coot evidence under
+// the current single-component scheduler run, never its preceding screen run.
+process BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE {
+    tag "phase3-owned-sequence-review:${item[0]}"
+    label 'process_low'
+    cache 'deep'
+    publishDir params.outdir, mode: 'copy', overwrite: true
+    stageInMode 'copy'
+
+    input:
+    item: Tuple
+
+    output:
+    owned_review: Tuple = tuple(
+        item[0],
+        file("phase3_owned_sequence_review_${item[0]}")
+    )
+
+    script:
+    def outputName = "phase3_owned_sequence_review_${item[0]}"
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        review build-owned-sequence-package \
+        --sequence-checkpoint '${item[1]}' \
+        --execution-identity '${item[2]}' \
+        --owned-parent-run '${item[3]}' \
+        --crystal-id '${item[0]}' \
+        --outdir '${outputName}'
+    """
+
+    stub:
+    def outputName = "phase3_owned_sequence_review_${item[0]}"
+    """
+    python \
+        '${projectDir}/tests/scripts/build_phase3_owned_sequence_stub.py' \
+        --sequence-checkpoint '${item[1]}' \
+        --execution-identity '${item[2]}' \
+        --owned-parent-run '${item[3]}' \
+        --crystal-id '${item[0]}' \
+        --outdir '${outputName}'
+    """
+}
