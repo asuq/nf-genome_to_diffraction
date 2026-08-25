@@ -14,10 +14,12 @@ empty directory with a package containing the copied evidence, one generated
 ``review_targets.tsv``, and ``phase3_review_package_manifest.json``.  Generated
 metadata contains portable relative paths only.
 
-No external command or tool version is required.  Missing targets, duplicate
-roles or paths, symlinks, path escape, input mutation, unexpected package files,
-and checksum drift raise ``PhaseIIIReviewPackageError``.  Scientific holds and
-rejections remain human decisions handled by the separate decision contract.
+No external command or tool version is required.  Missing targets are allowed
+only for an A-seed checkpoint backed by a completed zero-candidate MR review;
+other missing targets, duplicate roles or paths, symlinks, path escape, input
+mutation, unexpected package files, and checksum drift raise
+``PhaseIIIReviewPackageError``.  Scientific holds and rejections remain human
+decisions handled by the separate decision contract.
 
 The cache key is ``review_package_id``.  It covers the parent and execution
 bindings, checkpoint/crystal/targets, creation time, and the checksum inventory
@@ -43,6 +45,7 @@ from genome_to_diffraction.checksums import (
     atomic_write_json,
     sha256_file,
 )
+from genome_to_diffraction.schemas.io import ContractError, load_json_document
 from genome_to_diffraction.schemas.v2 import (
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewEvidenceArtifact,
@@ -379,6 +382,30 @@ def validate_phase3_review_package(
 
     review_table = files[_REVIEW_TABLE_NAME]
     _parse_review_table(review_table.read_bytes(), manifest=manifest)
+    if not manifest.permitted_targets:
+        evidence = next(
+            artifact
+            for artifact in manifest.evidence_inventory
+            if artifact.role == "mr_seed_review_manifest"
+        )
+        try:
+            review = load_json_document(files[evidence.relative_path])
+        except ContractError as error:
+            raise PhaseIIIReviewPackageError(
+                "empty A-seed review evidence is not a valid JSON manifest"
+            ) from error
+        if not isinstance(review, dict) or (
+            review.get("schema_version") != "1.0"
+            or review.get("review_package_kind") != "mr_seed"
+            or review.get("checkpoint") != "mr_seed"
+            or review.get("candidate_count") != 0
+            or review.get("inspectable_solution_count") != 0
+            or review.get("items") != []
+            or review.get("execution_status") != "completed_success"
+        ):
+            raise PhaseIIIReviewPackageError(
+                "empty A-seed review requires completed zero-candidate MR evidence"
+            )
     return manifest
 
 
@@ -405,7 +432,10 @@ def build_phase3_review_package(
     if request.created_at.tzinfo is None or request.created_at.utcoffset() is None:
         raise PhaseIIIReviewPackageError("package creation time must be timezone-aware")
 
-    if not request.target_item_ids:
+    if (
+        not request.target_item_ids
+        and checkpoint is not PhaseIIIReviewCheckpoint.A_SEED
+    ):
         raise PhaseIIIReviewPackageError("review package requires at least one target")
     target_item_ids = tuple(
         sorted(
@@ -486,7 +516,7 @@ def build_phase3_review_package(
         manifest = PhaseIIIReviewPackageManifest.from_content(
             adapter_version=(
                 "phase3-review-package-v1"
-                if checkpoint in _LEGACY_CHECKPOINTS
+                if checkpoint in _LEGACY_CHECKPOINTS and target_item_ids
                 else "phase3-review-package-v2"
             ),
             checkpoint=checkpoint,

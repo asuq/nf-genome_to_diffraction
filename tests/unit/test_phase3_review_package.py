@@ -196,6 +196,121 @@ def test_permuted_targets_and_evidence_produce_byte_identical_packages(
     assert _tree_bytes(output_a) == _tree_bytes(output_b)
 
 
+def test_a_seed_no_model_package_retains_authenticated_empty_review(
+    tmp_path: Path,
+) -> None:
+    input_root = _inputs(tmp_path)
+    legacy = input_root / "mr" / "mr_seed_review_manifest.json"
+    legacy.write_text(
+        '{"schema_version":"1.0","review_package_kind":"mr_seed",'
+        '"checkpoint":"mr_seed","candidate_count":0,'
+        '"inspectable_solution_count":0,"items":[], '
+        '"execution_status":"completed_success"}\n',
+        encoding="ascii",
+    )
+    output = tmp_path / "empty-a-review-package"
+    output.mkdir()
+
+    result = build_phase3_review_package(
+        _request(
+            input_root=input_root,
+            output=output,
+            targets=(),
+            sources=(
+                PhaseIIIReviewEvidenceSource(
+                    role="mr_seed_review_manifest",
+                    relative_path="mr/mr_seed_review_manifest.json",
+                ),
+            ),
+        )
+    )
+
+    manifest = validate_phase3_review_package(output)
+    assert manifest.review_package_id == result.review_package_id
+    assert manifest.adapter_version == "phase3-review-package-v2"
+    assert manifest.checkpoint is PhaseIIIReviewCheckpoint.A_SEED
+    assert manifest.permitted_targets == ()
+    assert manifest.review_tables[0].row_count == 0
+    assert manifest.review_tables[0].target_item_ids == ()
+    assert result.review_table.read_text(encoding="ascii").count("\n") == 1
+    assert result.evidence_files[0].read_bytes() == legacy.read_bytes()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ("missing_evidence", "positive_count", "retained_target", "failed_execution"),
+)
+def test_empty_a_seed_package_rejects_unproven_no_model_state(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    input_root = _inputs(tmp_path)
+    legacy = input_root / "mr" / "mr_seed_review_manifest.json"
+    count = 1 if failure == "positive_count" else 0
+    targets = (
+        '[{"solution_id":"sol_present"}]' if failure == "retained_target" else "[]"
+    )
+    status = (
+        "execution_failure" if failure == "failed_execution" else "completed_success"
+    )
+    legacy.write_text(
+        '{"schema_version":"1.0","review_package_kind":"mr_seed",'
+        f'"checkpoint":"mr_seed","candidate_count":{count},'
+        f'"inspectable_solution_count":0,"items":{targets},'
+        f'"execution_status":"{status}"}}\n',
+        encoding="ascii",
+    )
+    source = (
+        PhaseIIIReviewEvidenceSource("wrong_role", "mr/mr_seed_review_manifest.json")
+        if failure == "missing_evidence"
+        else PhaseIIIReviewEvidenceSource(
+            "mr_seed_review_manifest", "mr/mr_seed_review_manifest.json"
+        )
+    )
+    output = tmp_path / "must-remain-empty"
+    output.mkdir()
+
+    with pytest.raises(PhaseIIIReviewPackageError, match="empty A-seed"):
+        build_phase3_review_package(
+            _request(
+                input_root=input_root,
+                output=output,
+                targets=(),
+                sources=(source,),
+            )
+        )
+
+    assert list(output.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "checkpoint",
+    (
+        PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+        PhaseIIIReviewCheckpoint.COMPOSITION,
+        PhaseIIIReviewCheckpoint.SEQUENCE,
+    ),
+)
+def test_only_a_seed_checkpoint_permits_an_evidence_backed_empty_package(
+    tmp_path: Path,
+    checkpoint: PhaseIIIReviewCheckpoint,
+) -> None:
+    output = tmp_path / "must-remain-empty"
+    output.mkdir()
+
+    with pytest.raises(PhaseIIIReviewPackageError, match="at least one target"):
+        build_phase3_review_package(
+            _request(
+                input_root=_inputs(tmp_path),
+                output=output,
+                checkpoint=checkpoint,
+                targets=(),
+            )
+        )
+
+    assert list(output.iterdir()) == []
+
+
 def test_input_mutation_fails_without_publishing_a_partial_package(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

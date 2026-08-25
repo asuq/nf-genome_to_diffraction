@@ -12525,3 +12525,25 @@ with a collapsed combined parent or a guessed command.
   remain pending. Preserve the existing 30-minute monitor for Slurm job
   `634097`; classify the exact grouped 6RTZ/3U7Q controls before any multi-fixed
   command, `9ECN`, M6, localisation, or unknown run.
+
+## 2026-08-25 - Empty A-seed outcomes retain independent review evidence
+
+- A genuinely completed no-model crystal already produced a valid historical
+  MR-seed review, but the Phase III package generator rejected all empty target
+  lists, preventing the crystal from reaching its own reviewed endpoint.
+- The sole permitted empty package is now a schema-v2 A-seed checkpoint whose
+  checksum-retained historical MR review independently proves successful
+  execution, zero candidates, zero inspectable solutions, and no retained
+  items. It publishes the complete owned parent/crystal/execution provenance and
+  a canonical header-only target worksheet without inventing a scientific hit.
+- Missing or contradictory evidence, failed execution, positive candidate
+  counts, and retained items fail before publication. Crystallographic,
+  composition, and sequence checkpoints still require targets; historical
+  non-empty package identities remain unchanged.
+- Ninety-two focused package, decision-contract, actual MR-review, and
+  owned-registry regressions plus targeted Ruff/type, schema, and documentation
+  checks qualify the change without running a full suite or contacting Marmic.
+- Continue with independent reviewed three-crystal same-component/refinement
+  continuation. Preserve the existing 30-minute monitor for Slurm job `634097`;
+  classify the exact grouped 6RTZ/3U7Q controls before any multi-fixed command,
+  `9ECN`, M6, localisation, or unknown run.

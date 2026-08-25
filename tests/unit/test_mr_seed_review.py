@@ -376,6 +376,33 @@ def test_no_model_funnel_emits_an_honest_empty_mr_seed_review(
     assert manifest["items"] == []
     assert manifest["approval_requires_explicit_human_decision"] is True
 
+    phase3_root = tmp_path / "phase3-empty-a-review"
+    phase3_root.mkdir()
+    phase3_package = build_phase3_review_package(
+        PhaseIIIReviewPackageRequest(
+            checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+            owned_parent_run_id="gtd-unknown-screen-fixture",
+            parent_profile="unknown-screen",
+            parent_phase="phase3-pass1",
+            execution_identity_id=f"phase3exec_{'a' * 64}",
+            crystal_id="test_crystal_01",
+            target_item_ids=(),
+            created_at=datetime.now(UTC),
+            input_root=output.manifest_json.parent,
+            evidence_sources=(
+                PhaseIIIReviewEvidenceSource(
+                    role="mr_seed_review_manifest",
+                    relative_path=output.manifest_json.name,
+                ),
+            ),
+            output_directory=phase3_root,
+        )
+    )
+    package = json.loads(phase3_package.manifest.read_text(encoding="ascii"))
+    assert package["adapter_version"] == "phase3-review-package-v2"
+    assert package["permitted_targets"] == []
+    assert package["review_tables"][0]["row_count"] == 0
+
 
 def test_validates_explicit_approval_and_rejects_stale_identifier(
     tmp_path: Path,

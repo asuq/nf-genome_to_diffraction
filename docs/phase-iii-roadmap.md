@@ -404,6 +404,13 @@ in the downstream evidence. Historical schema-v1 approvals remain unchanged. The
 fixed remote profile, multi-crystal continuation, and real licensed execution
 remain pending.
 
+A scientifically completed zero-model crystal now also receives its own
+content-bound schema-v2 A-seed package and an empty target worksheet. This
+exception applies only when retained legacy MR evidence independently proves
+`completed_success`, zero candidates, zero inspectable solutions, and no items.
+Missing, contradictory, or failed evidence still fails closed; crystallographic,
+composition, and sequence checkpoints continue to require review targets.
+
 Status: the opt-in schema-v2 file contract for crystallographic, A-seed,
 composition, and sequence decisions is implemented and documented in
 `docs/phase-iii-review-contract.md`. It content-binds one checkpoint to an owned

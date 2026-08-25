@@ -146,8 +146,8 @@ class PhaseIIIReviewTableArtifact(ContractModel):
     relative_path: Literal["review_targets.tsv"]
     sha256: Sha256Hex
     size_bytes: PositiveInt
-    row_count: PositiveInt
-    target_item_ids: tuple[OperatorIdentifier, ...] = Field(min_length=1)
+    row_count: int = Field(ge=0)
+    target_item_ids: tuple[OperatorIdentifier, ...]
 
     @model_validator(mode="after")
     def _validate_table_targets(self) -> Self:
@@ -187,7 +187,7 @@ class PhaseIIIReviewPackageManifest(_ContentAddressedContract):
     execution_identity_id: ExecutionIdentityIdentifier
     crystal_id: OperatorIdentifier
     created_at: UtcTimestamp
-    permitted_targets: tuple[PhaseIIIReviewPackageTarget, ...] = Field(min_length=1)
+    permitted_targets: tuple[PhaseIIIReviewPackageTarget, ...]
     evidence_inventory: tuple[PhaseIIIReviewEvidenceArtifact, ...] = Field(min_length=1)
     review_tables: tuple[PhaseIIIReviewTableArtifact, ...] = Field(min_length=1)
     package_content_sha256: Sha256Hex
@@ -208,6 +208,13 @@ class PhaseIIIReviewPackageManifest(_ContentAddressedContract):
         target_keys = tuple(
             (target.crystal_id, target.item_id) for target in self.permitted_targets
         )
+        if not target_keys and (
+            self.adapter_version != "phase3-review-package-v2"
+            or self.checkpoint is not PhaseIIIReviewCheckpoint.A_SEED
+        ):
+            raise ValueError(
+                "only a v2 A-seed review package may retain zero review targets"
+            )
         if target_keys != tuple(sorted(set(target_keys))):
             raise ValueError("review package targets must be unique and sorted")
         if any(crystal_id != self.crystal_id for crystal_id, _ in target_keys):
@@ -225,6 +232,10 @@ class PhaseIIIReviewPackageManifest(_ContentAddressedContract):
             raise ValueError("review evidence roles must be unique")
         if len(paths) != len(set(paths)):
             raise ValueError("review evidence paths must be unique")
+        if not target_keys and "mr_seed_review_manifest" not in roles:
+            raise ValueError(
+                "empty A-seed review requires its completed MR-seed manifest"
+            )
 
         if len(self.review_tables) != 1:
             raise ValueError("review-package-v1 requires exactly one review table")
