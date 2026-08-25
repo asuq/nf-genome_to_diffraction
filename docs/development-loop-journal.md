@@ -12220,3 +12220,21 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - M6 scientific staging survives an unavailable Git mirror
+
+- The accepted Marmic control path already uses an exact-commit archive when
+  the remote bare Git mirror is absent, but M6 scientific staging streamed
+  only its runner archive and failed immediately under the same site state.
+- For only the two reviewed absent/invalid-mirror failure classes, the M6
+  controller now retries with one bounded concatenated payload: the existing
+  immutable source archive first, then the independently confirmed runner.
+  The dispatcher verifies source commit, size, checksum, locked Pixi source,
+  pinned helper, frozen site/Phenix/policy bindings, and the separate
+  63-case runner inventory before declaring the owned run staged.
+- Focused controller regressions cover both mirror states; the complete fake
+  Marmic lifecycle passes both ordinary and mirror-free staging while keeping
+  the mirror unavailable and preserving source/runner checksums.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

@@ -2301,13 +2301,14 @@ PY
 }
 
 m6_runner_stage_common() {
-    [[ "$#" -eq 12 || "$#" -eq 14 ]] || \
+    [[ "$#" -eq 12 || "$#" -eq 14 || "$#" -eq 15 || "$#" -eq 17 ]] || \
         fail wrapper_failure "M6 runner stage expects its fixed site arguments"
     local operation="$1" profile="$2" track="$3"
     local run_id="$4" commit="$5" lock_sha256="$6" owner_id="$7"
     local archive_sha256="$8" archive_size="$9" manifest_sha256="${10}"
     local case_count="${11}" object_count="${12}"
     local marmic_phenix_manifest="${13-}" marmic_phenix_sha256="${14-}"
+    local source_archive_sha256="" source_archive_size="" source_helper_commit=""
     local run import_archive import_root python stage_log database_manifest
     local phenix_manifest expected_database_sha expected_phenix_sha
 
@@ -2323,12 +2324,21 @@ m6_runner_stage_common() {
             fail wrapper_failure "invalid M6 scientific profile"
         stage_log=m6-scientific-stage.log
         if [[ "$SITE_ID" == marmic ]]; then
-            [[ "$#" -eq 14 && \
+            [[ ( "$#" -eq 14 || "$#" -eq 17 ) && \
                "$marmic_phenix_manifest" =~ $SAFE_PATH_RE && \
                "$marmic_phenix_sha256" =~ $CHECKSUM_RE ]] || \
                 fail wrapper_failure "Marmic M6 requires its fixed Phenix binding"
+            if [[ "$#" -eq 17 ]]; then
+                source_archive_sha256="${15}"
+                source_archive_size="${16}"
+                source_helper_commit="${17}"
+            fi
+        elif [[ "$#" -eq 15 ]]; then
+            source_archive_sha256="${13}"
+            source_archive_size="${14}"
+            source_helper_commit="${15}"
         elif [[ "$#" -ne 12 ]]; then
-            fail wrapper_failure "Viper M6 staging received extra arguments"
+            fail wrapper_failure "Viper M6 staging received invalid arguments"
         fi
     else
         fail wrapper_failure "invalid M6 runner stage operation"
@@ -2352,9 +2362,20 @@ m6_runner_stage_common() {
     fi
 
     if [[ "$operation" == m6-scientific-stage && "$SITE_ID" == marmic ]]; then
+        if [[ -n "$source_archive_sha256" ]]; then
+            stage_run_common \
+                "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 "$profile" \
+                "$marmic_phenix_manifest" "$marmic_phenix_sha256" \
+                "$source_archive_sha256" "$source_archive_size" "$source_helper_commit"
+        else
+            stage_run_common \
+                "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 "$profile" \
+                "$marmic_phenix_manifest" "$marmic_phenix_sha256"
+        fi
+    elif [[ -n "$source_archive_sha256" ]]; then
         stage_run_common \
             "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 "$profile" \
-            "$marmic_phenix_manifest" "$marmic_phenix_sha256"
+            "$source_archive_sha256" "$source_archive_size" "$source_helper_commit"
     else
         stage_run_common \
             "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 "$profile"
@@ -2513,19 +2534,13 @@ m6_inputs_stage_run() {
 }
 
 m6_scientific_stage_run() {
-    [[ "$#" -eq 10 || "$#" -eq 12 ]] || \
+    [[ "$#" -eq 10 || "$#" -eq 12 || "$#" -eq 13 || "$#" -eq 15 ]] || \
         fail wrapper_failure "m6-scientific-stage expects its fixed site arguments"
     local track="${10}"
     [[ "$track" == operational || "$track" == leakage ]] || \
         fail wrapper_failure "invalid M6 scientific track"
-    if [[ "$#" -eq 12 ]]; then
-        m6_runner_stage_common \
-            m6-scientific-stage "m6-${track}" "$track" "${@:1:9}" \
-            "${11}" "${12}"
-    else
-        m6_runner_stage_common \
-            m6-scientific-stage "m6-${track}" "$track" "${@:1:9}"
-    fi
+    m6_runner_stage_common \
+        m6-scientific-stage "m6-${track}" "$track" "${@:1:9}" "${@:11}"
 }
 
 m4_import_stage_run() {

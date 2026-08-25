@@ -227,6 +227,14 @@ already qualified by the Phase III control profile; it does not infer that
 path from Viper's incompatible site configuration. Both final tracks must use
 the same reviewed site and its exact frozen policy checksum.
 
+If the reviewed site has no usable bare Git mirror, the controller retries only
+that exact classified staging failure. It streams the existing checksum-bound,
+size-limited immutable source checkout first, followed by the independently
+confirmed M6 runner archive. The dispatcher verifies the exact commit, locked
+environment, pinned helper, source checksum, and runner inventory before the
+run becomes stageable; arbitrary uploads and broader transport retries are not
+enabled.
+
 Each track retains its full raw output remotely, emits compact case evidence
 and a deterministic gzip of every candidate rank, verifies all output
 checksums, and performs a fully cached Nextflow `-resume` pass. No search or

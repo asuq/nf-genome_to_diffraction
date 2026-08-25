@@ -1948,7 +1948,36 @@ class HpcController:
         ]
         if self.config.site_id == "marmic":
             arguments.extend(_fixed_heteromer_phenix_binding(self.config.repository))
-        remote = self.transport.m6_scientific_stage(arguments, archive_path)
+        try:
+            remote = self.transport.m6_scientific_stage(arguments, archive_path)
+        except RemoteOperationError as error:
+            if not (
+                error.failure_class is FailureClass.FILESYSTEM_FAILURE
+                and str(error)
+                in {"bare Git mirror is absent", "configured Git mirror is not bare"}
+            ):
+                raise
+            self.logger.warning(
+                "using checksum-gated M6 source archive staging",
+                extra={"commit": commit, "profile": profile, "run_id": run_id},
+            )
+            with tempfile.TemporaryDirectory(
+                prefix="nf-gtd-m6-stage-", dir="/tmp"
+            ) as temporary:
+                source_archive = Path(temporary) / "source.tar"
+                source_sha256, source_size, helper_commit = (
+                    self.git.create_source_archive(commit, source_archive)
+                )
+                combined_archive = Path(temporary) / "source-and-runner.bin"
+                with combined_archive.open("wb") as output:
+                    with source_archive.open("rb") as source:
+                        shutil.copyfileobj(source, output)
+                    with archive_path.open("rb") as runner:
+                        shutil.copyfileobj(runner, output)
+                remote = self.transport.m6_scientific_stage(
+                    [*arguments, source_sha256, str(source_size), helper_commit],
+                    combined_archive,
+                )
         remote_site = remote.get("site_id")
         if not isinstance(remote_site, str):
             raise ValidationError("M6 stage response omits the fixed site identity")

@@ -1250,8 +1250,9 @@ def test_m6_scientific_submit_uses_approved_bounded_resources(
     assert "tool_runtime_timeouts" in m6_body
 
 
+@pytest.mark.parametrize("source_archive", [False, True])
 def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
-    tmp_path: Path,
+    tmp_path: Path, source_archive: bool
 ) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
@@ -1317,18 +1318,32 @@ def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
         "Marmic M6 requires its fixed Phenix binding"
     )
 
+    stage_arguments = [*arguments, str(phenix_manifest), phenix_sha256]
+    stage_payload = archive_bytes
+    source_digest = ""
+    if source_archive:
+        source = tmp_path / "source-origin"
+        helper_commit = _git(source / "external/nf-helper", "rev-parse", "HEAD")
+        source_buffer = io.BytesIO()
+        with tarfile.open(fileobj=source_buffer, mode="w:") as source_tar:
+            source_tar.add(source, arcname=".", recursive=True)
+        source_bytes = source_buffer.getvalue()
+        source_digest = hashlib.sha256(source_bytes).hexdigest()
+        stage_arguments.extend([source_digest, str(len(source_bytes)), helper_commit])
+        stage_payload = source_bytes + archive_bytes
+        mirror = remote_root / "_cache/git/nf-genome_to_diffraction.git"
+        mirror.rename(tmp_path / "unavailable-mirror")
+
     staged = _decode_protocol(
         _run(
             [
                 str(dispatcher),
                 "m6-scientific-stage",
-                *arguments,
-                str(phenix_manifest),
-                phenix_sha256,
+                *stage_arguments,
             ],
             cwd=tmp_path,
             environment=environment,
-            input_data=archive_bytes,
+            input_data=stage_payload,
         ).stdout
     )
 
@@ -1343,6 +1358,9 @@ def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
     assert (state / "phenix-manifest-sha256").read_text().strip() == phenix_sha256
     assert (state / "m6-runner-case-count").read_text().strip() == "63"
     assert (state / "phase").read_text().strip() == "staged"
+    if source_archive:
+        assert (state / "source-archive-sha256").read_text().strip() == source_digest
+        assert not mirror.exists()
 
 
 @pytest.mark.parametrize(

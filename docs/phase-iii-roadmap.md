@@ -462,6 +462,14 @@ The local fake scheduler exercises complete Marmic staging and both reviewed
 submission policies. No scientific M6 profile has been launched; real
 execution remains behind the earlier Phase III control gates.
 
+Status: the fixed M6 scientific controller now also reuses the reviewed
+exact-commit source-archive fallback when the selected site's bare Git mirror
+is absent or invalid. One bounded stream carries the source archive before the
+independently confirmed runner archive; both remain separately size/checksum
+verified, and pinned nf-helper, Phenix, execution policy, and site identity
+remain bound. A fake Marmic stage succeeds with its mirror absent and all 63
+runner cases present. No scientific job has been submitted.
+
 Status: the local `DEV-P2-01` completion-order correction is implemented. The
 active discovery and policy writers already canonicalised validated provider,
 result, hit, accepted/rejected-model, and evidence-ranked candidate records;
