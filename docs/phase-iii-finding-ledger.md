@@ -87,7 +87,7 @@ ordered `RG0`-`RG7` milestones and both scientific stop gates.
 
 | Finding | Current disposition | Required gate and acceptance evidence |
 | --- | --- | --- |
-| `FCB-P0-01` Fabricated final Phaser packing | Open | RG2; reject absent packing rows before 9ECN acceptance and unknown pass 1. |
+| `FCB-P0-01` Fabricated final Phaser packing | Fixed locally; exact-source CI and installed-control qualification pending | RG2; first-copy, additional-copy, and partner searches now require either explicit final packing counts or an observed final `PAK=0` annotation. Missing/nonzero log and coordinate evidence fail closed, all five affected adapter/cache identities advance, and 69 focused Phaser/copy/partner/control regressions pass. |
 | `FCB-P0-02` Self-asserted credible unknown assessment | Open | RG3; parse owned scientific records and all four human decisions before pass 1. |
 | `FCB-P0-03` Unresolved Free-R test convention | Fixed locally; authoritative unknown-dataset review and exact-source CI pending | RG2; Phase III rejects unresolved Free-R flags before output creation or Phenix execution, all command contracts require an explicit test value, and the automatic-value branch is deleted. One red/green pre-execution regression and 81 focused refinement/diffraction/sequence cases pass. |
 | `FCB-P0-04` Optional reviewed provider policy | Open | RG1; require exact provider plan and route entry before pass 1. |

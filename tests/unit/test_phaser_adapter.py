@@ -15,7 +15,7 @@ from genome_to_diffraction.diffraction.selection import (
     bind_phase3_hypothesis,
     build_diffraction_selection,
 )
-from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.mr import (
     PhaserInputError,
     PhaserParseError,
@@ -250,6 +250,7 @@ def _fake_runtime(
     write_solution: bool = False,
     pdb_llg: float = 1622.879,
     pdb_tfz: float = 49.7,
+    pdb_pak: float | None = 0.0,
     placement_count: int = 1,
 ) -> list[list[str]]:
     commands: list[list[str]] = []
@@ -274,10 +275,11 @@ def _fake_runtime(
                 "REMARK ENSEMBLE ense_1 EULER 1 2 3 FRAC 0.1 0.2 0.3\n"
                 for _ in range(placement_count)
             )
+            packing = "" if pdb_pak is None else f"PAK={pdb_pak:g} "
             (working_directory / "PHASER.1.pdb").write_text(
                 "REMARK Log-Likelihood Gain: "
                 f"{pdb_llg}\n"
-                f"REMARK PAK=0 LLG={pdb_llg} TFZ=={pdb_tfz}\n"
+                f"REMARK {packing}LLG={pdb_llg} TFZ=={pdb_tfz}\n"
                 f"{placements}"
                 "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  "
                 "1.00 20.00           C\n",
@@ -308,12 +310,28 @@ def test_real_format_parser_uses_final_packing_and_retains_advisory() -> None:
     assert parsed.parser_warnings == ("phaser_advisory_top_ftf_did_not_pack",)
 
 
+@pytest.mark.parametrize("annotation", ("", "SOLU SET PAK=1\n"))
+def test_parser_rejects_single_solution_without_explicit_packing(
+    annotation: str,
+) -> None:
+    log = (
+        POSITIVE_LOG.replace(
+            "2 accepted of 2 solutions\n2 pack of 2 accepted solutions\n", ""
+        )
+        .replace("** There were 2 solutions", f"{annotation}** SINGLE solution")
+        .replace("\nADVISORY\nThe top solution from a FTF did not pack\n", "")
+    )
+
+    with pytest.raises(PhaserParseError, match="final packing evidence"):
+        parse_phaser_log(log)
+
+
 def test_parser_accepts_phenix_single_solution_summary() -> None:
     log = (
         POSITIVE_LOG.replace(
             "2 accepted of 2 solutions\n2 pack of 2 accepted solutions\n", ""
         )
-        .replace("** There were 2 solutions", "** SINGLE solution")
+        .replace("** There were 2 solutions", "SOLU SET PAK=0\n** SINGLE solution")
         .replace("\nADVISORY\nThe top solution from a FTF did not pack\n", "")
     )
 
@@ -322,7 +340,7 @@ def test_parser_accepts_phenix_single_solution_summary() -> None:
     assert parsed.solution_count == 1
     assert parsed.accepted_solution_count == 1
     assert parsed.packed_solution_count == 1
-    assert parsed.parser_warnings == ("single_solution_packing_inferred_from_top_llg",)
+    assert parsed.parser_warnings == ("single_solution_packing_verified_from_pak",)
 
 
 def test_solution_pdb_llg_accepts_scientific_notation(tmp_path: Path) -> None:
@@ -416,6 +434,7 @@ def test_adapter_runs_exact_composition_and_emits_credible_hit(
     assert "phaser.keywords.general.jobs=4" in command
     assert "phaser.keywords.sgalternative.select=none" in command
     record = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert record["adapter_version"] == "phenix-first-copy-mr-v7"
     assert record["model_uncertainty_source"].startswith("phenix.process")
 
 
@@ -432,8 +451,28 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
     binding = record["diffraction_command_binding"]
     selection = record["diffraction_selection"]
     assert record["schema_version"] == "2.0"
+    assert record["adapter_version"] == "phenix-first-copy-mr-v9-phase3-diffraction"
     assert record["phase3_hypothesis_id"] == request.phase3_hypothesis_id
     assert record["phase3_command_id"].startswith("phasercmd_")
+    command_identity = {
+        "adapter_version": record["adapter_version"],
+        "phase3_hypothesis_id": record["phase3_hypothesis_id"],
+        "diffraction_selection_id": selection["diffraction_selection_id"],
+        "diffraction_command_binding_id": binding["binding_id"],
+        "arguments": record["arguments"],
+        "threads": record["threads"],
+        "timeout_seconds": record["timeout_seconds"],
+        "mtz_sha256": record["mtz_sha256"],
+        "model_sha256": record["model_sha256"],
+        "sequence_sha256": record["sequence_sha256"],
+        "phenix_manifest_sha256": record["phenix_manifest_sha256"],
+    }
+    assert content_id("phasercmd_", command_identity) == record["phase3_command_id"]
+    previous_identity = {
+        **command_identity,
+        "adapter_version": "phenix-first-copy-mr-v8-phase3-diffraction",
+    }
+    assert content_id("phasercmd_", previous_identity) != record["phase3_command_id"]
     assert selection["observation_dataset_id"] == 1
     assert selection["observation_labels"] == ["I", "SIGI"]
     assert binding["observation_command_binding"].startswith("explicit_parameter")
@@ -610,7 +649,30 @@ def test_adapter_uses_complete_solution_files_when_log_omits_count(
     assert output.result.packing_summary["solution_count"] == 1
     assert output.result.packing_summary["top_solution_packed"] is True
     assert output.result.parser_warnings == (
-        "solution_count_inferred_from_output_files",
+        "solution_count_verified_from_output_files",
+        "packing_verified_from_solution_pak",
+    )
+
+
+@pytest.mark.parametrize("pdb_pak", (None, 1.0))
+def test_adapter_rejects_output_only_solution_without_explicit_packing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    pdb_pak: float | None,
+) -> None:
+    request = _inputs(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text="PHENIX: Phaser 2.8.4\nEXIT STATUS: SUCCESS\n",
+        write_solution=True,
+        pdb_pak=pdb_pak,
+    )
+
+    output = run_first_copy_phaser(request)
+
+    assert output.result.execution_status == "failed_parse"
+    assert (
+        output.result.rejection_reason == "Phaser solution lacks final packing evidence"
     )
 
 

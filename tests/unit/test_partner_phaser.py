@@ -1,6 +1,7 @@
 """Tests for the fixed-A/joint-B Phaser adapter."""
 
 import hashlib
+import json
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -180,6 +181,8 @@ def test_fixed_a_one_b_command_and_primary_result(
     output = run_partner_search(request)
 
     result = output.result
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert command["adapter_version"] == "phenix-fixed-a-joint-b-v5-native-placements"
     assert result.execution_status == "completed_hit"
     assert result.partner_tfz == pytest.approx(49.7)
     assert result.combined_llg == pytest.approx(1622.91)

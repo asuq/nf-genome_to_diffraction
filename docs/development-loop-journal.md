@@ -12898,3 +12898,24 @@ with a collapsed combined parent or a guessed command.
   sequence-checkpoint, and component-input regressions pass. Unknown datasets
   still require an independently approved authoritative flag convention; no
   control, unknown, M6, or other scientific HPC job was added.
+
+## 2026-08-25 - Phaser packing must be directly observed
+
+- `FCB-P0-01` had two independently reproduced fabrication paths: a
+  single-solution summary plus `Top LLG (packs)` invented accepted/packed
+  counts, and a marker-free coordinate/MTZ pair silently invented those same
+  successful counts.
+- Immutable Phenix 2.1-6048 control evidence previously documented a genuine
+  alternate native output containing `** SINGLE solution`, complete output,
+  and a final `PAK=0` annotation without legacy packing-count rows. That
+  concrete installed-runtime format remains supported, but absent or nonzero
+  final `PAK` now fails explicitly in both log-only and output-backed routes.
+- Shared first-copy, additional-copy, and fixed-parent partner searches all
+  consume this parser; their five active adapter versions now advance so
+  cross-track cache identities cannot silently reuse the superseded packing
+  semantics. A focused identity contract confirms the old Phase III
+  first-copy version produces a different content identifier.
+- Two parametrised red/green missing/nonzero evidence regressions and 69
+  focused Phaser, copy, partner, and control cases pass. The only submitted
+  known-control run remains Slurm `634369`; no new scientific HPC operation
+  or full repository gate was started.

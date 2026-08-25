@@ -86,8 +86,8 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
-_ADAPTER_VERSION = "phenix-first-copy-mr-v6"
-_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v8-phase3-diffraction"
+_ADAPTER_VERSION = "phenix-first-copy-mr-v7"
+_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v9-phase3-diffraction"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -530,8 +530,11 @@ def parse_phaser_log(text: str) -> ParsedPhaserLog:
         if total < accepted or accepted_again != accepted or packed > accepted:
             raise PhaserParseError("Phaser final packing counts are inconsistent")
     elif single_solution and _TOP_LLG.search(text):
+        pak_values = [float(value) for value in _PDB_PAK.findall(text)]
+        if not pak_values or pak_values[-1] != 0.0:
+            raise PhaserParseError("Phaser solution lacks final packing evidence")
         accepted = packed = 1
-        warnings.append("single_solution_packing_inferred_from_top_llg")
+        warnings.append("single_solution_packing_verified_from_pak")
     elif solution_count > 0:
         raise PhaserParseError("Phaser solution lacks final packing evidence")
     if "The top solution from a FTF did not pack" in text:
@@ -588,7 +591,15 @@ def parse_completed_phaser_outputs(text: str, output: Path) -> ParsedPhaserLog:
         placed_count = len(_PDB_PLACEMENT.findall(pdb_text))
         if llg is None or not tfz_values or placed_count < 1:
             raise
-        warnings = ["solution_count_inferred_from_output_files"]
+        pak_values = [float(value) for value in _PDB_PAK.findall(pdb_text)]
+        if not pak_values or pak_values[-1] != 0.0:
+            raise PhaserParseError(
+                "Phaser solution lacks final packing evidence"
+            ) from error
+        warnings = [
+            "solution_count_verified_from_output_files",
+            "packing_verified_from_solution_pak",
+        ]
         if "EXIT STATUS: SUCCESS" not in text:
             warnings.append("phaser_success_marker_absent")
         version_match = _VERSION.search(text)

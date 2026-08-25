@@ -314,7 +314,7 @@ def test_phase3_additional_copy_command_binds_selected_diffraction(
     binding = command["diffraction_command_binding"]
     parameters = output.parameters_file.read_text(encoding="utf-8")
     assert command["schema_version"] == "2.0"
-    assert command["adapter_version"] == "phenix-add-copy-mr-v5"
+    assert command["adapter_version"] == "phenix-add-copy-mr-v6"
     assert command["phase3_hypothesis_id"].startswith("mrhyp2_")
     assert binding["consumer"] == "phase3_additional_copy_phaser"
     assert binding["command_mtz_binding"] == "exact_selected_mtz"
@@ -384,6 +384,8 @@ def test_packed_additional_copy_advances_child_state(
 
     output = run_additional_copy_phaser(request)
 
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert command["adapter_version"] == "phenix-add-copy-mr-v5"
     assert output.result.execution_status == "completed_hit"
     assert output.result.additional_copy_supported is True
     assert output.result.parent_copy_count == 1

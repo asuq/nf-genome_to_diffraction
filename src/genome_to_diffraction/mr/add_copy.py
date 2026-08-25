@@ -68,8 +68,8 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.add_copy")
-_ADAPTER_VERSION = "phenix-add-copy-mr-v4"
-_PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v5"
+_ADAPTER_VERSION = "phenix-add-copy-mr-v5"
+_PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v6"
 _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
