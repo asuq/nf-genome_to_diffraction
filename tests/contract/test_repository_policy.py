@@ -416,8 +416,8 @@ def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     assert viper.count("cpus = 32") >= 2
 
 
-def test_retired_control_benchmarks_cannot_start_nested_python_schedulers() -> None:
-    """Keep archival control execution behind a Nextflow migration diagnostic."""
+def test_control_helpers_expose_no_direct_or_nested_python_schedulers() -> None:
+    """Retain preparation helpers without resurrecting direct scientific drivers."""
 
     relative_drivers = (
         "src/genome_to_diffraction/benchmarks/control_slice_run.py",
@@ -433,8 +433,13 @@ def test_retired_control_benchmarks_cannot_start_nested_python_schedulers() -> N
     for relative in relative_drivers:
         source = (REPOSITORY / relative).read_text(encoding="utf-8")
         assert all(token not in source for token in forbidden)
-        assert "Refuse the retired direct scientific scheduler" in source
-        assert "Nextflow channel item per hypothesis" in source
+        assert "RunRequest" not in source
+        assert "def run_control_" not in source
+
+    cli = (REPOSITORY / "src/genome_to_diffraction/cli.py").read_text(encoding="utf-8")
+    assert '"run-control-slice"' not in cli
+    assert '"run-control-matrix"' not in cli
+    assert '"run-m6-scientific"' not in cli
 
 
 def test_m6_uses_standard_nextflow_resume_cache_without_store_dir() -> None:

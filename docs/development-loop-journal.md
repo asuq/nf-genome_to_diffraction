@@ -13191,3 +13191,25 @@ with a collapsed combined parent or a guessed command.
 - The correction changes only the local controller: no remote dispatcher,
   existing scheduler run, retained scientific result, or collection limit was
   modified.
+
+## 2026-08-25 - Retired scientific-execution aliases are removed completely
+
+- `FCB-P2-02` first reproduced three obsolete benchmark subcommands remaining
+  publicly registered even though their direct control-slice, control-matrix,
+  and monolithic M6 execution paths were intentionally guaranteed to fail.
+- All three parser branches and dispatch routes are deleted rather than kept as
+  permanent migration aliases. Both obsolete control-run request classes,
+  fail-only execution functions/messages, and the compatibility-only matrix
+  test are removed; no command reads inputs or creates outputs because the
+  parser now rejects every former action as an unsupported choice.
+- Existing control preparation, sequence/model classification, and immutable
+  historical readers remain available to the canonical Nextflow-owned control
+  and M6 task graphs. The repository policy now forbids both nested Python
+  schedulers and resurrection of any direct execution authority.
+- The original `DEV-P2-03` disposition remains fixed under this stricter clean
+  break. Three red/green unsupported-command cases cover all former aliases;
+  all 127 focused CLI/control/M6/repository-policy cases and the real M6
+  Nextflow cache-mutation stub remain green. Historical journal evidence is
+  retained without alteration.
+- No scheduler run, remote dispatcher, M6 scientific protocol, known control,
+  or unknown-crystal profile was started or modified.

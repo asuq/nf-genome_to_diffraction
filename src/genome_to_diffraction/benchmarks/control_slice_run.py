@@ -9,9 +9,8 @@ Nextflow-owned workflows.
 
 import hashlib
 import shutil
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Never, cast
+from typing import cast
 
 import gemmi
 from Bio import SeqIO
@@ -41,28 +40,10 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _ADAPTER_VERSION = "public-homomer-smoke-run-v1"
-_RETIRED_EXECUTION_MESSAGE = (
-    "benchmark run-control-slice is retired because it scheduled independent "
-    "scientific attempts inside Python. Migrate the archival suite to a reviewed "
-    "DSL2 workflow that emits one complete Nextflow channel item per hypothesis, "
-    "seed, and finalist; the configured executor must own concurrency and resume."
-)
 
 
 class ControlSliceRunError(InputContractError):
     """The fixed imported slice or its scientific relationships changed."""
-
-
-@dataclass(frozen=True, slots=True)
-class ControlSliceRunRequest:
-    """Legacy invocation fields retained only for the migration diagnostic."""
-
-    import_root: Path
-    phenix_manifest: Path
-    output_directory: Path
-    threads: int = 8
-    progress: bool = True
-    skip_xtriage: bool = False
 
 
 def _object(path: Path) -> dict[str, object]:
@@ -417,10 +398,3 @@ def _positive_control_retained(
         )
         for item in related
     )
-
-
-def run_control_slice(request: ControlSliceRunRequest) -> Never:
-    """Refuse the retired direct scientific scheduler before reading inputs."""
-
-    del request
-    raise ControlSliceRunError(_RETIRED_EXECUTION_MESSAGE)

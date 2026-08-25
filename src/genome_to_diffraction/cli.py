@@ -40,14 +40,6 @@ from genome_to_diffraction.benchmarks import (
     prepare_public_control_panel,
     verify_m6_runner_bundle,
 )
-from genome_to_diffraction.benchmarks.control_matrix_run import (
-    ControlMatrixRunRequest,
-    run_control_matrix,
-)
-from genome_to_diffraction.benchmarks.control_slice_run import (
-    ControlSliceRunRequest,
-    run_control_slice,
-)
 from genome_to_diffraction.benchmarks.m6_execution import (
     M6ChildOutputEvidenceRequest,
     M6ResourceEvidenceRequest,
@@ -723,22 +715,6 @@ def _build_parser() -> argparse.ArgumentParser:
     control_bundle_parser.add_argument("--sequence-groups", type=Path, required=True)
     control_bundle_parser.add_argument("--preflight", type=Path, required=True)
     control_bundle_parser.add_argument("--outdir", type=Path, required=True)
-    control_slice_parser = benchmark_actions.add_parser(
-        "run-control-slice",
-        help="report migration from the retired direct six-case executor",
-    )
-    control_slice_parser.add_argument("--import-root", type=Path, required=True)
-    control_slice_parser.add_argument("--phenix-manifest", type=Path, required=True)
-    control_slice_parser.add_argument("--outdir", type=Path, required=True)
-    control_slice_parser.add_argument("--threads", type=int, default=8)
-    control_matrix_parser = benchmark_actions.add_parser(
-        "run-control-matrix",
-        help="report migration from the retired direct 23-case executor",
-    )
-    control_matrix_parser.add_argument("--import-root", type=Path, required=True)
-    control_matrix_parser.add_argument("--phenix-manifest", type=Path, required=True)
-    control_matrix_parser.add_argument("--outdir", type=Path, required=True)
-    control_matrix_parser.add_argument("--threads", type=int, default=8)
     panel_check_parser = benchmark_actions.add_parser(
         "check-public-panel",
         help="validate the tracked public panel and active control mappings",
@@ -790,27 +766,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     m6_verify_parser.add_argument("--runner-root", type=Path, required=True)
     m6_verify_parser.add_argument("--report", type=Path, required=True)
-    m6_scientific_parser = benchmark_actions.add_parser(
-        "run-m6-scientific",
-        help="reject legacy monolithic execution; retained for CLI compatibility",
-    )
-    m6_scientific_parser.add_argument("--runner-root", type=Path, required=True)
-    m6_scientific_parser.add_argument("--protocol", type=Path, required=True)
-    m6_scientific_parser.add_argument("--database-manifest", type=Path, required=True)
-    m6_scientific_parser.add_argument("--phenix-manifest", type=Path, required=True)
-    m6_scientific_parser.add_argument(
-        "--track", choices=("operational", "leakage"), required=True
-    )
-    m6_scientific_parser.add_argument("--outdir", type=Path, required=True)
-    m6_scientific_parser.add_argument("--threads", type=int, default=8)
-    m6_scientific_parser.add_argument(
-        "--maximum-concurrent-phenix-attempts", type=int, default=4
-    )
-    m6_scientific_parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="verify and reuse a complete checksum-matching track output",
-    )
     m6_plan_nf = benchmark_actions.add_parser(
         "plan-m6-nextflow", help="materialise one truthless M6 Nextflow task graph"
     )
@@ -2320,26 +2275,6 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         )
         print(f"Approved fixed 6RTZ HisF parent: {reviewed.approved_stage}")
         return 0
-    if args.benchmark_action == "run-control-slice":
-        run_control_slice(
-            ControlSliceRunRequest(
-                import_root=args.import_root,
-                phenix_manifest=args.phenix_manifest,
-                output_directory=args.outdir,
-                threads=args.threads,
-                progress=not args.no_progress,
-            )
-        )
-    if args.benchmark_action == "run-control-matrix":
-        run_control_matrix(
-            ControlMatrixRunRequest(
-                import_root=args.import_root,
-                phenix_manifest=args.phenix_manifest,
-                output_directory=args.outdir,
-                threads=args.threads,
-                progress=not args.no_progress,
-            )
-        )
     if args.benchmark_action == "check-public-panel":
         panel = load_public_control_panel(args.panel)
         print(f"Public panel {panel.panel_id} is valid: {len(panel.entries)} entries")
@@ -2408,11 +2343,6 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             f"and {result.object_count} objects: {result.qualification}"
         )
         return 0
-    if args.benchmark_action == "run-m6-scientific":
-        raise GenomeToDiffractionError(
-            "run-m6-scientific is a legacy verifier-only boundary; "
-            "execute M6 through m6_validation.nf"
-        )
     if args.benchmark_action == "plan-m6-nextflow":
         result = plan_m6_nextflow_track(
             M6TrackPlanRequest(

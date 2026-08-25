@@ -10,7 +10,7 @@ immutable historical evidence.
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Never, cast
+from typing import cast
 
 from genome_to_diffraction.benchmarks.control_slice_run import (
     ControlSliceRunError,
@@ -39,29 +39,10 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.status import ExecutionStatus
 
 _ADAPTER_VERSION = "public-homomer-matrix-run-v2"
-_DEFAULT_THREADS = 8
-_RETIRED_EXECUTION_MESSAGE = (
-    "benchmark run-control-matrix is retired because it scheduled independent "
-    "scientific attempts inside Python. Migrate the archival suite to a reviewed "
-    "DSL2 workflow that emits one complete Nextflow channel item per hypothesis, "
-    "seed, and finalist; the configured executor must own concurrency and resume."
-)
 
 
 class ControlMatrixRunError(ControlSliceRunError):
     """The fixed matrix import or scientific relationship changed."""
-
-
-@dataclass(frozen=True, slots=True)
-class ControlMatrixRunRequest:
-    """Legacy invocation fields retained only for the migration diagnostic."""
-
-    import_root: Path
-    phenix_manifest: Path
-    output_directory: Path
-    threads: int = _DEFAULT_THREADS
-    progress: bool = True
-    skip_xtriage: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -342,10 +323,3 @@ def _supported_first_copy_count(
     ):
         return result.placed_copy_count
     return 0
-
-
-def run_control_matrix(request: ControlMatrixRunRequest) -> Never:
-    """Refuse the retired direct scientific scheduler before reading inputs."""
-
-    del request
-    raise ControlMatrixRunError(_RETIRED_EXECUTION_MESSAGE)

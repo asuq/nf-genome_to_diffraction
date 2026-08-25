@@ -1,6 +1,5 @@
 """Unit tests for command-line behaviour."""
 
-import concurrent.futures
 import json
 from pathlib import Path
 
@@ -16,41 +15,18 @@ from genome_to_diffraction.status import (
 )
 
 
-@pytest.mark.parametrize("action", ["run-control-slice", "run-control-matrix"])
-def test_retired_direct_benchmarks_fail_with_nextflow_migration_before_execution(
+@pytest.mark.parametrize(
+    "action", ("run-control-slice", "run-control-matrix", "run-m6-scientific")
+)
+def test_retired_direct_benchmark_execution_aliases_are_not_registered(
     action: str,
-    tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def forbid_executor(*args: object, **kwargs: object) -> None:
-        del args, kwargs
-        raise AssertionError("retired benchmark started a Python executor")
+    with pytest.raises(SystemExit) as error:
+        main(["benchmark", action])
 
-    monkeypatch.setattr(concurrent.futures, "ThreadPoolExecutor", forbid_executor)
-    output = tmp_path / "output"
-
-    assert (
-        main(
-            [
-                "benchmark",
-                action,
-                "--import-root",
-                str(tmp_path / "missing-inputs"),
-                "--phenix-manifest",
-                str(tmp_path / "missing-phenix.json"),
-                "--outdir",
-                str(output),
-            ]
-        )
-        == 1
-    )
-
-    error = capsys.readouterr().err
-    assert f"benchmark {action} is retired" in error
-    assert "Nextflow channel item per hypothesis, seed, and finalist" in error
-    assert "configured executor must own concurrency and resume" in error
-    assert not output.exists()
+    assert error.value.code == 2
+    assert f"invalid choice: '{action}'" in capsys.readouterr().err
 
 
 def test_version_flag_exits_successfully(

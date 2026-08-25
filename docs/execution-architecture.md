@@ -26,11 +26,10 @@ tasks followed by a fully cached equivalent resume.
 
 ## Retired direct benchmark drivers
 
-The archival `benchmark run-control-slice` and `benchmark run-control-matrix`
-commands are retained only as migration diagnostics. They fail before reading
-inputs, creating outputs, or starting Phenix because their historical Python
-thread pools scheduled independent hypotheses, seeds, and refinements outside
-Nextflow. Their immutable prior evidence remains readable, and shared
+Historical direct control and M6 benchmark commands are not registered. Their
+former Python drivers scheduled independent hypotheses, seeds, and refinements
+outside Nextflow, so both the obsolete commands and their fail-only compatibility
+functions were removed. Immutable prior evidence remains readable, and shared
 preparation/classification helpers remain available to Nextflow-owned graphs.
 
 Any future replay of those suites must use a reviewed DSL2 entry point that
