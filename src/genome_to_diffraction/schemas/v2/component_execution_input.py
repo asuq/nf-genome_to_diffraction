@@ -22,8 +22,14 @@ combined-coordinate evidence that lacks the exact Phaser ``.sol`` and native
 per-placement PDBs.  It emits no coordinates or command and records the exact
 future output-adapter requirement.  Its regressions live in
 ``tests/unit/test_component_coordinate_derivation_boundary.py``.
+
+``ComponentExpansionScoreEvidence`` binds a verified component inventory to
+one explicit candidate-ensemble TFZ, the fixed parent's retained combined LLG,
+the new combined LLG, and their independently validated incremental delta.
+Packing remains search evidence and never establishes component identity.
 """
 
+import math
 from enum import StrEnum
 from typing import Annotated, ClassVar, Literal, Self
 
@@ -31,7 +37,9 @@ from pydantic import Field, model_validator
 
 from genome_to_diffraction.schemas.base import NonEmptyString, PositiveInt, Sha256Hex
 from genome_to_diffraction.schemas.v2.composition import (
+    ComponentIdentitySupport,
     ComponentLabel,
+    ComponentPlacement,
     ComponentPlacementIdentifier,
     ComponentSpecIdentifier,
     CompositionExpansionDepthCandidate,
@@ -48,6 +56,10 @@ from genome_to_diffraction.schemas.v2.diffraction import (
     DiffractionSelection,
     FreeRIdentity,
 )
+from genome_to_diffraction.schemas.v2.phaser_placements import (
+    PhaserPerPlacementInventory,
+)
+from genome_to_diffraction.status import ExecutionStatus
 
 FixedComponentExecutionEvidenceIdentifier = Annotated[
     str,
@@ -60,6 +72,10 @@ ComponentExpansionExecutionInputIdentifier = Annotated[
 ComponentCoordinateDerivationBoundaryIdentifier = Annotated[
     str,
     Field(pattern=r"^compcoordboundary_[a-f0-9]{64}$"),
+]
+ComponentExpansionScoreEvidenceIdentifier = Annotated[
+    str,
+    Field(pattern=r"^compscore_[a-f0-9]{64}$"),
 ]
 
 _ORDERED_COMPONENT_LABELS = ("A", "B", "C", "D", "E", "F")
@@ -319,9 +335,162 @@ class ComponentExpansionExecutionInput(_ContentAddressedContract):
         return self
 
 
+class ComponentExpansionScoreEvidence(_ContentAddressedContract):
+    """One candidate's own TFZ and LLG increment without an identity claim."""
+
+    _identity_field: ClassVar[str] = "score_evidence_id"
+    _identity_prefix: ClassVar[str] = "compscore_"
+
+    schema_version: Literal["2.0"]
+    score_evidence_id: ComponentExpansionScoreEvidenceIdentifier
+    execution_input: ComponentExpansionExecutionInput
+    placement_inventory: PhaserPerPlacementInventory
+    result_record_sha256: Sha256Hex
+    score_ensemble_id: NonEmptyString
+    parent_combined_llg: float
+    combined_llg: float
+    incremental_llg: float
+    component_tfz: float
+    placement: ComponentPlacement
+
+    @classmethod
+    def from_observed(
+        cls,
+        *,
+        execution_input: ComponentExpansionExecutionInput,
+        placement_inventory: PhaserPerPlacementInventory,
+        score_ensemble_id: str,
+        combined_llg: float,
+        component_tfz: float,
+        packing_passed: bool,
+        warnings: tuple[str, ...] = (),
+    ) -> Self:
+        """Derive candidate-only placement evidence from a verified inventory."""
+
+        candidate = execution_input.selected_candidate.hypothesis.component
+        groups = {
+            group.component_label: group
+            for group in placement_inventory.component_groups
+        }
+        group = groups.get(candidate.label)
+        if group is None:
+            raise ValueError(
+                "candidate component is absent from the placement inventory"
+            )
+        incremental_llg = combined_llg - execution_input.parent_combined_llg
+        placement = ComponentPlacement.from_content(
+            component_spec_id=candidate.component_spec_id,
+            component_label=candidate.label,
+            sequence_group_id=candidate.sequence_group_id,
+            model_id=candidate.model_id,
+            model_sha256=candidate.model_sha256,
+            requested_copy_count=candidate.requested_copy_count,
+            observed_copy_count=group.observed_copy_count,
+            execution_status=ExecutionStatus.COMPLETED_HIT,
+            component_tfz=component_tfz,
+            incremental_llg=incremental_llg,
+            packing_passed=packing_passed,
+            coordinate_sha256=group.coordinate_sha256,
+            identity_support=ComponentIdentitySupport.UNRESOLVED,
+            warnings=warnings,
+        )
+        return cls.from_content(
+            execution_input=execution_input,
+            placement_inventory=placement_inventory,
+            result_record_sha256=placement_inventory.result_record_sha256,
+            score_ensemble_id=score_ensemble_id,
+            parent_combined_llg=execution_input.parent_combined_llg,
+            combined_llg=combined_llg,
+            incremental_llg=incremental_llg,
+            component_tfz=component_tfz,
+            placement=placement,
+        )
+
+    @model_validator(mode="after")
+    def _validate_component_score(self) -> Self:
+        execution = self.execution_input
+        inventory = self.placement_inventory
+        candidate = execution.selected_candidate.hypothesis.component
+        if inventory.crystal_id != execution.parent_state.crystal_id:
+            raise ValueError("component score inventory belongs to another crystal")
+        if self.result_record_sha256 != inventory.result_record_sha256:
+            raise ValueError("component score result record checksum differs")
+
+        expected_components = (*execution.parent_state.components, candidate)
+        expected_labels = tuple(item.label for item in expected_components)
+        groups = {group.component_label: group for group in inventory.component_groups}
+        if set(groups) != set(expected_labels):
+            raise ValueError(
+                "component score inventory does not cover parent and candidate"
+            )
+        for component in expected_components:
+            group = groups[component.label]
+            if (
+                group.source_model_sha256 != component.model_sha256
+                or group.expected_copy_count != component.requested_copy_count
+            ):
+                raise ValueError(
+                    "component score inventory changed component model or copies"
+                )
+
+        candidate_group = groups[candidate.label]
+        if self.score_ensemble_id != candidate_group.ensemble_id:
+            raise ValueError("component TFZ does not belong to the candidate ensemble")
+        if not math.isclose(
+            self.parent_combined_llg,
+            execution.parent_combined_llg,
+            rel_tol=1e-10,
+            abs_tol=1e-8,
+        ):
+            raise ValueError("component score changed the fixed parent LLG")
+        if not math.isclose(
+            self.incremental_llg,
+            self.combined_llg - self.parent_combined_llg,
+            rel_tol=1e-10,
+            abs_tol=1e-8,
+        ):
+            raise ValueError("component incremental LLG is not combined minus parent")
+
+        placement = self.placement
+        if (
+            placement.component_spec_id != candidate.component_spec_id
+            or placement.component_label != candidate.label
+            or placement.sequence_group_id != candidate.sequence_group_id
+            or placement.model_id != candidate.model_id
+            or placement.model_sha256 != candidate.model_sha256
+            or placement.requested_copy_count != candidate.requested_copy_count
+            or placement.observed_copy_count != candidate_group.observed_copy_count
+            or placement.coordinate_sha256 != candidate_group.coordinate_sha256
+        ):
+            raise ValueError("component placement differs from the selected candidate")
+        if (
+            placement.execution_status is not ExecutionStatus.COMPLETED_HIT
+            or placement.identity_support is not ComponentIdentitySupport.UNRESOLVED
+        ):
+            raise ValueError(
+                "component search scores cannot establish sequence identity"
+            )
+        if not math.isclose(
+            placement.component_tfz or 0,
+            self.component_tfz,
+            rel_tol=1e-10,
+            abs_tol=1e-8,
+        ) or not math.isclose(
+            placement.incremental_llg or 0,
+            self.incremental_llg,
+            rel_tol=1e-10,
+            abs_tol=1e-8,
+        ):
+            raise ValueError(
+                "component placement scores differ from candidate evidence"
+            )
+        return self
+
+
 __all__ = [
     "ComponentCoordinateDerivationBoundary",
     "ComponentCoordinateDerivationGap",
     "ComponentExpansionExecutionInput",
+    "ComponentExpansionScoreEvidence",
     "FixedComponentExecutionEvidence",
 ]

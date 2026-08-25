@@ -7,6 +7,7 @@ from pydantic import BaseModel, ValidationError
 
 from genome_to_diffraction.schemas.v2 import (
     ComponentExpansionExecutionInput,
+    ComponentExpansionScoreEvidence,
     ComponentIdentitySupport,
     ComponentPlacement,
     ComponentSpec,
@@ -23,6 +24,9 @@ from genome_to_diffraction.schemas.v2 import (
     FreeRDistributionSummary,
     FreeRFlagCount,
     FreeRIdentity,
+    PhaserPerPlacementInventory,
+    PhaserPlacementArtifact,
+    PhaserPlacementComponentGroup,
     RegistryModelResolution,
     RegistryModelResolutionScope,
     diffraction_dataset_id,
@@ -317,6 +321,221 @@ def _replace_content(
     values = model.model_dump(mode="python", exclude={identity_field})
     values.update(changes)
     return values
+
+
+def _placement_inventory(
+    execution_input: ComponentExpansionExecutionInput,
+) -> PhaserPerPlacementInventory:
+    components = (
+        *execution_input.parent_state.components,
+        execution_input.selected_candidate.hypothesis.component,
+    )
+    groups: list[PhaserPlacementComponentGroup] = []
+    placements: list[PhaserPlacementArtifact] = []
+    next_chain = 0
+    for ordinal, component in enumerate(components, start=1):
+        chains = tuple(
+            chr(ord("A") + next_chain + index)
+            for index in range(component.requested_copy_count)
+        )
+        next_chain += component.requested_copy_count
+        group = PhaserPlacementComponentGroup.from_content(
+            component_label=component.label,
+            ensemble_id=f"ensemble_{component.label}",
+            expected_copy_count=component.requested_copy_count,
+            observed_copy_count=component.requested_copy_count,
+            placement_ordinals=(ordinal,),
+            combined_chain_ids=chains,
+            source_model_sha256=component.model_sha256,
+            source_model_polymer_sha256=_sha(500 + ordinal),
+            coordinate_path=f"component_{component.label}.pdb",
+            coordinate_sha256=_sha(510 + ordinal),
+            atom_count=component.requested_copy_count * 10,
+        )
+        groups.append(group)
+        placements.append(
+            PhaserPlacementArtifact.from_content(
+                solution_number=1,
+                placement_ordinal=ordinal,
+                ensemble_id=group.ensemble_id,
+                component_label=group.component_label,
+                solu_6dim_line_sha256=_sha(520 + ordinal),
+                coordinate_path=group.coordinate_path,
+                coordinate_sha256=group.coordinate_sha256,
+            )
+        )
+    atom_count = sum(group.atom_count for group in groups)
+    return PhaserPerPlacementInventory.from_content(
+        adapter_version="phaser-component-coordinate-inventory-v2",
+        crystal_id=execution_input.parent_state.crystal_id,
+        search_id="candidate_component_search",
+        phaser_version="2.8.3",
+        solution_number=1,
+        command_record_sha256=_sha(530),
+        result_record_sha256=_sha(531),
+        solution_file_path="PHASER.sol",
+        solution_file_sha256=_sha(532),
+        combined_coordinate_path="PHASER.1.pdb",
+        combined_coordinate_sha256=_sha(533),
+        output_command_binding=(
+            "phaser.keywords.general.xyzout=True;"
+            "phaser.keywords.general.xyzout_ensemble=True;"
+            "phaser.keywords.general.keywords=True"
+        ),
+        placements=tuple(placements),
+        component_groups=tuple(groups),
+        combined_atom_count=atom_count,
+        recombined_atom_count=atom_count,
+        recombined_atom_sha256=_sha(534),
+        ordinal_mapping_status="verified_exact_sol_to_model_bound_chains",
+        recombination_status="verified_exact_combined_atom_partition",
+    )
+
+
+def test_expansion_scores_keep_candidate_tfz_and_incremental_llg_separate() -> None:
+    execution_input = _execution_input()
+    inventory = _placement_inventory(execution_input)
+
+    evidence = ComponentExpansionScoreEvidence.from_observed(
+        execution_input=execution_input,
+        placement_inventory=inventory,
+        score_ensemble_id="ensemble_C",
+        combined_llg=747.549,
+        component_tfz=5.1,
+        packing_passed=True,
+    )
+
+    assert evidence.parent_combined_llg == pytest.approx(420.5)
+    assert evidence.combined_llg == pytest.approx(747.549)
+    assert evidence.incremental_llg == pytest.approx(327.049)
+    assert evidence.component_tfz == pytest.approx(5.1)
+    assert evidence.placement.component_label == "C"
+    assert evidence.placement.incremental_llg == pytest.approx(327.049)
+    assert evidence.placement.component_tfz == pytest.approx(5.1)
+    assert evidence.placement.identity_support is ComponentIdentitySupport.UNRESOLVED
+
+
+def test_expansion_scores_reject_parent_ensemble_and_combined_llg_substitution() -> (
+    None
+):
+    execution_input = _execution_input()
+    inventory = _placement_inventory(execution_input)
+
+    with pytest.raises(ValidationError, match="candidate ensemble"):
+        ComponentExpansionScoreEvidence.from_observed(
+            execution_input=execution_input,
+            placement_inventory=inventory,
+            score_ensemble_id="ensemble_B",
+            combined_llg=747.549,
+            component_tfz=5.1,
+            packing_passed=True,
+        )
+
+    evidence = ComponentExpansionScoreEvidence.from_observed(
+        execution_input=execution_input,
+        placement_inventory=inventory,
+        score_ensemble_id="ensemble_C",
+        combined_llg=747.549,
+        component_tfz=5.1,
+        packing_passed=True,
+    )
+    with pytest.raises(ValidationError, match="combined minus parent"):
+        ComponentExpansionScoreEvidence.from_content(
+            **_replace_content(
+                evidence,
+                "score_evidence_id",
+                incremental_llg=evidence.combined_llg,
+            )
+        )
+    with pytest.raises(ValidationError, match="fixed parent LLG"):
+        ComponentExpansionScoreEvidence.from_content(
+            **_replace_content(
+                evidence,
+                "score_evidence_id",
+                parent_combined_llg=evidence.parent_combined_llg + 1,
+            )
+        )
+
+
+@pytest.mark.parametrize("mutation", ("crystal", "model", "result", "identity"))
+def test_expansion_scores_reject_cross_bound_or_promoted_candidate_evidence(
+    mutation: str,
+) -> None:
+    execution_input = _execution_input()
+    inventory = _placement_inventory(execution_input)
+    evidence = ComponentExpansionScoreEvidence.from_observed(
+        execution_input=execution_input,
+        placement_inventory=inventory,
+        score_ensemble_id="ensemble_C",
+        combined_llg=747.549,
+        component_tfz=5.1,
+        packing_passed=True,
+    )
+    if mutation == "crystal":
+        changed_inventory = PhaserPerPlacementInventory.from_content(
+            **_replace_content(inventory, "inventory_id", crystal_id="another_crystal")
+        )
+        changes: dict[str, object] = {"placement_inventory": changed_inventory}
+        error = "another crystal"
+    elif mutation == "model":
+        changed_group = PhaserPlacementComponentGroup.from_content(
+            **_replace_content(
+                inventory.component_groups[-1],
+                "component_group_id",
+                source_model_sha256=_sha(999),
+            )
+        )
+        changed_inventory = PhaserPerPlacementInventory.from_content(
+            **_replace_content(
+                inventory,
+                "inventory_id",
+                component_groups=(*inventory.component_groups[:-1], changed_group),
+            )
+        )
+        changes = {"placement_inventory": changed_inventory}
+        error = "component model or copies"
+    elif mutation == "result":
+        changes = {"result_record_sha256": _sha(999)}
+        error = "result record checksum"
+    else:
+        claimed_placement = ComponentPlacement.from_content(
+            **_replace_content(
+                evidence.placement,
+                "placement_id",
+                identity_support=ComponentIdentitySupport.EXACT_SEQUENCE,
+            )
+        )
+        changes = {"placement": claimed_placement}
+        error = "cannot establish sequence identity"
+
+    with pytest.raises(ValidationError, match=error):
+        ComponentExpansionScoreEvidence.from_content(
+            **_replace_content(evidence, "score_evidence_id", **changes)
+        )
+
+
+def test_expansion_score_identity_changes_with_the_component_metrics() -> None:
+    execution_input = _execution_input()
+    inventory = _placement_inventory(execution_input)
+    baseline = ComponentExpansionScoreEvidence.from_observed(
+        execution_input=execution_input,
+        placement_inventory=inventory,
+        score_ensemble_id="ensemble_C",
+        combined_llg=747.549,
+        component_tfz=5.1,
+        packing_passed=True,
+    )
+    changed = ComponentExpansionScoreEvidence.from_observed(
+        execution_input=execution_input,
+        placement_inventory=inventory,
+        score_ensemble_id="ensemble_C",
+        combined_llg=748.549,
+        component_tfz=5.2,
+        packing_passed=True,
+    )
+
+    assert baseline.score_evidence_id != changed.score_evidence_id
+    assert changed.incremental_llg == pytest.approx(328.049)
 
 
 def test_execution_input_preserves_distinct_parent_uncertainties_and_all_ids() -> None:

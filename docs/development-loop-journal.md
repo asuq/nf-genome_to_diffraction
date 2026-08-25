@@ -12161,3 +12161,23 @@ with a collapsed combined parent or a guessed command.
 - Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
   exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
   M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Candidate component scores cannot inherit parent evidence
+
+- The existing composition placement retained component TFZ/incremental LLG,
+  but no typed boundary joined those values to the exact searched ensemble,
+  original parent LLG, new combined LLG, and verified component inventory.
+  This left the general expansion path unable to prove which component a score
+  described.
+- One content-addressed schema-v2 score record now derives a candidate-only
+  placement from the complete exact-model parent/candidate inventory. It binds
+  the result checksum, candidate ensemble and coordinates, requested/observed
+  copies, the original parent score, the new combined score, and their
+  mathematically checked incremental difference. Packing never upgrades the
+  unresolved sequence/composition claim.
+- Focused synthetic 2A+2B+2C regressions reject parent-ensemble TFZ, combined
+  score substitution, parent-score drift, foreign crystal/model/result, and
+  self-asserted exact identity. No scientific Phaser command was implemented.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.

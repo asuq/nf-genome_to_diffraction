@@ -223,6 +223,14 @@ parent-specific total-composition copy assessments, typed gel/localisation
 priors, cap-independent model selection, quality/diversity evidence, and exact
 retained counts.
 
+The schema-v2 score boundary now binds a complete verified placement inventory
+to the newly searched component's own ensemble and TFZ. It retains the fixed
+parent's combined LLG, the new combined LLG, and the independently checked
+increment between them as separate raw values. Exact parent/candidate models,
+copy counts, result checksum, and candidate-only coordinates remain bound;
+packing cannot promote a sequence or composition claim. Live general-component
+Phaser parsing remains a separate post-control gate.
+
 Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
 After review approval of at most three A states, automatically expand through
 B-F. At each depth, exclude represented sequence groups, consider physically

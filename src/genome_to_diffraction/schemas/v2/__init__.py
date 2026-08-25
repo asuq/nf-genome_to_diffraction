@@ -4,6 +4,7 @@ from genome_to_diffraction.schemas.v2.component_execution_input import (
     ComponentCoordinateDerivationBoundary,
     ComponentCoordinateDerivationGap,
     ComponentExpansionExecutionInput,
+    ComponentExpansionScoreEvidence,
 )
 from genome_to_diffraction.schemas.v2.composition import (
     AllModelRegistryIdentifier,
@@ -102,6 +103,7 @@ __all__ = [
     "ComponentCoordinateDerivationBoundary",
     "ComponentCoordinateDerivationGap",
     "ComponentExpansionExecutionInput",
+    "ComponentExpansionScoreEvidence",
     "ComponentIdentitySupport",
     "ComponentPlacement",
     "ComponentScopeDecision",
