@@ -13488,5 +13488,26 @@ with a collapsed combined parent or a guessed command.
   branches, schedules no search/download process, and both discovery and
   offline application replays are fully cached with unchanged outputs.
 - Fixed reviewed wrapper profiles, exact-source CI, and Marmic qualification
-  remain. No remote tool, scheduler run, provider download, threshold, or
-  unknown crystal was changed.
+  remain. Exact-source CI `32926373409` / `98050008356` passed the complete
+  locked gate on `a6d8fd181c1a4328cee8d8a593a4b3ff77c18751` under Pixi 0.76.2
+  in 20m56s, qualifying the application contracts only. No remote tool,
+  scheduler run, provider download, threshold, or unknown crystal was changed.
+
+## 2026-08-25 - Unknown discovery has a reviewed fixed wrapper boundary
+
+- The local controller now reads one owned mode-0600 fixed spec, validates the
+  complete three-crystal review/execution identity and explicit AFDB map, and
+  creates a deterministic path-free tar archive. A remote attach operation
+  checksum-verifies, safely extracts, and revalidates the tree under the exact
+  immutable staged source before making it read-only.
+- `unknown-discovery` cannot submit without that attachment. Its outer Slurm
+  request is fixed at 8 CPUs, 32 GB, and 24 hours; the job body runs only the
+  compute discovery graph, validates the owned package, and requires a fully
+  cached canonical resume.
+- Five private-archive deterministic/mode/cross-owner/symlink/tamper tests, 156
+  neighbouring HPC model/CLI/client tests, the real dispatcher attach/submit
+  integration, Bash syntax, Ruff, and typing pass. The tracked example contains
+  placeholders only; no private path or input is committed.
+- Exact-source CI, tool deployment, and real Marmic qualification remain. No
+  remote tool, scheduler job, provider request, threshold, or unknown crystal
+  was changed.

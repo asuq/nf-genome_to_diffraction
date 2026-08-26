@@ -437,8 +437,14 @@ three hits per group and 25 mappings, uses only explicit AFDB accessions, emits 
 ESM results, and inventories referenced coordinates. `first_copy` independently
 matches both packages to the execution identity before any model/Phaser task
 and schedules no provider or network process. The complete three-crystal graph
-and both discovery/offline resumes are green. Fixed wrapper profiles and real
-HPC qualification remain.
+and both discovery/offline resumes are green. Exact-source CI `32926373409`
+passed on `a6d8fd1` under Pixi 0.76.2. Fixed wrapper profiles and real HPC
+qualification remain. The fixed `unknown-discovery` wrapper is now locally
+wired: it accepts no runtime path argument, reads one mode-0600 untracked spec,
+streams a deterministic path-free private archive, revalidates it inside the
+exact staged source, refuses submit without it, and requests 8 CPUs, 32 GB, and
+24 hours. Its controller and real-dispatcher stage/submit tests pass; the exact
+job remains unsubmitted pending CI/deployment and the remaining fixed profiles.
 
 Status: the explicit Phase III application now plans complete deterministic
 Foldseek batches of at most 128 exact sequence groups, invokes the existing

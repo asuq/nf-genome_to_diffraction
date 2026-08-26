@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -35,6 +35,13 @@ if [[ "$PROFILE" == database ]]; then
 fi
 if [[ "$PROFILE" == heteromer-smoke && "${SLURM_CPUS_PER_TASK:-}" != 8 ]]; then
     printf 'heteromer smoke requires exactly 8 allocated CPUs\n' >&2
+    exit 2
+fi
+if [[ ( "$PROFILE" == unknown-discovery || \
+        "$PROFILE" == unknown-screen || \
+        "$PROFILE" == unknown-single-component ) && \
+      "${SLURM_CPUS_PER_TASK:-}" != 8 ]]; then
+    printf 'Phase III unknown profile requires exactly 8 allocated CPUs\n' >&2
     exit 2
 fi
 [[ "$ROOT" =~ $SAFE_PATH_RE && -d "$ROOT/runs" && -d "$ROOT/_locks" ]] || {
@@ -176,6 +183,9 @@ finalise() {
     elif [[ "$PROFILE" == phase3-network-probe ]]; then
         reports_json='["artifacts/qualification/phase3-network-probe-summary.json","artifacts/qualification/network-probe/phase3-network-probe-child.json","artifacts/qualification/network-probe/phase3-network-probe-controller.json"]'
         retained_json='["artifacts/qualification"]'
+    elif [[ "$PROFILE" == unknown-discovery ]]; then
+        reports_json='["artifacts/unknown-discovery/results/phase3_provider_discovery/phase3_provider_discovery_manifest.json"]'
+        retained_json='["artifacts/unknown-discovery","artifacts/qualification"]'
     elif [[ "$PROFILE" == control-slice ]]; then
         reports_json='["artifacts/qualification/control-slice-summary.json","artifacts/qualification/control-slice-case-results.jsonl","artifacts/qualification/control-slice-first-copy-results.jsonl","artifacts/qualification/control-slice-copy-two-results.jsonl","artifacts/qualification/control-slice-refinement-results.jsonl","artifacts/qualification/control-slice-sequence-results.jsonl"]'
         retained_json='["artifacts/control-slice-inputs","artifacts/control-slice","artifacts/qualification"]'
@@ -1819,6 +1829,118 @@ run_phase3_network_probe() {
     [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
         return 3
     printf 'phase3_network_probe_status=child_and_controller_sockets_denied\n'
+}
+
+run_unknown_discovery_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/unknown-discovery-nextflow-${label}.log" \
+        run "$RUN/source/phase3_application.nf" \
+        "$@" \
+        -profile marmic \
+        --phase3_operation provider_discovery \
+        --catalogues "$CATALOGUES" \
+        --crystals "$CRYSTALS" \
+        --config "$PIPELINE_CONFIG" \
+        --database_manifest "$EXPECTED_DATABASE_MANIFEST" \
+        --phenix_manifest "$PHENIX_MANIFEST" \
+        --phase3_execution_identity \
+        "$UNKNOWN_DISCOVERY_INPUTS/phase3_execution_identity.json" \
+        --phase3_owned_parent_run_id "$RUN_ID" \
+        --phase3_crystallographic_review_stage \
+        "$UNKNOWN_DISCOVERY_INPUTS/crystallographic_review_stage" \
+        --afdb_accession_map \
+        "$UNKNOWN_DISCOVERY_INPUTS/afdb_accession_map.tsv" \
+        --outdir "$UNKNOWN_DISCOVERY_OUT" \
+        --cache_root "$RUN/cache/unknown-discovery-nextflow"
+}
+
+run_unknown_discovery() {
+    local qualification="$RUN/artifacts/qualification"
+    local first_trace resume_trace cache_counts total cached
+    local input_id execution_identity_id review_stage_index_id
+    local legacy_phenix_manifest refreshed_phenix_manifest expected_phenix_sha256
+    UNKNOWN_DISCOVERY_INPUTS="$RUN/artifacts/unknown-discovery/inputs"
+    UNKNOWN_DISCOVERY_OUT="$RUN/artifacts/unknown-discovery/results"
+    mkdir -p \
+        "$qualification" \
+        "$UNKNOWN_DISCOVERY_OUT" \
+        "$RUN/cache/unknown-discovery-nextflow" \
+        "$RUN/execution"
+    load_p0_config
+    input_id="$(<"$RUN/state/unknown-discovery-input-id")"
+    execution_identity_id="$(<"$RUN/state/phase3-execution-identity-id")"
+    review_stage_index_id="$(<"$RUN/state/unknown-review-stage-index-id")"
+    [[ "$input_id" =~ ^unknowninputs_[a-f0-9]{64}$ && \
+       "$execution_identity_id" =~ ^phase3exec_[a-f0-9]{64}$ && \
+       "$review_stage_index_id" =~ ^unknownreviewstages_[a-f0-9]{64}$ && \
+       -d "$UNKNOWN_DISCOVERY_INPUTS" && \
+       ! -L "$UNKNOWN_DISCOVERY_INPUTS" ]] || return 2
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" && -x "$PYTHON" ]] || \
+        return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    PYTHONPATH="$RUN/source/src" \
+    "$PYTHON" -m genome_to_diffraction.hpc.unknown_inputs \
+        --input-root "$UNKNOWN_DISCOVERY_INPUTS" \
+        --expected-input-id "$input_id" \
+        --expected-execution-identity-id "$execution_identity_id" \
+        --expected-review-stage-index-id "$review_stage_index_id"
+    legacy_phenix_manifest="$PHENIX_MANIFEST"
+    expected_phenix_sha256="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$expected_phenix_sha256" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$legacy_phenix_manifest" | awk '{print $1}')" == \
+       "$expected_phenix_sha256" ]] || return 2
+    refreshed_phenix_manifest="$qualification/unknown-discovery-phenix-manifest.json"
+    "$GTD" --log-format json --no-progress phenix refresh-manifest \
+        --manifest "$legacy_phenix_manifest" \
+        --output "$refreshed_phenix_manifest" \
+        --verification-log \
+        "$qualification/unknown-discovery-phenix-verification.log" \
+        --no-command-timeout
+    PHENIX_MANIFEST="$refreshed_phenix_manifest"
+
+    cd "$RUN/execution"
+    PHASE=test
+    printf 'phase=unknown_discovery_first profile=unknown-discovery\n'
+    run_unknown_discovery_nextflow first
+    cp -a "$UNKNOWN_DISCOVERY_OUT/pipeline_info" \
+        "$qualification/unknown-discovery-first-pipeline-info"
+    printf 'phase=unknown_discovery_resume profile=unknown-discovery\n'
+    run_unknown_discovery_nextflow resume -resume
+    cp -a "$UNKNOWN_DISCOVERY_OUT/pipeline_info" \
+        "$qualification/unknown-discovery-resume-pipeline-info"
+    first_trace="$qualification/unknown-discovery-first-pipeline-info/trace.tsv"
+    resume_trace="$qualification/unknown-discovery-resume-pipeline-info/trace.tsv"
+    [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$resume_trace")"
+    read -r total cached <<< "$cache_counts"
+    [[ "$total" =~ $INTEGER_RE && "$cached" =~ $INTEGER_RE && \
+       "$total" -ge 10 && "$cached" -eq "$total" ]] || return 4
+    "$GTD" --no-progress --log-format json \
+        structure-search validate-phase3-provider-discovery-package \
+        --package "$UNKNOWN_DISCOVERY_OUT/phase3_provider_discovery"
+    sha256sum \
+        "$UNKNOWN_DISCOVERY_INPUTS/unknown_discovery_input_manifest.json" \
+        "$PHENIX_MANIFEST" \
+        "$UNKNOWN_DISCOVERY_OUT/phase3_provider_discovery/phase3_provider_discovery_manifest.json" \
+        "$first_trace" \
+        "$resume_trace" \
+        > "$qualification/unknown-discovery-checksums.sha256"
+    printf 'unknown_discovery_status=passed\n'
 }
 
 run_heteromer_smoke() {
@@ -4337,6 +4459,7 @@ case "$PROFILE" in
     heteromer-smoke) run_heteromer_smoke ;;
     phase3-phenix-probe) run_phase3_phenix_probe ;;
     phase3-network-probe) run_phase3_network_probe ;;
+    unknown-discovery) run_unknown_discovery ;;
     control-slice) run_control_slice ;;
     control-matrix) run_control_matrix ;;
     m6-inputs) run_m6_inputs ;;

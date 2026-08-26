@@ -33,6 +33,12 @@ from genome_to_diffraction.hpc.models import (
     RemoteOperationError,
     ValidationError,
 )
+from genome_to_diffraction.hpc.unknown_inputs import (
+    UNKNOWN_DISCOVERY_SPEC_RELATIVE,
+)
+from tests.support.unknown_pass1_fixture import (
+    materialise_unknown_pass1_public_fixture,
+)
 
 COMMIT = "1" * 40
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -99,6 +105,7 @@ class FakeTransport:
     status_responses: list[dict[str, str]] = field(default_factory=list)
     calls: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     p0_archive: bytes = b""
+    unknown_discovery_archive: bytes = b""
     m4_import_archive: bytes = b""
     control_slice_archive: bytes = b""
     control_matrix_archive: bytes = b""
@@ -239,6 +246,19 @@ class FakeTransport:
             "run_id": arguments[0],
             "remote_operation": "stage-archive",
             "site_id": self.stage_site_id,
+        }
+
+    def unknown_discovery_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        self.calls.append(("unknown-discovery-inputs-stage", tuple(arguments)))
+        self.unknown_discovery_archive = archive_path.read_bytes()
+        return {
+            "run_id": arguments[0],
+            "input_id": arguments[2],
+            "archive_sha256": arguments[3],
         }
 
     def m4_import_stage(
@@ -1229,7 +1249,15 @@ def test_remote_logs_accept_explicit_owned_zero_byte_payload(tmp_path: Path) -> 
     assert result["log"] == ""
 
 
-@pytest.mark.parametrize("profile", ["heteromer-smoke", "phase3-phenix-probe"])
+@pytest.mark.parametrize(
+    "profile",
+    [
+        "heteromer-smoke",
+        "phase3-phenix-probe",
+        "unknown-screen",
+        "unknown-single-component",
+    ],
+)
 def test_phenix_bound_stage_uses_only_the_preserved_runtime_identity(
     tmp_path: Path, profile: str
 ) -> None:
@@ -1282,6 +1310,87 @@ def test_phenix_bound_stage_uses_only_the_preserved_runtime_identity(
     operation, arguments = transport.calls[-1]
     assert operation == "stage"
     assert arguments[5:] == (profile, phenix_path, phenix_sha256)
+
+
+def test_unknown_discovery_stage_attaches_only_fixed_private_inputs(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    qualification = tmp_path / ".untracked/m0-qualification"
+    qualification.mkdir(parents=True)
+    phenix_path = "/approved/site/phenix/manifest.json"
+    paths = qualification / "hpc-p0.paths"
+    paths.write_text(
+        "\n".join(
+            [
+                "/approved/site",
+                "/approved/site/catalogues.json",
+                "/approved/site/crystals.json",
+                "/approved/site/config.yaml",
+                "/approved/site/databases",
+                "/approved/site/database_manifest.json",
+                phenix_path,
+            ]
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    paths.chmod(0o600)
+    phenix_sha256 = "a" * 64
+    (qualification / "p0-inputs.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "database_manifest_sha256": "b" * 64,
+                "phenix_manifest_sha256": phenix_sha256,
+            }
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    fixture_root = tmp_path / "unknown-review"
+    fixture_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(fixture_root)
+    afdb_map = tmp_path / "unknown-afdb.tsv"
+    afdb_map.write_text(
+        "source_record_id\tuniprot_accession\n",
+        encoding="ascii",
+    )
+    spec = tmp_path / UNKNOWN_DISCOVERY_SPEC_RELATIVE
+    spec.parent.mkdir(parents=True)
+    spec.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "crystallographic_review_stage": str(fixture.review_stage),
+                "execution_identity": str(fixture.execution_identity),
+                "afdb_accession_map": str(afdb_map),
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    spec.chmod(0o600)
+
+    staged = controller.stage("unknown-discovery", "HEAD")
+
+    assert staged["profile"] == "unknown-discovery"
+    assert staged["source_branch"] == "dev/phase3"
+    unknown_input_id = staged["unknown_input_id"]
+    assert isinstance(unknown_input_id, str)
+    assert unknown_input_id.startswith("unknowninputs_")
+    assert transport.unknown_discovery_archive
+    assert str(tmp_path).encode() not in transport.unknown_discovery_archive
+    assert transport.calls[-2][0] == "stage"
+    assert transport.calls[-2][1][5:] == (
+        "unknown-discovery",
+        phenix_path,
+        phenix_sha256,
+    )
+    assert transport.calls[-1][0] == "unknown-discovery-inputs-stage"
 
 
 def test_network_probe_defaults_to_phase3_without_exposing_probe_inputs(

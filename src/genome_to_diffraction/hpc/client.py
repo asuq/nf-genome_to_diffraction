@@ -63,6 +63,9 @@ from genome_to_diffraction.hpc.p0_inputs import (
     P0_PATHS_FILENAME,
     build_p0_input_bundle,
 )
+from genome_to_diffraction.hpc.unknown_inputs import (
+    build_unknown_discovery_input_bundle,
+)
 from genome_to_diffraction.review import (
     SequenceCheckpointRequest,
     build_sequence_checkpoint,
@@ -138,6 +141,9 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/heteromer-smoke.log",
         "logs/phase3-phenix-probe.log",
         "logs/phase3-network-probe.log",
+        "logs/unknown-discovery.log",
+        "logs/unknown-screen.log",
+        "logs/unknown-single-component.log",
         "logs/control-slice.log",
         "logs/control-matrix.log",
         "logs/m6-inputs.log",
@@ -150,7 +156,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -413,6 +419,13 @@ class TextTransport(Protocol):
         archive_path: Path,
     ) -> dict[str, str]:
         """Stream one fixed immutable source checkout archive."""
+
+    def unknown_discovery_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Attach one fixed private review/input archive to a staged run."""
 
     def m4_import_stage(
         self,
@@ -1049,6 +1062,46 @@ class SshTransport:
             )
         return fields
 
+    def unknown_discovery_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one bounded private unknown-discovery input archive."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("unknown-discovery-inputs-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote unknown-discovery input staging exceeded the fixed "
+                f"{P0_INPUT_STAGE_TIMEOUT_SECONDS}-second transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote unknown-discovery input staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote unknown-discovery input staging returned no fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
     def m4_import_stage(
         self,
         arguments: Sequence[str],
@@ -1416,7 +1469,14 @@ class HpcController:
         commit = self.git.resolve_commit(revision)
         approved_source_branch = source_branch or (
             "dev/phase3"
-            if profile in {"phase3-phenix-probe", "phase3-network-probe"}
+            if profile
+            in {
+                "phase3-phenix-probe",
+                "phase3-network-probe",
+                "unknown-discovery",
+                "unknown-screen",
+                "unknown-single-component",
+            }
             else "main"
         )
         if approved_source_branch == "dev/phase3":
@@ -1424,6 +1484,9 @@ class HpcController:
                 "heteromer-smoke",
                 "phase3-phenix-probe",
                 "phase3-network-probe",
+                "unknown-discovery",
+                "unknown-screen",
+                "unknown-single-component",
                 "m6-nextflow-smoke",
             }:
                 raise ValidationError(
@@ -1463,7 +1526,13 @@ class HpcController:
         )
         local_path = record.write(self.config.local_state_root)
         arguments = [run_id, commit, lock_checksum, owner_id, str(iteration), profile]
-        if profile in {"heteromer-smoke", "phase3-phenix-probe"}:
+        if profile in {
+            "heteromer-smoke",
+            "phase3-phenix-probe",
+            "unknown-discovery",
+            "unknown-screen",
+            "unknown-single-component",
+        }:
             phenix_manifest, phenix_sha256 = _fixed_heteromer_phenix_binding(
                 self.config.repository
             )
@@ -1500,6 +1569,43 @@ class HpcController:
                     ],
                     archive_path,
                 )
+        if profile == "unknown-discovery":
+            with tempfile.TemporaryDirectory(
+                prefix="nf-gtd-unknown-discovery-",
+                dir="/tmp",
+            ) as temporary:
+                archive_path = Path(temporary) / "unknown-discovery-inputs.tar"
+                bundle = build_unknown_discovery_input_bundle(
+                    repository=self.config.repository,
+                    archive_path=archive_path,
+                )
+                attached = self.transport.unknown_discovery_inputs_stage(
+                    [
+                        run_id,
+                        owner_id,
+                        bundle.input_id,
+                        bundle.archive_sha256,
+                        str(bundle.archive_size_bytes),
+                        bundle.execution_identity_id,
+                        bundle.review_stage_index_id,
+                    ],
+                    bundle.archive_path,
+                )
+            if (
+                attached.get("run_id") != run_id
+                or attached.get("input_id") != bundle.input_id
+                or attached.get("archive_sha256") != bundle.archive_sha256
+            ):
+                raise RemoteOperationError(
+                    "remote unknown-discovery input identity differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {
+                **remote,
+                "unknown_input_id": bundle.input_id,
+                "unknown_input_sha256": bundle.archive_sha256,
+                "unknown_input_file_count": str(bundle.file_count),
+            }
         if profile == "m6-nextflow-smoke":
             remote_site = remote.get("site_id")
             if not isinstance(remote_site, str):

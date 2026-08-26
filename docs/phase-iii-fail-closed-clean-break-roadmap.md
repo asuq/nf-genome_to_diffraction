@@ -75,7 +75,11 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   explicit-accession AFDB route, and typed disabled ESM route; its preparation
   binds every referenced coordinate object. Offline `first_copy` refuses
   mismatched discovery/preparation/execution identities and schedules no
-  provider search or acquisition. Fixed wrappers and HPC qualification remain.
+  provider search or acquisition. The reviewed `unknown-discovery` wrapper now
+  has a locally tested path-free private input archive, exact staged-source
+  revalidation, submit guard, and fixed 8-CPU/32-GB/24-hour allocation. Its job
+  body runs the compute-only graph plus canonical resume. `unknown-screen`,
+  `unknown-single-component`, and real HPC qualification remain.
 - Make the reviewed provider plan and matching route entry mandatory in PDB,
   Foldseek, and AFDB discovery commands, modules, fixtures, and cache IDs.
 - Preserve typed configured-disabled and genuine completed-no-hit routes

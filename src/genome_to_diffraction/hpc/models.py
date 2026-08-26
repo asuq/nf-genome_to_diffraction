@@ -10,7 +10,7 @@ from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 
 RUN_ID_PATTERN = re.compile(
-    r"^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}$"
 )
@@ -46,6 +46,9 @@ PROFILES = frozenset(
         "heteromer-smoke",
         "phase3-phenix-probe",
         "phase3-network-probe",
+        "unknown-discovery",
+        "unknown-screen",
+        "unknown-single-component",
         "control-slice",
         "control-matrix",
         "m6-inputs",
@@ -353,6 +356,7 @@ def validate_profile(value: str) -> str:
             "profile must be one of: control-matrix, control-slice, database, "
             "m6-inputs, m6-leakage, m6-nextflow-smoke, m6-operational, p0, p1, p2, "
             "p2-control, p2-diverse, phase3-network-probe, phase3-phenix-probe, "
+            "unknown-discovery, unknown-screen, unknown-single-component, "
             "smoke"
         )
     return value

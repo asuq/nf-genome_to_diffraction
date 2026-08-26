@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -19,6 +19,7 @@ MAX_NEXTFLOW_DIAGNOSTIC_BYTES=$((2 * 1024 * 1024))
 MAX_REVIEW_FILE_BYTES=$((128 * 1024 * 1024))
 MAX_REVIEW_TOTAL_BYTES=$((512 * 1024 * 1024))
 MAX_P0_INPUT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
+MAX_UNKNOWN_DISCOVERY_INPUT_ARCHIVE_BYTES=$((512 * 1024 * 1024))
 MAX_SOURCE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
 MAX_M4_IMPORT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_CONTROL_SLICE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
@@ -563,6 +564,102 @@ p0_inputs_stage() {
     emit status ready
 }
 
+unknown_discovery_inputs_stage() {
+    [[ "$#" -eq 7 ]] || \
+        fail wrapper_failure \
+            "unknown-discovery-inputs-stage expects seven fixed identity fields"
+    local run_id="$1" owner_id="$2" input_id="$3" archive_sha256="$4"
+    local archive_size="$5" execution_identity_id="$6" review_stage_index_id="$7"
+    local run profile archive staging destination actual_sha256 unsafe_member python
+    validate_run_id "$run_id"
+    validate_owner "$owner_id"
+    [[ "$input_id" =~ ^unknowninputs_[a-f0-9]{64}$ ]] || \
+        fail wrapper_failure "invalid unknown-discovery input ID"
+    [[ "$archive_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid unknown-discovery archive checksum"
+    [[ "$archive_size" =~ $BYTE_COUNT_RE ]] || \
+        fail wrapper_failure "invalid unknown-discovery archive size"
+    (( archive_size >= 1 && \
+       archive_size <= MAX_UNKNOWN_DISCOVERY_INPUT_ARCHIVE_BYTES )) || \
+        fail wrapper_failure \
+            "unknown-discovery archive exceeds the fixed size boundary"
+    [[ "$execution_identity_id" =~ ^phase3exec_[a-f0-9]{64}$ ]] || \
+        fail wrapper_failure "invalid Phase III execution identity"
+    [[ "$review_stage_index_id" =~ ^unknownreviewstages_[a-f0-9]{64}$ ]] || \
+        fail wrapper_failure "invalid crystallographic review-stage identity"
+    require_owned_run "$run_id" "$owner_id"
+    run="$(run_directory "$run_id")"
+    profile="$(<"$run/state/profile")"
+    [[ "$profile" == unknown-discovery && \
+       "$(<"$run/state/phase")" == staged ]] || \
+        fail wrapper_failure \
+            "unknown-discovery inputs require their exact staged run"
+    destination="$run/artifacts/unknown-discovery/inputs"
+    [[ ! -e "$destination" && ! -L "$destination" ]] || \
+        fail wrapper_failure "unknown-discovery inputs are already attached"
+    mkdir -p -- "$run/artifacts/unknown-discovery"
+    archive="$run/execution/.unknown-discovery-inputs.tar.tmp.$$"
+    staging="$run/execution/.unknown-discovery-inputs.tmp.$$"
+    trap 'rm -f -- "${archive:-}"; rm -rf -- "${staging:-}"' EXIT
+    head -c "$archive_size" > "$archive" || \
+        fail transfer_failure "unknown-discovery input transfer failed"
+    [[ "$(file_size "$archive")" == "$archive_size" ]] || \
+        fail transfer_failure "unknown-discovery input transfer was truncated"
+    actual_sha256="$(sha256sum "$archive" | awk '{print $1}')"
+    [[ "$actual_sha256" == "$archive_sha256" ]] || \
+        fail transfer_failure "unknown-discovery archive checksum differs"
+    if ! tar -tf "$archive" > \
+        "$run/logs/unknown-discovery-input-members.log" 2>&1; then
+        fail transfer_failure "unknown-discovery archive cannot be listed"
+    fi
+    if awk 'BEGIN {bad=0} /^\// || /(^|\/)\.\.($|\/)/ {bad=1} END {exit bad ? 0 : 1}' \
+        "$run/logs/unknown-discovery-input-members.log"; then
+        fail wrapper_failure "unknown-discovery archive contains an unsafe path"
+    fi
+    mkdir -- "$staging"
+    if ! tar --no-same-owner --no-same-permissions -xf "$archive" -C "$staging" \
+        >"$run/logs/unknown-discovery-input-extract.log" 2>&1; then
+        fail transfer_failure "unknown-discovery archive extraction failed"
+    fi
+    unsafe_member="$(find "$staging" -xdev \
+        \( -type l -o \( ! -type f ! -type d \) \) -print -quit)"
+    [[ -z "$unsafe_member" ]] || \
+        fail wrapper_failure "unknown-discovery input tree has an unsafe member"
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$python" ]] || \
+        fail environment_failure "locked unknown-discovery Python is unavailable"
+    if ! PYTHONPATH="$run/source/src" \
+        "$python" -m genome_to_diffraction.hpc.unknown_inputs \
+        --input-root "$staging" \
+        --expected-input-id "$input_id" \
+        --expected-execution-identity-id "$execution_identity_id" \
+        --expected-review-stage-index-id "$review_stage_index_id" \
+        >"$run/logs/unknown-discovery-input-validation.log" 2>&1; then
+        fail wrapper_failure "unknown-discovery input validation failed"
+    fi
+    mv -- "$staging" "$destination"
+    find "$destination" -xdev -type f -exec chmod 0444 {} +
+    find "$destination" -xdev -type d -exec chmod 0555 {} +
+    rm -f -- "$archive"
+    atomic_text "$run/state/unknown-discovery-input-id" "$input_id"
+    atomic_text "$run/state/unknown-discovery-input-archive-sha256" \
+        "$archive_sha256"
+    atomic_text "$run/state/phase3-execution-identity-id" \
+        "$execution_identity_id"
+    atomic_text "$run/state/unknown-review-stage-index-id" \
+        "$review_stage_index_id"
+    append_event "$run" "stage_unknown_discovery_inputs_bound"
+    trap - EXIT
+    emit operation unknown-discovery-inputs-stage
+    emit run_id "$run_id"
+    emit input_id "$input_id"
+    emit archive_sha256 "$archive_sha256"
+    emit archive_size_bytes "$archive_size"
+    emit execution_identity_id "$execution_identity_id"
+    emit review_stage_index_id "$review_stage_index_id"
+    emit status ready
+}
+
 database_config_readiness() {
     local manifest_mode="${1:-output}"
     local allowed allowed_configured candidate resolved manifest_parent
@@ -858,6 +955,9 @@ stage_run_common() {
 
     if [[ "$profile" == heteromer-smoke || \
           "$profile" == phase3-phenix-probe || \
+          "$profile" == unknown-discovery || \
+          "$profile" == unknown-screen || \
+          "$profile" == unknown-single-component || \
           ( "$SITE_ID" == marmic && \
             ( "$profile" == m6-operational || "$profile" == m6-leakage ) ) ]]; then
         [[ "$#" -eq 8 || "$#" -eq 11 ]] || \
@@ -876,6 +976,9 @@ stage_run_common() {
         source_archive=true
         if [[ "$profile" == heteromer-smoke || \
               "$profile" == phase3-phenix-probe || \
+              "$profile" == unknown-discovery || \
+              "$profile" == unknown-screen || \
+              "$profile" == unknown-single-component || \
               ( "$SITE_ID" == marmic && \
                 ( "$profile" == m6-operational || "$profile" == m6-leakage ) ) ]]; then
             source_archive_sha256="$9"
@@ -1106,7 +1209,10 @@ stage_run_common() {
     fi
 
     if [[ "$profile" == heteromer-smoke || \
-          "$profile" == phase3-phenix-probe ]]; then
+          "$profile" == phase3-phenix-probe || \
+          "$profile" == unknown-discovery || \
+          "$profile" == unknown-screen || \
+          "$profile" == unknown-single-component ]]; then
         [[ "$SITE_ID" == marmic ]] || \
             fail environment_failure \
                 "fixed Phenix-bound profile is currently qualified only on Marmic"
@@ -1122,14 +1228,19 @@ stage_run_common() {
         if [[ "$profile" == heteromer-smoke ]]; then
             heteromer_phenix_json="\"$heteromer_phenix_sha256\""
             append_event "$run" "stage_heteromer_phenix_bound"
-        else
+        elif [[ "$profile" == phase3-phenix-probe ]]; then
             phase3_probe_phenix_json="\"$heteromer_phenix_sha256\""
             append_event "$run" "stage_phase3_phenix_probe_bound"
+        else
+            append_event "$run" "stage_phase3_unknown_phenix_bound"
         fi
     fi
 
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
+          "$profile" == unknown-discovery || \
+          "$profile" == unknown-screen || \
+          "$profile" == unknown-single-component || \
           ( "$profile" == m4-copy && "${M4_CROSS_SITE_IMPORT:-false}" != true ) ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
@@ -1206,6 +1317,9 @@ stage_run_common() {
           "$profile" == heteromer-smoke || \
           "$profile" == phase3-phenix-probe || \
           "$profile" == phase3-network-probe || \
+          "$profile" == unknown-discovery || \
+          "$profile" == unknown-screen || \
+          "$profile" == unknown-single-component || \
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-inputs || "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
@@ -1232,6 +1346,9 @@ stage_run_common() {
         }
         if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
               "$profile" == p2-diverse || "$profile" == p2-control || \
+              "$profile" == unknown-discovery || \
+              "$profile" == unknown-screen || \
+              "$profile" == unknown-single-component || \
               "$profile" == control-slice || "$profile" == control-matrix || \
               "$profile" == m6-nextflow-smoke || \
               "$profile" == m6-operational || "$profile" == m6-leakage || \
@@ -1893,7 +2010,9 @@ EOF
 
 stage_run() {
     [[ "$#" -eq 6 || ( "$#" -eq 8 && \
-       ( "$6" == heteromer-smoke || "$6" == phase3-phenix-probe ) ) ]] || \
+       ( "$6" == heteromer-smoke || "$6" == phase3-phenix-probe || \
+         "$6" == unknown-discovery || "$6" == unknown-screen || \
+         "$6" == unknown-single-component ) ) ]] || \
         fail wrapper_failure "stage received an invalid fixed argument set"
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
@@ -1902,7 +2021,9 @@ stage_run() {
 
 stage_archive_run() {
     [[ "$#" -eq 9 || ( "$#" -eq 11 && \
-       ( "$6" == heteromer-smoke || "$6" == phase3-phenix-probe ) ) ]] || \
+       ( "$6" == heteromer-smoke || "$6" == phase3-phenix-probe || \
+         "$6" == unknown-discovery || "$6" == unknown-screen || \
+         "$6" == unknown-single-component ) ) ]] || \
         fail wrapper_failure "stage-archive received an invalid fixed argument set"
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
@@ -2849,6 +2970,15 @@ submit_run() {
           "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
         validate_m6_smoke_site_state "$run"
     fi
+    if [[ "$profile" == unknown-discovery ]]; then
+        [[ -f "$run/state/unknown-discovery-input-id" && \
+           -f "$run/state/phase3-execution-identity-id" && \
+           -f "$run/state/unknown-review-stage-index-id" && \
+           -d "$run/artifacts/unknown-discovery/inputs" && \
+           ! -L "$run/artifacts/unknown-discovery/inputs" ]] || \
+            fail wrapper_failure \
+                "unknown-discovery submit requires its reviewed input archive"
+    fi
     walltime=00:45:00
     cpus=2
     memory=8G
@@ -2861,6 +2991,12 @@ submit_run() {
         memory=32G
     fi
     if [[ "$profile" == heteromer-smoke ]]; then
+        cpus=8
+        memory=32G
+    fi
+    if [[ "$profile" == unknown-discovery || \
+          "$profile" == unknown-screen || \
+          "$profile" == unknown-single-component ]]; then
         cpus=8
         memory=32G
     fi
@@ -2877,6 +3013,9 @@ submit_run() {
     if [[ "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == heteromer-smoke || \
+          "$profile" == unknown-discovery || \
+          "$profile" == unknown-screen || \
+          "$profile" == unknown-single-component || \
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
@@ -3415,6 +3554,10 @@ collect_run() {
         state/p1-login-prefetch.sha256 \
         state/p2-diverse-login-stage.sha256 \
         state/p2-control-login-stage.sha256 \
+        state/unknown-discovery-input-id \
+        state/unknown-discovery-input-archive-sha256 \
+        state/phase3-execution-identity-id \
+        state/unknown-review-stage-index-id \
         state/heteromer-login-stage.sha256 \
         state/control-slice-archive-sha256 \
         state/control-slice-manifest-sha256 \
@@ -3460,6 +3603,12 @@ collect_run() {
         logs/phase3-phenix-probe.log \
         logs/phase3-network-probe.log \
         logs/phase3-network-probe-nextflow.log \
+        logs/unknown-discovery.log \
+        logs/unknown-discovery-input-members.log \
+        logs/unknown-discovery-input-extract.log \
+        logs/unknown-discovery-input-validation.log \
+        logs/unknown-discovery-nextflow-first.log \
+        logs/unknown-discovery-nextflow-resume.log \
         logs/m4-copy.log \
         logs/database.log \
         logs/nextflow-first.log \
@@ -3581,6 +3730,19 @@ collect_run() {
         artifacts/qualification/phase3-network-probe-trace.tsv \
         artifacts/qualification/network-probe/phase3-network-probe-child.json \
         artifacts/qualification/network-probe/phase3-network-probe-controller.json \
+        artifacts/qualification/unknown-discovery-phenix-manifest.json \
+        artifacts/qualification/unknown-discovery-phenix-verification.log \
+        artifacts/qualification/unknown-discovery-checksums.sha256 \
+        artifacts/qualification/unknown-discovery-first-pipeline-info/report.html \
+        artifacts/qualification/unknown-discovery-first-pipeline-info/timeline.html \
+        artifacts/qualification/unknown-discovery-first-pipeline-info/trace.tsv \
+        artifacts/qualification/unknown-discovery-first-pipeline-info/dag.html \
+        artifacts/qualification/unknown-discovery-resume-pipeline-info/report.html \
+        artifacts/qualification/unknown-discovery-resume-pipeline-info/timeline.html \
+        artifacts/qualification/unknown-discovery-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/unknown-discovery-resume-pipeline-info/dag.html \
+        artifacts/unknown-discovery/inputs/unknown_discovery_input_manifest.json \
+        artifacts/unknown-discovery/results/phase3_provider_discovery/phase3_provider_discovery_manifest.json \
         artifacts/qualification/control-slice-summary.json \
         artifacts/qualification/control-slice-case-results.jsonl \
         artifacts/qualification/control-slice-first-copy-results.jsonl \
@@ -4555,6 +4717,7 @@ main() {
         readiness) readiness_p0 "$@" ;;
         p0-configure) p0_configure "$@" ;;
         p0-inputs-stage) p0_inputs_stage "$@" ;;
+        unknown-discovery-inputs-stage) unknown_discovery_inputs_stage "$@" ;;
         database-readiness) database_readiness "$@" ;;
         stage) stage_run "$@" ;;
         stage-archive) stage_archive_run "$@" ;;

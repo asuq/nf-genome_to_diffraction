@@ -1,0 +1,6 @@
+{
+  "schema_version": "1.0",
+  "crystallographic_review_stage": "/absolute/review/unknown-pass1-review-stage",
+  "execution_identity": "/absolute/review/phase3-execution-identity.json",
+  "afdb_accession_map": "/absolute/review/afdb-accession-map.tsv"
+}

@@ -292,6 +292,15 @@ def _load_review_stages(
     return index, tuple(loaded)
 
 
+def validate_unknown_pass1_crystallographic_review_stages(
+    index_path: Path,
+) -> UnknownPass1ReviewStageIndex:
+    """Authenticate and return one complete three-crystal review-stage index."""
+
+    index, _ = _load_review_stages(index_path)
+    return index
+
+
 def _new_review_stage_output(path: Path) -> Path:
     if path.is_symlink() or path.exists():
         raise UnknownPass1ScreenError(
@@ -1038,5 +1047,6 @@ __all__ = [
     "stage_unknown_pass1_crystallographic_reviews",
     "stage_unknown_pass1_selected_a_seeds",
     "stage_unknown_pass1_sequence_decisions",
+    "validate_unknown_pass1_crystallographic_review_stages",
     "write_unknown_pass1_screen_inventory",
 ]

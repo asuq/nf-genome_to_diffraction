@@ -16,6 +16,15 @@ from pathlib import Path
 
 import pytest
 
+from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.hpc.unknown_inputs import (
+    UNKNOWN_DISCOVERY_SPEC_RELATIVE,
+    build_unknown_discovery_input_bundle,
+)
+from tests.support.unknown_pass1_fixture import (
+    materialise_unknown_pass1_public_fixture,
+)
+
 REPOSITORY = Path(__file__).resolve().parents[2]
 RUN_ID = "gtd-smoke-20260802T120000Z-0123456789ab-01234567"
 SECOND_RUN_ID = "gtd-smoke-20260802T120001Z-0123456789ab-01234568"
@@ -30,6 +39,9 @@ PHASE3_PHENIX_PROBE_RUN_ID = (
 )
 PHASE3_NETWORK_PROBE_RUN_ID = (
     "gtd-phase3-network-probe-20260802T120000Z-0123456789ab-01234567"
+)
+UNKNOWN_DISCOVERY_RUN_ID = (
+    "gtd-unknown-discovery-20260802T120000Z-0123456789ab-01234567"
 )
 CONTROL_MATRIX_RUN_ID = "gtd-control-matrix-20260802T120000Z-0123456789ab-01234567"
 M6_INPUTS_RUN_ID = "gtd-m6-inputs-20260802T120000Z-0123456789ab-01234567"
@@ -157,6 +169,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         shutil.copy2(REPOSITORY / "bootstrap" / name, bootstrap / name)
         (bootstrap / name).chmod(0o755)
     shutil.copy2(REPOSITORY / "qualification.nf", source / "qualification.nf")
+    shutil.copytree(REPOSITORY / "src", source / "src")
     conf = source / "conf"
     conf.mkdir()
     shutil.copy2(REPOSITORY / "conf/marmic.config", conf / "marmic.config")
@@ -194,6 +207,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         "pixi.lock",
         "bootstrap",
         "qualification.nf",
+        "src",
         "conf",
         "workflows",
         "benchmarks",
@@ -3579,6 +3593,98 @@ def test_p0_input_bundle_is_checksum_gated_immutable_and_configurable(
     tamper_fields = _decode_protocol(tamper_rejected.stdout)
     assert tamper_fields["failure_class"] == "transfer_failure"
     assert "checksum differs" in tamper_fields["message"]
+
+
+def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    p0_config = _write_p0_paths(remote_root)
+    p0_values = p0_config.read_text(encoding="ascii").splitlines()
+    phenix_manifest = Path(p0_values[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    lock_sha256 = hashlib.sha256(
+        (tmp_path / "source-origin/pixi.lock").read_bytes()
+    ).hexdigest()
+    staged = _run(
+        [
+            str(dispatcher),
+            "stage",
+            UNKNOWN_DISCOVERY_RUN_ID,
+            commit,
+            lock_sha256,
+            OWNER_ID,
+            "1",
+            "unknown-discovery",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(staged.stdout)["profile"] == "unknown-discovery"
+
+    local_root = tmp_path / "local-unknown-inputs"
+    local_root.mkdir()
+    review_root = local_root / "review"
+    review_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(review_root)
+    afdb_map = local_root / "afdb_accession_map.tsv"
+    afdb_map.write_text(
+        "source_record_id\tuniprot_accession\n",
+        encoding="ascii",
+    )
+    spec = local_root / UNKNOWN_DISCOVERY_SPEC_RELATIVE
+    spec.parent.mkdir(parents=True)
+    atomic_write_json(
+        spec,
+        {
+            "schema_version": "1.0",
+            "crystallographic_review_stage": str(fixture.review_stage),
+            "execution_identity": str(fixture.execution_identity),
+            "afdb_accession_map": str(afdb_map),
+        },
+    )
+    spec.chmod(0o600)
+    bundle = build_unknown_discovery_input_bundle(
+        repository=local_root,
+        archive_path=local_root / "unknown-inputs.tar",
+    )
+    attached = _run(
+        [
+            str(dispatcher),
+            "unknown-discovery-inputs-stage",
+            UNKNOWN_DISCOVERY_RUN_ID,
+            OWNER_ID,
+            bundle.input_id,
+            bundle.archive_sha256,
+            str(bundle.archive_size_bytes),
+            bundle.execution_identity_id,
+            bundle.review_stage_index_id,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=bundle.archive_path.read_bytes(),
+    )
+    attached_fields = _decode_protocol(attached.stdout)
+    assert attached_fields["input_id"] == bundle.input_id
+    run = remote_root / "runs" / UNKNOWN_DISCOVERY_RUN_ID
+    inputs = run / "artifacts/unknown-discovery/inputs"
+    assert inputs.is_dir() and not inputs.is_symlink()
+    assert (inputs / "unknown_discovery_input_manifest.json").is_file()
+    assert (inputs / "phase3_execution_identity.json").stat().st_mode & 0o777 == 0o444
+
+    submitted = _run(
+        [str(dispatcher), "submit", UNKNOWN_DISCOVERY_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(submitted.stdout)["profile"] == "unknown-discovery"
+    sbatch = (tmp_path / "sbatch-args").read_text(encoding="utf-8")
+    assert "--cpus-per-task=8" in sbatch
+    assert "--mem=32G" in sbatch
+    assert "--time=24:00:00" in sbatch
 
 
 def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(

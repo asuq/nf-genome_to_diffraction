@@ -234,6 +234,8 @@ from genome_to_diffraction.structure_search import (
     search_pdb_sequences,
     search_prostt5_foldseek,
     stage_phase3_provider_coordinates,
+    validate_phase3_provider_discovery_package,
+    validate_phase3_provider_login_stage,
 )
 
 
@@ -1858,6 +1860,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--execution-identity", type=Path, required=True
     )
     phase3_offline_provider_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_discovery_validate_parser = search_actions.add_parser(
+        "validate-phase3-provider-discovery-package",
+        help="verify one owned provider-discovery package",
+    )
+    phase3_discovery_validate_parser.add_argument("--package", type=Path, required=True)
+    phase3_login_validate_parser = search_actions.add_parser(
+        "validate-phase3-provider-login-stage",
+        help="verify one bounded login-side provider preparation",
+    )
+    phase3_login_validate_parser.add_argument("--preparation", type=Path, required=True)
     pdb_sequence_parser = search_actions.add_parser(
         "pdb-sequence",
         help="search exact catalogue sequences against the local PDB SEQRES database",
@@ -2830,6 +2842,14 @@ def _run_structure_search(args: argparse.Namespace) -> int:
             "Validated offline Phase III provider input "
             f"{offline.manifest.offline_input_id}: {offline.manifest_path}"
         )
+        return 0
+    if args.structure_search_action == "validate-phase3-provider-discovery-package":
+        package = validate_phase3_provider_discovery_package(args.package)
+        print(f"Validated Phase III provider discovery: {package.package_id}")
+        return 0
+    if args.structure_search_action == "validate-phase3-provider-login-stage":
+        preparation = validate_phase3_provider_login_stage(args.preparation)
+        print(f"Validated Phase III provider preparation: {preparation.preparation_id}")
         return 0
     if args.structure_search_action == "qualify-p1":
         report = qualify_p1_search(

@@ -417,6 +417,14 @@ for debugging; an existing versioned installation is never overwritten.
   `structure-search stage-phase3-provider-coordinates` on the resulting owned
   package; `first_copy` then requires both exact packages and executes model
   preparation plus MR without network access.
+
+The reviewed `unknown-discovery` wrapper exposes no input paths. It reads one
+owned mode-0600 untracked specification at
+`.untracked/phase3-unknown-pass1/unknown-discovery-inputs.json`; the tracked
+shape is [examples/unknown_discovery_inputs.example.json](examples/unknown_discovery_inputs.example.json).
+The controller validates the exact review/execution identity and AFDB map,
+streams a path-free immutable archive, and requests a fixed 8-CPU, 32-GB,
+24-hour Slurm allocation. Staging and submitting remain separate operations.
 - `prepare_databases.nf` exposes database-root, output, preparation switches,
   coordinate-cache initialisation, and verify-only inputs.
 - `m6_validation.nf` owns the independently reviewable M6 graph.
