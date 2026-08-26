@@ -57,7 +57,7 @@ process PHASE3_NETWORK_PROBE_CONTROLLER {
     """
 }
 
-workflow {
+workflow PHASE3_NETWORK_PROBE_WORKFLOW {
     if (!params.outer_job_id || !(params.outer_job_id as String).matches(/[0-9]+/)) {
         error 'phase3 network probe requires the fixed numeric outer job ID'
     }

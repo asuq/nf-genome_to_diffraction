@@ -13642,3 +13642,32 @@ with a collapsed combined parent or a guessed command.
   Nextflow syntax and every cached stub/profile check. Commit/push once, watch
   one CI run, deploy only the matching tools, and submit exactly one replacement
   known control. Do not launch 9ECN or unknown crystals first.
+
+## 2026-08-26 - Known controls pass; network probe needs canonical root
+
+- Replacement control `gtd-heteromer-smoke-20260826T080743Z-589704d55eee-d58c918c`,
+  Slurm `634631`, completed successfully at exact source `589704d`, CI
+  `32944438435` / `98102043017`, pinned nf-helper, Pixi 0.76.2, and Phenix
+  2.1-6048. The deployed dispatcher/job-wrapper/recovery digests were
+  `067d99bc41f7957a85b730024e142c6dfa4d983a052278e76384058f3591559e`,
+  `b2d99037a69da860cbcd12df4b7d93005acd76c3c5713a5cadb4b66f24f9d88b`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- 6RTZ recovered `1A+1B`; 3U7Q recovered `2A+2B`; both component inventories
+  have exact copy counts and verified 3,543/16,116-atom partitions. The
+  full-catalogue branch selected one of 1,845 non-A candidates. Wrong B packed
+  at incremental LLG 327.049 and TFZ 5.1 but remained
+  `search_evidence_only`, with no identity or composition claim. Missing B,
+  homomer, and the typed 9ECN boundary also passed. Exactly six assessments,
+  all 46 Phase III placement checksums, all 47 P6 checksums, and seven Phenix
+  executable identities validate.
+- Fixed worker-network probe `gtd-phase3-network-probe-20260826T092018Z-589704d55eee-dc832580`,
+  Slurm `634652`, then failed in ten seconds with exit 1/test failure before
+  either task launched. Nextflow 26.04.6 interpreted `run <source-directory>
+  -main-script <nested-file>` as an absent script path. Site, source, worker
+  shell, and deployment provenance remain valid, but the run contains no socket
+  evidence and is not acceptance.
+- The minimal fix promotes the probe to the tenth operation of canonical
+  `qualification.nf` and invokes that root directly, preserving repository-root
+  `projectDir`. A real Nextflow 26.04.6 preview, two focused wrapper/staging
+  regressions, Nextflow syntax, and wrapper syntax pass. Run one exact-source
+  CI/deployment/replacement probe; do not launch 9ECN or unknown crystals first.

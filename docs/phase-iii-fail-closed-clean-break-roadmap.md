@@ -112,8 +112,12 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   schedules one independent Slurm child and one controller-local task, binds
   both policy checksums, and accepts only distinct namespaces plus explicit
   TEST-NET-1 socket denial. Exact-source CI `32908137245` passed on `18036c9`;
-  one real Marmic result and bounded pre-submit login staging remain. The other
-  site must qualify before it is used scientifically.
+  the first real Marmic attempt failed before task creation because Nextflow
+  26.04.6 rejected its nested `-main-script` invocation. The focused correction
+  routes the probe through canonical root `qualification.nf`, preserving the
+  repository project directory; exact-source CI and one replacement probe
+  remain. Bounded pre-submit login staging also remains. The other site must
+  qualify before it is used scientifically.
 - Require a distinct owned single-component parent and both final human
   checkpoints for every eligible Phase III continuation.
 - Consume the approved schema-v2 A review, exact decisions, and execution
@@ -227,7 +231,7 @@ Scope: `FCB-P2-01` and `FCB-P2-02`.
   focused integration tests to the canonical application/control path.
 - Preserve independently required database preparation and M6 entry points;
   delete superseded root stage entry points only after their replacements pass.
-  Completed locally: one typed `qualification.nf` owns all nine fixed stage and
+  Completed locally: one typed `qualification.nf` owns all ten fixed stage and
   control operations, rejects unknown or incomplete authority before
   scheduling, and is used by the reviewed HPC wrapper, examples, documentation,
   Nextflow checks, and dispatcher integrations. All replacement operations

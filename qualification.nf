@@ -12,6 +12,7 @@ include { DIVERSE_FIRST_COPY_MR_WORKFLOW } from './workflows/diverse_first_copy_
 include { CONTROL_FIRST_COPY_MR_WORKFLOW } from './workflows/control_first_copy_mr_workflow'
 include { ADDITIONAL_COPY_WORKFLOW } from './workflows/additional_copy_workflow'
 include { BRIEF_REFINEMENT_WORKFLOW } from './workflows/brief_refinement_workflow'
+include { PHASE3_NETWORK_PROBE_WORKFLOW } from './workflows/qualification/phase3_network_probe'
 
 params {
     qualification_stage: String
@@ -59,6 +60,8 @@ params {
     maximum_mappings: Integer = 25
     maximum_first_copy_jobs: Integer = 25
     phase3_joint_first_copy: Boolean = false
+    outer_job_id: String? = null
+    outer_network_namespace: String? = null
 }
 
 workflow {
@@ -72,7 +75,8 @@ workflow {
         'diverse_first_copy',
         'first_copy_controls',
         'additional_copy',
-        'refine_finalists'
+        'refine_finalists',
+        'phase3_network_probe'
     ]
     if (!(params.qualification_stage in supported)) {
         error "Unsupported qualification_stage: ${params.qualification_stage}"
@@ -249,7 +253,7 @@ workflow {
             params.mtz as Path,
             params.phenix_manifest as Path
         )
-    } else {
+    } else if (params.qualification_stage == 'refine_finalists') {
         if (
             params.finalists == null ||
             params.sequence_groups == null ||
@@ -264,5 +268,13 @@ workflow {
             params.source_records as Path,
             params.phenix_manifest as Path
         )
+    } else {
+        if (
+            params.outer_job_id == null ||
+            params.outer_network_namespace == null
+        ) {
+            error 'Phase III network probe requires its fixed outer scheduler and namespace identities'
+        }
+        PHASE3_NETWORK_PROBE_WORKFLOW()
     }
 }

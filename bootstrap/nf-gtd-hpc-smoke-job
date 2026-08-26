@@ -1798,11 +1798,11 @@ run_phase3_network_probe() {
     cd "$execution"
     "$nextflow" \
         -log "$RUN/logs/phase3-network-probe-nextflow.log" \
-        run "$RUN/source" \
-        -main-script workflows/qualification/phase3_network_probe.nf \
+        run "$RUN/source/qualification.nf" \
         -profile "$nextflow_profile" \
         -work-dir "$execution/work" \
         -with-trace "$qualification/phase3-network-probe-trace.tsv" \
+        --qualification_stage phase3_network_probe \
         --outer_job_id "$SLURM_JOB_ID" \
         --outer_network_namespace "$outer_network_namespace" \
         --outdir "$output"

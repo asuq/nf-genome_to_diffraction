@@ -5231,6 +5231,20 @@ def test_phase3_network_probe_stages_only_the_tracked_marmic_policy(
     assert "--time=00:45:00" in arguments
 
 
+def test_phase3_network_probe_uses_the_canonical_qualification_root() -> None:
+    wrapper = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(
+        encoding="utf-8"
+    )
+    phase = wrapper.split("run_phase3_network_probe() {", maxsplit=1)[1]
+    invocation = phase.split("\n}\n", maxsplit=1)[0]
+
+    assert 'run "$RUN/source/qualification.nf"' in invocation
+    assert "--qualification_stage phase3_network_probe" in invocation
+    assert "-main-script workflows/qualification/phase3_network_probe.nf" not in (
+        invocation
+    )
+
+
 def test_heteromer_multicopy_partner_preserves_parent_model_uncertainty() -> None:
     wrapper = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(
         encoding="utf-8"

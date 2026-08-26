@@ -491,6 +491,16 @@ set, or final checksum manifest exists. The minimal wrapper fix and regression
 are local; one exact-source CI/deployment/replacement control remains before
 9ECN or unknown execution.
 
+Replacement known-control job `634631` passed at exact source `589704d`: 6RTZ,
+3U7Q, full-catalogue, missing-B, wrong-B no-claim, all six assessments, 46
+Phase III placement checksums, 47 P6 checksums, and seven Phenix executable
+identities are retained. The subsequent worker-network probe `634652` is
+diagnostic failure only: Nextflow 26.04.6 rejected the nested `-main-script`
+command before creating either task, so it provides no network-denial evidence.
+The local fix makes the probe an operation of canonical `qualification.nf`;
+one exact-source CI/deployment/replacement probe remains before 9ECN or unknown
+execution.
+
 Status: the explicit Phase III application now plans complete deterministic
 Foldseek batches of at most 128 exact sequence groups, invokes the existing
 provider-bound adapter in one Nextflow task per batch, enforces one concurrent
