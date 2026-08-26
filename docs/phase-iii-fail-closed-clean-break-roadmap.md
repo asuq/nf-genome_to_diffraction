@@ -179,8 +179,11 @@ Scope: `FCB-P0-01`, `FCB-P0-03`, `FCB-P1-01`, and `FCB-P1-02`.
   locally regression-tested. First installed-runtime attempt `634698` stopped
   before Phaser when its parent hypothesis lacked the mapping/identity fields
   required by the existing experimental-model validator. The minimal preparer
-  correction and full locked gate pass; a single successor remains the final
-  installed-runtime packing qualification for this gate.
+  correction and full locked gate passed. Successor `634831` reached the
+  corrected joint-A Phaser execution but normalised without final LLG/TFZ. Its
+  raw partial output was not collectable before the final checksum manifest
+  existed; the focused collector correction must first recover that same
+  failed-run evidence before parser or packing classification.
 
 Acceptance: one focused regression per invented/missing observation plus the
 existing 6RTZ/3U7Q public controls. Missing packing blocks 9ECN acceptance;

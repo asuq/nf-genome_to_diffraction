@@ -4384,6 +4384,43 @@ collect_run() {
     fi
     phase3_output_root="$run/artifacts/heteromer-smoke/phase3-control"
     phase3_checksums="$phase3_output_root/phase3-9ecn-control-checksums.sha256"
+    if [[ "$profile" == heteromer-smoke && ! -f "$phase3_checksums" ]]; then
+        for phase3_relative in \
+            provenance/preparation_manifest.json \
+            provenance/phenix_manifest.json \
+            preflight/mtz_preflight.jsonl \
+            preflight/mtz_preflight.tsv \
+            preflight/preflight_report.md \
+            preflight/xtriage/9ECN.log \
+            parent_A/composition.fasta \
+            parent_A/normalised_mr_result.json \
+            parent_A/normalised_mr_result.jsonl \
+            parent_A/phaser_command.json \
+            parent_A/PHASER.log \
+            parent_A/phenix.phaser.capture.log \
+            parent_A/PHASER.sol \
+            parent_A/PHASER.1.pdb \
+            parent_A/PHASER.1.mtz; do
+            phase3_file="$phase3_output_root/$phase3_relative"
+            if [[ -e "$phase3_file" || -L "$phase3_file" ]]; then
+                [[ -f "$phase3_file" && ! -L "$phase3_file" && \
+                   -O "$phase3_file" && \
+                   "$(stat -c '%h' "$phase3_file")" -eq 1 ]] || \
+                    fail transfer_failure \
+                        "partial 9ECN control evidence is unsafe"
+                size="$(file_size "$phase3_file")"
+                (( size <= MAX_FILE_BYTES )) || \
+                    fail transfer_failure \
+                        "partial 9ECN control file exceeds per-file limit"
+                total=$((total + size))
+                (( total <= MAX_TOTAL_BYTES )) || \
+                    fail transfer_failure "artefacts exceed total limit"
+                files+=(
+                    "artifacts/heteromer-smoke/phase3-control/$phase3_relative"
+                )
+            fi
+        done
+    fi
     if [[ "$profile" == heteromer-smoke && -f "$phase3_checksums" ]]; then
         [[ ! -L "$phase3_checksums" && -O "$phase3_checksums" ]] || \
             fail transfer_failure "9ECN control checksum manifest is unsafe"

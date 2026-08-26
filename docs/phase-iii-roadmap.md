@@ -379,8 +379,11 @@ collection regressions pass. Exact-source CI passed on `2ecc61d`; first Marmic
 attempt `634698` reached 9ECN after repeating every prerequisite gate, then
 failed before Phaser because the prepared A hypothesis omitted its existing
 experimental mapping ID and sequence-identity fields. The focused preparer fix
-and full locked gate pass; one exact-source CI and successor Marmic 9ECN run
-remain before depth three is accepted.
+and full locked gate passed. Successor `634831` reached and executed joint-A
+Phaser, then normalised as `failed_parse` without final LLG/TFZ. Its partial
+native Phaser evidence was omitted by the pre-final-manifest collector; the
+focused collection fix must be deployed and the same failed run recollected
+before the Phaser outcome can be classified. Depth three remains unaccepted.
 
 ### PH4 - Localisation and gel evidence
 

@@ -5766,6 +5766,61 @@ def test_heteromer_collection_accepts_large_3u7q_mtz_evidence(
     assert set(fixed_paths) <= names
 
 
+def test_heteromer_collection_retains_partial_9ecn_parent_evidence(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    p0_paths = _write_p0_paths(remote_root)
+    phenix_manifest = Path(p0_paths.read_text(encoding="ascii").splitlines()[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    p0_paths.unlink()
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            HETEROMER_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "heteromer-smoke",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    run = remote_root / "runs" / HETEROMER_RUN_ID
+    relative_paths = (
+        "artifacts/heteromer-smoke/phase3-control/preflight/mtz_preflight.jsonl",
+        "artifacts/heteromer-smoke/phase3-control/preflight/xtriage/9ECN.log",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/composition.fasta",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/normalised_mr_result.json",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/normalised_mr_result.jsonl",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/phaser_command.json",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.log",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/phenix.phaser.capture.log",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.sol",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.1.pdb",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.1.mtz",
+    )
+    for relative in relative_paths:
+        path = run / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("retained partial 9ECN evidence\n", encoding="ascii")
+
+    archive = _run(
+        [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+
+    assert set(relative_paths) <= names
+
+
 def test_heteromer_p6_no_hit_omits_only_conditional_solution_assets(
     tmp_path: Path,
 ) -> None:

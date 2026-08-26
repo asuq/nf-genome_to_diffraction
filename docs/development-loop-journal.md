@@ -13770,3 +13770,29 @@ with a collapsed combined parent or a guessed command.
   schema, documentation, actionlint, Nextflow, stub/profile, packaging, and
   wrapper checks. Commit/push once, watch one CI, deploy, and submit exactly
   one successor; do not run unknown crystals first.
+
+## 2026-08-26 - 9ECN reaches Phaser; partial failure evidence was not collectable
+
+- Mapping-corrected commit `16f42e3`, CI `33005030475` / `98296456084`, was
+  deployed with the same checksum-verified tool digests. Owned successor
+  `gtd-heteromer-smoke-20260826T194729Z-16f42e38b024-99a4607e`, Slurm
+  `634831`, ended `FAILED`, exit 1, `test_failure`. It is diagnostic only and
+  must not be resumed or reused.
+- All frozen inputs, seven Phenix probes, 6RTZ/3U7Q, full-catalogue, and P6
+  gates passed again. 9ECN preflight retained its Patterson/tNCS review
+  warnings, the corrected exact A mapping/identity passed validation, and the
+  joint two-copy A Phaser command executed successfully at the tool level.
+  Normalisation then emitted `failed_parse` because it found no final LLG or
+  TFZ, and the fixed control stopped before B or C.
+- The reviewed collector exposed a separate evidence-boundary defect: before
+  the final 9ECN checksum manifest exists, it retained none of the partial
+  9ECN preflight, normalised parent result, raw Phaser log, command, capture,
+  or optional solution assets. The bounded application log is insufficient to
+  decide whether this is a no-solution representation or a parser defect, so
+  no parser/scientific edit is justified yet.
+- The minimal collector fix adds only the fixed, run-owned partial 9ECN
+  preflight/parent paths when the final checksum manifest is absent; successful
+  runs continue to use their complete checksum-driven inventory. Focused
+  success and partial-failure collection regressions and wrapper syntax pass.
+  Commit/push once, watch one CI, deploy the matching collector, and recollect
+  this same failed run without any scheduler action before classifying Phaser.
