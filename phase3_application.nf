@@ -22,6 +22,8 @@ params {
     phase3_reviewed_crystal_manifest: Path? = null
     phase3_owned_run_registry: Path? = null
     phase3_owned_sequence_parent_run_id: String? = null
+    phase3_provider_discovery: Path? = null
+    phase3_provider_preparation: Path? = null
     outdir: Path = file('results')
     cache_root: Path = file('.cache')
     review_mode: String = 'prepare'
@@ -56,6 +58,8 @@ workflow {
         if (
             params.phase3_crystallographic_review_stage == null ||
             params.afdb_accession_map == null ||
+            params.phase3_provider_discovery != null ||
+            params.phase3_provider_preparation != null ||
             params.phase3_reviewed_crystal_manifest != null ||
             params.phase3_owned_run_registry != null ||
             params.phase3_owned_sequence_parent_run_id != null
@@ -89,6 +93,9 @@ workflow {
     } else if (params.phase3_operation == 'first_copy') {
         if (
             params.phase3_crystallographic_review_stage == null ||
+            params.phase3_provider_discovery == null ||
+            params.phase3_provider_preparation == null ||
+            params.afdb_accession_map != null ||
             params.phase3_reviewed_crystal_manifest != null ||
             params.phase3_owned_run_registry != null ||
             params.phase3_owned_sequence_parent_run_id != null
@@ -105,27 +112,18 @@ workflow {
             params.review_mode,
             params.profile_mode,
             params.skip_xtriage,
-            params.maximum_evalue.toFloat(),
-            params.minimum_query_coverage.toFloat(),
-            params.maximum_query_length,
-            params.prostt5_maximum_evalue.toFloat(),
-            params.prostt5_minimum_query_coverage.toFloat(),
-            params.prostt5_maximum_query_length,
-            params.prostt5_maximum_queries,
-            params.prostt5_gpu,
-            params.afdb_accession_map,
-            params.afdb_request_timeout_seconds.toFloat(),
-            params.afdb_retry_count,
-            params.maximum_pdb_hits_per_sequence_group,
-            params.maximum_pdb_mappings,
             params.maximum_first_copy_jobs,
             params.phase3_crystallographic_review_stage,
             params.phase3_execution_identity,
-            params.phase3_owned_parent_run_id
+            params.phase3_owned_parent_run_id,
+            params.phase3_provider_discovery,
+            params.phase3_provider_preparation
         )
     } else {
         if (
             params.phase3_crystallographic_review_stage != null ||
+            params.phase3_provider_discovery != null ||
+            params.phase3_provider_preparation != null ||
             params.phase3_reviewed_crystal_manifest == null ||
             params.phase3_owned_run_registry == null ||
             params.phase3_owned_sequence_parent_run_id == null ||

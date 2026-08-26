@@ -15,6 +15,7 @@ from shutil import copytree
 from genome_to_diffraction.checksums import atomic_write_json
 from tests.support.unknown_pass1_fixture import (
     PUBLIC_STUB_CRYSTAL_IDS,
+    materialise_phase3_provider_login_stub,
     materialise_unknown_pass1_public_fixture,
 )
 
@@ -200,46 +201,6 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
     ):
         raise RuntimeError("reviewed proceed/hold application changed on cached resume")
 
-    application_output = root / "main-application-results"
-    _run(
-        [
-            "nextflow",
-            "run",
-            "phase3_application.nf",
-            "-profile",
-            "test",
-            "-stub-run",
-            "-params-file",
-            "tests/fixtures/stubs/phase3_application_params.yaml",
-            "--phase3_operation",
-            "first_copy",
-            "--crystals",
-            str(reviewed_manifest),
-            "--phase3_crystallographic_review_stage",
-            str(reviewed.review_stage),
-            "--phase3_execution_identity",
-            str(reviewed.execution_identity),
-            "--phase3_owned_parent_run_id",
-            "gtd-unknown-screen-production-fixture",
-            "--outdir",
-            str(application_output),
-            "--cache_root",
-            str(root / "main-application-cache"),
-        ],
-        environment,
-    )
-    application = Counter(
-        _process_name(row)
-        for row in _read_trace(application_output / "pipeline_info/trace.tsv")
-    )
-    if (
-        application["DISPATCH_CRYSTAL_ITEM"] != 3
-        or application["RUN_PHASE3_FIRST_COPY_PHASER"] != 2
-        or application["BUILD_PHASE3_MR_SEED_REVIEW"] != 2
-        or application["SELECT_SINGLE_CRYSTAL"] != 0
-    ):
-        raise RuntimeError("Phase III application did not retain its canonical path")
-
     discovery_output = root / "provider-discovery-results"
     discovery_command = [
         "nextflow",
@@ -304,6 +265,64 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
         or _output_digests(discovery_output) != before_discovery
     ):
         raise RuntimeError("Phase III provider discovery changed on cached resume")
+    provider_stage = materialise_phase3_provider_login_stub(
+        package_manifest.parent,
+        root / "provider-login-stage",
+    )
+    application_output = root / "main-application-results"
+    application_command = [
+        "nextflow",
+        "run",
+        "phase3_application.nf",
+        "-profile",
+        "test",
+        "-stub-run",
+        "-params-file",
+        "tests/fixtures/stubs/phase3_application_params.yaml",
+        "--phase3_operation",
+        "first_copy",
+        "--crystals",
+        str(reviewed_manifest),
+        "--phase3_crystallographic_review_stage",
+        str(reviewed.review_stage),
+        "--phase3_execution_identity",
+        str(reviewed.execution_identity),
+        "--phase3_owned_parent_run_id",
+        "gtd-unknown-screen-production-fixture",
+        "--phase3_provider_discovery",
+        str(package_manifest.parent),
+        "--phase3_provider_preparation",
+        str(provider_stage),
+        "--outdir",
+        str(application_output),
+        "--cache_root",
+        str(root / "main-application-cache"),
+    ]
+    _run(application_command, environment)
+    application = Counter(
+        _process_name(row)
+        for row in _read_trace(application_output / "pipeline_info/trace.tsv")
+    )
+    if (
+        application["VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT"] != 1
+        or application["DISPATCH_CRYSTAL_ITEM"] != 3
+        or application["RUN_PHASE3_FIRST_COPY_PHASER"] != 2
+        or application["BUILD_PHASE3_MR_SEED_REVIEW"] != 2
+        or application["PDB_SEQUENCE_DISCOVERY"] != 0
+        or application["RETRIEVE_AFDB_EXACT"] != 0
+        or application["REGISTER_PDB_COORDINATES"] != 0
+        or application["SELECT_SINGLE_CRYSTAL"] != 0
+    ):
+        raise RuntimeError("Phase III application crossed its offline provider path")
+    application_before = _output_digests(application_output)
+    _run([*application_command, "-resume"], environment)
+    application_resumed = _read_trace(application_output / "pipeline_info/trace.tsv")
+    if (
+        {row["status"] for row in application_resumed} != {"CACHED"}
+        or Counter(_process_name(row) for row in application_resumed) != application
+        or _output_digests(application_output) != application_before
+    ):
+        raise RuntimeError("Phase III offline application changed on cached resume")
 
 
 def _environment(nxf_home: Path) -> dict[str, str]:

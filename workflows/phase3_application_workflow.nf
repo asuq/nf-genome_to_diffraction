@@ -5,7 +5,6 @@ include { MTZ_PREFLIGHT } from '../modules/local/mtz_preflight'
 include { ENUMERATE_MATTHEWS } from '../modules/local/enumerate_matthews'
 include { PREPARE_EXPERIMENTAL_MODELS } from '../modules/local/prepare_experimental_models'
 include { PREPARE_PREDICTED_MODELS } from '../modules/local/prepare_predicted_models'
-include { REGISTER_PDB_COORDINATES } from '../modules/local/register_pdb_coordinates'
 include { VALIDATE_TASK05_INPUTS } from '../modules/local/validate_task05_inputs'
 include { CRYSTAL_FANOUT_WORKFLOW } from './crystal_fanout_workflow'
 include { PDB_SEQUENCE_DISCOVERY } from './pdb_sequence_discovery_workflow'
@@ -21,6 +20,9 @@ include {
 include {
     PACKAGE_PHASE3_PROVIDER_DISCOVERY
 } from '../modules/local/package_phase3_provider_discovery'
+include {
+    VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT
+} from '../modules/local/validate_phase3_offline_provider_input'
 
 
 // Provider discovery is a separate offline compute checkpoint. It validates
@@ -141,23 +143,12 @@ workflow PHASE3_FIRST_COPY_APPLICATION_WORKFLOW {
     review_mode: String
     profile_mode: String
     skip_xtriage: Boolean
-    maximum_evalue: Float
-    minimum_query_coverage: Float
-    maximum_query_length: Integer
-    prostt5_maximum_evalue: Float
-    prostt5_minimum_query_coverage: Float
-    prostt5_maximum_query_length: Integer
-    prostt5_maximum_queries: Integer
-    prostt5_gpu: Boolean
-    afdb_accession_map: Path?
-    afdb_request_timeout_seconds: Float
-    afdb_retry_count: Integer
-    maximum_pdb_hits_per_sequence_group: Integer
-    maximum_pdb_mappings: Integer
     maximum_first_copy_jobs: Integer
     crystallographic_review_stage: Path
     execution_identity: Path
     owned_parent_run_id: String
+    provider_discovery: Path
+    provider_preparation: Path
 
     main:
     validation_scope = VALIDATE_TASK05_INPUTS(
@@ -171,16 +162,20 @@ workflow PHASE3_FIRST_COPY_APPLICATION_WORKFLOW {
         profile_mode,
         'first_copy'
     )
-    catalogue_bundle = IMPORT_CATALOGUES(
-        catalogues,
-        pipeline_config,
-        validation_scope
+    offline_provider = VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT(
+        provider_discovery,
+        provider_preparation,
+        execution_identity
     )
+    offline_scope = validation_scope
+        .combine(offline_provider)
+        .map { Path scope, Path _provider -> scope }
+    catalogue_bundle = channel.value(provider_discovery.resolve('catalogue'))
     preflight_bundle = MTZ_PREFLIGHT(
         crystals,
         phenix_manifest,
         skip_xtriage,
-        validation_scope
+        offline_scope
     )
     matthews_bundle = ENUMERATE_MATTHEWS(
         crystals,
@@ -188,70 +183,39 @@ workflow PHASE3_FIRST_COPY_APPLICATION_WORKFLOW {
         preflight_bundle,
         catalogue_bundle
     )
-    sequence_groups = catalogue_bundle.map { Path bundle ->
-        bundle.resolve('sequence_groups.jsonl')
-    }
-    source_records = catalogue_bundle.map { Path bundle ->
-        bundle.resolve('source_records.jsonl')
-    }
-    discovery = PDB_SEQUENCE_DISCOVERY(
-        sequence_groups,
-        source_records,
-        pipeline_config,
-        database_manifest,
-        maximum_evalue,
-        minimum_query_coverage,
-        maximum_query_length,
-        prostt5_maximum_evalue,
-        prostt5_minimum_query_coverage,
-        prostt5_maximum_query_length,
-        prostt5_maximum_queries,
-        prostt5_gpu,
-        afdb_accession_map,
-        afdb_request_timeout_seconds,
-        afdb_retry_count,
-        true,
-        true
+    sequence_groups = channel.value(
+        provider_discovery.resolve('catalogue/sequence_groups.jsonl')
     )
-    direct_pdb_hits = discovery.pdb_provider_hits.map { Path bundle ->
-        bundle.resolve('structural_hits.jsonl')
-    }
-    pdb_search_results = discovery.pdb_sequence_search.map { Path bundle ->
-        bundle.resolve('search_results.jsonl')
-    }
-    foldseek_search_results = discovery.prostt5_foldseek_search.map {
-        Path bundle -> bundle.resolve('search_results.jsonl')
-    }
-    pdb_registration = REGISTER_PDB_COORDINATES(
-        direct_pdb_hits,
-        pdb_search_results,
-        foldseek_search_results,
-        sequence_groups,
-        database_manifest,
-        maximum_pdb_hits_per_sequence_group,
-        maximum_pdb_mappings
+    predicted_coordinate_sources = channel.value(
+        provider_preparation.resolve('afdb_exact_search/coordinate_sources.jsonl')
     )
-    predicted_coordinate_sources = discovery.afdb_exact_search.map {
-        Path bundle -> bundle.resolve('coordinate_sources.jsonl')
-    }
-    predicted_search_results = discovery.afdb_exact_search.map {
-        Path bundle -> bundle.resolve('search_results.jsonl')
-    }
+    predicted_search_results = channel.value(
+        provider_preparation.resolve('afdb_exact_search/search_results.jsonl')
+    )
     predicted_models = PREPARE_PREDICTED_MODELS(
         predicted_coordinate_sources,
         predicted_search_results,
         sequence_groups,
         phenix_manifest
     )
-    pdb_coordinate_sources = pdb_registration.map { Path bundle ->
-        bundle.resolve('coordinate_sources.jsonl')
-    }
-    coordinate_hit_mappings = pdb_registration.map { Path bundle ->
-        bundle.resolve('coordinate_hit_mappings.jsonl')
-    }
-    registration_manifest = pdb_registration.map { Path bundle ->
-        bundle.resolve('registration_manifest.json')
-    }
+    pdb_registration = channel.value(
+        provider_preparation.resolve('pdb_coordinate_registration')
+    )
+    pdb_coordinate_sources = channel.value(
+        provider_preparation.resolve(
+            'pdb_coordinate_registration/coordinate_sources.jsonl'
+        )
+    )
+    coordinate_hit_mappings = channel.value(
+        provider_preparation.resolve(
+            'pdb_coordinate_registration/coordinate_hit_mappings.jsonl'
+        )
+    )
+    registration_manifest = channel.value(
+        provider_preparation.resolve(
+            'pdb_coordinate_registration/registration_manifest.json'
+        )
+    )
     experimental_models = PREPARE_EXPERIMENTAL_MODELS(
         pdb_coordinate_sources,
         coordinate_hit_mappings,

@@ -430,9 +430,15 @@ focused stub and byte-identical cached replay pass. The owned discovery package
 is now implemented: it requires exact PDB and Foldseek query coverage,
 provider/config/database agreement, the three reviewed crystal IDs, and a
 complete content-addressed copied-file inventory. Four focused failure/
-round-trip regressions and the packaged Nextflow cached replay pass. Login
-staging, fixed wrapper profiles, and offline prepared-provider consumption are
-the next increments; this local graph is not HPC qualification.
+round-trip regressions and the packaged Nextflow cached replay pass. Bounded
+login staging and offline consumption are now implemented locally: the
+controller accepts only the owned discovery package, fixes PDB selection at
+three hits per group and 25 mappings, uses only explicit AFDB accessions, emits typed disabled
+ESM results, and inventories referenced coordinates. `first_copy` independently
+matches both packages to the execution identity before any model/Phaser task
+and schedules no provider or network process. The complete three-crystal graph
+and both discovery/offline resumes are green. Fixed wrapper profiles and real
+HPC qualification remain.
 
 Status: the explicit Phase III application now plans complete deterministic
 Foldseek batches of at most 128 exact sequence groups, invokes the existing

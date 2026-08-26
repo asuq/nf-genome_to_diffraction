@@ -13471,3 +13471,22 @@ with a collapsed combined parent or a guessed command.
   Bounded login staging, offline screen consumption, fixed wrapper profiles,
   CI, and Marmic qualification remain. No installed tool, scheduler run,
   provider download, scientific threshold, or unknown crystal was changed.
+
+## 2026-08-25 - Login acquisition and unknown screening are separate authorities
+
+- The bounded login adapter accepts only a validated owned discovery package.
+  It invokes the existing provider-plan-bound PDB/AFDB adapters with fixed
+  three-hit-per-group and 25-mapping limits, retains the configured disabled
+  ESM branch, submits no sequence publicly, and checksums every referenced
+  coordinate object into one content-addressed provider preparation.
+- Current `first_copy` no longer performs discovery or coordinate registration.
+  It requires the exact discovery package and provider preparation, validates
+  both against the Phase III execution identity, then runs model preparation
+  and the reviewed three-crystal MR fan-out entirely offline.
+- Four focused login/offline round-trip, tamper, symlink, and cross-owned cases
+  pass. The complete three-crystal application retains one hold and two proceed
+  branches, schedules no search/download process, and both discovery and
+  offline application replays are fully cached with unchanged outputs.
+- Fixed reviewed wrapper profiles, exact-source CI, and Marmic qualification
+  remain. No remote tool, scheduler run, provider download, threshold, or
+  unknown crystal was changed.

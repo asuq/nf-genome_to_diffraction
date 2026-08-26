@@ -217,6 +217,7 @@ from genome_to_diffraction.structure_search import (
     PdbCoordinateRegistrationRequest,
     PdbSequenceSearchRequest,
     PhaseIIIProviderDiscoveryRequest,
+    PhaseIIIProviderLoginStageRequest,
     ProstT5FoldseekSearchRequest,
     ProviderHitMergeRequest,
     ProviderPlanRequest,
@@ -225,12 +226,14 @@ from genome_to_diffraction.structure_search import (
     emit_disabled_provider_bundle,
     merge_pdb_provider_hits,
     merge_phase3_foldseek_batches,
+    publish_phase3_offline_provider_input,
     qualify_p1_search,
     register_pdb_coordinates,
     resolve_provider_plan,
     search_afdb_exact,
     search_pdb_sequences,
     search_prostt5_foldseek,
+    stage_phase3_provider_coordinates,
 )
 
 
@@ -1833,6 +1836,28 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     phase3_discovery_package_parser.add_argument("--afdb-accession-map", type=Path)
     phase3_discovery_package_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_provider_stage_parser = search_actions.add_parser(
+        "stage-phase3-provider-coordinates",
+        help="run bounded login acquisition for an owned discovery package",
+    )
+    phase3_provider_stage_parser.add_argument(
+        "--discovery-package", type=Path, required=True
+    )
+    phase3_provider_stage_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_offline_provider_parser = search_actions.add_parser(
+        "validate-phase3-offline-provider-input",
+        help="bind discovery, login preparation, and execution for offline MR",
+    )
+    phase3_offline_provider_parser.add_argument(
+        "--discovery-package", type=Path, required=True
+    )
+    phase3_offline_provider_parser.add_argument(
+        "--provider-preparation", type=Path, required=True
+    )
+    phase3_offline_provider_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    phase3_offline_provider_parser.add_argument("--outdir", type=Path, required=True)
     pdb_sequence_parser = search_actions.add_parser(
         "pdb-sequence",
         help="search exact catalogue sequences against the local PDB SEQRES database",
@@ -2779,6 +2804,31 @@ def _run_structure_search(args: argparse.Namespace) -> int:
         print(
             "Published owned Phase III provider discovery "
             f"{packaged.manifest.package_id}: {packaged.manifest_path}"
+        )
+        return 0
+    if args.structure_search_action == "stage-phase3-provider-coordinates":
+        staged = stage_phase3_provider_coordinates(
+            PhaseIIIProviderLoginStageRequest(
+                discovery_package=args.discovery_package,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            "Published bounded Phase III provider preparation "
+            f"{staged.manifest.preparation_id}: {staged.manifest_path}"
+        )
+        return 0
+    if args.structure_search_action == "validate-phase3-offline-provider-input":
+        offline = publish_phase3_offline_provider_input(
+            discovery_package=args.discovery_package,
+            provider_preparation=args.provider_preparation,
+            execution_identity=args.execution_identity,
+            output_directory=args.outdir,
+        )
+        print(
+            "Validated offline Phase III provider input "
+            f"{offline.manifest.offline_input_id}: {offline.manifest_path}"
         )
         return 0
     if args.structure_search_action == "qualify-p1":

@@ -1,11 +1,16 @@
 """Materialise the synthetic public unknown-pass-1 integration fixture."""
 
 import hashlib
+import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from genome_to_diffraction.checksums import atomic_write_json, sha256_file
+from genome_to_diffraction.checksums import (
+    atomic_write_json,
+    atomic_write_text,
+    sha256_file,
+)
 from genome_to_diffraction.execution.unknown_screen import (
     UnknownPass1CrystalInput,
     UnknownPass1ModelInput,
@@ -15,6 +20,7 @@ from genome_to_diffraction.execution.unknown_screen import (
     stage_unknown_pass1_crystallographic_reviews,
     write_unknown_pass1_screen_inventory,
 )
+from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.review.owned_run import (
     OwnedPhaseIIIReviewPackageSource,
     register_phase3_owned_run,
@@ -26,6 +32,11 @@ from genome_to_diffraction.review.phase3_package import (
 )
 from genome_to_diffraction.review.phase3_stage import (
     OwnedPhaseIIIParentRun,
+)
+from genome_to_diffraction.schemas.results import (
+    SearchScientificStatus,
+    SequenceGroupRecord,
+    StructuralSearchResult,
 )
 from genome_to_diffraction.schemas.v2 import (
     ExecutionArtifactIdentity,
@@ -39,6 +50,15 @@ from genome_to_diffraction.schemas.v2 import (
     UnknownPass1AHypothesis,
     UnknownPass1AHypothesisDisposition,
     UnknownPass1ScreenInventory,
+)
+from genome_to_diffraction.status import ExecutionStatus
+from genome_to_diffraction.structure_search import (
+    DisabledProviderBundleRequest,
+    PhaseIIIProviderLoginStageFile,
+    PhaseIIIProviderLoginStageManifest,
+    emit_disabled_provider_bundle,
+    validate_phase3_provider_discovery_package,
+    validate_phase3_provider_login_stage,
 )
 
 PUBLIC_STUB_CRYSTAL_IDS = (
@@ -457,9 +477,133 @@ def materialise_unknown_pass1_public_fixture(
     )
 
 
+def materialise_phase3_provider_login_stub(
+    discovery_package: Path,
+    output_directory: Path,
+) -> Path:
+    """Write a typed no-coordinate login-stage fixture for offline stub MR."""
+
+    discovery = validate_phase3_provider_discovery_package(discovery_package)
+    output_directory.mkdir()
+    groups = tuple(
+        SequenceGroupRecord.model_validate_json(line)
+        for line in (discovery_package / "catalogue/sequence_groups.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    pdb = output_directory / "pdb_coordinate_registration"
+    pdb.mkdir()
+    atomic_write_text(pdb / "coordinate_sources.jsonl", "")
+    atomic_write_text(pdb / "coordinate_hit_mappings.jsonl", "")
+    atomic_write_json(
+        pdb / "registration_manifest.json",
+        {
+            "schema_version": "1.0",
+            "registration_id": "coordreg_phase3_login_stub",
+            "selected_mapping_count": 0,
+            "coordinate_source_count": 0,
+        },
+    )
+    afdb = output_directory / "afdb_exact_search"
+    raw = afdb / "raw"
+    raw.mkdir(parents=True)
+    raw_result = raw / "afdb-results.json"
+    raw_log = raw / "afdb.log"
+    raw_result.write_text("{}\n", encoding="ascii")
+    raw_log.write_text("stub mode: no coordinate acquisition\n", encoding="ascii")
+    afdb_results = tuple(
+        StructuralSearchResult(
+            schema_version="1.0",
+            search_id=f"afdb_stub_{group.sequence_group_id}",
+            sequence_group_id=group.sequence_group_id,
+            provider="afdb_exact",
+            database_id="afdb_stub",
+            tool="AlphaFold DB prediction API",
+            tool_version="stub-not-executed",
+            adapter_version="afdb-exact-v3",
+            cache_key=_digest(f"afdb-stub:{group.sequence_group_id}"),
+            execution_status=ExecutionStatus.COMPLETED_NO_HIT,
+            scientific_status=SearchScientificStatus.NO_HIT,
+            hit_count=0,
+            hits=(),
+            raw_result_pointer="raw/afdb-results.json",
+            raw_result_sha256=sha256_file(raw_result, progress=False),
+            command_log_pointer="raw/afdb.log",
+            command_log_sha256=sha256_file(raw_log, progress=False),
+            warnings=("stub_mode_no_network_execution",),
+        )
+        for group in groups
+    )
+    atomic_write_text(
+        afdb / "search_results.jsonl",
+        "".join(f"{canonical_json_text(item)}\n" for item in afdb_results),
+    )
+    atomic_write_text(afdb / "structural_hits.jsonl", "")
+    atomic_write_text(afdb / "coordinate_sources.jsonl", "")
+    atomic_write_json(
+        afdb / "search_manifest.json",
+        {
+            "schema_version": "1.0",
+            "search_count": len(afdb_results),
+            "coordinate_source_count": 0,
+            "scientific_execution_performed": False,
+        },
+    )
+    esm = emit_disabled_provider_bundle(
+        DisabledProviderBundleRequest(
+            provider_entry_json=(
+                discovery_package / "provider_plan/entries/esm_atlas.json"
+            ),
+            sequence_groups_jsonl=(
+                discovery_package / "catalogue/sequence_groups.jsonl"
+            ),
+            output_directory=output_directory / "esm_atlas_search",
+        )
+    )
+    shutil.copy2(
+        discovery_package / "phase3_provider_discovery_manifest.json",
+        output_directory / "phase3_provider_discovery_manifest.json",
+    )
+    files = tuple(
+        PhaseIIIProviderLoginStageFile(
+            relative_path=path.relative_to(output_directory).as_posix(),
+            sha256=sha256_file(path, progress=False),
+            size_bytes=path.stat().st_size,
+        )
+        for path in sorted(output_directory.rglob("*"))
+        if path.is_file() and path.name != "provider_preparation.json"
+    )
+    manifest = PhaseIIIProviderLoginStageManifest.from_content(
+        adapter_version="phase3-provider-login-stage-v1",
+        discovery_package_id=discovery.package_id,
+        discovery_owned_run_id=discovery.owned_run_id,
+        execution_identity_id=discovery.execution_identity_id,
+        provider_plan_id=discovery.provider_plan_id,
+        sequence_group_count=discovery.sequence_group_count,
+        pdb_coordinate_source_count=0,
+        pdb_mapping_count=0,
+        afdb_result_count=len(afdb_results),
+        afdb_coordinate_source_count=0,
+        esm_result_count=len(esm.results),
+        staged_coordinate_object_count=0,
+        maximum_hits_per_sequence_group=3,
+        maximum_mappings=25,
+        execution_class="bounded_login_staging",
+        remote_sequence_submission=False,
+        files=files,
+    )
+    atomic_write_json(
+        output_directory / "provider_preparation.json",
+        manifest.model_dump(mode="json"),
+    )
+    validate_phase3_provider_login_stage(output_directory)
+    return output_directory
+
+
 __all__ = [
     "PUBLIC_STUB_CRYSTAL_IDS",
     "UnknownPass1PublicFixture",
+    "materialise_phase3_provider_login_stub",
     "materialise_unknown_pass1_public_fixture",
     "public_stub_hypothesis",
     "public_stub_model_bytes",

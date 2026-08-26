@@ -68,9 +68,14 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   `provider_discovery` operation that validates the owned three-crystal review
   authority and schedules only PDB/MMseqs2 plus ProstT5/Foldseek tasks. Fixed
   wrapper profiles, login staging, and offline MR consumption remain. The
-  discovery operation now publishes one content-addressed owned package after
+  discovery operation publishes one content-addressed owned package after
   independently checking both complete query inventories, provider/config/
   database identities, all three reviewed crystals, and every copied byte.
+  Bounded login staging now applies the fixed three-hit/25-mapping policy,
+  explicit-accession AFDB route, and typed disabled ESM route; its preparation
+  binds every referenced coordinate object. Offline `first_copy` refuses
+  mismatched discovery/preparation/execution identities and schedules no
+  provider search or acquisition. Fixed wrappers and HPC qualification remain.
 - Make the reviewed provider plan and matching route entry mandatory in PDB,
   Foldseek, and AFDB discovery commands, modules, fixtures, and cache IDs.
 - Preserve typed configured-disabled and genuine completed-no-hit routes
