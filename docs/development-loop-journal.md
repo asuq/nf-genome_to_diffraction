@@ -13437,8 +13437,37 @@ with a collapsed combined parent or a guessed command.
 - Validation rejects non-final ledger wording, missing/extra/changed findings,
   changed ledger bytes, cross-source records, and malformed or duplicate-key
   JSON before any scheduler integration. Six focused regressions, Ruff, and
-  typing pass.
+  typing pass. Exact-source CI `32912485774` / `98009290681` passed on
+  `cd2c6a78722f317f94385267f2bd17dcdd4f3af4` under Pixi 0.76.2 in 21m0s.
 - This is contract evidence, not pass-2 authorisation. The future fixed pass-2
   profile must consume the verifier and real RG7 record. No installed tool,
   scheduler run, scientific threshold, control, M6 input, or unknown crystal
   was changed.
+
+## 2026-08-25 - Unknown provider discovery stops before login acquisition
+
+- The user approved the necessary owned chain: compute-only
+  `unknown-discovery`, bounded reviewed login-side coordinate staging, then
+  offline `unknown-screen`. This resolves the otherwise impossible requirement
+  to know search-selected PDB accessions before downloading them while keeping
+  every compute task network-isolated.
+- `phase3_application.nf --phase3_operation provider_discovery` now validates
+  the exact three-crystal crystallographic review authority, imports the shared
+  catalogue once, and runs only PDB/MMseqs2 plus deterministic full-catalogue
+  ProstT5/Foldseek searches. AFDB retrieval, PDB coordinate registration, model
+  preparation, and Phaser are absent from this operation.
+- The focused three-crystal stub proves the offline process inventory and a
+  byte-identical fully cached replay. The existing first-copy application,
+  full-catalogue Foldseek batch, provider-empty graph, and Nextflow syntax gates
+  remain green.
+- The operation now publishes one path-closed, content-addressed owned package.
+  It independently requires complete PDB and Foldseek query coverage, exact
+  provider/config/database identities, all three reviewed crystals, an explicit
+  AFDB mapping file including the valid empty case, and a checksum inventory of
+  every copied byte. Missing queries, tampering, symlinks, or cross-owned review
+  state fail before publication.
+- Four focused round-trip/truncation/tamper/symlink regressions, the packaged
+  three-crystal stub, full cached replay, Ruff, typing, and Nextflow syntax pass.
+  Bounded login staging, offline screen consumption, fixed wrapper profiles,
+  CI, and Marmic qualification remain. No installed tool, scheduler run,
+  provider download, scientific threshold, or unknown crystal was changed.

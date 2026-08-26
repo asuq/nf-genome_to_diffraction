@@ -216,10 +216,12 @@ from genome_to_diffraction.structure_search import (
     P1QualificationRequest,
     PdbCoordinateRegistrationRequest,
     PdbSequenceSearchRequest,
+    PhaseIIIProviderDiscoveryRequest,
     ProstT5FoldseekSearchRequest,
     ProviderHitMergeRequest,
     ProviderPlanRequest,
     build_phase3_foldseek_batches,
+    build_phase3_provider_discovery_package,
     emit_disabled_provider_bundle,
     merge_pdb_provider_hits,
     merge_phase3_foldseek_batches,
@@ -1799,6 +1801,38 @@ def _build_parser() -> argparse.ArgumentParser:
         "--batch", type=Path, action="append", required=True
     )
     phase3_batch_merge_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_discovery_package_parser = search_actions.add_parser(
+        "package-phase3-provider-discovery",
+        help="publish the owned offline provider-discovery checkpoint",
+    )
+    phase3_discovery_package_parser.add_argument("--owned-run-id", required=True)
+    phase3_discovery_package_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument("--config", type=Path, required=True)
+    phase3_discovery_package_parser.add_argument(
+        "--database-manifest", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--crystallographic-review-routes", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--catalogue-bundle", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--provider-plan-bundle", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--pdb-sequence-search", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--prostt5-foldseek-search", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--pdb-provider-hits", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument("--afdb-accession-map", type=Path)
+    phase3_discovery_package_parser.add_argument("--outdir", type=Path, required=True)
     pdb_sequence_parser = search_actions.add_parser(
         "pdb-sequence",
         help="search exact catalogue sequences against the local PDB SEQRES database",
@@ -2724,6 +2758,28 @@ def _run_structure_search(args: argparse.Namespace) -> int:
             output_directory=args.outdir,
         )
         print(f"Merged complete bounded Foldseek batch results: {merged}")
+        return 0
+    if args.structure_search_action == "package-phase3-provider-discovery":
+        packaged = build_phase3_provider_discovery_package(
+            PhaseIIIProviderDiscoveryRequest(
+                owned_run_id=args.owned_run_id,
+                execution_identity=args.execution_identity,
+                pipeline_config=args.config,
+                database_manifest=args.database_manifest,
+                crystallographic_review_routes=args.crystallographic_review_routes,
+                catalogue_bundle=args.catalogue_bundle,
+                provider_plan_bundle=args.provider_plan_bundle,
+                pdb_sequence_search=args.pdb_sequence_search,
+                prostt5_foldseek_search=args.prostt5_foldseek_search,
+                pdb_provider_hits=args.pdb_provider_hits,
+                afdb_accession_map=args.afdb_accession_map,
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            "Published owned Phase III provider discovery "
+            f"{packaged.manifest.package_id}: {packaged.manifest_path}"
+        )
         return 0
     if args.structure_search_action == "qualify-p1":
         report = qualify_p1_search(

@@ -46,7 +46,8 @@ Scope: `FCB-P0-08` and every new finding inventory entry.
   adverse review, integration gate, public controls, M6, and pass-1 evidence.
   It rejects local/pending dispositions, incomplete inventories, changed
   ledger bytes, malformed/duplicate JSON, and cross-source records. Fixed
-  pass-2 profile integration remains for RG7.
+  pass-2 profile integration remains for RG7. Exact-source CI `32912485774`
+  passed on `cd2c6a7` under Pixi 0.76.2.
 - Distinguish required historical readers and explicitly approved, bounded
   operational/scientific exceptions from removable current compatibility.
 
@@ -61,6 +62,15 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
 - Add one concrete reviewed fixed profile for `unknown-screen` and
   `unknown-single-component`. Add pass-2 execution only with its independent
   RG7 closure record; no unknown operation may bypass the reviewed wrapper.
+  The user approved the necessary clean operational split on 2026-08-25:
+  compute-only `unknown-discovery`, bounded login-side coordinate staging, then
+  offline `unknown-screen`. The current application now has a locally tested
+  `provider_discovery` operation that validates the owned three-crystal review
+  authority and schedules only PDB/MMseqs2 plus ProstT5/Foldseek tasks. Fixed
+  wrapper profiles, login staging, and offline MR consumption remain. The
+  discovery operation now publishes one content-addressed owned package after
+  independently checking both complete query inventories, provider/config/
+  database identities, all three reviewed crystals, and every copied byte.
 - Make the reviewed provider plan and matching route entry mandatory in PDB,
   Foldseek, and AFDB discovery commands, modules, fixtures, and cache IDs.
 - Preserve typed configured-disabled and genuine completed-no-hit routes

@@ -419,6 +419,21 @@ queries, one large-memory batch at a time. AFDB exact remains explicit-mapping
 only and ESM Atlas remains disabled. Run at most 25 first-copy hypotheses per
 crystal and emit three seed-review packages.
 
+The worker-offline boundary requires one explicit operational checkpoint. The
+user approved a compute-only `unknown-discovery` run, bounded reviewed
+login-side coordinate staging, and then an offline `unknown-screen` MR run.
+The current application now exposes `provider_discovery`: it authenticates the
+owned three-crystal crystallographic review bundle before catalogue import,
+runs only local PDB/MMseqs2 and full-catalogue ProstT5/Foldseek tasks, and emits
+no network, coordinate-registration, model-preparation, or Phaser task. Its
+focused stub and byte-identical cached replay pass. The owned discovery package
+is now implemented: it requires exact PDB and Foldseek query coverage,
+provider/config/database agreement, the three reviewed crystal IDs, and a
+complete content-addressed copied-file inventory. Four focused failure/
+round-trip regressions and the packaged Nextflow cached replay pass. Login
+staging, fixed wrapper profiles, and offline prepared-provider consumption are
+the next increments; this local graph is not HPC qualification.
+
 Status: the explicit Phase III application now plans complete deterministic
 Foldseek batches of at most 128 exact sequence groups, invokes the existing
 provider-bound adapter in one Nextflow task per batch, enforces one concurrent
@@ -753,8 +768,9 @@ Status: the content-addressed closure-record verifier is implemented locally.
 It authenticates the exact source commit/tree and ledger bytes, requires one
 final entry for every finding plus exact-source CI/control/M6/pass-1 evidence,
 and rejects local/pending wording, stale or incomplete inventories, malformed
-JSON, and cross-source records. Fixed pass-2 profile integration and the real
-RG7 evidence remain pending.
+JSON, and cross-source records. Exact-source CI `32912485774` passed on
+`cd2c6a7`; fixed pass-2 profile integration and the real RG7 evidence remain
+pending.
 
 Reuse identical frozen inputs, gel/localisation evidence, thresholds,
 databases, and tools. For a credible A state, launch the automatic B-F beam

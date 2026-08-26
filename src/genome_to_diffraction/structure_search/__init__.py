@@ -22,6 +22,14 @@ from genome_to_diffraction.structure_search.phase3_batches import (
     build_phase3_foldseek_batches,
     merge_phase3_foldseek_batches,
 )
+from genome_to_diffraction.structure_search.phase3_discovery_package import (
+    PhaseIIIProviderDiscoveryError,
+    PhaseIIIProviderDiscoveryManifest,
+    PhaseIIIProviderDiscoveryOutput,
+    PhaseIIIProviderDiscoveryRequest,
+    build_phase3_provider_discovery_package,
+    validate_phase3_provider_discovery_package,
+)
 from genome_to_diffraction.structure_search.prostt5_foldseek import (
     ProstT5FoldseekSearchOutput,
     ProstT5FoldseekSearchRequest,
@@ -67,6 +75,10 @@ __all__ = [
     "PdbSequenceSearchOutput",
     "PdbSequenceSearchRequest",
     "PhaseIIIFoldseekBatchError",
+    "PhaseIIIProviderDiscoveryError",
+    "PhaseIIIProviderDiscoveryManifest",
+    "PhaseIIIProviderDiscoveryOutput",
+    "PhaseIIIProviderDiscoveryRequest",
     "ProstT5FoldseekSearchOutput",
     "ProstT5FoldseekSearchRequest",
     "ProviderHitMergeError",
@@ -76,6 +88,7 @@ __all__ = [
     "ProviderPlanOutput",
     "ProviderPlanRequest",
     "build_phase3_foldseek_batches",
+    "build_phase3_provider_discovery_package",
     "emit_disabled_provider_bundle",
     "load_enabled_provider_route",
     "merge_pdb_provider_hits",
@@ -86,4 +99,5 @@ __all__ = [
     "search_afdb_exact",
     "search_pdb_sequences",
     "search_prostt5_foldseek",
+    "validate_phase3_provider_discovery_package",
 ]

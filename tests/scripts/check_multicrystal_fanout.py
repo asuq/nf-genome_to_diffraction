@@ -240,6 +240,71 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
     ):
         raise RuntimeError("Phase III application did not retain its canonical path")
 
+    discovery_output = root / "provider-discovery-results"
+    discovery_command = [
+        "nextflow",
+        "run",
+        "phase3_application.nf",
+        "-profile",
+        "test",
+        "-stub-run",
+        "-params-file",
+        "tests/fixtures/stubs/phase3_application_params.yaml",
+        "--phase3_operation",
+        "provider_discovery",
+        "--crystals",
+        str(reviewed_manifest),
+        "--phase3_crystallographic_review_stage",
+        str(reviewed.review_stage),
+        "--phase3_execution_identity",
+        str(reviewed.execution_identity),
+        "--afdb_accession_map",
+        "tests/fixtures/stubs/empty_afdb_accession_map.tsv",
+        "--phase3_owned_parent_run_id",
+        "gtd-unknown-discovery-production-fixture",
+        "--outdir",
+        str(discovery_output),
+        "--cache_root",
+        str(root / "provider-discovery-cache"),
+    ]
+    _run(discovery_command, environment)
+    discovery_trace = discovery_output / "pipeline_info/trace.tsv"
+    discovery_rows = _read_trace(discovery_trace)
+    discovery = Counter(_process_name(row) for row in discovery_rows)
+    if (
+        discovery["VALIDATE_PHASE3_PROVIDER_DISCOVERY_REVIEWS"] != 1
+        or discovery["SEARCH_PDB_SEQUENCES"] != 1
+        or discovery["PLAN_PHASE3_FOLDSEEK_BATCHES"] != 1
+        or discovery["SEARCH_PHASE3_FOLDSEEK_BATCH"] < 1
+        or discovery["MERGE_PHASE3_FOLDSEEK_BATCHES"] != 1
+        or discovery["PACKAGE_PHASE3_PROVIDER_DISCOVERY"] != 1
+        or discovery["RETRIEVE_AFDB_EXACT"] != 0
+        or discovery["REGISTER_PDB_COORDINATES"] != 0
+        or discovery["PREPARE_PREDICTED_MODELS"] != 0
+        or discovery["PREPARE_EXPERIMENTAL_MODELS"] != 0
+        or discovery["RUN_PHASE3_FIRST_COPY_PHASER"] != 0
+    ):
+        raise RuntimeError(
+            "Phase III provider discovery crossed its offline compute boundary"
+        )
+    package_manifest = (
+        discovery_output
+        / "phase3_provider_discovery"
+        / "phase3_provider_discovery_manifest.json"
+    )
+    if not package_manifest.is_file():
+        raise RuntimeError("Phase III provider discovery lost its owned package")
+    before_discovery = _output_digests(discovery_output)
+    _run([*discovery_command, "-resume"], environment)
+    resumed_discovery = _read_trace(discovery_trace)
+    if (
+        {row["status"] for row in resumed_discovery} != {"CACHED"}
+        or {row["hash"] for row in resumed_discovery}
+        != {row["hash"] for row in discovery_rows}
+        or _output_digests(discovery_output) != before_discovery
+    ):
+        raise RuntimeError("Phase III provider discovery changed on cached resume")
+
 
 def _environment(nxf_home: Path) -> dict[str, str]:
     environment = dict(os.environ)

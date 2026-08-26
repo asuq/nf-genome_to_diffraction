@@ -103,7 +103,8 @@ workflow {
             params.afdb_accession_map,
             params.afdb_request_timeout_seconds.toFloat(),
             params.afdb_retry_count,
-            false
+            false,
+            true
         )
     } else if (params.qualification_stage == 'register_coordinates') {
         if (

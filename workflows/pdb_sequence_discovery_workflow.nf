@@ -33,6 +33,7 @@ workflow PDB_SEQUENCE_DISCOVERY {
     afdb_request_timeout_seconds: Float
     afdb_retry_count: Integer
     phase3_full_catalogue_batches: Boolean
+    execute_network_providers: Boolean
 
     main:
     plan_bundle = RESOLVE_PROVIDER_PLAN(pipeline_config, database_manifest)
@@ -148,42 +149,55 @@ workflow PDB_SEQUENCE_DISCOVERY {
     )
     prostt5_bundle = prostt5_enabled_bundle.mix(prostt5_disabled_bundle).first()
 
-    afdb_enabled_plan = provider_routes
-        .filter { key, enabled, plan, entry -> key == 'afdb_exact' && enabled }
-        .map { key, enabled, plan, entry -> plan as Path }
-    afdb_enabled_entry = provider_routes
-        .filter { key, enabled, plan, entry -> key == 'afdb_exact' && enabled }
-        .map { key, enabled, plan, entry -> entry as Path }
-    afdb_disabled_entry = provider_routes
-        .filter { key, enabled, plan, entry -> key == 'afdb_exact' && !enabled }
-        .map { key, enabled, plan, entry -> entry as Path }
-    afdb_enabled_bundle = RETRIEVE_AFDB_EXACT(
-        sequence_groups,
-        source_records,
-        database_manifest,
-        afdb_enabled_plan,
-        afdb_enabled_entry,
-        afdb_accession_map,
-        afdb_request_timeout_seconds,
-        afdb_retry_count
-    )
-    afdb_disabled_bundle = EMIT_DISABLED_AFDB(
-        'afdb_exact',
-        'afdb_exact_search',
-        sequence_groups,
-        afdb_disabled_entry
-    )
-    afdb_bundle = afdb_enabled_bundle.mix(afdb_disabled_bundle).first()
+    if (execute_network_providers) {
+        afdb_enabled_plan = provider_routes
+            .filter { key, enabled, plan, entry ->
+                key == 'afdb_exact' && enabled
+            }
+            .map { key, enabled, plan, entry -> plan as Path }
+        afdb_enabled_entry = provider_routes
+            .filter { key, enabled, plan, entry ->
+                key == 'afdb_exact' && enabled
+            }
+            .map { key, enabled, plan, entry -> entry as Path }
+        afdb_disabled_entry = provider_routes
+            .filter { key, enabled, plan, entry ->
+                key == 'afdb_exact' && !enabled
+            }
+            .map { key, enabled, plan, entry -> entry as Path }
+        afdb_enabled_bundle = RETRIEVE_AFDB_EXACT(
+            sequence_groups,
+            source_records,
+            database_manifest,
+            afdb_enabled_plan,
+            afdb_enabled_entry,
+            afdb_accession_map,
+            afdb_request_timeout_seconds,
+            afdb_retry_count
+        )
+        afdb_disabled_bundle = EMIT_DISABLED_AFDB(
+            'afdb_exact',
+            'afdb_exact_search',
+            sequence_groups,
+            afdb_disabled_entry
+        )
+        afdb_bundle = afdb_enabled_bundle.mix(afdb_disabled_bundle).first()
 
-    esm_disabled_entry = provider_routes
-        .filter { key, enabled, plan, entry -> key == 'esm_atlas' && !enabled }
-        .map { key, enabled, plan, entry -> entry as Path }
-    esm_bundle = EMIT_DISABLED_ESM(
-        'esm_atlas',
-        'esm_atlas_search',
-        sequence_groups,
-        esm_disabled_entry
-    )
+        esm_disabled_entry = provider_routes
+            .filter { key, enabled, plan, entry ->
+                key == 'esm_atlas' && !enabled
+            }
+            .map { key, enabled, plan, entry -> entry as Path }
+        esm_bundle = EMIT_DISABLED_ESM(
+            'esm_atlas',
+            'esm_atlas_search',
+            sequence_groups,
+            esm_disabled_entry
+        )
+    } else {
+        afdb_bundle = channel.empty()
+        esm_bundle = channel.empty()
+    }
     pdb_hits = search_bundle.map { Path bundle ->
         bundle.resolve('structural_hits.jsonl')
     }

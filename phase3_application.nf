@@ -4,6 +4,7 @@ nextflow.enable.dsl = 2
 nextflow.enable.types = true
 
 include {
+    PHASE3_PROVIDER_DISCOVERY_APPLICATION_WORKFLOW;
     PHASE3_FIRST_COPY_APPLICATION_WORKFLOW;
     PHASE3_REVIEWED_SINGLE_COMPONENT_APPLICATION_WORKFLOW
 } from './workflows/phase3_application_workflow'
@@ -45,12 +46,47 @@ params {
 workflow {
     main:
     if (!(params.phase3_operation in [
+        'provider_discovery',
         'first_copy',
         'reviewed_single_component'
     ])) {
         error "Unsupported phase3_operation: ${params.phase3_operation}"
     }
-    if (params.phase3_operation == 'first_copy') {
+    if (params.phase3_operation == 'provider_discovery') {
+        if (
+            params.phase3_crystallographic_review_stage == null ||
+            params.afdb_accession_map == null ||
+            params.phase3_reviewed_crystal_manifest != null ||
+            params.phase3_owned_run_registry != null ||
+            params.phase3_owned_sequence_parent_run_id != null
+        ) {
+            error 'Phase III provider discovery requires only its crystallographic review authority'
+        }
+        PHASE3_PROVIDER_DISCOVERY_APPLICATION_WORKFLOW(
+            params.catalogues,
+            params.crystals,
+            params.config,
+            params.database_manifest,
+            params.phenix_manifest,
+            params.cache_root.toString(),
+            params.review_mode,
+            params.profile_mode,
+            params.maximum_evalue.toFloat(),
+            params.minimum_query_coverage.toFloat(),
+            params.maximum_query_length,
+            params.prostt5_maximum_evalue.toFloat(),
+            params.prostt5_minimum_query_coverage.toFloat(),
+            params.prostt5_maximum_query_length,
+            params.prostt5_maximum_queries,
+            params.prostt5_gpu,
+            params.afdb_accession_map,
+            params.afdb_request_timeout_seconds.toFloat(),
+            params.afdb_retry_count,
+            params.phase3_crystallographic_review_stage,
+            params.phase3_execution_identity,
+            params.phase3_owned_parent_run_id
+        )
+    } else if (params.phase3_operation == 'first_copy') {
         if (
             params.phase3_crystallographic_review_stage == null ||
             params.phase3_reviewed_crystal_manifest != null ||

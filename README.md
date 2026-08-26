@@ -412,7 +412,9 @@ for debugging; an existing versioned installation is never overwritten.
 
 - `main.nf` preserves the archival v0.2 application shape.
 - `phase3_application.nf` is the only current reviewed Phase III application
-  owner.
+  owner. Its compute-only `provider_discovery` operation stops before every
+  network acquisition; bounded login staging and the offline `first_copy`
+  operation remain separate owned steps.
 - `prepare_databases.nf` exposes database-root, output, preparation switches,
   coordinate-cache initialisation, and verify-only inputs.
 - `m6_validation.nf` owns the independently reviewable M6 graph.

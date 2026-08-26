@@ -105,7 +105,8 @@ workflow MAIN_WORKFLOW {
             afdb_accession_map,
             afdb_request_timeout_seconds,
             afdb_retry_count,
-            false
+            false,
+            true
         )
         direct_pdb_hits = discovery.pdb_provider_hits.map { Path bundle ->
             bundle.resolve('structural_hits.jsonl')
