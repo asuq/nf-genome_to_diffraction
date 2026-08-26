@@ -1091,13 +1091,16 @@ def test_ssh_transport_rejects_logs_without_site_identity(
     def field(key: str, value: str) -> bytes:
         return key.encode("ascii") + b"\t" + base64.b64encode(value.encode("utf-8"))
 
-    payload = b"\n".join(
-        (
-            field("operation", "logs"),
-            field("run_id", owned_run),
-            field("content_base64", ""),
+    payload = (
+        b"\n".join(
+            (
+                field("operation", "logs"),
+                field("run_id", owned_run),
+                field("content_base64", ""),
+            )
         )
-    ) + b"\n"
+        + b"\n"
+    )
 
     def respond(
         command: Sequence[str], **_kwargs: object
