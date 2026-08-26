@@ -343,6 +343,10 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  *" benchmark prepare-6rtz-heteromer-control "*) mode=heteromer ;;\n'
         '  *" benchmark prepare-3u7q-heteromer-control "*) '
         "mode=heteromer_multicopy ;;\n"
+        '  *" benchmark prepare-9ecn-phase3-control "*) '
+        "mode=heteromer_phase3 ;;\n"
+        '  *" benchmark run-9ecn-phase3-control "*) '
+        "mode=heteromer_phase3_run ;;\n"
         '  *" benchmark prepare-6rtz-partner-catalogue "*) '
         "mode=heteromer_catalogue ;;\n"
         '  *" benchmark prepare-heteromer-control-slice "*) '
@@ -516,6 +520,48 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  printf \'{"schema_version":"1.0"}\\n\' > '
         '"$outdir/model_preparation_manifest.json"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mr_hypotheses.jsonl"\n'
+        'elif [[ "$mode" == heteromer_phase3 ]]; then\n'
+        '  mkdir -p "$outdir/derived" "$outdir/models"\n'
+        '  printf \'{"adapter_version":"9ecn-fixed-two-a-two-b-two-c-inputs-v1",'
+        '"crystal_id":"9ECN","composition":{"A":2,"B":2,"C":2}}\\n\' '
+        '> "$outdir/preparation_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/crystals.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/sequence_groups.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/processed_models.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/model_preparation_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mr_hypotheses.jsonl"\n'
+        '  printf "fake 9ECN mtz\\n" > "$outdir/derived/9ECN.mtz"\n'
+        '  printf "fake A3 pdb\\n" > "$outdir/models/component_A.pdb"\n'
+        '  printf "fake B3 pdb\\n" > "$outdir/models/component_B.pdb"\n'
+        '  printf "fake C3 pdb\\n" > "$outdir/models/component_C.pdb"\n'
+        'elif [[ "$mode" == heteromer_phase3_run ]]; then\n'
+        "  paths=(provenance/preparation_manifest.json "
+        "provenance/phenix_manifest.json preflight/mtz_preflight.jsonl "
+        "preflight/xtriage/9ECN.log parent_A/normalised_mr_result.json "
+        "parent_A/phaser_command.json parent_A/PHASER.log "
+        "parent_A/PHASER.1.pdb partner_B/partner_search_result.json "
+        "partner_B/phaser_command.json partner_B/PHASER.log "
+        "partner_B/component_A.pdb partner_B/component_B.pdb "
+        "partner_B/phaser_per_placement_inventory.json component_C_input.json "
+        "component_C/component_search_result.json component_C/phaser_command.json "
+        "component_C/PHASER.log component_C/component_A.pdb "
+        "component_C/component_B.pdb component_C/component_C.pdb "
+        "component_C/phaser_per_placement_inventory.json)\n"
+        '  for relative in "${paths[@]}"; do\n'
+        '    directory="${relative%/*}"\n'
+        '    [[ "$directory" == "$relative" ]] || mkdir -p "$outdir/$directory"\n'
+        '    printf "fake 9ECN retained evidence\\n" > "$outdir/$relative"\n'
+        "  done\n"
+        '  printf \'{"adapter_version":"9ecn-phase3-depth-three-control-v1",'
+        '"control":"9ECN_McrA_McrB_McrG_2A_2B_2C",'
+        '"gate_passed":true,"component_copy_counts":{"A":2,"B":2,"C":2},'
+        '"exact_identity_claimed_by_search":false,'
+        '"complete_composition_claimed_by_search":false}\\n\' '
+        '> "$outdir/phase3-9ecn-control-summary.json"\n'
+        '  (cd "$outdir" && sha256sum "${paths[@]}" '
+        "phase3-9ecn-control-summary.json) "
+        '> "$outdir/phase3-9ecn-control-checksums.sha256"\n'
         'elif [[ "$mode" == heteromer_catalogue ]]; then\n'
         '  mkdir -p "$outdir/sources" '
         '"$outdir/partner_model_registry/models"\n'
@@ -5325,6 +5371,10 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     ).is_file()
     assert (
         run
+        / "artifacts/heteromer-smoke/inputs/phase3-control/preparation_manifest.json"
+    ).is_file()
+    assert (
+        run
         / "artifacts/heteromer-smoke/inputs/catalogue-control/preparation_manifest.json"
     ).is_file()
     assert (
@@ -5372,6 +5422,10 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert str(p6_inputs / "component_scope_decision.json") in staged_paths
     assert str(p6_inputs / "wrong_partner/sequence_groups.jsonl") in staged_paths
     assert str(p6_inputs / "wrong_partner/model.pdb") in staged_paths
+    assert (
+        str(run / "artifacts/heteromer-smoke/inputs/phase3-control/derived/9ECN.mtz")
+        in staged_paths
+    )
 
     submitted = _decode_protocol(
         _run(
@@ -5529,6 +5583,29 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         "3U7Q",
         "6RTZ",
     ]
+    phase3_control_root = run / "artifacts/heteromer-smoke/phase3-control"
+    phase3_control = json.loads(
+        (phase3_control_root / "phase3-9ecn-control-summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert phase3_control["gate_passed"] is True
+    assert phase3_control["component_copy_counts"] == {"A": 2, "B": 2, "C": 2}
+    assert phase3_control["exact_identity_claimed_by_search"] is False
+    assert phase3_control["complete_composition_claimed_by_search"] is False
+    phase3_checksum_paths = {
+        line.split(maxsplit=1)[1]
+        for line in (phase3_control_root / "phase3-9ecn-control-checksums.sha256")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    }
+    assert len(phase3_checksum_paths) >= 20
+    assert {
+        "partner_B/phaser_per_placement_inventory.json",
+        "component_C/component_search_result.json",
+        "component_C/phaser_per_placement_inventory.json",
+        "phase3-9ecn-control-summary.json",
+    } <= phase3_checksum_paths
     log = (run / "logs/heteromer-smoke.log").read_text(encoding="utf-8")
     assert "phase=heteromer_parent_A profile=heteromer-smoke" in log
     assert "phase=heteromer_component_review profile=heteromer-smoke" in log
@@ -5546,6 +5623,7 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert "phase=heteromer_p6_missing_partner profile=heteromer-smoke" in log
     assert "phase=heteromer_p6_wrong_partner profile=heteromer-smoke" in log
     assert "phase=heteromer_p6_gate profile=heteromer-smoke" in log
+    assert "phase=heteromer_phase3_9ecn profile=heteromer-smoke" in log
 
     archive = _run(
         [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
@@ -5563,6 +5641,18 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert "artifacts/qualification/heteromer-composition-assessments.jsonl" in names
     assert "artifacts/qualification/phase3-placement-control-summary.json" in names
     assert "artifacts/qualification/phase3-placement-control-checksums.sha256" in names
+    assert (
+        "artifacts/heteromer-smoke/phase3-control/phase3-9ecn-control-summary.json"
+        in names
+    )
+    assert (
+        "artifacts/heteromer-smoke/phase3-control/phase3-9ecn-control-checksums.sha256"
+        in names
+    )
+    assert (
+        "artifacts/heteromer-smoke/phase3-control/component_C/"
+        "phaser_per_placement_inventory.json" in names
+    )
     assert "artifacts/heteromer-smoke/parent/normalised_mr_result.json" in names
     assert (
         "artifacts/heteromer-smoke/component_checkpoint/approved_mr_seed_stage/"

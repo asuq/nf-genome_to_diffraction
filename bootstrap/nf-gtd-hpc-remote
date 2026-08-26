@@ -1667,6 +1667,7 @@ stage_run_common() {
     if [[ "$profile" == heteromer-smoke ]]; then
         heteromer_root="$run/artifacts/heteromer-smoke/inputs"
         heteromer_multicopy_root="$heteromer_root/multicopy"
+        heteromer_phase3_root="$heteromer_root/phase3-control"
         heteromer_catalogue_root="$heteromer_root/catalogue-control"
         heteromer_p6_root="$heteromer_root/p6-control"
         mkdir -p "$run/artifacts/heteromer-smoke"
@@ -1695,6 +1696,19 @@ stage_run_common() {
             atomic_text "$run/state/failure-class" "transfer_failure"
             append_event "$run" "stage_heteromer_multicopy_inputs_failed"
             fail transfer_failure "fixed 3U7Q input preparation failed"
+        fi
+        printf 'phase=heteromer_prepare_9ecn profile=%s\n' "$profile" \
+            >> "$run/logs/heteromer-smoke-login-stage.log"
+        if ! PATH="$hpc_path" "$gtd" --log-format json --no-progress \
+            benchmark prepare-9ecn-phase3-control \
+            --protocol "$run/source/benchmarks/m6/protocol.yaml" \
+            --download \
+            --outdir "$heteromer_phase3_root" \
+            >> "$run/logs/heteromer-smoke-login-stage.log" 2>&1; then
+            atomic_text "$run/state/phase" "stage_failed"
+            atomic_text "$run/state/failure-class" "transfer_failure"
+            append_event "$run" "stage_heteromer_phase3_inputs_failed"
+            fail transfer_failure "fixed 9ECN input preparation failed"
         fi
         printf 'phase=heteromer_prepare_catalogue profile=%s\n' "$profile" \
             >> "$run/logs/heteromer-smoke-login-stage.log"
@@ -1893,6 +1907,16 @@ PY
             "$heteromer_multicopy_root/derived/3U7Q.mtz" \
             "$heteromer_multicopy_root/models/component_A.pdb" \
             "$heteromer_multicopy_root/models/component_B.pdb" \
+            "$heteromer_phase3_root/preparation_manifest.json" \
+            "$heteromer_phase3_root/crystals.json" \
+            "$heteromer_phase3_root/sequence_groups.jsonl" \
+            "$heteromer_phase3_root/processed_models.jsonl" \
+            "$heteromer_phase3_root/model_preparation_manifest.json" \
+            "$heteromer_phase3_root/mr_hypotheses.jsonl" \
+            "$heteromer_phase3_root/derived/9ECN.mtz" \
+            "$heteromer_phase3_root/models/component_A.pdb" \
+            "$heteromer_phase3_root/models/component_B.pdb" \
+            "$heteromer_phase3_root/models/component_C.pdb" \
             "$heteromer_catalogue_root/preparation_manifest.json" \
             "$heteromer_catalogue_root/catalogues.json" \
             "$heteromer_catalogue_root/pipeline_config.json" \
@@ -1939,6 +1963,16 @@ PY
             "$heteromer_multicopy_root/derived/3U7Q.mtz" \
             "$heteromer_multicopy_root/models/component_A.pdb" \
             "$heteromer_multicopy_root/models/component_B.pdb" \
+            "$heteromer_phase3_root/preparation_manifest.json" \
+            "$heteromer_phase3_root/crystals.json" \
+            "$heteromer_phase3_root/sequence_groups.jsonl" \
+            "$heteromer_phase3_root/processed_models.jsonl" \
+            "$heteromer_phase3_root/model_preparation_manifest.json" \
+            "$heteromer_phase3_root/mr_hypotheses.jsonl" \
+            "$heteromer_phase3_root/derived/9ECN.mtz" \
+            "$heteromer_phase3_root/models/component_A.pdb" \
+            "$heteromer_phase3_root/models/component_B.pdb" \
+            "$heteromer_phase3_root/models/component_C.pdb" \
             "$heteromer_catalogue_root/preparation_manifest.json" \
             "$heteromer_catalogue_root/catalogues.json" \
             "$heteromer_catalogue_root/pipeline_config.json" \
@@ -3747,6 +3781,9 @@ collect_run() {
     local relative="" diagnostic_relative="" basename="" omission_record=""
     local omission_temporary="" omission_size=0
     local p6_dynamic_model_root="" p6_dynamic_model_path=""
+    local phase3_checksums="" phase3_output_root="" phase3_file=""
+    local phase3_digest="" phase3_relative="" phase3_extra=""
+    local phase3_count=0
     local -a files=()
     local -a diagnostic_omissions=()
     local -a p6_dynamic_models=()
@@ -4209,6 +4246,16 @@ collect_run() {
         artifacts/heteromer-smoke/inputs/multicopy/derived/3U7Q.mtz \
         artifacts/heteromer-smoke/inputs/multicopy/models/component_A.pdb \
         artifacts/heteromer-smoke/inputs/multicopy/models/component_B.pdb \
+        artifacts/heteromer-smoke/inputs/phase3-control/preparation_manifest.json \
+        artifacts/heteromer-smoke/inputs/phase3-control/crystals.json \
+        artifacts/heteromer-smoke/inputs/phase3-control/sequence_groups.jsonl \
+        artifacts/heteromer-smoke/inputs/phase3-control/processed_models.jsonl \
+        artifacts/heteromer-smoke/inputs/phase3-control/model_preparation_manifest.json \
+        artifacts/heteromer-smoke/inputs/phase3-control/mr_hypotheses.jsonl \
+        artifacts/heteromer-smoke/inputs/phase3-control/derived/9ECN.mtz \
+        artifacts/heteromer-smoke/inputs/phase3-control/models/component_A.pdb \
+        artifacts/heteromer-smoke/inputs/phase3-control/models/component_B.pdb \
+        artifacts/heteromer-smoke/inputs/phase3-control/models/component_C.pdb \
         artifacts/heteromer-smoke/inputs/catalogue-control/preparation_manifest.json \
         artifacts/heteromer-smoke/inputs/catalogue-control/catalogues.json \
         artifacts/heteromer-smoke/inputs/catalogue-control/pipeline_config.json \
@@ -4297,6 +4344,7 @@ collect_run() {
         artifacts/heteromer-smoke/p6/wrong-partner/phenix.phaser.capture.log \
         artifacts/heteromer-smoke/p6/wrong-partner/PHASER.1.pdb \
         artifacts/heteromer-smoke/p6/wrong-partner/PHASER.1.mtz \
+        artifacts/heteromer-smoke/phase3-control/phase3-9ecn-control-checksums.sha256 \
         artifacts/p2/first-copy/exact_predicted_funnel/funnel_manifest.json \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.jsonl \
         artifacts/p2/first-copy/exact_predicted_funnel/mr_hypotheses.tsv; do
@@ -4333,6 +4381,37 @@ collect_run() {
         (( total <= MAX_TOTAL_BYTES )) || \
             fail transfer_failure "artefacts exceed total limit"
         files+=("$relative")
+    fi
+    phase3_output_root="$run/artifacts/heteromer-smoke/phase3-control"
+    phase3_checksums="$phase3_output_root/phase3-9ecn-control-checksums.sha256"
+    if [[ "$profile" == heteromer-smoke && -f "$phase3_checksums" ]]; then
+        [[ ! -L "$phase3_checksums" && -O "$phase3_checksums" ]] || \
+            fail transfer_failure "9ECN control checksum manifest is unsafe"
+        while read -r phase3_digest phase3_relative phase3_extra; do
+            [[ -n "$phase3_digest" && -n "$phase3_relative" && \
+               -z "$phase3_extra" && "$phase3_digest" =~ $CHECKSUM_RE && \
+               "$phase3_relative" =~ ^[A-Za-z0-9._/-]+$ && \
+               "$phase3_relative" != /* && \
+               "$phase3_relative" != *..* ]] || \
+                fail transfer_failure "9ECN control checksum row is unsafe"
+            phase3_file="$phase3_output_root/$phase3_relative"
+            [[ -f "$phase3_file" && ! -L "$phase3_file" && \
+               -O "$phase3_file" && "$(stat -c '%h' "$phase3_file")" -eq 1 ]] || \
+                fail transfer_failure "9ECN control retained file is unsafe"
+            [[ "$(sha256sum "$phase3_file" | awk '{print $1}')" == \
+               "$phase3_digest" ]] || \
+                fail transfer_failure "9ECN control retained checksum differs"
+            size="$(file_size "$phase3_file")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "9ECN control file exceeds per-file limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "artefacts exceed total limit"
+            files+=("artifacts/heteromer-smoke/phase3-control/$phase3_relative")
+            phase3_count=$((phase3_count + 1))
+        done < "$phase3_checksums"
+        [[ "$phase3_count" -ge 20 && "$phase3_count" -le 128 ]] || \
+            fail transfer_failure "9ECN control retained file count differs"
     fi
     if [[ -n "$job_id" ]]; then
         candidate="logs/slurm-${job_id}.out"

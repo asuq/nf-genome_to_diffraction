@@ -70,6 +70,12 @@ from genome_to_diffraction.benchmarks.phase3_control import (
     Phase3ControlPreparationResult,
     prepare_9ecn_phase3_control,
 )
+from genome_to_diffraction.benchmarks.phase3_control_run import (
+    Phase3ControlExecutionError,
+    Phase3ControlExecutionRequest,
+    Phase3ControlExecutionResult,
+    run_9ecn_phase3_control,
+)
 from genome_to_diffraction.benchmarks.public_control import (
     PublicControlPreparationRequest,
     PublicControlPreparationResult,
@@ -100,6 +106,9 @@ __all__ = [
     "M6RunnerVerificationResult",
     "MrControlBundleOutput",
     "MrControlBundleRequest",
+    "Phase3ControlExecutionError",
+    "Phase3ControlExecutionRequest",
+    "Phase3ControlExecutionResult",
     "Phase3ControlPreparationResult",
     "PublicControlPreparationRequest",
     "PublicControlPreparationResult",
@@ -125,5 +134,6 @@ __all__ = [
     "prepare_m6_inputs",
     "prepare_public_control",
     "prepare_public_control_panel",
+    "run_9ecn_phase3_control",
     "verify_m6_runner_bundle",
 ]

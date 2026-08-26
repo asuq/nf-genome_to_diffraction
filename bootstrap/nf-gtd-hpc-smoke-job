@@ -175,7 +175,7 @@ finalise() {
         reports_json='["artifacts/qualification/p2-control-summary.json","artifacts/qualification/p2-control-resume-check.json"]'
         retained_json='["artifacts/p2-control","artifacts/qualification"]'
     elif [[ "$PROFILE" == heteromer-smoke ]]; then
-        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/qualification/heteromer-multicopy-summary.json","artifacts/qualification/heteromer-catalogue-summary.json","artifacts/qualification/heteromer-control-slice-report.json","artifacts/qualification/heteromer-composition-assessments.jsonl","artifacts/qualification/phase3-placement-control-summary.json","artifacts/heteromer-smoke/partner/partner_search_result.json","artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json","artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json","artifacts/heteromer-smoke/multicopy/partner/phaser_per_placement_inventory.json","artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json"]'
+        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/qualification/heteromer-multicopy-summary.json","artifacts/qualification/heteromer-catalogue-summary.json","artifacts/qualification/heteromer-control-slice-report.json","artifacts/qualification/heteromer-composition-assessments.jsonl","artifacts/qualification/phase3-placement-control-summary.json","artifacts/heteromer-smoke/phase3-control/phase3-9ecn-control-summary.json","artifacts/heteromer-smoke/phase3-control/component_C/component_search_result.json","artifacts/heteromer-smoke/phase3-control/component_C/phaser_per_placement_inventory.json","artifacts/heteromer-smoke/partner/partner_search_result.json","artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json","artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json","artifacts/heteromer-smoke/multicopy/partner/phaser_per_placement_inventory.json","artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json"]'
         retained_json='["artifacts/heteromer-smoke","artifacts/qualification"]'
     elif [[ "$PROFILE" == phase3-phenix-probe ]]; then
         reports_json='["artifacts/qualification/phaser-interface-probe.json"]'
@@ -2201,6 +2201,10 @@ run_heteromer_smoke() {
     local multicopy_parent_result=""
     local multicopy_partner_result="$multicopy_partner/partner_search_result.json"
     local multicopy_placement_inventory="$multicopy_partner/phaser_per_placement_inventory.json"
+    local phase3_control_inputs="$inputs/phase3-control"
+    local phase3_control_output="$root/phase3-control"
+    local phase3_control_report="$phase3_control_output/phase3-9ecn-control-summary.json"
+    local phase3_control_checksums="$phase3_control_output/phase3-9ecn-control-checksums.sha256"
     local qualification="$RUN/artifacts/qualification"
     local preparation="$inputs/preparation_manifest.json"
     local parent_result=""
@@ -3258,6 +3262,35 @@ PY
     ) > "$placement_checksums_tmp"
     mv -f -- "$placement_checksums_tmp" \
         "$qualification/phase3-placement-control-checksums.sha256"
+
+    PHASE=test
+    printf 'phase=heteromer_phase3_9ecn profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress \
+        benchmark run-9ecn-phase3-control \
+        --preparation "$phase3_control_inputs" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --threads "${SLURM_CPUS_PER_TASK:-1}" \
+        --outdir "$phase3_control_output"
+    "$PYTHON" - "$phase3_control_report" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if (
+    report.get("adapter_version") != "9ecn-phase3-depth-three-control-v1"
+    or report.get("control") != "9ECN_McrA_McrB_McrG_2A_2B_2C"
+    or report.get("gate_passed") is not True
+    or report.get("component_copy_counts") != {"A": 2, "B": 2, "C": 2}
+    or report.get("exact_identity_claimed_by_search") is not False
+    or report.get("complete_composition_claimed_by_search") is not False
+):
+    raise SystemExit("fixed 9ECN depth-three control gate failed")
+PY
+    (
+        cd "$phase3_control_output"
+        sha256sum -c "${phase3_control_checksums##*/}"
+    )
     printf 'heteromer_smoke_status=passed\n'
 }
 

@@ -13688,3 +13688,56 @@ with a collapsed combined parent or a guessed command.
   typed `cache_root`. The focused wrapper regression, real Nextflow 26.04.6
   preview, and wrapper syntax pass. Run one exact-source CI/deployment/
   replacement probe; do not launch 9ECN or unknown crystals first.
+
+## 2026-08-26 - Marmic worker-network denial is qualified
+
+- Replacement probe `gtd-phase3-network-probe-20260826T112246Z-84208c5e1312-fe02f01b`,
+  outer Slurm `634673`, completed successfully at exact source `84208c5`, CI
+  `32960948125` / `98152935432`, pinned nf-helper, and Pixi 0.76.2. The
+  deployed dispatcher/job-wrapper/recovery digests were
+  `067d99bc41f7957a85b730024e142c6dfa4d983a052278e76384058f3591559e`,
+  `8d7ccf444cbf2fc0f4e789b4c4b06743dcf882e80e0e9d96f0cbc029dc06af67`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- The manifest binds Marmic config
+  `24584a0efa680cab1d2aa2febfd4ac3dc6b82fe96e5b42eb9a99a60331d29935`
+  and worker shell
+  `740e4fa4c404f557fe8e7b4c1bee85f8bfcb0a2a00747cae6354bb0f96b9dc22`.
+  Child Slurm task `634674` used network namespace `net:[4026543051]`;
+  controller-local task `634673` used `net:[4026542865]`; both differ from the
+  outer `net:[4026531840]` namespace and both received `ENETUNREACH` for fixed
+  TEST-NET-1 `192.0.2.1:443`.
+- The summary sets `gate_passed=true`, both task classes have
+  `compute_network_access=false`, no scientific execution occurred, and every
+  one of the four retained checksums matches. Marmic worker-network denial is
+  accepted. Next implement and qualify fixed A+B/search-C execution with 9ECN;
+  do not run unknown crystals before that control and bounded login staging.
+
+## 2026-08-26 - Fixed 9ECN depth-three execution candidate is locally complete
+
+- The generic `mr search-component` adapter now fixes an ordered A--E prefix
+  as independent component-only coordinates and searches only the next
+  distinct component. It binds every fixed coordinate, model/error identity,
+  sequence group, MTZ, Phenix manifest, and parameter record. Hit, no-hit,
+  parse failure, and tool failure remain typed; every result is permanently
+  `search_evidence_only` and cannot assert exact identity or complete
+  composition.
+- The fixed `benchmark run-9ecn-phase3-control` command executes one dependent
+  public-control chain: joint two-copy McrA, fixed-A/search-two-McrB, exact
+  A/B coordinate partition, then fixed-A+B/search-two-McrG and exact A/B/C
+  partition. Acceptance requires packing, two observed copies of each
+  component, complete fixed/candidate markers, and exact combined-atom
+  recombination. Frozen 9ECN truth is applied only in the final known-control
+  report; the underlying search remains claim-free.
+- The existing fixed `heteromer-smoke` profile now stages 9ECN only on the
+  login side, runs the thin control command after accepted 6RTZ/3U7Q/P6
+  checks, and checksum-retains every run-owned 9ECN file. Collection consumes
+  the safe relative checksum inventory, rather than guessing optional Phaser
+  assets. It does not alter thresholds, unknown inputs, or v0.2 evidence.
+- Eight focused preparation/adapter/orchestration tests, the complete fake
+  6RTZ/3U7Q/P6/9ECN lifecycle, three adjacent collection regressions, Ruff,
+  type checking, wrapper syntax, and diff hygiene pass. The full locked gate
+  also passes: 1,325 unit, 136 contract, and 86 integration tests plus schemas,
+  documentation, actionlint, Nextflow syntax, every workflow stub/profile,
+  offline-wheel parity, and wrapper syntax. Exact-source CI, matching
+  deployment, and one Marmic 9ECN control run remain before depth three can be
+  accepted. No unknown crystal has run.

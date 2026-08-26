@@ -20,6 +20,7 @@ from genome_to_diffraction.benchmarks import (
     M6RunnerBundleRequest,
     M6RunnerVerificationRequest,
     MrControlBundleRequest,
+    Phase3ControlExecutionRequest,
     PublicControlPreparationRequest,
     PublicPanelPreparationRequest,
     assess_heteromer_control_slice,
@@ -38,6 +39,7 @@ from genome_to_diffraction.benchmarks import (
     prepare_m6_inputs,
     prepare_public_control,
     prepare_public_control_panel,
+    run_9ecn_phase3_control,
     verify_m6_runner_bundle,
 )
 from genome_to_diffraction.benchmarks.m6_execution import (
@@ -138,6 +140,7 @@ from genome_to_diffraction.mr import (
     run_additional_copy_series,
     run_approved_partner_search,
     run_first_copy_phaser,
+    run_multi_fixed_search,
     run_partner_search,
     run_planned_partner_search,
     summarize_partner_attempts,
@@ -639,6 +642,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="download only the two protocol-frozen RCSB files",
     )
     phase3_control_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_control_run_parser = benchmark_actions.add_parser(
+        "run-9ecn-phase3-control",
+        help="run the fixed public 9ECN A+B+C depth-three validation",
+    )
+    phase3_control_run_parser.add_argument("--preparation", type=Path, required=True)
+    phase3_control_run_parser.add_argument(
+        "--phenix-manifest", type=Path, required=True
+    )
+    phase3_control_run_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_control_run_parser.add_argument("--threads", type=int, default=1)
+    phase3_control_run_parser.add_argument("--timeout-seconds", type=float)
     partner_catalogue_parser = benchmark_actions.add_parser(
         "prepare-6rtz-partner-catalogue",
         help="prepare the frozen full Thermotoga catalogue and HisH model registry",
@@ -1424,6 +1438,18 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help="optional explicit Phaser deadline; by default no deadline is imposed",
     )
+    multi_fixed_parser = mr_actions.add_parser(
+        "search-component",
+        help="fix two to five placed components and search the next component",
+    )
+    multi_fixed_parser.add_argument("--manifest", type=Path, required=True)
+    multi_fixed_parser.add_argument("--sequence-groups", type=Path, required=True)
+    multi_fixed_parser.add_argument("--preflight", type=Path, required=True)
+    multi_fixed_parser.add_argument("--mtz", type=Path, required=True)
+    multi_fixed_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    multi_fixed_parser.add_argument("--outdir", type=Path, required=True)
+    multi_fixed_parser.add_argument("--threads", type=int, default=1)
+    multi_fixed_parser.add_argument("--timeout-seconds", type=float)
     placement_parser = mr_actions.add_parser(
         "collect-per-placement",
         help="map exact top-solution SOLU 6DIM entries to native Phaser PDBs",
@@ -2280,6 +2306,19 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             )
         )
         print(f"Prepared fixed 9ECN 2A+2B+2C inputs: {prepared.preparation_manifest}")
+        return 0
+    if args.benchmark_action == "run-9ecn-phase3-control":
+        executed = run_9ecn_phase3_control(
+            Phase3ControlExecutionRequest(
+                preparation_directory=args.preparation,
+                phenix_manifest=args.phenix_manifest,
+                output_directory=args.outdir,
+                threads=args.threads,
+                timeout_seconds=args.timeout_seconds,
+                progress=not args.no_progress,
+            )
+        )
+        print(f"Validated fixed 9ECN A+B+C control: {executed.report}")
         return 0
     if args.benchmark_action == "prepare-heteromer-control-slice":
         prepared = prepare_heteromer_control_slice(
@@ -3242,6 +3281,23 @@ def _run_mr(args: argparse.Namespace) -> int:
             "Partner MR "
             f"{partner_output.result.execution_status.value}: "
             f"{partner_output.result_json}"
+        )
+        return 0
+    if args.mr_action == "search-component":
+        component_result = run_multi_fixed_search(
+            manifest_path=args.manifest,
+            sequence_groups_jsonl=args.sequence_groups,
+            preflight_jsonl=args.preflight,
+            mtz_path=args.mtz,
+            phenix_manifest=args.phenix_manifest,
+            output_directory=args.outdir,
+            threads=args.threads,
+            timeout_seconds=args.timeout_seconds,
+        )
+        print(
+            "Multi-fixed component MR "
+            f"{component_result.execution_status.value}: "
+            f"{args.outdir / 'component_search_result.json'}"
         )
         return 0
     if args.mr_action == "approved-partner":

@@ -25,6 +25,13 @@ from genome_to_diffraction.mr.fixed_components import (
     FixedComponentUncertainty,
     build_fixed_component_execution_evidence,
 )
+from genome_to_diffraction.mr.multi_fixed import (
+    CandidateSearchComponent,
+    FixedSearchComponent,
+    MultiFixedSearchManifest,
+    MultiFixedSearchResult,
+    run_multi_fixed_search,
+)
 from genome_to_diffraction.mr.partner import (
     PartnerSearchOutput,
     PartnerSearchRequest,
@@ -58,6 +65,7 @@ __all__ = [
     "AddCopyRunRequest",
     "AddCopySeriesOutput",
     "ApprovedPartnerSearchRequest",
+    "CandidateSearchComponent",
     "CopyCountReportOutput",
     "CopyCountReportRequest",
     "ExpectedPhaserComponent",
@@ -65,6 +73,9 @@ __all__ = [
     "FixedComponentEvidenceOutput",
     "FixedComponentEvidenceRequest",
     "FixedComponentUncertainty",
+    "FixedSearchComponent",
+    "MultiFixedSearchManifest",
+    "MultiFixedSearchResult",
     "ParsedPhaserLog",
     "PartnerSearchOutput",
     "PartnerSearchRequest",
@@ -87,6 +98,7 @@ __all__ = [
     "run_additional_copy_series",
     "run_approved_partner_search",
     "run_first_copy_phaser",
+    "run_multi_fixed_search",
     "run_partner_search",
     "run_planned_partner_search",
     "summarize_partner_attempts",

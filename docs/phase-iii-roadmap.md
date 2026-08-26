@@ -368,8 +368,15 @@ Status: the fixed 9ECN input preparation now binds all three frozen catalogue
 identities, exact A/B/C source entities and chain pairs, the 73-residue McrG
 expression-tag alignment, McrA modified residues, three experimental models,
 and one joint two-copy McrA hypothesis. Real frozen inputs produce a 147,424-row
-MTZ; this is preparation evidence only, and execution remains blocked until the
-6RTZ/3U7Q native-placement recombination gate passes.
+MTZ. Marmic control `634631` has now accepted the prerequisite 6RTZ/3U7Q
+native-placement recombination gate, and network probe `634673` has accepted
+worker socket denial. The local installed-runtime candidate executes one
+dependent joint-A, fixed-A/search-B, fixed-A+B/search-C chain, requires exact
+two-copy A/B/C placement markers and atom recombination, leaves the generic
+search result `search_evidence_only`, and applies frozen 9ECN truth only in its
+final control report. Focused adapter, orchestration, staging, wrapper, and
+collection regressions pass; exact-source CI and one Marmic 9ECN qualification
+remain before depth three is accepted.
 
 ### PH4 - Localisation and gel evidence
 
@@ -503,6 +510,17 @@ validation before task creation because the empty execution directory lacked
 the default `.cache` path. The wrapper now supplies a created run-owned cache;
 one exact-source CI/deployment/replacement probe remains before 9ECN or unknown
 execution.
+
+Replacement worker-network probe `634673` passed at exact source `84208c5`, CI
+`32960948125` / `98152935432`, pinned nf-helper, and Pixi 0.76.2. Its tracked
+Marmic site configuration and worker-shell digests are
+`24584a0efa680cab1d2aa2febfd4ac3dc6b82fe96e5b42eb9a99a60331d29935`
+and `740e4fa4c404f557fe8e7b4c1bee85f8bfcb0a2a00747cae6354bb0f96b9dc22`.
+Child Slurm task `634674` and controller-local task `634673` entered distinct
+network namespaces; both received `ENETUNREACH` to `192.0.2.1:443`, and all
+four retained checksums match. No scientific execution occurred. Marmic
+worker-denial is accepted; bounded login-side provider staging remains before
+unknown pass 1, and 9ECN depth-three validation is the next scientific gate.
 
 Status: the explicit Phase III application now plans complete deterministic
 Foldseek batches of at most 128 exact sequence groups, invokes the existing

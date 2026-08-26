@@ -118,9 +118,12 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   repository project directory. The first replacement then exposed a distinct
   strict-input failure before task creation: its default `.cache` path did not
   exist in the empty execution directory. The wrapper now creates and passes
-  one run-owned cache explicitly; exact-source CI and one replacement probe
-  remain. Bounded pre-submit login staging also remains. The other site must
-  qualify before it is used scientifically.
+  one run-owned cache explicitly. Exact-source CI `32960948125` and replacement
+  Marmic probe `634673` passed: child Slurm `634674` and controller-local
+  `634673` entered distinct worker namespaces and both received
+  `ENETUNREACH` for TEST-NET-1. All four retained checksums match. Bounded
+  pre-submit login staging remains. The other site must qualify before it is
+  used scientifically.
 - Require a distinct owned single-component parent and both final human
   checkpoints for every eligible Phase III continuation.
 - Consume the approved schema-v2 A review, exact decisions, and execution
@@ -170,8 +173,11 @@ Scope: `FCB-P0-01`, `FCB-P0-03`, `FCB-P1-01`, and `FCB-P1-02`.
   `2A+2B`, component-coordinate, and full-catalogue gates, then exposed one
   wrapper-only boundary: the wrong-B invocation lacked the mandatory parent
   model identity and uncertainty already recorded by the parent command. The
-  focused fix propagates those values; exact-source CI and one replacement
-  control remain before RG2 acceptance.
+  focused fix propagates those values. Replacement control `634631` accepted
+  both exact component inventories, all P6 cases, and the deliberately packed
+  wrong-B result as claim-free search evidence. The fixed 9ECN A+B+C runner is
+  locally regression-tested and remains the final installed-runtime packing
+  qualification for this gate.
 
 Acceptance: one focused regression per invented/missing observation plus the
 existing 6RTZ/3U7Q public controls. Missing packing blocks 9ECN acceptance;
