@@ -70,11 +70,17 @@ def _restore_test_tree_permissions(tmp_path: Path) -> Iterator[None]:
     for directory, subdirectories, files in os.walk(tmp_path):
         directory_path = Path(directory)
         if not directory_path.is_symlink():
-            directory_path.chmod(0o700)
+            try:
+                directory_path.chmod(0o700)
+            except FileNotFoundError:
+                continue
         for name in (*subdirectories, *files):
             path = directory_path / name
             if not path.is_symlink():
-                path.chmod(0o700)
+                try:
+                    path.chmod(0o700)
+                except FileNotFoundError:
+                    continue
 
 
 def _run(
