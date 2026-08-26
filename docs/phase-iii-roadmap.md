@@ -382,8 +382,12 @@ experimental mapping ID and sequence-identity fields. The focused preparer fix
 and full locked gate passed. Successor `634831` reached and executed joint-A
 Phaser, then normalised as `failed_parse` without final LLG/TFZ. Its partial
 native Phaser evidence was omitted by the pre-final-manifest collector; the
-focused collection fix must be deployed and the same failed run recollected
-before the Phaser outcome can be classified. Depth three remains unaccepted.
+focused collection fix passed CI and safely recollected the same failed run.
+The evidence proves a packed two-copy A solution and isolates two coupled
+terminal-parser spelling variants: optional `#1` in the solution annotation and
+singular/plural packing grammar. The narrow parser fix and real-log replay pass;
+the full locked gate passes, and one exact-source CI/deployment/successor
+remains. Depth three remains unaccepted.
 
 ### PH4 - Localisation and gel evidence
 

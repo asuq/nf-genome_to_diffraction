@@ -101,7 +101,7 @@ _REFINED_TFZ = re.compile(
     r"(-?[0-9]+(?:\.[0-9]+)?)"
 )
 _TOP_SOLUTION_TFZ = re.compile(
-    r"Solution\s+#1 annotation \(history\):\s*\n?\s*SOLU SET[^\n]*"
+    r"Solution(?:\s+#1)?\s+annotation \(history\):\s*\n?\s*SOLU SET[^\n]*"
     r"\bTFZ=(-?[0-9]+(?:\.[0-9]+)?)",
     re.I,
 )
@@ -110,7 +110,8 @@ _SOLUTION_COUNT = re.compile(r"\*\* There (?:were|was)\s+(\d+) solutions?", re.I
 _SINGLE_SOLUTION = re.compile(r"^\s*\*\*\s+SINGLE solution\s*$", re.I | re.M)
 _NO_SOLUTION = re.compile(r"^\s*(?:\*\*\s+)?Sorry\s+-\s+No solutions?\s*$", re.I | re.M)
 _PACKING = re.compile(
-    r"(\d+) accepted of (\d+) solutions\s+(\d+) pack of (\d+) accepted solutions"
+    r"(\d+) accepted of (\d+) solutions?\s+"
+    r"(\d+) packs? of (\d+) accepted solutions?"
 )
 _PDB_LLG = re.compile(
     r"^REMARK Log-Likelihood Gain:\s*"

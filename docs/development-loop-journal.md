@@ -13796,3 +13796,34 @@ with a collapsed combined parent or a guessed command.
   success and partial-failure collection regressions and wrapper syntax pass.
   Commit/push once, watch one CI, deploy the matching collector, and recollect
   this same failed run without any scheduler action before classifying Phaser.
+
+## 2026-08-26 - Recollected 9ECN parent proves a narrow terminal-parser defect
+
+- Partial-evidence collector commit `af6a751`, CI `33012904661` /
+  `98323523025`, was deployed with dispatcher digest
+  `34f57ad4a7a362e277af24bbe111be277d8a920ab88d377680ddbcf81d9d5b2b`.
+  Recollection of the unchanged failed run `634831` retained its parent
+  preflight, command, normalised result, raw/capture logs, and PDB/MTZ without
+  any scheduler action. Failure signature
+  `6c3207d3ddcc63b7bc95d8de0c3da9dec5a870caa45e36b05715c2551b831381`
+  is unchanged; all 46 placement and 47 P6 checksums still validate.
+- The raw evidence rules out a scientific no-solution. Phaser 2.8.4 exited
+  successfully, wrote PDB and MTZ, retained one final packed solution, and
+  placed exactly two A ensembles. Its log reports top packed LLG 3507.7,
+  terminal TFZ 19.3, and `1 packs of 1 accepted solution`; the PDB reports LLG
+  3507.703 and final `PAK=0`.
+- The parser accepted only `Solution #1 annotation (history):`, while this
+  valid tNCS output used `Solution annotation (history):`. It also accepted
+  only plural `pack ... accepted solutions`, so recognising TFZ alone would
+  have retained an earlier 13/13 intermediate packing count rather than the
+  final 1/1 record.
+- The smallest correction makes `#1` optional only in that terminal annotation
+  and accepts the grammatical singular/plural packing variants. Two focused
+  terminal-form regressions and all 47 first-copy Phaser tests pass. Replaying
+  the collected raw log now yields one solution, LLG 3507.93, TFZ 19.3,
+  accepted/packed 1/1; the solution PDB independently yields LLG 3507.703,
+  TFZ 19.3, two placements, and `PAK=0`. The full locked gate passes: 1,327
+  unit, 136 contract, and 87 integration tests plus schemas, documentation,
+  actionlint, Nextflow, all cached workflow profiles, packaging, and wrapper
+  syntax. Commit once, watch one CI, deploy, and submit one successor; do not
+  reuse `634831` or run unknown crystals.

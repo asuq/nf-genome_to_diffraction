@@ -429,14 +429,20 @@ def test_solution_pdb_rejects_non_utf8_scientific_evidence(tmp_path: Path) -> No
         read_phaser_solution_metrics(parse_phaser_log(POSITIVE_LOG), coordinate)
 
 
-def test_parser_retains_top_solution_tfz_when_tncs_omits_refined_value() -> None:
+@pytest.mark.parametrize(
+    "annotation_header",
+    ("Solution #1 annotation (history):", "Solution annotation (history):"),
+)
+def test_parser_retains_top_solution_tfz_when_tncs_omits_refined_value(
+    annotation_header: str,
+) -> None:
     parsed = parse_phaser_log(
         "PHENIX: Phaser 2.8.4\n"
         "Top LLG (packs) = 1601.02\n"
         "7 accepted of 7 solutions\n"
         "7 pack of 7 accepted solutions\n"
         "** There were 7 solutions\n"
-        "Solution #1 annotation (history):\n"
+        f"{annotation_header}\n"
         "SOLU SET RFZ=10.8 TFZ=14.2 +TNCS PAK=0 LLG=1601\n"
         "EXIT STATUS: SUCCESS\n"
     )
@@ -444,6 +450,27 @@ def test_parser_retains_top_solution_tfz_when_tncs_omits_refined_value() -> None
     assert parsed.llg == pytest.approx(1601.02)
     assert parsed.tfz == pytest.approx(14.2)
     assert parsed.parser_warnings == ("tfz_from_top_solution_annotation",)
+
+
+def test_parser_uses_final_singular_packing_summary() -> None:
+    parsed = parse_phaser_log(
+        "PHENIX: Phaser 2.8.4\n"
+        "13 accepted of 13 solutions\n"
+        "13 pack of 13 accepted solutions\n"
+        "Top LLG (packs) = 3507.7\n"
+        "1 accepted of 1 solutions\n"
+        "1 packs of 1 accepted solution\n"
+        "** SINGLE solution\n"
+        "Solution annotation (history):\n"
+        "SOLU SET RFZ=20.8 TFZ=19.3 +TNCS PAK=3 LLG=3508 PAK=0\n"
+        "EXIT STATUS: SUCCESS\n"
+    )
+
+    assert parsed.solution_count == 1
+    assert parsed.llg == pytest.approx(3507.7)
+    assert parsed.tfz == pytest.approx(19.3)
+    assert parsed.accepted_solution_count == 1
+    assert parsed.packed_solution_count == 1
 
 
 def test_parser_rejects_solution_without_final_packing() -> None:
