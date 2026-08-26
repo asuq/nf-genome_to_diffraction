@@ -12,7 +12,8 @@ from genome_to_diffraction.benchmarks import phase3_control as control
 from genome_to_diffraction.benchmarks.heteromer_control import (
     HeteromerControlPreparationRequest,
 )
-from genome_to_diffraction.schemas.results import MrHypothesis
+from genome_to_diffraction.mr.phaser import _experimental_model_identity
+from genome_to_diffraction.schemas.results import MrHypothesis, ProcessedModelRecord
 
 PROTOCOL = Path("benchmarks/m6/protocol.yaml")
 
@@ -218,6 +219,9 @@ def test_preparer_emits_three_models_and_joint_two_copy_parent(
     hypothesis = MrHypothesis.model_validate_json(
         result.hypotheses_jsonl.read_text(encoding="utf-8")
     )
+    parent_model = ProcessedModelRecord.model_validate_json(
+        result.processed_models_jsonl.read_text(encoding="utf-8").splitlines()[0]
+    )
     assert manifest["composition"] == {"A": 2, "B": 2, "C": 2}
     assert [row["label"] for row in manifest["components"]] == ["A", "B", "C"]
     assert (
@@ -229,3 +233,9 @@ def test_preparer_emits_three_models_and_joint_two_copy_parent(
     assert len(result.processed_models_jsonl.read_text().splitlines()) == 3
     assert hypothesis.copy_count_expected == 2
     assert hypothesis.copy_number_to_search == 2
+    assert (
+        hypothesis.priority_features["coordinate_mapping_id"]
+        == parent_model.processing_parameters["mapping_id"]
+    )
+    assert hypothesis.priority_features["candidate_source_sequence_identity"] == 1.0
+    assert _experimental_model_identity(hypothesis, parent_model) == 100.0

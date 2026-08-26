@@ -506,6 +506,8 @@ def prepare_9ecn_phase3_control(
         resource_profile=PrototypeProfile.PILOT,
         priority_features={
             "exact_sequence_mapping": True,
+            "coordinate_mapping_id": str(model_entries[0]["mapping_id"]),
+            "candidate_source_sequence_identity": 1.0,
             "structural_source_class": "experimental",
             "control_role": "fixed_9ecn_parent_A",
         },

@@ -375,7 +375,11 @@ dependent joint-A, fixed-A/search-B, fixed-A+B/search-C chain, requires exact
 two-copy A/B/C placement markers and atom recombination, leaves the generic
 search result `search_evidence_only`, and applies frozen 9ECN truth only in its
 final control report. Focused adapter, orchestration, staging, wrapper, and
-collection regressions pass; exact-source CI and one Marmic 9ECN qualification
+collection regressions pass. Exact-source CI passed on `2ecc61d`; first Marmic
+attempt `634698` reached 9ECN after repeating every prerequisite gate, then
+failed before Phaser because the prepared A hypothesis omitted its existing
+experimental mapping ID and sequence-identity fields. The focused preparer fix
+and full locked gate pass; one exact-source CI and successor Marmic 9ECN run
 remain before depth three is accepted.
 
 ### PH4 - Localisation and gel evidence

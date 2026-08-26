@@ -13741,3 +13741,32 @@ with a collapsed combined parent or a guessed command.
   offline-wheel parity, and wrapper syntax. Exact-source CI, matching
   deployment, and one Marmic 9ECN control run remain before depth three can be
   accepted. No unknown crystal has run.
+
+## 2026-08-26 - First 9ECN execution exposes missing parent mapping metadata
+
+- Exact-source commit `2ecc61d`, CI `32970199577` / `98181870568`, was deployed
+  with dispatcher/job-wrapper/recovery digests
+  `0bf45ce34a124f1ca0e0dca45b663f4a0c717a8dee0512bc6d04b4b3544b4608`,
+  `dcc792e467e3fbb12389c3d826bfc7a70d97d0d09779856255ea644b787ea69c`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+  Owned Marmic run `gtd-heteromer-smoke-20260826T130709Z-2ecc61d9227b-c4edc713`,
+  Slurm `634698`, ended `FAILED`, exit 1, `test_failure` after 46 minutes 40
+  seconds. The run is diagnostic only and must not be resumed or reused.
+- Source, frozen 9ECN inputs, pinned nf-helper, Pixi 0.76.2, Phenix 2.1-6048,
+  and all seven executable probes were intact. The prerequisite 6RTZ/3U7Q,
+  full-catalogue, missing-B, wrong-B, homomer, and P6 gates passed again. All
+  46 placement and 47 P6 checksums validate; wrong B again packed at
+  incremental LLG 327.049 and TFZ 5.1 while remaining claim-free.
+- 9ECN preflight passed with review warnings for Patterson/tNCS, then stopped
+  before its first Phaser invocation. The prepared A hypothesis had the
+  correct model and sequence-group IDs but omitted
+  `coordinate_mapping_id` and `candidate_source_sequence_identity`, which the
+  existing experimental-model validator correctly rejected as
+  `experimental hypothesis and model mapping identities differ`.
+- The minimal fix copies the already-generated A mapping ID and exact identity
+  into the joint parent hypothesis. A focused regression now calls the exact
+  validator that failed remotely. Eight focused Phase III tests and the full
+  locked gate pass: 1,325 unit, 136 contract, and 86 integration tests plus all
+  schema, documentation, actionlint, Nextflow, stub/profile, packaging, and
+  wrapper checks. Commit/push once, watch one CI, deploy, and submit exactly
+  one successor; do not run unknown crystals first.

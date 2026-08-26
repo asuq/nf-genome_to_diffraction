@@ -176,8 +176,11 @@ Scope: `FCB-P0-01`, `FCB-P0-03`, `FCB-P1-01`, and `FCB-P1-02`.
   focused fix propagates those values. Replacement control `634631` accepted
   both exact component inventories, all P6 cases, and the deliberately packed
   wrong-B result as claim-free search evidence. The fixed 9ECN A+B+C runner is
-  locally regression-tested and remains the final installed-runtime packing
-  qualification for this gate.
+  locally regression-tested. First installed-runtime attempt `634698` stopped
+  before Phaser when its parent hypothesis lacked the mapping/identity fields
+  required by the existing experimental-model validator. The minimal preparer
+  correction and full locked gate pass; a single successor remains the final
+  installed-runtime packing qualification for this gate.
 
 Acceptance: one focused regression per invented/missing observation plus the
 existing 6RTZ/3U7Q public controls. Missing packing blocks 9ECN acceptance;
