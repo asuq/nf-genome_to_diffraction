@@ -20,6 +20,7 @@ MAX_REVIEW_FILE_BYTES=$((128 * 1024 * 1024))
 MAX_REVIEW_TOTAL_BYTES=$((512 * 1024 * 1024))
 MAX_P0_INPUT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_UNKNOWN_DISCOVERY_INPUT_ARCHIVE_BYTES=$((512 * 1024 * 1024))
+MAX_UNKNOWN_SINGLE_INPUT_ARCHIVE_BYTES=$((4 * 1024 * 1024))
 MAX_SOURCE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
 MAX_M4_IMPORT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_CONTROL_SLICE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
@@ -2112,6 +2113,118 @@ unknown_screen_stage_run() {
     emit status ready
 }
 
+unknown_single_component_stage_run() {
+    [[ "$#" -eq 7 ]] || \
+        fail wrapper_failure \
+            "unknown-single-component-stage expects seven fixed fields"
+    local run_id="$1" owner_id="$2" parent_run_id="$3" parent_owner_id="$4"
+    local input_id="$5" archive_sha256="$6" archive_size="$7"
+    local run parent profile parent_profile archive staging actual_sha256
+    local unsafe_member python output stage_sha256
+    validate_run_id "$run_id"
+    validate_owner "$owner_id"
+    validate_run_id "$parent_run_id"
+    validate_owner "$parent_owner_id"
+    [[ "$input_id" =~ ^unknownsingleinputs_[a-f0-9]{64}$ ]] || \
+        fail wrapper_failure "invalid unknown-single-component input ID"
+    [[ "$archive_sha256" =~ $CHECKSUM_RE && \
+       "$archive_size" =~ $BYTE_COUNT_RE ]] || \
+        fail wrapper_failure "invalid unknown-single-component archive identity"
+    (( archive_size >= 1 && archive_size <= MAX_UNKNOWN_SINGLE_INPUT_ARCHIVE_BYTES )) || \
+        fail wrapper_failure "unknown-single-component archive exceeds its bound"
+    require_owned_run "$run_id" "$owner_id"
+    require_owned_run "$parent_run_id" "$parent_owner_id"
+    run="$(run_directory "$run_id")"
+    parent="$(run_directory "$parent_run_id")"
+    profile="$(<"$run/state/profile")"
+    parent_profile="$(<"$parent/state/profile")"
+    [[ "$profile" == unknown-single-component && \
+       "$parent_profile" == unknown-screen ]] || \
+        fail wrapper_failure "unknown-single-component has an invalid profile chain"
+    [[ "$(<"$run/state/phase")" == staged && ! -e "$run/state/job-id" ]] || \
+        fail wrapper_failure "unknown-single-component child is not safely staged"
+    [[ "$(<"$parent/state/phase")" == completed && \
+       "$(<"$parent/state/failure-class")" == success && \
+       "$(<"$parent/state/exit-code")" == 0 && \
+       -f "$parent/state/job-result.json" ]] || \
+        fail wrapper_failure "unknown-single-component parent is not successful"
+    [[ "$(<"$run/state/site-id")" == "$(<"$parent/state/site-id")" && \
+       "$(<"$run/state/p0-config-sha256")" == \
+       "$(<"$parent/state/p0-config-sha256")" && \
+       "$(<"$run/state/database-manifest-sha256")" == \
+       "$(<"$parent/state/database-manifest-sha256")" ]] || \
+        fail wrapper_failure "unknown-single-component authorities differ"
+    archive="$run/execution/.unknown-single-inputs.tar.tmp.$$"
+    staging="$run/execution/.unknown-single-inputs.tmp.$$"
+    output="$run/artifacts/unknown-single-component"
+    [[ ! -e "$output" && ! -L "$output" ]] || \
+        fail wrapper_failure "unknown-single-component output already exists"
+    trap 'rm -f -- "${archive:-}"; rm -rf -- "${staging:-}"' EXIT
+    head -c "$archive_size" > "$archive" || \
+        fail transfer_failure "unknown-single-component input transfer failed"
+    [[ "$(file_size "$archive")" == "$archive_size" ]] || \
+        fail transfer_failure "unknown-single-component input was truncated"
+    actual_sha256="$(sha256sum "$archive" | awk '{print $1}')"
+    [[ "$actual_sha256" == "$archive_sha256" ]] || \
+        fail transfer_failure "unknown-single-component archive checksum differs"
+    if ! tar -tf "$archive" > \
+        "$run/logs/unknown-single-component-input-members.log" 2>&1; then
+        fail transfer_failure "unknown-single-component archive cannot be listed"
+    fi
+    if awk 'BEGIN {bad=0} /^\// || /(^|\/)\.\.($|\/)/ {bad=1} END {exit bad ? 0 : 1}' \
+        "$run/logs/unknown-single-component-input-members.log"; then
+        fail wrapper_failure "unknown-single-component archive has an unsafe path"
+    fi
+    mkdir -- "$staging"
+    tar --no-same-owner --no-same-permissions -xf "$archive" -C "$staging" \
+        >"$run/logs/unknown-single-component-input-extract.log" 2>&1 || \
+        fail transfer_failure "unknown-single-component extraction failed"
+    unsafe_member="$(find "$staging" -xdev \
+        \( -type l -o \( ! -type f ! -type d \) \) -print -quit)"
+    [[ -z "$unsafe_member" ]] || \
+        fail wrapper_failure "unknown-single-component input tree is unsafe"
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$python" ]] || \
+        fail environment_failure "locked continuation Python is unavailable"
+    PYTHONPATH="$run/source/src" \
+    "$python" -m genome_to_diffraction.hpc.unknown_single_inputs validate \
+        --input-root "$staging" \
+        --expected-input-id "$input_id" \
+        --expected-parent-run-id "$parent_run_id" \
+        >"$run/logs/unknown-single-component-input-validation.log" 2>&1 || \
+        fail wrapper_failure "unknown-single-component input validation failed"
+    PYTHONPATH="$run/source/src" \
+    "$python" -m genome_to_diffraction.hpc.unknown_single_inputs stage-handoff \
+        --parent-run-root "$parent" \
+        --child-run-root "$run" \
+        --input-root "$staging" \
+        --child-run-id "$run_id" \
+        --expected-input-id "$input_id" \
+        >"$run/logs/unknown-single-component-handoff.log" 2>&1 || \
+        fail wrapper_failure "unknown-single-component handoff failed"
+    stage_sha256="$(sha256sum \
+        "$output/unknown_single_component_stage_manifest.json" | awk '{print $1}')"
+    [[ "$stage_sha256" =~ $CHECKSUM_RE ]] || \
+        fail filesystem_failure "unknown-single-component stage checksum failed"
+    mv -- "$staging" "$output/operator_decisions"
+    find "$output/operator_decisions" -xdev -type f -exec chmod 0444 {} +
+    find "$output/operator_decisions" -xdev -type d -exec chmod 0555 {} +
+    rm -f -- "$archive"
+    atomic_text "$run/state/unknown-screen-parent-run-id" "$parent_run_id"
+    atomic_text "$run/state/unknown-single-input-id" "$input_id"
+    atomic_text "$run/state/unknown-single-stage-sha256" "$stage_sha256"
+    atomic_text "$run/state/phase3-execution-identity-id" \
+        "$(<"$parent/state/phase3-execution-identity-id")"
+    append_event "$run" "stage_unknown_single_component_bound"
+    trap - EXIT
+    emit operation unknown-single-component-stage
+    emit run_id "$run_id"
+    emit parent_run_id "$parent_run_id"
+    emit input_id "$input_id"
+    emit stage_sha256 "$stage_sha256"
+    emit status ready
+}
+
 m4_copy_stage_run() {
     [[ "$#" -eq 10 ]] || \
         fail wrapper_failure "m4-copy-stage expects ten fixed arguments"
@@ -3070,6 +3183,16 @@ submit_run() {
             fail wrapper_failure \
                 "unknown-screen submit requires its owned provider preparation"
     fi
+    if [[ "$profile" == unknown-single-component ]]; then
+        [[ -f "$run/state/unknown-screen-parent-run-id" && \
+           -f "$run/state/unknown-single-input-id" && \
+           -f "$run/state/unknown-single-stage-sha256" && \
+           -f "$run/artifacts/unknown-single-component/reviewed_crystals.json" && \
+           -d "$run/artifacts/unknown-single-component/owned_run_registry" && \
+           -d "$run/artifacts/unknown-single-component/a_seed_stages" ]] || \
+            fail wrapper_failure \
+                "unknown-single-component submit requires reviewed A decisions"
+    fi
     walltime=00:45:00
     cpus=2
     memory=8G
@@ -3651,6 +3774,9 @@ collect_run() {
         state/unknown-review-stage-index-id \
         state/unknown-discovery-parent-run-id \
         state/provider-preparation-sha256 \
+        state/unknown-screen-parent-run-id \
+        state/unknown-single-input-id \
+        state/unknown-single-stage-sha256 \
         state/heteromer-login-stage.sha256 \
         state/control-slice-archive-sha256 \
         state/control-slice-manifest-sha256 \
@@ -3708,6 +3834,13 @@ collect_run() {
         logs/unknown-screen-provider-validation.log \
         logs/unknown-screen-nextflow-first.log \
         logs/unknown-screen-nextflow-resume.log \
+        logs/unknown-single-component.log \
+        logs/unknown-single-component-input-members.log \
+        logs/unknown-single-component-input-extract.log \
+        logs/unknown-single-component-input-validation.log \
+        logs/unknown-single-component-handoff.log \
+        logs/unknown-single-component-nextflow-first.log \
+        logs/unknown-single-component-nextflow-resume.log \
         logs/m4-copy.log \
         logs/database.log \
         logs/nextflow-first.log \
@@ -3857,6 +3990,21 @@ collect_run() {
         artifacts/unknown-screen/phase3_provider_discovery/phase3_provider_discovery_manifest.json \
         artifacts/unknown-screen/provider_preparation/provider_preparation.json \
         artifacts/unknown-screen/results/phase3_offline_provider_input/phase3_offline_provider_input.json \
+        artifacts/qualification/unknown-single-component-phenix-manifest.json \
+        artifacts/qualification/unknown-single-component-phenix-verification.log \
+        artifacts/qualification/unknown-single-component-checksums.sha256 \
+        artifacts/qualification/unknown-single-component-first-pipeline-info/report.html \
+        artifacts/qualification/unknown-single-component-first-pipeline-info/timeline.html \
+        artifacts/qualification/unknown-single-component-first-pipeline-info/trace.tsv \
+        artifacts/qualification/unknown-single-component-first-pipeline-info/dag.html \
+        artifacts/qualification/unknown-single-component-resume-pipeline-info/report.html \
+        artifacts/qualification/unknown-single-component-resume-pipeline-info/timeline.html \
+        artifacts/qualification/unknown-single-component-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/unknown-single-component-resume-pipeline-info/dag.html \
+        artifacts/unknown-single-component/unknown_single_component_stage_manifest.json \
+        artifacts/unknown-single-component/reviewed_crystals.json \
+        artifacts/unknown-single-component/owned_run_registry/phase3_owned_run_registry.json \
+        artifacts/unknown-single-component/operator_decisions/unknown_single_component_input_manifest.json \
         artifacts/qualification/control-slice-summary.json \
         artifacts/qualification/control-slice-case-results.jsonl \
         artifacts/qualification/control-slice-first-copy-results.jsonl \
@@ -4833,6 +4981,7 @@ main() {
         p0-inputs-stage) p0_inputs_stage "$@" ;;
         unknown-discovery-inputs-stage) unknown_discovery_inputs_stage "$@" ;;
         unknown-screen-stage) unknown_screen_stage_run "$@" ;;
+        unknown-single-component-stage) unknown_single_component_stage_run "$@" ;;
         database-readiness) database_readiness "$@" ;;
         stage) stage_run "$@" ;;
         stage-archive) stage_archive_run "$@" ;;

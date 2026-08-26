@@ -66,6 +66,9 @@ from genome_to_diffraction.hpc.p0_inputs import (
 from genome_to_diffraction.hpc.unknown_inputs import (
     build_unknown_discovery_input_bundle,
 )
+from genome_to_diffraction.hpc.unknown_single_inputs import (
+    build_unknown_single_component_input_bundle,
+)
 from genome_to_diffraction.review import (
     SequenceCheckpointRequest,
     build_sequence_checkpoint,
@@ -433,6 +436,13 @@ class TextTransport(Protocol):
         arguments: Sequence[str],
     ) -> dict[str, str]:
         """Run bounded login acquisition from one owned discovery parent."""
+
+    def unknown_single_component_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Attach reviewed A-seed decisions to one owned screen child."""
 
     def m4_import_stage(
         self,
@@ -1146,6 +1156,46 @@ class SshTransport:
             )
         return fields
 
+    def unknown_single_component_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream checksum-confirmed A-seed decisions for one continuation."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("unknown-single-component-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote unknown-single-component staging exceeded the fixed "
+                f"{P0_INPUT_STAGE_TIMEOUT_SECONDS}-second timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote unknown-single-component staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote unknown-single-component staging returned no fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
     def m4_import_stage(
         self,
         arguments: Sequence[str],
@@ -1543,6 +1593,7 @@ class HpcController:
         else:
             raise ValidationError("source branch is not approved for HPC staging")
         screen_parent: LocalRunRecord | None = None
+        single_parent: LocalRunRecord | None = None
         if profile == "unknown-screen":
             if parent_run_id is None:
                 raise ValidationError(
@@ -1556,6 +1607,21 @@ class HpcController:
             if screen_parent.site_id != self.config.site_id:
                 raise ValidationError(
                     "unknown-screen parent must belong to the configured HPC site"
+                )
+        if profile == "unknown-single-component":
+            if parent_run_id is None:
+                raise ValidationError(
+                    "unknown-single-component staging requires an owned "
+                    "unknown-screen parent"
+                )
+            single_parent = self._owned_run(parent_run_id)
+            if single_parent.profile != "unknown-screen":
+                raise ValidationError(
+                    "unknown-single-component parent must use unknown-screen"
+                )
+            if single_parent.site_id != self.config.site_id:
+                raise ValidationError(
+                    "unknown-single-component parent belongs to another HPC site"
                 )
         iteration, parent = self._next_iteration(parent_run_id)
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -1689,6 +1755,48 @@ class HpcController:
                 **remote,
                 "unknown_discovery_parent_run_id": screen_parent.run_id,
                 "provider_preparation_sha256": attached["provider_preparation_sha256"],
+            }
+        if profile == "unknown-single-component":
+            if single_parent is None:
+                raise AssertionError(
+                    "validated unknown-single-component parent is absent"
+                )
+            with tempfile.TemporaryDirectory(
+                prefix="nf-gtd-unknown-single-component-",
+                dir="/tmp",
+            ) as temporary:
+                archive_path = Path(temporary) / "unknown-single-inputs.tar"
+                bundle = build_unknown_single_component_input_bundle(
+                    repository=self.config.repository,
+                    parent_run_id=single_parent.run_id,
+                    archive_path=archive_path,
+                )
+                attached = self.transport.unknown_single_component_stage(
+                    [
+                        run_id,
+                        owner_id,
+                        single_parent.run_id,
+                        single_parent.owner_id,
+                        bundle.input_id,
+                        bundle.archive_sha256,
+                        str(bundle.archive_size_bytes),
+                    ],
+                    bundle.archive_path,
+                )
+            if (
+                attached.get("run_id") != run_id
+                or attached.get("parent_run_id") != single_parent.run_id
+                or attached.get("input_id") != bundle.input_id
+            ):
+                raise RemoteOperationError(
+                    "remote unknown-single-component staging identity differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {
+                **remote,
+                "unknown_screen_parent_run_id": single_parent.run_id,
+                "unknown_single_input_id": bundle.input_id,
+                "unknown_single_decision_count": str(bundle.decision_count),
             }
         if profile == "m6-nextflow-smoke":
             remote_site = remote.get("site_id")

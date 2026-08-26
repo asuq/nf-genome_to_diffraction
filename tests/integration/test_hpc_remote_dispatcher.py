@@ -21,6 +21,10 @@ from genome_to_diffraction.hpc.unknown_inputs import (
     UNKNOWN_DISCOVERY_SPEC_RELATIVE,
     build_unknown_discovery_input_bundle,
 )
+from genome_to_diffraction.hpc.unknown_single_inputs import (
+    UNKNOWN_SINGLE_SPEC_RELATIVE,
+    build_unknown_single_component_input_bundle,
+)
 from tests.support.unknown_pass1_fixture import (
     materialise_unknown_pass1_public_fixture,
 )
@@ -44,6 +48,9 @@ UNKNOWN_DISCOVERY_RUN_ID = (
     "gtd-unknown-discovery-20260802T120000Z-0123456789ab-01234567"
 )
 UNKNOWN_SCREEN_RUN_ID = "gtd-unknown-screen-20260802T120001Z-0123456789ab-01234568"
+UNKNOWN_SINGLE_RUN_ID = (
+    "gtd-unknown-single-component-20260802T120002Z-0123456789ab-01234569"
+)
 CONTROL_MATRIX_RUN_ID = "gtd-control-matrix-20260802T120000Z-0123456789ab-01234567"
 M6_INPUTS_RUN_ID = "gtd-m6-inputs-20260802T120000Z-0123456789ab-01234567"
 M6_NEXTFLOW_SMOKE_RUN_ID = (
@@ -3821,6 +3828,162 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     assert "RETRIEVE_AFDB_EXACT" not in screen_trace
     assert "REGISTER_PDB_COORDINATES" not in screen_trace
     assert screen_trace.count("CACHED") == 9
+
+    decision = local_root / "a-seed.tsv"
+    decision.write_text(
+        "checkpoint\towned_parent_run_id\treview_package_id\t"
+        "review_package_manifest_sha256\tcrystal_id\titem_id\tdecision\t"
+        "reviewer\treviewed_at\treason\n"
+        f"a_seed\t{UNKNOWN_SCREEN_RUN_ID}\treviewpkg_{'1' * 64}\t"
+        f"{'2' * 64}\tcrystal_a\tsolution_1\tapprove\treviewer\t"
+        "2026-08-25T00:00:00Z\tmap inspected\n",
+        encoding="ascii",
+    )
+    single_spec = local_root / UNKNOWN_SINGLE_SPEC_RELATIVE
+    atomic_write_json(
+        single_spec,
+        {
+            "schema_version": "1.0",
+            "decisions": [
+                {
+                    "crystal_id": "crystal_a",
+                    "path": str(decision),
+                    "sha256": hashlib.sha256(decision.read_bytes()).hexdigest(),
+                }
+            ],
+        },
+    )
+    single_spec.chmod(0o600)
+    single_bundle = build_unknown_single_component_input_bundle(
+        repository=local_root,
+        parent_run_id=UNKNOWN_SCREEN_RUN_ID,
+        archive_path=local_root / "unknown-single-inputs.tar",
+    )
+    single_staged = _run(
+        [
+            str(dispatcher),
+            "stage",
+            UNKNOWN_SINGLE_RUN_ID,
+            commit,
+            lock_sha256,
+            "3" * 32,
+            "3",
+            "unknown-single-component",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(single_staged.stdout)["profile"] == (
+        "unknown-single-component"
+    )
+    single = remote_root / "runs" / UNKNOWN_SINGLE_RUN_ID
+    fake_python = single / "source/.pixi/envs/hpc/bin/python"
+    fake_python.unlink()
+    _write_executable(
+        fake_python,
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'case " $* " in\n'
+        '  *" stage-handoff "*)\n'
+        "    child=\n"
+        "    previous=\n"
+        '    for argument in "$@"; do\n'
+        '      [[ "$previous" != --child-run-root ]] || child="$argument"\n'
+        '      previous="$argument"\n'
+        "    done\n"
+        '    output="$child/artifacts/unknown-single-component"\n'
+        '    mkdir -p "$output/owned_run_registry" '
+        '"$output/a_seed_stages/crystal_a" "$output/hypotheses"\n'
+        '    printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$output/owned_run_registry/phase3_owned_run_registry.json"\n'
+        '    printf \'{"schema_version":"2.0"}\\n\' > '
+        '"$output/owned_run_registry/phase3_execution_identity.json"\n'
+        '    printf \'{"schema_version":"1.0","crystals":[]}\\n\' > '
+        '"$output/reviewed_crystals.json"\n'
+        '    printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$output/unknown_single_component_stage_manifest.json"\n'
+        "    ;;\n"
+        "esac\n",
+    )
+    single_attached = _run(
+        [
+            str(dispatcher),
+            "unknown-single-component-stage",
+            UNKNOWN_SINGLE_RUN_ID,
+            "3" * 32,
+            UNKNOWN_SCREEN_RUN_ID,
+            "2" * 32,
+            single_bundle.input_id,
+            single_bundle.archive_sha256,
+            str(single_bundle.archive_size_bytes),
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=single_bundle.archive_path.read_bytes(),
+    )
+    single_fields = _decode_protocol(single_attached.stdout)
+    assert single_fields["parent_run_id"] == UNKNOWN_SCREEN_RUN_ID
+    assert (single / "state/unknown-single-stage-sha256").is_file()
+    single_submitted = _run(
+        [str(dispatcher), "submit", UNKNOWN_SINGLE_RUN_ID, "3" * 32],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(single_submitted.stdout)["profile"] == (
+        "unknown-single-component"
+    )
+    single_nextflow = single / "source/.pixi/envs/hpc/bin/nextflow"
+    _write_executable(
+        single_nextflow,
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "outdir=\n"
+        "status=COMPLETED\n"
+        "previous=\n"
+        'for argument in "$@"; do\n'
+        '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
+        '  [[ "$argument" != -resume ]] || status=CACHED\n'
+        '  previous="$argument"\n'
+        "done\n"
+        'mkdir -p "$outdir/pipeline_info"\n'
+        'printf "process\\tstatus\\n" > "$outdir/pipeline_info/trace.tsv"\n'
+        "for process in VALIDATE_TASK05_INPUTS MTZ_PREFLIGHT "
+        "STAGE_PHASE3_APPROVED_MR_SEEDS RUN_BRIEF_REFINEMENT "
+        "BUILD_LIVE_SEQUENCE_CHECKPOINT; do\n"
+        '  printf "%s\\t%s\\n" "$process" "$status" '
+        '>> "$outdir/pipeline_info/trace.tsv"\n'
+        "done\n"
+        "for name in report.html timeline.html dag.html; do\n"
+        '  printf "stub\\n" > "$outdir/pipeline_info/$name"\n'
+        "done\n",
+    )
+    single_job_environment = dict(environment)
+    single_job_environment["SLURM_JOB_ID"] = "123"
+    single_job_environment["SLURM_CPUS_PER_TASK"] = "8"
+    single_job_environment["SLURM_TMPDIR"] = str(tmp_path / "unknown-single-slurm-tmp")
+    _run(
+        [
+            str(smoke_job),
+            UNKNOWN_SINGLE_RUN_ID,
+            str(remote_root),
+            "unknown-single-component",
+        ],
+        cwd=tmp_path,
+        environment=single_job_environment,
+    )
+    single_result = json.loads(
+        (single / "state/job-result.json").read_text(encoding="utf-8")
+    )
+    assert single_result["failure_class"] == "success"
+    single_trace = (
+        single
+        / "artifacts/qualification"
+        / "unknown-single-component-resume-pipeline-info/trace.tsv"
+    ).read_text(encoding="utf-8")
+    assert single_trace.count("CACHED") == 5
+    assert "RUN_PHASE3_FIRST_COPY_PHASER" not in single_trace
 
 
 def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(

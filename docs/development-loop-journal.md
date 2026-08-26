@@ -13529,3 +13529,21 @@ with a collapsed combined parent or a guessed command.
 - `unknown-single-component`, exact-source CI for wrapper changes, deployment,
   and real Marmic qualification remain. No remote tool, scheduler job, provider
   request, threshold, or unknown crystal was changed.
+
+## 2026-08-25 - Reviewed A decisions own the single-component continuation
+
+- A second mode-0600 fixed spec accepts one to three A-seed decision TSVs.
+  Every file must match its independent SHA-256, typed A-seed contract, crystal,
+  and exact successful `unknown-screen` parent before a path-free archive is
+  created or streamed.
+- The remote child revalidates the archive under its exact source, registers
+  the screen's owned A packages, stages canonical decisions, snapshots each
+  crystal's hypotheses, and creates the reviewed-crystal routes consumed by the
+  existing current application.
+- Submit refuses an incomplete handoff. The fixed 8-CPU/32-GB/24-hour job runs
+  only `reviewed_single_component`, rejects provider/first-copy processes, and
+  requires a fully cached replay.
+- Five decision archive/handoff failure cases, two controller parent cases, and
+  the real dispatcher/fake-Slurm discovery-to-screen-to-single terminal chain
+  pass. Wrapper CI, deployment, and real Marmic qualification remain. No remote
+  tool, scheduler job, provider request, threshold, or unknown crystal changed.

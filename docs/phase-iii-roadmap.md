@@ -449,7 +449,13 @@ The fixed `unknown-screen` child is now locally parent-bound: only a successful
 owned discovery can trigger login staging, submit is refused without the exact
 provider preparation, and the Slurm body rejects provider/search processes and
 requires a fully cached offline replay. Its real-dispatcher/fake-Slurm lifecycle
-passes; `unknown-single-component`, deployment, and Marmic evidence remain.
+passes; deployment and Marmic evidence remain.
+The fixed `unknown-single-component` wrapper is now locally implemented. It
+accepts one to three checksum-confirmed A-seed TSVs owned by the exact terminal
+screen, creates the canonical registry/review stages and crystal routes, and
+refuses submit unless that handoff is complete. Its Slurm body excludes
+provider and first-copy processes and requires a fully cached reviewed
+continuation. Exact-source wrapper CI, deployment, and Marmic evidence remain.
 
 Status: the explicit Phase III application now plans complete deterministic
 Foldseek batches of at most 128 exact sequence groups, invokes the existing

@@ -84,6 +84,11 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   successful owned discovery parent, performs only bounded login acquisition,
   refuses submit without the resulting provider preparation, and its job body
   rejects any provider-search/download process before accepting cached replay.
+  The fixed `unknown-single-component` wrapper is now locally complete as well:
+  it accepts at most three checksum-confirmed A-seed TSVs owned by the exact
+  successful screen, builds the canonical owned registry/stages/routes, and
+  runs only the reviewed continuation with cached replay. Real fixed-HPC
+  qualification remains before final disposition.
 - Make the reviewed provider plan and matching route entry mandatory in PDB,
   Foldseek, and AFDB discovery commands, modules, fixtures, and cache IDs.
 - Preserve typed configured-disabled and genuine completed-no-hit routes

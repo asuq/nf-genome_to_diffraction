@@ -189,6 +189,9 @@ finalise() {
     elif [[ "$PROFILE" == unknown-screen ]]; then
         reports_json='["artifacts/unknown-screen/provider_preparation/provider_preparation.json","artifacts/unknown-screen/results/phase3_offline_provider_input/phase3_offline_provider_input.json"]'
         retained_json='["artifacts/unknown-screen","artifacts/qualification"]'
+    elif [[ "$PROFILE" == unknown-single-component ]]; then
+        reports_json='["artifacts/unknown-single-component/unknown_single_component_stage_manifest.json","artifacts/unknown-single-component/reviewed_crystals.json","artifacts/unknown-single-component/owned_run_registry/phase3_owned_run_registry.json"]'
+        retained_json='["artifacts/unknown-single-component","artifacts/qualification"]'
     elif [[ "$PROFILE" == control-slice ]]; then
         reports_json='["artifacts/qualification/control-slice-summary.json","artifacts/qualification/control-slice-case-results.jsonl","artifacts/qualification/control-slice-first-copy-results.jsonl","artifacts/qualification/control-slice-copy-two-results.jsonl","artifacts/qualification/control-slice-refinement-results.jsonl","artifacts/qualification/control-slice-sequence-results.jsonl"]'
         retained_json='["artifacts/control-slice-inputs","artifacts/control-slice","artifacts/qualification"]'
@@ -2062,6 +2065,116 @@ run_unknown_screen() {
         "$resume_trace" \
         > "$qualification/unknown-screen-checksums.sha256"
     printf 'unknown_screen_status=passed\n'
+}
+
+run_unknown_single_component_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/unknown-single-component-nextflow-${label}.log" \
+        run "$RUN/source/phase3_application.nf" \
+        "$@" \
+        -profile marmic \
+        --phase3_operation reviewed_single_component \
+        --catalogues "$CATALOGUES" \
+        --crystals "$CRYSTALS" \
+        --config "$PIPELINE_CONFIG" \
+        --database_manifest "$EXPECTED_DATABASE_MANIFEST" \
+        --phenix_manifest "$PHENIX_MANIFEST" \
+        --phase3_execution_identity \
+        "$UNKNOWN_SINGLE_REGISTRY/phase3_execution_identity.json" \
+        --phase3_owned_parent_run_id "$UNKNOWN_SCREEN_PARENT_RUN_ID" \
+        --phase3_reviewed_crystal_manifest "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" \
+        --phase3_owned_run_registry "$UNKNOWN_SINGLE_REGISTRY" \
+        --phase3_owned_sequence_parent_run_id "$RUN_ID" \
+        --outdir "$UNKNOWN_SINGLE_OUT" \
+        --cache_root "$RUN/cache/unknown-single-component-nextflow"
+}
+
+run_unknown_single_component() {
+    local root="$RUN/artifacts/unknown-single-component"
+    local qualification="$RUN/artifacts/qualification"
+    local first_trace resume_trace cache_counts total cached
+    local legacy_phenix_manifest refreshed_phenix_manifest expected_phenix_sha256
+    UNKNOWN_SINGLE_REGISTRY="$root/owned_run_registry"
+    UNKNOWN_SINGLE_REVIEWED_CRYSTALS="$root/reviewed_crystals.json"
+    UNKNOWN_SINGLE_OUT="$root/results"
+    UNKNOWN_SCREEN_PARENT_RUN_ID="$(<"$RUN/state/unknown-screen-parent-run-id")"
+    mkdir -p \
+        "$qualification" \
+        "$UNKNOWN_SINGLE_OUT" \
+        "$RUN/cache/unknown-single-component-nextflow" \
+        "$RUN/execution"
+    load_p0_config
+    [[ "$UNKNOWN_SCREEN_PARENT_RUN_ID" =~ $RUN_ID_RE && \
+       -d "$UNKNOWN_SINGLE_REGISTRY" && ! -L "$UNKNOWN_SINGLE_REGISTRY" && \
+       -f "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" && \
+       ! -L "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" ]] || return 2
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    legacy_phenix_manifest="$PHENIX_MANIFEST"
+    expected_phenix_sha256="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$expected_phenix_sha256" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$legacy_phenix_manifest" | awk '{print $1}')" == \
+       "$expected_phenix_sha256" ]] || return 2
+    refreshed_phenix_manifest="$qualification/unknown-single-component-phenix-manifest.json"
+    "$GTD" --log-format json --no-progress phenix refresh-manifest \
+        --manifest "$legacy_phenix_manifest" \
+        --output "$refreshed_phenix_manifest" \
+        --verification-log \
+        "$qualification/unknown-single-component-phenix-verification.log" \
+        --no-command-timeout
+    PHENIX_MANIFEST="$refreshed_phenix_manifest"
+
+    cd "$RUN/execution"
+    PHASE=test
+    printf 'phase=unknown_single_component_first profile=unknown-single-component\n'
+    run_unknown_single_component_nextflow first
+    cp -a "$UNKNOWN_SINGLE_OUT/pipeline_info" \
+        "$qualification/unknown-single-component-first-pipeline-info"
+    printf 'phase=unknown_single_component_resume profile=unknown-single-component\n'
+    run_unknown_single_component_nextflow resume -resume
+    cp -a "$UNKNOWN_SINGLE_OUT/pipeline_info" \
+        "$qualification/unknown-single-component-resume-pipeline-info"
+    first_trace="$qualification/unknown-single-component-first-pipeline-info/trace.tsv"
+    resume_trace="$qualification/unknown-single-component-resume-pipeline-info/trace.tsv"
+    [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$resume_trace")"
+    read -r total cached <<< "$cache_counts"
+    [[ "$total" =~ $INTEGER_RE && "$cached" =~ $INTEGER_RE && \
+       "$total" -ge 4 && "$cached" -eq "$total" ]] || return 4
+    awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "process") process_column = i
+            next
+        }
+        process_column > 0 && $process_column ~ \
+            /(RETRIEVE_AFDB_EXACT|REGISTER_PDB_COORDINATES|SEARCH_PDB_SEQUENCES|SEARCH_PHASE3_FOLDSEEK_BATCH|RUN_PHASE3_FIRST_COPY_PHASER)/ {
+            forbidden++
+        }
+        END { exit forbidden == 0 ? 0 : 1 }
+    ' "$first_trace" || return 4
+    sha256sum \
+        "$root/unknown_single_component_stage_manifest.json" \
+        "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" \
+        "$UNKNOWN_SINGLE_REGISTRY/phase3_owned_run_registry.json" \
+        "$PHENIX_MANIFEST" \
+        "$first_trace" \
+        "$resume_trace" \
+        > "$qualification/unknown-single-component-checksums.sha256"
+    printf 'unknown_single_component_status=passed\n'
 }
 
 run_heteromer_smoke() {
@@ -4582,6 +4695,7 @@ case "$PROFILE" in
     phase3-network-probe) run_phase3_network_probe ;;
     unknown-discovery) run_unknown_discovery ;;
     unknown-screen) run_unknown_screen ;;
+    unknown-single-component) run_unknown_single_component ;;
     control-slice) run_control_slice ;;
     control-matrix) run_control_matrix ;;
     m6-inputs) run_m6_inputs ;;

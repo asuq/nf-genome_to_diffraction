@@ -430,6 +430,15 @@ accepts only the owned discovery parent, performs bounded provider acquisition
 on the login node, and records the preparation checksum in the child run. The
 screen cannot submit until that step succeeds; its Slurm job runs only the
 offline application and requires a fully cached replay.
+
+After A-seed review, `stage unknown-single-component --parent-run ...` reads
+the second mode-0600 fixed spec at
+`.untracked/phase3-unknown-pass1/unknown-single-component-inputs.json`; its
+tracked shape is
+[examples/unknown_single_component_inputs.example.json](examples/unknown_single_component_inputs.example.json).
+Each TSV must belong to that exact screen run and match its independently
+confirmed SHA-256. The wrapper builds the canonical owned registry/review
+stages and will not submit the offline continuation without them.
 - `prepare_databases.nf` exposes database-root, output, preparation switches,
   coordinate-cache initialisation, and verify-only inputs.
 - `m6_validation.nf` owns the independently reviewable M6 graph.

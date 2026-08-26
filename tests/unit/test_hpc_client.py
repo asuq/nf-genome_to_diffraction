@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
+from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.hpc.client import (
     DATABASE_STAGE_TIMEOUT_SECONDS,
     MAX_LOG_BYTES,
@@ -272,6 +273,19 @@ class FakeTransport:
             "run_id": arguments[0],
             "parent_run_id": arguments[2],
             "provider_preparation_sha256": "f" * 64,
+        }
+
+    def unknown_single_component_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        self.calls.append(("unknown-single-component-stage", tuple(arguments)))
+        assert archive_path.is_file()
+        return {
+            "run_id": arguments[0],
+            "parent_run_id": arguments[2],
+            "input_id": arguments[4],
         }
 
     def m4_import_stage(
@@ -1267,7 +1281,6 @@ def test_remote_logs_accept_explicit_owned_zero_byte_payload(tmp_path: Path) -> 
     [
         "heteromer-smoke",
         "phase3-phenix-probe",
-        "unknown-single-component",
     ],
 )
 def test_phenix_bound_stage_uses_only_the_preserved_runtime_identity(
@@ -1480,6 +1493,98 @@ def test_unknown_screen_stage_rejects_missing_parent(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError, match="requires an owned"):
         controller.stage("unknown-screen", "HEAD")
+
+
+def test_unknown_single_component_stage_binds_confirmed_a_decisions(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    qualification = tmp_path / ".untracked/m0-qualification"
+    qualification.mkdir(parents=True)
+    paths = qualification / "hpc-p0.paths"
+    paths.write_text(
+        "/approved/site\n"
+        "/approved/site/catalogues.json\n"
+        "/approved/site/crystals.json\n"
+        "/approved/site/config.yaml\n"
+        "/approved/site/databases\n"
+        "/approved/site/database_manifest.json\n"
+        "/approved/site/phenix/manifest.json\n",
+        encoding="ascii",
+    )
+    paths.chmod(0o600)
+    (qualification / "p0-inputs.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "database_manifest_sha256": "b" * 64,
+                "phenix_manifest_sha256": "a" * 64,
+            }
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    parent = LocalRunRecord(
+        run_id="gtd-unknown-screen-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+        site_id="marmic",
+        commit=COMMIT,
+        owner_id="d" * 32,
+        profile="unknown-screen",
+        iteration=1,
+        parent_run_id=None,
+    )
+    parent.write(controller.config.local_state_root)
+    decision = tmp_path / "a-seed.tsv"
+    decision.write_text(
+        "checkpoint\towned_parent_run_id\treview_package_id\t"
+        "review_package_manifest_sha256\tcrystal_id\titem_id\tdecision\t"
+        "reviewer\treviewed_at\treason\n"
+        f"a_seed\t{parent.run_id}\treviewpkg_{'1' * 64}\t{'2' * 64}\t"
+        "crystal_a\tsolution_1\tapprove\treviewer\t"
+        "2026-08-25T00:00:00Z\tmap inspected\n",
+        encoding="ascii",
+    )
+    spec = (
+        tmp_path
+        / ".untracked/phase3-unknown-pass1/unknown-single-component-inputs.json"
+    )
+    spec.parent.mkdir(parents=True)
+    atomic_write_json(
+        spec,
+        {
+            "schema_version": "1.0",
+            "decisions": [
+                {
+                    "crystal_id": "crystal_a",
+                    "path": str(decision),
+                    "sha256": sha256_file(decision, progress=False),
+                }
+            ],
+        },
+    )
+    spec.chmod(0o600)
+
+    staged = controller.stage(
+        "unknown-single-component",
+        "HEAD",
+        parent_run_id=parent.run_id,
+    )
+
+    assert staged["profile"] == "unknown-single-component"
+    assert staged["unknown_screen_parent_run_id"] == parent.run_id
+    assert staged["unknown_single_decision_count"] == "1"
+    assert transport.calls[-2][0] == "stage"
+    assert transport.calls[-1][0] == "unknown-single-component-stage"
+
+
+def test_unknown_single_component_stage_rejects_missing_parent(
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+
+    with pytest.raises(ValidationError, match="requires an owned"):
+        controller.stage("unknown-single-component", "HEAD")
 
 
 def test_network_probe_defaults_to_phase3_without_exposing_probe_inputs(
