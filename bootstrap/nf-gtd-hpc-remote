@@ -2030,6 +2030,88 @@ stage_archive_run() {
     stage_run_common "$@"
 }
 
+unknown_screen_stage_run() {
+    [[ "$#" -eq 4 ]] || \
+        fail wrapper_failure \
+            "unknown-screen-stage expects child and parent ownership fields"
+    local run_id="$1" owner_id="$2" parent_run_id="$3" parent_owner_id="$4"
+    local run parent profile parent_profile gtd source_package source_inputs
+    local screen_root discovery_copy inputs_copy preparation preparation_sha256
+    validate_run_id "$run_id"
+    validate_owner "$owner_id"
+    validate_run_id "$parent_run_id"
+    validate_owner "$parent_owner_id"
+    require_owned_run "$run_id" "$owner_id"
+    require_owned_run "$parent_run_id" "$parent_owner_id"
+    run="$(run_directory "$run_id")"
+    parent="$(run_directory "$parent_run_id")"
+    profile="$(<"$run/state/profile")"
+    parent_profile="$(<"$parent/state/profile")"
+    [[ "$profile" == unknown-screen && "$parent_profile" == unknown-discovery ]] || \
+        fail wrapper_failure "unknown-screen stage has an invalid profile chain"
+    [[ "$(<"$run/state/phase")" == staged && \
+       ! -e "$run/state/job-id" ]] || \
+        fail wrapper_failure "unknown-screen child is not safely staged"
+    [[ "$(<"$parent/state/phase")" == completed && \
+       "$(<"$parent/state/failure-class")" == success && \
+       "$(<"$parent/state/exit-code")" == 0 && \
+       -f "$parent/state/job-result.json" ]] || \
+        fail wrapper_failure "unknown-screen parent is not a successful terminal run"
+    [[ "$(<"$run/state/site-id")" == "$(<"$parent/state/site-id")" && \
+       "$(<"$run/state/p0-config-sha256")" == \
+       "$(<"$parent/state/p0-config-sha256")" && \
+       "$(<"$run/state/database-manifest-sha256")" == \
+       "$(<"$parent/state/database-manifest-sha256")" ]] || \
+        fail wrapper_failure "unknown-screen child and parent authorities differ"
+    source_package="$parent/artifacts/unknown-discovery/results/phase3_provider_discovery"
+    source_inputs="$parent/artifacts/unknown-discovery/inputs"
+    [[ -d "$source_package" && ! -L "$source_package" && \
+       -d "$source_inputs" && ! -L "$source_inputs" ]] || \
+        fail filesystem_failure "unknown-discovery parent package is unavailable"
+    screen_root="$run/artifacts/unknown-screen"
+    discovery_copy="$screen_root/phase3_provider_discovery"
+    inputs_copy="$screen_root/inputs"
+    preparation="$screen_root/provider_preparation"
+    [[ ! -e "$screen_root" && ! -L "$screen_root" ]] || \
+        fail wrapper_failure "unknown-screen staging output already exists"
+    mkdir -p -- "$screen_root"
+    cp -a -- "$source_package" "$discovery_copy"
+    cp -a -- "$source_inputs" "$inputs_copy"
+    gtd="$run/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    [[ -x "$gtd" ]] || \
+        fail environment_failure "locked unknown-screen CLI is unavailable"
+    "$gtd" --no-progress --log-format json \
+        structure-search validate-phase3-provider-discovery-package \
+        --package "$discovery_copy" \
+        >"$run/logs/unknown-screen-parent-validation.log" 2>&1 || \
+        fail wrapper_failure "unknown-screen parent package validation failed"
+    "$gtd" --no-progress --log-format json \
+        structure-search stage-phase3-provider-coordinates \
+        --discovery-package "$discovery_copy" \
+        --outdir "$preparation" \
+        >"$run/logs/unknown-screen-login-stage.log" 2>&1 || \
+        fail transfer_failure "unknown-screen provider acquisition failed"
+    "$gtd" --no-progress --log-format json \
+        structure-search validate-phase3-provider-login-stage \
+        --preparation "$preparation" \
+        >"$run/logs/unknown-screen-provider-validation.log" 2>&1 || \
+        fail wrapper_failure "unknown-screen provider preparation validation failed"
+    preparation_sha256="$(sha256sum \
+        "$preparation/provider_preparation.json" | awk '{print $1}')"
+    [[ "$preparation_sha256" =~ $CHECKSUM_RE ]] || \
+        fail filesystem_failure "unknown-screen provider checksum failed"
+    atomic_text "$run/state/unknown-discovery-parent-run-id" "$parent_run_id"
+    atomic_text "$run/state/provider-preparation-sha256" "$preparation_sha256"
+    atomic_text "$run/state/phase3-execution-identity-id" \
+        "$(<"$parent/state/phase3-execution-identity-id")"
+    append_event "$run" "stage_unknown_screen_provider_bound"
+    emit operation unknown-screen-stage
+    emit run_id "$run_id"
+    emit parent_run_id "$parent_run_id"
+    emit provider_preparation_sha256 "$preparation_sha256"
+    emit status ready
+}
+
 m4_copy_stage_run() {
     [[ "$#" -eq 10 ]] || \
         fail wrapper_failure "m4-copy-stage expects ten fixed arguments"
@@ -2979,6 +3061,15 @@ submit_run() {
             fail wrapper_failure \
                 "unknown-discovery submit requires its reviewed input archive"
     fi
+    if [[ "$profile" == unknown-screen ]]; then
+        [[ -f "$run/state/unknown-discovery-parent-run-id" && \
+           -f "$run/state/provider-preparation-sha256" && \
+           -d "$run/artifacts/unknown-screen/phase3_provider_discovery" && \
+           -d "$run/artifacts/unknown-screen/provider_preparation" && \
+           -d "$run/artifacts/unknown-screen/inputs" ]] || \
+            fail wrapper_failure \
+                "unknown-screen submit requires its owned provider preparation"
+    fi
     walltime=00:45:00
     cpus=2
     memory=8G
@@ -3558,6 +3649,8 @@ collect_run() {
         state/unknown-discovery-input-archive-sha256 \
         state/phase3-execution-identity-id \
         state/unknown-review-stage-index-id \
+        state/unknown-discovery-parent-run-id \
+        state/provider-preparation-sha256 \
         state/heteromer-login-stage.sha256 \
         state/control-slice-archive-sha256 \
         state/control-slice-manifest-sha256 \
@@ -3609,6 +3702,12 @@ collect_run() {
         logs/unknown-discovery-input-validation.log \
         logs/unknown-discovery-nextflow-first.log \
         logs/unknown-discovery-nextflow-resume.log \
+        logs/unknown-screen.log \
+        logs/unknown-screen-parent-validation.log \
+        logs/unknown-screen-login-stage.log \
+        logs/unknown-screen-provider-validation.log \
+        logs/unknown-screen-nextflow-first.log \
+        logs/unknown-screen-nextflow-resume.log \
         logs/m4-copy.log \
         logs/database.log \
         logs/nextflow-first.log \
@@ -3743,6 +3842,21 @@ collect_run() {
         artifacts/qualification/unknown-discovery-resume-pipeline-info/dag.html \
         artifacts/unknown-discovery/inputs/unknown_discovery_input_manifest.json \
         artifacts/unknown-discovery/results/phase3_provider_discovery/phase3_provider_discovery_manifest.json \
+        artifacts/qualification/unknown-screen-phenix-manifest.json \
+        artifacts/qualification/unknown-screen-phenix-verification.log \
+        artifacts/qualification/unknown-screen-checksums.sha256 \
+        artifacts/qualification/unknown-screen-first-pipeline-info/report.html \
+        artifacts/qualification/unknown-screen-first-pipeline-info/timeline.html \
+        artifacts/qualification/unknown-screen-first-pipeline-info/trace.tsv \
+        artifacts/qualification/unknown-screen-first-pipeline-info/dag.html \
+        artifacts/qualification/unknown-screen-resume-pipeline-info/report.html \
+        artifacts/qualification/unknown-screen-resume-pipeline-info/timeline.html \
+        artifacts/qualification/unknown-screen-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/unknown-screen-resume-pipeline-info/dag.html \
+        artifacts/unknown-screen/inputs/unknown_discovery_input_manifest.json \
+        artifacts/unknown-screen/phase3_provider_discovery/phase3_provider_discovery_manifest.json \
+        artifacts/unknown-screen/provider_preparation/provider_preparation.json \
+        artifacts/unknown-screen/results/phase3_offline_provider_input/phase3_offline_provider_input.json \
         artifacts/qualification/control-slice-summary.json \
         artifacts/qualification/control-slice-case-results.jsonl \
         artifacts/qualification/control-slice-first-copy-results.jsonl \
@@ -4718,6 +4832,7 @@ main() {
         p0-configure) p0_configure "$@" ;;
         p0-inputs-stage) p0_inputs_stage "$@" ;;
         unknown-discovery-inputs-stage) unknown_discovery_inputs_stage "$@" ;;
+        unknown-screen-stage) unknown_screen_stage_run "$@" ;;
         database-readiness) database_readiness "$@" ;;
         stage) stage_run "$@" ;;
         stage-archive) stage_archive_run "$@" ;;

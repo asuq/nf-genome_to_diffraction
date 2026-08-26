@@ -445,6 +445,11 @@ streams a deterministic path-free private archive, revalidates it inside the
 exact staged source, refuses submit without it, and requests 8 CPUs, 32 GB, and
 24 hours. Its controller and real-dispatcher stage/submit tests pass; the exact
 job remains unsubmitted pending CI/deployment and the remaining fixed profiles.
+The fixed `unknown-screen` child is now locally parent-bound: only a successful
+owned discovery can trigger login staging, submit is refused without the exact
+provider preparation, and the Slurm body rejects provider/search processes and
+requires a fully cached offline replay. Its real-dispatcher/fake-Slurm lifecycle
+passes; `unknown-single-component`, deployment, and Marmic evidence remain.
 
 Status: the explicit Phase III application now plans complete deterministic
 Foldseek batches of at most 128 exact sequence groups, invokes the existing

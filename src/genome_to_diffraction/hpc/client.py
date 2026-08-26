@@ -123,6 +123,7 @@ SSH_OPERATION_TIMEOUT_SECONDS = 45 * 60
 P0_STAGE_TIMEOUT_SECONDS = 45 * 60
 DATABASE_STAGE_TIMEOUT_SECONDS = 6 * 60 * 60
 P0_INPUT_STAGE_TIMEOUT_SECONDS = 15 * 60
+UNKNOWN_PROVIDER_STAGE_TIMEOUT_SECONDS = 60 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
 SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS = 30 * 60
 MAX_LOG_BYTES = 2 * 1024 * 1024
@@ -426,6 +427,12 @@ class TextTransport(Protocol):
         archive_path: Path,
     ) -> dict[str, str]:
         """Attach one fixed private review/input archive to a staged run."""
+
+    def unknown_screen_stage(
+        self,
+        arguments: Sequence[str],
+    ) -> dict[str, str]:
+        """Run bounded login acquisition from one owned discovery parent."""
 
     def m4_import_stage(
         self,
@@ -1102,6 +1109,43 @@ class SshTransport:
             )
         return fields
 
+    def unknown_screen_stage(
+        self,
+        arguments: Sequence[str],
+    ) -> dict[str, str]:
+        """Run one parent-bound provider staging operation on the login node."""
+
+        try:
+            result = subprocess.run(
+                self._command("unknown-screen-stage", arguments),
+                check=False,
+                capture_output=True,
+                timeout=UNKNOWN_PROVIDER_STAGE_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote unknown-screen staging exceeded the fixed "
+                f"{UNKNOWN_PROVIDER_STAGE_TIMEOUT_SECONDS}-second timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote unknown-screen staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote unknown-screen staging returned no fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
     def m4_import_stage(
         self,
         arguments: Sequence[str],
@@ -1498,6 +1542,21 @@ class HpcController:
             self.git.ensure_reachable_from_origin_main(commit)
         else:
             raise ValidationError("source branch is not approved for HPC staging")
+        screen_parent: LocalRunRecord | None = None
+        if profile == "unknown-screen":
+            if parent_run_id is None:
+                raise ValidationError(
+                    "unknown-screen staging requires an owned unknown-discovery parent"
+                )
+            screen_parent = self._owned_run(parent_run_id)
+            if screen_parent.profile != "unknown-discovery":
+                raise ValidationError(
+                    "unknown-screen parent must use the unknown-discovery profile"
+                )
+            if screen_parent.site_id != self.config.site_id:
+                raise ValidationError(
+                    "unknown-screen parent must belong to the configured HPC site"
+                )
         iteration, parent = self._next_iteration(parent_run_id)
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
         run_id = f"gtd-{profile}-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
@@ -1605,6 +1664,31 @@ class HpcController:
                 "unknown_input_id": bundle.input_id,
                 "unknown_input_sha256": bundle.archive_sha256,
                 "unknown_input_file_count": str(bundle.file_count),
+            }
+        if profile == "unknown-screen":
+            if screen_parent is None:
+                raise AssertionError("validated unknown-screen parent is absent")
+            attached = self.transport.unknown_screen_stage(
+                [
+                    run_id,
+                    owner_id,
+                    screen_parent.run_id,
+                    screen_parent.owner_id,
+                ]
+            )
+            if (
+                attached.get("run_id") != run_id
+                or attached.get("parent_run_id") != screen_parent.run_id
+                or not attached.get("provider_preparation_sha256")
+            ):
+                raise RemoteOperationError(
+                    "remote unknown-screen staging identity differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {
+                **remote,
+                "unknown_discovery_parent_run_id": screen_parent.run_id,
+                "provider_preparation_sha256": attached["provider_preparation_sha256"],
             }
         if profile == "m6-nextflow-smoke":
             remote_site = remote.get("site_id")

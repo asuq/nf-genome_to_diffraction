@@ -43,6 +43,7 @@ PHASE3_NETWORK_PROBE_RUN_ID = (
 UNKNOWN_DISCOVERY_RUN_ID = (
     "gtd-unknown-discovery-20260802T120000Z-0123456789ab-01234567"
 )
+UNKNOWN_SCREEN_RUN_ID = "gtd-unknown-screen-20260802T120001Z-0123456789ab-01234568"
 CONTROL_MATRIX_RUN_ID = "gtd-control-matrix-20260802T120000Z-0123456789ab-01234567"
 M6_INPUTS_RUN_ID = "gtd-m6-inputs-20260802T120000Z-0123456789ab-01234567"
 M6_NEXTFLOW_SMOKE_RUN_ID = (
@@ -319,6 +320,12 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  *" structure-search afdb-exact "*) mode=afdb ;;\n'
         '  *" structure-search pdb-sequence "*) mode=pdb ;;\n'
         '  *" structure-search register-pdb-coordinates "*) mode=register ;;\n'
+        '  *" structure-search validate-phase3-provider-discovery-package "*) '
+        "mode=provider_discovery_validate ;;\n"
+        '  *" structure-search stage-phase3-provider-coordinates "*) '
+        "mode=provider_login_stage ;;\n"
+        '  *" structure-search validate-phase3-provider-login-stage "*) '
+        "mode=provider_login_validate ;;\n"
         '  *" benchmark prepare-public-control "*) mode=public_control ;;\n'
         '  *" benchmark prepare-6rtz-heteromer-control "*) mode=heteromer ;;\n'
         '  *" benchmark prepare-3u7q-heteromer-control "*) '
@@ -377,6 +384,15 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"$outdir/sequence_groups.jsonl"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > '
         '"$outdir/source_records.jsonl"\n'
+        'elif [[ "$mode" == provider_discovery_validate || '
+        '"$mode" == provider_login_validate ]]; then\n'
+        "  :\n"
+        'elif [[ "$mode" == provider_login_stage ]]; then\n'
+        '  mkdir -p "$outdir/pdb_coordinate_registration" '
+        '"$outdir/afdb_exact_search" "$outdir/esm_atlas_search"\n'
+        '  printf \'{"schema_version":"2.0",'
+        '"preparation_id":"providerstage_stub"}\\n\' '
+        '> "$outdir/provider_preparation.json"\n'
         'elif [[ "$mode" == provider_plan ]]; then\n'
         '  [[ "${FAKE_PROVIDER_PLAN_FAIL:-0}" != 1 ]] || exit 17\n'
         '  mkdir -p "$outdir/entries"\n'
@@ -3685,6 +3701,126 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     assert "--cpus-per-task=8" in sbatch
     assert "--mem=32G" in sbatch
     assert "--time=24:00:00" in sbatch
+
+    parent_result = {
+        "schema_version": "1.0",
+        "run_id": UNKNOWN_DISCOVERY_RUN_ID,
+        "profile": "unknown-discovery",
+        "scheduler_state": "COMPLETED",
+        "exit_code": 0,
+        "failure_class": "success",
+    }
+    (run / "state/phase").write_text("completed\n", encoding="ascii")
+    (run / "state/failure-class").write_text("success\n", encoding="ascii")
+    (run / "state/exit-code").write_text("0\n", encoding="ascii")
+    atomic_write_json(run / "state/job-result.json", parent_result)
+    provider_package = (
+        run / "artifacts/unknown-discovery/results/phase3_provider_discovery"
+    )
+    provider_package.mkdir(parents=True)
+    atomic_write_json(
+        provider_package / "phase3_provider_discovery_manifest.json",
+        {
+            "schema_version": "2.0",
+            "package_id": "providerdiscovery_" + "d" * 64,
+        },
+    )
+    child_staged = _run(
+        [
+            str(dispatcher),
+            "stage",
+            UNKNOWN_SCREEN_RUN_ID,
+            commit,
+            lock_sha256,
+            "2" * 32,
+            "2",
+            "unknown-screen",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(child_staged.stdout)["profile"] == "unknown-screen"
+    screen_stage = _run(
+        [
+            str(dispatcher),
+            "unknown-screen-stage",
+            UNKNOWN_SCREEN_RUN_ID,
+            "2" * 32,
+            UNKNOWN_DISCOVERY_RUN_ID,
+            OWNER_ID,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    screen_fields = _decode_protocol(screen_stage.stdout)
+    assert screen_fields["parent_run_id"] == UNKNOWN_DISCOVERY_RUN_ID
+    child = remote_root / "runs" / UNKNOWN_SCREEN_RUN_ID
+    assert (child / "artifacts/unknown-screen/provider_preparation").is_dir()
+    assert (child / "state/provider-preparation-sha256").is_file()
+    child_submitted = _run(
+        [str(dispatcher), "submit", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(child_submitted.stdout)["profile"] == "unknown-screen"
+    child_sbatch = (tmp_path / "sbatch-args").read_text(encoding="utf-8")
+    assert "--cpus-per-task=8" in child_sbatch
+    assert "--mem=32G" in child_sbatch
+    assert "--time=24:00:00" in child_sbatch
+    fake_nextflow = child / "source/.pixi/envs/hpc/bin/nextflow"
+    _write_executable(
+        fake_nextflow,
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "outdir=\n"
+        "status=COMPLETED\n"
+        "previous=\n"
+        'for argument in "$@"; do\n'
+        '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
+        '  [[ "$argument" != -resume ]] || status=CACHED\n'
+        '  previous="$argument"\n'
+        "done\n"
+        '[[ -n "$outdir" ]] || exit 2\n'
+        'mkdir -p "$outdir/pipeline_info" '
+        '"$outdir/phase3_offline_provider_input"\n'
+        'printf \'{"schema_version":"2.0"}\\n\' > '
+        '"$outdir/phase3_offline_provider_input/'
+        'phase3_offline_provider_input.json"\n'
+        'printf "process\\tstatus\\n" > "$outdir/pipeline_info/trace.tsv"\n'
+        "for process in VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT "
+        "VALIDATE_TASK05_INPUTS MTZ_PREFLIGHT ENUMERATE_MATTHEWS "
+        "PREPARE_PREDICTED_MODELS PREPARE_EXPERIMENTAL_MODELS "
+        "DISPATCH_CRYSTAL_ITEM RUN_PHASE3_FIRST_COPY_PHASER "
+        "BUILD_PHASE3_MR_SEED_REVIEW; do\n"
+        '  printf "%s\\t%s\\n" "$process" "$status" '
+        '>> "$outdir/pipeline_info/trace.tsv"\n'
+        "done\n"
+        "for name in report.html timeline.html dag.html; do\n"
+        '  printf "stub\\n" > "$outdir/pipeline_info/$name"\n'
+        "done\n",
+    )
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "123"
+    job_environment["SLURM_CPUS_PER_TASK"] = "8"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "unknown-screen-slurm-tmp")
+    _run(
+        [str(smoke_job), UNKNOWN_SCREEN_RUN_ID, str(remote_root), "unknown-screen"],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
+    screen_result = json.loads(
+        (child / "state/job-result.json").read_text(encoding="utf-8")
+    )
+    assert screen_result["failure_class"] == "success"
+    assert screen_result["scheduler_state"] == "COMPLETED"
+    screen_trace = (
+        child / "artifacts/qualification/unknown-screen-resume-pipeline-info/trace.tsv"
+    ).read_text(encoding="utf-8")
+    assert "RETRIEVE_AFDB_EXACT" not in screen_trace
+    assert "REGISTER_PDB_COORDINATES" not in screen_trace
+    assert screen_trace.count("CACHED") == 9
 
 
 def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(

@@ -6,6 +6,7 @@ process VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT {
     tag 'phase3-offline-provider-input'
     label 'process_low'
     stageInMode 'copy'
+    publishDir params.outdir, mode: 'copy', overwrite: true
 
     input:
     discovery_package: Path

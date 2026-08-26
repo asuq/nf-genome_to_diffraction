@@ -30,8 +30,10 @@ from genome_to_diffraction.hpc.models import (
     ConfigurationError,
     FailureClass,
     HpcConfig,
+    LocalRunRecord,
     RemoteOperationError,
     ValidationError,
+    load_local_run,
 )
 from genome_to_diffraction.hpc.unknown_inputs import (
     UNKNOWN_DISCOVERY_SPEC_RELATIVE,
@@ -259,6 +261,17 @@ class FakeTransport:
             "run_id": arguments[0],
             "input_id": arguments[2],
             "archive_sha256": arguments[3],
+        }
+
+    def unknown_screen_stage(
+        self,
+        arguments: Sequence[str],
+    ) -> dict[str, str]:
+        self.calls.append(("unknown-screen-stage", tuple(arguments)))
+        return {
+            "run_id": arguments[0],
+            "parent_run_id": arguments[2],
+            "provider_preparation_sha256": "f" * 64,
         }
 
     def m4_import_stage(
@@ -1254,7 +1267,6 @@ def test_remote_logs_accept_explicit_owned_zero_byte_payload(tmp_path: Path) -> 
     [
         "heteromer-smoke",
         "phase3-phenix-probe",
-        "unknown-screen",
         "unknown-single-component",
     ],
 )
@@ -1391,6 +1403,83 @@ def test_unknown_discovery_stage_attaches_only_fixed_private_inputs(
         phenix_sha256,
     )
     assert transport.calls[-1][0] == "unknown-discovery-inputs-stage"
+
+
+def test_unknown_screen_stage_requires_and_binds_owned_discovery_parent(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    qualification = tmp_path / ".untracked/m0-qualification"
+    qualification.mkdir(parents=True)
+    paths = qualification / "hpc-p0.paths"
+    paths.write_text(
+        "/approved/site\n"
+        "/approved/site/catalogues.json\n"
+        "/approved/site/crystals.json\n"
+        "/approved/site/config.yaml\n"
+        "/approved/site/databases\n"
+        "/approved/site/database_manifest.json\n"
+        "/approved/site/phenix/manifest.json\n",
+        encoding="ascii",
+    )
+    paths.chmod(0o600)
+    (qualification / "p0-inputs.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "database_manifest_sha256": "b" * 64,
+                "phenix_manifest_sha256": "a" * 64,
+            }
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    parent = LocalRunRecord(
+        run_id=("gtd-unknown-discovery-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb"),
+        site_id="marmic",
+        commit=COMMIT,
+        owner_id="c" * 32,
+        profile="unknown-discovery",
+        iteration=1,
+        parent_run_id=None,
+    )
+    parent.write(controller.config.local_state_root)
+
+    staged = controller.stage(
+        "unknown-screen",
+        "HEAD",
+        parent_run_id=parent.run_id,
+    )
+
+    assert staged["profile"] == "unknown-screen"
+    assert staged["unknown_discovery_parent_run_id"] == parent.run_id
+    assert staged["provider_preparation_sha256"] == "f" * 64
+    assert transport.calls[-2][0] == "stage"
+    assert transport.calls[-2][1][5:] == (
+        "unknown-screen",
+        "/approved/site/phenix/manifest.json",
+        "a" * 64,
+    )
+    assert transport.calls[-1] == (
+        "unknown-screen-stage",
+        (
+            staged["run_id"],
+            load_local_run(
+                controller.config.local_state_root,
+                str(staged["run_id"]),
+            ).owner_id,
+            parent.run_id,
+            parent.owner_id,
+        ),
+    )
+
+
+def test_unknown_screen_stage_rejects_missing_parent(tmp_path: Path) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+
+    with pytest.raises(ValidationError, match="requires an owned"):
+        controller.stage("unknown-screen", "HEAD")
 
 
 def test_network_probe_defaults_to_phase3_without_exposing_probe_inputs(

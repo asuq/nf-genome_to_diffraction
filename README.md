@@ -425,6 +425,11 @@ shape is [examples/unknown_discovery_inputs.example.json](examples/unknown_disco
 The controller validates the exact review/execution identity and AFDB map,
 streams a path-free immutable archive, and requests a fixed 8-CPU, 32-GB,
 24-hour Slurm allocation. Staging and submitting remain separate operations.
+After that run completes successfully, `stage unknown-screen --parent-run ...`
+accepts only the owned discovery parent, performs bounded provider acquisition
+on the login node, and records the preparation checksum in the child run. The
+screen cannot submit until that step succeeds; its Slurm job runs only the
+offline application and requires a fully cached replay.
 - `prepare_databases.nf` exposes database-root, output, preparation switches,
   coordinate-cache initialisation, and verify-only inputs.
 - `m6_validation.nf` owns the independently reviewable M6 graph.

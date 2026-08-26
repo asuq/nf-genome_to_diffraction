@@ -13511,3 +13511,21 @@ with a collapsed combined parent or a guessed command.
 - Exact-source CI, tool deployment, and real Marmic qualification remain. No
   remote tool, scheduler job, provider request, threshold, or unknown crystal
   was changed.
+
+## 2026-08-25 - Unknown screen is parent-bound and offline on Slurm
+
+- Generic `stage unknown-screen` now requires the locally owned
+  `unknown-discovery` parent. The remote stage independently requires terminal
+  success, matching site/P0/database identities, and the retained provider
+  package before copying those authorities into the child run.
+- Only the stage operation performs bounded login acquisition. Submit refuses
+  an absent preparation. The fixed 8-CPU/32-GB/24-hour job validates both
+  packages, runs current `first_copy` offline, rejects any provider-search or
+  coordinate-registration trace, and requires a completely cached replay.
+- Two focused controller ownership cases and the real dispatcher/fake-Slurm
+  discovery-to-screen lifecycle pass, including nine cached offline tasks and
+  terminal success. Bash syntax and the existing application gates remain
+  green.
+- `unknown-single-component`, exact-source CI for wrapper changes, deployment,
+  and real Marmic qualification remain. No remote tool, scheduler job, provider
+  request, threshold, or unknown crystal was changed.
