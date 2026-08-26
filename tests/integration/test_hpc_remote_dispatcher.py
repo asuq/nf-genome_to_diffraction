@@ -1108,6 +1108,7 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=environment,
     )
     status_fields = _decode_protocol(status.stdout)
+    assert status_fields["site_id"] == "marmic"
     assert status_fields["scheduler_state"] == "COMPLETED"
     assert status_fields["failure_class"] == "success"
     assert status_fields["terminal"] == "true"
@@ -1120,6 +1121,7 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=cancelled_environment,
     )
     cancelled_fields = _decode_protocol(cancelled_status.stdout)
+    assert cancelled_fields["site_id"] == "marmic"
     assert cancelled_fields["failure_class"] == "unknown_failure"
     assert cancelled_fields["terminal"] == "true"
 
@@ -1129,6 +1131,7 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=environment,
     )
     log_fields = _decode_protocol(logs.stdout)
+    assert log_fields["site_id"] == "marmic"
     assert (
         "smoke_status=success"
         in base64.b64decode(log_fields["content_base64"]).decode()

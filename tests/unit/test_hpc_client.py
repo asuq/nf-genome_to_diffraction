@@ -988,6 +988,7 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
         "different-operation",
         "missing-run",
         "different-run",
+        "missing-site",
         "different-site",
     ),
 )
@@ -1001,7 +1002,11 @@ def test_ssh_transport_rejects_unauthenticated_remote_protocol_fields(
     def field(key: str, value: str) -> bytes:
         return key.encode("ascii") + b"\t" + base64.b64encode(value.encode("utf-8"))
 
-    records = [field("operation", "status"), field("run_id", owned_run)]
+    records = [
+        field("operation", "status"),
+        field("run_id", owned_run),
+        field("site_id", "marmic"),
+    ]
     if mutation == "malformed-line":
         records.append(b"unexpected-unframed-output")
     elif mutation == "invalid-key":
@@ -1020,8 +1025,10 @@ def test_ssh_transport_rejects_unauthenticated_remote_protocol_fields(
         records.pop(1)
     elif mutation == "different-run":
         records[1] = field("run_id", "gtd-other-owned-run")
+    elif mutation == "missing-site":
+        records.pop(2)
     elif mutation == "different-site":
-        records.append(field("site_id", "viper-cpu"))
+        records[2] = field("site_id", "viper-cpu")
     payload = b"\n".join(records) + b"\n"
 
     def respond(
@@ -1040,7 +1047,7 @@ def test_ssh_transport_rejects_unauthenticated_remote_protocol_fields(
 @pytest.mark.parametrize(
     ("operation", "reported_operation", "site_id"),
     (
-        ("status", "status", None),
+        ("status", "status", "marmic"),
         ("database-stage", "stage", "marmic"),
     ),
 )
@@ -1073,6 +1080,37 @@ def test_ssh_transport_accepts_current_owned_dispatcher_protocol(
     assert SshTransport(_config(tmp_path)).run(operation, [owned_run, "owner"]) == (
         records
     )
+
+
+def test_ssh_transport_rejects_logs_without_site_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owned_run = "gtd-heteromer-smoke-20260825T164430Z-26e69b95d57d-451bc765"
+
+    def field(key: str, value: str) -> bytes:
+        return key.encode("ascii") + b"\t" + base64.b64encode(value.encode("utf-8"))
+
+    payload = b"\n".join(
+        (
+            field("operation", "logs"),
+            field("run_id", owned_run),
+            field("content_base64", ""),
+        )
+    ) + b"\n"
+
+    def respond(
+        command: Sequence[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(command, 0, stdout=payload, stderr=b"")
+
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.subprocess.run", respond)
+
+    with pytest.raises(RemoteOperationError, match="mandatory site identity"):
+        SshTransport(_config(tmp_path)).run(
+            "logs",
+            [owned_run, "owner", "200"],
+        )
 
 
 def test_deploy_tools_sends_only_commit_and_verified_checksums(tmp_path: Path) -> None:

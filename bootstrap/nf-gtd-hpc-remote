@@ -3388,6 +3388,7 @@ status_run() {
     fi
     emit operation status
     emit run_id "$run_id"
+    emit site_id "$SITE_ID"
     emit profile "$profile"
     emit phase "$phase"
     emit job_id "$job_id"
@@ -3609,6 +3610,7 @@ logs_run() {
     fi
     emit operation logs
     emit run_id "$run_id"
+    emit site_id "$SITE_ID"
     emit log_path "$log_path"
     emit diagnostic_log_path "$diagnostic_log"
     emit content_base64 "$content"

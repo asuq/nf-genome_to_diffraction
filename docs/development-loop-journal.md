@@ -13548,3 +13548,29 @@ with a collapsed combined parent or a guessed command.
   the real dispatcher/fake-Slurm discovery-to-screen-to-single terminal chain
   pass. Wrapper CI, deployment, and real Marmic qualification remain. No remote
   tool, scheduler job, provider request, threshold, or unknown crystal changed.
+
+## 2026-08-25 - All three unknown crystallographic checkpoints may proceed
+
+- The user/supervisor selected `proceed` for AD4QS1P4G2_18,
+  CD4QS2P2G1_15, and CD6QS2P2G1_5. This authorises bounded pass-1 execution; it
+  does not resolve or suppress the retained completeness, Patterson,
+  direction-dependent-resolution, or anisotropy concerns.
+- The complete discovery-to-screen-to-single fixed wrapper chain passed
+  exact-source CI `32931351353` / `98064082616` on
+  `77d45cdbe9d0d428f20f69972dec3a1fe415e261` under Pixi 0.76.2.
+- Final checksum-owned decision packages remain deliberately deferred until
+  the remaining RG1--RG3 code gates are closed, because each package must bind
+  the exact execution identity that will actually run. No remote tool,
+  scheduler job, provider request, threshold, or unknown crystal changed.
+
+## 2026-08-25 - Status and logs require the remote site identity
+
+- The dispatcher now emits its selected site on both status and bounded-log
+  responses. The client refuses either operation if the site is missing or
+  differs from the configured Marmic/Viper site.
+- Thirteen focused status-protocol attacks, an independent missing-log-site
+  regression, all 124 HPC client tests, dispatcher Bash syntax, and the real
+  dispatcher/fake-scheduler lifecycle pass.
+- This code has not been deployed: the existing component control must first
+  finish and be collected with its old wire protocol. No remote tool,
+  scheduler job, provider request, threshold, or unknown crystal changed.

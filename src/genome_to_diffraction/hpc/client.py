@@ -113,6 +113,7 @@ _RUN_SCOPED_REMOTE_OPERATIONS = frozenset(
         "submit",
     }
 )
+_SITE_REQUIRED_REMOTE_OPERATIONS = frozenset({"logs", "status"})
 _REMOTE_TOOL_PATHS = (
     PurePosixPath("bootstrap/nf-gtd-hpc-remote"),
     PurePosixPath("bootstrap/nf-gtd-hpc-smoke-job"),
@@ -811,7 +812,13 @@ class SshTransport:
                 f"remote {operation} returned an inconsistent owned run identity",
                 failure_class=FailureClass.TRANSFER_FAILURE,
             )
-        if "site_id" in fields and fields["site_id"] != self._config.site_id:
+        remote_site = fields.get("site_id")
+        if operation in _SITE_REQUIRED_REMOTE_OPERATIONS and remote_site is None:
+            raise RemoteOperationError(
+                f"remote {operation} omitted its mandatory site identity",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if remote_site is not None and remote_site != self._config.site_id:
             raise RemoteOperationError(
                 f"remote {operation} returned an inconsistent site identity",
                 failure_class=FailureClass.TRANSFER_FAILURE,

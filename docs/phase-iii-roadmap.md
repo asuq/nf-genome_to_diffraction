@@ -457,7 +457,19 @@ accepts one to three checksum-confirmed A-seed TSVs owned by the exact terminal
 screen, creates the canonical registry/review stages and crystal routes, and
 refuses submit unless that handoff is complete. Its Slurm body excludes
 provider and first-copy processes and requires a fully cached reviewed
-continuation. Exact-source wrapper CI, deployment, and Marmic evidence remain.
+continuation. Exact-source CI `32931351353` / `98064082616` passed on
+`77d45cdbe9d0d428f20f69972dec3a1fe415e261` under Pixi 0.76.2. Deployment and
+Marmic evidence remain.
+
+On 25 August 2026 the user/supervisor supplied the mandatory crystallographic
+checkpoint decision `proceed` for all three frozen crystals. This authorises a
+bounded pass-1 search while retaining, rather than clearing, the 75.2%
+completeness and off-origin Patterson concern for AD4QS1P4G2_18, the 83.7%
+completeness and direction-dependent resolution concern for CD4QS2P2G1_15,
+and the anisotropy review concern for CD6QS2P2G1_5. The final decision packages
+must still bind those retained Xtriage/preflight bytes and the exact execution
+identity used for the run; they will be materialised only after the remaining
+RG1--RG3 code gates stop changing that identity.
 
 Status: the explicit Phase III application now plans complete deterministic
 Foldseek batches of at most 128 exact sequence groups, invokes the existing

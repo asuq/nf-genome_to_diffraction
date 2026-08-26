@@ -97,6 +97,12 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
 - Require explicit current-schema HPC site identity and an operation-specific
   strict remote protocol; reject malformed/duplicate/missing fields, unsupported
   scheduler states, missing log payloads, and incomplete failed-job evidence.
+  Completed locally: status and logs now emit the selected dispatcher site and
+  the client requires it for both operations. Missing or cross-site values fail
+  before scheduler or log evidence is consumed. Focused protocol attacks, the
+  complete client test file, dispatcher syntax, and the fake-scheduler
+  lifecycle pass. Coordinated deployment waits only for collection of the
+  already-running old-protocol control.
 - Reject escaped/intermediate-symlink review assets before reading them.
 - Enforce a worker-offline network policy and qualify reviewed login-side
   provider staging separately from compute-worker socket denial. Completed
