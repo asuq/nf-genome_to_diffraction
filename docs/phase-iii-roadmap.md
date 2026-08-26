@@ -498,6 +498,9 @@ identities are retained. The subsequent worker-network probe `634652` is
 diagnostic failure only: Nextflow 26.04.6 rejected the nested `-main-script`
 command before creating either task, so it provides no network-denial evidence.
 The local fix makes the probe an operation of canonical `qualification.nf`;
+replacement probe `634663` confirmed that routing, then failed strict parameter
+validation before task creation because the empty execution directory lacked
+the default `.cache` path. The wrapper now supplies a created run-owned cache;
 one exact-source CI/deployment/replacement probe remains before 9ECN or unknown
 execution.
 

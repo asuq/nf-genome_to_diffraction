@@ -1788,7 +1788,12 @@ run_phase3_network_probe() {
     [[ "$source_commit" =~ ^[0-9a-f]{40}$ && \
        "$helper_commit" =~ ^[0-9a-f]{40}$ ]] || return 2
 
-    mkdir -p "$qualification" "$output" "$execution" "$RUN/cache/nextflow-home"
+    mkdir -p \
+        "$qualification" \
+        "$output" \
+        "$execution" \
+        "$RUN/cache/nextflow-home" \
+        "$RUN/cache/phase3-network-probe"
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD="$java"
     export NXF_HOME="$RUN/cache/nextflow-home"
@@ -1805,6 +1810,7 @@ run_phase3_network_probe() {
         --qualification_stage phase3_network_probe \
         --outer_job_id "$SLURM_JOB_ID" \
         --outer_network_namespace "$outer_network_namespace" \
+        --cache_root "$RUN/cache/phase3-network-probe" \
         --outdir "$output"
 
     "$python" -m genome_to_diffraction.execution.network_probe summarise \

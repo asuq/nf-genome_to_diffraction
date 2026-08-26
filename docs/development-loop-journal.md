@@ -13671,3 +13671,20 @@ with a collapsed combined parent or a guessed command.
   `projectDir`. A real Nextflow 26.04.6 preview, two focused wrapper/staging
   regressions, Nextflow syntax, and wrapper syntax pass. Run one exact-source
   CI/deployment/replacement probe; do not launch 9ECN or unknown crystals first.
+
+## 2026-08-26 - Network probe requires its explicit run-owned cache
+
+- Replacement probe `gtd-phase3-network-probe-20260826T102405Z-105023f24b2b-116c7ca5`,
+  Slurm `634663`, reached canonical `qualification.nf` under Nextflow 26.04.6,
+  proving the preceding entrypoint fix. It then exited 1/test failure during
+  strict parameter validation: default `cache_root=.cache` did not exist in the
+  empty execution directory. The trace contains zero tasks, so the run provides
+  no socket-denial evidence.
+- Exact source `105023f`, CI `32955931998` / `98137469352`, pinned nf-helper,
+  Pixi 0.76.2, site configuration, worker-shell digests, and deployed tool
+  provenance remain valid. The failure is an input-routing defect, not an HPC
+  network observation.
+- The minimal fix creates one cache below the owned run and passes it as the
+  typed `cache_root`. The focused wrapper regression, real Nextflow 26.04.6
+  preview, and wrapper syntax pass. Run one exact-source CI/deployment/
+  replacement probe; do not launch 9ECN or unknown crystals first.

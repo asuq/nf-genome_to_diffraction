@@ -115,7 +115,10 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   the first real Marmic attempt failed before task creation because Nextflow
   26.04.6 rejected its nested `-main-script` invocation. The focused correction
   routes the probe through canonical root `qualification.nf`, preserving the
-  repository project directory; exact-source CI and one replacement probe
+  repository project directory. The first replacement then exposed a distinct
+  strict-input failure before task creation: its default `.cache` path did not
+  exist in the empty execution directory. The wrapper now creates and passes
+  one run-owned cache explicitly; exact-source CI and one replacement probe
   remain. Bounded pre-submit login staging also remains. The other site must
   qualify before it is used scientifically.
 - Require a distinct owned single-component parent and both final human

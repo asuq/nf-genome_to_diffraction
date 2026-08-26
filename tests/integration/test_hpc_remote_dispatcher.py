@@ -5240,6 +5240,7 @@ def test_phase3_network_probe_uses_the_canonical_qualification_root() -> None:
 
     assert 'run "$RUN/source/qualification.nf"' in invocation
     assert "--qualification_stage phase3_network_probe" in invocation
+    assert '--cache_root "$RUN/cache/phase3-network-probe"' in invocation
     assert "-main-script workflows/qualification/phase3_network_probe.nf" not in (
         invocation
     )
