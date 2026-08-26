@@ -2202,6 +2202,7 @@ run_heteromer_smoke() {
     local partner_placement_inventory="$partner/phaser_per_placement_inventory.json"
     local parent_hypothesis_id parent_sequence_group_id partner_sequence_group_id
     local parent_llg parent_coordinate_relative parent_coordinate_sha256
+    local parent_model_identity_fraction parent_model_uncertainty_source
     local parent_coordinate gate_passed expected_phenix_sha256
     local multicopy_hypothesis_id multicopy_parent_group multicopy_partner_group
     local multicopy_parent_copies multicopy_partner_copies multicopy_partner_sha256
@@ -2316,7 +2317,7 @@ PY
         --threads "${SLURM_CPUS_PER_TASK:-1}" \
         --outdir "$parent"
     mapfile -t parent_values < <(
-        "$PYTHON" - "$parent_result" <<'PY'
+        "$PYTHON" - "$parent_result" "$parent/phaser_command.json" <<'PY'
 import json
 import math
 import re
@@ -2324,10 +2325,13 @@ import sys
 from pathlib import Path, PurePosixPath
 
 document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+command = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 llg = document.get("llg")
 relative = document.get("solution_coordinate_path")
 sha256 = document.get("solution_coordinate_sha256")
 packing = document.get("packing_summary")
+identity_percent = command.get("model_identity_percent")
+uncertainty_source = command.get("model_uncertainty_source")
 if (
     document.get("execution_status") != "completed_hit"
     or isinstance(llg, bool)
@@ -2340,17 +2344,31 @@ if (
     or PurePosixPath(relative).name != relative
     or not isinstance(sha256, str)
     or re.fullmatch(r"[a-f0-9]{64}", sha256) is None
+    or isinstance(identity_percent, bool)
+    or not isinstance(identity_percent, (int, float))
+    or not math.isfinite(float(identity_percent))
+    or not 0 < float(identity_percent) <= 100
+    or not isinstance(uncertainty_source, str)
+    or not uncertainty_source.strip()
+    or "\n" in uncertainty_source
+    or "\r" in uncertainty_source
 ):
-    raise SystemExit("fixed 6RTZ A parent did not produce one packed solution")
+    raise SystemExit(
+        "fixed 6RTZ A parent lacks one packed solution or model provenance"
+    )
 print(f"{float(llg):.12g}")
 print(relative)
 print(sha256)
+print(f"{float(identity_percent) / 100:.12g}")
+print(uncertainty_source)
 PY
     )
-    [[ "${#parent_values[@]}" -eq 3 ]] || return 4
+    [[ "${#parent_values[@]}" -eq 5 ]] || return 4
     parent_llg="${parent_values[0]}"
     parent_coordinate_relative="${parent_values[1]}"
     parent_coordinate_sha256="${parent_values[2]}"
+    parent_model_identity_fraction="${parent_values[3]}"
+    parent_model_uncertainty_source="${parent_values[4]}"
     [[ "$parent_llg" =~ ^-?[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?$ && \
        "$parent_coordinate_sha256" =~ $CHECKSUM_RE ]] || return 4
     parent_coordinate="$parent/$parent_coordinate_relative"
@@ -2954,6 +2972,8 @@ PY
         --parent-coordinate "$parent_coordinate" \
         --expected-parent-coordinate-sha256 "$parent_coordinate_sha256" \
         --parent-llg "$parent_llg" \
+        --parent-model-identity-fraction "$parent_model_identity_fraction" \
+        --parent-model-uncertainty-source "$parent_model_uncertainty_source" \
         --parent-copy-count 1 \
         --partner-model "$p6_inputs/wrong_partner/model.pdb" \
         --expected-partner-model-sha256 "$p6_wrong_model_sha" \

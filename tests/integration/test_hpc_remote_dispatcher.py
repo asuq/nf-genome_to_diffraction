@@ -5251,6 +5251,26 @@ def test_heteromer_multicopy_partner_preserves_parent_model_uncertainty() -> Non
     )
 
 
+def test_heteromer_wrong_partner_preserves_parent_model_uncertainty() -> None:
+    wrapper = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(
+        encoding="utf-8"
+    )
+    phase = wrapper.split(
+        "printf 'phase=heteromer_p6_wrong_partner profile=heteromer-smoke\\n'",
+        maxsplit=1,
+    )[1]
+    invocation = phase.split("\n    mapfile", maxsplit=1)[0]
+
+    assert (
+        '--parent-model-identity-fraction "$parent_model_identity_fraction"'
+        in invocation
+    )
+    assert (
+        '--parent-model-uncertainty-source "$parent_model_uncertainty_source"'
+        in invocation
+    )
+
+
 def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     tmp_path: Path,
 ) -> None:

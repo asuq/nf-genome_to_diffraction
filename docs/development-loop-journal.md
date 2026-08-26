@@ -13613,3 +13613,32 @@ with a collapsed combined parent or a guessed command.
   schema/archive/dispatch tests and the real dispatcher
   discovery-to-screen-to-single fake-scheduler chain pass. No remote tool,
   scheduler job, provider request, threshold, or unknown MR ran.
+
+## 2026-08-26 - Marmic control isolates one wrong-B wrapper defect
+
+- Owned run `gtd-heteromer-smoke-20260825T164430Z-26e69b95d57d-451bc765`,
+  Slurm `634369`, is terminal `FAILED`, exit 2, `software_failure`, at exact
+  source `26e69b95`. Source archive, pinned nf-helper, Pixi 0.76.2, Phenix
+  2.1-6048, seven executable probes, and staged inputs are intact.
+- The run produced diagnostic green evidence before failure: 6RTZ recovered
+  `1A+1B` with incremental LLG 5054.654 and TFZ 71.2; 3U7Q recovered `2A+2B`
+  with incremental LLG 229112.711 and TFZ 371.4. Their exact grouped
+  coordinate inventories retain 3,543 and 16,116 atoms respectively with
+  verified combined-atom partitions. The full 1,846-protein catalogue retained
+  1,845 non-A candidates, selected one correct partner, and typed 1,844 as
+  unsearchable.
+- The wrapper then invoked wrong-B search without the newly mandatory parent
+  model identity and uncertainty flags, so argparse exited before scientific
+  execution. Wrong-B, the P6 assessment set, and final checksums are absent;
+  the run cannot be accepted. Initial collection used the released main
+  client's obsolete 20 MiB cap; the existing dev/phase3 128 MiB envelope
+  collected the retained 40,035,916-byte 3U7Q MTZ successfully without a
+  scheduler action.
+- The minimal fix parses the existing 6RTZ parent command's identity and
+  uncertainty exactly as the green 3U7Q path already does and supplies both to
+  wrong-B. The focused command regression, complete fake control lifecycle,
+  and Bash syntax pass. The single locked gate also passed: 1,320 unit, 136
+  contract, and 85 integration tests plus schemas, documentation, actionlint,
+  Nextflow syntax and every cached stub/profile check. Commit/push once, watch
+  one CI run, deploy only the matching tools, and submit exactly one replacement
+  known control. Do not launch 9ECN or unknown crystals first.

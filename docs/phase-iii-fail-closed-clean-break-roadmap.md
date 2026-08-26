@@ -159,6 +159,12 @@ Scope: `FCB-P0-01`, `FCB-P0-03`, `FCB-P1-01`, and `FCB-P1-02`.
   truncated, non-finite, and genuinely empty records remain distinguishable.
 - Decode scientific PDB, solution, and authoritative log bytes strictly;
   preserve raw bytes and their hashes when a typed parse failure occurs.
+- The first corrected Marmic control reached green 6RTZ `1A+1B`, 3U7Q
+  `2A+2B`, component-coordinate, and full-catalogue gates, then exposed one
+  wrapper-only boundary: the wrong-B invocation lacked the mandatory parent
+  model identity and uncertainty already recorded by the parent command. The
+  focused fix propagates those values; exact-source CI and one replacement
+  control remain before RG2 acceptance.
 
 Acceptance: one focused regression per invented/missing observation plus the
 existing 6RTZ/3U7Q public controls. Missing packing blocks 9ECN acceptance;

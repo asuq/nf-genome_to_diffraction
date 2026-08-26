@@ -481,6 +481,16 @@ checksum-bound to those review inputs. Missing values fail before staging, and
 the offline screen consumes the archived manifest rather than site-global
 mutable metadata.
 
+Known-control Marmic run `634369` is terminal diagnostic evidence, not an
+accepted gate. Its exact source and runtime provenance are valid; 6RTZ
+`1A+1B`, 3U7Q `2A+2B`, both exact component-coordinate partitions, and the
+1,845-candidate full-catalogue branch passed. The job then exited 2 before the
+wrong-B search because its fixed wrapper did not pass the newly required parent
+model identity and uncertainty. Consequently no wrong-B result, P6 assessment
+set, or final checksum manifest exists. The minimal wrapper fix and regression
+are local; one exact-source CI/deployment/replacement control remains before
+9ECN or unknown execution.
+
 Status: the explicit Phase III application now plans complete deterministic
 Foldseek batches of at most 128 exact sequence groups, invokes the existing
 provider-bound adapter in one Nextflow task per batch, enforces one concurrent
