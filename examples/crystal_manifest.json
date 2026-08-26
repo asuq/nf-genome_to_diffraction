@@ -7,6 +7,7 @@
       "catalogue_id": "example_archaeon_refseq",
       "obs_labels": null,
       "free_flag_labels": null,
+      "free_r_test_value": null,
       "space_group_override": null,
       "high_resolution_override": null,
       "low_resolution_override": null,

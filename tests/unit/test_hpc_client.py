@@ -1423,6 +1423,31 @@ def test_unknown_discovery_stage_attaches_only_fixed_private_inputs(
         "source_record_id\tuniprot_accession\n",
         encoding="ascii",
     )
+    phase3_crystals = tmp_path / "phase3-crystals.json"
+    phase3_crystals.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "crystals": [
+                    {
+                        "crystal_id": item.crystal_id,
+                        "mtz": f"/approved/site/inputs/{item.crystal_id}.mtz",
+                        "catalogue_id": "public_catalogue",
+                        "free_r_test_value": 0,
+                        "allow_remote_sequence_submission": False,
+                    }
+                    for item in sorted(
+                        fixture.crystals,
+                        key=lambda value: value.crystal_id,
+                    )
+                ],
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="ascii",
+    )
     spec = tmp_path / UNKNOWN_DISCOVERY_SPEC_RELATIVE
     spec.parent.mkdir(parents=True)
     spec.write_text(
@@ -1432,6 +1457,7 @@ def test_unknown_discovery_stage_attaches_only_fixed_private_inputs(
                 "crystallographic_review_stage": str(fixture.review_stage),
                 "execution_identity": str(fixture.execution_identity),
                 "afdb_accession_map": str(afdb_map),
+                "crystal_manifest": str(phase3_crystals),
             },
             separators=(",", ":"),
             sort_keys=True,

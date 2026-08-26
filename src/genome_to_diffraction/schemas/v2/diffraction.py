@@ -108,7 +108,9 @@ class FreeRIdentity(_ContentAddressedContract):
 
     The membership digest commits the exact sorted ``(H, K, L, raw_flag)``
     rows.  It deliberately does not convert the raw flags to work/test booleans
-    while ``convention_status`` is unresolved.
+    while ``convention_status`` is unresolved. Observation and Free-R dataset
+    IDs are recorded independently because valid MTZ files may store the flag
+    column in the base dataset while observations use a named dataset.
     """
 
     _identity_field: ClassVar[str] = "free_r_identity_id"
@@ -144,10 +146,6 @@ class FreeRIdentity(_ContentAddressedContract):
         )
         if self.diffraction_dataset_id != expected_dataset_id:
             raise ValueError("Free-R diffraction dataset identity is inconsistent")
-        if self.free_r_dataset_id != self.observation_dataset_id:
-            raise ValueError(
-                "Free-R and selected observation columns must share one MTZ dataset"
-            )
         observed_values = {item.flag_value for item in self.distribution.flag_counts}
         if self.convention_status is FreeRConventionStatus.UNRESOLVED:
             if self.test_flag_value is not None:
@@ -496,10 +494,6 @@ class DiffractionCommandBinding(_ContentAddressedContract):
         if any(value is None for value in free_r_values):
             raise ValueError(
                 "Phase III brief refinement requires a complete Free-R identity binding"
-            )
-        if self.free_r_dataset_id != self.observation_dataset_id:
-            raise ValueError(
-                "brief-refinement Free-R and observation datasets must match"
             )
         if self.free_r_membership_binding != (
             "validated_source_identity_post_refinement_exact_comparison_required"

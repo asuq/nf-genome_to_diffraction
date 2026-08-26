@@ -1,5 +1,6 @@
 """Tests for the fixed private unknown-discovery input archive."""
 
+import json
 import tarfile
 from pathlib import Path
 
@@ -27,6 +28,23 @@ def _inputs(root: Path):
         "source_record_id\tuniprot_accession\n",
         encoding="ascii",
     )
+    crystal_manifest = root / "phase3_crystals.json"
+    atomic_write_json(
+        crystal_manifest,
+        {
+            "schema_version": "1.0",
+            "crystals": [
+                {
+                    "crystal_id": crystal_id,
+                    "mtz": f"/approved/p0/inputs/{crystal_id}.mtz",
+                    "catalogue_id": "public_catalogue",
+                    "free_r_test_value": 0,
+                    "allow_remote_sequence_submission": False,
+                }
+                for crystal_id in sorted(item.crystal_id for item in fixture.crystals)
+            ],
+        },
+    )
     spec = root / UNKNOWN_DISCOVERY_SPEC_RELATIVE
     spec.parent.mkdir(parents=True)
     atomic_write_json(
@@ -36,6 +54,7 @@ def _inputs(root: Path):
             "crystallographic_review_stage": str(fixture.review_stage),
             "execution_identity": str(fixture.execution_identity),
             "afdb_accession_map": str(afdb_map),
+            "crystal_manifest": str(crystal_manifest),
         },
     )
     spec.chmod(0o600)
@@ -65,6 +84,7 @@ def test_unknown_discovery_archive_is_deterministic(tmp_path: Path) -> None:
     assert "unknown_discovery_input_manifest.json" in members
     assert "phase3_execution_identity.json" in members
     assert "afdb_accession_map.tsv" in members
+    assert "phase3_crystals.json" in members
     assert any(name.startswith("crystallographic_review_stage/") for name in members)
     extracted = tmp_path / "extracted"
     extracted.mkdir()
@@ -129,6 +149,7 @@ def test_cross_execution_review_stage_fails(tmp_path: Path) -> None:
             "crystallographic_review_stage": str(fixture.review_stage),
             "execution_identity": str(changed_path),
             "afdb_accession_map": str(afdb_map),
+            "crystal_manifest": str(tmp_path / "phase3_crystals.json"),
         },
     )
     spec.chmod(0o600)
@@ -151,11 +172,28 @@ def test_symlinked_afdb_map_fails(tmp_path: Path) -> None:
             "crystallographic_review_stage": str(fixture.review_stage),
             "execution_identity": str(fixture.execution_identity),
             "afdb_accession_map": str(linked),
+            "crystal_manifest": str(tmp_path / "phase3_crystals.json"),
         },
     )
     spec.chmod(0o600)
 
     with pytest.raises(UnknownDiscoveryInputError, match="must not be a symlink"):
+        build_unknown_discovery_input_bundle(
+            repository=tmp_path,
+            archive_path=tmp_path / "inputs.tar",
+        )
+
+
+def test_unknown_discovery_requires_explicit_free_r_test_values(
+    tmp_path: Path,
+) -> None:
+    _inputs(tmp_path)
+    manifest_path = tmp_path / "phase3_crystals.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["crystals"][0]["free_r_test_value"] = None
+    atomic_write_json(manifest_path, manifest)
+
+    with pytest.raises(UnknownDiscoveryInputError, match="explicit Free-R"):
         build_unknown_discovery_input_bundle(
             repository=tmp_path,
             archive_path=tmp_path / "inputs.tar",

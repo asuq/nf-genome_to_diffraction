@@ -73,6 +73,9 @@ def _phase3_inputs(
     flags: tuple[int, ...] = (0, 1, 0, 0, 1, 0),
 ) -> tuple[Path, Path, Path]:
     crystals, preflight, path = _inputs(tmp_path)
+    crystal_document = json.loads(crystals.read_text(encoding="utf-8"))
+    crystal_document["crystals"][0]["free_r_test_value"] = 0
+    crystals.write_text(json.dumps(crystal_document), encoding="utf-8")
     mtz = gemmi.Mtz(with_base=True)
     mtz.spacegroup = gemmi.find_spacegroup_by_name("P 21 21 21")
     mtz.set_cell_for_all(gemmi.UnitCell(100, 100, 100, 90, 90, 90))
@@ -140,7 +143,7 @@ def test_dispatch_resolves_and_verifies_manifest_owned_mtz(tmp_path: Path) -> No
 def test_phase3_dispatch_binds_selected_dataset_and_exact_free_r_membership(
     tmp_path: Path,
 ) -> None:
-    crystals, preflight, mtz = _phase3_inputs(tmp_path)
+    crystals, preflight, mtz = _phase3_inputs(tmp_path, free_dataset_id=2)
 
     output = prepare_crystal_dispatch(
         CrystalDispatchRequest(
@@ -163,10 +166,11 @@ def test_phase3_dispatch_binds_selected_dataset_and_exact_free_r_membership(
     assert selection.observation_dataset_id == 1
     assert selection.observation_labels == ("I", "SIGI")
     assert identity.diffraction_selection_id == selection.diffraction_selection_id
-    assert identity.free_r_dataset_id == 1
+    assert identity.free_r_dataset_id == 2
     assert identity.free_r_label == "FreeR_flag"
     assert identity.distribution.reflection_count == 6
-    assert identity.convention_status is FreeRConventionStatus.UNRESOLVED
+    assert identity.convention_status is FreeRConventionStatus.EXPLICIT_TEST_VALUE
+    assert identity.test_flag_value == 0
 
 
 def test_cli_phase3_dispatch_publishes_both_crystal_owned_diffraction_records(
@@ -195,20 +199,24 @@ def test_cli_phase3_dispatch_publishes_both_crystal_owned_diffraction_records(
     assert (output / "phase3_free_r_identity.json").is_file()
 
 
-@pytest.mark.parametrize("failure", ("missing", "wrong_dataset", "constant"))
+@pytest.mark.parametrize("failure", ("missing", "missing_test_value", "constant"))
 def test_phase3_dispatch_refuses_missing_or_invalid_free_r_before_publication(
     tmp_path: Path,
     failure: str,
 ) -> None:
     crystals, preflight, _ = _phase3_inputs(
         tmp_path,
-        free_dataset_id=2 if failure == "wrong_dataset" else 1,
+        free_dataset_id=1,
         flags=(0, 0, 0, 0, 0, 0) if failure == "constant" else (0, 1, 0, 0, 1, 0),
     )
     if failure == "missing":
         record = json.loads(preflight.read_text(encoding="utf-8"))
         record.update({"free_flag_labels": None, "free_flag_status": "missing"})
         preflight.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    elif failure == "missing_test_value":
+        manifest = json.loads(crystals.read_text(encoding="utf-8"))
+        manifest["crystals"][0]["free_r_test_value"] = None
+        crystals.write_text(json.dumps(manifest), encoding="utf-8")
     destination = tmp_path / "invalid-phase3-dispatch"
 
     with pytest.raises(CrystalDispatchError, match=r"Free-R|diffraction selection"):

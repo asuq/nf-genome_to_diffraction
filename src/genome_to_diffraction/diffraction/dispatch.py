@@ -224,6 +224,10 @@ def prepare_crystal_dispatch(
             raise CrystalDispatchError(
                 "Phase III dispatch requires one existing selected Free-R array"
             )
+        if crystal.free_r_test_value is None:
+            raise CrystalDispatchError(
+                "Phase III dispatch requires an explicit Free-R test value"
+            )
         try:
             diffraction_selection = build_diffraction_selection(
                 crystal=crystal,
@@ -233,8 +237,13 @@ def prepare_crystal_dispatch(
             free_r_identity = build_free_r_identity(
                 selection=diffraction_selection,
                 mtz_path=source_mtz,
-                free_r_dataset_id=diffraction_selection.observation_dataset_id,
+                # Free-R flags are reflection metadata and may legitimately
+                # live in a different MTZ dataset from F/SIGF or I/SIGI. The
+                # identity builder still requires one unique integral column
+                # and records its observed dataset ID and exact HKL mapping.
+                free_r_dataset_id=None,
                 free_r_label=preflight.free_flag_labels,
+                test_flag_value=crystal.free_r_test_value,
             )
         except (DiffractionSelectionError, FreeRIdentityError) as error:
             raise CrystalDispatchError(

@@ -171,6 +171,16 @@ def test_duplicate_label_and_conflicting_dataset_fail_closed(tmp_path: Path) -> 
     with pytest.raises(FreeRIdentityError, match="conflicting MTZ dataset"):
         _identity(conflicting)
 
+    selection = _selection(conflicting)
+    observed = build_free_r_identity(
+        selection=selection,
+        mtz_path=conflicting,
+        free_r_dataset_id=None,
+        free_r_label="FreeR_flag",
+    )
+    assert observed.observation_dataset_id == 1
+    assert observed.free_r_dataset_id == 2
+
 
 def test_non_integral_flags_fail_closed(tmp_path: Path) -> None:
     mtz_path = tmp_path / "non-integral.mtz"

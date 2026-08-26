@@ -161,7 +161,7 @@ def _inspect_free_r_array(
     *,
     mtz_sha256: str,
     mtz: gemmi.Mtz,
-    free_r_dataset_id: int,
+    free_r_dataset_id: int | None,
     free_r_label: str,
 ) -> _FreeRInspection:
     matching_labels = tuple(
@@ -176,7 +176,7 @@ def _inspect_free_r_array(
             f"label={free_r_label!r}; dataset_ids={dataset_ids}"
         )
     column = matching_labels[0]
-    if column.dataset_id != free_r_dataset_id:
+    if free_r_dataset_id is not None and column.dataset_id != free_r_dataset_id:
         raise FreeRIdentityError(
             "Free-R label belongs to a conflicting MTZ dataset: "
             f"label={free_r_label!r}; expected={free_r_dataset_id}; "
@@ -250,22 +250,22 @@ def build_free_r_identity(
     *,
     selection: DiffractionSelection,
     mtz_path: Path,
-    free_r_dataset_id: int,
+    free_r_dataset_id: int | None,
     free_r_label: str,
     test_flag_value: int | None = None,
 ) -> FreeRIdentity:
     """Validate and bind one raw Free-R mapping to a diffraction selection.
 
+    ``free_r_dataset_id=None`` accepts the sole uniquely labelled Free-R column
+    and records its observed MTZ dataset. This supports ordinary MTZ files in
+    which reflection flags are stored in the base dataset while observations
+    belong to a named crystal/dataset. Supplying an integer remains a strict
+    assertion and fails if that dataset differs.
+
     ``test_flag_value`` is never inferred.  Leave it as ``None`` unless the
     convention has been established from authoritative run metadata or review.
     """
 
-    if free_r_dataset_id != selection.observation_dataset_id:
-        raise FreeRIdentityError(
-            "Free-R dataset conflicts with the selected observation dataset: "
-            f"free_r={free_r_dataset_id}; "
-            f"observations={selection.observation_dataset_id}"
-        )
     if not free_r_label or free_r_label != free_r_label.strip():
         raise FreeRIdentityError("Free-R label must be non-empty exact text")
     if test_flag_value is not None and type(test_flag_value) is not int:

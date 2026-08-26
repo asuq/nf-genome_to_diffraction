@@ -110,6 +110,7 @@ class CrystalEntry(ContractModel):
     catalogue_id: NonEmptyString
     obs_labels: str | None = None
     free_flag_labels: str | None = None
+    free_r_test_value: int | None = None
     space_group_override: str | None = None
     high_resolution_override: PositiveFloat | None = None
     low_resolution_override: PositiveFloat | None = None

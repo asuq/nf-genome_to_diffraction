@@ -1875,6 +1875,7 @@ run_unknown_discovery() {
         "$RUN/cache/unknown-discovery-nextflow" \
         "$RUN/execution"
     load_p0_config
+    CRYSTALS="$UNKNOWN_DISCOVERY_INPUTS/phase3_crystals.json"
     input_id="$(<"$RUN/state/unknown-discovery-input-id")"
     execution_identity_id="$(<"$RUN/state/phase3-execution-identity-id")"
     review_stage_index_id="$(<"$RUN/state/unknown-review-stage-index-id")"
@@ -1989,6 +1990,7 @@ run_unknown_screen() {
         "$RUN/cache/unknown-screen-nextflow" \
         "$RUN/execution"
     load_p0_config
+    CRYSTALS="$UNKNOWN_SCREEN_INPUTS/phase3_crystals.json"
     [[ -d "$UNKNOWN_SCREEN_INPUTS" && ! -L "$UNKNOWN_SCREEN_INPUTS" && \
        -d "$UNKNOWN_SCREEN_DISCOVERY" && ! -L "$UNKNOWN_SCREEN_DISCOVERY" && \
        -d "$UNKNOWN_SCREEN_PREPARATION" && ! -L "$UNKNOWN_SCREEN_PREPARATION" ]] || \

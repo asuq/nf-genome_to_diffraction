@@ -202,6 +202,13 @@ def _crystal_tsv(rows: Iterator[tuple[int, dict[str, str]]], path: Path) -> obje
                 row=row_number,
                 column=field,
             )
+        converted["free_r_test_value"] = _number(
+            row.get("free_r_test_value", ""),
+            converter=int,
+            path=path,
+            row=row_number,
+            column="free_r_test_value",
+        )
         converted["sds_page_mass_kda"] = [
             float(item) for item in _split(row.get("sds_page_mass_kda", ""))
         ]

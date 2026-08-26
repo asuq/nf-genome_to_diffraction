@@ -3,7 +3,8 @@
 The reviewed wrapper reads one mode-0600 untracked specification at
 ``.untracked/phase3-unknown-pass1/unknown-discovery-inputs.json``.  The spec
 names the already staged three-crystal review directory, exact Phase III
-execution identity, and explicit AFDB accession map.  Paths never enter the
+execution identity, explicit AFDB accession map, and run-specific crystal
+manifest carrying the reviewed Free-R test values. Paths never enter the
 archive manifest: only canonical member names, sizes, checksums, typed IDs, and
 the complete three-crystal inventory are retained.
 
@@ -21,7 +22,7 @@ import sys
 import tarfile
 import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from pydantic import ValidationError
 
@@ -31,6 +32,7 @@ from genome_to_diffraction.execution import (
 )
 from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
+from genome_to_diffraction.schemas.manifests import CrystalManifest
 from genome_to_diffraction.schemas.v2 import PhaseIIIExecutionIdentity
 from genome_to_diffraction.status import InputContractError
 
@@ -40,6 +42,7 @@ UNKNOWN_DISCOVERY_SPEC_RELATIVE = Path(
 UNKNOWN_DISCOVERY_MANIFEST_NAME = "unknown_discovery_input_manifest.json"
 _EXECUTION_NAME = "phase3_execution_identity.json"
 _AFDB_MAP_NAME = "afdb_accession_map.tsv"
+_CRYSTALS_NAME = "phase3_crystals.json"
 _REVIEW_ROOT_NAME = "crystallographic_review_stage"
 _MAX_SPEC_BYTES = 32 * 1024
 _MAX_AFDB_MAP_BYTES = 4 * 1024 * 1024
@@ -49,6 +52,7 @@ _SPEC_KEYS = frozenset(
         "crystallographic_review_stage",
         "execution_identity",
         "afdb_accession_map",
+        "crystal_manifest",
     }
 )
 _SOURCE_RECORD_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
@@ -173,6 +177,46 @@ def _afdb_map(path: Path) -> bytes:
     return payload
 
 
+def _phase3_crystal_manifest(
+    path: Path,
+    *,
+    crystal_ids: tuple[str, ...],
+    execution: PhaseIIIExecutionIdentity,
+) -> CrystalManifest:
+    try:
+        document = CrystalManifest.model_validate_json(path.read_bytes())
+    except (ContractLoadError, OSError, ValidationError, ValueError) as error:
+        raise UnknownDiscoveryInputError(
+            "Phase III crystal manifest violates its typed contract"
+        ) from error
+    observed_ids = tuple(item.crystal_id for item in document.crystals)
+    if observed_ids != tuple(sorted(crystal_ids)):
+        raise UnknownDiscoveryInputError(
+            "Phase III crystal manifest must contain the exact sorted reviewed panel"
+        )
+    artifact_ids = {
+        item.owner_id for item in execution.crystal_artifacts if item.role == "mtz"
+    }
+    if artifact_ids != set(crystal_ids):
+        raise UnknownDiscoveryInputError(
+            "execution identity must bind every Phase III crystal MTZ"
+        )
+    for crystal in document.crystals:
+        mtz = PurePosixPath(crystal.mtz)
+        if (
+            not mtz.is_absolute()
+            or ".." in mtz.parts
+            or mtz.suffix.lower() != ".mtz"
+            or crystal.allow_remote_sequence_submission
+            or crystal.free_r_test_value is None
+        ):
+            raise UnknownDiscoveryInputError(
+                "Phase III crystals require absolute MTZ paths, explicit Free-R "
+                "test values, and prohibited remote sequence submission"
+            )
+    return document
+
+
 def _add_file(archive: tarfile.TarFile, name: str, source: Path) -> None:
     info = archive.gettarinfo(str(source), arcname=name)
     info.uid = 0
@@ -206,9 +250,17 @@ def build_unknown_discovery_input_bundle(
         spec["afdb_accession_map"],
         label="AFDB accession map",
     )
-    if not execution_path.is_file() or not afdb_path.is_file():
+    crystals_path = _absolute_path(
+        spec["crystal_manifest"],
+        label="Phase III crystal manifest",
+    )
+    if (
+        not execution_path.is_file()
+        or not afdb_path.is_file()
+        or not crystals_path.is_file()
+    ):
         raise UnknownDiscoveryInputError(
-            "unknown-discovery execution/map inputs must be regular files"
+            "unknown-discovery execution/map/crystal inputs must be regular files"
         )
     try:
         execution = PhaseIIIExecutionIdentity.model_validate(
@@ -234,12 +286,18 @@ def build_unknown_discovery_input_bundle(
         raise UnknownDiscoveryInputError(
             "unknown discovery requires exactly three reviewed crystals"
         )
+    _phase3_crystal_manifest(
+        crystals_path,
+        crystal_ids=crystal_ids,
+        execution=execution,
+    )
     afdb_payload = _afdb_map(afdb_path)
     review_files = _review_files(review_root)
     members = (
         *review_files,
         (_EXECUTION_NAME, execution_path),
         (_AFDB_MAP_NAME, afdb_path),
+        (_CRYSTALS_NAME, crystals_path),
     )
     file_records = [
         {
@@ -280,7 +338,10 @@ def build_unknown_discovery_input_bundle(
                 UNKNOWN_DISCOVERY_MANIFEST_NAME,
                 manifest_path,
             )
-    if hashlib.sha256(afdb_payload).hexdigest() != file_records[-1]["sha256"]:
+    afdb_record = next(
+        item for item in file_records if item["relative_path"] == _AFDB_MAP_NAME
+    )
+    if hashlib.sha256(afdb_payload).hexdigest() != afdb_record["sha256"]:
         raise AssertionError("AFDB map changed during archive construction")
     return UnknownDiscoveryInputBundle(
         input_id=input_id,
@@ -436,6 +497,11 @@ def validate_unknown_discovery_input_tree(
             "extracted review and execution authorities differ"
         )
     _afdb_map(root / _AFDB_MAP_NAME)
+    _phase3_crystal_manifest(
+        root / _CRYSTALS_NAME,
+        crystal_ids=tuple(item.crystal_id for item in review_index.review_bindings),
+        execution=execution,
+    )
 
 
 def main() -> int:

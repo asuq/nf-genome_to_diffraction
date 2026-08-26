@@ -146,6 +146,15 @@ Scope: `FCB-P0-01`, `FCB-P0-03`, `FCB-P1-01`, and `FCB-P1-02`.
   public control evidence; reject missing or contradictory packing records.
 - Require one authoritative Free-R test value and exact independent reflection
   membership before refinement. Hold unresolved conventions for review.
+  Completed locally for raw-array identity: a unique integral Free-R column may
+  reside in a different MTZ dataset from the selected observations, as in the
+  frozen CD6 input. Both dataset IDs and the exact HKL-to-flag mapping are
+  retained; explicit wrong-dataset assertions and duplicate labels still fail.
+  The private unknown profile now carries a separate checksum-bound crystal
+  manifest with one explicit test value per reviewed crystal and refuses a
+  missing value before Phase III dispatch. The frozen MTZ histories identify
+  CCP4 FREERFLAG and its official convention establishes test value 0; the
+  final owned manifest still requires exact-source packaging and HPC evidence.
 - Require complete, explicitly successful sequence-from-map output; malformed,
   truncated, non-finite, and genuinely empty records remain distinguishable.
 - Decode scientific PDB, solution, and authoritative log bytes strictly;

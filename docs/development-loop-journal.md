@@ -13574,3 +13574,42 @@ with a collapsed combined parent or a guessed command.
 - This code has not been deployed: the existing component control must first
   finish and be collected with its old wire protocol. No remote tool,
   scheduler job, provider request, threshold, or unknown crystal changed.
+- The initial CI stopped only at Ruff formatting. The focused formatting
+  correction retained the passing regression and successor exact-source CI
+  `32934108654` / `98071929325` passed on `eb0eadc` under Pixi 0.76.2.
+
+## 2026-08-25 - Frozen CD6 cross-dataset Free-R metadata is retained
+
+- A local replay of the exact frozen CD6 MTZ exposed a real pre-MR defect: its
+  sole `FreeR_flag` column is in base MTZ dataset 0 while the selected intensity
+  observations are in dataset 1. The former equality rule rejected this valid
+  layout even though both arrays belong to the same checksum-bound MTZ.
+- Phase III dispatch now accepts only the unique integral Free-R column when no
+  dataset assertion is supplied, records both dataset IDs independently, and
+  retains its exact distribution and HKL-to-flag membership. Explicitly wrong
+  dataset assertions and duplicate labels still fail closed.
+- Twenty focused Free-R/dispatch tests pass, and the exact frozen CD6 dispatch
+  that reproduced the failure now succeeds. This does not choose the Free-R
+  test value: all three MTZ histories identify CCP4 FREERFLAG at 5%, and the
+  separate convention authority remains to be bound before refinement. No
+  remote tool, scheduler job, provider request, threshold, or unknown MR ran.
+
+## 2026-08-25 - Unknown execution carries explicit Free-R authority
+
+- Phase III crystal entries may now carry an explicit Free-R test value, and
+  diffraction dispatch refuses to publish a Phase III identity when it is
+  absent. The value is passed into the content-addressed Free-R identity; it is
+  never inferred from the observed distribution.
+- The fixed private discovery spec now requires a separate three-crystal
+  manifest with explicit values, archives it, revalidates it after transfer,
+  and makes both discovery and offline screen consume that immutable copy. The
+  original frozen P0 manifest remains unchanged.
+- The exact MTZ histories name CCP4 FREERFLAG with a 0.050 fraction, and the
+  official CCP4 program convention defines value 0 as the free set. The final
+  private value-0 manifest and review packages remain to be materialised against
+  the exact execution commit. Local exact-input dispatch succeeded for all
+  three frozen MTZs with `explicit_test_value_supplied`; AD4/CD4 bind dataset
+  1/1 and CD6 binds observation dataset 1 plus Free-R dataset 0. Focused
+  schema/archive/dispatch tests and the real dispatcher
+  discovery-to-screen-to-single fake-scheduler chain pass. No remote tool,
+  scheduler job, provider request, threshold, or unknown MR ran.

@@ -471,6 +471,16 @@ must still bind those retained Xtriage/preflight bytes and the exact execution
 identity used for the run; they will be materialised only after the remaining
 RG1--RG3 code gates stop changing that identity.
 
+The fixed private discovery bundle now also carries a separate run-specific
+crystal manifest. It must cover the exact reviewed panel, prohibit remote
+sequence submission, and provide an explicit Free-R test value for every
+crystal. The frozen P0 manifest is never rewritten. The three MTZ histories
+record CCP4 FREERFLAG at 5%; the [official CCP4 FREERFLAG convention](https://www.ccp4.ac.uk/html/freerflag.html)
+defines flag 0 as the free set. The final owned value-0 manifest must remain
+checksum-bound to those review inputs. Missing values fail before staging, and
+the offline screen consumes the archived manifest rather than site-global
+mutable metadata.
+
 Status: the explicit Phase III application now plans complete deterministic
 Foldseek batches of at most 128 exact sequence groups, invokes the existing
 provider-bound adapter in one Nextflow task per batch, enforces one concurrent
