@@ -84,6 +84,7 @@ Scope: `FCB-P0-04`, `FCB-P0-06`, `FCB-P0-09`, `FCB-P1-04`, `FCB-P1-05`,
   successful owned discovery parent, performs only bounded login acquisition,
   refuses submit without the resulting provider preparation, and its job body
   rejects any provider-search/download process before accepting cached replay.
+  Exact-source CI `32929375446` passed on `e87c679` for discovery and screen.
   The fixed `unknown-single-component` wrapper is now locally complete as well:
   it accepts at most three checksum-confirmed A-seed TSVs owned by the exact
   successful screen, builds the canonical owned registry/stages/routes, and

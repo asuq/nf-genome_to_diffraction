@@ -13525,7 +13525,8 @@ with a collapsed combined parent or a guessed command.
 - Two focused controller ownership cases and the real dispatcher/fake-Slurm
   discovery-to-screen lifecycle pass, including nine cached offline tasks and
   terminal success. Bash syntax and the existing application gates remain
-  green.
+  green. Exact-source CI `32929375446` / `98058501395` passed on
+  `e87c6796121dde62a5a91a440e3beff951b4508d` under Pixi 0.76.2 in 20m51s.
 - `unknown-single-component`, exact-source CI for wrapper changes, deployment,
   and real Marmic qualification remain. No remote tool, scheduler job, provider
   request, threshold, or unknown crystal was changed.

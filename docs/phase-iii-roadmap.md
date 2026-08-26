@@ -450,6 +450,8 @@ owned discovery can trigger login staging, submit is refused without the exact
 provider preparation, and the Slurm body rejects provider/search processes and
 requires a fully cached offline replay. Its real-dispatcher/fake-Slurm lifecycle
 passes; deployment and Marmic evidence remain.
+Exact-source CI `32929375446` passed on `e87c679` for the discovery and screen
+wrapper chain under Pixi 0.76.2.
 The fixed `unknown-single-component` wrapper is now locally implemented. It
 accepts one to three checksum-confirmed A-seed TSVs owned by the exact terminal
 screen, creates the canonical registry/review stages and crystal routes, and
