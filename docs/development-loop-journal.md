@@ -13827,3 +13827,35 @@ with a collapsed combined parent or a guessed command.
   actionlint, Nextflow, all cached workflow profiles, packaging, and wrapper
   syntax. Commit once, watch one CI, deploy, and submit one successor; do not
   reuse `634831` or run unknown crystals.
+
+## 2026-08-26 - Positive 9ECN depth-three control is accepted on Marmic
+
+- Parser-corrected commit `353d670`, CI `33017159154` / `98338220297`, ran as
+  owned Marmic control `gtd-heteromer-smoke-20260826T222144Z-353d670da149-14f94edb`,
+  Slurm `634860`. It completed successfully in 55 minutes 19 seconds under
+  pinned nf-helper `82431e4`, Pixi 0.76.2, and Phenix 2.1-6048. Deployed
+  dispatcher/job-wrapper/recovery digests were
+  `34f57ad4a7a362e277af24bbe111be277d8a920ab88d377680ddbcf81d9d5b2b`,
+  `dcc792e467e3fbb12389c3d826bfc7a70d97d0d09779856255ea644b787ea69c`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Every prerequisite remained green: 6RTZ recovered `1A+1B` at incremental
+  LLG 5054.654/TFZ 71.2; 3U7Q recovered `2A+2B` at incremental LLG
+  229112.711/TFZ 371.4; the 1,845-member non-A catalogue selected one model and
+  typed 1,844 unsearchable; all six P6 assessments passed. Wrong B again
+  packed at incremental LLG 327.049/TFZ 5.1 but remained
+  `search_evidence_only` with no identity or composition claim.
+- The frozen 9ECN chain recovered joint two-copy A at LLG 3507.703/TFZ 19.3,
+  fixed-A/search-two-B at combined LLG 15220.216, incremental LLG 11712.513,
+  TFZ 27.8, then fixed-A+B/search-two-C at combined LLG 26455.18,
+  incremental LLG 11234.964, and C-specific TFZ 55.8. All three components
+  are packed with requested/observed copies `2/2`; exact grouped coordinates
+  recombine to the 18,842-atom combined model.
+- The final Phase III control summary sets `gate_passed=true` and
+  `known_control_recovered`, while the generic result remains
+  `search_evidence_only` with both exact-identity and complete-composition
+  claims false. All 46 9ECN, 46 prerequisite placement, and 47 P6 checksums
+  validate, and all seven executable-hashed Phenix identities pass.
+- The positive three-component installed-runtime gate is accepted. This does
+  not complete the remaining wrong-C/no-false-C negative ladder, depths four
+  through six remain provisional, and no unknown crystal has run. Next close
+  the bounded login-staging/localisation prerequisites before unknown pass 1.

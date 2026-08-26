@@ -185,8 +185,12 @@ Scope: `FCB-P0-01`, `FCB-P0-03`, `FCB-P1-01`, and `FCB-P1-02`.
   existed. CI-qualified recollection of that unchanged run proved one packed
   two-copy A solution and isolated optional-`#1` annotation plus singular
   packing grammar variants. The narrow parser fix now derives final LLG 3507.93,
-  TFZ 19.3, and accepted/packed 1/1 from that exact raw log; one successor
-  remains before installed-runtime depth-three acceptance.
+  TFZ 19.3, and accepted/packed 1/1 from that exact raw log. Exact-source
+  successor `634860` then recovered packed `2A+2B+2C`, with exact component
+  partitions and 18,842-atom recombination; all 46 Phase III checksums match
+  and generic identity/composition claims remain false. The positive
+  installed-runtime depth-three packing stop is satisfied. Other RG2 evidence
+  boundaries still apply before unknown pass 1.
 
 Acceptance: one focused regression per invented/missing observation plus the
 existing 6RTZ/3U7Q public controls. Missing packing blocks 9ECN acceptance;

@@ -386,8 +386,14 @@ focused collection fix passed CI and safely recollected the same failed run.
 The evidence proves a packed two-copy A solution and isolates two coupled
 terminal-parser spelling variants: optional `#1` in the solution annotation and
 singular/plural packing grammar. The narrow parser fix and real-log replay pass;
-the full locked gate passes, and one exact-source CI/deployment/successor
-remains. Depth three remains unaccepted.
+the full locked gate passes. Exact-source commit `353d670`, CI `33017159154`,
+and Marmic job `634860` then recovered packed `2A+2B+2C`: A LLG/TFZ
+3507.703/19.3, B incremental LLG/TFZ 11712.513/27.8, and C incremental
+LLG/TFZ 11234.964/55.8. Requested/observed copies are `2/2` for A, B, and C;
+exact grouped coordinates recombine to all 18,842 atoms; all 46 Phase III
+checksums validate. The generic search remains `search_evidence_only` with no
+identity or complete-composition claim. Positive depth three is accepted;
+wrong-C/no-false-C controls remain before the full validation ladder closes.
 
 ### PH4 - Localisation and gel evidence
 
