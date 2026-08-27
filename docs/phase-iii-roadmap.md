@@ -405,7 +405,13 @@ retains all first-wave exclusions, and gates deterministic reopen on a complete
 zero-pack active wave. DeepTMHMM remains `blocked_unverified_cli` until the supplied
 image exposes a verifiable local entrypoint/output format. Composition-planner
 consumption is now implemented through the complete candidate-generation
-inventory; real runtime/profile qualification remains pending.
+inventory; real runtime/profile qualification remains pending. A pre-unknown
+audit found that the live production `provider_discovery`/`first_copy` route
+does not yet carry the gel manifest or localisation policy into the A funnel,
+although the synthetic screen path does. The private gel manifest is valid and
+empty, so it remains neutral. No DeepTMHMM image or PSORTb runtime exists; no
+prediction has been fabricated. Unknown pass 1 remains stopped pending the
+smallest live-route integration and PSORTb runtime qualification.
 
 Run checksum-pinned local PSORTb 3.0.6 with its archaeal model and DeepTMHMM
 1.0 from a user-provided academic runtime image. Record runtime/image digests,

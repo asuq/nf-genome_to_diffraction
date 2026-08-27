@@ -13859,3 +13859,29 @@ with a collapsed combined parent or a guessed command.
   not complete the remaining wrong-C/no-false-C negative ladder, depths four
   through six remain provisional, and no unknown crystal has run. Next close
   the bounded login-staging/localisation prerequisites before unknown pass 1.
+
+## 2026-08-27 - Pre-unknown localisation audit finds a live-route omission
+
+- The 9ECN acceptance-evidence commit `a7b0b47` passed exact-source CI
+  `33023439557` / `98359108298`. No further control or unknown profile ran.
+- The private Phase III gel manifest is a valid schema-v2 manifest with zero
+  observations. This is honest missing evidence and must remain neutral. No
+  user-supplied DeepTMHMM 1.0 academic image/checksum exists, so that tool must
+  remain `blocked_unverified_cli`; no command or prediction may be invented.
+- No PSORTb runtime exists locally. The official Brinkman Lab command-line
+  container tag `brinkmanlab/psortb_commandline:1.0.2` contains PSORTb 3.0.6
+  and documents an Apptainer route, but nothing has been pulled or staged.
+  A fixed checksum-bound login-only stage plus offline compute contract must
+  pass before catalogue sequences use it.
+- The production `provider_discovery` and `first_copy` workflows currently
+  accept neither a gel manifest nor a complete localisation bundle. The older
+  unknown-pass-1 stub carries a `shared_localisation` path, and composition
+  candidate generation can consume typed localisation, but the live A funnel
+  silently omits both priors. The execution identity hashes the gel file
+  without making its bytes a live scientific input. Unknown pass 1 therefore
+  remains stopped.
+- Record this as `PH3-P1-25`. The next implementation depends on one explicit
+  operator choice: supply a DeepTMHMM image, or keep DeepTMHMM blocked and
+  qualify a PSORTb-only prototype while the empty gel evidence remains neutral.
+  Do not materialise a new source-bound private authority or launch an unknown
+  profile before that choice and the focused live-route integration.
