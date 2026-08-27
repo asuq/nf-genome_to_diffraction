@@ -3,8 +3,9 @@
 This is one scientifically dependent chain inside one fixed control task. It
 runs joint two-copy McrA, fixes that parent while placing two McrB copies,
 derives exact component-only A/B coordinates, then fixes both independent
-uncertainty models while placing two McrG copies. No step consults unknown
-datasets or changes thresholds.
+uncertainty models while placing two McrG copies. The same A+B parent is then
+challenged with the frozen wrong-B control model as a deliberately wrong C.
+No step consults unknown datasets or changes thresholds.
 
 The final report applies frozen public-control truth only after execution. The
 generic multi-fixed result remains ``search_evidence_only`` and cannot create an
@@ -29,6 +30,7 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.diffraction import PreflightRequest, preflight_crystals
+from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.mr import (
     CandidateSearchComponent,
     ExpectedPhaserComponent,
@@ -42,9 +44,10 @@ from genome_to_diffraction.mr import (
     run_multi_fixed_search,
     run_partner_search,
 )
+from genome_to_diffraction.schemas.results import SequenceGroupRecord
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
-_ADAPTER_VERSION = "9ecn-phase3-depth-three-control-v1"
+_ADAPTER_VERSION = "9ecn-phase3-depth-three-control-v2-wrong-c"
 _DIGEST = re.compile(r"^[a-f0-9]{64}$")
 
 
@@ -58,6 +61,11 @@ class Phase3ControlExecutionRequest:
 
     preparation_directory: Path
     phenix_manifest: Path
+    wrong_c_sequence_groups_jsonl: Path
+    wrong_c_sequence_group_id: str
+    wrong_c_model: Path
+    expected_wrong_c_model_sha256: str
+    wrong_c_model_identity_fraction: float
     output_directory: Path
     threads: int = 1
     timeout_seconds: float | None = None
@@ -187,6 +195,31 @@ def _component_group(inventory: dict[str, object], label: str) -> dict[str, obje
     return row
 
 
+def _sequence_group_index(path: Path) -> dict[str, SequenceGroupRecord]:
+    records: dict[str, SequenceGroupRecord] = {}
+    try:
+        lines = path.resolve(strict=True).read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as error:
+        raise Phase3ControlExecutionError(
+            "cannot read control sequence groups"
+        ) from error
+    for line_number, line in enumerate(lines, start=1):
+        if not line.strip():
+            continue
+        try:
+            record = SequenceGroupRecord.model_validate_json(line)
+        except ValueError as error:
+            raise Phase3ControlExecutionError(
+                f"invalid control sequence group at line {line_number}"
+            ) from error
+        if record.sequence_group_id in records:
+            raise Phase3ControlExecutionError("duplicate control sequence group")
+        records[record.sequence_group_id] = record
+    if not records:
+        raise Phase3ControlExecutionError("control sequence groups are empty")
+    return records
+
+
 def run_9ecn_phase3_control(
     request: Phase3ControlExecutionRequest,
 ) -> Phase3ControlExecutionResult:
@@ -196,6 +229,11 @@ def run_9ecn_phase3_control(
         request.timeout_seconds is not None and request.timeout_seconds <= 0
     ):
         raise ValueError("threads and optional timeout must be positive")
+    if (
+        _DIGEST.fullmatch(request.expected_wrong_c_model_sha256) is None
+        or not 0 < request.wrong_c_model_identity_fraction <= 1
+    ):
+        raise ValueError("wrong-C checksum and identity must be valid")
     prepared = request.preparation_directory.resolve(strict=True)
     manifest_path = prepared / "preparation_manifest.json"
     preparation = _load(manifest_path)
@@ -231,6 +269,24 @@ def run_9ecn_phase3_control(
         for label in ("A", "B", "C")
     ):
         raise Phase3ControlExecutionError("9ECN component model identity differs")
+    control_groups = _sequence_group_index(sequence_groups)
+    wrong_groups = _sequence_group_index(request.wrong_c_sequence_groups_jsonl)
+    wrong_group = wrong_groups.get(request.wrong_c_sequence_group_id)
+    component_group_ids = {
+        str(components[label]["sequence_group_id"]) for label in ("A", "B", "C")
+    }
+    if (
+        set(control_groups) != component_group_ids
+        or wrong_group is None
+        or wrong_group.sequence_group_id in component_group_ids
+    ):
+        raise Phase3ControlExecutionError("wrong-C sequence identity is not distinct")
+    wrong_model = request.wrong_c_model.resolve(strict=True)
+    if (
+        sha256_file(wrong_model, progress=False)
+        != request.expected_wrong_c_model_sha256
+    ):
+        raise Phase3ControlExecutionError("wrong-C model identity differs")
     output = request.output_directory.absolute()
     if output.exists() and any(output.iterdir()):
         raise Phase3ControlExecutionError("9ECN execution output is not empty")
@@ -431,6 +487,66 @@ def run_9ecn_phase3_control(
     )
     if not gate:
         raise Phase3ControlExecutionError("9ECN depth-three placement gate failed")
+    wrong_sequence_groups = output / "wrong_C_sequence_groups.jsonl"
+    atomic_write_text(
+        wrong_sequence_groups,
+        "".join(
+            f"{canonical_json_text(group)}\n"
+            for group in sorted(
+                (
+                    control_groups[str(component_a["sequence_group_id"])],
+                    control_groups[str(component_b["sequence_group_id"])],
+                    wrong_group,
+                ),
+                key=lambda item: item.sequence_group_id,
+            )
+        ),
+    )
+    wrong_manifest = output / "wrong_C_input.json"
+    atomic_write_json(
+        wrong_manifest,
+        MultiFixedSearchManifest(
+            schema_version="2.0",
+            adapter_version="multi-fixed-component-search-input-v1",
+            crystal_id="9ECN",
+            parent_solution_id=partner.result.combined_solution_id,
+            parent_combined_llg=partner.result.combined_llg,
+            fixed_components=fixed_components,
+            candidate=CandidateSearchComponent(
+                schema_version="2.0",
+                label="C",
+                sequence_group_id=wrong_group.sequence_group_id,
+                model_id=f"wrong_c_{request.expected_wrong_c_model_sha256}",
+                model_sha256=request.expected_wrong_c_model_sha256,
+                model_path=str(wrong_model),
+                requested_copy_count=2,
+                phaser_identity_fraction=request.wrong_c_model_identity_fraction,
+                model_uncertainty_source="frozen distinct public-control wrong model",
+                model_uncertainty_evidence_sha256=wrong_group.sha256,
+            ),
+        ).model_dump(mode="json"),
+    )
+    wrong_c_result = run_multi_fixed_search(
+        manifest_path=wrong_manifest,
+        sequence_groups_jsonl=wrong_sequence_groups,
+        preflight_jsonl=preflight.jsonl_path,
+        mtz_path=mtz,
+        phenix_manifest=request.phenix_manifest,
+        output_directory=output / "wrong_C",
+        threads=request.threads,
+        timeout_seconds=request.timeout_seconds,
+    )
+    if wrong_c_result.execution_status not in {
+        ExecutionStatus.COMPLETED_HIT,
+        ExecutionStatus.COMPLETED_NO_HIT,
+    }:
+        raise Phase3ControlExecutionError("wrong-C search did not complete")
+    if (
+        wrong_c_result.scientific_status != "search_evidence_only"
+        or wrong_c_result.exact_identity_claimed
+        or wrong_c_result.complete_composition_claimed
+    ):
+        raise Phase3ControlExecutionError("wrong-C search promoted a scientific claim")
     report = output / "phase3-9ecn-control-summary.json"
     atomic_write_json(
         report,
@@ -443,6 +559,13 @@ def run_9ecn_phase3_control(
             "generic_scientific_status": component_c_result.scientific_status,
             "exact_identity_claimed_by_search": False,
             "complete_composition_claimed_by_search": False,
+            "wrong_c_claim_boundary_passed": True,
+            "wrong_c_execution_status": wrong_c_result.execution_status,
+            "wrong_c_top_solution_packed": wrong_c_result.top_solution_packed,
+            "wrong_c_candidate_tfz": wrong_c_result.candidate_tfz,
+            "wrong_c_incremental_llg": wrong_c_result.incremental_llg,
+            "wrong_c_exact_identity_claimed": False,
+            "wrong_c_complete_composition_claimed": False,
             "component_copy_counts": {
                 label: groups[label]["observed_copy_count"] for label in ("A", "B", "C")
             },
@@ -459,6 +582,7 @@ def run_9ecn_phase3_control(
             ),
             "placement_inventory": "component_C/phaser_per_placement_inventory.json",
             "result": "component_C/component_search_result.json",
+            "wrong_c_result": "wrong_C/component_search_result.json",
         },
     )
     for path in output.rglob("*"):

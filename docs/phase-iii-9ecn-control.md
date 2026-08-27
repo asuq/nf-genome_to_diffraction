@@ -60,11 +60,35 @@ input preparation only: it runs no Phaser search and makes no scientific
 identity or composition claim. Real 6RTZ/3U7Q native-placement recombination
 must pass before 9ECN scientific execution.
 
+## Positive and wrong-C execution
+
+The installed-runtime runner performs one dependent positive chain: joint
+two-copy A, fixed-A/search-two-B, exact A/B coordinate partition, then
+fixed-A+B/search-two-C and exact A/B/C partition. It requires all requested
+copies, final packing, component markers, and atom-complete recombination.
+
+The same fixed A+B parent is also searched with the frozen distinct 3U7Q-B
+wrong-partner model declared as C. The runner checksum-binds that model, its
+distinct sequence group, identity/error evidence, and two-copy request. A
+scientifically completed hit or no-hit is acceptable negative-control
+evidence. A packed or high-scoring wrong C must remain
+`search_evidence_only`; exact identity and complete-composition claims are
+always false. Tool, parser, input, or infrastructure failure is not accepted
+as a negative result.
+
+The control cache/checksum identity advances when this wrong-C input or result
+changes. All positive and negative commands, raw logs, results, coordinates,
+manifests, and summary fields are retained by the fixed heteromer-smoke
+profile.
+
 ## Tests and primary source
 
 Focused regressions cover the frozen protocol identity, expression-tag and
-reference-alignment mutation, all three checksum-bound model records, and the
-joint two-copy parent hypothesis. The existing 6RTZ/3U7Q preparation tests
-remain green.
+reference-alignment mutation, all three checksum-bound model records, joint
+two-copy parent hypothesis, changed wrong-C model rejection, dangerous packed
+wrong-C no-claim outcome, fixed-wrapper command binding, complete fake-HPC
+lifecycle, collection, and checksums. The existing 6RTZ/3U7Q preparation tests
+remain green. A fresh exact-source Marmic control remains required before the
+negative ladder is accepted.
 
 - [RCSB PDB entry 9ECN](https://www.rcsb.org/structure/9ECN)

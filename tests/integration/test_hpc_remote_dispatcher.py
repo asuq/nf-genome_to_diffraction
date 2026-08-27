@@ -548,17 +548,25 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "component_C/component_search_result.json component_C/phaser_command.json "
         "component_C/PHASER.log component_C/component_A.pdb "
         "component_C/component_B.pdb component_C/component_C.pdb "
-        "component_C/phaser_per_placement_inventory.json)\n"
+        "component_C/phaser_per_placement_inventory.json "
+        "wrong_C_input.json wrong_C_sequence_groups.jsonl "
+        "wrong_C/component_search_result.json wrong_C/phaser_command.json "
+        "wrong_C/PHASER.log)\n"
         '  for relative in "${paths[@]}"; do\n'
         '    directory="${relative%/*}"\n'
         '    [[ "$directory" == "$relative" ]] || mkdir -p "$outdir/$directory"\n'
         '    printf "fake 9ECN retained evidence\\n" > "$outdir/$relative"\n'
         "  done\n"
-        '  printf \'{"adapter_version":"9ecn-phase3-depth-three-control-v1",'
+        '  printf \'{"adapter_version":"9ecn-phase3-depth-three-control-v2-wrong-c",'
         '"control":"9ECN_McrA_McrB_McrG_2A_2B_2C",'
         '"gate_passed":true,"component_copy_counts":{"A":2,"B":2,"C":2},'
         '"exact_identity_claimed_by_search":false,'
-        '"complete_composition_claimed_by_search":false}\\n\' '
+        '"complete_composition_claimed_by_search":false,'
+        '"wrong_c_claim_boundary_passed":true,'
+        '"wrong_c_execution_status":"completed_hit",'
+        '"wrong_c_top_solution_packed":true,'
+        '"wrong_c_exact_identity_claimed":false,'
+        '"wrong_c_complete_composition_claimed":false}\\n\' '
         '> "$outdir/phase3-9ecn-control-summary.json"\n'
         '  (cd "$outdir" && sha256sum "${paths[@]}" '
         "phase3-9ecn-control-summary.json) "
@@ -5378,6 +5386,24 @@ def test_heteromer_wrong_partner_preserves_parent_model_uncertainty() -> None:
     )
 
 
+def test_9ecn_wrong_c_uses_the_frozen_distinct_control_model() -> None:
+    wrapper = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(
+        encoding="utf-8"
+    )
+    phase = wrapper.split(
+        "printf 'phase=heteromer_phase3_9ecn profile=heteromer-smoke\\n'",
+        maxsplit=1,
+    )[1]
+    invocation = phase.split('\n    "$PYTHON"', maxsplit=1)[0]
+
+    assert "--wrong-c-sequence-groups" in invocation
+    assert '"$p6_inputs/wrong_partner/sequence_groups.jsonl"' in invocation
+    assert '--wrong-c-sequence-group-id "$p6_wrong_group"' in invocation
+    assert '--wrong-c-model "$p6_inputs/wrong_partner/model.pdb"' in invocation
+    assert '--expected-wrong-c-model-sha256 "$p6_wrong_model_sha"' in invocation
+    assert '--wrong-c-model-identity-fraction "$p6_wrong_identity"' in invocation
+
+
 def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     tmp_path: Path,
 ) -> None:
@@ -5639,6 +5665,11 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert phase3_control["component_copy_counts"] == {"A": 2, "B": 2, "C": 2}
     assert phase3_control["exact_identity_claimed_by_search"] is False
     assert phase3_control["complete_composition_claimed_by_search"] is False
+    assert phase3_control["wrong_c_claim_boundary_passed"] is True
+    assert phase3_control["wrong_c_execution_status"] == "completed_hit"
+    assert phase3_control["wrong_c_top_solution_packed"] is True
+    assert phase3_control["wrong_c_exact_identity_claimed"] is False
+    assert phase3_control["wrong_c_complete_composition_claimed"] is False
     phase3_checksum_paths = {
         line.split(maxsplit=1)[1]
         for line in (phase3_control_root / "phase3-9ecn-control-checksums.sha256")
@@ -5650,6 +5681,7 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         "partner_B/phaser_per_placement_inventory.json",
         "component_C/component_search_result.json",
         "component_C/phaser_per_placement_inventory.json",
+        "wrong_C/component_search_result.json",
         "phase3-9ecn-control-summary.json",
     } <= phase3_checksum_paths
     log = (run / "logs/heteromer-smoke.log").read_text(encoding="utf-8")
@@ -5698,6 +5730,10 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert (
         "artifacts/heteromer-smoke/phase3-control/component_C/"
         "phaser_per_placement_inventory.json" in names
+    )
+    assert (
+        "artifacts/heteromer-smoke/phase3-control/wrong_C/"
+        "component_search_result.json" in names
     )
     assert "artifacts/heteromer-smoke/parent/normalised_mr_result.json" in names
     assert (
@@ -5850,6 +5886,14 @@ def test_heteromer_collection_retains_partial_9ecn_parent_evidence(
         "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.sol",
         "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.1.pdb",
         "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.1.mtz",
+        "artifacts/heteromer-smoke/phase3-control/partner_B/partner_search_result.json",
+        "artifacts/heteromer-smoke/phase3-control/component_C/component_search_result.json",
+        "artifacts/heteromer-smoke/phase3-control/component_C/phaser_per_placement_inventory.json",
+        "artifacts/heteromer-smoke/phase3-control/wrong_C_input.json",
+        "artifacts/heteromer-smoke/phase3-control/wrong_C_sequence_groups.jsonl",
+        "artifacts/heteromer-smoke/phase3-control/wrong_C/component_search_result.json",
+        "artifacts/heteromer-smoke/phase3-control/wrong_C/phaser_command.json",
+        "artifacts/heteromer-smoke/phase3-control/wrong_C/PHASER.log",
     )
     for relative in relative_paths:
         path = run / relative

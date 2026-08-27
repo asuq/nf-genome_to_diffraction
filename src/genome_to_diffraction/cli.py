@@ -654,6 +654,17 @@ def _build_parser() -> argparse.ArgumentParser:
     phase3_control_run_parser.add_argument(
         "--phenix-manifest", type=Path, required=True
     )
+    phase3_control_run_parser.add_argument(
+        "--wrong-c-sequence-groups", type=Path, required=True
+    )
+    phase3_control_run_parser.add_argument("--wrong-c-sequence-group-id", required=True)
+    phase3_control_run_parser.add_argument("--wrong-c-model", type=Path, required=True)
+    phase3_control_run_parser.add_argument(
+        "--expected-wrong-c-model-sha256", required=True
+    )
+    phase3_control_run_parser.add_argument(
+        "--wrong-c-model-identity-fraction", type=float, required=True
+    )
     phase3_control_run_parser.add_argument("--outdir", type=Path, required=True)
     phase3_control_run_parser.add_argument("--threads", type=int, default=1)
     phase3_control_run_parser.add_argument("--timeout-seconds", type=float)
@@ -2383,6 +2394,11 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             Phase3ControlExecutionRequest(
                 preparation_directory=args.preparation,
                 phenix_manifest=args.phenix_manifest,
+                wrong_c_sequence_groups_jsonl=args.wrong_c_sequence_groups,
+                wrong_c_sequence_group_id=args.wrong_c_sequence_group_id,
+                wrong_c_model=args.wrong_c_model,
+                expected_wrong_c_model_sha256=args.expected_wrong_c_model_sha256,
+                wrong_c_model_identity_fraction=args.wrong_c_model_identity_fraction,
                 output_directory=args.outdir,
                 threads=args.threads,
                 timeout_seconds=args.timeout_seconds,

@@ -4416,7 +4416,42 @@ collect_run() {
             parent_A/phenix.phaser.capture.log \
             parent_A/PHASER.sol \
             parent_A/PHASER.1.pdb \
-            parent_A/PHASER.1.mtz; do
+            parent_A/PHASER.1.mtz \
+            partner_B/partner_search_result.json \
+            partner_B/partner_search_result.jsonl \
+            partner_B/phaser_command.json \
+            partner_B/partner_search.eff \
+            partner_B/PHASER.log \
+            partner_B/phenix.phaser.capture.log \
+            partner_B/PHASER.sol \
+            partner_B/PHASER.1.pdb \
+            partner_B/PHASER.1.mtz \
+            partner_B/component_A.pdb \
+            partner_B/component_B.pdb \
+            partner_B/phaser_per_placement_inventory.json \
+            component_C_input.json \
+            component_C/component_search_result.json \
+            component_C/phaser_command.json \
+            component_C/component_search.eff \
+            component_C/PHASER.log \
+            component_C/phenix.phaser.capture.log \
+            component_C/PHASER.sol \
+            component_C/PHASER.1.pdb \
+            component_C/PHASER.1.mtz \
+            component_C/component_A.pdb \
+            component_C/component_B.pdb \
+            component_C/component_C.pdb \
+            component_C/phaser_per_placement_inventory.json \
+            wrong_C_input.json \
+            wrong_C_sequence_groups.jsonl \
+            wrong_C/component_search_result.json \
+            wrong_C/phaser_command.json \
+            wrong_C/component_search.eff \
+            wrong_C/PHASER.log \
+            wrong_C/phenix.phaser.capture.log \
+            wrong_C/PHASER.sol \
+            wrong_C/PHASER.1.pdb \
+            wrong_C/PHASER.1.mtz; do
             phase3_file="$phase3_output_root/$phase3_relative"
             if [[ -e "$phase3_file" || -L "$phase3_file" ]]; then
                 [[ -f "$phase3_file" && ! -L "$phase3_file" && \

@@ -7,11 +7,13 @@ import pytest
 
 from genome_to_diffraction.benchmarks import phase3_control_run as control_run
 from genome_to_diffraction.diffraction import PreflightRequest
+from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.mr import (
     PartnerSearchRequest,
     PhaserPerPlacementRequest,
     PhaserRunRequest,
 )
+from genome_to_diffraction.schemas.results import SequenceGroupRecord
 from genome_to_diffraction.status import ExecutionStatus
 
 
@@ -26,10 +28,33 @@ def _write(path: Path, text: str) -> dict[str, object]:
     }
 
 
+def _group(label: str) -> SequenceGroupRecord:
+    sequence = {"A": "MPEPTIDEA", "B": "MPEPTIDEB", "C": "MPEPTIDEC", "D": "MPEPTIDED"}[
+        label
+    ]
+    digest = hashlib.sha256(sequence.encode("ascii")).hexdigest()
+    return SequenceGroupRecord(
+        schema_version="1.0",
+        sequence_group_id=f"seq_{digest}",
+        sha256=digest,
+        sequence=sequence,
+        length_aa=len(sequence),
+        mass_method="test exact sequence mass",
+        residue_policy="canonical test residues",
+        source_record_count=1,
+    )
+
+
 def _prepared_9ecn(root: Path) -> Path:
+    groups = {label: _group(label) for label in ("A", "B", "C")}
     files = {
         "crystal_manifest": _write(root / "crystals.json", "{}\n"),
-        "sequence_groups": _write(root / "sequence_groups.jsonl", "{}\n"),
+        "sequence_groups": _write(
+            root / "sequence_groups.jsonl",
+            "".join(
+                f"{canonical_json_text(groups[label])}\n" for label in ("A", "B", "C")
+            ),
+        ),
         "processed_models": _write(root / "processed_models.jsonl", "{}\n"),
         "model_preparation_manifest": _write(
             root / "model_preparation_manifest.json", "{}\n"
@@ -45,10 +70,8 @@ def _prepared_9ecn(root: Path) -> Path:
             {
                 "label": label,
                 "requested_copy_count": 2,
-                "sequence_group_id": f"seq_{label}",
-                "catalogue_sequence_sha256": hashlib.sha256(
-                    f"sequence_{label}".encode("ascii")
-                ).hexdigest(),
+                "sequence_group_id": groups[label].sequence_group_id,
+                "catalogue_sequence_sha256": groups[label].sha256,
                 "model_id": f"model_{label}",
                 "model_sha256": record["sha256"],
             }
@@ -76,6 +99,15 @@ def test_fixed_9ecn_chain_retains_claim_free_depth_three_evidence(
     prepared = _prepared_9ecn(tmp_path / "prepared")
     phenix_manifest = tmp_path / "phenix.json"
     phenix_manifest.write_text("{}\n", encoding="ascii")
+    wrong_group = _group("D")
+    wrong_groups = tmp_path / "wrong-sequence-groups.jsonl"
+    wrong_groups.write_text(
+        f"{canonical_json_text(wrong_group)}\n",
+        encoding="ascii",
+    )
+    wrong_model = tmp_path / "wrong-C.pdb"
+    wrong_model.write_text("ATOM WRONG C\n", encoding="ascii")
+    wrong_model_sha256 = hashlib.sha256(wrong_model.read_bytes()).hexdigest()
 
     def fake_preflight(request: PreflightRequest) -> SimpleNamespace:
         output = request.output_directory
@@ -160,6 +192,10 @@ def test_fixed_9ecn_chain_retains_claim_free_depth_three_evidence(
         manifest = json.loads(manifest_path.read_text())
         assert [row["label"] for row in manifest["fixed_components"]] == ["A", "B"]
         assert manifest["candidate"]["label"] == "C"
+        is_wrong = output_directory.name == "wrong_C"
+        assert (
+            manifest["candidate"]["sequence_group_id"] == wrong_group.sequence_group_id
+        ) is is_wrong
         output = output_directory
         output.mkdir(parents=True)
         (output / "component_search_result.json").write_text("{}\n", encoding="ascii")
@@ -172,6 +208,8 @@ def test_fixed_9ecn_chain_retains_claim_free_depth_three_evidence(
             fixed_components_observed=True,
             candidate_placement_observed=True,
             scientific_status="search_evidence_only",
+            exact_identity_claimed=False,
+            complete_composition_claimed=False,
             candidate_tfz=12.0,
             incremental_llg=150.0,
         )
@@ -221,17 +259,28 @@ def test_fixed_9ecn_chain_retains_claim_free_depth_three_evidence(
         control_run.Phase3ControlExecutionRequest(
             preparation_directory=prepared,
             phenix_manifest=phenix_manifest,
+            wrong_c_sequence_groups_jsonl=wrong_groups,
+            wrong_c_sequence_group_id=wrong_group.sequence_group_id,
+            wrong_c_model=wrong_model,
+            expected_wrong_c_model_sha256=wrong_model_sha256,
+            wrong_c_model_identity_fraction=1.0,
             output_directory=tmp_path / "output",
             progress=False,
         )
     )
 
     report = json.loads(result.report.read_text(encoding="utf-8"))
+    assert report["adapter_version"] == "9ecn-phase3-depth-three-control-v2-wrong-c"
     assert report["gate_passed"] is True
     assert report["component_copy_counts"] == {"A": 2, "B": 2, "C": 2}
     assert report["generic_scientific_status"] == "search_evidence_only"
     assert report["exact_identity_claimed_by_search"] is False
     assert report["complete_composition_claimed_by_search"] is False
+    assert report["wrong_c_claim_boundary_passed"] is True
+    assert report["wrong_c_execution_status"] == "completed_hit"
+    assert report["wrong_c_top_solution_packed"] is True
+    assert report["wrong_c_exact_identity_claimed"] is False
+    assert report["wrong_c_complete_composition_claimed"] is False
     checksum_rows = [
         line.split(maxsplit=1) for line in result.checksums.read_text().splitlines()
     ]
@@ -241,3 +290,37 @@ def test_fixed_9ecn_chain_retains_claim_free_depth_three_evidence(
             hashlib.sha256((result.report.parent / relative).read_bytes()).hexdigest()
             == digest
         )
+
+
+def test_fixed_9ecn_chain_rejects_changed_wrong_c_model(tmp_path: Path) -> None:
+    prepared = _prepared_9ecn(tmp_path / "prepared")
+    phenix_manifest = tmp_path / "phenix.json"
+    phenix_manifest.write_text("{}\n", encoding="ascii")
+    wrong_group = _group("D")
+    wrong_groups = tmp_path / "wrong-sequence-groups.jsonl"
+    wrong_groups.write_text(
+        f"{canonical_json_text(wrong_group)}\n",
+        encoding="ascii",
+    )
+    wrong_model = tmp_path / "wrong-C.pdb"
+    wrong_model.write_text("ATOM WRONG C\n", encoding="ascii")
+    output = tmp_path / "output"
+
+    with pytest.raises(
+        control_run.Phase3ControlExecutionError,
+        match="wrong-C model identity differs",
+    ):
+        control_run.run_9ecn_phase3_control(
+            control_run.Phase3ControlExecutionRequest(
+                preparation_directory=prepared,
+                phenix_manifest=phenix_manifest,
+                wrong_c_sequence_groups_jsonl=wrong_groups,
+                wrong_c_sequence_group_id=wrong_group.sequence_group_id,
+                wrong_c_model=wrong_model,
+                expected_wrong_c_model_sha256="0" * 64,
+                wrong_c_model_identity_fraction=1.0,
+                output_directory=output,
+                progress=False,
+            )
+        )
+    assert not output.exists()
