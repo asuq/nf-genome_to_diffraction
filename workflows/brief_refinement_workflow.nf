@@ -167,9 +167,9 @@ workflow PHASE3_MULTICRYSTAL_BRIEF_REFINEMENT_WORKFLOW {
                     columns[0],
                     columns[1],
                     columns[2] as Integer,
-                    file(columns[3], checkIfExists: true),
+                    file(stage.resolve(columns[3]), checkIfExists: true),
                     columns[4],
-                    file(columns[5], checkIfExists: true),
+                    file(stage.resolve(columns[5]), checkIfExists: true),
                     columns[6],
                     columns[7] as Double,
                     columns[8]

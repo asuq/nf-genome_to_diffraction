@@ -120,7 +120,7 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
             tuple(crystalId, stage, results)
         }
     checkpoints = BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT(checkpoint_inputs)
-    sequence_review_inputs = checkpoints.map { crystalId, checkpoint ->
+    final_review_inputs = checkpoints.map { crystalId, checkpoint ->
         tuple(
             crystalId,
             checkpoint,
@@ -128,11 +128,30 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_WORKFLOW {
             owned_sequence_parent_run_id
         )
     }
+    sequence_review_inputs = final_review_inputs.filter {
+        crystalId, checkpoint, identity, parentRun ->
+        def manifest = new groovy.json.JsonSlurper().parse(
+            checkpoint.resolve('sequence_checkpoint_manifest.json').toFile()
+        )
+        (manifest.approval_candidate_count as Integer) > 0
+    }
+    composition_review_inputs = final_review_inputs.filter {
+        crystalId, checkpoint, identity, parentRun ->
+        def manifest = new groovy.json.JsonSlurper().parse(
+            checkpoint.resolve('sequence_checkpoint_manifest.json').toFile()
+        )
+        (manifest.candidate_outcomes as List).any { outcome ->
+            outcome.refinement_execution_status in [
+                'completed_success',
+                'completed_warning'
+            ]
+        }
+    }
     owned_sequence_reviews = BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE(
         sequence_review_inputs
     )
     owned_composition_reviews = BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE(
-        sequence_review_inputs
+        composition_review_inputs
     )
 
     emit:

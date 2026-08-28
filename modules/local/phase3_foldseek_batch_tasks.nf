@@ -72,6 +72,7 @@ process SEARCH_PHASE3_FOLDSEEK_BATCH {
         --minimum-query-coverage '${minimum_query_coverage}'
         --maximum-query-length '${maximum_query_length}'
         --maximum-queries '0'
+        --retain-unmapped-targets
     )
     [[ '${gpu}' == 'true' ]] && args+=(--gpu)
     genome-to-diffraction \

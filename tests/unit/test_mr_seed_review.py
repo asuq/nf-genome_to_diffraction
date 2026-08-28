@@ -350,6 +350,7 @@ def _owned_phase3_a_seed_inputs(
     owned_parent_run_id: str,
     decision: PhaseIIIReviewDecisionValue,
     expected_copies: int = 1,
+    placed_copies: int = 1,
 ) -> tuple[MrSeedReviewRequest, Path, Path, Path, str]:
     request = _request(root, crystal_id=crystal_id)
     hypothesis = _hypothesis(crystal_id=crystal_id).model_copy(
@@ -366,6 +367,17 @@ def _owned_phase3_a_seed_inputs(
     )
     request.matthews_hypotheses_jsonl.write_text(
         f"{canonical_json_text(matthews)}\n", encoding="utf-8"
+    )
+    result = NormalisedMrResult.model_validate_json(
+        request.results_jsonl.read_text(encoding="utf-8")
+    ).model_copy(update={"placed_copy_count": placed_copies})
+    result_text = f"{canonical_json_text(result)}\n"
+    request.results_jsonl.write_text(result_text, encoding="utf-8")
+    result_bundles = tuple(request.result_root.iterdir())
+    assert len(result_bundles) == 1
+    (result_bundles[0] / "normalised_mr_result.jsonl").write_text(
+        result_text,
+        encoding="utf-8",
     )
     review = build_mr_seed_review(request)
     legacy = json.loads(review.manifest_json.read_text(encoding="utf-8"))
@@ -452,6 +464,7 @@ def _registered_phase3_a_seed_fixture(
     *,
     decision: PhaseIIIReviewDecisionValue,
     expected_copies: int = 3,
+    placed_copies: int = 1,
 ) -> _OwnedPhase3SeedFixture:
     public_root = tmp_path / "public-fixture"
     public_root.mkdir()
@@ -467,6 +480,7 @@ def _registered_phase3_a_seed_fixture(
         owned_parent_run_id=parent_run,
         decision=decision,
         expected_copies=expected_copies,
+        placed_copies=placed_copies,
     )
     registry = tmp_path / "completed-screen-registry"
     registry.mkdir()
@@ -1044,6 +1058,29 @@ def test_phase3_a_decisions_feed_only_approved_existing_copy_workflow(
         "live_m4_stage_manifest.json",
     ):
         assert not (output.stage_manifest.parent / forbidden).exists()
+
+
+def test_phase3_joint_copy_solution_skips_redundant_addition(
+    tmp_path: Path,
+) -> None:
+    fixture = _registered_phase3_a_seed_fixture(
+        tmp_path,
+        decision=PhaseIIIReviewDecisionValue.APPROVE,
+        expected_copies=2,
+        placed_copies=2,
+    )
+
+    output = prepare_phase3_seed_stage(
+        fixture.stage_request(tmp_path / "phase3 joint complete A state")
+    )
+
+    assert output.approved_seed_count == 1
+    assert output.additional_copy_seed_count == 0
+    manifest = json.loads(output.stage_manifest.read_text(encoding="utf-8"))
+    source = manifest["model_sources"][fixture.solution_id]
+    assert source["expected_copy_count"] == 2
+    assert source["placed_copy_count"] == 2
+    assert source["requires_additional_copy"] is False
 
 
 @pytest.mark.parametrize("mutation", ("non-object", "missing-id", "duplicate"))

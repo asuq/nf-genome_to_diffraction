@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
-from genome_to_diffraction.ids import sequence_digest
+from genome_to_diffraction.ids import canonical_json_text, content_id, sequence_digest
 from genome_to_diffraction.review.phase3_package import (
     PhaseIIIReviewPackageError,
     build_owned_phase3_composition_review_package,
@@ -20,6 +20,7 @@ from genome_to_diffraction.review.sequence_checkpoint import (
     build_live_sequence_checkpoint,
     build_sequence_checkpoint,
 )
+from genome_to_diffraction.schemas.results import CopyCountAssessment
 from genome_to_diffraction.schemas.v2 import (
     ExecutionArtifactIdentity,
     PhaseIIIExecutionIdentity,
@@ -34,6 +35,7 @@ from genome_to_diffraction.schemas.v2.diffraction import (
     FreeRIdentity,
     diffraction_dataset_id,
 )
+from genome_to_diffraction.status import ExecutionStatus
 from tests.support.unknown_pass1_fixture import materialise_unknown_pass1_public_fixture
 
 
@@ -411,6 +413,49 @@ def _live_request(
 
 def _phase3_live_request(tmp_path: Path) -> LiveSequenceCheckpointRequest:
     request = _live_request(tmp_path)
+    stage_manifest_path = request.stage_bundle / "t12_stage_manifest.json"
+    stage_manifest = json.loads(stage_manifest_path.read_text(encoding="utf-8"))
+    stage_manifest["schema_version"] = "2.0"
+    stage_manifest["profile"] = "phase3_reviewed_single_component"
+    assessments = tuple(
+        CopyCountAssessment(
+            schema_version="1.0",
+            assessment_id=content_id(
+                "copyassessment_",
+                {
+                    "adapter_version": "phase3-copy-count-assessment-v1",
+                    "seed_solution_id": candidate["seed_solution_id"],
+                    "first_result_sha256": "a" * 64,
+                    "attempt_ids": [],
+                },
+            ),
+            review_id="phase3-review-fixture",
+            seed_solution_id=str(candidate["seed_solution_id"]),
+            hypothesis_id=f"hypothesis_{candidate['seed_solution_id']}",
+            sequence_group_id=str(candidate["sequence_group_id"]),
+            expected_copy_count=int(candidate["best_supported_copy_count"]),
+            best_supported_copy_count=int(candidate["best_supported_copy_count"]),
+            attempted_transition_count=0,
+            reached_expected_copy_count=True,
+            final_execution_status=ExecutionStatus.COMPLETED_HIT,
+            final_top_solution_packed=True,
+            final_placement_count=int(candidate["best_supported_copy_count"]),
+            terminal_reason="expected_copy_count_reached",
+        )
+        for candidate in stage_manifest["candidates"]
+    )
+    copy_assessments = request.stage_bundle / "copy_count_assessments.jsonl"
+    copy_assessments.write_text(
+        "".join(f"{canonical_json_text(item)}\n" for item in assessments),
+        encoding="utf-8",
+    )
+    stage_manifest["copy_count_assessments_sha256"] = sha256_file(
+        copy_assessments
+    )
+    stage_manifest_path.write_text(
+        json.dumps(stage_manifest, sort_keys=True),
+        encoding="utf-8",
+    )
     preflight = json.loads(
         (request.stage_bundle / "inputs/preflight.jsonl").read_text(encoding="utf-8")
     )

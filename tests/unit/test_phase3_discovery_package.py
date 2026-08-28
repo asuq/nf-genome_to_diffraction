@@ -1,5 +1,6 @@
 """Tests for the owned offline Phase III provider-discovery checkpoint."""
 
+import json
 import shutil
 from dataclasses import replace
 from pathlib import Path
@@ -18,6 +19,7 @@ from genome_to_diffraction.schemas.manifests import (
     CatalogueManifest,
     OutputArtifactRecord,
 )
+from genome_to_diffraction.schemas.v2 import PhaseIIIExecutionIdentity
 from genome_to_diffraction.structure_search import (
     PhaseIIIProviderDiscoveryError,
     PhaseIIIProviderDiscoveryRequest,
@@ -39,7 +41,7 @@ CATALOGUES = REPOSITORY / "examples/catalogue_manifest.json"
 DATABASE = STUBS / "provider_plan_database_manifest.json"
 
 
-def _catalogue_bundle(root: Path) -> Path:
+def _catalogue_bundle(root: Path, execution_identity: Path) -> Path:
     bundle = root / "catalogue"
     bundle.mkdir()
     for name in ("sequence_groups.jsonl", "source_records.jsonl"):
@@ -49,11 +51,10 @@ def _catalogue_bundle(root: Path) -> Path:
         ">seq_f50b9a1db8767fb7cdc8b89cf1a78c9fac1e0e2d5bb5367aeec14709396d5c5e\nACDE\n",
         encoding="ascii",
     )
-    catalogue_manifest = load_contract(
-        CATALOGUES,
-        "catalogue-manifest",
-        progress=False,
+    execution = PhaseIIIExecutionIdentity.model_validate_json(
+        execution_identity.read_bytes()
     )
+    catalogue_manifest = load_contract(CATALOGUES, "catalogue-manifest", progress=False)
     assert isinstance(catalogue_manifest, CatalogueManifest)
     outputs = tuple(
         OutputArtifactRecord(
@@ -78,16 +79,27 @@ def _catalogue_bundle(root: Path) -> Path:
         import_id=content_id("catimport_", identity),
         created_at="2026-01-01T00:00:00Z",
         software_version="unit-fixture",
-        catalogue_ids=(catalogue_manifest.catalogues[0].catalogue_id,),
+        catalogue_ids=tuple(
+            sorted({item.owner_id for item in execution.catalogue_artifacts})
+        ),
         catalogue_manifest_sha256=identity["catalogue_manifest_sha256"],
         pipeline_config_sha256=identity["pipeline_config_sha256"],
-        inputs=(
+        inputs=tuple(
             CatalogueInputRecord(
-                catalogue_id=catalogue_manifest.catalogues[0].catalogue_id,
-                role="catalogue_manifest",
-                path=CATALOGUES.name,
-                sha256=identity["catalogue_manifest_sha256"],
-            ),
+                catalogue_id=item.owner_id,
+                role=item.role,
+                path=f"fixture/{item.role}",
+                sha256=item.sha256,
+            )
+            for item in execution.catalogue_artifacts
+            if item.role
+            in {
+                "annotation_gbff",
+                "annotation_gff",
+                "genome_fasta",
+                "proteome_faa",
+                "protein_locus_map",
+            }
         ),
         outputs=outputs,
         source_record_count=1,
@@ -104,7 +116,10 @@ def _catalogue_bundle(root: Path) -> Path:
 def _request(root: Path) -> PhaseIIIProviderDiscoveryRequest:
     public_root = root / "public"
     public_root.mkdir()
-    public = materialise_unknown_pass1_public_fixture(public_root)
+    public = materialise_unknown_pass1_public_fixture(
+        public_root,
+        database_manifest_override=DATABASE,
+    )
     crystals = root / "crystals.json"
     atomic_write_json(
         crystals,
@@ -160,7 +175,7 @@ def _request(root: Path) -> PhaseIIIProviderDiscoveryRequest:
         pipeline_config=CONFIG,
         database_manifest=DATABASE,
         crystallographic_review_routes=review_routes,
-        catalogue_bundle=_catalogue_bundle(root),
+        catalogue_bundle=_catalogue_bundle(root, public.execution_identity),
         provider_plan_bundle=provider_plan,
         pdb_sequence_search=pdb_search,
         prostt5_foldseek_search=foldseek_search,
@@ -181,6 +196,16 @@ def test_owned_provider_discovery_package_round_trips(tmp_path: Path) -> None:
     assert observed.foldseek_result_count == 1
     assert observed.network_acquisition_performed is False
     assert observed.coordinate_registration_performed is False
+    copied_catalogue = load_contract(
+        packaged.package_directory / "catalogue/catalogue_import_manifest.json",
+        "catalogue-import-manifest",
+        progress=False,
+    )
+    assert isinstance(copied_catalogue, CatalogueImportManifest)
+    assert all(
+        item.path == f"authority/{item.catalogue_id}/{item.role}"
+        for item in copied_catalogue.inputs
+    )
 
 
 def test_incomplete_provider_query_inventory_fails(tmp_path: Path) -> None:
@@ -191,6 +216,17 @@ def test_incomplete_provider_query_inventory_fails(tmp_path: Path) -> None:
     )
 
     with pytest.raises(PhaseIIIProviderDiscoveryError, match="results is empty"):
+        build_phase3_provider_discovery_package(request)
+
+
+def test_catalogue_input_must_match_execution_identity(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    manifest_path = request.catalogue_bundle / "catalogue_import_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["inputs"][0]["sha256"] = "f" * 64
+    atomic_write_json(manifest_path, manifest)
+
+    with pytest.raises(PhaseIIIProviderDiscoveryError, match="catalogue import"):
         build_phase3_provider_discovery_package(request)
 
 

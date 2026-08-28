@@ -566,6 +566,29 @@ revalidated during collection. Focused failed/success lifecycle and wrapper
 syntax checks pass; rebuild the exact-source authority and run one successor
 after CI/deployment.
 
+Successor source `87174e1`, CI `33187133683` / `98902929607`, reached the real
+128-query ProstT5/Foldseek batch on Marmic job `636381`. Foldseek itself exited
+zero, but normalisation failed because PDB target `3PVM_C` was absent from the
+coordinate mapping table. Failure signature is
+`e68dec60deb86fcc15f67b0af4c7009eb3b56b74eabfdb7f038c482d933c7f64`;
+all 22 input-authority files were collected and no coordinate acquisition,
+model preparation, Phaser, refinement, or interpretation ran. The adapter
+already had a typed deferred-unmapped mode used by M6; the production Phase III
+batch route now enables it (`PH3-P1-36`).
+
+A pre-screen adverse review then found additional real-run blockers rather
+than isolated test polish. The local hardening wave binds source/P0/catalogue/
+database authority across discovery and both children, makes the copied
+login-stage coordinates the only offline sources, preserves joint A copy
+counts, enforces 25-MR/four-refinement concurrency, compares first/resume task
+and output inventories, and collects complete login/single-component authority
+and results (`PH3-P1-37`--`PH3-P1-40`). It also establishes real zero-transition
+copy evidence and specialised-package containment for future terminal reports.
+Focused tests, wrapper syntax, the 13-batch discovery stub, the three-crystal
+screen stub, and the full multicrystal cached stub pass locally. Exact-source
+CI/deployment and one fresh discovery remain; source `87174e1` is diagnostic
+only and must not parent an unknown-screen run.
+
 On 25 August 2026 the user/supervisor supplied the mandatory crystallographic
 checkpoint decision `proceed` for all three frozen crystals. This authorises a
 bounded pass-1 search while retaining, rather than clearing, the 75.2%

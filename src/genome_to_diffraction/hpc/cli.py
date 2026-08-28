@@ -224,6 +224,10 @@ def _build_parser() -> argparse.ArgumentParser:
         default="main",
         help="fixed remote branch containing the immutable M6 commit",
     )
+    m6_scientific_stage.add_argument(
+        "--operational-parent-run-id",
+        help="required collected operational parent for the leakage track",
+    )
 
     t12_stage = actions.add_parser(
         "t12-stage",
@@ -298,6 +302,7 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.confirm_archive_sha256,
             args.track,
             source_branch=args.source_branch,
+            operational_parent_run_id=args.operational_parent_run_id,
         )
     if args.operation == "t12-stage":
         return controller.t12_stage(args.revision, args.parent_run)

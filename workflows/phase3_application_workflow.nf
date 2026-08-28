@@ -201,7 +201,9 @@ workflow PHASE3_FIRST_COPY_APPLICATION_WORKFLOW {
         provider_discovery.resolve('catalogue/sequence_groups.jsonl')
     )
     predicted_coordinate_sources = channel.value(
-        provider_preparation.resolve('afdb_exact_search/coordinate_sources.jsonl')
+        provider_preparation.resolve(
+            'afdb_exact_search/owned_coordinate_sources.jsonl'
+        )
     )
     predicted_search_results = channel.value(
         provider_preparation.resolve('afdb_exact_search/search_results.jsonl')
@@ -217,7 +219,7 @@ workflow PHASE3_FIRST_COPY_APPLICATION_WORKFLOW {
     )
     pdb_coordinate_sources = channel.value(
         provider_preparation.resolve(
-            'pdb_coordinate_registration/coordinate_sources.jsonl'
+            'pdb_coordinate_registration/owned_coordinate_sources.jsonl'
         )
     )
     coordinate_hit_mappings = channel.value(

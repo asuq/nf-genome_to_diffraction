@@ -41,7 +41,7 @@ from genome_to_diffraction.review.phase3_package import (
 )
 from genome_to_diffraction.review.phase3_stage import PhaseIIIReviewStageManifest
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
-from genome_to_diffraction.schemas.results import MrHypothesis
+from genome_to_diffraction.schemas.results import MrHypothesis, NormalisedMrResult
 from genome_to_diffraction.schemas.v2 import (
     PhaseIIIExecutionIdentity,
     PhaseIIIReviewCheckpoint,
@@ -468,6 +468,7 @@ def _stage_approved_seed_models(
     hypotheses: dict[str, MrHypothesis],
     review_root: Path,
     output: Path,
+    derive_placed_copy_count: bool = False,
 ) -> tuple[
     list[tuple[str, str, str, int, str]],
     list[tuple[str, str, str, int, str]],
@@ -528,7 +529,49 @@ def _stage_approved_seed_models(
             _copy_file(coordinate, model, "first-copy solution coordinate")
         if sha256_file(model) != coordinate_sha:
             raise ValueError(f"staged search model checksum failed: {solution_id}")
-        requires_additional = hypothesis.copy_count_expected > 1
+        placed_copy_count = 1
+        normalised_result_relative: str | None = None
+        normalised_result_sha256: str | None = None
+        if derive_placed_copy_count:
+            normalised_result_relative = copied.get("normalised_result")
+            normalised_result = _owned_review_asset(
+                review_root,
+                normalised_result_relative,
+                "first-copy normalised result",
+            )
+            normalised_result_sha256 = sha256_file(normalised_result)
+            if normalised_result_sha256 != copied_sha.get("normalised_result"):
+                raise ValueError(
+                    f"first-copy result checksum differs: {solution_id}"
+                )
+            try:
+                result_lines = normalised_result.read_bytes().splitlines()
+                if len(result_lines) != 1:
+                    raise ValueError("expected exactly one JSONL record")
+                parsed_result = NormalisedMrResult.model_validate_json(
+                    result_lines[0]
+                )
+            except (OSError, ValidationError, ValueError) as error:
+                raise ValueError(
+                    f"first-copy result is invalid: {solution_id}: {error}"
+                ) from error
+            if (
+                parsed_result.hypothesis_id != hypothesis.hypothesis_id
+                or parsed_result.execution_status
+                is not ExecutionStatus.COMPLETED_HIT
+                or parsed_result.placed_copy_count < 1
+                or parsed_result.placed_copy_count
+                > hypothesis.copy_count_expected
+                or parsed_result.solution_coordinate_sha256 != coordinate_sha
+            ):
+                raise ValueError(
+                    f"first-copy placed-copy evidence differs: {solution_id}"
+                )
+            placed_copy_count = parsed_result.placed_copy_count
+            normalised_result_relative = normalised_result.relative_to(
+                output
+            ).as_posix()
+        requires_additional = placed_copy_count < hypothesis.copy_count_expected
         row = (
             solution_id,
             str(model.resolve(strict=True)),
@@ -543,6 +586,7 @@ def _stage_approved_seed_models(
             "hypothesis_id": hypothesis.hypothesis_id,
             "sequence_group_id": hypothesis.sequence_group_id,
             "expected_copy_count": hypothesis.copy_count_expected,
+            "placed_copy_count": placed_copy_count,
             "requires_additional_copy": requires_additional,
             "derivation": "first_copy_solution_coordinate_rigid_body_derived",
             "source_solution_coordinate": str(coordinate_relative),
@@ -550,6 +594,13 @@ def _stage_approved_seed_models(
             "staged_search_model": model_relative.as_posix(),
             "staged_search_model_sha256": coordinate_sha,
         }
+        if derive_placed_copy_count:
+            model_sources[solution_id].update(
+                {
+                    "normalised_result": normalised_result_relative,
+                    "normalised_result_sha256": normalised_result_sha256,
+                }
+            )
     return approved_rows, additional_rows, model_sources
 
 
@@ -645,6 +696,7 @@ def prepare_phase3_seed_stage(
         hypotheses=hypotheses,
         review_root=copied_review_manifest.parent,
         output=output,
+        derive_placed_copy_count=True,
     )
     approved_seeds = output / "approved_seeds.tsv"
     additional_seeds = output / "additional_copy_seeds.tsv"
@@ -653,7 +705,7 @@ def prepare_phase3_seed_stage(
 
     provenance = _phase3_approval_provenance(approval)
     stage_identity: dict[str, object] = {
-        "adapter_version": "phase3-owned-a-seed-stage-v2",
+        "adapter_version": "phase3-owned-a-seed-stage-v3",
         "stage_kind": "phase3_owned_a_seed",
         "approval_provenance": provenance,
         "review_package_path": "review_package",
@@ -742,7 +794,7 @@ def validate_phase3_seed_stage(
     allowlist = document.get("output_allowlist")
     if (
         document.get("schema_version") != "2.0"
-        or document.get("adapter_version") != "phase3-owned-a-seed-stage-v2"
+        or document.get("adapter_version") != "phase3-owned-a-seed-stage-v3"
         or document.get("stage_kind") != "phase3_owned_a_seed"
         or document.get("execution_status") != ExecutionStatus.COMPLETED_SUCCESS.value
         or not isinstance(allowlist, list)
@@ -883,16 +935,35 @@ def validate_phase3_seed_stage(
             root, source.get("staged_search_model"), "staged search model"
         )
         model_sha = source.get("staged_search_model_sha256")
+        placed_copy_count = source.get("placed_copy_count")
+        expected_copy_count = source.get("expected_copy_count")
+        requires_additional = source.get("requires_additional_copy")
         row = approved_rows[seed_id]
         if (
             not isinstance(model_sha, str)
+            or isinstance(placed_copy_count, bool)
+            or not isinstance(placed_copy_count, int)
+            or isinstance(expected_copy_count, bool)
+            or not isinstance(expected_copy_count, int)
+            or not 1 <= placed_copy_count <= expected_copy_count
+            or requires_additional
+            is not (placed_copy_count < expected_copy_count)
             or sha256_file(model) != model_sha
             or row.get("search_model_sha256") != model_sha
-            or row.get("expected_copy_count") != str(source.get("expected_copy_count"))
+            or row.get("expected_copy_count") != str(expected_copy_count)
             or row.get("requires_additional_copy")
-            != str(source.get("requires_additional_copy")).lower()
+            != str(requires_additional).lower()
         ):
             raise ValueError(f"Phase III staged model differs: {seed_id}")
+        normalised_result = _owned_review_asset(
+            root,
+            source.get("normalised_result"),
+            "Phase III first-copy normalised result",
+        )
+        if sha256_file(normalised_result) != source.get(
+            "normalised_result_sha256"
+        ):
+            raise ValueError(f"Phase III first-copy result differs: {seed_id}")
         model_sources[seed_id] = source
     review_document = _load_object(review_manifest, "owned MR review manifest")
     return PhaseIIISeedStageEvidence(

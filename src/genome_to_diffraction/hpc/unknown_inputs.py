@@ -32,6 +32,10 @@ from genome_to_diffraction.execution import (
 )
 from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.localisation import validate_catalogue_localisation_batch
+from genome_to_diffraction.review.owned_run import (
+    PhaseIIIOwnedRunError,
+    validate_phase3_owned_run_registry,
+)
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.manifests import CrystalManifest
 from genome_to_diffraction.schemas.v2 import PhaseIIIExecutionIdentity
@@ -45,6 +49,7 @@ _EXECUTION_NAME = "phase3_execution_identity.json"
 _AFDB_MAP_NAME = "afdb_accession_map.tsv"
 _CRYSTALS_NAME = "phase3_crystals.json"
 _REVIEW_ROOT_NAME = "crystallographic_review_stage"
+_REVIEW_REGISTRY_ROOT_NAME = "crystallographic_review_registry"
 _LOCALISATION_ROOT_NAME = "localisation_bundle"
 _MAX_SPEC_BYTES = 32 * 1024
 _MAX_AFDB_MAP_BYTES = 4 * 1024 * 1024
@@ -52,6 +57,7 @@ _SPEC_KEYS = frozenset(
     {
         "schema_version",
         "crystallographic_review_stage",
+        "crystallographic_review_registry",
         "execution_identity",
         "afdb_accession_map",
         "crystal_manifest",
@@ -145,6 +151,28 @@ def _review_files(root: Path) -> tuple[tuple[str, Path], ...]:
     if not files:
         raise UnknownDiscoveryInputError("crystallographic review stage is empty")
     return tuple(files)
+
+
+def _review_registry_files(root: Path) -> tuple[tuple[str, Path], ...]:
+    try:
+        validate_phase3_owned_run_registry(root)
+    except (OSError, PhaseIIIOwnedRunError, ValueError) as error:
+        raise UnknownDiscoveryInputError(
+            f"crystallographic review registry is invalid: {error}"
+        ) from error
+    files = tuple(
+        (
+            f"{_REVIEW_REGISTRY_ROOT_NAME}/{path.relative_to(root).as_posix()}",
+            path,
+        )
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    )
+    if not files:
+        raise UnknownDiscoveryInputError(
+            "crystallographic review registry is empty"
+        )
+    return files
 
 
 def _localisation_files(root: Path) -> tuple[tuple[str, Path], ...]:
@@ -251,6 +279,7 @@ def _phase3_crystal_manifest(
     *,
     crystal_ids: tuple[str, ...],
     execution: PhaseIIIExecutionIdentity,
+    allowed_mtz_root: Path | None = None,
 ) -> CrystalManifest:
     try:
         document = CrystalManifest.model_validate_json(path.read_bytes())
@@ -283,6 +312,31 @@ def _phase3_crystal_manifest(
                 "Phase III crystals require absolute MTZ paths, explicit Free-R "
                 "test values, and prohibited remote sequence submission"
             )
+        if allowed_mtz_root is not None:
+            try:
+                root = allowed_mtz_root.resolve(strict=True)
+                resolved_mtz = Path(crystal.mtz).resolve(strict=True)
+            except OSError as error:
+                raise UnknownDiscoveryInputError(
+                    f"Phase III MTZ is absent for {crystal.crystal_id}"
+                ) from error
+            artifacts = tuple(
+                item
+                for item in execution.crystal_artifacts
+                if item.owner_id == crystal.crystal_id and item.role == "mtz"
+            )
+            if (
+                len(artifacts) != 1
+                or not resolved_mtz.is_file()
+                or not resolved_mtz.is_relative_to(root)
+                or resolved_mtz.stat().st_size != artifacts[0].size_bytes
+                or sha256_file(resolved_mtz, progress=False)
+                != artifacts[0].sha256
+            ):
+                raise UnknownDiscoveryInputError(
+                    f"Phase III MTZ differs from its P0 authority: "
+                    f"{crystal.crystal_id}"
+                )
     return document
 
 
@@ -310,6 +364,10 @@ def build_unknown_discovery_input_bundle(
     review_root = _absolute_path(
         spec["crystallographic_review_stage"],
         label="crystallographic review stage",
+    )
+    review_registry_root = _absolute_path(
+        spec["crystallographic_review_registry"],
+        label="crystallographic review registry",
     )
     execution_path = _absolute_path(
         spec["execution_identity"],
@@ -354,6 +412,20 @@ def build_unknown_discovery_input_bundle(
         raise UnknownDiscoveryInputError(
             "crystallographic review and execution identities differ"
         )
+    try:
+        registry = validate_phase3_owned_run_registry(review_registry_root)
+    except (OSError, PhaseIIIOwnedRunError, ValueError) as error:
+        raise UnknownDiscoveryInputError(
+            f"crystallographic review registry is invalid: {error}"
+        ) from error
+    if (
+        registry.owned_run_registry_id != index.owned_run_registry_id
+        or registry.execution_identity_id != execution.execution_identity_id
+        or registry.run_id != index.owned_parent_run_id
+    ):
+        raise UnknownDiscoveryInputError(
+            "crystallographic review registry differs from its stage index"
+        )
     crystal_ids = tuple(item.crystal_id for item in index.review_bindings)
     if len(crystal_ids) != 3:
         raise UnknownDiscoveryInputError(
@@ -370,9 +442,11 @@ def build_unknown_discovery_input_bundle(
     )
     afdb_payload = _afdb_map(afdb_path)
     review_files = _review_files(review_root)
+    review_registry_files = _review_registry_files(review_registry_root)
     localisation_files = _localisation_files(localisation_root)
     members = (
         *review_files,
+        *review_registry_files,
         *localisation_files,
         (_EXECUTION_NAME, execution_path),
         (_AFDB_MAP_NAME, afdb_path),
@@ -387,9 +461,10 @@ def build_unknown_discovery_input_bundle(
         for name, path in members
     ]
     identity = {
-        "adapter_version": "unknown-discovery-input-bundle-v2",
+        "adapter_version": "unknown-discovery-input-bundle-v3",
         "execution_identity_id": execution.execution_identity_id,
         "review_stage_index_id": index.stage_index_id,
+        "review_registry_id": registry.owned_run_registry_id,
         "crystal_ids": list(crystal_ids),
         "files": file_records,
     }
@@ -440,6 +515,11 @@ def validate_unknown_discovery_input_tree(
     expected_input_id: str,
     expected_execution_identity_id: str,
     expected_review_stage_index_id: str,
+    expected_source_commit: str | None = None,
+    expected_source_tree: str | None = None,
+    expected_nf_helper_commit: str | None = None,
+    expected_pixi_lock_sha256: str | None = None,
+    allowed_mtz_root: Path | None = None,
 ) -> None:
     """Authenticate an extracted private input tree against controller IDs."""
 
@@ -474,6 +554,7 @@ def validate_unknown_discovery_input_tree(
         "adapter_version",
         "execution_identity_id",
         "review_stage_index_id",
+        "review_registry_id",
         "crystal_ids",
         "files",
     }
@@ -486,7 +567,7 @@ def validate_unknown_discovery_input_tree(
     }
     if (
         manifest.get("schema_version") != "1.0"
-        or manifest.get("adapter_version") != "unknown-discovery-input-bundle-v2"
+        or manifest.get("adapter_version") != "unknown-discovery-input-bundle-v3"
         or manifest.get("input_id") != expected_input_id
         or content_id("unknowninputs_", identity) != expected_input_id
         or manifest.get("execution_identity_id") != expected_execution_identity_id
@@ -568,19 +649,53 @@ def validate_unknown_discovery_input_tree(
     review_index = validate_unknown_pass1_crystallographic_review_stages(
         root / _REVIEW_ROOT_NAME / "unknown_pass1_review_stage_index.json"
     )
+    try:
+        review_registry = validate_phase3_owned_run_registry(
+            root / _REVIEW_REGISTRY_ROOT_NAME
+        )
+    except (OSError, PhaseIIIOwnedRunError, ValueError) as error:
+        raise UnknownDiscoveryInputError(
+            f"extracted review registry is invalid: {error}"
+        ) from error
     if (
         execution.execution_identity_id != expected_execution_identity_id
         or review_index.stage_index_id != expected_review_stage_index_id
         or review_index.execution_identity_id != execution.execution_identity_id
+        or review_registry.owned_run_registry_id
+        != manifest.get("review_registry_id")
+        or review_registry.owned_run_registry_id
+        != review_index.owned_run_registry_id
+        or review_registry.execution_identity_id
+        != execution.execution_identity_id
+        or review_registry.run_id != review_index.owned_parent_run_id
     ):
         raise UnknownDiscoveryInputError(
             "extracted review and execution authorities differ"
+        )
+    expected_source_values = (
+        expected_source_commit,
+        expected_source_tree,
+        expected_nf_helper_commit,
+        expected_pixi_lock_sha256,
+    )
+    if any(value is not None for value in expected_source_values) and (
+        any(value is None for value in expected_source_values)
+        or (
+            execution.source_commit != expected_source_commit
+            or execution.source_tree != expected_source_tree
+            or execution.nf_helper_commit != expected_nf_helper_commit
+            or execution.pixi_lock_sha256 != expected_pixi_lock_sha256
+        )
+    ):
+        raise UnknownDiscoveryInputError(
+            "extracted execution identity differs from the staged source"
         )
     _afdb_map(root / _AFDB_MAP_NAME)
     _phase3_crystal_manifest(
         root / _CRYSTALS_NAME,
         crystal_ids=tuple(item.crystal_id for item in review_index.review_bindings),
         execution=execution,
+        allowed_mtz_root=allowed_mtz_root,
     )
     _validate_localisation_authority(
         root=root / _LOCALISATION_ROOT_NAME,
@@ -596,12 +711,22 @@ def main() -> int:
     parser.add_argument("--expected-input-id", required=True)
     parser.add_argument("--expected-execution-identity-id", required=True)
     parser.add_argument("--expected-review-stage-index-id", required=True)
+    parser.add_argument("--expected-source-commit")
+    parser.add_argument("--expected-source-tree")
+    parser.add_argument("--expected-nf-helper-commit")
+    parser.add_argument("--expected-pixi-lock-sha256")
+    parser.add_argument("--allowed-mtz-root", type=Path)
     args = parser.parse_args()
     validate_unknown_discovery_input_tree(
         args.input_root,
         expected_input_id=args.expected_input_id,
         expected_execution_identity_id=args.expected_execution_identity_id,
         expected_review_stage_index_id=args.expected_review_stage_index_id,
+        expected_source_commit=args.expected_source_commit,
+        expected_source_tree=args.expected_source_tree,
+        expected_nf_helper_commit=args.expected_nf_helper_commit,
+        expected_pixi_lock_sha256=args.expected_pixi_lock_sha256,
+        allowed_mtz_root=args.allowed_mtz_root,
     )
     return 0
 

@@ -2097,6 +2097,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="enable Foldseek/ProstT5 GPU execution (CPU is the default)",
     )
+    prostt5_parser.add_argument(
+        "--retain-unmapped-targets",
+        action="store_true",
+        help=(
+            "retain PDB targets missing from the coordinate mapping as typed "
+            "deferred hits instead of failing the complete query batch"
+        ),
+    )
     afdb_parser = search_actions.add_parser(
         "afdb-exact",
         help="retrieve sequence-exact AlphaFold DB models for mapped accessions",
@@ -3134,6 +3142,7 @@ def _run_structure_search(args: argparse.Namespace) -> int:
                 maximum_query_length=args.maximum_query_length,
                 maximum_queries=args.maximum_queries,
                 gpu=args.gpu,
+                retain_unmapped_targets=args.retain_unmapped_targets,
                 progress=not args.no_progress,
             )
         )

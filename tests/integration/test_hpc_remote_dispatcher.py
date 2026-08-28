@@ -26,6 +26,7 @@ from genome_to_diffraction.hpc.unknown_single_inputs import (
     build_unknown_single_component_input_bundle,
 )
 from tests.support.unknown_pass1_fixture import (
+    PUBLIC_STUB_CRYSTAL_IDS,
     materialise_neutral_localisation_fixture,
     materialise_unknown_pass1_public_fixture,
 )
@@ -408,6 +409,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         'elif [[ "$mode" == provider_login_stage ]]; then\n'
         '  mkdir -p "$outdir/pdb_coordinate_registration" '
         '"$outdir/afdb_exact_search" "$outdir/esm_atlas_search"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/pdb_coordinate_registration/owned_coordinate_sources.jsonl"\n'
         '  printf \'{"schema_version":"2.0",'
         '"preparation_id":"providerstage_stub"}\\n\' '
         '> "$outdir/provider_preparation.json"\n'
@@ -2530,7 +2533,16 @@ def _write_p0_paths(root: Path, *, unsafe: bool = False) -> Path:
     manifests.mkdir()
     mtz_inputs = allowed / "inputs"
     mtz_inputs.mkdir()
-    (mtz_inputs / "CD6QS2P2G1_5.mtz").write_bytes(b"fixed CD6 test MTZ\n")
+    mtz_payloads = {
+        "AD4QS1P4G2_18": b"fixed AD4 test MTZ\n",
+        "CD4QS2P2G1_15": b"fixed CD4 test MTZ\n",
+        "CD6QS2P2G1_5": b"fixed CD6 test MTZ\n",
+        "public_stub_01": b"fixed public stub 01 MTZ\n",
+        "public_stub_02": b"fixed public stub 02 MTZ\n",
+        "public_stub_03": b"fixed public stub 03 MTZ\n",
+    }
+    for crystal_id, payload in mtz_payloads.items():
+        (mtz_inputs / f"{crystal_id}.mtz").write_bytes(payload)
     database_root = allowed / "databases"
     database_root.mkdir()
     database_manifest = allowed / "database_manifest.json"
@@ -3836,7 +3848,33 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     local_root.mkdir()
     review_root = local_root / "review"
     review_root.mkdir()
-    fixture = materialise_unknown_pass1_public_fixture(review_root)
+    source_origin = tmp_path / "source-origin"
+    source_tree = subprocess.run(
+        ["git", "rev-parse", "HEAD^{tree}"],
+        cwd=source_origin,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    nf_helper_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD:external/nf-helper"],
+        cwd=source_origin,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    p0_mtz_root = remote_root / "p0-inputs/inputs"
+    fixture = materialise_unknown_pass1_public_fixture(
+        review_root,
+        source_commit=commit,
+        source_tree=source_tree,
+        nf_helper_commit=nf_helper_commit,
+        pixi_lock_sha256=lock_sha256,
+        mtz_paths_override={
+            crystal_id: p0_mtz_root / f"{crystal_id}.mtz"
+            for crystal_id in PUBLIC_STUB_CRYSTAL_IDS
+        },
+    )
     afdb_map = local_root / "afdb_accession_map.tsv"
     afdb_map.write_text(
         "source_record_id\tuniprot_accession\n",
@@ -3854,7 +3892,7 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
             "crystals": [
                 {
                     "crystal_id": item.crystal_id,
-                    "mtz": f"/approved/p0/inputs/{item.crystal_id}.mtz",
+                    "mtz": str(p0_mtz_root / f"{item.crystal_id}.mtz"),
                     "catalogue_id": "public_catalogue",
                     "free_r_test_value": 0,
                     "allow_remote_sequence_submission": False,
@@ -3873,6 +3911,7 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         {
             "schema_version": "1.0",
             "crystallographic_review_stage": str(fixture.review_stage),
+            "crystallographic_review_registry": str(fixture.owned_run_registry),
             "execution_identity": str(fixture.execution_identity),
             "afdb_accession_map": str(afdb_map),
             "crystal_manifest": str(phase3_crystals),
@@ -4055,20 +4094,29 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         '[[ -n "$outdir" ]] || exit 2\n'
         'mkdir -p "$outdir/pipeline_info" '
         '"$outdir/phase3_offline_provider_input" '
-        '"$outdir/phase3_localisation_reopen_stub"\n'
+        '"$outdir/phase3_localisation_reopen_stub" '
+        '"$outdir/phase3_owned_a_review_crystal_a" '
+        '"$outdir/phase3_owned_a_review_crystal_b" '
+        '"$outdir/phase3_owned_a_review_crystal_c"\n'
         'printf \'{"schema_version":"2.0"}\\n\' > '
         '"$outdir/phase3_offline_provider_input/'
         'phase3_offline_provider_input.json"\n'
         'printf \'{"schema_version":"2.0","status":"stub_not_executed"}\\n\' > '
         '"$outdir/phase3_localisation_reopen_stub/'
         'localisation_reopen_plan.json"\n'
-        'printf "process\\tstatus\\n" > "$outdir/pipeline_info/trace.tsv"\n'
+        'for crystal in crystal_a crystal_b crystal_c; do\n'
+        '  printf \'{"schema_version":"2.0"}\\n\' > '
+        '"$outdir/phase3_owned_a_review_${crystal}/package.json"\n'
+        'done\n'
+        'printf "hash\\tprocess\\ttag\\tstatus\\n" > '
+        '"$outdir/pipeline_info/trace.tsv"\n'
         "for process in VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT "
         "VALIDATE_TASK05_INPUTS MTZ_PREFLIGHT ENUMERATE_MATTHEWS "
         "PREPARE_PREDICTED_MODELS PREPARE_EXPERIMENTAL_MODELS "
         "DISPATCH_CRYSTAL_ITEM RUN_PHASE3_FIRST_COPY_PHASER "
         "BUILD_PHASE3_MR_SEED_REVIEW PLAN_PHASE3_LOCALISATION_REOPEN; do\n"
-        '  printf "%s\\t%s\\n" "$process" "$status" '
+        '  printf "%s\\t%s\\t%s\\t%s\\n" "hash-${process}" '
+        '"$process" "$process" "$status" '
         '>> "$outdir/pipeline_info/trace.tsv"\n'
         "done\n"
         "for name in report.html timeline.html dag.html; do\n"
@@ -4125,6 +4173,19 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     assert (
         "artifacts/unknown-screen/results/phase3_localisation_reopen_stub/"
         "localisation_reopen_plan.json" in screen_members
+    )
+    assert (
+        "artifacts/unknown-screen/provider_preparation/"
+        "pdb_coordinate_registration/owned_coordinate_sources.jsonl"
+        in screen_members
+    )
+    assert (
+        "artifacts/qualification/unknown-screen-before-resume.sha256"
+        in screen_members
+    )
+    assert (
+        "artifacts/qualification/unknown-screen-resume-task-identities.tsv"
+        in screen_members
     )
 
     decision = local_root / "a-seed.tsv"
@@ -4245,12 +4306,16 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         '  [[ "$argument" != -resume ]] || status=CACHED\n'
         '  previous="$argument"\n'
         "done\n"
-        'mkdir -p "$outdir/pipeline_info"\n'
-        'printf "process\\tstatus\\n" > "$outdir/pipeline_info/trace.tsv"\n'
+        'mkdir -p "$outdir/pipeline_info" "$outdir/owned_sequence_review_stub"\n'
+        'printf \'{"schema_version":"2.0"}\\n\' > '
+        '"$outdir/owned_sequence_review_stub/package.json"\n'
+        'printf "hash\\tprocess\\ttag\\tstatus\\n" > '
+        '"$outdir/pipeline_info/trace.tsv"\n'
         "for process in VALIDATE_TASK05_INPUTS MTZ_PREFLIGHT "
         "STAGE_PHASE3_APPROVED_MR_SEEDS RUN_BRIEF_REFINEMENT "
         "BUILD_LIVE_SEQUENCE_CHECKPOINT; do\n"
-        '  printf "%s\\t%s\\n" "$process" "$status" '
+        '  printf "%s\\t%s\\t%s\\t%s\\n" "hash-${process}" '
+        '"$process" "$process" "$status" '
         '>> "$outdir/pipeline_info/trace.tsv"\n'
         "done\n"
         "for name in report.html timeline.html dag.html; do\n"
@@ -4282,6 +4347,21 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     ).read_text(encoding="utf-8")
     assert single_trace.count("CACHED") == 5
     assert "RUN_PHASE3_FIRST_COPY_PHASER" not in single_trace
+    single_archive = _run(
+        [str(dispatcher), "collect", UNKNOWN_SINGLE_RUN_ID, "3" * 32],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(single_archive), mode="r:gz") as collected:
+        single_members = set(collected.getnames())
+    assert (
+        "artifacts/unknown-single-component/operator_decisions/decisions/"
+        "crystal_a.tsv" in single_members
+    )
+    assert (
+        "artifacts/unknown-single-component/results/owned_sequence_review_stub/"
+        "package.json" in single_members
+    )
 
 
 def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(

@@ -86,6 +86,7 @@ M6_EXECUTION_POLICY_SHA256=""
 M6_APPTAINER_CACHE=""
 M6_SMOKE_CACHE=""
 M6_SMOKE_EXECUTION=""
+M6_CACHE_ROOT=""
 if [[ "$PROFILE" != database ]]; then
     SCRATCH_PARENT="${ROOT%/}/work"
     [[ "$SCRATCH_PARENT" =~ $SAFE_PATH_RE ]] || {
@@ -258,6 +259,24 @@ path_within_root() {
     local root="$1"
     local path="$2"
     [[ "$path" == "$root"/* ]]
+}
+
+write_trace_identity_manifest() {
+    local trace="$1"
+    local output="$2"
+    awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "hash") hash_column = i
+                if ($i == "process") process_column = i
+                if ($i == "tag") tag_column = i
+            }
+            if (hash_column == 0 || process_column == 0 || tag_column == 0) exit 2
+            next
+        }
+        { print $process_column "\t" $tag_column "\t" $hash_column }
+    ' "$trace" | LC_ALL=C sort > "$output"
+    [[ -s "$output" ]]
 }
 
 site_resolved_path() {
@@ -1928,13 +1947,37 @@ run_unknown_discovery() {
     run_unknown_discovery_nextflow first
     cp -a "$UNKNOWN_DISCOVERY_OUT/pipeline_info" \
         "$qualification/unknown-discovery-first-pipeline-info"
+    (
+        cd "$UNKNOWN_DISCOVERY_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-discovery-before-resume.sha256"
     printf 'phase=unknown_discovery_resume profile=unknown-discovery\n'
     run_unknown_discovery_nextflow resume -resume
     cp -a "$UNKNOWN_DISCOVERY_OUT/pipeline_info" \
         "$qualification/unknown-discovery-resume-pipeline-info"
+    (
+        cd "$UNKNOWN_DISCOVERY_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-discovery-after-resume.sha256"
+    cmp -s \
+        "$qualification/unknown-discovery-before-resume.sha256" \
+        "$qualification/unknown-discovery-after-resume.sha256" || return 4
     first_trace="$qualification/unknown-discovery-first-pipeline-info/trace.tsv"
     resume_trace="$qualification/unknown-discovery-resume-pipeline-info/trace.tsv"
     [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    write_trace_identity_manifest "$first_trace" \
+        "$qualification/unknown-discovery-first-task-identities.tsv"
+    write_trace_identity_manifest "$resume_trace" \
+        "$qualification/unknown-discovery-resume-task-identities.tsv"
+    cmp -s \
+        "$qualification/unknown-discovery-first-task-identities.tsv" \
+        "$qualification/unknown-discovery-resume-task-identities.tsv" || return 4
     cache_counts="$(awk -F '\t' '
         NR == 1 {
             for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
@@ -1976,6 +2019,11 @@ run_unknown_discovery() {
         "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/container_execution/deeptmhmm-container.log" \
         "$PHENIX_MANIFEST" \
         "$UNKNOWN_DISCOVERY_OUT/phase3_provider_discovery/phase3_provider_discovery_manifest.json" \
+        "$qualification/unknown-discovery-before-resume.sha256" \
+        "$qualification/unknown-discovery-after-resume.sha256" \
+        "$qualification/unknown-discovery-output-checksums.sha256" \
+        "$qualification/unknown-discovery-first-task-identities.tsv" \
+        "$qualification/unknown-discovery-resume-task-identities.tsv" \
         "$first_trace" \
         "$resume_trace" \
         > "$qualification/unknown-discovery-checksums.sha256"
@@ -2014,6 +2062,7 @@ run_unknown_screen() {
     local qualification="$RUN/artifacts/qualification"
     local first_trace resume_trace cache_counts total cached
     local legacy_phenix_manifest refreshed_phenix_manifest expected_phenix_sha256
+    local -a owned_a_packages=()
     UNKNOWN_SCREEN_INPUTS="$RUN/artifacts/unknown-screen/inputs"
     UNKNOWN_SCREEN_DISCOVERY="$RUN/artifacts/unknown-screen/phase3_provider_discovery"
     UNKNOWN_SCREEN_PREPARATION="$RUN/artifacts/unknown-screen/provider_preparation"
@@ -2062,13 +2111,37 @@ run_unknown_screen() {
     run_unknown_screen_nextflow first
     cp -a "$UNKNOWN_SCREEN_OUT/pipeline_info" \
         "$qualification/unknown-screen-first-pipeline-info"
+    (
+        cd "$UNKNOWN_SCREEN_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-screen-before-resume.sha256"
     printf 'phase=unknown_screen_resume profile=unknown-screen\n'
     run_unknown_screen_nextflow resume -resume
     cp -a "$UNKNOWN_SCREEN_OUT/pipeline_info" \
         "$qualification/unknown-screen-resume-pipeline-info"
+    (
+        cd "$UNKNOWN_SCREEN_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-screen-after-resume.sha256"
+    cmp -s \
+        "$qualification/unknown-screen-before-resume.sha256" \
+        "$qualification/unknown-screen-after-resume.sha256" || return 4
     first_trace="$qualification/unknown-screen-first-pipeline-info/trace.tsv"
     resume_trace="$qualification/unknown-screen-resume-pipeline-info/trace.tsv"
     [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    write_trace_identity_manifest "$first_trace" \
+        "$qualification/unknown-screen-first-task-identities.tsv"
+    write_trace_identity_manifest "$resume_trace" \
+        "$qualification/unknown-screen-resume-task-identities.tsv"
+    cmp -s \
+        "$qualification/unknown-screen-first-task-identities.tsv" \
+        "$qualification/unknown-screen-resume-task-identities.tsv" || return 4
     cache_counts="$(awk -F '\t' '
         NR == 1 {
             for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
@@ -2093,6 +2166,11 @@ run_unknown_screen() {
     ' "$first_trace" || return 4
     [[ -f "$UNKNOWN_SCREEN_OUT/phase3_offline_provider_input/phase3_offline_provider_input.json" ]] || \
         return 4
+    mapfile -d '' -t owned_a_packages < <(
+        find "$UNKNOWN_SCREEN_OUT" -maxdepth 1 -type d \
+            -name 'phase3_owned_a_review_*' -print0
+    )
+    [[ "${#owned_a_packages[@]}" -eq 3 ]] || return 4
     (
         cd "$UNKNOWN_SCREEN_OUT"
         while IFS= read -r relative; do
@@ -2122,6 +2200,11 @@ run_unknown_screen() {
         "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/container_execution/deeptmhmm-container.log" \
         "$PHENIX_MANIFEST" \
         "$UNKNOWN_SCREEN_OUT/phase3_offline_provider_input/phase3_offline_provider_input.json" \
+        "$qualification/unknown-screen-before-resume.sha256" \
+        "$qualification/unknown-screen-after-resume.sha256" \
+        "$qualification/unknown-screen-output-checksums.sha256" \
+        "$qualification/unknown-screen-first-task-identities.tsv" \
+        "$qualification/unknown-screen-resume-task-identities.tsv" \
         "$first_trace" \
         "$resume_trace" \
         > "$qualification/unknown-screen-checksums.sha256"
@@ -2198,13 +2281,40 @@ run_unknown_single_component() {
     run_unknown_single_component_nextflow first
     cp -a "$UNKNOWN_SINGLE_OUT/pipeline_info" \
         "$qualification/unknown-single-component-first-pipeline-info"
+    (
+        cd "$UNKNOWN_SINGLE_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-single-component-before-resume.sha256"
     printf 'phase=unknown_single_component_resume profile=unknown-single-component\n'
     run_unknown_single_component_nextflow resume -resume
     cp -a "$UNKNOWN_SINGLE_OUT/pipeline_info" \
         "$qualification/unknown-single-component-resume-pipeline-info"
+    (
+        cd "$UNKNOWN_SINGLE_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-single-component-after-resume.sha256"
+    [[ -s "$qualification/unknown-single-component-before-resume.sha256" ]] || \
+        return 4
+    cmp -s \
+        "$qualification/unknown-single-component-before-resume.sha256" \
+        "$qualification/unknown-single-component-after-resume.sha256" || return 4
     first_trace="$qualification/unknown-single-component-first-pipeline-info/trace.tsv"
     resume_trace="$qualification/unknown-single-component-resume-pipeline-info/trace.tsv"
     [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    write_trace_identity_manifest "$first_trace" \
+        "$qualification/unknown-single-component-first-task-identities.tsv"
+    write_trace_identity_manifest "$resume_trace" \
+        "$qualification/unknown-single-component-resume-task-identities.tsv"
+    cmp -s \
+        "$qualification/unknown-single-component-first-task-identities.tsv" \
+        "$qualification/unknown-single-component-resume-task-identities.tsv" || \
+        return 4
     cache_counts="$(awk -F '\t' '
         NR == 1 {
             for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
@@ -2227,11 +2337,19 @@ run_unknown_single_component() {
         }
         END { exit forbidden == 0 ? 0 : 1 }
     ' "$first_trace" || return 4
+    cp \
+        "$qualification/unknown-single-component-after-resume.sha256" \
+        "$qualification/unknown-single-component-output-checksums.sha256"
     sha256sum \
         "$root/unknown_single_component_stage_manifest.json" \
         "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" \
         "$UNKNOWN_SINGLE_REGISTRY/phase3_owned_run_registry.json" \
         "$PHENIX_MANIFEST" \
+        "$qualification/unknown-single-component-before-resume.sha256" \
+        "$qualification/unknown-single-component-after-resume.sha256" \
+        "$qualification/unknown-single-component-output-checksums.sha256" \
+        "$qualification/unknown-single-component-first-task-identities.tsv" \
+        "$qualification/unknown-single-component-resume-task-identities.tsv" \
         "$first_trace" \
         "$resume_trace" \
         > "$qualification/unknown-single-component-checksums.sha256"
@@ -4042,7 +4160,7 @@ run_m6_nextflow() {
         --phenix_manifest "$M6_PHENIX_MANIFEST" \
         --track "$M6_TRACK" \
         --outdir "$M6_RESULTS_ROOT" \
-        --cache_root "$RUN/cache/m6-nextflow-$M6_TRACK"
+        --cache_root "$M6_CACHE_ROOT"
 }
 
 run_m6_scientific() {
@@ -4061,12 +4179,21 @@ run_m6_scientific() {
     load_m6_smoke_site_contract || return 2
     M6_IMPORT_ROOT="$RUN/artifacts/m6-runner-inputs"
     M6_RESULTS_ROOT="$RUN/artifacts/m6-nextflow-results"
+    M6_CACHE_ROOT="$RUN/cache/m6-nextflow-$M6_TRACK"
+    if [[ "$M6_TRACK" == leakage ]]; then
+        [[ -f "$RUN/state/m6-operational-parent-run-id" && \
+           -f "$RUN/state/m6-operational-precheck-sha256" && \
+           -f "$RUN/state/m6-shared-cache-dir" ]] || return 2
+        M6_CACHE_ROOT="$(<"$RUN/state/m6-shared-cache-dir")"
+        [[ "$M6_CACHE_ROOT" =~ $SAFE_PATH_RE && \
+           -d "$M6_CACHE_ROOT" && ! -L "$M6_CACHE_ROOT" ]] || return 2
+    fi
     output="$M6_RESULTS_ROOT/m6_scientific"
     mkdir -p \
         "$qualification" \
         "$M6_RESULTS_ROOT" \
         "$RUN/cache/apptainer" \
-        "$RUN/cache/m6-nextflow-$M6_TRACK" \
+        "$M6_CACHE_ROOT" \
         "$RUN/execution"
     [[ -f "$RUN/state/hpc-environment-status" && \
         "$(<"$RUN/state/hpc-environment-status")" == ready && \
@@ -4121,6 +4248,62 @@ run_m6_scientific() {
     "$GTD" --log-format json --no-progress benchmark collect-m6-child-outputs \
         --trace "$qualification/m6-first-pipeline-info/trace.tsv" \
         --output "$qualification/m6-first-child-outputs.json"
+    "$RUN/source/.pixi/envs/hpc/bin/python" - \
+        "$qualification/m6-first-pipeline-info/trace.tsv" \
+        "$M6_TRACK" \
+        "$qualification/m6-cross-track-cache-evidence.json" <<'PY'
+import csv
+import json
+import pathlib
+import sys
+
+trace = pathlib.Path(sys.argv[1])
+track = sys.argv[2]
+output = pathlib.Path(sys.argv[3])
+with trace.open(encoding="utf-8", newline="") as handle:
+    rows = list(csv.DictReader(handle, delimiter="\t"))
+if not rows or any(not row.get("process") or not row.get("status") for row in rows):
+    raise SystemExit("M6 first-pass trace is incomplete")
+
+
+def process_name(row):
+    return row["process"].rsplit(":", 1)[-1]
+
+
+truthless = {"M6_IMPORT_CATALOGUE", "M6_SEARCH_PDB", "M6_SEARCH_FOLDSEEK"}
+cached = [row for row in rows if row["status"] == "CACHED"]
+completed = [row for row in rows if row["status"] == "COMPLETED"]
+if track == "operational":
+    if cached or len(completed) != len(rows):
+        raise SystemExit("M6 operational first pass reused an unexpected task")
+else:
+    if (
+        not cached
+        or any(process_name(row) not in truthless for row in cached)
+        or any(
+            row["status"] != ("CACHED" if process_name(row) in truthless else "COMPLETED")
+            for row in rows
+        )
+    ):
+        raise SystemExit("M6 leakage did not reuse only complete truthless tasks")
+output.write_text(
+    json.dumps(
+        {
+            "schema_version": "1.0",
+            "track": track,
+            "first_task_count": len(rows),
+            "truthless_cached_task_count": len(cached),
+            "track_specific_completed_task_count": len(completed),
+            "cross_track_truthless_cache_reuse": track == "leakage",
+            "track_specific_cache_reuse": False,
+        },
+        indent=2,
+        sort_keys=True,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
     before="$qualification/m6-before-resume.sha256"
     after="$qualification/m6-after-resume.sha256"
     (
@@ -4263,6 +4446,7 @@ EOF
         "$qualification/m6-resume-check.json" \
         "$qualification/m6-runtime-provenance.json" \
         "$qualification/m6-child-resource-evidence.json" \
+        "$qualification/m6-cross-track-cache-evidence.json" \
         "$qualification/m6-resume-cache-evidence.json" \
         "$qualification/m6-first-child-outputs.json" \
         "$qualification/m6-resume-child-outputs.json" \

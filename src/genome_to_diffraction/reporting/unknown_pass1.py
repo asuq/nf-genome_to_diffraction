@@ -199,7 +199,7 @@ def _evidence_hashes(item: UnknownPass1CrystalAssessment) -> set[str]:
 def _validate_review_sources(
     assessment: UnknownPass1CrystalAssessment,
     sources: list[tuple[UnknownPass1EvidenceSource, Path]],
-) -> None:
+) -> dict[PhaseIIIReviewCheckpoint, set[str]]:
     paths_by_digest: dict[str, list[Path]] = {}
     declared_paths: set[Path] = set()
     for declared, path in sources:
@@ -207,6 +207,7 @@ def _validate_review_sources(
         declared_paths.add(path)
 
     screen_parent: str | None = None
+    package_digests: dict[PhaseIIIReviewCheckpoint, set[str]] = {}
     for evidence in assessment.review_evidence:
         package_paths = paths_by_digest.get(
             evidence.review_package_manifest_sha256,
@@ -304,6 +305,10 @@ def _validate_review_sources(
                 raise UnknownPass1CollectionError(
                     "review package contains undeclared evidence"
                 )
+            package_digests.setdefault(package.checkpoint, set()).add(
+                artifact.sha256
+            )
+    return package_digests
 
 
 def _scientific_source(
@@ -384,6 +389,7 @@ def _validate_scientific_assets(
 def _validate_scientific_sources(
     assessment: UnknownPass1CrystalAssessment,
     sources: list[tuple[UnknownPass1EvidenceSource, Path]],
+    package_digests: dict[PhaseIIIReviewCheckpoint, set[str]],
 ) -> None:
     terminal = _scientific_contract(
         sources,
@@ -414,6 +420,39 @@ def _validate_scientific_sources(
         return
     if solution is None:
         raise UnknownPass1CollectionError("credible scientific solution is missing")
+    required_checkpoints = {
+        PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC,
+        PhaseIIIReviewCheckpoint.A_SEED,
+        PhaseIIIReviewCheckpoint.SEQUENCE,
+        PhaseIIIReviewCheckpoint.COMPOSITION,
+    }
+    if not required_checkpoints.issubset(package_digests):
+        raise UnknownPass1CollectionError(
+            "credible solution lacks every specialised review package"
+        )
+    packaged_science = set().union(
+        package_digests[PhaseIIIReviewCheckpoint.A_SEED],
+        package_digests[PhaseIIIReviewCheckpoint.SEQUENCE],
+        package_digests[PhaseIIIReviewCheckpoint.COMPOSITION],
+    )
+    required_packaged_science = {
+        value
+        for value in (
+            solution.copy_support_evidence_sha256,
+            solution.packing_evidence_sha256,
+            solution.combined_coordinate_sha256,
+            solution.refined_coordinate_sha256,
+            solution.refined_mtz_sha256,
+            solution.review_map_sha256,
+            solution.refinement_evidence_sha256,
+            solution.sequence_evidence_sha256,
+        )
+        if value is not None
+    }
+    if not required_packaged_science.issubset(packaged_science):
+        raise UnknownPass1CollectionError(
+            "credible scientific evidence is absent from its owned review packages"
+        )
 
     copies = _scientific_contract(
         sources,
@@ -623,7 +662,6 @@ def collect_unknown_pass1_panel(
     evidence: dict[str, list[tuple[UnknownPass1EvidenceSource, Path]]] = {
         crystal: [] for crystal in crystals
     }
-    digest_owners: dict[str, str] = {}
     for declared in request.evidence_allow_list:
         if declared.crystal_id not in evidence or declared.kind not in _INPUT_KINDS:
             raise UnknownPass1CollectionError("evidence crystal or kind is invalid")
@@ -635,13 +673,9 @@ def collect_unknown_pass1_panel(
             sha256=declared.sha256,
             size_bytes=declared.size_bytes,
         )
-        existing_owner = digest_owners.get(declared.sha256)
-        if path in used_paths or (
-            existing_owner is not None and existing_owner != declared.crystal_id
-        ):
-            raise UnknownPass1CollectionError("duplicate or cross-crystal evidence")
+        if path in used_paths:
+            raise UnknownPass1CollectionError("evidence source path is duplicated")
         used_paths.add(path)
-        digest_owners[declared.sha256] = declared.crystal_id
         evidence[declared.crystal_id].append((declared, path))
     for crystal, sources in evidence.items():
         roles = [declared.role for declared, _ in sources]
@@ -655,8 +689,12 @@ def collect_unknown_pass1_panel(
             raise UnknownPass1CollectionError(
                 "assessment-referenced evidence is missing"
             )
-        _validate_review_sources(assessments[crystal], sources)
-        _validate_scientific_sources(assessments[crystal], sources)
+        package_digests = _validate_review_sources(assessments[crystal], sources)
+        _validate_scientific_sources(
+            assessments[crystal],
+            sources,
+            package_digests,
+        )
 
     panel = UnknownPass1PanelSummary.from_assessments(
         (

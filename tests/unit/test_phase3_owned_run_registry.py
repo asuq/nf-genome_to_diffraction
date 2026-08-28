@@ -1148,3 +1148,56 @@ def test_screen_generated_a_package_can_precede_parent_completion(
             (package / "phase3_review_package_manifest.json").read_bytes()
         ).review_package_id
     )
+
+
+@pytest.mark.parametrize(
+    "checkpoint",
+    (
+        PhaseIIIReviewCheckpoint.SEQUENCE,
+        PhaseIIIReviewCheckpoint.COMPOSITION,
+    ),
+)
+def test_single_component_final_package_can_precede_parent_completion(
+    tmp_path: Path,
+    checkpoint: PhaseIIIReviewCheckpoint,
+) -> None:
+    execution_path, identity = _write_execution_identity(tmp_path)
+    package = _build_package(
+        tmp_path,
+        name=f"single-component-{checkpoint.value}-package",
+        identity=identity,
+        crystal_id=CRYSTAL_A,
+        checkpoint=checkpoint,
+        run_id=SEQUENCE_RUN_ID,
+        profile="unknown-single-component",
+        phase="phase3-pass1",
+        created_at=RUN_COMPLETED_AT - timedelta(seconds=1),
+    )
+    output = tmp_path / "registry"
+    output.mkdir()
+
+    register_phase3_owned_run(
+        parent=OwnedPhaseIIIParentRun(
+            SEQUENCE_RUN_ID,
+            "unknown-single-component",
+            "phase3-pass1",
+        ),
+        completed_at=RUN_COMPLETED_AT,
+        execution_identity=execution_path,
+        packages=(
+            OwnedPhaseIIIReviewPackageSource(
+                crystal_id=CRYSTAL_A,
+                checkpoint=checkpoint,
+                package_directory=package,
+            ),
+        ),
+        output_directory=output,
+    )
+
+    resolved = resolve_phase3_owned_review_package(
+        output,
+        run_id=SEQUENCE_RUN_ID,
+        crystal_id=CRYSTAL_A,
+        checkpoint=checkpoint,
+    )
+    assert resolved.checkpoint is checkpoint

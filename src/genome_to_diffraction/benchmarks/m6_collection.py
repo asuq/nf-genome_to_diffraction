@@ -997,7 +997,7 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
         )
     if operational.run_id == leakage.run_id:
         raise PublicControlError("M6 requires two distinct scientific run IDs")
-    common_manifest_fields = ("nf_helper_commit", "pixi_lock_sha256")
+    common_manifest_fields = ("commit", "nf_helper_commit", "pixi_lock_sha256")
     for name in common_manifest_fields:
         if operational.manifest.get(name) != leakage.manifest.get(name):
             raise PublicControlError(f"M6 collected runs disagree on {name}")

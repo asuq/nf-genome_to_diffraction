@@ -1081,7 +1081,7 @@ class CopyCountAssessment(ContractModel):
     sequence_group_id: NonEmptyString
     expected_copy_count: PositiveInt
     best_supported_copy_count: PositiveInt
-    attempted_transition_count: PositiveInt
+    attempted_transition_count: int = Field(ge=0)
     reached_expected_copy_count: bool
     final_execution_status: ExecutionStatus
     final_llg: float | None = None

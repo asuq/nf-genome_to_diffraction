@@ -14129,3 +14129,31 @@ with a collapsed combined parent or a guessed command.
   CI, deploy, rebuild the exact-source authority from the restored P0 paths, and
   submit one fresh discovery successor. Never reuse jobs `636168` or `636321`
   or their caches.
+
+## 2026-08-28 - Real Foldseek mapping gap and pre-screen hardening audit
+
+- Exact source `87174e10cd5f93fb768ccb1125b254f8e25d5648`, CI
+  `33187133683` / `98902929607`, ran as Marmic discovery job `636381` under
+  Pixi 0.76.2 and pinned nf-helper. All 22 private input-authority files were
+  recovered. One 128-query Foldseek batch completed successfully, then the
+  existing strict normaliser rejected unmapped PDB target `3PVM_C`. The run is
+  diagnostic `FAILED`, exit 1, `test_failure`, signature
+  `e68dec60deb86fcc15f67b0af4c7009eb3b56b74eabfdb7f038c482d933c7f64`.
+  No provider package, resume, acquisition, model preparation, MR, refinement,
+  or scientific interpretation was produced; the run and cache are not reusable.
+- The adapter already represents missing coordinate mappings as deferred hits,
+  but the Phase III CLI/Nextflow batch omitted that option. The smallest
+  correction enables it and preserves complete results without claiming a
+  coordinate-backed model (`PH3-P1-36`).
+- The user-approved preflight review found and the current local wave corrects
+  additional pre-screen defects: exact source/P0/catalogue/database parent
+  authority, owned coordinate consumption and collection, atomic login staging,
+  true joint-copy continuation, approved MR/refinement concurrency, exact cached
+  replay, complete single-component authority/results, and package-contained
+  terminal evidence (`PH3-P1-37`--`PH3-P1-41`).
+- Local evidence is green: 187 focused tests, Ruff, ty, Bash wrapper syntax,
+  the deterministic 13-batch Foldseek stub, the three-crystal screen stub, and
+  the complete multicrystal cached stub. Finish the remaining terminal/M6/RG7
+  code waves, run one named full locked integration gate, then commit/push and
+  qualify one fresh exact-source discovery. Never use `87174e1` as a screen
+  parent.

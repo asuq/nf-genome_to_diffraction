@@ -61,6 +61,7 @@ def _inputs(root: Path):
         {
             "schema_version": "1.0",
             "crystallographic_review_stage": str(fixture.review_stage),
+            "crystallographic_review_registry": str(fixture.owned_run_registry),
             "execution_identity": str(fixture.execution_identity),
             "afdb_accession_map": str(afdb_map),
             "crystal_manifest": str(crystal_manifest),
@@ -131,6 +132,89 @@ def test_changed_extracted_file_fails(tmp_path: Path) -> None:
         )
 
 
+def test_remote_validation_binds_source_and_p0_mtz_authority(
+    tmp_path: Path,
+) -> None:
+    fixture, _, _ = _inputs(tmp_path)
+    allowed = tmp_path / "approved-p0"
+    allowed.mkdir()
+    manifest_path = tmp_path / "phase3_crystals.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    mtz_by_crystal = {item.crystal_id: item.mtz for item in fixture.crystals}
+    for crystal in manifest["crystals"]:
+        destination = allowed / f"{crystal['crystal_id']}.mtz"
+        destination.write_bytes(mtz_by_crystal[crystal["crystal_id"]].read_bytes())
+        crystal["mtz"] = str(destination)
+    atomic_write_json(manifest_path, manifest)
+    bundle = build_unknown_discovery_input_bundle(
+        repository=tmp_path,
+        archive_path=tmp_path / "strict-inputs.tar",
+    )
+    extracted = tmp_path / "strict-extracted"
+    extracted.mkdir()
+    with tarfile.open(bundle.archive_path, mode="r") as archive:
+        archive.extractall(extracted, filter="data")
+
+    validate_unknown_discovery_input_tree(
+        extracted,
+        expected_input_id=bundle.input_id,
+        expected_execution_identity_id=bundle.execution_identity_id,
+        expected_review_stage_index_id=bundle.review_stage_index_id,
+        expected_source_commit="1" * 40,
+        expected_source_tree="2" * 40,
+        expected_nf_helper_commit="3" * 40,
+        expected_pixi_lock_sha256="4" * 64,
+        allowed_mtz_root=allowed,
+    )
+
+    with pytest.raises(UnknownDiscoveryInputError, match="staged source"):
+        validate_unknown_discovery_input_tree(
+            extracted,
+            expected_input_id=bundle.input_id,
+            expected_execution_identity_id=bundle.execution_identity_id,
+            expected_review_stage_index_id=bundle.review_stage_index_id,
+            expected_source_commit="9" * 40,
+            expected_source_tree="2" * 40,
+            expected_nf_helper_commit="3" * 40,
+            expected_pixi_lock_sha256="4" * 64,
+            allowed_mtz_root=allowed,
+        )
+
+
+def test_remote_validation_rejects_mtz_outside_p0_root(tmp_path: Path) -> None:
+    fixture, _, _ = _inputs(tmp_path)
+    allowed = tmp_path / "approved-p0"
+    allowed.mkdir()
+    outside = tmp_path / "outside-p0"
+    outside.mkdir()
+    manifest_path = tmp_path / "phase3_crystals.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    mtz_by_crystal = {item.crystal_id: item.mtz for item in fixture.crystals}
+    for index, crystal in enumerate(manifest["crystals"]):
+        root = outside if index == 0 else allowed
+        destination = root / f"{crystal['crystal_id']}.mtz"
+        destination.write_bytes(mtz_by_crystal[crystal["crystal_id"]].read_bytes())
+        crystal["mtz"] = str(destination)
+    atomic_write_json(manifest_path, manifest)
+    bundle = build_unknown_discovery_input_bundle(
+        repository=tmp_path,
+        archive_path=tmp_path / "outside-inputs.tar",
+    )
+    extracted = tmp_path / "outside-extracted"
+    extracted.mkdir()
+    with tarfile.open(bundle.archive_path, mode="r") as archive:
+        archive.extractall(extracted, filter="data")
+
+    with pytest.raises(UnknownDiscoveryInputError, match="P0 authority"):
+        validate_unknown_discovery_input_tree(
+            extracted,
+            expected_input_id=bundle.input_id,
+            expected_execution_identity_id=bundle.execution_identity_id,
+            expected_review_stage_index_id=bundle.review_stage_index_id,
+            allowed_mtz_root=allowed,
+        )
+
+
 def test_unknown_discovery_spec_requires_mode_0600(tmp_path: Path) -> None:
     _, _, spec = _inputs(tmp_path)
     spec.chmod(0o644)
@@ -158,6 +242,7 @@ def test_cross_execution_review_stage_fails(tmp_path: Path) -> None:
         {
             "schema_version": "1.0",
             "crystallographic_review_stage": str(fixture.review_stage),
+            "crystallographic_review_registry": str(fixture.owned_run_registry),
             "execution_identity": str(changed_path),
             "afdb_accession_map": str(afdb_map),
             "crystal_manifest": str(tmp_path / "phase3_crystals.json"),
@@ -182,6 +267,7 @@ def test_symlinked_afdb_map_fails(tmp_path: Path) -> None:
         {
             "schema_version": "1.0",
             "crystallographic_review_stage": str(fixture.review_stage),
+            "crystallographic_review_registry": str(fixture.owned_run_registry),
             "execution_identity": str(fixture.execution_identity),
             "afdb_accession_map": str(linked),
             "crystal_manifest": str(tmp_path / "phase3_crystals.json"),

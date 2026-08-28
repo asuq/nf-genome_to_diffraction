@@ -23,7 +23,12 @@ from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import Field, ValidationError, model_validator
 
-from genome_to_diffraction.checksums import atomic_write_json, sha256_file
+from genome_to_diffraction.checksums import (
+    atomic_write_json,
+    atomic_write_text,
+    sha256_file,
+)
+from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.schemas.base import (
     ContractModel,
     OperatorIdentifier,
@@ -75,7 +80,7 @@ ProviderOfflineInputIdentifier = Annotated[
     Field(pattern=r"^provideroffline_[a-f0-9]{64}$"),
 ]
 
-_ADAPTER_VERSION = "phase3-provider-login-stage-v1"
+_ADAPTER_VERSION = "phase3-provider-login-stage-v2"
 _MANIFEST_NAME = "provider_preparation.json"
 _OFFLINE_INPUT_NAME = "phase3_offline_provider_input.json"
 _MAXIMUM_HITS_PER_GROUP = 3
@@ -110,7 +115,7 @@ class PhaseIIIProviderLoginStageManifest(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "providerstage_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["phase3-provider-login-stage-v1"]
+    adapter_version: Literal["phase3-provider-login-stage-v2"]
     preparation_id: ProviderPreparationIdentifier
     discovery_package_id: Annotated[
         str,
@@ -223,8 +228,10 @@ def _copy_coordinate_objects(
     records: tuple[CoordinateSourceRecord, ...],
     *,
     output_root: Path,
-) -> int:
+    published_root: Path,
+) -> tuple[int, tuple[CoordinateSourceRecord, ...]]:
     seen: set[str] = set()
+    staged: list[CoordinateSourceRecord] = []
     for record in records:
         source = Path(record.coordinate_path)
         if not source.is_absolute():
@@ -261,9 +268,71 @@ def _copy_coordinate_objects(
             / record.coordinate_sha256[:2]
             / f"{record.coordinate_sha256}{suffix}"
         )
+        published = (
+            published_root
+            / record.coordinate_sha256[:2]
+            / f"{record.coordinate_sha256}{suffix}"
+        )
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(resolved, destination)
-    return len(seen)
+        if not destination.exists():
+            shutil.copy2(resolved, destination)
+        staged.append(
+            record.model_copy(update={"coordinate_path": str(published)})
+        )
+    return len(seen), tuple(staged)
+
+
+def _write_owned_coordinate_sources(
+    path: Path,
+    records: tuple[CoordinateSourceRecord, ...],
+) -> None:
+    atomic_write_text(
+        path,
+        "".join(f"{canonical_json_text(item)}\n" for item in records),
+    )
+
+
+def _validate_owned_coordinate_sources(
+    root: Path,
+    *,
+    relative_path: str,
+    expected_count: int,
+) -> None:
+    path = root / relative_path
+    try:
+        rows = tuple(
+            CoordinateSourceRecord.model_validate_json(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line
+        )
+    except (OSError, UnicodeDecodeError, ValidationError, ValueError) as error:
+        raise PhaseIIIProviderLoginStageError(
+            "owned provider coordinate records are invalid"
+        ) from error
+    if len(rows) != expected_count:
+        raise PhaseIIIProviderLoginStageError(
+            "owned provider coordinate count differs"
+        )
+    if not rows:
+        return
+    coordinate_root = (root / "coordinate_objects").resolve(strict=True)
+    for record in rows:
+        coordinate = Path(record.coordinate_path)
+        try:
+            resolved = coordinate.resolve(strict=True)
+        except OSError as error:
+            raise PhaseIIIProviderLoginStageError(
+                "owned provider coordinate is absent"
+            ) from error
+        if (
+            coordinate.is_symlink()
+            or not resolved.is_file()
+            or not resolved.is_relative_to(coordinate_root)
+            or sha256_file(resolved, progress=False) != record.coordinate_sha256
+        ):
+            raise PhaseIIIProviderLoginStageError(
+                "owned provider coordinate differs from its record"
+            )
 
 
 def validate_phase3_provider_login_stage(
@@ -302,6 +371,18 @@ def validate_phase3_provider_login_stage(
         raise PhaseIIIProviderLoginStageError(
             "provider preparation file inventory changed"
         )
+    _validate_owned_coordinate_sources(
+        root,
+        relative_path=(
+            "pdb_coordinate_registration/owned_coordinate_sources.jsonl"
+        ),
+        expected_count=manifest.pdb_coordinate_source_count,
+    )
+    _validate_owned_coordinate_sources(
+        root,
+        relative_path="afdb_exact_search/owned_coordinate_sources.jsonl",
+        expected_count=manifest.afdb_coordinate_source_count,
+    )
     return manifest
 
 
@@ -414,6 +495,7 @@ def stage_phase3_provider_coordinates(
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=f".{output.name}.", dir=output.parent))
     published = False
+    moved = False
     try:
         pdb_output = register_pdb_coordinates(
             PdbCoordinateRegistrationRequest(
@@ -486,9 +568,25 @@ def stage_phase3_provider_coordinates(
                 output_directory=temporary / "esm_atlas_search",
             )
         )
-        coordinate_count = _copy_coordinate_objects(
+        coordinate_count, owned_coordinate_sources = _copy_coordinate_objects(
             (*pdb_output.coordinate_sources, *afdb_coordinates),
             output_root=temporary / "coordinate_objects",
+            published_root=output / "coordinate_objects",
+        )
+        owned_by_id = {
+            item.coordinate_id: item for item in owned_coordinate_sources
+        }
+        _write_owned_coordinate_sources(
+            temporary
+            / "pdb_coordinate_registration/owned_coordinate_sources.jsonl",
+            tuple(
+                owned_by_id[item.coordinate_id]
+                for item in pdb_output.coordinate_sources
+            ),
+        )
+        _write_owned_coordinate_sources(
+            temporary / "afdb_exact_search/owned_coordinate_sources.jsonl",
+            tuple(owned_by_id[item.coordinate_id] for item in afdb_coordinates),
         )
         shutil.copy2(
             discovery_root / "phase3_provider_discovery_manifest.json",
@@ -522,15 +620,18 @@ def stage_phase3_provider_coordinates(
             temporary / _MANIFEST_NAME,
             manifest.model_dump(mode="json"),
         )
-        if validate_phase3_provider_login_stage(temporary) != manifest:
+        os.replace(temporary, output)
+        moved = True
+        if validate_phase3_provider_login_stage(output) != manifest:
             raise PhaseIIIProviderLoginStageError(
                 "provider preparation changed during validation"
             )
-        os.replace(temporary, output)
         published = True
     finally:
         if not published and temporary.exists():
             shutil.rmtree(temporary)
+        if not published and moved and output.exists():
+            shutil.rmtree(output)
 
     return PhaseIIIProviderLoginStageOutput(
         manifest=manifest,

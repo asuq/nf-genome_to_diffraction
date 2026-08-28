@@ -418,6 +418,13 @@ def public_stub_hypothesis(
 
 def materialise_unknown_pass1_public_fixture(
     launch_root: Path,
+    *,
+    source_commit: str = "1" * 40,
+    source_tree: str = "2" * 40,
+    nf_helper_commit: str = "3" * 40,
+    pixi_lock_sha256: str = "4" * 64,
+    mtz_paths_override: dict[str, Path] | None = None,
+    database_manifest_override: Path | None = None,
 ) -> UnknownPass1PublicFixture:
     """Write fixed local inputs and return their validated screen inventory."""
 
@@ -433,21 +440,39 @@ def materialise_unknown_pass1_public_fixture(
         encoding="ascii",
     )
     database = input_root / "database.json"
-    database.write_text('{"database":"synthetic-public-stub"}\n', encoding="ascii")
+    if database_manifest_override is None:
+        database.write_text(
+            '{"database":"synthetic-public-stub"}\n',
+            encoding="ascii",
+        )
+    else:
+        database = database_manifest_override
 
-    mtz_root = input_root / "crystal_mtz"
-    mtz_root.mkdir()
-    mtz_paths: dict[str, Path] = {}
-    for crystal_id in PUBLIC_STUB_CRYSTAL_IDS:
-        path = mtz_root / f"{crystal_id}.mtz"
-        path.write_text(f"synthetic-public-mtz:{crystal_id}\n", encoding="ascii")
-        mtz_paths[crystal_id] = path
+    if mtz_paths_override is None:
+        mtz_root = input_root / "crystal_mtz"
+        mtz_root.mkdir()
+        mtz_paths: dict[str, Path] = {}
+        for crystal_id in PUBLIC_STUB_CRYSTAL_IDS:
+            path = mtz_root / f"{crystal_id}.mtz"
+            path.write_text(
+                f"synthetic-public-mtz:{crystal_id}\n",
+                encoding="ascii",
+            )
+            mtz_paths[crystal_id] = path
+    else:
+        mtz_paths = dict(mtz_paths_override)
+        if set(mtz_paths) != set(PUBLIC_STUB_CRYSTAL_IDS):
+            raise ValueError("public fixture MTZ override must cover all crystals")
+        mtz_root = input_root / "crystal_mtz"
+        mtz_root.mkdir()
+        for crystal_id, source in mtz_paths.items():
+            (mtz_root / f"{crystal_id}.mtz").write_bytes(source.read_bytes())
 
     execution = PhaseIIIExecutionIdentity.from_content(
-        source_commit="1" * 40,
-        source_tree="2" * 40,
-        nf_helper_commit="3" * 40,
-        pixi_lock_sha256="4" * 64,
+        source_commit=source_commit,
+        source_tree=source_tree,
+        nf_helper_commit=nf_helper_commit,
+        pixi_lock_sha256=pixi_lock_sha256,
         execution_policy_sha256="5" * 64,
         catalogue_artifacts=tuple(
             sorted(
@@ -790,6 +815,7 @@ def materialise_phase3_provider_login_stub(
     pdb = output_directory / "pdb_coordinate_registration"
     pdb.mkdir()
     atomic_write_text(pdb / "coordinate_sources.jsonl", "")
+    atomic_write_text(pdb / "owned_coordinate_sources.jsonl", "")
     atomic_write_text(pdb / "coordinate_hit_mappings.jsonl", "")
     atomic_write_json(
         pdb / "registration_manifest.json",
@@ -836,6 +862,7 @@ def materialise_phase3_provider_login_stub(
     )
     atomic_write_text(afdb / "structural_hits.jsonl", "")
     atomic_write_text(afdb / "coordinate_sources.jsonl", "")
+    atomic_write_text(afdb / "owned_coordinate_sources.jsonl", "")
     atomic_write_json(
         afdb / "search_manifest.json",
         {
@@ -870,7 +897,7 @@ def materialise_phase3_provider_login_stub(
         if path.is_file() and path.name != "provider_preparation.json"
     )
     manifest = PhaseIIIProviderLoginStageManifest.from_content(
-        adapter_version="phase3-provider-login-stage-v1",
+        adapter_version="phase3-provider-login-stage-v2",
         discovery_package_id=discovery.package_id,
         discovery_owned_run_id=discovery.owned_run_id,
         execution_identity_id=discovery.execution_identity_id,

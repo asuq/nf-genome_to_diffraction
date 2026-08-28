@@ -102,6 +102,10 @@ process BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT {
     stub:
     def outputName = "phase3_sequence_checkpoint_${item[0]}"
     def finalistCount = (item[2] as List).size()
+    def approvalCandidateCount = finalistCount > 0 ? 1 : 0
+    def candidateOutcomes = finalistCount > 0
+        ? '[{"refinement_execution_status":"completed_success"}]'
+        : '[]'
     """
     mkdir -p '${outputName}/provenance'
     cp '${item[1]}/inputs/sequence_groups.jsonl' \
@@ -119,7 +123,7 @@ process BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT {
     printf '%s\\n' 'checkpoint\\titem_id\\tdecision\\treviewer' \
         > '${outputName}/approved_sequence_groups.tsv'
     printf '%s\\n' \
-        '{"schema_version":"1.0","adapter_version":"phase3-sequence-checkpoint-stub","execution_mode":"phase3_reviewed_single_component","crystal_context":{"crystal_id":"${item[0]}"},"finalist_count":${finalistCount},"all_finalists_retained":true,"automatic_approval":false,"typed_failures_are_evidence":true}' \
+        '{"schema_version":"1.0","adapter_version":"phase3-sequence-checkpoint-stub","execution_mode":"phase3_reviewed_single_component","crystal_context":{"crystal_id":"${item[0]}"},"finalist_count":${finalistCount},"approval_candidate_count":${approvalCandidateCount},"candidate_outcomes":${candidateOutcomes},"all_finalists_retained":true,"automatic_approval":false,"typed_failures_are_evidence":true}' \
         > '${outputName}/sequence_checkpoint_manifest.json'
     """
 }

@@ -182,6 +182,24 @@ def test_bounded_login_stage_round_trips(
     assert observed.afdb_result_count == observed.sequence_group_count
     assert observed.esm_result_count == observed.sequence_group_count
     assert observed.staged_coordinate_object_count == 1
+    owned_sources = tuple(
+        CoordinateSourceRecord.model_validate_json(line)
+        for line in (
+            staged.preparation_directory
+            / "pdb_coordinate_registration/owned_coordinate_sources.jsonl"
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    assert len(owned_sources) == 1
+    owned_coordinate = Path(owned_sources[0].coordinate_path)
+    assert owned_coordinate.is_relative_to(
+        staged.preparation_directory / "coordinate_objects"
+    )
+    assert owned_coordinate.is_file()
+    assert sha256_file(owned_coordinate, progress=False) == (
+        owned_sources[0].coordinate_sha256
+    )
     offline = publish_phase3_offline_provider_input(
         discovery_package=discovery.package_directory,
         provider_preparation=staged.preparation_directory,
@@ -192,6 +210,12 @@ def test_bounded_login_stage_round_trips(
     )
     assert offline.manifest.remote_sequence_submission is False
     assert offline.manifest.compute_network_access is False
+    workflow = (
+        Path(__file__).resolve().parents[2]
+        / "workflows/phase3_application_workflow.nf"
+    ).read_text(encoding="utf-8")
+    assert "afdb_exact_search/owned_coordinate_sources.jsonl" in workflow
+    assert "pdb_coordinate_registration/owned_coordinate_sources.jsonl" in workflow
 
 
 def test_changed_login_stage_file_fails(

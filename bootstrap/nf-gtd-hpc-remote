@@ -573,6 +573,9 @@ unknown_discovery_inputs_stage() {
     local archive_size="$5" execution_identity_id="$6" review_stage_index_id="$7"
     local run profile archive staging destination actual_sha256 unsafe_member python
     local input_checksums input_checksums_temporary relative
+    local input_file_count source_commit source_tree nf_helper_commit pixi_lock_sha256
+    local allowed_mtz_root
+    local -a p0_values=()
     validate_run_id "$run_id"
     validate_owner "$owner_id"
     [[ "$input_id" =~ ^unknowninputs_[a-f0-9]{64}$ ]] || \
@@ -630,12 +633,32 @@ unknown_discovery_inputs_stage() {
     python="$run/source/.pixi/envs/hpc/bin/python"
     [[ -x "$python" ]] || \
         fail environment_failure "locked unknown-discovery Python is unavailable"
+    p0_config_readiness || \
+        fail environment_failure "unknown-discovery P0 authority is unavailable"
+    mapfile -t p0_values < "$P0_CONFIG"
+    [[ "${#p0_values[@]}" -eq 7 ]] || \
+        fail environment_failure "unknown-discovery P0 authority is malformed"
+    allowed_mtz_root="${p0_values[0]}"
+    source_commit="$(<"$run/state/commit")"
+    source_tree="$(git -C "$run/source" rev-parse 'HEAD^{tree}')"
+    nf_helper_commit="$(git -C "$run/source" submodule status -- \
+        external/nf-helper | awk '{sha=$1; sub(/^[-+U]/,"",sha); print sha}')"
+    pixi_lock_sha256="$(sha256sum "$run/source/pixi.lock" | awk '{print $1}')"
+    [[ "$source_commit" =~ $COMMIT_RE && "$source_tree" =~ $COMMIT_RE && \
+       "$nf_helper_commit" =~ $COMMIT_RE && \
+       "$pixi_lock_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "unknown-discovery staged source identity is invalid"
     if ! PYTHONPATH="$run/source/src" \
         "$python" -m genome_to_diffraction.hpc.unknown_inputs \
         --input-root "$staging" \
         --expected-input-id "$input_id" \
         --expected-execution-identity-id "$execution_identity_id" \
         --expected-review-stage-index-id "$review_stage_index_id" \
+        --expected-source-commit "$source_commit" \
+        --expected-source-tree "$source_tree" \
+        --expected-nf-helper-commit "$nf_helper_commit" \
+        --expected-pixi-lock-sha256 "$pixi_lock_sha256" \
+        --allowed-mtz-root "$allowed_mtz_root" \
         >"$run/logs/unknown-discovery-input-validation.log" 2>&1; then
         fail wrapper_failure "unknown-discovery input validation failed"
     fi
@@ -651,6 +674,10 @@ unknown_discovery_inputs_stage() {
     ) > "$input_checksums_temporary"
     [[ -s "$input_checksums_temporary" ]] || \
         fail filesystem_failure "unknown-discovery input checksum inventory is empty"
+    input_file_count="$(wc -l < "$input_checksums_temporary")"
+    [[ "$input_file_count" =~ $INTEGER_RE && \
+       "$input_file_count" -ge 1 && "$input_file_count" -le 256 ]] || \
+        fail filesystem_failure "unknown-discovery input file count is invalid"
     mv -f -- "$input_checksums_temporary" "$input_checksums"
     find "$destination" -xdev -type f -exec chmod 0444 {} +
     find "$destination" -xdev -type d -exec chmod 0555 {} +
@@ -658,6 +685,8 @@ unknown_discovery_inputs_stage() {
     atomic_text "$run/state/unknown-discovery-input-id" "$input_id"
     atomic_text "$run/state/unknown-discovery-input-archive-sha256" \
         "$archive_sha256"
+    atomic_text "$run/state/unknown-discovery-input-file-count" \
+        "$input_file_count"
     atomic_text "$run/state/phase3-execution-identity-id" \
         "$execution_identity_id"
     atomic_text "$run/state/unknown-review-stage-index-id" \
@@ -1202,6 +1231,7 @@ stage_run_common() {
         append_event "$run" "stage_lock_mismatch"
         fail transfer_failure "Pixi lock checksum differs from the local commit"
     }
+    atomic_text "$run/state/pixi-lock-sha256" "$actual_lock"
     [[ "$submodule_commit" =~ $COMMIT_RE ]] || \
         fail transfer_failure "nf-helper submodule commit could not be recorded"
     ln -s "$run/environment/.pixi" "$run/source/.pixi" || \
@@ -2146,7 +2176,9 @@ unknown_screen_stage_run() {
             "unknown-screen-stage expects child and parent ownership fields"
     local run_id="$1" owner_id="$2" parent_run_id="$3" parent_owner_id="$4"
     local run parent profile parent_profile gtd source_package source_inputs
-    local screen_root discovery_copy inputs_copy preparation preparation_sha256
+    local screen_root screen_staging discovery_copy inputs_copy preparation
+    local preparation_sha256 preparation_checksums preparation_checksums_temporary
+    local preparation_file_count
     validate_run_id "$run_id"
     validate_owner "$owner_id"
     validate_run_id "$parent_run_id"
@@ -2168,6 +2200,9 @@ unknown_screen_stage_run() {
        -f "$parent/state/job-result.json" ]] || \
         fail wrapper_failure "unknown-screen parent is not a successful terminal run"
     [[ "$(<"$run/state/site-id")" == "$(<"$parent/state/site-id")" && \
+       "$(<"$run/state/commit")" == "$(<"$parent/state/commit")" && \
+       "$(<"$run/state/phenix-manifest-sha256")" == \
+       "$(<"$parent/state/phenix-manifest-sha256")" && \
        "$(<"$run/state/p0-config-sha256")" == \
        "$(<"$parent/state/p0-config-sha256")" && \
        "$(<"$run/state/database-manifest-sha256")" == \
@@ -2179,48 +2214,87 @@ unknown_screen_stage_run() {
        -d "$source_inputs" && ! -L "$source_inputs" ]] || \
         fail filesystem_failure "unknown-discovery parent package is unavailable"
     screen_root="$run/artifacts/unknown-screen"
-    discovery_copy="$screen_root/phase3_provider_discovery"
-    inputs_copy="$screen_root/inputs"
-    preparation="$screen_root/provider_preparation"
     [[ ! -e "$screen_root" && ! -L "$screen_root" ]] || \
         fail wrapper_failure "unknown-screen staging output already exists"
-    mkdir -p -- "$screen_root"
+    screen_staging="$run/execution/.unknown-screen-stage.tmp.$$"
+    [[ ! -e "$screen_staging" && ! -L "$screen_staging" ]] || \
+        fail filesystem_failure "unknown-screen staging directory already exists"
+    mkdir -- "$screen_staging"
+    trap 'rm -rf -- "${screen_staging:-}"; rm -f -- "${preparation_checksums_temporary:-}"' EXIT
+    discovery_copy="$screen_staging/phase3_provider_discovery"
+    inputs_copy="$screen_staging/inputs"
+    preparation="$screen_staging/provider_preparation"
     cp -a -- "$source_package" "$discovery_copy"
     cp -a -- "$source_inputs" "$inputs_copy"
     [[ -f "$parent/state/unknown-discovery-input-checksums.sha256" && \
+       -f "$parent/state/unknown-discovery-input-file-count" && \
        ! -L "$parent/state/unknown-discovery-input-checksums.sha256" && \
        -O "$parent/state/unknown-discovery-input-checksums.sha256" ]] || \
         fail wrapper_failure "unknown-screen parent input inventory is unavailable"
-    cp -- "$parent/state/unknown-discovery-input-checksums.sha256" \
-        "$run/state/unknown-screen-input-checksums.sha256"
     gtd="$run/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     [[ -x "$gtd" ]] || \
         fail environment_failure "locked unknown-screen CLI is unavailable"
-    "$gtd" --no-progress --log-format json \
+    if ! "$gtd" --no-progress --log-format json \
         structure-search validate-phase3-provider-discovery-package \
         --package "$discovery_copy" \
-        >"$run/logs/unknown-screen-parent-validation.log" 2>&1 || \
+        >"$run/logs/unknown-screen-parent-validation.log" 2>&1; then
+        atomic_text "$run/state/phase" stage_failed
+        atomic_text "$run/state/failure-class" wrapper_failure
+        append_event "$run" "stage_unknown_screen_parent_invalid"
         fail wrapper_failure "unknown-screen parent package validation failed"
-    "$gtd" --no-progress --log-format json \
+    fi
+    if ! "$gtd" --no-progress --log-format json \
         structure-search stage-phase3-provider-coordinates \
         --discovery-package "$discovery_copy" \
         --outdir "$preparation" \
-        >"$run/logs/unknown-screen-login-stage.log" 2>&1 || \
+        >"$run/logs/unknown-screen-login-stage.log" 2>&1; then
+        atomic_text "$run/state/phase" stage_failed
+        atomic_text "$run/state/failure-class" transfer_failure
+        append_event "$run" "stage_unknown_screen_acquisition_failed"
         fail transfer_failure "unknown-screen provider acquisition failed"
-    "$gtd" --no-progress --log-format json \
+    fi
+    if ! "$gtd" --no-progress --log-format json \
         structure-search validate-phase3-provider-login-stage \
         --preparation "$preparation" \
-        >"$run/logs/unknown-screen-provider-validation.log" 2>&1 || \
+        >"$run/logs/unknown-screen-provider-validation.log" 2>&1; then
+        atomic_text "$run/state/phase" stage_failed
+        atomic_text "$run/state/failure-class" wrapper_failure
+        append_event "$run" "stage_unknown_screen_preparation_invalid"
         fail wrapper_failure "unknown-screen provider preparation validation failed"
+    fi
     preparation_sha256="$(sha256sum \
         "$preparation/provider_preparation.json" | awk '{print $1}')"
     [[ "$preparation_sha256" =~ $CHECKSUM_RE ]] || \
         fail filesystem_failure "unknown-screen provider checksum failed"
+    preparation_checksums="$run/state/unknown-screen-provider-checksums.sha256"
+    preparation_checksums_temporary="${preparation_checksums}.tmp.$$"
+    (
+        cd "$preparation"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            [[ "$relative" == provider_preparation.json ]] || sha256sum "$relative"
+        done < <(find . -xdev -type f -print | LC_ALL=C sort)
+    ) > "$preparation_checksums_temporary"
+    preparation_file_count="$(wc -l < "$preparation_checksums_temporary")"
+    [[ "$preparation_file_count" =~ $INTEGER_RE && \
+       "$preparation_file_count" -ge 1 && \
+       "$preparation_file_count" -le 1024 ]] || \
+        fail filesystem_failure "unknown-screen provider inventory is invalid"
+    mv -- "$screen_staging" "$screen_root"
+    mv -f -- "$preparation_checksums_temporary" "$preparation_checksums"
+    preparation="${screen_root}/provider_preparation"
+    cp -- "$parent/state/unknown-discovery-input-checksums.sha256" \
+        "$run/state/unknown-screen-input-checksums.sha256"
+    cp -- "$parent/state/unknown-discovery-input-file-count" \
+        "$run/state/unknown-screen-input-file-count"
     atomic_text "$run/state/unknown-discovery-parent-run-id" "$parent_run_id"
     atomic_text "$run/state/provider-preparation-sha256" "$preparation_sha256"
+    atomic_text "$run/state/unknown-screen-provider-file-count" \
+        "$preparation_file_count"
     atomic_text "$run/state/phase3-execution-identity-id" \
         "$(<"$parent/state/phase3-execution-identity-id")"
     append_event "$run" "stage_unknown_screen_provider_bound"
+    trap - EXIT
     emit operation unknown-screen-stage
     emit run_id "$run_id"
     emit parent_run_id "$parent_run_id"
@@ -2235,7 +2309,8 @@ unknown_single_component_stage_run() {
     local run_id="$1" owner_id="$2" parent_run_id="$3" parent_owner_id="$4"
     local input_id="$5" archive_sha256="$6" archive_size="$7"
     local run parent profile parent_profile archive staging actual_sha256
-    local unsafe_member python output stage_sha256
+    local unsafe_member python output stage_sha256 authority_checksums
+    local authority_checksums_temporary authority_file_count actual_authority_count
     validate_run_id "$run_id"
     validate_owner "$owner_id"
     validate_run_id "$parent_run_id"
@@ -2264,6 +2339,9 @@ unknown_single_component_stage_run() {
        -f "$parent/state/job-result.json" ]] || \
         fail wrapper_failure "unknown-single-component parent is not successful"
     [[ "$(<"$run/state/site-id")" == "$(<"$parent/state/site-id")" && \
+       "$(<"$run/state/commit")" == "$(<"$parent/state/commit")" && \
+       "$(<"$run/state/phenix-manifest-sha256")" == \
+       "$(<"$parent/state/phenix-manifest-sha256")" && \
        "$(<"$run/state/p0-config-sha256")" == \
        "$(<"$parent/state/p0-config-sha256")" && \
        "$(<"$run/state/database-manifest-sha256")" == \
@@ -2324,10 +2402,30 @@ unknown_single_component_stage_run() {
     mv -- "$staging" "$output/operator_decisions"
     find "$output/operator_decisions" -xdev -type f -exec chmod 0444 {} +
     find "$output/operator_decisions" -xdev -type d -exec chmod 0555 {} +
+    authority_checksums="$run/state/unknown-single-authority-checksums.sha256"
+    authority_checksums_temporary="${authority_checksums}.tmp.$$"
+    (
+        cd "$output"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f -print | LC_ALL=C sort)
+    ) > "$authority_checksums_temporary"
+    authority_file_count="$(wc -l < "$authority_checksums_temporary")"
+    actual_authority_count="$(find "$output" -xdev -type f | wc -l)"
+    [[ "$authority_file_count" =~ $INTEGER_RE && \
+       "$actual_authority_count" =~ $INTEGER_RE && \
+       "$authority_file_count" -eq "$actual_authority_count" && \
+       "$authority_file_count" -ge 1 && \
+       "$authority_file_count" -le 4096 ]] || \
+        fail filesystem_failure "unknown-single-component authority is incomplete"
+    mv -f -- "$authority_checksums_temporary" "$authority_checksums"
     rm -f -- "$archive"
     atomic_text "$run/state/unknown-screen-parent-run-id" "$parent_run_id"
     atomic_text "$run/state/unknown-single-input-id" "$input_id"
     atomic_text "$run/state/unknown-single-stage-sha256" "$stage_sha256"
+    atomic_text "$run/state/unknown-single-authority-file-count" \
+        "$authority_file_count"
     atomic_text "$run/state/phase3-execution-identity-id" \
         "$(<"$parent/state/phase3-execution-identity-id")"
     append_event "$run" "stage_unknown_single_component_bound"
@@ -3052,6 +3150,78 @@ m6_scientific_stage_run() {
         m6-scientific-stage "m6-${track}" "$track" "${@:1:9}" "${@:11}"
 }
 
+m6_leakage_parent_bind_run() {
+    [[ "$#" -eq 5 ]] || \
+        fail wrapper_failure "m6-leakage-parent-bind expects five fixed fields"
+    local run_id="$1" owner_id="$2" parent_run_id="$3" parent_owner_id="$4"
+    local expected_precheck="$5" run parent actual_precheck shared_cache field
+    validate_run_id "$run_id"
+    validate_owner "$owner_id"
+    validate_run_id "$parent_run_id"
+    validate_owner "$parent_owner_id"
+    [[ "$expected_precheck" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "invalid M6 operational precheck checksum"
+    require_owned_run "$run_id" "$owner_id"
+    require_owned_run "$parent_run_id" "$parent_owner_id"
+    run="$(run_directory "$run_id")"
+    parent="$(run_directory "$parent_run_id")"
+    [[ "$(<"$run/state/profile")" == m6-leakage && \
+       "$(<"$run/state/phase")" == staged && \
+       ! -e "$run/state/job-id" ]] || \
+        fail wrapper_failure "M6 leakage child is not safely staged"
+    [[ "$(<"$parent/state/profile")" == m6-operational && \
+       "$(<"$parent/state/phase")" == completed && \
+       "$(<"$parent/state/failure-class")" == success && \
+       "$(<"$parent/state/exit-code")" == 0 && \
+       -f "$parent/state/job-result.json" ]] || \
+        fail wrapper_failure "M6 operational parent is not successful"
+    for field in \
+        site-id \
+        commit \
+        pixi-lock-sha256 \
+        execution-policy-sha256 \
+        database-manifest-sha256 \
+        phenix-manifest-sha256 \
+        m6-runner-archive-sha256 \
+        m6-runner-manifest-sha256; do
+        [[ -f "$run/state/$field" && -f "$parent/state/$field" && \
+           "$(<"$run/state/$field")" == "$(<"$parent/state/$field")" ]] || \
+            fail wrapper_failure "M6 parent and leakage authority differ: $field"
+    done
+    for field in \
+        manifest.json \
+        state/job-result.json \
+        artifacts/qualification/m6-scientific-summary.json \
+        artifacts/qualification/m6-scientific-checksums.sha256; do
+        [[ -f "$parent/$field" && ! -L "$parent/$field" && \
+           -O "$parent/$field" ]] || \
+            fail wrapper_failure "M6 operational precheck evidence is unavailable"
+    done
+    actual_precheck="$(
+        cd "$parent"
+        sha256sum \
+            manifest.json \
+            state/job-result.json \
+            artifacts/qualification/m6-scientific-summary.json \
+            artifacts/qualification/m6-scientific-checksums.sha256 | \
+            sha256sum | awk '{print $1}'
+    )"
+    [[ "$actual_precheck" == "$expected_precheck" ]] || \
+        fail wrapper_failure "M6 operational collection precheck differs"
+    shared_cache="$parent/cache/m6-nextflow-operational"
+    [[ -d "$shared_cache" && ! -L "$shared_cache" && -O "$shared_cache" ]] || \
+        fail filesystem_failure "M6 operational shared cache is unavailable"
+    atomic_text "$run/state/m6-operational-parent-run-id" "$parent_run_id"
+    atomic_text "$run/state/m6-operational-precheck-sha256" "$actual_precheck"
+    atomic_text "$run/state/m6-shared-cache-dir" "$shared_cache"
+    append_event "$run" m6_leakage_parent_bound
+    emit operation m6-leakage-parent-bind
+    emit run_id "$run_id"
+    emit parent_run_id "$parent_run_id"
+    emit operational_precheck_sha256 "$actual_precheck"
+    emit status ready
+}
+
 m4_import_stage_run() {
     [[ "$#" -eq 9 ]] || \
         fail wrapper_failure "m4-import-stage expects nine fixed arguments"
@@ -3263,7 +3433,7 @@ submit_run() {
     local run_id="$1"
     local owner_id="$2"
     local run active_run active_job active_state submission job_id profile walltime
-    local cpus memory
+    local cpus memory actual_authority_count
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     [[ "$(<"$run/state/phase")" == staged ]] || \
@@ -3279,6 +3449,17 @@ submit_run() {
     if [[ "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
         validate_m6_smoke_site_state "$run"
+    fi
+    if [[ "$profile" == m6-leakage ]]; then
+        [[ -f "$run/state/m6-operational-parent-run-id" && \
+           -f "$run/state/m6-operational-precheck-sha256" && \
+           -f "$run/state/m6-shared-cache-dir" && \
+           "$(<"$run/state/m6-operational-parent-run-id")" =~ $RUN_ID_RE && \
+           "$(<"$run/state/m6-operational-precheck-sha256")" =~ $CHECKSUM_RE && \
+           -d "$(<"$run/state/m6-shared-cache-dir")" && \
+           ! -L "$(<"$run/state/m6-shared-cache-dir")" ]] || \
+            fail wrapper_failure \
+                "M6 leakage requires its collected operational cache authority"
     fi
     if [[ "$profile" == unknown-discovery ]]; then
         [[ -f "$run/state/unknown-discovery-input-id" && \
@@ -3302,11 +3483,33 @@ submit_run() {
         [[ -f "$run/state/unknown-screen-parent-run-id" && \
            -f "$run/state/unknown-single-input-id" && \
            -f "$run/state/unknown-single-stage-sha256" && \
+           -f "$run/state/unknown-single-authority-checksums.sha256" && \
+           -f "$run/state/unknown-single-authority-file-count" && \
            -f "$run/artifacts/unknown-single-component/reviewed_crystals.json" && \
            -d "$run/artifacts/unknown-single-component/owned_run_registry" && \
            -d "$run/artifacts/unknown-single-component/a_seed_stages" ]] || \
             fail wrapper_failure \
                 "unknown-single-component submit requires reviewed A decisions"
+        [[ "$(sha256sum \
+            "$run/artifacts/unknown-single-component/unknown_single_component_stage_manifest.json" | \
+            awk '{print $1}')" == \
+            "$(<"$run/state/unknown-single-stage-sha256")" ]] || \
+            fail wrapper_failure \
+                "unknown-single-component stage manifest changed before submit"
+        actual_authority_count="$(find \
+            "$run/artifacts/unknown-single-component" -xdev -type f | wc -l)"
+        [[ "$actual_authority_count" =~ $INTEGER_RE && \
+           "$actual_authority_count" -eq \
+           "$(<"$run/state/unknown-single-authority-file-count")" ]] || \
+            fail wrapper_failure \
+                "unknown-single-component authority cardinality changed"
+        (
+            cd "$run/artifacts/unknown-single-component"
+            sha256sum -c \
+                "$run/state/unknown-single-authority-checksums.sha256" \
+                >"$DISCARD" 2>&1
+        ) || fail wrapper_failure \
+            "unknown-single-component authority changed before submit"
     fi
     walltime=00:45:00
     cpus=2
@@ -3872,9 +4075,21 @@ collect_run() {
     local unknown_discovery_checksums="" unknown_discovery_output_root=""
     local unknown_discovery_digest="" unknown_discovery_relative=""
     local unknown_discovery_extra="" unknown_discovery_count=0
+    local unknown_single_checksums="" unknown_single_output_root=""
+    local unknown_single_digest="" unknown_single_relative=""
+    local unknown_single_extra="" unknown_single_count=0
+    local unknown_single_authority_checksums="" unknown_single_authority_root=""
+    local unknown_single_authority_digest="" unknown_single_authority_relative=""
+    local unknown_single_authority_extra="" unknown_single_authority_count=0
+    local unknown_single_authority_expected_count=""
     local unknown_input_checksums="" unknown_input_root=""
     local unknown_input_digest="" unknown_input_relative="" unknown_input_extra=""
     local unknown_input_archive_prefix="" unknown_input_count=0
+    local unknown_input_expected_count=""
+    local unknown_provider_checksums="" unknown_provider_root=""
+    local unknown_provider_digest="" unknown_provider_relative=""
+    local unknown_provider_extra="" unknown_provider_count=0
+    local unknown_provider_expected_count=""
     local -a files=()
     local -a diagnostic_omissions=()
     local -a p6_dynamic_models=()
@@ -3908,14 +4123,20 @@ collect_run() {
         state/unknown-discovery-input-id \
         state/unknown-discovery-input-archive-sha256 \
         state/unknown-discovery-input-checksums.sha256 \
+        state/unknown-discovery-input-file-count \
         state/phase3-execution-identity-id \
         state/unknown-review-stage-index-id \
         state/unknown-discovery-parent-run-id \
         state/unknown-screen-input-checksums.sha256 \
+        state/unknown-screen-input-file-count \
         state/provider-preparation-sha256 \
+        state/unknown-screen-provider-checksums.sha256 \
+        state/unknown-screen-provider-file-count \
         state/unknown-screen-parent-run-id \
         state/unknown-single-input-id \
         state/unknown-single-stage-sha256 \
+        state/unknown-single-authority-checksums.sha256 \
+        state/unknown-single-authority-file-count \
         state/heteromer-login-stage.sha256 \
         state/control-slice-archive-sha256 \
         state/control-slice-manifest-sha256 \
@@ -3928,6 +4149,8 @@ collect_run() {
         state/m6-runner-case-count \
         state/m6-runner-object-count \
         state/m6-track \
+        state/m6-operational-parent-run-id \
+        state/m6-operational-precheck-sha256 \
         state/failure-class \
         state/exit-code \
         logs/git-fetch.log \
@@ -4105,6 +4328,10 @@ collect_run() {
         artifacts/qualification/unknown-discovery-phenix-verification.log \
         artifacts/qualification/unknown-discovery-checksums.sha256 \
         artifacts/qualification/unknown-discovery-output-checksums.sha256 \
+        artifacts/qualification/unknown-discovery-before-resume.sha256 \
+        artifacts/qualification/unknown-discovery-after-resume.sha256 \
+        artifacts/qualification/unknown-discovery-first-task-identities.tsv \
+        artifacts/qualification/unknown-discovery-resume-task-identities.tsv \
         artifacts/qualification/unknown-discovery-first-pipeline-info/report.html \
         artifacts/qualification/unknown-discovery-first-pipeline-info/timeline.html \
         artifacts/qualification/unknown-discovery-first-pipeline-info/trace.tsv \
@@ -4117,6 +4344,10 @@ collect_run() {
         artifacts/qualification/unknown-screen-phenix-verification.log \
         artifacts/qualification/unknown-screen-checksums.sha256 \
         artifacts/qualification/unknown-screen-output-checksums.sha256 \
+        artifacts/qualification/unknown-screen-before-resume.sha256 \
+        artifacts/qualification/unknown-screen-after-resume.sha256 \
+        artifacts/qualification/unknown-screen-first-task-identities.tsv \
+        artifacts/qualification/unknown-screen-resume-task-identities.tsv \
         artifacts/qualification/unknown-screen-first-pipeline-info/report.html \
         artifacts/qualification/unknown-screen-first-pipeline-info/timeline.html \
         artifacts/qualification/unknown-screen-first-pipeline-info/trace.tsv \
@@ -4131,6 +4362,11 @@ collect_run() {
         artifacts/qualification/unknown-single-component-phenix-manifest.json \
         artifacts/qualification/unknown-single-component-phenix-verification.log \
         artifacts/qualification/unknown-single-component-checksums.sha256 \
+        artifacts/qualification/unknown-single-component-output-checksums.sha256 \
+        artifacts/qualification/unknown-single-component-before-resume.sha256 \
+        artifacts/qualification/unknown-single-component-after-resume.sha256 \
+        artifacts/qualification/unknown-single-component-first-task-identities.tsv \
+        artifacts/qualification/unknown-single-component-resume-task-identities.tsv \
         artifacts/qualification/unknown-single-component-first-pipeline-info/report.html \
         artifacts/qualification/unknown-single-component-first-pipeline-info/timeline.html \
         artifacts/qualification/unknown-single-component-first-pipeline-info/trace.tsv \
@@ -4139,10 +4375,6 @@ collect_run() {
         artifacts/qualification/unknown-single-component-resume-pipeline-info/timeline.html \
         artifacts/qualification/unknown-single-component-resume-pipeline-info/trace.tsv \
         artifacts/qualification/unknown-single-component-resume-pipeline-info/dag.html \
-        artifacts/unknown-single-component/unknown_single_component_stage_manifest.json \
-        artifacts/unknown-single-component/reviewed_crystals.json \
-        artifacts/unknown-single-component/owned_run_registry/phase3_owned_run_registry.json \
-        artifacts/unknown-single-component/operator_decisions/unknown_single_component_input_manifest.json \
         artifacts/qualification/control-slice-summary.json \
         artifacts/qualification/control-slice-case-results.jsonl \
         artifacts/qualification/control-slice-first-copy-results.jsonl \
@@ -4201,6 +4433,7 @@ collect_run() {
         artifacts/qualification/m6-resume-check.json \
         artifacts/qualification/m6-runtime-provenance.json \
         artifacts/qualification/m6-child-resource-evidence.json \
+        artifacts/qualification/m6-cross-track-cache-evidence.json \
         artifacts/qualification/m6-resume-cache-evidence.json \
         artifacts/qualification/m6-first-child-outputs.json \
         artifacts/qualification/m6-resume-child-outputs.json \
@@ -4589,10 +4822,20 @@ collect_run() {
         unknown_input_root="$run/artifacts/unknown-discovery/inputs"
         unknown_input_checksums="$run/state/unknown-discovery-input-checksums.sha256"
         unknown_input_archive_prefix="artifacts/unknown-discovery/inputs"
+        if [[ -f "$run/state/unknown-discovery-input-file-count" ]]; then
+            unknown_input_expected_count="$(<"$run/state/unknown-discovery-input-file-count")"
+        fi
     elif [[ "$profile" == unknown-screen ]]; then
         unknown_input_root="$run/artifacts/unknown-screen/inputs"
         unknown_input_checksums="$run/state/unknown-screen-input-checksums.sha256"
         unknown_input_archive_prefix="artifacts/unknown-screen/inputs"
+        if [[ -f "$run/state/unknown-screen-input-file-count" ]]; then
+            unknown_input_expected_count="$(<"$run/state/unknown-screen-input-file-count")"
+        fi
+    fi
+    if [[ -n "$unknown_input_checksums" && \
+          -z "$unknown_input_expected_count" ]]; then
+        unknown_input_expected_count=22
     fi
     if [[ -n "$unknown_input_checksums" && -f "$unknown_input_checksums" ]]; then
         [[ ! -L "$unknown_input_checksums" && -O "$unknown_input_checksums" && \
@@ -4622,10 +4865,115 @@ collect_run() {
             files+=("$unknown_input_archive_prefix/$unknown_input_relative")
             unknown_input_count=$((unknown_input_count + 1))
         done < "$unknown_input_checksums"
-        [[ "$unknown_input_count" -eq 22 ]] || \
+        [[ "$unknown_input_expected_count" =~ $INTEGER_RE && \
+           "$unknown_input_expected_count" -ge 1 && \
+           "$unknown_input_expected_count" -le 256 && \
+           "$unknown_input_count" -eq "$unknown_input_expected_count" ]] || \
             fail transfer_failure "unknown input file count differs"
     elif [[ -n "$unknown_input_checksums" && "$failure_class" == success ]]; then
         fail transfer_failure "unknown input checksum inventory is unavailable"
+    fi
+    if [[ "$profile" == unknown-screen ]]; then
+        unknown_provider_root="$run/artifacts/unknown-screen/provider_preparation"
+        unknown_provider_checksums="$run/state/unknown-screen-provider-checksums.sha256"
+        if [[ -f "$run/state/unknown-screen-provider-file-count" ]]; then
+            unknown_provider_expected_count="$(<"$run/state/unknown-screen-provider-file-count")"
+        fi
+    fi
+    if [[ -n "$unknown_provider_checksums" && \
+          -f "$unknown_provider_checksums" ]]; then
+        [[ ! -L "$unknown_provider_checksums" && \
+           -O "$unknown_provider_checksums" && \
+           -d "$unknown_provider_root" && ! -L "$unknown_provider_root" && \
+           "$unknown_provider_expected_count" =~ $INTEGER_RE && \
+           "$unknown_provider_expected_count" -ge 1 && \
+           "$unknown_provider_expected_count" -le 1024 ]] || \
+            fail transfer_failure "unknown provider inventory is unsafe"
+        while read -r unknown_provider_digest unknown_provider_relative unknown_provider_extra; do
+            [[ -n "$unknown_provider_digest" && \
+               -n "$unknown_provider_relative" && \
+               -z "$unknown_provider_extra" && \
+               "$unknown_provider_digest" =~ $CHECKSUM_RE && \
+               "$unknown_provider_relative" =~ ^[A-Za-z0-9._/-]+$ && \
+               "$unknown_provider_relative" != /* && \
+               "$unknown_provider_relative" != *..* && \
+               "$unknown_provider_relative" != provider_preparation.json ]] || \
+                fail transfer_failure "unknown provider checksum row is unsafe"
+            candidate="$unknown_provider_root/$unknown_provider_relative"
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" && \
+               "$(stat -c '%h' "$candidate")" -eq 1 ]] || \
+                fail transfer_failure "unknown provider file is unsafe"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == \
+               "$unknown_provider_digest" ]] || \
+                fail transfer_failure "unknown provider checksum differs"
+            size="$(file_size "$candidate")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "unknown provider file exceeds limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "artefacts exceed total limit"
+            files+=(
+                "artifacts/unknown-screen/provider_preparation/$unknown_provider_relative"
+            )
+            unknown_provider_count=$((unknown_provider_count + 1))
+        done < "$unknown_provider_checksums"
+        [[ "$unknown_provider_count" -eq \
+           "$unknown_provider_expected_count" ]] || \
+            fail transfer_failure "unknown provider file count differs"
+    elif [[ -n "$unknown_provider_checksums" && "$failure_class" == success ]]; then
+        fail transfer_failure "unknown provider inventory is unavailable"
+    fi
+    if [[ "$profile" == unknown-single-component ]]; then
+        unknown_single_authority_root="$run/artifacts/unknown-single-component"
+        unknown_single_authority_checksums="$run/state/unknown-single-authority-checksums.sha256"
+        if [[ -f "$run/state/unknown-single-authority-file-count" ]]; then
+            unknown_single_authority_expected_count="$(<"$run/state/unknown-single-authority-file-count")"
+        fi
+    fi
+    if [[ -n "$unknown_single_authority_checksums" && \
+          -f "$unknown_single_authority_checksums" ]]; then
+        [[ ! -L "$unknown_single_authority_checksums" && \
+           -O "$unknown_single_authority_checksums" && \
+           -d "$unknown_single_authority_root" && \
+           ! -L "$unknown_single_authority_root" && \
+           "$unknown_single_authority_expected_count" =~ $INTEGER_RE && \
+           "$unknown_single_authority_expected_count" -ge 1 && \
+           "$unknown_single_authority_expected_count" -le 4096 ]] || \
+            fail transfer_failure "unknown-single authority inventory is unsafe"
+        while read -r unknown_single_authority_digest unknown_single_authority_relative unknown_single_authority_extra; do
+            [[ -n "$unknown_single_authority_digest" && \
+               -n "$unknown_single_authority_relative" && \
+               -z "$unknown_single_authority_extra" && \
+               "$unknown_single_authority_digest" =~ $CHECKSUM_RE && \
+               "$unknown_single_authority_relative" =~ ^[A-Za-z0-9._/-]+$ && \
+               "$unknown_single_authority_relative" != /* && \
+               "$unknown_single_authority_relative" != *..* && \
+               "$unknown_single_authority_relative" != results/* ]] || \
+                fail transfer_failure "unknown-single authority row is unsafe"
+            candidate="$unknown_single_authority_root/$unknown_single_authority_relative"
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" && \
+               "$(stat -c '%h' "$candidate")" -eq 1 ]] || \
+                fail transfer_failure "unknown-single authority file is unsafe"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == \
+               "$unknown_single_authority_digest" ]] || \
+                fail transfer_failure "unknown-single authority checksum differs"
+            size="$(file_size "$candidate")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "unknown-single authority file exceeds limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "artefacts exceed total limit"
+            files+=(
+                "artifacts/unknown-single-component/$unknown_single_authority_relative"
+            )
+            unknown_single_authority_count=$((unknown_single_authority_count + 1))
+        done < "$unknown_single_authority_checksums"
+        [[ "$unknown_single_authority_count" -eq \
+           "$unknown_single_authority_expected_count" ]] || \
+            fail transfer_failure "unknown-single authority count differs"
+    elif [[ -n "$unknown_single_authority_checksums" && \
+            "$failure_class" == success ]]; then
+        fail transfer_failure "unknown-single authority inventory is unavailable"
     fi
     unknown_discovery_output_root="$run/artifacts/unknown-discovery/results"
     unknown_discovery_checksums="$run/artifacts/qualification/unknown-discovery-output-checksums.sha256"
@@ -4710,6 +5058,51 @@ collect_run() {
         [[ "$unknown_screen_count" -ge 1 && \
            "$unknown_screen_count" -le 20000 ]] || \
             fail transfer_failure "unknown-screen output file count differs"
+    fi
+    unknown_single_output_root="$run/artifacts/unknown-single-component/results"
+    unknown_single_checksums="$run/artifacts/qualification/unknown-single-component-output-checksums.sha256"
+    if [[ "$profile" == unknown-single-component && \
+          ! -f "$unknown_single_checksums" ]]; then
+        [[ -n "$failure_class" && "$failure_class" != success ]] || \
+            fail transfer_failure \
+                "unknown-single-component output inventory is unavailable"
+    elif [[ "$profile" == unknown-single-component ]]; then
+        [[ ! -L "$unknown_single_checksums" && \
+           -O "$unknown_single_checksums" && \
+           -d "$unknown_single_output_root" && \
+           ! -L "$unknown_single_output_root" ]] || \
+            fail transfer_failure \
+                "unknown-single-component output inventory is unsafe"
+        while read -r unknown_single_digest unknown_single_relative unknown_single_extra; do
+            [[ -n "$unknown_single_digest" && \
+               -n "$unknown_single_relative" && \
+               -z "$unknown_single_extra" && \
+               "$unknown_single_digest" =~ $CHECKSUM_RE && \
+               "$unknown_single_relative" =~ ^[A-Za-z0-9._/-]+$ && \
+               "$unknown_single_relative" != /* && \
+               "$unknown_single_relative" != *..* ]] || \
+                fail transfer_failure "unknown-single output row is unsafe"
+            candidate="$unknown_single_output_root/$unknown_single_relative"
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" && \
+               "$(stat -c '%h' "$candidate")" -eq 1 ]] || \
+                fail transfer_failure "unknown-single output file is unsafe"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == \
+               "$unknown_single_digest" ]] || \
+                fail transfer_failure "unknown-single output checksum differs"
+            size="$(file_size "$candidate")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "unknown-single output file exceeds limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "artefacts exceed total limit"
+            files+=(
+                "artifacts/unknown-single-component/results/$unknown_single_relative"
+            )
+            unknown_single_count=$((unknown_single_count + 1))
+        done < "$unknown_single_checksums"
+        [[ "$unknown_single_count" -ge 1 && \
+           "$unknown_single_count" -le 20000 ]] || \
+            fail transfer_failure "unknown-single output file count differs"
     fi
     if [[ -n "$job_id" ]]; then
         candidate="logs/slurm-${job_id}.out"
@@ -5371,6 +5764,7 @@ main() {
         control-matrix-stage) control_matrix_stage_run "$@" ;;
         m6-inputs-stage) m6_inputs_stage_run "$@" ;;
         m6-scientific-stage) m6_scientific_stage_run "$@" ;;
+        m6-leakage-parent-bind) m6_leakage_parent_bind_run "$@" ;;
         t12-stage) t12_stage_run "$@" ;;
         database-stage) database_stage_run "$@" ;;
         submit) submit_run "$@" ;;

@@ -1183,8 +1183,13 @@ def build_live_sequence_checkpoint(
         label="normal T12 stage manifest",
     )
     stage = _load_object(stage_manifest, "normal T12 stage manifest")
+    expected_profile = (
+        "phase3_reviewed_single_component"
+        if request.crystal_id is not None
+        else "normal_workflow"
+    )
     if not (
-        stage.get("profile") == "normal_workflow"
+        stage.get("profile") == expected_profile
         and stage.get("execution_status") == ExecutionStatus.COMPLETED_SUCCESS.value
         and stage.get("all_approved_seeds_retained") is True
         and stage.get("numeric_score_filter_applied") is False
@@ -1269,6 +1274,26 @@ def build_live_sequence_checkpoint(
         if not isinstance(digest, str) or sha256_file(source) != digest:
             raise SequenceCheckpointError(f"normal T12 {name} checksum differs")
         _register_source(retained_sources, Path("provenance") / name, source, digest)
+    if request.crystal_id is not None:
+        copy_assessments = _safe_relative_file(
+            stage_root,
+            "copy_count_assessments.jsonl",
+            label="Phase III copy-count assessments",
+        )
+        copy_assessments_sha256 = stage.get("copy_count_assessments_sha256")
+        if (
+            not isinstance(copy_assessments_sha256, str)
+            or sha256_file(copy_assessments) != copy_assessments_sha256
+        ):
+            raise SequenceCheckpointError(
+                "Phase III copy-count assessment checksum differs"
+            )
+        _register_source(
+            retained_sources,
+            Path("provenance/copy_count_assessments.jsonl"),
+            copy_assessments,
+            copy_assessments_sha256,
+        )
 
     refinements: list[BriefRefinementResult] = []
     sequences: list[SequenceMapResult] = []

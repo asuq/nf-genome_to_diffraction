@@ -202,6 +202,35 @@ def test_provider_local_processes_have_complete_scheduler_resources() -> None:
         assert "label 'process_local'" in module
 
 
+def test_phase3_foldseek_batches_retain_unmapped_database_targets() -> None:
+    module = (
+        REPOSITORY / "modules" / "local" / "phase3_foldseek_batch_tasks.nf"
+    ).read_text(encoding="utf-8")
+
+    assert "--retain-unmapped-targets" in module
+
+
+def test_phase3_scientific_concurrency_matches_the_approved_envelope() -> None:
+    first_copy = (
+        REPOSITORY
+        / "modules/local/phase3_multicrystal_first_copy_tasks.nf"
+    ).read_text(encoding="utf-8")
+    first_copy_process = first_copy.split(
+        "process RUN_PHASE3_FIRST_COPY_PHASER",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    refinement = (
+        REPOSITORY / "modules/local/run_brief_refinement.nf"
+    ).read_text(encoding="utf-8")
+    refinement_process = refinement.split(
+        "process RUN_PHASE3_BRIEF_REFINEMENT",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+
+    assert "maxForks 25" in first_copy_process
+    assert "maxForks 4" in refinement_process
+
+
 def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -> None:
     gitmodules = (REPOSITORY / ".gitmodules").read_text(encoding="utf-8")
     assert "path = external/nf-helper" in gitmodules

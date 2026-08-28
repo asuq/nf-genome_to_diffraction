@@ -182,10 +182,19 @@ def _bind_package(
     )
     for observed, expected, label in checks:
         _assert_equal(observed, expected, f"owned review package {label} differs")
-    if (
-        manifest.created_at < completed_at
-        and checkpoint is not PhaseIIIReviewCheckpoint.A_SEED
-    ):
+    in_run_checkpoint = (
+        checkpoint is PhaseIIIReviewCheckpoint.A_SEED
+        and parent.profile == "unknown-screen"
+    ) or (
+        checkpoint
+        in {
+            PhaseIIIReviewCheckpoint.SEQUENCE,
+            PhaseIIIReviewCheckpoint.COMPOSITION,
+        }
+        and parent.profile == "unknown-single-component"
+        and parent.phase == "phase3-pass1"
+    )
+    if manifest.created_at < completed_at and not in_run_checkpoint:
         raise PhaseIIIOwnedRunError("owned review package predates the completed run")
     if not _has_mtz(identity, crystal_id):
         raise PhaseIIIOwnedRunError(

@@ -62,7 +62,7 @@ ProviderDiscoveryPackageIdentifier = Annotated[
     Field(pattern=r"^providerdiscovery_[a-f0-9]{64}$"),
 ]
 
-_ADAPTER_VERSION = "phase3-provider-discovery-package-v1"
+_ADAPTER_VERSION = "phase3-provider-discovery-package-v2"
 _MANIFEST_NAME = "phase3_provider_discovery_manifest.json"
 _AFDB_MAP_NAME = "afdb_accession_map.tsv"
 _PDB_PROVIDER = "pdb_sequence_mmseqs"
@@ -95,7 +95,7 @@ class PhaseIIIProviderDiscoveryManifest(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "providerdiscovery_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["phase3-provider-discovery-package-v1"]
+    adapter_version: Literal["phase3-provider-discovery-package-v2"]
     package_id: ProviderDiscoveryPackageIdentifier
     owned_run_id: OperatorIdentifier
     execution_identity_id: ExecutionIdentityIdentifier
@@ -395,6 +395,36 @@ def build_phase3_provider_discovery_package(
         raise PhaseIIIProviderDiscoveryError(
             "catalogue/provider preparation belongs to different fixed inputs"
         )
+    catalogue_authority = {
+        (item.owner_id, item.role, item.sha256)
+        for item in execution.catalogue_artifacts
+    }
+    imported_authority = {
+        (item.catalogue_id, item.role, item.sha256)
+        for item in catalogue_manifest.inputs
+    }
+    synthetic_stub = catalogue_manifest.software_version == "stub"
+    if not synthetic_stub and (
+        not imported_authority
+        or not imported_authority.issubset(catalogue_authority)
+    ):
+        raise PhaseIIIProviderDiscoveryError(
+            "catalogue import differs from the execution identity"
+        )
+    database_sha256 = sha256_file(database, progress=False)
+    database_authority = tuple(
+        item
+        for item in execution.database_artifacts
+        if item.role == "database_manifest"
+    )
+    if not synthetic_stub and (
+        len(database_authority) != 1
+        or database_authority[0].sha256 != database_sha256
+        or database_authority[0].size_bytes != database.stat().st_size
+    ):
+        raise PhaseIIIProviderDiscoveryError(
+            "database manifest differs from the execution identity"
+        )
 
     groups = _load_jsonl(
         catalogue / "sequence_groups.jsonl",
@@ -451,6 +481,26 @@ def build_phase3_provider_discovery_package(
     published = False
     try:
         _copy_tree(catalogue, temporary / "catalogue")
+        copied_catalogue_manifest = (
+            temporary / "catalogue/catalogue_import_manifest.json"
+        )
+        atomic_write_json(
+            copied_catalogue_manifest,
+            catalogue_manifest.model_copy(
+                update={
+                    "inputs": tuple(
+                        item.model_copy(
+                            update={
+                                "path": (
+                                    f"authority/{item.catalogue_id}/{item.role}"
+                                )
+                            }
+                        )
+                        for item in catalogue_manifest.inputs
+                    )
+                }
+            ).model_dump(mode="json"),
+        )
         _copy_tree(reviews, temporary / "crystallographic_review_routes")
         _copy_tree(plan_bundle, temporary / "provider_plan")
         _copy_tree(pdb_search, temporary / "pdb_sequence_search")

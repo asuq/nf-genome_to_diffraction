@@ -1,6 +1,7 @@
 """Focused tests for the checksum-closed unknown-pass terminal collector."""
 
 import hashlib
+import shutil
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -194,6 +195,7 @@ def _review(
     checkpoint: PhaseIIIReviewCheckpoint,
     item_id: str,
     decision: PhaseIIIReviewDecisionValue,
+    package_sources: tuple[UnknownPass1EvidenceSource, ...] = (),
 ) -> UnknownPass1ReviewEvidence:
     prefix = f"{checkpoint.value}_{item_id}"
     review_root = root / "reviews" / crystal_id / prefix
@@ -204,6 +206,22 @@ def _review(
         f"synthetic-owned-review|{crystal_id}|{checkpoint.value}|{item_id}\n",
         encoding="ascii",
     )
+    package_evidence = [
+        PhaseIIIReviewEvidenceSource(
+            role="owned_review_context",
+            relative_path=source_path.name,
+        )
+    ]
+    for index, declared in enumerate(package_sources, start=1):
+        source = root / declared.relative_path
+        copied = source_root / f"scientific_{index:02d}_{source.name}"
+        shutil.copy2(source, copied)
+        package_evidence.append(
+            PhaseIIIReviewEvidenceSource(
+                role=f"owned_scientific_{index:02d}",
+                relative_path=copied.name,
+            )
+        )
     package_root = review_root / "package"
     package_root.mkdir()
     final_checkpoint = checkpoint in {
@@ -225,12 +243,7 @@ def _review(
             target_item_ids=(item_id,),
             created_at=datetime(2026, 8, 25, tzinfo=UTC),
             input_root=source_root,
-            evidence_sources=(
-                PhaseIIIReviewEvidenceSource(
-                    role="synthetic_owned_review_input",
-                    relative_path=source_path.name,
-                ),
-            ),
+            evidence_sources=tuple(package_evidence),
             output_directory=package_root,
         )
     )
@@ -253,7 +266,7 @@ def _review(
     )
     decision_path = review_root / "decision.json"
     decision_path.write_bytes(canonical_json_bytes(decision_file) + b"\n")
-    for path in sorted(package_root.rglob("*")):
+    for index, path in enumerate(sorted(package_root.rglob("*")), start=1):
         if not path.is_file():
             continue
         if path == package.manifest:
@@ -261,7 +274,7 @@ def _review(
         elif path.name == "review_targets.tsv":
             role = f"{prefix}_targets"
         else:
-            role = f"{prefix}_source"
+            role = f"{prefix}_source_{index:04d}"
         evidence.append(
             UnknownPass1EvidenceSource(
                 crystal_id=crystal_id,
@@ -524,6 +537,7 @@ def _assessment(
             checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
             item_id=state_id,
             decision=PhaseIIIReviewDecisionValue.APPROVE,
+            package_sources=(packing, combined),
         )
         composition_review = _review(
             root,
@@ -532,6 +546,15 @@ def _assessment(
             checkpoint=PhaseIIIReviewCheckpoint.COMPOSITION,
             item_id=state_id,
             decision=PhaseIIIReviewDecisionValue.APPROVE,
+            package_sources=(
+                copies,
+                combined,
+                refined,
+                refined_mtz,
+                review_map,
+                refinement,
+                sequence,
+            ),
         )
         sequence_review = _review(
             root,
@@ -540,6 +563,15 @@ def _assessment(
             checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
             item_id=sequence_group_id,
             decision=PhaseIIIReviewDecisionValue.APPROVE,
+            package_sources=(
+                copies,
+                combined,
+                refined,
+                refined_mtz,
+                review_map,
+                refinement,
+                sequence,
+            ),
         )
         reviews = _reviews(reviews[0], seed_review, composition_review, sequence_review)
         shortlist = True
@@ -1051,7 +1083,7 @@ def test_cross_crystal_duplicate_unsafe_symlink_and_nonempty_output_fail(
     )
     shared = duplicate.evidence_allow_list[0]
     cross_crystal = replace(shared, crystal_id=PHASE3_UNKNOWN_CRYSTAL_IDS[1])
-    with pytest.raises(UnknownPass1CollectionError, match="cross-crystal evidence"):
+    with pytest.raises(UnknownPass1CollectionError, match="path is duplicated"):
         collect_unknown_pass1_panel(
             replace(
                 duplicate,

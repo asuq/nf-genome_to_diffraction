@@ -138,6 +138,12 @@ class FakeTransport:
                 "run_id": arguments[0],
                 "content_base64": base64.b64encode(self.log_payload).decode(),
             }
+        if operation == "m6-leakage-parent-bind":
+            return {
+                "run_id": arguments[0],
+                "parent_run_id": arguments[2],
+                "operational_precheck_sha256": arguments[4],
+            }
         response = {
             "run_id": arguments[0] if arguments else "",
             "remote_operation": operation,
@@ -1460,6 +1466,9 @@ def test_unknown_discovery_stage_attaches_only_fixed_private_inputs(
             {
                 "schema_version": "1.0",
                 "crystallographic_review_stage": str(fixture.review_stage),
+                "crystallographic_review_registry": str(
+                    fixture.owned_run_registry
+                ),
                 "execution_identity": str(fixture.execution_identity),
                 "afdb_accession_map": str(afdb_map),
                 "crystal_manifest": str(phase3_crystals),
@@ -1568,6 +1577,29 @@ def test_unknown_screen_stage_rejects_missing_parent(tmp_path: Path) -> None:
         controller.stage("unknown-screen", "HEAD")
 
 
+def test_unknown_screen_stage_rejects_a_different_source_commit(
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+    parent = LocalRunRecord(
+        run_id="gtd-unknown-discovery-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+        site_id="marmic",
+        commit="e" * 40,
+        owner_id="c" * 32,
+        profile="unknown-discovery",
+        iteration=1,
+        parent_run_id=None,
+    )
+    parent.write(controller.config.local_state_root)
+
+    with pytest.raises(ValidationError, match="exact discovery source commit"):
+        controller.stage(
+            "unknown-screen",
+            "HEAD",
+            parent_run_id=parent.run_id,
+        )
+
+
 def test_unknown_single_component_stage_binds_confirmed_a_decisions(
     tmp_path: Path,
 ) -> None:
@@ -1658,6 +1690,29 @@ def test_unknown_single_component_stage_rejects_missing_parent(
 
     with pytest.raises(ValidationError, match="requires an owned"):
         controller.stage("unknown-single-component", "HEAD")
+
+
+def test_unknown_single_component_stage_rejects_a_different_source_commit(
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+    parent = LocalRunRecord(
+        run_id="gtd-unknown-screen-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+        site_id="marmic",
+        commit="e" * 40,
+        owner_id="d" * 32,
+        profile="unknown-screen",
+        iteration=1,
+        parent_run_id=None,
+    )
+    parent.write(controller.config.local_state_root)
+
+    with pytest.raises(ValidationError, match="exact screen source commit"):
+        controller.stage(
+            "unknown-single-component",
+            "HEAD",
+            parent_run_id=parent.run_id,
+        )
 
 
 def test_network_probe_defaults_to_phase3_without_exposing_probe_inputs(
@@ -1971,6 +2026,53 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
             "genome_to_diffraction.hpc.client._fixed_heteromer_phenix_binding",
             lambda repository: ("/approved/site/phenix/manifest.json", "a" * 64),
         )
+    operational_parent_run_id = None
+    if track == "leakage":
+        parent = LocalRunRecord(
+            run_id="gtd-m6-operational-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+            site_id=site_id,
+            commit=COMMIT,
+            owner_id="d" * 32,
+            profile="m6-operational",
+            iteration=1,
+            parent_run_id=None,
+        )
+        parent.write(controller.config.local_state_root)
+        operational_parent_run_id = parent.run_id
+        collected = controller.config.local_state_root / parent.run_id / "collected"
+        (collected / "state").mkdir(parents=True)
+        (collected / "artifacts/qualification").mkdir(parents=True)
+        atomic_write_json(
+            collected / "manifest.json",
+            {
+                "run_id": parent.run_id,
+                "profile": "m6-operational",
+                "commit": COMMIT,
+                "site_id": site_id,
+            },
+        )
+        atomic_write_json(
+            collected / "state/job-result.json",
+            {
+                "run_id": parent.run_id,
+                "profile": "m6-operational",
+                "scheduler_state": "COMPLETED",
+                "failure_class": "success",
+                "exit_code": 0,
+            },
+        )
+        atomic_write_json(
+            collected / "artifacts/qualification/m6-scientific-summary.json",
+            {
+                "schema_version": "2.0",
+                "adapter_version": "m6-nextflow-run-v2",
+                "track": "operational",
+            },
+        )
+        (
+            collected
+            / "artifacts/qualification/m6-scientific-checksums.sha256"
+        ).write_text("a" * 64 + "  result.json\n", encoding="ascii")
 
     result = controller.m6_scientific_stage(
         "HEAD",
@@ -1978,6 +2080,7 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
         archive_sha256,
         track,
         source_branch=source_branch,
+        operational_parent_run_id=operational_parent_run_id,
     )
 
     assert result["profile"] == f"m6-{track}"
@@ -1990,7 +2093,9 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
     assert result["maximum_concurrent_phenix_attempts"] == "scheduler_managed"
     assert result["scheduler_ceiling_hours"] == 24.0
     assert transport.m6_scientific_archive == archive.read_bytes()
-    operation, arguments = transport.calls[-1]
+    operation, arguments = next(
+        item for item in transport.calls if item[0] == "m6-scientific-stage"
+    )
     assert operation == "m6-scientific-stage"
     assert arguments[9] == track
     if site_id == "marmic":
@@ -2002,6 +2107,10 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
     else:
         assert len(arguments) == 10
         assert all("/" not in argument for argument in arguments)
+    if track == "leakage":
+        bind_operation, bind_arguments = transport.calls[-1]
+        assert bind_operation == "m6-leakage-parent-bind"
+        assert bind_arguments[2] == operational_parent_run_id
     assert isinstance(controller.git, FakeGit)
     if source_branch == "dev/phase3":
         assert controller.git.main_checks == []
@@ -2478,7 +2587,9 @@ def test_wait_reports_bounded_queue_timeout_without_cancelling(
 
     result = controller.wait(run_id)
 
-    assert result["failure_class"] == FailureClass.QUEUE_TIMEOUT
+    assert result["terminal"] == "false"
+    assert result["wait_timeout_class"] == FailureClass.QUEUE_TIMEOUT
+    assert "failure_class" not in result
     assert all(operation != "cancel" for operation, _ in transport.calls)
 
 

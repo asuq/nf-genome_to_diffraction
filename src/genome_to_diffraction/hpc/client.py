@@ -419,6 +419,59 @@ def _inspect_m6_runner_archive(
     )
 
 
+_M6_OPERATIONAL_PRECHECK_PATHS = (
+    "manifest.json",
+    "state/job-result.json",
+    "artifacts/qualification/m6-scientific-summary.json",
+    "artifacts/qualification/m6-scientific-checksums.sha256",
+)
+
+
+def _m6_operational_precheck(
+    collected: Path,
+    record: LocalRunRecord,
+) -> str:
+    """Authenticate one collected successful operational track before leakage."""
+
+    if collected.is_symlink() or not collected.is_dir():
+        raise ValidationError("M6 leakage requires its collected operational parent")
+    paths: list[tuple[str, Path]] = []
+    for relative in _M6_OPERATIONAL_PRECHECK_PATHS:
+        path = collected.joinpath(*PurePosixPath(relative).parts)
+        if path.is_symlink() or not path.is_file():
+            raise ValidationError(
+                f"M6 operational precheck is missing {relative}"
+            )
+        paths.append((relative, path))
+    manifest = load_json_document(paths[0][1])
+    result = load_json_document(paths[1][1])
+    summary = load_json_document(paths[2][1])
+    if (
+        not isinstance(manifest, dict)
+        or not isinstance(result, dict)
+        or not isinstance(summary, dict)
+        or manifest.get("run_id") != record.run_id
+        or manifest.get("profile") != "m6-operational"
+        or manifest.get("commit") != record.commit
+        or manifest.get("site_id") != record.site_id
+        or result.get("run_id") != record.run_id
+        or result.get("profile") != "m6-operational"
+        or result.get("scheduler_state") != "COMPLETED"
+        or result.get("failure_class") != "success"
+        or result.get("exit_code") != 0
+        or summary.get("track") != "operational"
+        or summary.get("schema_version") != "2.0"
+        or summary.get("adapter_version") != "m6-nextflow-run-v2"
+    ):
+        raise ValidationError(
+            "M6 operational parent is not a collected successful exact track"
+        )
+    inventory = "".join(
+        f"{sha256_file(path)}  {relative}\n" for relative, path in paths
+    )
+    return hashlib.sha256(inventory.encode("ascii")).hexdigest()
+
+
 class TextTransport(Protocol):
     """Transport contract used by the controller and deterministic fakes."""
 
@@ -1660,6 +1713,10 @@ class HpcController:
                 raise ValidationError(
                     "unknown-screen parent must belong to the configured HPC site"
                 )
+            if screen_parent.commit != commit:
+                raise ValidationError(
+                    "unknown-screen child must use the exact discovery source commit"
+                )
         if profile == "unknown-single-component":
             if parent_run_id is None:
                 raise ValidationError(
@@ -1674,6 +1731,11 @@ class HpcController:
             if single_parent.site_id != self.config.site_id:
                 raise ValidationError(
                     "unknown-single-component parent belongs to another HPC site"
+                )
+            if single_parent.commit != commit:
+                raise ValidationError(
+                    "unknown-single-component child must use the exact screen "
+                    "source commit"
                 )
         iteration, parent = self._next_iteration(parent_run_id)
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -2263,6 +2325,7 @@ class HpcController:
         track: str,
         *,
         source_branch: str = "main",
+        operational_parent_run_id: str | None = None,
     ) -> dict[str, object]:
         """Stage one fixed truth-isolated M6 track at its reviewed site."""
 
@@ -2272,6 +2335,31 @@ class HpcController:
             raise ValidationError("M6 scientific track must be operational or leakage")
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
+        operational_parent: LocalRunRecord | None = None
+        operational_precheck_sha256: str | None = None
+        if track == "operational":
+            if operational_parent_run_id is not None:
+                raise ValidationError("M6 operational staging cannot have a parent")
+        else:
+            if operational_parent_run_id is None:
+                raise ValidationError(
+                    "M6 leakage requires its collected operational parent"
+                )
+            operational_parent = self._owned_run(operational_parent_run_id)
+            if (
+                operational_parent.profile != "m6-operational"
+                or operational_parent.site_id != self.config.site_id
+                or operational_parent.commit != commit
+            ):
+                raise ValidationError(
+                    "M6 leakage parent differs in profile, site, or source"
+                )
+            operational_precheck_sha256 = _m6_operational_precheck(
+                self.config.local_state_root
+                / operational_parent.run_id
+                / "collected",
+                operational_parent,
+            )
         if source_branch == "main":
             self.git.ensure_reachable_from_origin_main(commit)
         elif source_branch == "dev/phase3":
@@ -2310,7 +2398,11 @@ class HpcController:
             owner_id=owner_id,
             profile=profile,
             iteration=1,
-            parent_run_id=None,
+            parent_run_id=(
+                operational_parent.run_id
+                if operational_parent is not None
+                else None
+            ),
         )
         local_path = record.write(self.config.local_state_root)
         self.logger.info(
@@ -2367,6 +2459,29 @@ class HpcController:
                     [*arguments, source_sha256, str(source_size), helper_commit],
                     combined_archive,
                 )
+        if operational_parent is not None:
+            assert operational_precheck_sha256 is not None
+            bound = self.transport.run(
+                "m6-leakage-parent-bind",
+                [
+                    run_id,
+                    owner_id,
+                    operational_parent.run_id,
+                    operational_parent.owner_id,
+                    operational_precheck_sha256,
+                ],
+            )
+            if (
+                bound.get("run_id") != run_id
+                or bound.get("parent_run_id") != operational_parent.run_id
+                or bound.get("operational_precheck_sha256")
+                != operational_precheck_sha256
+            ):
+                raise RemoteOperationError(
+                    "M6 leakage parent binding differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {**remote, **bound}
         remote_site = remote.get("site_id")
         if not isinstance(remote_site, str):
             raise ValidationError("M6 stage response omits the fixed site identity")
@@ -2786,8 +2901,14 @@ class HpcController:
                             "p2-diverse",
                             "p2-control",
                             "heteromer-smoke",
+                            "unknown-discovery",
+                            "unknown-screen",
+                            "unknown-single-component",
                             "control-slice",
                             "control-matrix",
+                            "m6-nextflow-smoke",
+                            "m6-operational",
+                            "m6-leakage",
                             "m4-copy",
                             "t12",
                         }
@@ -2843,8 +2964,8 @@ class HpcController:
                         return {
                             **result,
                             "operation": "wait",
-                            "terminal": True,
-                            "failure_class": FailureClass.QUEUE_TIMEOUT,
+                            "terminal": "false",
+                            "wait_timeout_class": FailureClass.QUEUE_TIMEOUT,
                             "message": (
                                 "queue wait limit reached; job was not cancelled"
                             ),
@@ -2855,8 +2976,8 @@ class HpcController:
                         return {
                             **result,
                             "operation": "wait",
-                            "terminal": True,
-                            "failure_class": FailureClass.UNKNOWN_FAILURE,
+                            "terminal": "false",
+                            "wait_timeout_class": "execution_wait_timeout",
                             "message": (
                                 "execution wait limit reached; inspect scheduler state"
                             ),

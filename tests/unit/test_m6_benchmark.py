@@ -1227,7 +1227,7 @@ def test_m6_collection_rejects_legacy_tracks_for_corrected_acceptance(
         tmp_path,
         track="leakage",
         adapter_version="m6-nextflow-run-v1",
-        commit="b" * 40,
+        commit="a" * 40,
         protocol_path=protocol_path,
     )
 
@@ -1314,7 +1314,7 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(
         tmp_path,
         track="leakage",
         adapter_version="m6-nextflow-run-v2",
-        commit="b" * 40,
+        commit="a" * 40,
         protocol_path=protocol_path,
         controller_stage=controller_stage,
         site_id=site_id,
@@ -1340,8 +1340,43 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(
     assert result.evidence.private_truth_map_sha256 == sha256_file(truth)
     assert result.evidence.provenance.track_source_commits == {
         "operational": "a" * 40,
-        "leakage": "b" * 40,
+        "leakage": "a" * 40,
     }
+
+
+def test_m6_collection_rejects_mixed_source_commits(tmp_path: Path) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+        site_id="marmic",
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="b" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+        site_id="marmic",
+    )
+    truth = _private_truth_file(tmp_path, protocol_path, protocol)
+
+    with pytest.raises(PublicControlError, match="disagree on commit"):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=truth,
+                operational_collection=operational,
+                leakage_collection=leakage,
+                output=tmp_path / "mixed-source-evidence.json",
+            )
+        )
 
 
 def test_m6_collection_rejects_tracks_from_different_reviewed_sites(

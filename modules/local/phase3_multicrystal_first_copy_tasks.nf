@@ -78,6 +78,7 @@ process RETAIN_PHASE3_CRYSTALLOGRAPHIC_HOLD {
 process RUN_PHASE3_FIRST_COPY_PHASER {
     tag "phase3-first-copy:${item[1]}:${item[13].baseName}"
     label 'process_mr'
+    maxForks 25
     publishDir params.outdir, mode: 'copy', overwrite: true
 
     input:
