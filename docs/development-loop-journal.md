@@ -13953,3 +13953,64 @@ with a collapsed combined parent or a guessed command.
   wheel parity, and wrapper syntax. Next commit/push once, watch exact-source
   CI, deploy, and submit one combined Marmic wrong-C/control successor. Unknown
   pass 1 remains stopped until that successor is collected and accepted.
+
+## 2026-08-28 - Wrong-C and the pre-unknown control gate are accepted
+
+- Commit `317d00d13406faad8c4aaba319e617104c242692` passed exact-source CI
+  `33159922527` / `98811628551` under Pixi 0.76.2. Reviewed dispatcher,
+  job-wrapper, and recovery digests were
+  `1cdb37392fa75d6562a5cdb0fdb535ead4adf530ff62c1a4e68d2c2841cc8428`,
+  `966154f4483e11ce800f23343efbf5cd29297db2a5a3d1bda261b91201521284`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Owned Marmic run
+  `gtd-heteromer-smoke-20260828T095750Z-317d00d13406-d70fd90a`, Slurm
+  `635840`, completed with exit 0 and `success` after 1 hour 32 minutes 43
+  seconds. Source, pinned nf-helper `82431e4`, Pixi, Phenix 2.1-6048, and all
+  seven executable checksums match.
+- 6RTZ recovered `1A+1B` at incremental LLG 5054.654 and TFZ 71.2. 3U7Q
+  recovered `2A+2B` at incremental LLG 229112.711 and TFZ 371.4. All six P6
+  assessments pass; deliberately wrong B remains a packed
+  `search_evidence_only` result with no identity or composition claim.
+- Positive 9ECN recovered exact `2A+2B+2C`: joint A LLG/TFZ 3507.703/19.3,
+  B incremental LLG/TFZ 11712.513/46.1, and C incremental LLG/TFZ
+  11239.132/60.3. The exact A/B/C atom partitions recombine to 18,842 atoms,
+  while the generic result remains claim-free.
+- The frozen distinct wrong-C model and sequence match the P6/3U7Q negative
+  manifest and differ from every positive 9ECN model. The real search completed
+  as `completed_no_hit`; its schema-v2 assessment is
+  `search_evidence_only`, claim-ineligible, and unclaimed. Independent local
+  verification passes all 47 P6, 46 placement, and 61 Phase III checksums.
+- `PH3-P1-28`, the wrong-C ladder, and the pre-unknown control gate are
+  accepted. Next build the exact-source private authority using the accepted v3
+  localisation bundle, then stage/submit one PH5 `unknown-discovery` run.
+
+## 2026-08-28 - First PH5 staging finds removed P0 state and a collector defect
+
+- Exact-source private authority
+  `phase3exec_91d156d3b0d7615b8868eaa8c18a25bc57426f4ca8308a3f6cde6e9a0e27dfbc`
+  was built from accepted commit `317d00d`, frozen P0 inputs, database manifest,
+  seven-command Phenix manifest, and localisation policy
+  `batchlocalpolicy_a3a03c7259427c1c7681b4552c2d66c0e162e37747cb52f140b5858e451f2192`.
+  All three earlier `proceed` decisions were rematerialised into owned review
+  stage
+  `unknownreviewstages_53570bc9d882c92ef507f0689a62e19467af3948ea7cbbe46671c1c0ed68b90f`.
+- The first staging attempt created diagnostic run
+  `gtd-unknown-discovery-20260828T121551Z-317d00d13406-9d598e9d`, then stopped
+  before scheduler submission with `environment_failure`: storage cleanup had
+  removed the fixed P0 configuration and its frozen input tree. Logs are empty,
+  status is terminal `stage_failed`, no Slurm job exists, and the run must not
+  be reused.
+- Collection exposed new finding `PH3-P1-31`: the dynamic successful-output
+  checksum manifest was required even for a stage failure, preventing transfer
+  of the retained phase/failure/events evidence. The minimal fix makes that
+  inventory optional only when a non-success failure class is explicitly
+  recorded. Success, active, or unclassified runs still require it; a present
+  inventory remains fully verified. The focused failed-stage regression and
+  existing successful discovery lifecycle both pass, together with Ruff and
+  wrapper syntax.
+- The reviewed P0 candidate checksum remains
+  `ac7ad4d2d4f9693683b89c8b492f645eddf026f782d90300b726f6be6d855dbb`,
+  but configuration correctly rejects it until the exact frozen input bundle is
+  restored. Commit/push the collector fix and evidence once, watch one CI,
+  deploy, restage the checksum-bound P0 inputs, install the same fixed
+  configuration, require P0 readiness, and submit one fresh discovery run.

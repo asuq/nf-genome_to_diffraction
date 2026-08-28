@@ -3688,6 +3688,69 @@ def test_p0_input_bundle_is_checksum_gated_immutable_and_configurable(
     assert "checksum differs" in tamper_fields["message"]
 
 
+def test_unknown_discovery_stage_failure_is_collectable_without_outputs(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    p0_config = _write_p0_paths(remote_root)
+    p0_values = p0_config.read_text(encoding="ascii").splitlines()
+    phenix_manifest = Path(p0_values[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    lock_sha256 = hashlib.sha256(
+        (tmp_path / "source-origin/pixi.lock").read_bytes()
+    ).hexdigest()
+    p0_config.unlink()
+
+    failed = _run(
+        [
+            str(dispatcher),
+            "stage",
+            UNKNOWN_DISCOVERY_RUN_ID,
+            commit,
+            lock_sha256,
+            OWNER_ID,
+            "1",
+            "unknown-discovery",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(failed.stdout)["failure_class"] == "environment_failure"
+
+    run = remote_root / "runs" / UNKNOWN_DISCOVERY_RUN_ID
+    archive = _run(
+        [str(dispatcher), "collect", UNKNOWN_DISCOVERY_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    assert {
+        "events.jsonl",
+        "state/phase",
+        "state/failure-class",
+    } <= names
+    assert (
+        "artifacts/qualification/unknown-discovery-output-checksums.sha256"
+        not in names
+    )
+    (run / "state/failure-class").write_text(
+        "fabricated_failure\n",
+        encoding="ascii",
+    )
+    rejected = _run(
+        [str(dispatcher), "collect", UNKNOWN_DISCOVERY_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(rejected.stdout)["failure_class"] == "wrapper_failure"
+
+
 def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     tmp_path: Path,
 ) -> None:

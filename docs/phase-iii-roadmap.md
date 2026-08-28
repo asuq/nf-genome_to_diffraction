@@ -398,11 +398,14 @@ LLG/TFZ 11234.964/55.8. Requested/observed copies are `2/2` for A, B, and C;
 exact grouped coordinates recombine to all 18,842 atoms; all 46 Phase III
 checksums validate. The generic search remains `search_evidence_only` with no
 identity or complete-composition claim. Positive depth three is accepted;
-the fixed successor now also binds the frozen distinct 3U7Q model as wrong C,
-passes any hit through the actual state/scope/assessment promotion boundary,
-and requires claim-free evidence. Focused and complete fake-HPC regressions
-pass; one exact-source Marmic successor remains before the negative ladder is
-accepted.
+the fixed successor also binds the frozen distinct 3U7Q model as wrong C and
+passes any hit through the actual state/scope/assessment promotion boundary.
+Exact-source commit `317d00d`, CI `33159922527` / `98811628551`, and Marmic
+job `635840` repeated every public control and completed wrong C as a no-hit.
+Its schema-v2 assessment remains `search_evidence_only`, claim-ineligible, and
+unclaimed. All 47 P6, 46 placement, and 61 Phase III checksums validate, as do
+all seven Phenix executable identities. The wrong-C negative ladder and
+pre-unknown control gate are accepted.
 
 ### PH4 - Localisation and gel evidence
 
@@ -420,12 +423,13 @@ network denial before import. Explicit sequence-local failures are neutral;
 unexplained missing rows remain fatal. Production
 `provider_discovery`/`first_copy` now require this complete bundle, bind exact
 sequence/source inventories, and retain every first-wave exclusion as a typed
-deferred hypothesis. The three-crystal cached Nextflow gate passes. Unknown
-deferred hypothesis. The completed pre-unknown locked gate passes with 1,358
-unit, 136 contract, and 88 integration tests plus every repository check.
-Unknown pass 1 remains stopped until exact-source CI and one Marmic wrong-C/
-control successor pass. A live zero-pack reopen plan is now published but
-cannot execute until the separately authorised pass-2 no-A profile consumes it.
+deferred hypothesis. The three-crystal cached Nextflow gate passes. The
+completed pre-unknown locked gate passes with 1,358 unit, 136 contract, and 88
+integration tests plus every repository check. Exact-source CI `33159922527`
+and Marmic control job `635840` pass at commit `317d00d`; the PH4/pre-unknown
+stop is cleared for exact-source private-authority construction and PH5
+unknown-discovery staging. A live zero-pack reopen plan is published but cannot
+execute until the separately authorised pass-2 no-A profile consumes it.
 
 Run checksum-pinned local PSORTb 3.0.6 with its archaeal model and DeepTMHMM
 1.0 from a user-provided academic runtime image. Record runtime/image digests,
@@ -504,6 +508,20 @@ provider and first-copy processes and requires a fully cached reviewed
 continuation. Exact-source CI `32931351353` / `98064082616` passed on
 `77d45cdbe9d0d428f20f69972dec3a1fe415e261` under Pixi 0.76.2. Deployment and
 Marmic evidence remain.
+
+The first exact-source PH5 discovery staging attempt at accepted commit
+`317d00d` created diagnostic run
+`gtd-unknown-discovery-20260828T121551Z-317d00d13406-9d598e9d` but stopped
+before scheduler submission with `environment_failure`: storage cleanup had
+removed the frozen P0 input tree and its fixed site configuration. No unknown
+scientific process ran and this failed staging run is not reusable. It also
+exposed `PH3-P1-31`: collection required a successful-run output inventory even
+for `stage_failed`. The minimal correction permits an absent dynamic inventory
+only for an explicit non-success failure class while preserving fail-closed
+requirements for success, active, and unclassified runs. Focused failed-stage
+and successful-discovery collection regressions pass. After CI/deployment,
+restore the checksum-frozen P0 bundle and configuration through their reviewed
+operations, require readiness, and stage one fresh unknown-discovery run.
 
 On 25 August 2026 the user/supervisor supplied the mandatory crystallographic
 checkpoint decision `proceed` for all three frozen crystals. This authorises a

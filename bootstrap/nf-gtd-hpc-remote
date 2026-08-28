@@ -3777,7 +3777,8 @@ collect_run() {
     local run_id="$1"
     local owner_id="$2"
     local run job_id="" candidate size total=0
-    local profile="" application_log="" diagnostic_dir="" diagnostic_path=""
+    local profile="" failure_class="" application_log="" diagnostic_dir=""
+    local diagnostic_path=""
     local relative="" diagnostic_relative="" basename="" omission_record=""
     local omission_temporary="" omission_size=0
     local p6_dynamic_model_root="" p6_dynamic_model_path=""
@@ -3798,6 +3799,13 @@ collect_run() {
     if [[ -f "$run/state/profile" ]]; then
         profile="$(<"$run/state/profile")"
         validate_profile "$profile"
+    fi
+    if [[ -f "$run/state/failure-class" ]]; then
+        failure_class="$(<"$run/state/failure-class")"
+        case "$failure_class" in
+            success|software_failure|test_failure|scheduler_rejection|queue_timeout|node_failure|environment_failure|filesystem_failure|transfer_failure|wrapper_failure|unknown_failure) ;;
+            *) fail wrapper_failure "recorded failure class is invalid" ;;
+        esac
     fi
     if [[ -f "$run/state/job-id" ]]; then
         job_id="$(<"$run/state/job-id")"
@@ -4517,13 +4525,16 @@ collect_run() {
     fi
     unknown_discovery_output_root="$run/artifacts/unknown-discovery/results"
     unknown_discovery_checksums="$run/artifacts/qualification/unknown-discovery-output-checksums.sha256"
-    if [[ "$profile" == unknown-discovery ]]; then
-        [[ -f "$unknown_discovery_checksums" && \
-           ! -L "$unknown_discovery_checksums" && \
+    if [[ "$profile" == unknown-discovery && \
+          ! -f "$unknown_discovery_checksums" ]]; then
+        [[ -n "$failure_class" && "$failure_class" != success ]] || \
+            fail transfer_failure "unknown-discovery output inventory is unavailable"
+    elif [[ "$profile" == unknown-discovery ]]; then
+        [[ ! -L "$unknown_discovery_checksums" && \
            -O "$unknown_discovery_checksums" && \
            -d "$unknown_discovery_output_root" && \
            ! -L "$unknown_discovery_output_root" ]] || \
-            fail transfer_failure "unknown-discovery output inventory is unavailable"
+            fail transfer_failure "unknown-discovery output inventory is unsafe"
         while read -r unknown_discovery_digest unknown_discovery_relative unknown_discovery_extra; do
             [[ -n "$unknown_discovery_digest" && \
                -n "$unknown_discovery_relative" && \
@@ -4557,12 +4568,15 @@ collect_run() {
     fi
     unknown_screen_output_root="$run/artifacts/unknown-screen/results"
     unknown_screen_checksums="$run/artifacts/qualification/unknown-screen-output-checksums.sha256"
-    if [[ "$profile" == unknown-screen ]]; then
-        [[ -f "$unknown_screen_checksums" && ! -L "$unknown_screen_checksums" && \
+    if [[ "$profile" == unknown-screen && ! -f "$unknown_screen_checksums" ]]; then
+        [[ -n "$failure_class" && "$failure_class" != success ]] || \
+            fail transfer_failure "unknown-screen output inventory is unavailable"
+    elif [[ "$profile" == unknown-screen ]]; then
+        [[ ! -L "$unknown_screen_checksums" && \
            -O "$unknown_screen_checksums" && \
            -d "$unknown_screen_output_root" && \
            ! -L "$unknown_screen_output_root" ]] || \
-            fail transfer_failure "unknown-screen output inventory is unavailable"
+            fail transfer_failure "unknown-screen output inventory is unsafe"
         while read -r unknown_screen_digest unknown_screen_relative unknown_screen_extra; do
             [[ -n "$unknown_screen_digest" && -n "$unknown_screen_relative" && \
                -z "$unknown_screen_extra" && \
