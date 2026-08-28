@@ -61,7 +61,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.pdb_coordinates")
-_ADAPTER_VERSION = "pdb-coordinate-registration-v1"
+_ADAPTER_VERSION = "pdb-coordinate-registration-v2"
 _PDB_COORDINATE_URL = "https://files.rcsb.org/download/{pdb_id}.cif.gz"
 _DIRECT_PROVIDER = "pdb_sequence_mmseqs"
 _PROSTT5_PROVIDER = "foldseek_prostt5_pdb"
@@ -92,6 +92,7 @@ class PdbCoordinateRegistrationRequest:
     storage_limit_bytes: int = 100_000_000_000
     minimum_free_bytes: int = 1_000_000_000
     materialise_coordinate_objects: bool = False
+    allow_network_acquisition: bool = True
     progress: bool = True
 
 
@@ -480,6 +481,11 @@ def _cached_or_downloaded(
             extra={"pdb_id": hit.pdb_id, "coordinate_sha256": cached.object_sha256},
         )
         return cached, entity, True
+    if not request.allow_network_acquisition:
+        raise PdbCoordinateInputError(
+            f"PDB coordinate {hit.pdb_id.upper()} is absent from the qualified "
+            "offline cache"
+        )
     cached, temporary = _download_coordinate(
         cache_root,
         pdb_id=hit.pdb_id,
@@ -714,6 +720,7 @@ def register_pdb_coordinates(
         "adapter_version": _ADAPTER_VERSION,
         "input_sha256": input_sha256,
         "materialise_coordinate_objects": request.materialise_coordinate_objects,
+        "allow_network_acquisition": request.allow_network_acquisition,
         "selected_hit_ids": [item.hit_id for item in selected],
         "coordinate_ids": [item.coordinate_id for item in source_rows],
         "mapping_ids": [item.mapping_id for item in mapping_rows],
@@ -746,6 +753,7 @@ def register_pdb_coordinates(
                 "materialise_coordinate_objects": (
                     request.materialise_coordinate_objects
                 ),
+                "allow_network_acquisition": request.allow_network_acquisition,
                 "selection_policy": "diversity_rounds_then_alignment_quality",
             },
             "input_hit_count": len(hits),

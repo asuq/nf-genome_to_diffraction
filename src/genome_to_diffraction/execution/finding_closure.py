@@ -8,6 +8,7 @@ raise :class:`PhaseIIIFindingClosureError`.
 """
 
 import re
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, Self
@@ -84,6 +85,7 @@ class PhaseIIIFindingClosureRecord(_ContentAddressedContract):
     known_control_evidence_sha256: Sha256Hex
     m6_evidence_sha256: Sha256Hex
     unknown_pass1_evidence_sha256: Sha256Hex
+    exact_source_ci_evidence_sha256: Sha256Hex
     exact_source_ci_run_id: int = Field(gt=0)
     exact_source_ci_job_id: int = Field(gt=0)
     exact_source_ci_status: Literal["success"]
@@ -97,6 +99,28 @@ class PhaseIIIFindingClosureRecord(_ContentAddressedContract):
         if len(finding_ids) != len(set(finding_ids)):
             raise ValueError("finding closure entries must be unique")
         return self
+
+
+class PhaseIIIExactSourceCIEvidence(ContractModel):
+    """Collected exact-source CI result bound into the closure record."""
+
+    schema_version: Literal["1.0"]
+    run_id: int = Field(gt=0)
+    job_id: int = Field(gt=0)
+    head_sha: GitObjectHex
+    conclusion: Literal["success"]
+
+
+@dataclass(frozen=True, slots=True)
+class PhaseIIIFindingClosureEvidenceFiles:
+    """Exact local files whose bytes the pass-2 closure authenticates."""
+
+    adverse_review: Path
+    integration_gate: Path
+    known_control_evidence: Path
+    m6_evidence: Path
+    unknown_pass1_evidence: Path
+    exact_source_ci_evidence: Path
 
 
 def _regular_file(path: Path, *, label: str) -> Path:
@@ -154,6 +178,7 @@ def validate_phase3_finding_closure(
     *,
     expected_source_commit: str,
     expected_source_tree: str,
+    evidence_files: PhaseIIIFindingClosureEvidenceFiles,
 ) -> PhaseIIIFindingClosureRecord:
     """Authenticate one complete finding-closure record against exact source."""
 
@@ -180,6 +205,55 @@ def validate_phase3_finding_closure(
             "Phase III finding ledger differs from the closure record"
         )
 
+    evidence_paths = {
+        "adverse_review_sha256": ("adverse-review", _regular_file(
+            evidence_files.adverse_review,
+            label="Phase III adverse review evidence",
+        )),
+        "integration_gate_sha256": ("integration-gate", _regular_file(
+            evidence_files.integration_gate,
+            label="Phase III integration-gate evidence",
+        )),
+        "known_control_evidence_sha256": ("known-control", _regular_file(
+            evidence_files.known_control_evidence,
+            label="Phase III known-control evidence",
+        )),
+        "m6_evidence_sha256": ("M6", _regular_file(
+            evidence_files.m6_evidence,
+            label="Phase III M6 evidence",
+        )),
+        "unknown_pass1_evidence_sha256": ("pass-1", _regular_file(
+            evidence_files.unknown_pass1_evidence,
+            label="Phase III pass-1 evidence",
+        )),
+        "exact_source_ci_evidence_sha256": ("exact-source CI", _regular_file(
+            evidence_files.exact_source_ci_evidence,
+            label="Phase III exact-source CI evidence",
+        )),
+    }
+    for field_name, (label, path) in evidence_paths.items():
+        if getattr(record, field_name) != sha256_file(path, progress=False):
+            raise PhaseIIIFindingClosureError(
+                f"Phase III {label} evidence differs"
+            )
+    try:
+        ci_evidence = PhaseIIIExactSourceCIEvidence.model_validate(
+            load_json_document(evidence_paths["exact_source_ci_evidence_sha256"][1])
+        )
+    except (ContractLoadError, ValidationError, ValueError) as error:
+        raise PhaseIIIFindingClosureError(
+            "Phase III exact-source CI evidence violates its contract"
+        ) from error
+    if (
+        ci_evidence.run_id != record.exact_source_ci_run_id
+        or ci_evidence.job_id != record.exact_source_ci_job_id
+        or ci_evidence.head_sha != record.source_commit
+        or ci_evidence.conclusion != record.exact_source_ci_status
+    ):
+        raise PhaseIIIFindingClosureError(
+            "Phase III exact-source CI evidence differs from the closure record"
+        )
+
     ledger_dispositions = _ledger_dispositions(ledger)
     record_dispositions = {
         entry.finding_id: entry.disposition for entry in record.entries
@@ -201,8 +275,10 @@ def validate_phase3_finding_closure(
 
 __all__ = [
     "FindingDisposition",
+    "PhaseIIIExactSourceCIEvidence",
     "PhaseIIIFindingClosureEntry",
     "PhaseIIIFindingClosureError",
+    "PhaseIIIFindingClosureEvidenceFiles",
     "PhaseIIIFindingClosureRecord",
     "validate_phase3_finding_closure",
 ]

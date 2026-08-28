@@ -161,10 +161,8 @@ process M6_APPLY_POLICY {
 
 process M6_STAGE_COORDINATES {
     tag "m6-coordinate-stage:${item[0]}"
-    // These reviewed site aliases both select the bounded login/controller
-    // executor. The project-level label records the network-stage semantics.
-    label 'process_network'
-    label 'needs_internet'
+    // Materialise only already-qualified cache objects on the bounded outer
+    // controller. The Python adapter is explicitly offline and fails on a miss.
     label 'run_local'
 
     input:

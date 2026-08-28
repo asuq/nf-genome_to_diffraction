@@ -196,6 +196,11 @@ from genome_to_diffraction.refinement import (
     stage_live_t12_inputs,
     stage_t12_inputs,
 )
+from genome_to_diffraction.reporting import (
+    collect_derived_unknown_pass1_panel,
+    derivation_request_from_spec,
+    derive_unknown_pass1_assessment,
+)
 from genome_to_diffraction.review import (
     LiveSequenceCheckpointRequest,
     MrSeedApprovalRequest,
@@ -1791,6 +1796,20 @@ def _build_parser() -> argparse.ArgumentParser:
         "--confirm-decisions-sha256", required=True
     )
     owned_composition_stage_parser.add_argument("--outdir", type=Path, required=True)
+    unknown_pass1_derive_parser = review_actions.add_parser(
+        "derive-unknown-pass1-assessment",
+        help="derive one terminal unknown-pass-1 assessment from owned evidence",
+    )
+    unknown_pass1_derive_parser.add_argument("--spec", type=Path, required=True)
+    unknown_pass1_derive_parser.add_argument("--outdir", type=Path, required=True)
+    unknown_pass1_collect_parser = review_actions.add_parser(
+        "collect-derived-unknown-pass1-panel",
+        help="collect exactly three independently derived unknown-pass-1 records",
+    )
+    unknown_pass1_collect_parser.add_argument(
+        "--input-root", type=Path, required=True
+    )
+    unknown_pass1_collect_parser.add_argument("--outdir", type=Path, required=True)
     owned_a_seed_package_parser = review_actions.add_parser(
         "build-owned-a-package",
         help="publish one owned A-seed package from verified first-copy evidence",
@@ -3668,6 +3687,25 @@ def _run_review(args: argparse.Namespace) -> int:
             f"Staged {output.decision_count} owned composition decisions: "
             f"{output.stage_id}"
         )
+        return 0
+    if args.review_action == "derive-unknown-pass1-assessment":
+        output = derive_unknown_pass1_assessment(
+            derivation_request_from_spec(
+                spec_path=args.spec,
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            f"Derived {output.scientific_status} unknown-pass-1 assessment: "
+            f"{output.assessment}"
+        )
+        return 0
+    if args.review_action == "collect-derived-unknown-pass1-panel":
+        output = collect_derived_unknown_pass1_panel(
+            input_root=args.input_root,
+            output_directory=args.outdir,
+        )
+        print(f"Collected unknown-pass-1 panel: {output.panel_id}")
         return 0
     if args.review_action == "build-owned-a-package":
         package = build_owned_phase3_a_seed_review_package(

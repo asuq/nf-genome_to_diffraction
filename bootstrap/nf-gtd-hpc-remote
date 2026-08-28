@@ -2964,10 +2964,6 @@ m6_runner_stage_common() {
     [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && \
        "$(head -n 1 "$SITE_CONFIG")" == "$SITE_ID" ]] || \
         fail environment_failure "M6 runner staging requires its reviewed fixed site"
-    if [[ "$operation" == m6-inputs-stage && "$SITE_ID" != viper-cpu ]]; then
-        fail environment_failure "M6 input staging requires the fixed Viper site"
-    fi
-
     if [[ "$operation" == m6-scientific-stage && "$SITE_ID" == marmic ]]; then
         if [[ -n "$source_archive_sha256" ]]; then
             stage_run_common \

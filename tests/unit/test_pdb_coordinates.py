@@ -247,6 +247,7 @@ def _request(
     *,
     suffix: str = "",
     materialise: bool = False,
+    allow_network: bool = True,
 ) -> PdbCoordinateRegistrationRequest:
     return PdbCoordinateRegistrationRequest(
         structural_hits_jsonl=hits,
@@ -257,6 +258,7 @@ def _request(
         maximum_mappings=2,
         minimum_free_bytes=0,
         materialise_coordinate_objects=materialise,
+        allow_network_acquisition=allow_network,
         progress=False,
     )
 
@@ -295,6 +297,44 @@ def test_registration_reserves_sequence_diversity_and_reuses_cache(
     assert [item.coordinate_id for item in reused.coordinate_sources] == [
         item.coordinate_id for item in output.coordinate_sources
     ]
+
+
+def test_offline_registration_refuses_cache_miss_and_reuses_staged_objects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hit_path, groups, manifest, _ = _inputs(tmp_path)
+    calls = _fake_download(monkeypatch)
+
+    with pytest.raises(PdbCoordinateInputError, match="qualified offline cache"):
+        register_pdb_coordinates(
+            _request(
+                tmp_path,
+                hit_path,
+                groups,
+                manifest,
+                suffix=" offline miss",
+                allow_network=False,
+            )
+        )
+    assert calls == []
+
+    register_pdb_coordinates(
+        _request(tmp_path, hit_path, groups, manifest, suffix=" login stage")
+    )
+    _fake_download(monkeypatch, fail=True)
+    offline = register_pdb_coordinates(
+        _request(
+            tmp_path,
+            hit_path,
+            groups,
+            manifest,
+            suffix=" offline hit",
+            allow_network=False,
+        )
+    )
+    record = json.loads(offline.manifest_json.read_text(encoding="utf-8"))
+    assert record["parameters"]["allow_network_acquisition"] is False
+    assert record["downloaded_entry_count"] == 0
 
 
 def test_documented_provider_no_hits_complete_without_coordinates_or_models(

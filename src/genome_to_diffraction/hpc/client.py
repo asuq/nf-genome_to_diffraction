@@ -2237,14 +2237,21 @@ class HpcController:
         revision: str,
         archive: Path,
         expected_archive_sha256: str,
+        *,
+        source_branch: str = "main",
     ) -> dict[str, object]:
         """Stage one explicitly confirmed truth-isolated 63-case M6 archive."""
 
-        if self.config.site_id != "viper-cpu":
-            raise ValidationError("m6-inputs-stage is available only for viper-cpu")
+        if self.config.site_id not in {"viper-cpu", "marmic"}:
+            raise ValidationError("m6-inputs-stage requires a reviewed HPC site")
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
-        self.git.ensure_reachable_from_origin_main(commit)
+        if source_branch == "main":
+            self.git.ensure_reachable_from_origin_main(commit)
+        elif source_branch == "dev/phase3":
+            self.git.ensure_reachable_from_origin_branch(commit, source_branch)
+        else:
+            raise ValidationError("source branch is not approved for M6 staging")
         untracked_root = (self.config.repository / ".untracked").resolve(strict=True)
         try:
             archive.resolve(strict=True).relative_to(untracked_root)
@@ -2308,6 +2315,7 @@ class HpcController:
             "run_id": run_id,
             "site_id": self.config.site_id,
             "commit": commit,
+            "source_branch": source_branch,
             "profile": "m6-inputs",
             "protocol_id": "m6_independent_prokaryote_homomer_v1",
             "case_count": case_count,

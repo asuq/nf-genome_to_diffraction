@@ -18,13 +18,16 @@ from genome_to_diffraction.review import (
     validate_phase3_review_package,
 )
 from genome_to_diffraction.schemas.base import ContractModel
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import (
+    AdditionalCopyResult,
     BriefRefinementResult,
     CopyCountAssessment,
     NormalisedMrResult,
     SequenceMapResult,
 )
 from genome_to_diffraction.schemas.v2 import (
+    PhaseIIIExecutionIdentity,
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecisionFile,
     UnknownPass1CollectedFile,
@@ -153,6 +156,7 @@ def _load_assessment(path: Path) -> UnknownPass1CrystalAssessment:
     except (OSError, ValidationError, ValueError) as error:
         raise UnknownPass1CollectionError("assessment violates schema-v2") from error
     rebuilt = UnknownPass1CrystalAssessment.from_evidence(
+        adapter_version=item.adapter_version,
         owned_parent_run_id=item.owned_parent_run_id,
         execution_identity_id=item.execution_identity_id,
         crystal_id=item.crystal_id,
@@ -208,6 +212,23 @@ def _validate_review_sources(
 
     screen_parent: str | None = None
     package_digests: dict[PhaseIIIReviewCheckpoint, set[str]] = {}
+    has_final_review = any(
+        item.checkpoint
+        in {
+            PhaseIIIReviewCheckpoint.SEQUENCE,
+            PhaseIIIReviewCheckpoint.COMPOSITION,
+        }
+        for item in assessment.review_evidence
+    )
+    terminal = _scientific_contract(
+        sources,
+        digest=assessment.terminal_evidence_sha256,
+        role="terminal_result",
+        schema=UnknownPass1TerminalEvidence,
+    )
+    single_component_parent = (
+        terminal.parent_profile == "unknown-single-component"
+    )
     for evidence in assessment.review_evidence:
         package_paths = paths_by_digest.get(
             evidence.review_package_manifest_sha256,
@@ -264,16 +285,29 @@ def _validate_review_sources(
                 raise UnknownPass1CollectionError(
                     "review package has an unowned final-checkpoint parent"
                 )
+        elif package.checkpoint is PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC:
+            if package.parent_profile != "unknown-crystallographic-review":
+                raise UnknownPass1CollectionError(
+                    "crystallographic review package has another authority"
+                )
         elif (
-            package.parent_profile != "unknown-screen"
-            or package.owned_parent_run_id == assessment.owned_parent_run_id
+            package.checkpoint is not PhaseIIIReviewCheckpoint.A_SEED
+            or package.parent_profile != "unknown-screen"
+            or (
+                (has_final_review or single_component_parent)
+                and package.owned_parent_run_id == assessment.owned_parent_run_id
+            )
+            or (
+                not (has_final_review or single_component_parent)
+                and package.owned_parent_run_id != assessment.owned_parent_run_id
+            )
             or (
                 screen_parent is not None
                 and package.owned_parent_run_id != screen_parent
             )
         ):
             raise UnknownPass1CollectionError(
-                "review package has an inconsistent completed-screen parent"
+                "A-seed review package has an inconsistent screen parent"
             )
         else:
             screen_parent = package.owned_parent_run_id
@@ -347,6 +381,153 @@ def _scientific_contract[Record: ContractModel](
         ) from error
 
 
+def _copy_support_contract(
+    sources: list[tuple[UnknownPass1EvidenceSource, Path]],
+    *,
+    digest: str | None,
+    state_id: str,
+) -> CopyCountAssessment:
+    """Select one state from the package-owned copy-assessment record set."""
+
+    path = _scientific_source(sources, digest=digest, role="copy_support")
+    try:
+        payload = path.read_bytes()
+        try:
+            records = (CopyCountAssessment.model_validate_json(payload),)
+        except (ValidationError, ValueError):
+            records = tuple(
+                CopyCountAssessment.model_validate_json(line)
+                for line in payload.splitlines()
+                if line.strip()
+            )
+    except (OSError, ValidationError, ValueError) as error:
+        raise UnknownPass1CollectionError(
+            "owned scientific copy_support evidence violates its authoritative "
+            "contract"
+        ) from error
+    matches = tuple(item for item in records if item.seed_solution_id == state_id)
+    if len(matches) != 1:
+        raise UnknownPass1CollectionError(
+            "owned scientific copy_support evidence lacks one exact crystal state"
+        )
+    return matches[0]
+
+
+def _validate_terminal_authority(
+    assessment: UnknownPass1CrystalAssessment,
+    terminal: UnknownPass1TerminalEvidence,
+    sources: list[tuple[UnknownPass1EvidenceSource, Path]],
+) -> None:
+    """Authenticate current terminal status against collected run evidence."""
+
+    if terminal.schema_version == "2.0":
+        if assessment.adapter_version != "unknown-pass1-terminal-assessment-v2":
+            raise UnknownPass1CollectionError(
+                "current assessment uses historical terminal evidence"
+            )
+        return
+    if assessment.adapter_version != "unknown-pass1-terminal-assessment-v3":
+        raise UnknownPass1CollectionError(
+            "historical assessment uses current terminal evidence"
+        )
+    identity = _scientific_contract(
+        sources,
+        digest=terminal.execution_identity_sha256,
+        role="execution_identity",
+        schema=PhaseIIIExecutionIdentity,
+    )
+    manifest_path = _scientific_source(
+        sources,
+        digest=terminal.run_manifest_sha256,
+        role="terminal_run_manifest",
+    )
+    job_path = _scientific_source(
+        sources,
+        digest=terminal.job_result_sha256,
+        role="terminal_job_result",
+    )
+    try:
+        manifest = load_json_document(manifest_path)
+        job = load_json_document(job_path)
+    except ContractLoadError as error:
+        raise UnknownPass1CollectionError(
+            "owned terminal run evidence is malformed"
+        ) from error
+    if not isinstance(manifest, dict) or not isinstance(job, dict):
+        raise UnknownPass1CollectionError(
+            "owned terminal run evidence must contain objects"
+        )
+    profile = terminal.parent_profile
+    if (
+        profile not in {"unknown-screen", "unknown-single-component"}
+        or identity.execution_identity_id != assessment.execution_identity_id
+        or manifest.get("schema_version") != "1.0"
+        or manifest.get("run_id") != assessment.owned_parent_run_id
+        or manifest.get("run_id") != terminal.owned_parent_run_id
+        or manifest.get("profile") != profile
+        or manifest.get("commit") != identity.source_commit
+        or manifest.get("nf_helper_commit") != identity.nf_helper_commit
+        or manifest.get("pixi_lock_sha256") != identity.pixi_lock_sha256
+        or manifest.get("source_snapshot_status") != "immutable"
+        or manifest.get("site_id") not in {"marmic", "viper-cpu"}
+        or job.get("run_id") != terminal.owned_parent_run_id
+        or job.get("profile") != profile
+    ):
+        raise UnknownPass1CollectionError(
+            "owned terminal run, source, or execution identity differs"
+        )
+    failure_class = job.get("failure_class")
+    scheduler_state = job.get("scheduler_state")
+    exit_code = job.get("exit_code")
+    if not isinstance(exit_code, int) or isinstance(exit_code, bool):
+        raise UnknownPass1CollectionError("owned terminal job exit code is invalid")
+    if failure_class == "success":
+        if (
+            scheduler_state != "COMPLETED"
+            or exit_code != 0
+            or terminal.execution_status
+            in {
+                ExecutionStatus.FAILED_INPUT_CONTRACT,
+                ExecutionStatus.FAILED_TOOL_EXECUTION,
+                ExecutionStatus.FAILED_PARSE,
+                ExecutionStatus.FAILED_INFRASTRUCTURE,
+            }
+        ):
+            raise UnknownPass1CollectionError(
+                "owned successful job contradicts terminal execution status"
+            )
+        return
+    if not isinstance(failure_class, str) or scheduler_state not in {
+        "BOOT_FAIL",
+        "CANCELLED",
+        "FAILED",
+        "NODE_FAIL",
+        "OUT_OF_MEMORY",
+        "PREEMPTED",
+        "TIMEOUT",
+    }:
+        raise UnknownPass1CollectionError(
+            "owned failed job lacks a supported terminal classification"
+        )
+    infrastructure_failures = {
+        "environment_failure",
+        "filesystem_failure",
+        "node_failure",
+        "queue_timeout",
+        "scheduler_rejection",
+        "transfer_failure",
+    }
+    expected = (
+        ExecutionStatus.FAILED_INFRASTRUCTURE
+        if failure_class in infrastructure_failures
+        else ExecutionStatus.FAILED_TOOL_EXECUTION
+    )
+    if exit_code == 0 or terminal.execution_status is not expected:
+        raise UnknownPass1CollectionError(
+            "owned failed job contradicts terminal execution status"
+        )
+
+
 def _validate_scientific_assets(
     *,
     combined: Path,
@@ -412,6 +593,7 @@ def _validate_scientific_sources(
         raise UnknownPass1CollectionError(
             "owned terminal scientific evidence differs from its assessment"
         )
+    _validate_terminal_authority(assessment, terminal, sources)
 
     if assessment.scientific_status not in {
         UnknownPass1ScientificStatus.CREDIBLE_SINGLE_COMPONENT_SOLUTION,
@@ -454,18 +636,29 @@ def _validate_scientific_sources(
             "credible scientific evidence is absent from its owned review packages"
         )
 
-    copies = _scientific_contract(
+    copies = _copy_support_contract(
         sources,
         digest=solution.copy_support_evidence_sha256,
-        role="copy_support",
-        schema=CopyCountAssessment,
+        state_id=solution.state_id,
     )
-    packing = _scientific_contract(
+    packing_path = _scientific_source(
         sources,
         digest=solution.packing_evidence_sha256,
         role="packing",
-        schema=NormalisedMrResult,
     )
+    try:
+        packing: NormalisedMrResult | AdditionalCopyResult = (
+            NormalisedMrResult.model_validate_json(packing_path.read_bytes())
+        )
+    except (OSError, ValidationError, ValueError):
+        try:
+            packing = AdditionalCopyResult.model_validate_json(
+                packing_path.read_bytes()
+            )
+        except (OSError, ValidationError, ValueError) as error:
+            raise UnknownPass1CollectionError(
+                "owned scientific packing evidence violates its contract"
+            ) from error
     refinement = _scientific_contract(
         sources,
         digest=solution.refinement_evidence_sha256,
@@ -484,10 +677,13 @@ def _validate_scientific_sources(
         role="final_metrics",
         schema=UnknownPass1FinalMetricsEvidence,
     )
+    search_sequence_group_id = (
+        solution.search_sequence_group_id or solution.sequence_group_id
+    )
 
     if (
         copies.seed_solution_id != solution.state_id
-        or copies.sequence_group_id != solution.sequence_group_id
+        or copies.sequence_group_id != search_sequence_group_id
         or copies.expected_copy_count != solution.requested_copy_count
         or copies.best_supported_copy_count != solution.observed_copy_count
         or not copies.reached_expected_copy_count
@@ -500,16 +696,31 @@ def _validate_scientific_sources(
             "scientific copy support differs from the owned crystal state"
         )
 
-    packed_count = packing.packing_summary.get("packed_solution_count")
+    if isinstance(packing, NormalisedMrResult):
+        packing_hypothesis_id = packing.hypothesis_id
+        packing_status = packing.execution_status
+        packing_copy_count = packing.placed_copy_count
+        packing_top_solution_packed = (
+            packing.packing_summary.get("top_solution_packed") is True
+        )
+        packed_count = packing.packing_summary.get("packed_solution_count")
+        packing_coordinate_sha256 = packing.solution_coordinate_sha256
+    else:
+        packing_hypothesis_id = packing.hypothesis_id
+        packing_status = packing.execution_status
+        packing_copy_count = packing.best_supported_copy_count
+        packing_top_solution_packed = packing.top_solution_packed
+        packed_count = packing.phaser_placement_count
+        packing_coordinate_sha256 = packing.output_coordinate_sha256
     if (
-        packing.hypothesis_id != copies.hypothesis_id
-        or packing.execution_status is not ExecutionStatus.COMPLETED_HIT
-        or packing.placed_copy_count != solution.observed_copy_count
-        or packing.packing_summary.get("top_solution_packed") is not True
+        packing_hypothesis_id != copies.hypothesis_id
+        or packing_status is not ExecutionStatus.COMPLETED_HIT
+        or packing_copy_count != solution.observed_copy_count
+        or not packing_top_solution_packed
         or isinstance(packed_count, bool)
         or not isinstance(packed_count, int)
         or packed_count < 1
-        or packing.solution_coordinate_sha256 != solution.combined_coordinate_sha256
+        or packing_coordinate_sha256 != solution.combined_coordinate_sha256
         or not solution.packing_passed
     ):
         raise UnknownPass1CollectionError(
@@ -518,7 +729,7 @@ def _validate_scientific_sources(
 
     if (
         refinement.seed_solution_id != solution.state_id
-        or refinement.sequence_group_id != solution.sequence_group_id
+        or refinement.sequence_group_id != search_sequence_group_id
         or refinement.input_copy_count != solution.observed_copy_count
         or refinement.execution_status
         not in {ExecutionStatus.COMPLETED_SUCCESS, ExecutionStatus.COMPLETED_WARNING}

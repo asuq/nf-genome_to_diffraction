@@ -94,6 +94,7 @@ def _solution(
     values: dict[str, object] = {
         "crystal_id": default_crystal_id,
         "state_id": f"{default_crystal_id}_state_A",
+        "search_sequence_group_id": f"seq_{HASHES[16]}",
         "sequence_group_id": f"seq_{HASHES[16]}",
         "requested_copy_count": 2,
         "observed_copy_count": 2,

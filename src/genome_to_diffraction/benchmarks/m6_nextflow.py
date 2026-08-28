@@ -19,9 +19,11 @@ and legacy/new collection, while DSL2 stub tests cover the complete graph.
 import csv
 import gzip
 import json
+import os
 import shutil
+import tempfile
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal, Self, cast
@@ -67,7 +69,6 @@ from genome_to_diffraction.benchmarks.m6_verification import (
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.catalogue import CatalogueImportRequest, import_catalogues
 from genome_to_diffraction.checksums import (
-    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
@@ -1072,14 +1073,36 @@ def run_m6_foldseek_search_task(
     return output
 
 
+def _iter_typed_jsonl[T](path: Path, model: type[T]) -> Iterator[T]:
+    """Parse one typed JSONL stream without materialising the whole file."""
+
+    try:
+        with path.open(encoding="utf-8") as stream:
+            for line_number, line in enumerate(stream, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    yield model.model_validate_json(line)  # ty: ignore[unresolved-attribute]
+                except ValueError as error:
+                    raise PublicControlError(
+                        f"invalid M6 JSONL line {line_number}: {path}"
+                    ) from error
+    except (OSError, UnicodeError) as error:
+        raise PublicControlError(f"cannot read M6 JSONL: {path}") from error
+
+
 def _batch_search_records(
-    bundles: tuple[Path, ...], provider: str
+    bundles: tuple[Path, ...],
+    provider: str,
+    selected_group_ids: frozenset[str],
 ) -> tuple[
     tuple[StructuralSearchResult, ...], tuple[StructuralSearchHit, ...], dict[str, str]
 ]:
     results: list[StructuralSearchResult] = []
     hits: list[StructuralSearchHit] = []
     manifests: dict[str, str] = {}
+    result_ids: set[str] = set()
+    hit_ids: set[str] = set()
     loaded: list[tuple[M6SearchBatchTask, Path]] = []
     for directory in bundles:
         root = directory.resolve(strict=True)
@@ -1093,15 +1116,27 @@ def _batch_search_records(
     if len(batch_ids) != len(set(batch_ids)):
         raise PublicControlError(f"M6 {provider} search batch is duplicated")
     for task, root in sorted(loaded, key=lambda item: item[0].batch_id):
-        results.extend(
-            _jsonl(root / "search/search_results.jsonl", StructuralSearchResult)
-        )
-        hits.extend(_jsonl(root / "search/structural_hits.jsonl", StructuralSearchHit))
+        for record in _iter_typed_jsonl(
+            root / "search/search_results.jsonl", StructuralSearchResult
+        ):
+            if record.search_id in result_ids:
+                raise PublicControlError(
+                    f"M6 {provider} search records are duplicated"
+                )
+            result_ids.add(record.search_id)
+            if record.sequence_group_id in selected_group_ids:
+                results.append(record)
+        for hit in _iter_typed_jsonl(
+            root / "search/structural_hits.jsonl", StructuralSearchHit
+        ):
+            if hit.hit_id in hit_ids:
+                raise PublicControlError(
+                    f"M6 {provider} search records are duplicated"
+                )
+            hit_ids.add(hit.hit_id)
+            if hit.sequence_group_id in selected_group_ids:
+                hits.append(hit)
         manifests[task.batch_id] = sha256_file(root / "bundle_manifest.json")
-    result_ids = [item.search_id for item in results]
-    hit_ids = [item.hit_id for item in hits]
-    if len(result_ids) != len(set(result_ids)) or len(hit_ids) != len(set(hit_ids)):
-        raise PublicControlError(f"M6 {provider} search records are duplicated")
     results.sort(
         key=lambda item: (item.sequence_group_id, item.provider, item.search_id)
     )
@@ -1133,19 +1168,13 @@ def partition_m6_discovery_task(
     )
     group_ids = frozenset(cast(list[str], membership["sequence_group_ids"]))
     pdb_search, pdb_hits, pdb_manifests = _batch_search_records(
-        pdb_results, "pdb_sequence"
+        pdb_results, "pdb_sequence", group_ids
     )
     fold_search, fold_hits, fold_manifests = _batch_search_records(
-        foldseek_results, "prostt5_foldseek"
+        foldseek_results, "prostt5_foldseek", group_ids
     )
-    selected_pdb = tuple(
-        record for record in pdb_search if record.sequence_group_id in group_ids
-    )
-    selected_fold = tuple(
-        record for record in fold_search if record.sequence_group_id in group_ids
-    )
-    if {record.sequence_group_id for record in selected_pdb} != group_ids or {
-        record.sequence_group_id for record in selected_fold
+    if {record.sequence_group_id for record in pdb_search} != group_ids or {
+        record.sequence_group_id for record in fold_search
     } != group_ids:
         raise PublicControlError(
             f"M6 batched discovery lost catalogue candidates: {task.catalogue_key}"
@@ -1154,20 +1183,19 @@ def partition_m6_discovery_task(
     output.mkdir(parents=True, exist_ok=False)
     shutil.copy2(catalogue / "catalogue_task.json", output / "catalogue_task.json")
     for label, records, hits, manifests in (
-        ("pdb_bundle", selected_pdb, pdb_hits, pdb_manifests),
-        ("foldseek_bundle", selected_fold, fold_hits, fold_manifests),
+        ("pdb_bundle", pdb_search, pdb_hits, pdb_manifests),
+        ("foldseek_bundle", fold_search, fold_hits, fold_manifests),
     ):
         root = output / label
         search = root / "search"
         search.mkdir(parents=True)
-        selected_hits = tuple(hit for hit in hits if hit.sequence_group_id in group_ids)
         atomic_write_text(
             search / "search_results.jsonl",
             "".join(f"{canonical_json_text(record)}\n" for record in records),
         )
         atomic_write_text(
             search / "structural_hits.jsonl",
-            "".join(f"{canonical_json_text(hit)}\n" for hit in selected_hits),
+            "".join(f"{canonical_json_text(hit)}\n" for hit in hits),
         )
         atomic_write_json(
             search / "search_manifest.json",
@@ -1177,7 +1205,7 @@ def partition_m6_discovery_task(
                 "catalogue_key": task.catalogue_key,
                 "provider": label,
                 "query_count": len(records),
-                "hit_count": len(selected_hits),
+                "hit_count": len(hits),
                 "source_batch_manifest_sha256": dict(sorted(manifests.items())),
             },
         )
@@ -1554,6 +1582,7 @@ def run_m6_coordinate_stage_task(
                 maximum_hits_per_sequence_group=3,
                 maximum_mappings=25,
                 materialise_coordinate_objects=True,
+                allow_network_acquisition=False,
                 progress=False,
             )
         )
@@ -2629,6 +2658,64 @@ def run_m6_assemble_case_task(
     return output
 
 
+def _atomic_concatenate_jsonl(destination: Path, sources: tuple[Path, ...]) -> None:
+    """Concatenate canonical JSONL sources with bounded memory and atomic publish."""
+
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as output:
+            temporary = Path(output.name)
+            for source in sources:
+                with source.open("rb") as stream:
+                    for line in stream:
+                        text = line.decode("utf-8").rstrip("\r\n")
+                        if text:
+                            output.write(text.encode("utf-8") + b"\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, destination)
+    except BaseException:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise
+
+
+def _atomic_gzip(source: Path, destination: Path) -> None:
+    """Write one deterministic gzip stream without loading its source into memory."""
+
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as raw:
+            temporary = Path(raw.name)
+            with gzip.GzipFile(
+                filename="",
+                mode="wb",
+                compresslevel=9,
+                fileobj=raw,
+                mtime=0,
+            ) as compressed, source.open("rb") as stream:
+                shutil.copyfileobj(stream, compressed, length=1024 * 1024)
+            raw.flush()
+            os.fsync(raw.fileno())
+        os.replace(temporary, destination)
+    except BaseException:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise
+
+
 def run_m6_aggregate_track_task(
     case_evidence: tuple[Path, ...],
     runner_root: Path,
@@ -2671,22 +2758,12 @@ def run_m6_aggregate_track_task(
         case_results,
         "".join(f"{json.dumps(row, sort_keys=True)}\n" for row in records),
     )
-    atomic_write_text(
+    _atomic_concatenate_jsonl(
         rankings,
-        "".join(
-            line + "\n"
-            for case_id in expected_ids
-            for line in (by_id[case_id] / "candidate_ranking.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-            if line
-        ),
+        tuple(by_id[case_id] / "candidate_ranking.jsonl" for case_id in expected_ids),
     )
     rankings_gzip = output / "m6_candidate_rankings.jsonl.gz"
-    atomic_write_bytes(
-        rankings_gzip,
-        gzip.compress(rankings.read_bytes(), compresslevel=9, mtime=0),
-    )
+    _atomic_gzip(rankings, rankings_gzip)
     atomic_write_text(
         policies,
         "".join(
@@ -2709,16 +2786,9 @@ def run_m6_aggregate_track_task(
         (sequences, "sequence_results.jsonl"),
         (sequence_summary, "sequence_summary.jsonl"),
     ):
-        atomic_write_text(
+        _atomic_concatenate_jsonl(
             destination,
-            "".join(
-                line + "\n"
-                for case_id in expected_ids
-                for line in (by_id[case_id] / source_name)
-                .read_text(encoding="utf-8")
-                .splitlines()
-                if line
-            ),
+            tuple(by_id[case_id] / source_name for case_id in expected_ids),
         )
     for case_id in expected_ids:
         shutil.copytree(by_id[case_id], output / "cases" / case_id)

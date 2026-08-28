@@ -228,10 +228,15 @@ def _review(
         PhaseIIIReviewCheckpoint.SEQUENCE,
         PhaseIIIReviewCheckpoint.COMPOSITION,
     }
-    parent_run = PARENT_RUN if final_checkpoint else f"{PARENT_RUN}_screen"
-    parent_profile = (
-        "unknown-single-component" if final_checkpoint else "unknown-screen"
-    )
+    if final_checkpoint:
+        parent_run = PARENT_RUN
+        parent_profile = "unknown-single-component"
+    elif checkpoint is PhaseIIIReviewCheckpoint.CRYSTALLOGRAPHIC:
+        parent_run = f"{PARENT_RUN}_crystallographic"
+        parent_profile = "unknown-crystallographic-review"
+    else:
+        parent_run = f"{PARENT_RUN}_screen"
+        parent_profile = "unknown-screen"
     package = build_phase3_review_package(
         PhaseIIIReviewPackageRequest(
             checkpoint=checkpoint,
@@ -511,6 +516,7 @@ def _assessment(
         solution = UnknownPass1SolutionEvidence(
             crystal_id=crystal_id,
             state_id=state_id,
+            search_sequence_group_id=sequence_group_id,
             sequence_group_id=sequence_group_id,
             requested_copy_count=2,
             observed_copy_count=2,
@@ -604,6 +610,7 @@ def _assessment(
     evidence.append(terminal)
 
     item = UnknownPass1CrystalAssessment.from_evidence(
+        adapter_version="unknown-pass1-terminal-assessment-v2",
         owned_parent_run_id=PARENT_RUN,
         execution_identity_id=EXECUTION_ID,
         crystal_id=crystal_id,
@@ -701,6 +708,7 @@ def _replace_scientific_evidence(
         solution = solution.model_copy(update={fields[role]: replacement_source.sha256})
 
     replacement_assessment = UnknownPass1CrystalAssessment.from_evidence(
+        adapter_version=assessment.adapter_version,
         owned_parent_run_id=assessment.owned_parent_run_id,
         execution_identity_id=assessment.execution_identity_id,
         crystal_id=assessment.crystal_id,
@@ -805,6 +813,7 @@ def test_credible_collection_rejects_checksum_matched_fake_review_package(
         )
     )
     updated_assessment = UnknownPass1CrystalAssessment.from_evidence(
+        adapter_version=assessment.adapter_version,
         owned_parent_run_id=assessment.owned_parent_run_id,
         execution_identity_id=assessment.execution_identity_id,
         crystal_id=assessment.crystal_id,

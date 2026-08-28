@@ -207,6 +207,12 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_inputs_stage.add_argument("--revision", required=True)
     m6_inputs_stage.add_argument("--archive", type=Path, required=True)
     m6_inputs_stage.add_argument("--confirm-archive-sha256", required=True)
+    m6_inputs_stage.add_argument(
+        "--source-branch",
+        choices=("main", "dev/phase3"),
+        default="main",
+        help="fixed remote branch containing the immutable M6 input commit",
+    )
 
     m6_scientific_stage = actions.add_parser(
         "m6-scientific-stage",
@@ -294,6 +300,7 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.revision,
             args.archive,
             args.confirm_archive_sha256,
+            source_branch=args.source_branch,
         )
     if args.operation == "m6-scientific-stage":
         return controller.m6_scientific_stage(

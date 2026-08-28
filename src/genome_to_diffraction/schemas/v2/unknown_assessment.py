@@ -67,7 +67,7 @@ class UnknownPass1ResidualContentState(StrEnum):
 class UnknownPass1TerminalEvidence(ContractModel):
     """One owned scientific terminal record before assessment interpretation."""
 
-    schema_version: Literal["2.0"]
+    schema_version: Literal["2.0", "3.0"]
     owned_parent_run_id: OperatorIdentifier
     execution_identity_id: ExecutionIdentityIdentifier
     crystal_id: OperatorIdentifier
@@ -75,11 +75,29 @@ class UnknownPass1TerminalEvidence(ContractModel):
     candidate_shortlist_present: bool
     state_id: OperatorIdentifier | None = None
     sequence_group_id: SequenceGroupIdentifier | None = None
+    parent_profile: OperatorIdentifier | None = None
+    execution_identity_sha256: Sha256Hex | None = None
+    run_manifest_sha256: Sha256Hex | None = None
+    job_result_sha256: Sha256Hex | None = None
 
     @model_validator(mode="after")
     def _validate_solution_identity(self) -> Self:
         if (self.state_id is None) != (self.sequence_group_id is None):
             raise ValueError("terminal state and sequence identities must be paired")
+        if self.schema_version == "3.0" and (
+            self.parent_profile is None
+            or self.execution_identity_sha256 is None
+            or self.run_manifest_sha256 is None
+            or self.job_result_sha256 is None
+        ):
+            raise ValueError("current terminal evidence requires its owned job result")
+        if self.schema_version == "2.0" and (
+            self.parent_profile is not None
+            or self.execution_identity_sha256 is not None
+            or self.run_manifest_sha256 is not None
+            or self.job_result_sha256 is not None
+        ):
+            raise ValueError("historical terminal evidence cannot carry v3 fields")
         return self
 
 
@@ -116,6 +134,7 @@ class UnknownPass1ReviewEvidence(ContractModel):
 class UnknownPass1SolutionEvidence(ContractModel):
     crystal_id: OperatorIdentifier
     state_id: OperatorIdentifier
+    search_sequence_group_id: SequenceGroupIdentifier | None = None
     sequence_group_id: SequenceGroupIdentifier
     requested_copy_count: Annotated[int, Field(gt=0, le=4)] | None = None
     observed_copy_count: Annotated[int, Field(ge=0, le=4)] | None = None
@@ -309,7 +328,10 @@ class UnknownPass1CrystalAssessment(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "unknownpass1assessment_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["unknown-pass1-terminal-assessment-v2"]
+    adapter_version: Literal[
+        "unknown-pass1-terminal-assessment-v2",
+        "unknown-pass1-terminal-assessment-v3",
+    ]
     assessment_id: UnknownPass1AssessmentIdentifier
     owned_parent_run_id: OperatorIdentifier
     execution_identity_id: ExecutionIdentityIdentifier
@@ -326,6 +348,10 @@ class UnknownPass1CrystalAssessment(_ContentAddressedContract):
     def from_evidence(
         cls,
         *,
+        adapter_version: Literal[
+            "unknown-pass1-terminal-assessment-v2",
+            "unknown-pass1-terminal-assessment-v3",
+        ] = "unknown-pass1-terminal-assessment-v3",
         owned_parent_run_id: str,
         execution_identity_id: str,
         crystal_id: str,
@@ -347,7 +373,7 @@ class UnknownPass1CrystalAssessment(_ContentAddressedContract):
             reviews=review_evidence,
         )
         return cls.from_content(
-            adapter_version="unknown-pass1-terminal-assessment-v2",
+            adapter_version=adapter_version,
             owned_parent_run_id=owned_parent_run_id,
             execution_identity_id=execution_identity_id,
             crystal_id=crystal_id,
@@ -386,6 +412,14 @@ class UnknownPass1CrystalAssessment(_ContentAddressedContract):
         )
         if self.scientific_status is not expected:
             raise ValueError("scientific status disagrees with crystal-bound evidence")
+        if (
+            self.adapter_version == "unknown-pass1-terminal-assessment-v3"
+            and self.solution_evidence is not None
+            and self.solution_evidence.search_sequence_group_id is None
+        ):
+            raise ValueError(
+                "current solution evidence requires its search sequence group"
+            )
         return self
 
 

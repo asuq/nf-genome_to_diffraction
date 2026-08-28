@@ -1942,8 +1942,15 @@ def test_control_matrix_stage_streams_only_fixed_viper_archive(
     assert all("/" not in argument for argument in arguments)
 
 
+@pytest.mark.parametrize(
+    ("site_id", "source_branch"),
+    (("viper-cpu", "main"), ("marmic", "dev/phase3")),
+)
 def test_m6_inputs_stage_streams_confirmed_truth_isolated_archive(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    site_id: str,
+    source_branch: str,
 ) -> None:
     archive = tmp_path / ".untracked" / "m6-runner.tar"
     archive.parent.mkdir()
@@ -1967,13 +1974,20 @@ def test_m6_inputs_stage_streams_confirmed_truth_isolated_archive(
     )
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
-    controller.config = _config(tmp_path, site_id="viper-cpu")
+    controller.config = _config(tmp_path, site_id=site_id)
 
-    result = controller.m6_inputs_stage("HEAD", archive, archive_sha256)
+    result = controller.m6_inputs_stage(
+        "HEAD",
+        archive,
+        archive_sha256,
+        source_branch=source_branch,
+    )
 
     assert result["profile"] == "m6-inputs"
     assert result["case_count"] == 63
     assert result["object_count"] == 64
+    assert result["site_id"] == site_id
+    assert result["source_branch"] == source_branch
     assert transport.m6_inputs_archive == archive.read_bytes()
     operation, arguments = transport.calls[-1]
     assert operation == "m6-inputs-stage"

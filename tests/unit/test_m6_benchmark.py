@@ -1483,7 +1483,7 @@ def test_collect_then_evaluate_holds_on_reported_wrong_open_set_identity(
         tmp_path,
         track="leakage",
         adapter_version="m6-nextflow-run-v2",
-        commit="b" * 40,
+        commit="a" * 40,
         protocol_path=protocol_path,
     )
     evidence_path = tmp_path / "collected-evidence.json"
@@ -1555,7 +1555,7 @@ def test_collect_then_evaluate_holds_when_edge_descriptor_lacks_matching_evidenc
         tmp_path,
         track="leakage",
         adapter_version="m6-nextflow-run-v2",
-        commit="b" * 40,
+        commit="a" * 40,
         edge_observation_by_case={case.case_id: contradictory},
         protocol_path=protocol_path,
     )
