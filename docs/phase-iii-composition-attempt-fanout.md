@@ -1,7 +1,7 @@
 # Phase III composition-attempt fan-out
 
-Status: local stub-only execution boundary. It does not run Phaser and is not an
-unknown-crystal or control profile.
+Status: locally implemented one-attempt execution boundary. The process has a
+safe stub mode; real installed-runtime and fixed-profile qualification remain.
 
 ## Purpose and authority
 
@@ -13,12 +13,11 @@ remains the authority for the one shared attempt budget across the retained
 parent beam: at most 25 selected attempts at one depth and at most 100
 additional-component attempts globally.
 
-The boundary introduces no Phaser flags, placement logic, score threshold, or
-scientific support transition. It only proves that a future executor can
-receive one complete immutable item per selected row. The separate
-component-expansion execution-input contract will own fixed coordinates,
-per-component uncertainty, and parent-LLG semantics; those values are not
-guessed here.
+The inventory introduces no Phaser flags, placement logic, score threshold, or
+scientific support transition. The separate component-expansion input owns
+fixed coordinates, per-component uncertainty, and parent-LLG semantics. The
+one-attempt executor resolves those identities and uses only the
+9ECN-qualified multi-fixed adapter; none of those values is guessed here.
 
 ## Python inputs and outputs
 
@@ -78,11 +77,19 @@ independent consumable singleton queues. Each Nextflow item therefore carries
 its attempt row plus the complete parent, candidate/model-resolution,
 diffraction, Free-R, registry, and execution-identity context.
 
-`STUB_PLANNED_COMPOSITION_ATTEMPT` is intentionally stub-only. A non-stub run
-fails before creating scientific output. Under `nextflow -stub-run`, the task
-hash covers the selected row and the complete inventory bytes. The stub copies
-the inventory and emits only `stub_not_executed` identity evidence; it is not an
-MR result and cannot promote a composition state.
+`RUN_PHASE3_COMPOSITION_ATTEMPT` receives each item plus the run-owned fixed
+coordinate root, all-model registry, sequence groups, preflight, MTZ, Phenix
+manifest, and complete execution identity. A real run independently validates
+all identities and raw Free-R membership before Phaser. Completed hit, no-hit,
+tool, parser, and infrastructure results remain distinct. Only parsed
+candidate-specific placement evidence can create a child state, and every
+result remains `search_evidence_only`; depths four through six carry
+`provisional_unvalidated_component_depth`.
+
+Under `nextflow -stub-run`, the same process hash covers the selected row,
+complete inventory, and every runtime input. The stub copies the inventory and
+emits only `stub_not_executed` identity evidence; it is not an MR result and
+cannot promote a composition state.
 
 ## Test coverage
 
@@ -97,6 +104,7 @@ published identity and complete inventory copy, accepts a typed no-model
 inventory with zero execution tasks, and requires a second `-resume` run to
 reuse the same 25 task hashes with byte-identical retained output.
 
-No Phenix runtime or version is required because no external scientific command
-is implemented. Live component execution, real-Phenix qualification, controls,
-unknown profiles, and HPC submission remain separate pending gates.
+`tests/unit/test_composition_runtime.py` covers a packed claim-free child state
+and a completed no-hit with no child. Real Phenix 2.1-6048/Phaser 2.8.4 was
+qualified through 6RTZ, 3U7Q, and positive 9ECN; one fixed-HPC general-attempt
+profile remains before this boundary is accepted for unknown pass 2.

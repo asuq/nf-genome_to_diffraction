@@ -6,6 +6,13 @@ from genome_to_diffraction.execution.composition import (
     load_composition_attempt_inventory,
     write_composition_attempt_inventory,
 )
+from genome_to_diffraction.execution.composition_runtime import (
+    CompositionAttemptExecutionError,
+    CompositionAttemptExecutionOutput,
+    CompositionAttemptExecutionRequest,
+    CompositionAttemptExecutionResult,
+    execute_composition_attempt,
+)
 from genome_to_diffraction.execution.provider_empty_graph import (
     ProviderEmptyGraphError,
     ProviderEmptyGraphRequest,
@@ -30,6 +37,10 @@ from genome_to_diffraction.execution.unknown_screen import (
 )
 
 __all__ = [
+    "CompositionAttemptExecutionError",
+    "CompositionAttemptExecutionOutput",
+    "CompositionAttemptExecutionRequest",
+    "CompositionAttemptExecutionResult",
     "CompositionAttemptInventoryError",
     "ProviderEmptyGraphError",
     "ProviderEmptyGraphRequest",
@@ -42,6 +53,7 @@ __all__ = [
     "build_composition_attempt_inventory",
     "build_unknown_pass1_screen_inventory",
     "complete_provider_empty_graph",
+    "execute_composition_attempt",
     "load_composition_attempt_inventory",
     "load_unknown_pass1_screen_inventory",
     "publish_unknown_pass1_crystallographic_review_routes",

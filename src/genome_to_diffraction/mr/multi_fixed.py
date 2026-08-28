@@ -1,6 +1,6 @@
 """Run one Phase III multi-fixed-component Phaser expansion.
 
-The adapter accepts two to five component-only coordinates already placed in
+The adapter accepts one to five component-only coordinates already placed in
 one parent frame, preserving each component's original Phaser identity/error
 model. It fixes every existing component at the origin and searches only the
 next ordered component. The output retains raw placement, packing, TFZ, and
@@ -137,7 +137,7 @@ class MultiFixedSearchManifest(ContractModel):
     parent_solution_id: NonEmptyString
     parent_combined_llg: float
     fixed_components: tuple[FixedSearchComponent, ...] = Field(
-        min_length=2,
+        min_length=1,
         max_length=5,
     )
     candidate: CandidateSearchComponent
@@ -170,7 +170,7 @@ class MultiFixedSearchResult(ContractModel):
     crystal_id: NonEmptyString
     tool_version: NonEmptyString
     input_manifest_sha256: Sha256Hex
-    fixed_component_labels: tuple[ComponentLabel, ...] = Field(min_length=2)
+    fixed_component_labels: tuple[ComponentLabel, ...] = Field(min_length=1)
     candidate_component_label: ComponentLabel
     requested_candidate_copy_count: PositiveInt
     execution_status: ExecutionStatus

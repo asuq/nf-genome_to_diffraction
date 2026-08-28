@@ -1,6 +1,6 @@
 nextflow.enable.types = true
 
-include { STUB_PLANNED_COMPOSITION_ATTEMPT } from '../modules/local/stub_planned_composition_attempt'
+include { RUN_PHASE3_COMPOSITION_ATTEMPT } from '../modules/local/run_phase3_composition_attempt'
 
 // Expand only the selected rows in one Python-validated composition-attempt
 // inventory. `combine` forms a Cartesian product with the immutable inventory
@@ -9,6 +9,13 @@ include { STUB_PLANNED_COMPOSITION_ATTEMPT } from '../modules/local/stub_planned
 workflow COMPOSITION_ATTEMPT_WORKFLOW {
     take:
     attempt_inventory: Path
+    fixed_coordinate_root: Path
+    model_registry: Path
+    sequence_groups: Path
+    preflight: Path
+    mtz: Path
+    phenix_manifest: Path
+    execution_identity: Path
 
     main:
     selected_rows = attempt_inventory.flatMap { Path inventory ->
@@ -47,7 +54,16 @@ workflow COMPOSITION_ATTEMPT_WORKFLOW {
         }
     }
     complete_items = selected_rows.combine(attempt_inventory)
-    executed = STUB_PLANNED_COMPOSITION_ATTEMPT(complete_items)
+    executed = RUN_PHASE3_COMPOSITION_ATTEMPT(
+        complete_items,
+        fixed_coordinate_root,
+        model_registry,
+        sequence_groups,
+        preflight,
+        mtz,
+        phenix_manifest,
+        execution_identity
+    )
 
     emit:
     results: Tuple = executed

@@ -97,8 +97,10 @@ from genome_to_diffraction.diffraction import (
     prepare_crystal_dispatch,
 )
 from genome_to_diffraction.execution import (
+    CompositionAttemptExecutionRequest,
     ProviderEmptyGraphRequest,
     complete_provider_empty_graph,
+    execute_composition_attempt,
     publish_unknown_pass1_crystallographic_review_routes,
     stage_unknown_pass1_composition_decisions,
     stage_unknown_pass1_selected_a_seeds,
@@ -1326,6 +1328,35 @@ def _build_parser() -> argparse.ArgumentParser:
         "--model-registry", type=Path, required=True
     )
     approved_partner_plan_parser.add_argument("--outdir", type=Path, required=True)
+
+    composition_parser = subparsers.add_parser(
+        "composition",
+        help="execute one bounded Phase III B--F composition attempt",
+    )
+    composition_actions = composition_parser.add_subparsers(
+        dest="composition_action",
+        required=True,
+    )
+    composition_run_parser = composition_actions.add_parser(
+        "run-attempt",
+        help="run one selected multi-fixed component attempt",
+    )
+    composition_run_parser.add_argument("--attempt-inventory", type=Path, required=True)
+    composition_run_parser.add_argument("--attempt-id", required=True)
+    composition_run_parser.add_argument(
+        "--fixed-coordinate-root", type=Path, required=True
+    )
+    composition_run_parser.add_argument("--model-registry", type=Path, required=True)
+    composition_run_parser.add_argument("--sequence-groups", type=Path, required=True)
+    composition_run_parser.add_argument("--preflight", type=Path, required=True)
+    composition_run_parser.add_argument("--mtz", type=Path, required=True)
+    composition_run_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    composition_run_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    composition_run_parser.add_argument("--threads", type=int, default=1)
+    composition_run_parser.add_argument("--timeout-seconds", type=float)
+    composition_run_parser.add_argument("--outdir", type=Path, required=True)
 
     mr_parser = subparsers.add_parser(
         "mr", help="execute bounded molecular-replacement hypotheses"
@@ -3217,6 +3248,32 @@ def _run_ranking(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_composition(args: argparse.Namespace) -> int:
+    if args.composition_action != "run-attempt":
+        raise AssertionError(f"unhandled composition action: {args.composition_action}")
+    output = execute_composition_attempt(
+        CompositionAttemptExecutionRequest(
+            attempt_inventory=args.attempt_inventory,
+            attempt_id=args.attempt_id,
+            fixed_coordinate_root=args.fixed_coordinate_root,
+            model_registry=args.model_registry,
+            sequence_groups_jsonl=args.sequence_groups,
+            preflight_jsonl=args.preflight,
+            mtz=args.mtz,
+            phenix_manifest=args.phenix_manifest,
+            execution_identity=args.execution_identity,
+            output_directory=args.outdir,
+            threads=args.threads,
+            timeout_seconds=args.timeout_seconds,
+        )
+    )
+    print(
+        f"Composition attempt {output.result.attempt_id} "
+        f"{output.result.execution_status.value}: {output.result_json}"
+    )
+    return 0
+
+
 def _run_mr(args: argparse.Namespace) -> int:
     if args.mr_action == "copy-report":
         report = build_copy_count_report(
@@ -3764,6 +3821,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_model(args)
         if args.command == "ranking":
             return _run_ranking(args)
+        if args.command == "composition":
+            return _run_composition(args)
         if args.command == "mr":
             return _run_mr(args)
         if args.command == "refinement":

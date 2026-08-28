@@ -286,9 +286,12 @@ resolution record, the authoritative parent-bound depth plan, and the
 content-addressed selected-attempt inventory are implemented. The deterministic
 planner shares one 25-attempt budget across at most three parents, preserves
 every disposition, enforces the 100-attempt global bound, and binds the
-independent all-model registry without consulting the A shortlist. A stub-only
-Nextflow fan-out now proves exact complete task identities and resume caching;
-live general-component Phaser execution remains a separate pending slice. The
+independent all-model registry without consulting the A shortlist. The
+Nextflow fan-out now owns one real B--F attempt per complete item and proves 25
+distinct task identities, typed empty paths, and resume caching in stub mode.
+Its Python executor independently resolves fixed/model files, execution and
+registry identities, source MTZ/Free-R membership, and the installed-runtime
+multi-fixed command; real general-attempt fixed-HPC qualification remains. The
 fixed 6RTZ/3U7Q control profile now binds `.sol` entries to exact source-model
 polymer sequences, derives one multi-copy coordinate per component, and proves
 complete atom recombination in a separate 46-file Phase III checksum boundary.
@@ -307,7 +310,9 @@ parent's combined LLG, the new combined LLG, and the independently checked
 increment between them as separate raw values. Exact parent/candidate models,
 copy counts, result checksum, and candidate-only coordinates remain bound;
 packing cannot promote a sequence or composition claim. Live general-component
-Phaser parsing remains a separate post-control gate.
+Phaser parsing now produces a claim-free child state only from a verified
+placement inventory. Completed no-hit/tool/parser outcomes remain terminal
+without a child, and depths four through six are explicitly provisional.
 
 The ordinary diverse-model funnel has an explicit Phase III joint-A mode. It
 preserves all four configured, physically possible Matthews copy alternatives,

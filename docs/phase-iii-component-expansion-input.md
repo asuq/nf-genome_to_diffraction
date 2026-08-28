@@ -4,19 +4,17 @@
 
 `ComponentExpansionExecutionInput` is the checksum-addressed hand-off required
 before one selected `B`--`F` component can be searched against a retained
-composition parent. It is intentionally **not** a Phaser command or result
-record.
+composition parent. It is not itself a Phaser command or result record; the
+one-attempt executor resolves its content identities to run-owned files and
+revalidates every byte before command construction.
 
-The repository has exercised one fixed `solution_at_origin = True` ensemble
-plus one independent search ensemble with the installed Phenix 2.1-6048 / Phaser
-2.8.4 runtime. It does not retain official or real-runtime evidence proving how
-several independently uncertain, already placed component ensembles should be
-expressed in one fixed-partial command. Reusing the combined parent PDB as one
-100%-identity ensemble would erase component-specific error models and repeat
-the defect tracked as `PIPE-P1-08`. The contract therefore carries the literal
-boundary
-`input_complete_multi_fixed_partial_phaser_syntax_not_qualified`; no execution
-adapter, parser, Nextflow process, or runtime-success claim is included.
+The accepted 6RTZ/3U7Q component-coordinate controls and positive 9ECN
+`2A+2B+2C` installed-runtime control now qualify one independently uncertain
+fixed ensemble per placed component followed by one next-component search.
+Reusing the combined parent PDB as one 100%-identity ensemble remains
+prohibited. New records therefore carry the exact boundary
+`installed_phaser_multi_fixed_component_v1_qualified_by_9ecn`; this does not
+qualify other Phaser algorithms or establish component identity from scores.
 
 ## Retained 6RTZ/3U7Q coordinate audit
 
@@ -64,8 +62,7 @@ Phenix Phaser reference separately states that each placed ensemble has its own
 `SOLU 6DIM` keyword and documents the z-y-z rotation followed by translation.
 Those are the required semantics; combined-PDB chain order is not a substitute.
 
-The future output adapter must be qualified against the installed target
-runtime and must:
+The qualified output adapter:
 
 1. request the documented per-placement coordinate output without changing the
    scientific search;
@@ -79,12 +76,10 @@ runtime and must:
 6. verify that all grouped component atom records recombine exactly to the
    combined parent before emitting derivation evidence.
 
-The installed-runtime probe and local adapter now complete steps 1--3 for the
-next known-control run: the partner command explicitly requests `.sol` and
-per-ensemble PDBs, and `PhaserPerPlacementInventory` content-binds the exact
-ordinal/ensemble/component/copy mapping. Steps 4--6 remain blocked until real
-6RTZ/3U7Q outputs prove grouping and recombination; the inventory therefore
-cannot yet emit `FixedComponentExecutionEvidence`.
+The installed-runtime probe, accepted 6RTZ/3U7Q controls, and accepted 9ECN
+control complete all six steps. `PhaserPerPlacementInventory` content-binds the
+ordinal/ensemble/component/copy mapping and exact atom recombination;
+`FixedComponentExecutionEvidence` preserves each original model uncertainty.
 
 References: [Phaser keyword reference](https://www.phaser.cimr.cam.ac.uk/index.php/Keywords)
 and [Phenix automated molecular-replacement reference](https://phenix-online.org/documentation/reference/phaser.html).
@@ -118,20 +113,21 @@ one collapsed coordinate checksum. Different parent identity fractions remain
 different content-addressed evidence rather than being averaged or reset to
 one.
 
-Paths are deliberately absent from this portable record. A future qualified
-adapter must accept explicit local file paths, verify each file against the
-recorded checksum before command construction, and use only syntax supported by
-official Phaser documentation and the retained installed runtime.
+Paths are deliberately absent from this portable record. The qualified
+one-attempt executor receives explicit run-owned roots/files, resolves each
+recorded checksum, verifies the execution and all-model-registry identities,
+and uses only the installed-runtime-qualified multi-fixed syntax.
 
 ## Outputs, failure semantics, and cache identity
 
-This boundary emits only the immutable input record. Missing, reordered,
+The portable boundary emits the immutable input record. Missing, reordered,
 collapsed, unavailable, non-finite, or cross-dataset evidence is an input
-contract failure and no external process may start. Scientific hit/no-hit,
-component TFZ, incremental LLG, requested/observed copies, final packing,
-component markers, output checksums, and mandatory `search_evidence_only`
-interpretation remain outputs of the future command/parser adapter; this
-contract does not fabricate them.
+contract failure and no external process may start. The executor separately
+emits typed hit/no-hit/failure status, raw component TFZ and incremental LLG,
+requested/observed copies, final packing, component markers, exact Free-R
+preservation, output checksums, and mandatory `search_evidence_only`
+interpretation. Only a parsed hit can create a child state; candidate-local
+no-hit/tool/parse outcomes remain retained terminal attempts.
 
 `execution_input_id` is the cache key. It covers the complete parent state,
 depth-plan identity, selected candidate, every fixed component coordinate/error
@@ -151,3 +147,9 @@ mismatch. No Phaser, Nextflow, HPC, or control run is performed.
 content-addressed blocked evidence, exact evidence-gap inventory, ordered
 component/copy coverage, mutation invalidation, and refusal of guessed
 coordinates or commands.
+
+`tests/unit/test_composition_runtime.py` covers packed claim-free child-state
+creation and completed no-hit retention. The composition-attempt Nextflow gate
+requires exactly 25 distinct complete task identities, a typed no-model empty
+path, and byte-identical cached replay using the same real process boundary in
+stub mode.

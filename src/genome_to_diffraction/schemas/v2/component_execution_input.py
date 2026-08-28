@@ -1,12 +1,10 @@
-"""Blocked execution input for one Phase III B--F component expansion.
+"""Executable input for one Phase III B--F component expansion.
 
 The contract binds the minimum evidence needed to construct one fixed-partial
 Phaser search without flattening a multi-component parent into one perfect
-ensemble.  It does not construct or execute a command: retained repository
-evidence qualifies one ``solution_at_origin = True`` ensemble, not several
-independently uncertain fixed ensembles.  ``command_boundary`` keeps that
-limitation machine-readable until exact official syntax and the installed
-runtime are qualified.
+ensemble. The exact per-ensemble syntax and installed runtime were qualified by
+the positive 9ECN ``2A+2B+2C`` control; ``command_boundary`` records that
+specific authority rather than a generic Phaser claim.
 
 Inputs are one selected depth candidate, its packed parent state, a
 component-only fixed coordinate and original Phaser identity/error evidence for
@@ -211,7 +209,7 @@ class FixedComponentExecutionEvidence(_ContentAddressedContract):
 
 
 class ComponentExpansionExecutionInput(_ContentAddressedContract):
-    """Complete non-executable input for one selected B--F expansion attempt."""
+    """Complete executable input for one selected B--F expansion attempt."""
 
     _identity_field: ClassVar[str] = "execution_input_id"
     _identity_prefix: ClassVar[str] = "compexecinput_"
@@ -219,8 +217,8 @@ class ComponentExpansionExecutionInput(_ContentAddressedContract):
     schema_version: Literal["2.0"]
     execution_input_id: ComponentExpansionExecutionInputIdentifier
     command_boundary: Literal[
-        "input_complete_multi_fixed_partial_phaser_syntax_not_qualified"
-    ] = "input_complete_multi_fixed_partial_phaser_syntax_not_qualified"
+        "installed_phaser_multi_fixed_component_v1_qualified_by_9ecn"
+    ] = "installed_phaser_multi_fixed_component_v1_qualified_by_9ecn"
     depth_plan_id: ExpansionDepthPlanIdentifier
     selected_candidate: CompositionExpansionDepthCandidate
     parent_state: CompositionState

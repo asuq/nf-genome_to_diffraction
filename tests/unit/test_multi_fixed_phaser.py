@@ -190,6 +190,38 @@ def _fake_runtime(
     return parameters
 
 
+def test_multi_fixed_manifest_accepts_one_fixed_a_for_b(tmp_path: Path) -> None:
+    manifest_path, _, _, _ = _inputs(tmp_path)
+    source = MultiFixedSearchManifest.model_validate_json(manifest_path.read_bytes())
+    component_b = source.fixed_components[1]
+
+    manifest = MultiFixedSearchManifest(
+        schema_version="2.0",
+        adapter_version="multi-fixed-component-search-input-v1",
+        crystal_id=source.crystal_id,
+        parent_solution_id="parent_a",
+        parent_combined_llg=500.0,
+        fixed_components=(source.fixed_components[0],),
+        candidate=CandidateSearchComponent(
+            schema_version="2.0",
+            label="B",
+            sequence_group_id=component_b.sequence_group_id,
+            model_id=component_b.model_id,
+            model_sha256=component_b.model_sha256,
+            model_path=component_b.coordinate_path,
+            requested_copy_count=component_b.requested_copy_count,
+            phaser_identity_fraction=component_b.phaser_identity_fraction,
+            model_uncertainty_source=component_b.model_uncertainty_source,
+            model_uncertainty_evidence_sha256=(
+                component_b.model_uncertainty_evidence_sha256
+            ),
+        ),
+    )
+
+    assert tuple(item.label for item in manifest.fixed_components) == ("A",)
+    assert manifest.candidate.label == "B"
+
+
 def test_multi_fixed_a_b_searches_two_c_without_claim(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

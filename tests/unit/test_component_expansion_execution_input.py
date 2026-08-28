@@ -559,7 +559,9 @@ def test_execution_input_preserves_distinct_parent_uncertainties_and_all_ids() -
         execution_input.free_r_identity.diffraction_selection_id
         == execution_input.diffraction_selection.diffraction_selection_id
     )
-    assert execution_input.command_boundary.endswith("syntax_not_qualified")
+    assert execution_input.command_boundary == (
+        "installed_phaser_multi_fixed_component_v1_qualified_by_9ecn"
+    )
 
 
 def test_execution_input_content_id_changes_with_parent_uncertainty_or_llg() -> None:

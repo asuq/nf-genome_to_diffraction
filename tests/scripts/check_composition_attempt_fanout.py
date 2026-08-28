@@ -426,7 +426,28 @@ def _output_digests(output: Path) -> dict[str, str]:
     }
 
 
-def _command(*, inventory: Path, output: Path, cache: Path) -> list[str]:
+def _runtime_stubs(root: Path) -> Path:
+    artifacts = root / "runtime-artifacts"
+    (artifacts / "fixed-coordinates").mkdir(parents=True)
+    (artifacts / "model-registry").mkdir()
+    for name in (
+        "sequence_groups.jsonl",
+        "preflight.jsonl",
+        "input.mtz",
+        "phenix.json",
+        "execution_identity.json",
+    ):
+        (artifacts / name).write_text(f"stub:{name}\n", encoding="ascii")
+    return artifacts
+
+
+def _command(
+    *,
+    inventory: Path,
+    output: Path,
+    cache: Path,
+    artifacts: Path,
+) -> list[str]:
     return [
         "nextflow",
         "-C",
@@ -436,6 +457,20 @@ def _command(*, inventory: Path, output: Path, cache: Path) -> list[str]:
         "-stub-run",
         "--attempt_inventory",
         str(inventory),
+        "--fixed_coordinate_root",
+        str(artifacts / "fixed-coordinates"),
+        "--model_registry",
+        str(artifacts / "model-registry"),
+        "--sequence_groups",
+        str(artifacts / "sequence_groups.jsonl"),
+        "--preflight",
+        str(artifacts / "preflight.jsonl"),
+        "--mtz",
+        str(artifacts / "input.mtz"),
+        "--phenix_manifest",
+        str(artifacts / "phenix.json"),
+        "--execution_identity",
+        str(artifacts / "execution_identity.json"),
         "--outdir",
         str(output),
         "--cache_root",
@@ -457,16 +492,18 @@ def _check_ready(root: Path, environment: dict[str, str]) -> None:
         root / "ready/composition_attempt_inventory.json",
     )
     output = root / "ready-results"
+    artifacts = _runtime_stubs(root)
     command = _command(
         inventory=inventory_path,
         output=output,
         cache=root / "ready-cache",
+        artifacts=artifacts,
     )
     _run(command, environment)
 
     trace_path = output / "pipeline_info/trace.tsv"
     first_rows = _read_trace(trace_path)
-    expected_process = "STUB_PLANNED_COMPOSITION_ATTEMPT"
+    expected_process = "RUN_PHASE3_COMPOSITION_ATTEMPT"
     actual_processes = Counter(row["process"].split(":")[-1] for row in first_rows)
     if actual_processes != Counter({expected_process: 25}):
         raise RuntimeError(
@@ -553,6 +590,7 @@ def _check_no_model(root: Path, environment: dict[str, str]) -> None:
             inventory=inventory_path,
             output=output,
             cache=root / "no-model-cache",
+            artifacts=root / "runtime-artifacts",
         ),
         environment,
     )
