@@ -1,5 +1,12 @@
 # Phase III offline localisation and wave-policy boundary
 
+> This document preserves the original per-sequence-group adapter and reopen
+> policy. The active Phase III unknown-pass route uses the checksum-pinned,
+> catalogue-batch PSORTb and DeepTMHMM runtime described in
+> [Phase III offline localisation runtime](phase-iii-localisation-runtime.md).
+> The historical blocked DeepTMHMM path below remains readable but is not the
+> current application writer.
+
 This focused slice defines offline, one-sequence-group localisation contracts and
 the catalogue-wide first-wave policy. It does not download a runtime, submit
 sequences to a public service, run DeepTMHMM, launch a real/HPC profile, or infer

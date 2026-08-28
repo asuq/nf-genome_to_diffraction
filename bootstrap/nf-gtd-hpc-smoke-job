@@ -1864,6 +1864,8 @@ run_unknown_discovery_nextflow() {
         "$UNKNOWN_DISCOVERY_INPUTS/crystallographic_review_stage" \
         --afdb_accession_map \
         "$UNKNOWN_DISCOVERY_INPUTS/afdb_accession_map.tsv" \
+        --phase3_localisation_bundle \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle" \
         --outdir "$UNKNOWN_DISCOVERY_OUT" \
         --cache_root "$RUN/cache/unknown-discovery-nextflow"
 }
@@ -1889,6 +1891,7 @@ run_unknown_discovery() {
        "$execution_identity_id" =~ ^phase3exec_[a-f0-9]{64}$ && \
        "$review_stage_index_id" =~ ^unknownreviewstages_[a-f0-9]{64}$ && \
        -d "$UNKNOWN_DISCOVERY_INPUTS" && \
+       -d "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle" && \
        ! -L "$UNKNOWN_DISCOVERY_INPUTS" ]] || return 2
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
@@ -1948,6 +1951,14 @@ run_unknown_discovery() {
         --package "$UNKNOWN_DISCOVERY_OUT/phase3_provider_discovery"
     sha256sum \
         "$UNKNOWN_DISCOVERY_INPUTS/unknown_discovery_input_manifest.json" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/localisation_batch_manifest.json" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/first_wave_policy.json" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/group_localisation_evidence.jsonl" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/first_wave_sequence_group_ids.txt" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/excluded_sequence_group_ids.txt" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/gel-evidence.json" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/raw/psortb-terse.tsv" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/raw/deeptmhmm-topologies.3line" \
         "$PHENIX_MANIFEST" \
         "$UNKNOWN_DISCOVERY_OUT/phase3_provider_discovery/phase3_provider_discovery_manifest.json" \
         "$first_trace" \
@@ -1977,6 +1988,8 @@ run_unknown_screen_nextflow() {
         "$UNKNOWN_SCREEN_INPUTS/crystallographic_review_stage" \
         --phase3_provider_discovery "$UNKNOWN_SCREEN_DISCOVERY" \
         --phase3_provider_preparation "$UNKNOWN_SCREEN_PREPARATION" \
+        --phase3_localisation_bundle \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle" \
         --maximum_first_copy_jobs 25 \
         --outdir "$UNKNOWN_SCREEN_OUT" \
         --cache_root "$RUN/cache/unknown-screen-nextflow"
@@ -1998,6 +2011,7 @@ run_unknown_screen() {
     load_p0_config
     CRYSTALS="$UNKNOWN_SCREEN_INPUTS/phase3_crystals.json"
     [[ -d "$UNKNOWN_SCREEN_INPUTS" && ! -L "$UNKNOWN_SCREEN_INPUTS" && \
+       -d "$UNKNOWN_SCREEN_INPUTS/localisation_bundle" && \
        -d "$UNKNOWN_SCREEN_DISCOVERY" && ! -L "$UNKNOWN_SCREEN_DISCOVERY" && \
        -d "$UNKNOWN_SCREEN_PREPARATION" && ! -L "$UNKNOWN_SCREEN_PREPARATION" ]] || \
         return 2
@@ -2067,6 +2081,14 @@ run_unknown_screen() {
     sha256sum \
         "$UNKNOWN_SCREEN_DISCOVERY/phase3_provider_discovery_manifest.json" \
         "$UNKNOWN_SCREEN_PREPARATION/provider_preparation.json" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/localisation_batch_manifest.json" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/first_wave_policy.json" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/group_localisation_evidence.jsonl" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/first_wave_sequence_group_ids.txt" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/excluded_sequence_group_ids.txt" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/gel-evidence.json" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/raw/psortb-terse.tsv" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/raw/deeptmhmm-topologies.3line" \
         "$PHENIX_MANIFEST" \
         "$UNKNOWN_SCREEN_OUT/phase3_offline_provider_input/phase3_offline_provider_input.json" \
         "$first_trace" \

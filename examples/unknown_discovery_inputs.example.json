@@ -3,5 +3,6 @@
   "crystallographic_review_stage": "/absolute/review/unknown-pass1-review-stage",
   "execution_identity": "/absolute/review/phase3-execution-identity.json",
   "afdb_accession_map": "/absolute/review/afdb-accession-map.tsv",
-  "crystal_manifest": "/absolute/review/phase3-crystals.json"
+  "crystal_manifest": "/absolute/review/phase3-crystals.json",
+  "localisation_bundle": "/absolute/review/phase3-localisation-bundle"
 }

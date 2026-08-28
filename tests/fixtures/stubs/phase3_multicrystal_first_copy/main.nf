@@ -19,6 +19,7 @@ params {
     experimental_prepared_models: Path
     matthews: Path
     pipeline_config: Path
+    localisation_bundle: Path
     phenix_manifest: Path
     phase3_crystallographic_review_stage: Path? = null
     phase3_execution_identity: Path? = null
@@ -98,6 +99,7 @@ workflow {
         channel.value(params.experimental_prepared_models),
         channel.value(params.matthews),
         channel.value(params.pipeline_config),
+        channel.value(params.localisation_bundle),
         25,
         channel.value(params.phenix_manifest),
         params.phase3_crystallographic_review_stage,

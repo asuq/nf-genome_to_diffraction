@@ -415,16 +415,18 @@ for debugging; an existing versioned installation is never overwritten.
   owner. Its compute-only `provider_discovery` operation stops before every
   network acquisition. The fixed login controller uses
   `structure-search stage-phase3-provider-coordinates` on the resulting owned
-  package; `first_copy` then requires both exact packages and executes model
-  preparation plus MR without network access.
+  package; both operations require the complete checksum-pinned offline
+  localisation/gel bundle. `first_copy` then requires all three exact
+  authorities and executes model preparation plus MR without network access.
 
 The reviewed `unknown-discovery` wrapper exposes no input paths. It reads one
 owned mode-0600 untracked specification at
 `.untracked/phase3-unknown-pass1/unknown-discovery-inputs.json`; the tracked
 shape is [examples/unknown_discovery_inputs.example.json](examples/unknown_discovery_inputs.example.json).
-The controller validates the exact review/execution identity and AFDB map,
-streams a path-free immutable archive, and requests a fixed 8-CPU, 32-GB,
-24-hour Slurm allocation. Staging and submitting remain separate operations.
+The controller validates the exact review/execution identity, AFDB map, and
+PSORTb/DeepTMHMM localisation/gel runtime evidence, streams a path-free
+immutable archive, and requests a fixed 8-CPU, 32-GB, 24-hour Slurm allocation.
+Staging and submitting remain separate operations.
 After that run completes successfully, `stage unknown-screen --parent-run ...`
 accepts only the owned discovery parent, performs bounded provider acquisition
 on the login node, and records the preparation checksum in the child run. The

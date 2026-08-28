@@ -15,6 +15,7 @@ from shutil import copytree
 from genome_to_diffraction.checksums import atomic_write_json
 from tests.support.unknown_pass1_fixture import (
     PUBLIC_STUB_CRYSTAL_IDS,
+    materialise_neutral_localisation_fixture,
     materialise_phase3_provider_login_stub,
     materialise_unknown_pass1_public_fixture,
 )
@@ -52,6 +53,19 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
         "mr_seed_review",
     ):
         copytree(stubs / name, project_stubs / name)
+    localisation_root = root / "localisation-input"
+    localisation_root.mkdir()
+    gel_evidence = localisation_root / "gel-evidence.json"
+    gel_evidence.write_text(
+        '{"schema_version":"2.0","observations":[]}\n',
+        encoding="ascii",
+    )
+    localisation_bundle = materialise_neutral_localisation_fixture(
+        localisation_root,
+        gel_evidence=gel_evidence,
+        sequence_groups_jsonl=stubs / "sequence_groups.jsonl",
+        source_records_jsonl=stubs / "source_records.jsonl",
+    )
     command = [
         "nextflow",
         "-C",
@@ -81,6 +95,8 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
         str(stubs / "mtz_preflight.jsonl"),
         "--pipeline_config",
         str(REPOSITORY / "examples/config.yaml"),
+        "--localisation_bundle",
+        str(localisation_bundle),
         "--phenix_manifest",
         str(stubs / "phenix_install_manifest.json"),
         "--outdir",
@@ -96,7 +112,7 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
             "PREPARE_PHASE3_SHARED_CATALOGUE_FIXTURE": 1,
             "PREPARE_PHASE3_SHARED_PROVIDER_FIXTURE": 1,
             "DISPATCH_CRYSTAL_ITEM": 3,
-            "BUILD_DIVERSE_FIRST_COPY_FUNNEL": 3,
+            "BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL": 3,
             "RUN_PHASE3_FIRST_COPY_PHASER": 3,
             "BUILD_PHASE3_MR_SEED_REVIEW": 3,
         }
@@ -167,7 +183,7 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
             "DISPATCH_CRYSTAL_ITEM": 3,
             "VALIDATE_PHASE3_CRYSTALLOGRAPHIC_REVIEWS": 1,
             "RETAIN_PHASE3_CRYSTALLOGRAPHIC_HOLD": 1,
-            "BUILD_DIVERSE_FIRST_COPY_FUNNEL": 2,
+            "BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL": 2,
             "RUN_PHASE3_FIRST_COPY_PHASER": 2,
             "BUILD_PHASE3_MR_SEED_REVIEW": 2,
         }
@@ -223,6 +239,8 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
         "tests/fixtures/stubs/empty_afdb_accession_map.tsv",
         "--phase3_owned_parent_run_id",
         "gtd-unknown-discovery-production-fixture",
+        "--phase3_localisation_bundle",
+        str(localisation_bundle),
         "--outdir",
         str(discovery_output),
         "--cache_root",
@@ -234,6 +252,7 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
     discovery = Counter(_process_name(row) for row in discovery_rows)
     if (
         discovery["VALIDATE_PHASE3_PROVIDER_DISCOVERY_REVIEWS"] != 1
+        or discovery["VALIDATE_PHASE3_LOCALISATION_BUNDLE"] != 1
         or discovery["SEARCH_PDB_SEQUENCES"] != 1
         or discovery["PLAN_PHASE3_FOLDSEEK_BATCHES"] != 1
         or discovery["SEARCH_PHASE3_FOLDSEEK_BATCH"] < 1
@@ -293,6 +312,8 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
         str(package_manifest.parent),
         "--phase3_provider_preparation",
         str(provider_stage),
+        "--phase3_localisation_bundle",
+        str(localisation_bundle),
         "--outdir",
         str(application_output),
         "--cache_root",
@@ -305,6 +326,7 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
     )
     if (
         application["VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT"] != 1
+        or application["VALIDATE_PHASE3_LOCALISATION_BUNDLE"] != 1
         or application["DISPATCH_CRYSTAL_ITEM"] != 3
         or application["RUN_PHASE3_FIRST_COPY_PHASER"] != 2
         or application["BUILD_PHASE3_MR_SEED_REVIEW"] != 2

@@ -40,6 +40,7 @@ from genome_to_diffraction.hpc.unknown_inputs import (
     UNKNOWN_DISCOVERY_SPEC_RELATIVE,
 )
 from tests.support.unknown_pass1_fixture import (
+    materialise_neutral_localisation_fixture,
     materialise_unknown_pass1_public_fixture,
 )
 
@@ -1423,6 +1424,10 @@ def test_unknown_discovery_stage_attaches_only_fixed_private_inputs(
         "source_record_id\tuniprot_accession\n",
         encoding="ascii",
     )
+    localisation = materialise_neutral_localisation_fixture(
+        tmp_path,
+        gel_evidence=fixture_root / "inputs/gel_evidence.json",
+    )
     phase3_crystals = tmp_path / "phase3-crystals.json"
     phase3_crystals.write_text(
         json.dumps(
@@ -1458,6 +1463,7 @@ def test_unknown_discovery_stage_attaches_only_fixed_private_inputs(
                 "execution_identity": str(fixture.execution_identity),
                 "afdb_accession_map": str(afdb_map),
                 "crystal_manifest": str(phase3_crystals),
+                "localisation_bundle": str(localisation),
             },
             separators=(",", ":"),
             sort_keys=True,

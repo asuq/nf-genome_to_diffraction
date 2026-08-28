@@ -24,6 +24,9 @@ from genome_to_diffraction.schemas.results import (
     PhysicalStatus,
     ProcessedModelRecord,
 )
+from tests.support.unknown_pass1_fixture import (
+    materialise_neutral_localisation_fixture,
+)
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 STUBS = REPOSITORY / "tests/fixtures/stubs"
@@ -219,6 +222,7 @@ def _diverse_request(tmp_path: Path) -> DiverseFirstCopyFunnelRequest:
         ),
         coordinate_hit_mappings_jsonl=mappings,
         sequence_groups_jsonl=base.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
         matthews_hypotheses_jsonl=base.matthews_hypotheses_jsonl,
         mtz_preflight_jsonl=base.mtz_preflight_jsonl,
         pipeline_config=base.pipeline_config,
@@ -291,11 +295,137 @@ def test_phase3_diverse_funnel_searches_all_declared_copies_jointly(
         for item in result.hypotheses
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
-    assert manifest["adapter_version"] == "multi-source-first-copy-funnel-v2-phase3"
+    assert manifest["adapter_version"] == (
+        "multi-source-first-copy-funnel-v3-phase3-evidence"
+    )
     assert manifest["copy_search_mode"] == "joint_declared_copies"
     assert manifest["maximum_joint_copy_count"] == 4
     assert manifest["per_model_copy_cap"] == 4
     assert manifest["per_crystal_first_copy_cap"] == 25
+
+
+def _phase3_localisation_bundle(
+    tmp_path: Path,
+    *,
+    sequence_groups_jsonl: Path,
+    source_records_jsonl: Path,
+    psortb_label: str = "Cytoplasmic",
+    deeptmhmm_type: str = "GLOB",
+    deeptmhmm_topology_label: str = "O",
+) -> Path:
+    evidence_root = tmp_path / "phase3 localisation evidence"
+    evidence_root.mkdir(parents=True)
+    gel = evidence_root / "gel-evidence.json"
+    gel.write_text(
+        '{"schema_version":"2.0","observations":[]}\n',
+        encoding="ascii",
+    )
+    return materialise_neutral_localisation_fixture(
+        evidence_root,
+        gel_evidence=gel,
+        sequence_groups_jsonl=sequence_groups_jsonl,
+        source_records_jsonl=source_records_jsonl,
+        psortb_label=psortb_label,
+        deeptmhmm_type=deeptmhmm_type,
+        deeptmhmm_topology_label=deeptmhmm_topology_label,
+    )
+
+
+def test_phase3_diverse_funnel_requires_complete_localisation_authority(
+    tmp_path: Path,
+) -> None:
+    request = replace(
+        _diverse_request(tmp_path),
+        joint_copy_search=True,
+        require_localisation_policy=True,
+    )
+
+    with pytest.raises(FunnelInputError, match="requires its localisation/gel"):
+        build_diverse_first_copy_funnel(request)
+    assert not request.output_directory.exists()
+
+
+def test_phase3_diverse_funnel_binds_active_localisation_evidence(
+    tmp_path: Path,
+) -> None:
+    request = _diverse_request(tmp_path)
+    bundle = _phase3_localisation_bundle(
+        tmp_path,
+        sequence_groups_jsonl=request.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
+    )
+
+    result = build_diverse_first_copy_funnel(
+        replace(
+            request,
+            joint_copy_search=True,
+            require_localisation_policy=True,
+            localisation_bundle=bundle,
+        )
+    )
+
+    assert len(result.hypotheses) == 4
+    assert all(
+        item.priority_features["localisation_wave_disposition"] == "active"
+        for item in result.hypotheses
+    )
+    assert all(
+        isinstance(item.priority_features["localisation_evidence_id"], str)
+        for item in result.hypotheses
+    )
+    manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["localisation_required"] is True
+    assert manifest["localisation_excluded_sequence_group_count"] == 0
+    assert manifest["gel_observation_count"] == 0
+    assert manifest["localisation_policy_id"].startswith("batchlocalpolicy_")
+
+
+def test_phase3_diverse_funnel_requires_bound_source_records(tmp_path: Path) -> None:
+    request = _diverse_request(tmp_path)
+    bundle = _phase3_localisation_bundle(
+        tmp_path,
+        sequence_groups_jsonl=request.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
+    )
+
+    with pytest.raises(FunnelInputError, match="requires its exact source records"):
+        build_diverse_first_copy_funnel(
+            replace(
+                request,
+                joint_copy_search=True,
+                require_localisation_policy=True,
+                localisation_bundle=bundle,
+                source_records_jsonl=None,
+            )
+        )
+
+
+def test_phase3_diverse_funnel_retains_but_skips_first_wave_exclusions(
+    tmp_path: Path,
+) -> None:
+    request = _diverse_request(tmp_path)
+    bundle = _phase3_localisation_bundle(
+        tmp_path,
+        sequence_groups_jsonl=request.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
+        psortb_label="CytoplasmicMembrane",
+        deeptmhmm_type="TM",
+        deeptmhmm_topology_label="M",
+    )
+
+    result = build_diverse_first_copy_funnel(
+        replace(
+            request,
+            joint_copy_search=True,
+            require_localisation_policy=True,
+            localisation_bundle=bundle,
+        )
+    )
+
+    assert result.hypotheses == ()
+    manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["localisation_excluded_sequence_group_count"] == 1
+    assert manifest["selected_hypothesis_count"] == 0
 
 
 @pytest.mark.parametrize("all_providers_empty", (False, True))

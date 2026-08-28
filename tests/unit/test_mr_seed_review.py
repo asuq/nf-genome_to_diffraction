@@ -1746,6 +1746,89 @@ def test_application_roots_reject_cross_authority_parameters(tmp_path: Path) -> 
                 assert tuple(csv.DictReader(stream, delimiter="\t")) == ()
 
 
+@pytest.mark.parametrize("operation", ("provider_discovery", "first_copy"))
+def test_phase3_application_refuses_missing_localisation_authority(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    output = tmp_path / f"missing-localisation-{operation}"
+    command = [
+        "nextflow",
+        "run",
+        "phase3_application.nf",
+        "-profile",
+        "test",
+        "-stub-run",
+        "-params-file",
+        "tests/fixtures/stubs/phase3_application_params.yaml",
+        "--phase3_operation",
+        operation,
+        "--phase3_crystallographic_review_stage",
+        "tests/fixtures/stubs",
+        "--phase3_execution_identity",
+        "tests/fixtures/stubs/phenix_install_manifest.json",
+        "--phase3_owned_parent_run_id",
+        "gtd-missing-localisation-authority",
+        "--outdir",
+        str(output),
+        "--cache_root",
+        str(tmp_path / f"missing-localisation-cache-{operation}"),
+    ]
+    if operation == "provider_discovery":
+        command.extend(
+            (
+                "--afdb_accession_map",
+                "tests/fixtures/stubs/empty_afdb_accession_map.tsv",
+            )
+        )
+    else:
+        command.extend(
+            (
+                "--phase3_provider_discovery",
+                "tests/fixtures/stubs",
+                "--phase3_provider_preparation",
+                "tests/fixtures/stubs",
+            )
+        )
+    environment = dict(os.environ)
+    environment.update(
+        {
+            "NXF_AGENT_MODE": "true",
+            "NXF_ANSI_LOG": "false",
+            "NXF_DISABLE_CHECK_LATEST": "true",
+            "NXF_HOME": str(tmp_path / "nxf-home"),
+            "NXF_SYNTAX_PARSER": "v2",
+        }
+    )
+
+    result = subprocess.run(
+        command,
+        cwd=REPOSITORY,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+
+    assert result.returncode != 0
+    expected = {
+        "provider_discovery": (
+            "Phase III provider discovery requires its crystallographic review, "
+            "AFDB policy, and localisation/gel authorities only"
+        ),
+        "first_copy": (
+            "Phase III first-copy requires its crystallographic review, owned "
+            "provider, and localisation/gel authorities only"
+        ),
+    }
+    assert expected[operation] in f"{result.stdout}\n{result.stderr}"
+    trace = output / "pipeline_info/trace.tsv"
+    if trace.is_file():
+        with trace.open(encoding="utf-8", newline="") as stream:
+            assert tuple(csv.DictReader(stream, delimiter="\t")) == ()
+
+
 def test_phase3_application_continues_owned_reviewed_crystals_independently(
     tmp_path: Path,
 ) -> None:

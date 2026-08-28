@@ -9,7 +9,8 @@ joint-mode switch. Archival single-crystal, heteromer-control, approved-seed,
 and refinement execution remains isolated under `main.nf`.
 
 Reviewed unknown applications additionally provide both
-`phase3_crystallographic_review_stage` and `phase3_execution_identity`.
+`phase3_crystallographic_review_stage`, `phase3_execution_identity`, and the
+complete checksum-pinned localisation/gel bundle.
 Supplying incomplete or continuation-only authority with the first-copy
 operation fails before scheduling. These are internal Nextflow inputs for a
 future fixed, reviewed operator profile; no arbitrary HPC path, crystal
@@ -19,7 +20,8 @@ selector, or user approval is exposed by this slice.
 
 One previously validated crystal manifest, preflight inventory, catalogue,
 provider registration, predicted and experimental model preparations, Matthews
-records, pipeline configuration, and verified Phenix manifest are shared.
+records, pipeline configuration, localisation/gel authority, and verified
+Phenix manifest are shared.
 `CRYSTAL_FANOUT_WORKFLOW` emits one manifest-owned, checksum-verified MTZ item
 per crystal; catalogue and provider preparation remain single shared tasks.
 
@@ -34,8 +36,12 @@ Phaser, or an invented MR-seed checkpoint. Only `proceed` items enter the
 existing scientific workflow, and their own decision bundle remains in each
 child task/cache identity.
 
-`BUILD_DIVERSE_FIRST_COPY_FUNNEL` emits its crystal identity with the existing
-funnel and publishes Phase III outputs under a crystal-qualified directory.
+`BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL` emits its crystal identity with the
+Phase III evidence-bound funnel and publishes outputs under a
+crystal-qualified directory. It independently validates complete catalogue
+coverage, binds the localisation policy and per-group evidence into hypothesis
+identities, ranks active before neutral groups, and retains first-wave
+exclusions without scheduling them.
 Joint search retains the existing copy-count and maximum-25-hypothesis policy.
 Every `RUN_PHASE3_FIRST_COPY_PHASER` item includes its own crystal ID, exact
 MTZ, selected hypothesis, complete model registry, preflight records, shared
@@ -55,7 +61,8 @@ Malformed dispatch, inconsistent funnel/hypothesis inputs, and a changed
 declared attempt cap fail before scientific promotion. A no-hypothesis branch
 still produces its own review checkpoint. The dedicated
 `pixi run --locked phase3-multicrystal-stub` gate requires exactly one shared
-catalogue, one shared provider, three dispatch tasks, three funnels, three
+catalogue, one shared provider, three dispatch tasks, three evidence-bound
+funnels, three
 first-copy tasks, and three separate unapproved review packages; every task
 and published output must remain unchanged on cached resume. The same gate
 checks that `phase3_application.nf` selects only the canonical Phase III branch

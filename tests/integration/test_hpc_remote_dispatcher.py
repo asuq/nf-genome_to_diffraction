@@ -26,6 +26,7 @@ from genome_to_diffraction.hpc.unknown_single_inputs import (
     build_unknown_single_component_input_bundle,
 )
 from tests.support.unknown_pass1_fixture import (
+    materialise_neutral_localisation_fixture,
     materialise_unknown_pass1_public_fixture,
 )
 
@@ -3713,6 +3714,10 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         "source_record_id\tuniprot_accession\n",
         encoding="ascii",
     )
+    localisation = materialise_neutral_localisation_fixture(
+        local_root,
+        gel_evidence=review_root / "inputs/gel_evidence.json",
+    )
     phase3_crystals = local_root / "phase3-crystals.json"
     atomic_write_json(
         phase3_crystals,
@@ -3743,6 +3748,7 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
             "execution_identity": str(fixture.execution_identity),
             "afdb_accession_map": str(afdb_map),
             "crystal_manifest": str(phase3_crystals),
+            "localisation_bundle": str(localisation),
         },
     )
     spec.chmod(0o600)
@@ -3808,6 +3814,26 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
             "package_id": "providerdiscovery_" + "d" * 64,
         },
     )
+    discovery_archive = _run(
+        [str(dispatcher), "collect", UNKNOWN_DISCOVERY_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(discovery_archive), mode="r:gz") as collected:
+        discovery_members = set(collected.getnames())
+    assert {
+        f"artifacts/unknown-discovery/inputs/localisation_bundle/{relative}"
+        for relative in (
+            "localisation_batch_manifest.json",
+            "first_wave_policy.json",
+            "group_localisation_evidence.jsonl",
+            "first_wave_sequence_group_ids.txt",
+            "excluded_sequence_group_ids.txt",
+            "gel-evidence.json",
+            "raw/psortb-terse.tsv",
+            "raw/deeptmhmm-topologies.3line",
+        )
+    } <= discovery_members
     child_staged = _run(
         [
             str(dispatcher),
@@ -3904,6 +3930,26 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     assert "RETRIEVE_AFDB_EXACT" not in screen_trace
     assert "REGISTER_PDB_COORDINATES" not in screen_trace
     assert screen_trace.count("CACHED") == 9
+    screen_archive = _run(
+        [str(dispatcher), "collect", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(screen_archive), mode="r:gz") as collected:
+        screen_members = set(collected.getnames())
+    assert {
+        f"artifacts/unknown-screen/inputs/localisation_bundle/{relative}"
+        for relative in (
+            "localisation_batch_manifest.json",
+            "first_wave_policy.json",
+            "group_localisation_evidence.jsonl",
+            "first_wave_sequence_group_ids.txt",
+            "excluded_sequence_group_ids.txt",
+            "gel-evidence.json",
+            "raw/psortb-terse.tsv",
+            "raw/deeptmhmm-topologies.3line",
+        )
+    } <= screen_members
 
     decision = local_root / "a-seed.tsv"
     decision.write_text(

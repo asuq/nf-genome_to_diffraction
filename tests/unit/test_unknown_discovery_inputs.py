@@ -10,11 +10,16 @@ from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.hpc.unknown_inputs import (
     UNKNOWN_DISCOVERY_SPEC_RELATIVE,
     UnknownDiscoveryInputError,
+    _validate_localisation_authority,
     build_unknown_discovery_input_bundle,
     validate_unknown_discovery_input_tree,
 )
-from genome_to_diffraction.schemas.v2 import PhaseIIIExecutionIdentity
+from genome_to_diffraction.schemas.v2 import (
+    ExecutionToolIdentity,
+    PhaseIIIExecutionIdentity,
+)
 from tests.support.unknown_pass1_fixture import (
+    materialise_neutral_localisation_fixture,
     materialise_unknown_pass1_public_fixture,
 )
 
@@ -27,6 +32,10 @@ def _inputs(root: Path):
     afdb_map.write_text(
         "source_record_id\tuniprot_accession\n",
         encoding="ascii",
+    )
+    localisation = materialise_neutral_localisation_fixture(
+        root,
+        gel_evidence=fixture_root / "inputs/gel_evidence.json",
     )
     crystal_manifest = root / "phase3_crystals.json"
     atomic_write_json(
@@ -55,6 +64,7 @@ def _inputs(root: Path):
             "execution_identity": str(fixture.execution_identity),
             "afdb_accession_map": str(afdb_map),
             "crystal_manifest": str(crystal_manifest),
+            "localisation_bundle": str(localisation),
         },
     )
     spec.chmod(0o600)
@@ -85,6 +95,7 @@ def test_unknown_discovery_archive_is_deterministic(tmp_path: Path) -> None:
     assert "phase3_execution_identity.json" in members
     assert "afdb_accession_map.tsv" in members
     assert "phase3_crystals.json" in members
+    assert "localisation_bundle/first_wave_policy.json" in members
     assert any(name.startswith("crystallographic_review_stage/") for name in members)
     extracted = tmp_path / "extracted"
     extracted.mkdir()
@@ -150,6 +161,7 @@ def test_cross_execution_review_stage_fails(tmp_path: Path) -> None:
             "execution_identity": str(changed_path),
             "afdb_accession_map": str(afdb_map),
             "crystal_manifest": str(tmp_path / "phase3_crystals.json"),
+            "localisation_bundle": str(tmp_path / "localisation"),
         },
     )
     spec.chmod(0o600)
@@ -173,6 +185,7 @@ def test_symlinked_afdb_map_fails(tmp_path: Path) -> None:
             "execution_identity": str(fixture.execution_identity),
             "afdb_accession_map": str(linked),
             "crystal_manifest": str(tmp_path / "phase3_crystals.json"),
+            "localisation_bundle": str(tmp_path / "localisation"),
         },
     )
     spec.chmod(0o600)
@@ -197,4 +210,32 @@ def test_unknown_discovery_requires_explicit_free_r_test_values(
         build_unknown_discovery_input_bundle(
             repository=tmp_path,
             archive_path=tmp_path / "inputs.tar",
+        )
+
+
+def test_localisation_runtime_must_match_execution_identity(tmp_path: Path) -> None:
+    fixture, _, _ = _inputs(tmp_path)
+    execution = PhaseIIIExecutionIdentity.model_validate_json(
+        fixture.execution_identity.read_bytes()
+    )
+    tools = tuple(
+        ExecutionToolIdentity.from_content(
+            name=tool.name,
+            version=tool.version,
+            executable_sha256="9" * 64,
+            adapter_version=tool.adapter_version,
+        )
+        if tool.name == "PSORTb"
+        else tool
+        for tool in execution.tools
+    )
+    values = execution.model_dump(mode="python")
+    values.pop("execution_identity_id")
+    values["tools"] = tuple(sorted(tools, key=lambda item: item.name))
+    changed = PhaseIIIExecutionIdentity.from_content(**values)
+
+    with pytest.raises(UnknownDiscoveryInputError, match="runtime PSORTb differs"):
+        _validate_localisation_authority(
+            root=tmp_path / "localisation",
+            execution=changed,
         )

@@ -27,6 +27,11 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.localisation.batch import (
+    BatchLocalisationGroupEvidence,
+    BatchLocalisationPolicy,
+    validate_catalogue_localisation_batch,
+)
 from genome_to_diffraction.model_registry.all_eligible import (
     AllEligibleModelRegistryError,
     AllEligibleModelRegistryOutput,
@@ -58,7 +63,7 @@ from genome_to_diffraction.time import utc_now_iso
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
 _ADAPTER_VERSION = "exact-predicted-funnel-v1"
 _DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v1"
-_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v2-phase3"
+_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v3-phase3-evidence"
 _PHASE3_MAXIMUM_COPY_COUNT = 4
 _PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
@@ -116,9 +121,12 @@ class DiverseFirstCopyFunnelRequest:
     pipeline_config: Path
     output_directory: Path
     coordinate_hit_mappings_jsonl: Path | None = None
+    source_records_jsonl: Path | None = None
     crystal_ids: tuple[str, ...] = ()
     maximum_first_copy_jobs: int | None = None
     joint_copy_search: bool = False
+    localisation_bundle: Path | None = None
+    require_localisation_policy: bool = False
     progress: bool = True
 
 
@@ -808,6 +816,7 @@ def _diverse_priority_features(
     group: SequenceGroupRecord,
     matthews: MatthewsHypothesis,
     mapping: CoordinateHitMappingRecord | None,
+    localisation: BatchLocalisationGroupEvidence | None,
 ) -> dict[str, JsonValue]:
     features = _priority_features(coordinate, model, model_path, group, matthews)
     exact_mapping = (
@@ -841,6 +850,19 @@ def _diverse_priority_features(
                 "source_target_range": [mapping.target_start, mapping.target_end],
             }
         )
+    if localisation is not None:
+        features.update(
+            {
+                "localisation_evidence_id": localisation.evidence_id,
+                "localisation_merged_outcome": localisation.merged_outcome.value,
+                "localisation_wave_disposition": (
+                    localisation.first_wave_disposition.value
+                ),
+                "localisation_wave_eligible": localisation.first_wave_eligible,
+                "psortb_outcome": localisation.psortb_outcome.value,
+                "deeptmhmm_outcome": localisation.deeptmhmm_outcome.value,
+            }
+        )
     return features
 
 
@@ -848,9 +870,14 @@ def _diverse_candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
     """Reserve exact mappings before ordering the remaining evidence features."""
 
     exact_mapping = candidate.hypothesis.priority_features.get("exact_sequence_mapping")
+    localisation = candidate.hypothesis.priority_features.get(
+        "localisation_wave_disposition"
+    )
+    localisation_rank = {"active": 0, "neutral": 1}.get(localisation, 0)
     return (
         candidate.hypothesis.crystal_id,
         0 if exact_mapping is True else 1,
+        localisation_rank,
         *_candidate_sort_key(candidate)[1:],
     )
 
@@ -865,6 +892,7 @@ def _make_diverse_candidate(
     preflight: MtzPreflightRecord,
     profile: PrototypeProfile,
     mapping: CoordinateHitMappingRecord | None,
+    localisation: BatchLocalisationGroupEvidence | None,
     joint_copy_search: bool,
 ) -> _Candidate:
     copy_number_to_search = matthews.copy_count if joint_copy_search else 1
@@ -880,8 +908,10 @@ def _make_diverse_candidate(
         "resource_profile": profile.value,
     }
     features = _diverse_priority_features(
-        coordinate, model, model_path, group, matthews, mapping
+        coordinate, model, model_path, group, matthews, mapping, localisation
     )
+    if localisation is not None:
+        identity["localisation_evidence_id"] = localisation.evidence_id
     if joint_copy_search:
         features.update(
             {
@@ -920,6 +950,7 @@ def _join_diverse_candidates(
     preflights: Sequence[MtzPreflightRecord],
     crystal_ids: Sequence[str],
     joint_copy_search: bool,
+    localisation_by_group: dict[str, BatchLocalisationGroupEvidence] | None,
 ) -> list[_Candidate]:
     coordinate_index = _unique_index(
         coordinates, lambda item: item.coordinate_id, label="coordinate ID"
@@ -954,6 +985,13 @@ def _join_diverse_candidates(
                 "processed model cannot be mapped to coordinate/group: "
                 f"{model.model_id}"
             )
+        localisation = (
+            localisation_by_group.get(group.sequence_group_id)
+            if localisation_by_group is not None
+            else None
+        )
+        if localisation is not None and not localisation.first_wave_eligible:
+            continue
         mapping: CoordinateHitMappingRecord | None = None
         if coordinate.provider == "pdb":
             mapping_id = model.processing_parameters.get("mapping_id")
@@ -1032,6 +1070,7 @@ def _join_diverse_candidates(
                     preflight=preflight,
                     profile=config.prototype.profile,
                     mapping=mapping,
+                    localisation=localisation,
                     joint_copy_search=joint_copy_search,
                 )
             )
@@ -1184,10 +1223,69 @@ def _diverse_input_digests(
     ]
     if request.coordinate_hit_mappings_jsonl is not None:
         paths.append(("coordinate_hit_mappings", request.coordinate_hit_mappings_jsonl))
+    if request.source_records_jsonl is not None:
+        paths.append(("source_records", request.source_records_jsonl))
+    if request.localisation_bundle is not None:
+        paths.extend(
+            (
+                (
+                    "localisation_manifest",
+                    request.localisation_bundle / "localisation_batch_manifest.json",
+                ),
+                (
+                    "localisation_policy",
+                    request.localisation_bundle / "first_wave_policy.json",
+                ),
+                (
+                    "gel_evidence",
+                    request.localisation_bundle / "gel-evidence.json",
+                ),
+            )
+        )
     return {
         name: sha256_file(path.resolve(strict=True), progress=False)
         for name, path in paths
     }
+
+
+def _load_diverse_localisation(
+    request: DiverseFirstCopyFunnelRequest,
+    groups: Sequence[SequenceGroupRecord],
+) -> BatchLocalisationPolicy | None:
+    if request.localisation_bundle is None:
+        if request.require_localisation_policy:
+            raise FunnelInputError(
+                "Phase III first-copy requires its localisation/gel bundle"
+            )
+        return None
+    try:
+        policy = validate_catalogue_localisation_batch(request.localisation_bundle)
+    except InputContractError as error:
+        raise FunnelInputError(f"invalid localisation/gel bundle: {error}") from error
+    if policy.sequence_groups_sha256 != sha256_file(
+        request.sequence_groups_jsonl,
+        progress=False,
+    ):
+        raise FunnelInputError("localisation policy uses different sequence groups")
+    if request.source_records_jsonl is None:
+        if request.require_localisation_policy:
+            raise FunnelInputError(
+                "Phase III localisation requires its exact source records"
+            )
+    elif policy.source_records_sha256 != sha256_file(
+        request.source_records_jsonl,
+        progress=False,
+    ):
+        raise FunnelInputError("localisation policy uses different source records")
+    expected = {group.sequence_group_id for group in groups}
+    observed = {row.sequence_group_id for row in policy.group_evidence}
+    if observed != expected:
+        raise FunnelInputError("localisation policy group coverage differs")
+    if policy.gel_observation_count != 0:
+        raise FunnelInputError(
+            "non-empty gel ranking requires its separately reviewed implementation"
+        )
+    return policy
 
 
 def build_diverse_first_copy_funnel(
@@ -1207,6 +1305,12 @@ def build_diverse_first_copy_funnel(
     model_paths = _diverse_model_paths(request, model_batches)
     models = tuple(item for batch in model_batches for item in batch)
     _unique_index(models, lambda item: item.model_id, label="model ID")
+    localisation_policy = _load_diverse_localisation(request, groups)
+    localisation_by_group = (
+        {row.sequence_group_id: row for row in localisation_policy.group_evidence}
+        if localisation_policy is not None
+        else None
+    )
     candidates = _join_diverse_candidates(
         config=config,
         coordinates=coordinates,
@@ -1218,6 +1322,7 @@ def build_diverse_first_copy_funnel(
         preflights=preflights,
         crystal_ids=request.crystal_ids,
         joint_copy_search=request.joint_copy_search,
+        localisation_by_group=localisation_by_group,
     )
     selected, per_crystal_cap = _select_diverse_candidates(
         candidates,
@@ -1268,6 +1373,22 @@ def build_diverse_first_copy_funnel(
         {
             "copy_search_mode": "joint_declared_copies",
             "maximum_joint_copy_count": _PHASE3_MAXIMUM_COPY_COUNT,
+            "localisation_policy_id": (
+                localisation_policy.policy_id
+                if localisation_policy is not None
+                else None
+            ),
+            "localisation_required": request.require_localisation_policy,
+            "localisation_excluded_sequence_group_count": (
+                localisation_policy.excluded_count
+                if localisation_policy is not None
+                else 0
+            ),
+            "gel_observation_count": (
+                localisation_policy.gel_observation_count
+                if localisation_policy is not None
+                else 0
+            ),
         }
         if request.joint_copy_search
         else {}
@@ -1314,6 +1435,7 @@ def build_diverse_first_copy_funnel(
             ],
             "ordering_features": [
                 "exact_sequence_mapping",
+                "localisation_wave_disposition",
                 "matthews_physical_status",
                 "matthews_prior",
                 "matthews_rank_within_candidate",

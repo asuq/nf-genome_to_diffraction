@@ -70,6 +70,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III offline localisation and wave policy](localisation-adapters.md):
   one-item-per-group PSORTb 3.0.6 execution, typed blocked DeepTMHMM 1.0,
   conservative first-wave decisions, exclusion retention, and zero-pack reopen.
+- [Phase III offline localisation runtime](phase-iii-localisation-runtime.md):
+  checksum-pinned PSORTb/DeepTMHMM catalogue batches, mandatory Docker network
+  denial, portable raw evidence, and the live first-copy authority boundary.
 - [Single-component prototype roadmap](single-component-prototype-roadmap.md):
   historical v0.1/M6 plan and preserved single-component evidence; it is no
   longer the active heteromer gate.

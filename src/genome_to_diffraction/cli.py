@@ -106,10 +106,14 @@ from genome_to_diffraction.execution import (
 )
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.localisation import (
+    BatchLocalisationImportRequest,
     build_catalogue_localisation_tasks,
     build_catalogue_localisation_wave_policy,
+    import_catalogue_localisation_batch,
     plan_localisation_reopen,
     run_catalogue_localisation_task,
+    stage_catalogue_localisation_batch,
+    validate_catalogue_localisation_batch,
 )
 from genome_to_diffraction.logging import configure_logging, parse_log_level
 from genome_to_diffraction.matthews import (
@@ -1004,6 +1008,34 @@ def _build_parser() -> argparse.ArgumentParser:
     localisation_actions = localisation_parser.add_subparsers(
         dest="localisation_action", required=True
     )
+    localisation_batch_parser = localisation_actions.add_parser(
+        "import-batch",
+        help="import complete offline PSORTb and DeepTMHMM catalogue batches",
+    )
+    localisation_batch_parser.add_argument(
+        "--sequence-groups", type=Path, required=True
+    )
+    localisation_batch_parser.add_argument("--source-records", type=Path, required=True)
+    localisation_batch_parser.add_argument("--psortb-terse", type=Path, required=True)
+    localisation_batch_parser.add_argument(
+        "--deeptmhmm-topologies", type=Path, required=True
+    )
+    localisation_batch_parser.add_argument("--gel-evidence", type=Path, required=True)
+    localisation_batch_parser.add_argument("--container-engine-version", required=True)
+    localisation_batch_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_validate_batch_parser = localisation_actions.add_parser(
+        "validate-batch",
+        help="revalidate a portable offline localisation batch",
+    )
+    localisation_validate_batch_parser.add_argument(
+        "--bundle", type=Path, required=True
+    )
+    localisation_stage_batch_parser = localisation_actions.add_parser(
+        "stage-batch",
+        help="validate and copy a portable offline localisation batch",
+    )
+    localisation_stage_batch_parser.add_argument("--bundle", type=Path, required=True)
+    localisation_stage_batch_parser.add_argument("--outdir", type=Path, required=True)
     localisation_tasks_parser = localisation_actions.add_parser(
         "build-tasks", help="emit one offline task per exact sequence group"
     )
@@ -1221,6 +1253,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     diverse_parser.add_argument("--coordinate-hit-mappings", type=Path)
     diverse_parser.add_argument("--sequence-groups", type=Path, required=True)
+    diverse_parser.add_argument("--source-records", type=Path)
     diverse_parser.add_argument("--matthews", type=Path, required=True)
     diverse_parser.add_argument("--preflight", type=Path, required=True)
     diverse_parser.add_argument("--config", type=Path, required=True)
@@ -1240,6 +1273,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--joint-copy-search",
         action="store_true",
         help="search up to four declared copies jointly under the Phase III 25-job cap",
+    )
+    diverse_parser.add_argument("--localisation-bundle", type=Path)
+    diverse_parser.add_argument(
+        "--require-localisation-policy",
+        action="store_true",
+        help="fail unless a complete localisation/gel bundle is supplied",
     )
     partner_plan_parser = ranking_actions.add_parser(
         "partner-plan",
@@ -2202,6 +2241,38 @@ def _run_catalogue(args: argparse.Namespace) -> int:
 
 
 def _run_localisation(args: argparse.Namespace) -> int:
+    if args.localisation_action == "import-batch":
+        imported = import_catalogue_localisation_batch(
+            BatchLocalisationImportRequest(
+                sequence_groups_jsonl=args.sequence_groups,
+                source_records_jsonl=args.source_records,
+                psortb_terse=args.psortb_terse,
+                deeptmhmm_topologies=args.deeptmhmm_topologies,
+                gel_evidence=args.gel_evidence,
+                container_engine_version=args.container_engine_version,
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            "Imported offline localisation for "
+            f"{imported.policy.sequence_group_count} sequence group(s): "
+            f"{imported.policy_json}"
+        )
+        return 0
+    if args.localisation_action == "validate-batch":
+        policy = validate_catalogue_localisation_batch(args.bundle)
+        print(
+            "Validated offline localisation for "
+            f"{policy.sequence_group_count} sequence group(s): {policy.policy_id}"
+        )
+        return 0
+    if args.localisation_action == "stage-batch":
+        policy = stage_catalogue_localisation_batch(args.bundle, args.outdir)
+        print(
+            "Staged offline localisation for "
+            f"{policy.sequence_group_count} sequence group(s): {args.outdir}"
+        )
+        return 0
     if args.localisation_action == "build-tasks":
         result = build_catalogue_localisation_tasks(
             args.sequence_groups,
@@ -3089,6 +3160,7 @@ def _run_ranking(args: argparse.Namespace) -> int:
                 model_preparation_manifests=tuple(args.model_preparation_manifest),
                 coordinate_hit_mappings_jsonl=args.coordinate_hit_mappings,
                 sequence_groups_jsonl=args.sequence_groups,
+                source_records_jsonl=args.source_records,
                 matthews_hypotheses_jsonl=args.matthews,
                 mtz_preflight_jsonl=args.preflight,
                 pipeline_config=args.config,
@@ -3096,6 +3168,8 @@ def _run_ranking(args: argparse.Namespace) -> int:
                 crystal_ids=tuple(args.crystal_id),
                 maximum_first_copy_jobs=args.maximum_first_copy_jobs,
                 joint_copy_search=args.joint_copy_search,
+                localisation_bundle=args.localisation_bundle,
+                require_localisation_policy=args.require_localisation_policy,
                 progress=not args.no_progress,
             )
         )

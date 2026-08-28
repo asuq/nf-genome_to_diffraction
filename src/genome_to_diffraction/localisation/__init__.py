@@ -8,6 +8,18 @@ from genome_to_diffraction.localisation.adapters import (
     run_psortb,
     write_sequence_group_fasta,
 )
+from genome_to_diffraction.localisation.batch import (
+    LOCALISATION_BATCH_ADAPTER_VERSION,
+    BatchLocalisationGroupEvidence,
+    BatchLocalisationImportOutput,
+    BatchLocalisationImportRequest,
+    BatchLocalisationPolicy,
+    ContainerRuntimeEvidence,
+    LocalisationBatchImportError,
+    import_catalogue_localisation_batch,
+    stage_catalogue_localisation_batch,
+    validate_catalogue_localisation_batch,
+)
 from genome_to_diffraction.localisation.contracts import (
     DeepTMHMMInvocationPlan,
     DeepTMHMMRuntimeContract,
@@ -42,14 +54,21 @@ from genome_to_diffraction.localisation.policy import (
 )
 
 __all__ = (
+    "LOCALISATION_BATCH_ADAPTER_VERSION",
     "ActiveWaveCompletion",
     "ActiveWaveGroupResult",
     "ActiveWaveResultStatus",
+    "BatchLocalisationGroupEvidence",
+    "BatchLocalisationImportOutput",
+    "BatchLocalisationImportRequest",
+    "BatchLocalisationPolicy",
     "CatalogueLocalisationWavePolicy",
+    "ContainerRuntimeEvidence",
     "DeepTMHMMBlockedResult",
     "DeepTMHMMInvocationPlan",
     "DeepTMHMMRuntimeContract",
     "FirstWaveDisposition",
+    "LocalisationBatchImportError",
     "LocalisationGroupEvidence",
     "LocalisationOutcome",
     "LocalisationReopenPlan",
@@ -68,6 +87,7 @@ __all__ = (
     "build_catalogue_localisation_wave_policy",
     "build_psortb_command",
     "first_wave_disposition",
+    "import_catalogue_localisation_batch",
     "localisation_result_identity",
     "parse_psortb_terse",
     "plan_deeptmhmm_invocation",
@@ -75,5 +95,7 @@ __all__ = (
     "resolve_localisation_outcome",
     "run_catalogue_localisation_task",
     "run_psortb",
+    "stage_catalogue_localisation_batch",
+    "validate_catalogue_localisation_batch",
     "write_sequence_group_fasta",
 )

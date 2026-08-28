@@ -21,6 +21,15 @@ from genome_to_diffraction.execution.unknown_screen import (
     write_unknown_pass1_screen_inventory,
 )
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.localisation import (
+    BatchLocalisationImportRequest,
+    import_catalogue_localisation_batch,
+)
+from genome_to_diffraction.localisation.batch import (
+    DEEPTMHMM_IMAGE_MANIFEST_SHA256,
+    LOCALISATION_BATCH_ADAPTER_VERSION,
+    PSORTB_IMAGE_MANIFEST_SHA256,
+)
 from genome_to_diffraction.review.owned_run import (
     OwnedPhaseIIIReviewPackageSource,
     register_phase3_owned_run,
@@ -36,6 +45,7 @@ from genome_to_diffraction.review.phase3_stage import (
 from genome_to_diffraction.schemas.results import (
     SearchScientificStatus,
     SequenceGroupRecord,
+    SourceProteinRecord,
     StructuralSearchResult,
 )
 from genome_to_diffraction.schemas.v2 import (
@@ -75,6 +85,86 @@ _PHENIX = (
     "phenix.sequence_from_map",
     "phenix.xtriage",
 )
+
+
+def materialise_neutral_localisation_fixture(
+    root: Path,
+    *,
+    gel_evidence: Path,
+    sequence_groups_jsonl: Path | None = None,
+    source_records_jsonl: Path | None = None,
+    psortb_label: str = "Cytoplasmic",
+    deeptmhmm_type: str = "GLOB",
+    deeptmhmm_topology_label: str = "O",
+) -> Path:
+    """Write one complete local result for archive/wiring tests."""
+
+    if sequence_groups_jsonl is None:
+        sequence = "MPEPTIDE"
+        sequence_sha256 = hashlib.sha256(sequence.encode("ascii")).hexdigest()
+        group = SequenceGroupRecord(
+            schema_version="1.0",
+            sequence_group_id=f"seq_{sequence_sha256}",
+            sha256=sequence_sha256,
+            sequence=sequence,
+            length_aa=len(sequence),
+            mass_method="test exact sequence mass",
+            residue_policy="canonical test residues",
+            source_record_count=1,
+        )
+    else:
+        group = SequenceGroupRecord.model_validate_json(
+            sequence_groups_jsonl.read_text(encoding="utf-8").strip()
+        )
+        sequence = group.sequence
+    if source_records_jsonl is None:
+        source = SourceProteinRecord(
+            schema_version="1.0",
+            source_record_id="src_" + "a" * 64,
+            catalogue_id="public_catalogue",
+            original_protein_id="stub_a",
+            original_header="stub_a",
+            sequence_group_id=group.sequence_group_id,
+            source_annotation_provider="test annotation",
+        )
+    else:
+        source = SourceProteinRecord.model_validate_json(
+            source_records_jsonl.read_text(encoding="utf-8").strip()
+        )
+        if source.sequence_group_id != group.sequence_group_id:
+            raise ValueError("localisation fixture source/group identity differs")
+    sequence_groups = root / "localisation-sequence-groups.jsonl"
+    source_records = root / "localisation-source-records.jsonl"
+    psortb = root / "localisation-psortb.tsv"
+    deeptmhmm = root / "localisation-deeptmhmm.3line"
+    if sequence_groups_jsonl is None:
+        atomic_write_text(sequence_groups, f"{canonical_json_text(group)}\n")
+    else:
+        shutil.copyfile(sequence_groups_jsonl, sequence_groups)
+    if source_records_jsonl is None:
+        atomic_write_text(source_records, f"{canonical_json_text(source)}\n")
+    else:
+        shutil.copyfile(source_records_jsonl, source_records)
+    atomic_write_text(
+        psortb,
+        f"SeqID\tLocalization\tScore\n{source.original_header}\t{psortb_label}\t9.50\n",
+    )
+    atomic_write_text(
+        deeptmhmm,
+        f">{source.original_protein_id} | {deeptmhmm_type}\n{sequence}\n"
+        f"{deeptmhmm_topology_label * len(sequence)}\n",
+    )
+    return import_catalogue_localisation_batch(
+        BatchLocalisationImportRequest(
+            sequence_groups_jsonl=sequence_groups,
+            source_records_jsonl=source_records,
+            psortb_terse=psortb,
+            deeptmhmm_topologies=deeptmhmm,
+            gel_evidence=gel_evidence,
+            container_engine_version="Docker Engine test",
+            output_directory=root / "localisation",
+        )
+    ).output_directory
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +274,11 @@ def materialise_unknown_pass1_public_fixture(
     catalogue_faa.write_text(">stub_a\nMPEPTIDE\n", encoding="ascii")
     annotation = input_root / "annotation.gff"
     annotation.write_text("##gff-version 3\n", encoding="ascii")
+    gel_evidence = input_root / "gel_evidence.json"
+    gel_evidence.write_text(
+        '{"schema_version":"2.0","observations":[]}\n',
+        encoding="ascii",
+    )
     database = input_root / "database.json"
     database.write_text('{"database":"synthetic-public-stub"}\n', encoding="ascii")
 
@@ -213,6 +308,12 @@ def materialise_unknown_pass1_public_fixture(
                     _artifact(
                         "catalogue",
                         "public_catalogue",
+                        "gel_evidence",
+                        gel_evidence,
+                    ),
+                    _artifact(
+                        "catalogue",
+                        "public_catalogue",
                         "proteome_faa",
                         catalogue_faa,
                     ),
@@ -235,20 +336,46 @@ def materialise_unknown_pass1_public_fixture(
         tools=tuple(
             sorted(
                 (
+                    *(
+                        ExecutionToolIdentity.from_content(
+                            name=name,
+                            version="synthetic-stub-not-executed",
+                            executable_sha256=_digest(f"tool:{name}"),
+                            adapter_version="unknown-pass1-stub-v1",
+                        )
+                        for name in _PHENIX
+                    ),
                     ExecutionToolIdentity.from_content(
-                        name=name,
-                        version="synthetic-stub-not-executed",
-                        executable_sha256=_digest(f"tool:{name}"),
-                        adapter_version="unknown-pass1-stub-v1",
-                    )
-                    for name in _PHENIX
+                        name="DeepTMHMM",
+                        version="1.0",
+                        executable_sha256=DEEPTMHMM_IMAGE_MANIFEST_SHA256,
+                        adapter_version=LOCALISATION_BATCH_ADAPTER_VERSION,
+                    ),
+                    ExecutionToolIdentity.from_content(
+                        name="PSORTb",
+                        version="3.0.6",
+                        executable_sha256=PSORTB_IMAGE_MANIFEST_SHA256,
+                        adapter_version=LOCALISATION_BATCH_ADAPTER_VERSION,
+                    ),
                 ),
                 key=lambda item: (item.name, item.tool_identity_id),
             )
         ),
-        adapter_versions=(
-            ("unknown_pass1_inventory", "unknown-pass1-screen-v1"),
-            ("unknown_pass1_stub", "unknown-pass1-nextflow-stub-v1"),
+        adapter_versions=tuple(
+            sorted(
+                (
+                    (
+                        "phase3_first_copy_funnel",
+                        "multi-source-first-copy-funnel-v3-phase3-evidence",
+                    ),
+                    (
+                        "phase3_localisation_batch",
+                        LOCALISATION_BATCH_ADAPTER_VERSION,
+                    ),
+                    ("unknown_pass1_inventory", "unknown-pass1-screen-v1"),
+                    ("unknown_pass1_stub", "unknown-pass1-nextflow-stub-v1"),
+                )
+            )
         ),
     )
     execution_path = input_root / "phase3_execution_identity.json"

@@ -1,8 +1,8 @@
 nextflow.enable.types = true
 
 include {
-    BUILD_DIVERSE_FIRST_COPY_FUNNEL
-} from '../modules/local/build_diverse_first_copy_funnel'
+    BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL
+} from '../modules/local/build_phase3_diverse_first_copy_funnel'
 include {
     BUILD_PHASE3_OWNED_A_REVIEW_PACKAGE;
     BUILD_PHASE3_MR_SEED_REVIEW;
@@ -29,6 +29,7 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
     experimental_prepared_models: Path
     matthews: Path
     pipeline_config: Path
+    localisation_bundle: Path
     maximum_first_copy_jobs: Integer
     phenix_manifest: Path
     crystallographic_review_stage: Path?
@@ -98,19 +99,20 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
     source_records = catalogue_bundle.map { bundle ->
         bundle.resolve('source_records.jsonl')
     }
-    funnel_items = BUILD_DIVERSE_FIRST_COPY_FUNNEL(
+    funnel_items = BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL(
         predicted_coordinate_sources.first(),
         predicted_prepared_models.first(),
         pdb_coordinate_sources.first(),
         coordinate_hit_mappings.first(),
         experimental_prepared_models.first(),
         sequence_groups.first(),
+        source_records.first(),
         matthews.first(),
         preflight.first(),
         pipeline_config.first(),
+        localisation_bundle.first(),
         crystal_ids,
-        maximum_first_copy_jobs,
-        true
+        maximum_first_copy_jobs
     )
     complete_funnels = funnel_items
         .join(active_dispatch, by: 0)

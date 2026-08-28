@@ -31,6 +31,7 @@ from genome_to_diffraction.execution import (
     validate_unknown_pass1_crystallographic_review_stages,
 )
 from genome_to_diffraction.ids import content_id
+from genome_to_diffraction.localisation import validate_catalogue_localisation_batch
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.manifests import CrystalManifest
 from genome_to_diffraction.schemas.v2 import PhaseIIIExecutionIdentity
@@ -44,6 +45,7 @@ _EXECUTION_NAME = "phase3_execution_identity.json"
 _AFDB_MAP_NAME = "afdb_accession_map.tsv"
 _CRYSTALS_NAME = "phase3_crystals.json"
 _REVIEW_ROOT_NAME = "crystallographic_review_stage"
+_LOCALISATION_ROOT_NAME = "localisation_bundle"
 _MAX_SPEC_BYTES = 32 * 1024
 _MAX_AFDB_MAP_BYTES = 4 * 1024 * 1024
 _SPEC_KEYS = frozenset(
@@ -53,6 +55,7 @@ _SPEC_KEYS = frozenset(
         "execution_identity",
         "afdb_accession_map",
         "crystal_manifest",
+        "localisation_bundle",
     }
 )
 _SOURCE_RECORD_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
@@ -142,6 +145,63 @@ def _review_files(root: Path) -> tuple[tuple[str, Path], ...]:
     if not files:
         raise UnknownDiscoveryInputError("crystallographic review stage is empty")
     return tuple(files)
+
+
+def _localisation_files(root: Path) -> tuple[tuple[str, Path], ...]:
+    validate_catalogue_localisation_batch(root)
+    files = tuple(
+        (
+            f"{_LOCALISATION_ROOT_NAME}/{path.relative_to(root).as_posix()}",
+            path,
+        )
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    )
+    if not files:
+        raise UnknownDiscoveryInputError("localisation bundle is empty")
+    return files
+
+
+def _validate_localisation_authority(
+    *,
+    root: Path,
+    execution: PhaseIIIExecutionIdentity,
+) -> None:
+    policy = validate_catalogue_localisation_batch(root)
+    gel = tuple(
+        artifact
+        for artifact in execution.catalogue_artifacts
+        if artifact.role == "gel_evidence"
+    )
+    if len(gel) != 1 or gel[0].sha256 != policy.gel_evidence_sha256:
+        raise UnknownDiscoveryInputError(
+            "localisation gel evidence differs from execution identity"
+        )
+    tools = {tool.name: tool for tool in execution.tools}
+    expected_tools = {
+        "PSORTb": policy.psortb_runtime,
+        "DeepTMHMM": policy.deeptmhmm_runtime,
+    }
+    for name, runtime in expected_tools.items():
+        tool = tools.get(name)
+        if (
+            tool is None
+            or tool.version != runtime.tool_version
+            or tool.executable_sha256 != runtime.image_manifest_sha256
+            or tool.adapter_version != policy.adapter_version
+        ):
+            raise UnknownDiscoveryInputError(
+                f"localisation runtime {name} differs from execution identity"
+            )
+    adapters = dict(execution.adapter_versions)
+    if (
+        adapters.get("phase3_localisation_batch") != policy.adapter_version
+        or adapters.get("phase3_first_copy_funnel")
+        != "multi-source-first-copy-funnel-v3-phase3-evidence"
+    ):
+        raise UnknownDiscoveryInputError(
+            "localisation adapters differ from execution identity"
+        )
 
 
 def _afdb_map(path: Path) -> bytes:
@@ -254,6 +314,10 @@ def build_unknown_discovery_input_bundle(
         spec["crystal_manifest"],
         label="Phase III crystal manifest",
     )
+    localisation_root = _absolute_path(
+        spec["localisation_bundle"],
+        label="Phase III localisation bundle",
+    )
     if (
         not execution_path.is_file()
         or not afdb_path.is_file()
@@ -291,10 +355,16 @@ def build_unknown_discovery_input_bundle(
         crystal_ids=crystal_ids,
         execution=execution,
     )
+    _validate_localisation_authority(
+        root=localisation_root,
+        execution=execution,
+    )
     afdb_payload = _afdb_map(afdb_path)
     review_files = _review_files(review_root)
+    localisation_files = _localisation_files(localisation_root)
     members = (
         *review_files,
+        *localisation_files,
         (_EXECUTION_NAME, execution_path),
         (_AFDB_MAP_NAME, afdb_path),
         (_CRYSTALS_NAME, crystals_path),
@@ -308,7 +378,7 @@ def build_unknown_discovery_input_bundle(
         for name, path in members
     ]
     identity = {
-        "adapter_version": "unknown-discovery-input-bundle-v1",
+        "adapter_version": "unknown-discovery-input-bundle-v2",
         "execution_identity_id": execution.execution_identity_id,
         "review_stage_index_id": index.stage_index_id,
         "crystal_ids": list(crystal_ids),
@@ -407,6 +477,7 @@ def validate_unknown_discovery_input_tree(
     }
     if (
         manifest.get("schema_version") != "1.0"
+        or manifest.get("adapter_version") != "unknown-discovery-input-bundle-v2"
         or manifest.get("input_id") != expected_input_id
         or content_id("unknowninputs_", identity) != expected_input_id
         or manifest.get("execution_identity_id") != expected_execution_identity_id
@@ -500,6 +571,10 @@ def validate_unknown_discovery_input_tree(
     _phase3_crystal_manifest(
         root / _CRYSTALS_NAME,
         crystal_ids=tuple(item.crystal_id for item in review_index.review_bindings),
+        execution=execution,
+    )
+    _validate_localisation_authority(
+        root=root / _LOCALISATION_ROOT_NAME,
         execution=execution,
     )
 

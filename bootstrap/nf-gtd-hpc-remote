@@ -4013,6 +4013,14 @@ collect_run() {
         artifacts/qualification/unknown-discovery-resume-pipeline-info/trace.tsv \
         artifacts/qualification/unknown-discovery-resume-pipeline-info/dag.html \
         artifacts/unknown-discovery/inputs/unknown_discovery_input_manifest.json \
+        artifacts/unknown-discovery/inputs/localisation_bundle/localisation_batch_manifest.json \
+        artifacts/unknown-discovery/inputs/localisation_bundle/first_wave_policy.json \
+        artifacts/unknown-discovery/inputs/localisation_bundle/group_localisation_evidence.jsonl \
+        artifacts/unknown-discovery/inputs/localisation_bundle/first_wave_sequence_group_ids.txt \
+        artifacts/unknown-discovery/inputs/localisation_bundle/excluded_sequence_group_ids.txt \
+        artifacts/unknown-discovery/inputs/localisation_bundle/gel-evidence.json \
+        artifacts/unknown-discovery/inputs/localisation_bundle/raw/psortb-terse.tsv \
+        artifacts/unknown-discovery/inputs/localisation_bundle/raw/deeptmhmm-topologies.3line \
         artifacts/unknown-discovery/results/phase3_provider_discovery/phase3_provider_discovery_manifest.json \
         artifacts/qualification/unknown-screen-phenix-manifest.json \
         artifacts/qualification/unknown-screen-phenix-verification.log \
@@ -4026,6 +4034,14 @@ collect_run() {
         artifacts/qualification/unknown-screen-resume-pipeline-info/trace.tsv \
         artifacts/qualification/unknown-screen-resume-pipeline-info/dag.html \
         artifacts/unknown-screen/inputs/unknown_discovery_input_manifest.json \
+        artifacts/unknown-screen/inputs/localisation_bundle/localisation_batch_manifest.json \
+        artifacts/unknown-screen/inputs/localisation_bundle/first_wave_policy.json \
+        artifacts/unknown-screen/inputs/localisation_bundle/group_localisation_evidence.jsonl \
+        artifacts/unknown-screen/inputs/localisation_bundle/first_wave_sequence_group_ids.txt \
+        artifacts/unknown-screen/inputs/localisation_bundle/excluded_sequence_group_ids.txt \
+        artifacts/unknown-screen/inputs/localisation_bundle/gel-evidence.json \
+        artifacts/unknown-screen/inputs/localisation_bundle/raw/psortb-terse.tsv \
+        artifacts/unknown-screen/inputs/localisation_bundle/raw/deeptmhmm-topologies.3line \
         artifacts/unknown-screen/phase3_provider_discovery/phase3_provider_discovery_manifest.json \
         artifacts/unknown-screen/provider_preparation/provider_preparation.json \
         artifacts/unknown-screen/results/phase3_offline_provider_input/phase3_offline_provider_input.json \

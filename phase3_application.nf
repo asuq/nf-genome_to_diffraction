@@ -24,6 +24,7 @@ params {
     phase3_owned_sequence_parent_run_id: String? = null
     phase3_provider_discovery: Path? = null
     phase3_provider_preparation: Path? = null
+    phase3_localisation_bundle: Path? = null
     outdir: Path = file('results')
     cache_root: Path = file('.cache')
     review_mode: String = 'prepare'
@@ -60,11 +61,12 @@ workflow {
             params.afdb_accession_map == null ||
             params.phase3_provider_discovery != null ||
             params.phase3_provider_preparation != null ||
+            params.phase3_localisation_bundle == null ||
             params.phase3_reviewed_crystal_manifest != null ||
             params.phase3_owned_run_registry != null ||
             params.phase3_owned_sequence_parent_run_id != null
         ) {
-            error 'Phase III provider discovery requires only its crystallographic review authority'
+            error 'Phase III provider discovery requires its crystallographic review, AFDB policy, and localisation/gel authorities only'
         }
         PHASE3_PROVIDER_DISCOVERY_APPLICATION_WORKFLOW(
             params.catalogues,
@@ -88,19 +90,21 @@ workflow {
             params.afdb_retry_count,
             params.phase3_crystallographic_review_stage,
             params.phase3_execution_identity,
-            params.phase3_owned_parent_run_id
+            params.phase3_owned_parent_run_id,
+            params.phase3_localisation_bundle
         )
     } else if (params.phase3_operation == 'first_copy') {
         if (
             params.phase3_crystallographic_review_stage == null ||
             params.phase3_provider_discovery == null ||
             params.phase3_provider_preparation == null ||
+            params.phase3_localisation_bundle == null ||
             params.afdb_accession_map != null ||
             params.phase3_reviewed_crystal_manifest != null ||
             params.phase3_owned_run_registry != null ||
             params.phase3_owned_sequence_parent_run_id != null
         ) {
-            error 'Phase III first-copy requires only its crystallographic review authority'
+            error 'Phase III first-copy requires its crystallographic review, owned provider, and localisation/gel authorities only'
         }
         PHASE3_FIRST_COPY_APPLICATION_WORKFLOW(
             params.catalogues,
@@ -117,13 +121,15 @@ workflow {
             params.phase3_execution_identity,
             params.phase3_owned_parent_run_id,
             params.phase3_provider_discovery,
-            params.phase3_provider_preparation
+            params.phase3_provider_preparation,
+            params.phase3_localisation_bundle
         )
     } else {
         if (
             params.phase3_crystallographic_review_stage != null ||
             params.phase3_provider_discovery != null ||
             params.phase3_provider_preparation != null ||
+            params.phase3_localisation_bundle != null ||
             params.phase3_reviewed_crystal_manifest == null ||
             params.phase3_owned_run_registry == null ||
             params.phase3_owned_sequence_parent_run_id == null ||

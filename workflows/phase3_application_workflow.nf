@@ -23,6 +23,9 @@ include {
 include {
     VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT
 } from '../modules/local/validate_phase3_offline_provider_input'
+include {
+    VALIDATE_PHASE3_LOCALISATION_BUNDLE
+} from '../modules/local/validate_phase3_localisation_bundle'
 
 
 // Provider discovery is a separate offline compute checkpoint. It validates
@@ -53,6 +56,7 @@ workflow PHASE3_PROVIDER_DISCOVERY_APPLICATION_WORKFLOW {
     crystallographic_review_stage: Path
     execution_identity: Path
     owned_run_id: String
+    localisation_bundle: Path
 
     main:
     validation_scope = VALIDATE_TASK05_INPUTS(
@@ -71,13 +75,17 @@ workflow PHASE3_PROVIDER_DISCOVERY_APPLICATION_WORKFLOW {
         execution_identity,
         crystals
     )
+    localisation = VALIDATE_PHASE3_LOCALISATION_BUNDLE(localisation_bundle)
     reviewed_scope = validation_scope
         .combine(review_bundle)
         .map { Path scope, Path _reviews -> scope }
+    evidence_scope = reviewed_scope
+        .combine(localisation)
+        .map { Path scope, Path _localisation -> scope }
     catalogue_bundle = IMPORT_CATALOGUES(
         catalogues,
         pipeline_config,
-        reviewed_scope
+        evidence_scope
     )
     sequence_groups = catalogue_bundle.map { Path bundle ->
         bundle.resolve('sequence_groups.jsonl')
@@ -127,6 +135,7 @@ workflow PHASE3_PROVIDER_DISCOVERY_APPLICATION_WORKFLOW {
     prostt5_foldseek_search: Path = discovery.prostt5_foldseek_search
     pdb_provider_hits: Path = discovery.pdb_provider_hits
     checkpoint: Path = discovery_package
+    localisation: Path = localisation
 }
 
 
@@ -149,6 +158,7 @@ workflow PHASE3_FIRST_COPY_APPLICATION_WORKFLOW {
     owned_parent_run_id: String
     provider_discovery: Path
     provider_preparation: Path
+    localisation_bundle: Path
 
     main:
     validation_scope = VALIDATE_TASK05_INPUTS(
@@ -167,15 +177,19 @@ workflow PHASE3_FIRST_COPY_APPLICATION_WORKFLOW {
         provider_preparation,
         execution_identity
     )
+    localisation = VALIDATE_PHASE3_LOCALISATION_BUNDLE(localisation_bundle)
     offline_scope = validation_scope
         .combine(offline_provider)
         .map { Path scope, Path _provider -> scope }
+    evidence_scope = offline_scope
+        .combine(localisation)
+        .map { Path scope, Path _localisation -> scope }
     catalogue_bundle = channel.value(provider_discovery.resolve('catalogue'))
     preflight_bundle = MTZ_PREFLIGHT(
         crystals,
         phenix_manifest,
         skip_xtriage,
-        offline_scope
+        evidence_scope
     )
     matthews_bundle = ENUMERATE_MATTHEWS(
         crystals,
@@ -240,6 +254,7 @@ workflow PHASE3_FIRST_COPY_APPLICATION_WORKFLOW {
         experimental_models,
         matthews_jsonl,
         channel.value(pipeline_config.toAbsolutePath()),
+        localisation,
         maximum_first_copy_jobs,
         channel.value(phenix_manifest.toAbsolutePath()),
         crystallographic_review_stage,
