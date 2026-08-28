@@ -2244,6 +2244,40 @@ def test_p0_configuration_is_checksum_confirmed_and_strictly_validated(
         controller.p0_configure(paths_file, checksum)
 
 
+def test_database_runtime_configuration_is_create_only_and_checksum_confirmed(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    paths_file = tmp_path / "database.paths"
+    payload = (
+        "/approved/database-admin\n"
+        "/approved/database-admin/databases\n"
+        "/approved/database-admin/manifests/database.json\n"
+        "800000000000\n"
+        "200000000000\n"
+        "600000000000\n"
+        "200000000000\n"
+    )
+    paths_file.write_text(payload, encoding="ascii")
+    paths_file.chmod(0o600)
+    checksum = hashlib.sha256(payload.encode("ascii")).hexdigest()
+
+    with pytest.raises(ValidationError, match="exactly equal"):
+        controller.database_runtime_configure(paths_file, "0" * 64)
+    result = controller.database_runtime_configure(paths_file, checksum)
+
+    assert result["operation"] == "database-runtime-configure"
+    operation, arguments = transport.calls[-1]
+    assert operation == "database-runtime-configure"
+    assert arguments[0] == checksum
+    assert base64.b64decode(arguments[1]).decode("ascii") == payload
+
+    paths_file.write_text(payload.replace("800000000000", "0800000000000"))
+    with pytest.raises(ValidationError, match="canonical integers"):
+        controller.database_runtime_configure(paths_file, checksum)
+
+
 def test_p0_input_staging_is_frozen_rewritten_and_checksum_gated(
     tmp_path: Path,
 ) -> None:

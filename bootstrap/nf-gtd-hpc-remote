@@ -663,6 +663,7 @@ unknown_discovery_inputs_stage() {
 
 database_config_readiness() {
     local manifest_mode="${1:-output}"
+    local config_path="${2:-$DATABASE_CONFIG}"
     local allowed allowed_configured candidate resolved manifest_parent
     local -a values=()
     DATABASE_CONFIG_STATUS=unknown
@@ -674,20 +675,20 @@ database_config_readiness() {
     MINIMUM_FREE_BYTES=""
     REQUIRED_DATABASE_CAPACITY_BYTES=""
     MINIMUM_SCRATCH_FREE_BYTES=""
-    if [[ ! -f "$DATABASE_CONFIG" || -L "$DATABASE_CONFIG" || ! -O "$DATABASE_CONFIG" ]]; then
+    if [[ ! -f "$config_path" || -L "$config_path" || ! -O "$config_path" ]]; then
         DATABASE_CONFIG_STATUS=absent_or_unsafe
         return 1
     fi
-    if [[ "$(stat -c '%a' "$DATABASE_CONFIG")" != 600 ]]; then
+    if [[ "$(stat -c '%a' "$config_path")" != 600 ]]; then
         DATABASE_CONFIG_STATUS=mode_mismatch
         return 1
     fi
-    DATABASE_CONFIG_SHA256="$(sha256sum "$DATABASE_CONFIG" | awk '{print $1}')"
+    DATABASE_CONFIG_SHA256="$(sha256sum "$config_path" | awk '{print $1}')"
     if [[ ! "$DATABASE_CONFIG_SHA256" =~ $CHECKSUM_RE ]]; then
         DATABASE_CONFIG_STATUS=checksum_failure
         return 1
     fi
-    mapfile -t values < "$DATABASE_CONFIG"
+    mapfile -t values < "$config_path"
     if [[ "${#values[@]}" -ne 7 ]]; then
         DATABASE_CONFIG_STATUS=line_count_mismatch
         return 1
@@ -793,6 +794,67 @@ database_readiness() {
     emit database_config_status "$DATABASE_CONFIG_STATUS"
     emit database_config_sha256 "$DATABASE_CONFIG_SHA256"
     emit scope login_prerequisites_only
+}
+
+database_runtime_configure() {
+    [[ "$#" -eq 2 ]] || \
+        fail wrapper_failure \
+            "database-runtime-configure expects a checksum and encoded paths"
+    local expected_checksum="$1"
+    local encoded="$2"
+    local config_directory resolved temporary actual_checksum status size
+    [[ "$expected_checksum" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "database runtime configuration checksum is invalid"
+    [[ -n "$encoded" && "${#encoded}" -le 5464 && \
+        "$encoded" =~ ^[A-Za-z0-9+/=]+$ ]] || \
+        fail wrapper_failure "encoded database runtime configuration is invalid"
+    [[ ! -e "$DATABASE_CONFIG" && ! -L "$DATABASE_CONFIG" ]] || \
+        fail wrapper_failure "database configuration already exists"
+    config_directory="$(dirname "$DATABASE_CONFIG")"
+    if [[ ! -e "$config_directory" && ! -L "$config_directory" ]]; then
+        mkdir -p "$config_directory" || \
+            fail filesystem_failure \
+                "database configuration directory cannot be created"
+        chmod 0700 "$config_directory"
+    fi
+    resolved="$(realpath -e "$config_directory" 2>"$DISCARD")" || \
+        fail filesystem_failure "database configuration directory cannot be resolved"
+    [[ "$resolved" == "$config_directory" && -d "$config_directory" && \
+        ! -L "$config_directory" && -O "$config_directory" ]] || \
+        fail filesystem_failure "database configuration directory is unsafe"
+    temporary="${DATABASE_CONFIG}.tmp.$$"
+    if ! printf '%s' "$encoded" | base64 -d > "$temporary"; then
+        rm -f -- "$temporary"
+        fail transfer_failure "database runtime configuration cannot be decoded"
+    fi
+    chmod 0600 "$temporary"
+    size="$(file_size "$temporary")"
+    if [[ ! "$size" =~ $BYTE_COUNT_RE ]] || (( size < 1 || size > 4096 )); then
+        rm -f -- "$temporary"
+        fail wrapper_failure "database runtime configuration size is invalid"
+    fi
+    actual_checksum="$(sha256sum "$temporary" | awk '{print $1}')"
+    if [[ "$actual_checksum" != "$expected_checksum" ]]; then
+        rm -f -- "$temporary"
+        fail transfer_failure "database runtime configuration checksum does not match"
+    fi
+    if ! database_config_readiness runtime "$temporary"; then
+        status="$DATABASE_CONFIG_STATUS"
+        rm -f -- "$temporary"
+        fail environment_failure \
+            "database runtime configuration is not ready: $status"
+    fi
+    if ! ln "$temporary" "$DATABASE_CONFIG"; then
+        rm -f -- "$temporary"
+        fail filesystem_failure \
+            "database runtime configuration could not be created atomically"
+    fi
+    rm -f -- "$temporary"
+    emit operation database-runtime-configure
+    emit configured true
+    emit database_config_sha256 "$expected_checksum"
+    emit database_config_status ready
+    emit manifest_mode runtime
 }
 
 cleanup_deploy_staging() {
@@ -5258,6 +5320,7 @@ main() {
         unknown-screen-stage) unknown_screen_stage_run "$@" ;;
         unknown-single-component-stage) unknown_single_component_stage_run "$@" ;;
         database-readiness) database_readiness "$@" ;;
+        database-runtime-configure) database_runtime_configure "$@" ;;
         stage) stage_run "$@" ;;
         stage-archive) stage_archive_run "$@" ;;
         m4-copy-stage) m4_copy_stage_run "$@" ;;

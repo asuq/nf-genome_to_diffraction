@@ -2680,6 +2680,58 @@ def _install_fake_database_runtime(run: Path, fake_bin: Path) -> None:
     )
 
 
+def test_database_runtime_configuration_restores_existing_immutable_manifest(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    config = _write_database_paths(remote_root)
+    values = config.read_text(encoding="ascii").splitlines()
+    manifest = Path(values[2])
+    payload = config.read_bytes()
+    checksum = hashlib.sha256(payload).hexdigest()
+    encoded = base64.b64encode(payload).decode("ascii")
+    config.unlink()
+
+    absent = _run(
+        [str(dispatcher), "database-runtime-configure", checksum, encoded],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    absent_fields = _decode_protocol(absent.stdout)
+    assert absent_fields["failure_class"] == "environment_failure"
+    assert "manifest_input_invalid" in absent_fields["message"]
+    assert not config.exists()
+
+    manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    configured = _run(
+        [str(dispatcher), "database-runtime-configure", checksum, encoded],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    fields = _decode_protocol(configured.stdout)
+    assert fields == {
+        "operation": "database-runtime-configure",
+        "configured": "true",
+        "database_config_sha256": checksum,
+        "database_config_status": "ready",
+        "manifest_mode": "runtime",
+    }
+    assert config.read_bytes() == payload
+    assert config.stat().st_mode & 0o777 == 0o600
+
+    repeated = _run(
+        [str(dispatcher), "database-runtime-configure", checksum, encoded],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(repeated.stdout)["message"] == (
+        "database configuration already exists"
+    )
+
+
 def test_database_administration_uses_separate_fixed_start_boundary(
     tmp_path: Path,
 ) -> None:

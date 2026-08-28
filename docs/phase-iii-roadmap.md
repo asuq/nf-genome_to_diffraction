@@ -523,6 +523,18 @@ and successful-discovery collection regressions pass. After CI/deployment,
 restore the checksum-frozen P0 bundle and configuration through their reviewed
 operations, require readiness, and stage one fresh unknown-discovery run.
 
+Rebuilding the deleted local staging copy verifies the same seven immutable
+scientific files but also confirms two clean-break requirements: the copied
+historical P0 YAML must omit only its retired operational keys, and temporary
+manifest paths must resolve below the current worktree's fixed data root. The
+resulting seven-input archive is content-addressed independently of those local
+paths. Remote P0 transfer remains stopped because storage maintenance also
+removed `_config/database.paths`. Finding `PH3-P1-32` adds only a create-once,
+checksum-confirmed `database-runtime-configure` operation for the still-existing
+immutable database root/manifest; it performs no build, download, cleanup, or
+scheduler action. Focused local and remote tests pass; CI/deployment and the
+actual runtime restore remain before P0 restaging.
+
 On 25 August 2026 the user/supervisor supplied the mandatory crystallographic
 checkpoint decision `proceed` for all three frozen crystals. This authorises a
 bounded pass-1 search while retaining, rather than clearing, the 75.2%

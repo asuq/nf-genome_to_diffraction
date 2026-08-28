@@ -883,6 +883,23 @@ compute-node claim:
 nf-gtd-hpc-test database-readiness
 ```
 
+If storage maintenance removes only `_config/database.paths` while the exact
+immutable database root and manifest remain, restore that authority without raw
+SSH through the create-only runtime boundary:
+
+```bash
+nf-gtd-hpc-test database-runtime-configure \
+  --paths-file .untracked/m0-qualification/hpc-database-runtime.paths \
+  --confirm-sha256 SHA256
+```
+
+The local controller accepts only an owned mode-`0600`, seven-line ASCII file:
+three conservative absolute paths followed by the four canonical capacity
+integers. The remote dispatcher refuses an existing configuration, validates
+the existing database root and immutable manifest in runtime mode, verifies the
+checksum, and installs the file atomically. It performs no download, database
+build, cleanup, or scheduler action and returns no site paths.
+
 Review the exact commit and external configuration, then explicitly approve the
 two start commands individually:
 

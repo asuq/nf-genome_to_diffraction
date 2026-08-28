@@ -14014,3 +14014,36 @@ with a collapsed combined parent or a guessed command.
   restored. Commit/push the collector fix and evidence once, watch one CI,
   deploy, restage the checksum-bound P0 inputs, install the same fixed
   configuration, require P0 readiness, and submit one fresh discovery run.
+
+## 2026-08-28 - Clean-break P0 rebuild requires database-runtime restore
+
+- Collector/evidence commit `be540d3` initially failed CI `33171395054` /
+  `98849175405` before tests because one new assertion was not Ruff-formatted.
+  Formatting-only successor `bc14990` passes focused tests and exact-source CI
+  `33171592458` / `98849819252` under Pixi 0.76.2. No HPC operation occurred
+  during either CI run.
+- Rebuilding the deleted local staging copy from the preserved canonical data
+  retains all seven scientific files and their original checksums. The copied
+  historical YAML was made current by deleting only seven already-retired
+  operational keys; every remaining value, raw catalogue file, and MTZ is
+  unchanged. Temporary manifest/inventory paths were normalised to the current
+  fixed data root. The resulting verified archive has source ID
+  `p0i_f8fcf6c526cf808f7bb3b167047f9104b153e560ced9ca500bc61c83d577bfe3`,
+  SHA-256
+  `600d334c58878c09f47e33c864247bd2f185eb48dbb67ac6aad408bacb4fcec7`,
+  43,266,673 compressed bytes, and 75,958,172 scientific-input bytes.
+- Transfer stopped before upload because storage maintenance also removed the
+  database runtime configuration. The existing reviewed interface had no way
+  to restore that one file without raw SSH. Finding `PH3-P1-32` adds the
+  smallest create-only `database-runtime-configure` operation. It accepts one
+  owned mode-0600 seven-line file and exact checksum, validates the existing
+  immutable root/manifest and canonical capacity bounds in runtime mode, and
+  installs atomically. It performs no download, build, cleanup, or scheduler
+  action and refuses an existing configuration.
+- Two focused controller/CLI tests and three remote lifecycle tests pass,
+  including absent manifest, successful restore, repeated install, malformed
+  capacity, collector stage-failure, and normal successful discovery paths.
+  Ruff, type checking, and Bash wrapper syntax pass. Next run documentation and
+  diff checks, commit/push once, watch CI, deploy, install the retained database
+  runtime authority, restage P0, configure P0, require readiness, then stage one
+  fresh unknown-discovery run.

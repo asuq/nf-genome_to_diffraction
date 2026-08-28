@@ -264,6 +264,51 @@ def _validated_p0_paths_payload(path: Path) -> bytes:
     return payload
 
 
+def _validated_database_runtime_paths_payload(path: Path) -> bytes:
+    """Load one canonical seven-line private database runtime configuration."""
+
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or path.stat().st_uid != os.getuid()
+        or path.stat().st_mode & 0o777 != 0o600
+    ):
+        raise ValidationError(
+            "database runtime paths must be an owned mode-0600 regular file"
+        )
+    payload = path.read_bytes()
+    if not payload or len(payload) > MAX_P0_PATHS_BYTES:
+        raise ValidationError(
+            f"database runtime paths must contain 1..{MAX_P0_PATHS_BYTES} bytes"
+        )
+    try:
+        text = payload.decode("ascii")
+    except UnicodeDecodeError as error:
+        raise ValidationError("database runtime paths must be ASCII") from error
+    lines = text.splitlines()
+    canonical = "\n".join(lines) + "\n"
+    if text != canonical or len(lines) != 7 or any(not line for line in lines):
+        raise ValidationError(
+            "database runtime paths must be exactly seven non-empty LF-terminated lines"
+        )
+    for index, value in enumerate(lines[:3], start=1):
+        validate_remote_path(value, f"database runtime paths line {index}")
+    if any(
+        re.fullmatch(r"(?:0|[1-9][0-9]*)", value) is None or len(value) > 13
+        for value in lines[3:]
+    ):
+        raise ValidationError("database runtime capacities must be canonical integers")
+    storage, reserve, required, scratch = (int(value) for value in lines[3:])
+    if not (
+        0 < storage <= 2_000_000_000_000
+        and 0 <= reserve < storage
+        and 0 < required <= storage
+        and scratch > 0
+    ):
+        raise ValidationError("database runtime capacities are out of bounds")
+    return payload
+
+
 def _fixed_heteromer_phenix_binding(repository: Path) -> tuple[str, str]:
     """Return the preserved Marmic Phenix path and independently frozen digest."""
 
@@ -2576,6 +2621,33 @@ class HpcController:
             **self.transport.run("database-readiness", []),
             "operation": "database-readiness",
             "profile": "database",
+        }
+
+    def database_runtime_configure(
+        self,
+        paths_file: Path,
+        confirmation: str,
+    ) -> dict[str, object]:
+        """Install one absent configuration for an existing immutable database."""
+
+        payload = _validated_database_runtime_paths_payload(paths_file)
+        checksum = hashlib.sha256(payload).hexdigest()
+        if confirmation != checksum:
+            raise ValidationError(
+                "database runtime confirmation must exactly equal its SHA-256"
+            )
+        encoded = base64.b64encode(payload).decode("ascii")
+        self.logger.warning(
+            "installing validated fixed database runtime configuration",
+            extra={"database_config_sha256": checksum},
+        )
+        return {
+            **self.transport.run(
+                "database-runtime-configure",
+                [checksum, encoded],
+            ),
+            "operation": "database-runtime-configure",
+            "database_config_sha256": checksum,
         }
 
     def database_stage(self, revision: str) -> dict[str, object]:

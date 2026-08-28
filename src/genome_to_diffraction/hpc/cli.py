@@ -65,6 +65,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "database-readiness",
         help="inspect the separate fixed database-administration prerequisites",
     )
+    database_runtime_configure = actions.add_parser(
+        "database-runtime-configure",
+        help="restore one absent configuration for an existing immutable database",
+    )
+    database_runtime_configure.add_argument(
+        "--paths-file",
+        type=Path,
+        required=True,
+    )
+    database_runtime_configure.add_argument("--confirm-sha256", required=True)
     database_stage = actions.add_parser(
         "database-stage",
         help="stage an immutable commit for fixed database administration",
@@ -244,6 +254,11 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.p0_inputs_stage(args.confirm_spec_sha256)
     if args.operation == "database-readiness":
         return controller.database_readiness()
+    if args.operation == "database-runtime-configure":
+        return controller.database_runtime_configure(
+            args.paths_file,
+            args.confirm_sha256,
+        )
     if args.operation == "database-stage":
         return controller.database_stage(args.revision)
     if args.operation == "database-submit":
