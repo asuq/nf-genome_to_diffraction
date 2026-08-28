@@ -572,6 +572,7 @@ unknown_discovery_inputs_stage() {
     local run_id="$1" owner_id="$2" input_id="$3" archive_sha256="$4"
     local archive_size="$5" execution_identity_id="$6" review_stage_index_id="$7"
     local run profile archive staging destination actual_sha256 unsafe_member python
+    local input_checksums input_checksums_temporary relative
     validate_run_id "$run_id"
     validate_owner "$owner_id"
     [[ "$input_id" =~ ^unknowninputs_[a-f0-9]{64}$ ]] || \
@@ -639,6 +640,18 @@ unknown_discovery_inputs_stage() {
         fail wrapper_failure "unknown-discovery input validation failed"
     fi
     mv -- "$staging" "$destination"
+    input_checksums="$run/state/unknown-discovery-input-checksums.sha256"
+    input_checksums_temporary="${input_checksums}.tmp.$$"
+    (
+        cd "$destination"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f -print | LC_ALL=C sort)
+    ) > "$input_checksums_temporary"
+    [[ -s "$input_checksums_temporary" ]] || \
+        fail filesystem_failure "unknown-discovery input checksum inventory is empty"
+    mv -f -- "$input_checksums_temporary" "$input_checksums"
     find "$destination" -xdev -type f -exec chmod 0444 {} +
     find "$destination" -xdev -type d -exec chmod 0555 {} +
     rm -f -- "$archive"
@@ -2174,6 +2187,12 @@ unknown_screen_stage_run() {
     mkdir -p -- "$screen_root"
     cp -a -- "$source_package" "$discovery_copy"
     cp -a -- "$source_inputs" "$inputs_copy"
+    [[ -f "$parent/state/unknown-discovery-input-checksums.sha256" && \
+       ! -L "$parent/state/unknown-discovery-input-checksums.sha256" && \
+       -O "$parent/state/unknown-discovery-input-checksums.sha256" ]] || \
+        fail wrapper_failure "unknown-screen parent input inventory is unavailable"
+    cp -- "$parent/state/unknown-discovery-input-checksums.sha256" \
+        "$run/state/unknown-screen-input-checksums.sha256"
     gtd="$run/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     [[ -x "$gtd" ]] || \
         fail environment_failure "locked unknown-screen CLI is unavailable"
@@ -3853,6 +3872,9 @@ collect_run() {
     local unknown_discovery_checksums="" unknown_discovery_output_root=""
     local unknown_discovery_digest="" unknown_discovery_relative=""
     local unknown_discovery_extra="" unknown_discovery_count=0
+    local unknown_input_checksums="" unknown_input_root=""
+    local unknown_input_digest="" unknown_input_relative="" unknown_input_extra=""
+    local unknown_input_archive_prefix="" unknown_input_count=0
     local -a files=()
     local -a diagnostic_omissions=()
     local -a p6_dynamic_models=()
@@ -3885,9 +3907,11 @@ collect_run() {
         state/p2-control-login-stage.sha256 \
         state/unknown-discovery-input-id \
         state/unknown-discovery-input-archive-sha256 \
+        state/unknown-discovery-input-checksums.sha256 \
         state/phase3-execution-identity-id \
         state/unknown-review-stage-index-id \
         state/unknown-discovery-parent-run-id \
+        state/unknown-screen-input-checksums.sha256 \
         state/provider-preparation-sha256 \
         state/unknown-screen-parent-run-id \
         state/unknown-single-input-id \
@@ -4089,18 +4113,6 @@ collect_run() {
         artifacts/qualification/unknown-discovery-resume-pipeline-info/timeline.html \
         artifacts/qualification/unknown-discovery-resume-pipeline-info/trace.tsv \
         artifacts/qualification/unknown-discovery-resume-pipeline-info/dag.html \
-        artifacts/unknown-discovery/inputs/unknown_discovery_input_manifest.json \
-        artifacts/unknown-discovery/inputs/localisation_bundle/localisation_batch_manifest.json \
-        artifacts/unknown-discovery/inputs/localisation_bundle/first_wave_policy.json \
-        artifacts/unknown-discovery/inputs/localisation_bundle/group_localisation_evidence.jsonl \
-        artifacts/unknown-discovery/inputs/localisation_bundle/first_wave_sequence_group_ids.txt \
-        artifacts/unknown-discovery/inputs/localisation_bundle/excluded_sequence_group_ids.txt \
-        artifacts/unknown-discovery/inputs/localisation_bundle/gel-evidence.json \
-        artifacts/unknown-discovery/inputs/localisation_bundle/raw/psortb-terse.tsv \
-        artifacts/unknown-discovery/inputs/localisation_bundle/raw/deeptmhmm-topologies.3line \
-        artifacts/unknown-discovery/inputs/localisation_bundle/container_execution/localisation_container_execution.json \
-        artifacts/unknown-discovery/inputs/localisation_bundle/container_execution/psortb-container.log \
-        artifacts/unknown-discovery/inputs/localisation_bundle/container_execution/deeptmhmm-container.log \
         artifacts/qualification/unknown-screen-phenix-manifest.json \
         artifacts/qualification/unknown-screen-phenix-verification.log \
         artifacts/qualification/unknown-screen-checksums.sha256 \
@@ -4113,18 +4125,6 @@ collect_run() {
         artifacts/qualification/unknown-screen-resume-pipeline-info/timeline.html \
         artifacts/qualification/unknown-screen-resume-pipeline-info/trace.tsv \
         artifacts/qualification/unknown-screen-resume-pipeline-info/dag.html \
-        artifacts/unknown-screen/inputs/unknown_discovery_input_manifest.json \
-        artifacts/unknown-screen/inputs/localisation_bundle/localisation_batch_manifest.json \
-        artifacts/unknown-screen/inputs/localisation_bundle/first_wave_policy.json \
-        artifacts/unknown-screen/inputs/localisation_bundle/group_localisation_evidence.jsonl \
-        artifacts/unknown-screen/inputs/localisation_bundle/first_wave_sequence_group_ids.txt \
-        artifacts/unknown-screen/inputs/localisation_bundle/excluded_sequence_group_ids.txt \
-        artifacts/unknown-screen/inputs/localisation_bundle/gel-evidence.json \
-        artifacts/unknown-screen/inputs/localisation_bundle/raw/psortb-terse.tsv \
-        artifacts/unknown-screen/inputs/localisation_bundle/raw/deeptmhmm-topologies.3line \
-        artifacts/unknown-screen/inputs/localisation_bundle/container_execution/localisation_container_execution.json \
-        artifacts/unknown-screen/inputs/localisation_bundle/container_execution/psortb-container.log \
-        artifacts/unknown-screen/inputs/localisation_bundle/container_execution/deeptmhmm-container.log \
         artifacts/unknown-screen/phase3_provider_discovery/phase3_provider_discovery_manifest.json \
         artifacts/unknown-screen/provider_preparation/provider_preparation.json \
         artifacts/unknown-screen/results/phase3_offline_provider_input/phase3_offline_provider_input.json \
@@ -4584,6 +4584,48 @@ collect_run() {
         done < "$phase3_checksums"
         [[ "$phase3_count" -ge 20 && "$phase3_count" -le 128 ]] || \
             fail transfer_failure "9ECN control retained file count differs"
+    fi
+    if [[ "$profile" == unknown-discovery ]]; then
+        unknown_input_root="$run/artifacts/unknown-discovery/inputs"
+        unknown_input_checksums="$run/state/unknown-discovery-input-checksums.sha256"
+        unknown_input_archive_prefix="artifacts/unknown-discovery/inputs"
+    elif [[ "$profile" == unknown-screen ]]; then
+        unknown_input_root="$run/artifacts/unknown-screen/inputs"
+        unknown_input_checksums="$run/state/unknown-screen-input-checksums.sha256"
+        unknown_input_archive_prefix="artifacts/unknown-screen/inputs"
+    fi
+    if [[ -n "$unknown_input_checksums" && -f "$unknown_input_checksums" ]]; then
+        [[ ! -L "$unknown_input_checksums" && -O "$unknown_input_checksums" && \
+           -d "$unknown_input_root" && ! -L "$unknown_input_root" ]] || \
+            fail transfer_failure "unknown input checksum inventory is unsafe"
+        while read -r unknown_input_digest unknown_input_relative unknown_input_extra; do
+            [[ -n "$unknown_input_digest" && -n "$unknown_input_relative" && \
+               -z "$unknown_input_extra" && \
+               "$unknown_input_digest" =~ $CHECKSUM_RE && \
+               "$unknown_input_relative" =~ ^[A-Za-z0-9._/-]+$ && \
+               "$unknown_input_relative" != /* && \
+               "$unknown_input_relative" != *..* ]] || \
+                fail transfer_failure "unknown input checksum row is unsafe"
+            candidate="$unknown_input_root/$unknown_input_relative"
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" && \
+               "$(stat -c '%h' "$candidate")" -eq 1 ]] || \
+                fail transfer_failure "unknown input file is unsafe"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == \
+               "$unknown_input_digest" ]] || \
+                fail transfer_failure "unknown input checksum differs"
+            size="$(file_size "$candidate")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "unknown input file exceeds limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "artefacts exceed total limit"
+            files+=("$unknown_input_archive_prefix/$unknown_input_relative")
+            unknown_input_count=$((unknown_input_count + 1))
+        done < "$unknown_input_checksums"
+        [[ "$unknown_input_count" -eq 22 ]] || \
+            fail transfer_failure "unknown input file count differs"
+    elif [[ -n "$unknown_input_checksums" && "$failure_class" == success ]]; then
+        fail transfer_failure "unknown input checksum inventory is unavailable"
     fi
     unknown_discovery_output_root="$run/artifacts/unknown-discovery/results"
     unknown_discovery_checksums="$run/artifacts/qualification/unknown-discovery-output-checksums.sha256"

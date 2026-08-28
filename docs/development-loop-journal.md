@@ -14089,3 +14089,43 @@ with a collapsed combined parent or a guessed command.
   all five provider-local modules. Its focused contract and Nextflow syntax
   checks pass. Commit/push once, watch CI, deploy, and submit one fresh
   discovery successor; do not reuse job `636168` or its cache.
+
+## 2026-08-28 - Discovery scheduler fix passes; stale P0 paths stop the successor
+
+- Resource commit `b8adf02050667a27cfcb40b10acd9063b9b49024` passed CI
+  `33180768680` / `98881089620` under Pixi 0.76.2 and deployed with unchanged
+  reviewed dispatcher/job-wrapper/recovery digests
+  `827949c2ddf81f8434a8d63893b4b2ae8456b998aa26c4726c9b79bab9f7a78b`,
+  `966154f4483e11ce800f23343efbf5cd29297db2a5a3d1bda261b91201521284`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Authority
+  `phase3exec_1ccac6272fafd01089c7bd4062a0f91b63c7ba750c6558bbcceeaa75aaefc1a0`
+  and review stage
+  `unknownreviewstages_870a1d680ddadc3d7dbb13935089bc8b47709e1bfcabb4526ab97a75ad40b40e`
+  staged as input
+  `unknowninputs_7a29ee3f7d5171965f65e1569470335b68182778ee94ee2a46ef0b6d660a4db1`.
+  Owned Marmic run
+  `gtd-unknown-discovery-20260828T150719Z-b8adf0205066-6c35c350`, Slurm
+  `636321`, ended `FAILED`, exit 1, `test_failure`; it is diagnostic only and
+  must not be reused.
+- The scheduler fix is real: the retained task has bounded CPUs, memory, and
+  time, and `RESOLVE_PROVIDER_PLAN` submitted successfully. Phenix and all seven
+  executable probes passed. Crystallographic-stage validation then failed
+  closed because `AD4QS1P4G2_18` named the removed pre-cleanup P0 path. No
+  provider search, model preparation, Phaser, refinement, or unknown scientific
+  interpretation ran. Failure signature is
+  `314599fd1210d9d094d92d2a89a24d4307221cbbceece36e1bd92978fe4e3bcd`.
+- Finding `PH3-P1-34` records the stale private path binding. The three MTZ
+  paths now target the checksum-identical restored P0 content ID; the next
+  authority will bind the changed crystal-manifest checksum.
+- Collection retained the failed task and localisation evidence but omitted the
+  execution identity, crystal manifest, AFDB map, and seven review files.
+  Finding `PH3-P1-35` replaces the fixed path subset with a staging-owned
+  canonical checksum inventory for all 22 validated input files. The screen
+  child inherits it; collection revalidates every path, checksum, owner, link,
+  size, and exact cardinality. Focused failed/success discovery and screen
+  lifecycle tests, Ruff, and wrapper syntax pass.
+- Next commit/push the input-authority collection fix and evidence once, watch
+  CI, deploy, rebuild the exact-source authority from the restored P0 paths, and
+  submit one fresh discovery successor. Never reuse jobs `636168` or `636321`
+  or their caches.

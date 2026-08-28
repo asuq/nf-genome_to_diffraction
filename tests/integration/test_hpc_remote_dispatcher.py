@@ -3961,6 +3961,24 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     ).stdout
     with tarfile.open(fileobj=io.BytesIO(discovery_archive), mode="r:gz") as collected:
         discovery_members = set(collected.getnames())
+    authority_relatives = (
+        "phase3_execution_identity.json",
+        "afdb_accession_map.tsv",
+        "phase3_crystals.json",
+        "crystallographic_review_stage/unknown_pass1_review_stage_index.json",
+        *(
+            f"crystallographic_review_stage/stages/{item.crystal_id}/{name}"
+            for item in sorted(fixture.crystals, key=lambda value: value.crystal_id)
+            for name in (
+                "phase3_review_decision.json",
+                "phase3_review_stage_manifest.json",
+            )
+        ),
+    )
+    assert {
+        f"artifacts/unknown-discovery/inputs/{relative}"
+        for relative in authority_relatives
+    } <= discovery_members
     assert {
         f"artifacts/unknown-discovery/inputs/localisation_bundle/{relative}"
         for relative in (
@@ -4084,6 +4102,10 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     ).stdout
     with tarfile.open(fileobj=io.BytesIO(screen_archive), mode="r:gz") as collected:
         screen_members = set(collected.getnames())
+    assert {
+        f"artifacts/unknown-screen/inputs/{relative}"
+        for relative in authority_relatives
+    } <= screen_members
     assert {
         f"artifacts/unknown-screen/inputs/localisation_bundle/{relative}"
         for relative in (

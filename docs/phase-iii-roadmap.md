@@ -551,6 +551,21 @@ reusable. Finding `PH3-P1-33` adds only the missing bounded 1-CPU/1-GB/
 contract and Nextflow syntax checks pass; CI/deployment and one fresh discovery
 successor remain.
 
+Resource-bounded commit `b8adf02`, CI `33180768680` / `98881089620`, passed
+and successor job `636321` submitted the provider plan and validators with
+complete Slurm time directives, remotely accepting `PH3-P1-33`. The review
+validator then failed closed before provider execution because the private
+crystal manifest still named the removed pre-cleanup P0 tree. Failure signature
+is `314599fd1210d9d094d92d2a89a24d4307221cbbceece36e1bd92978fe4e3bcd`;
+no PDB/Foldseek search or unknown interpretation ran and that cache is not
+reusable. All three private MTZ paths now target the checksum-identical restored
+P0 content ID (`PH3-P1-34`). The same collection exposed `PH3-P1-35`: ten
+non-localisation authority files were omitted. Input attachment now creates one
+canonical 22-file checksum inventory, inherited by the screen child and fully
+revalidated during collection. Focused failed/success lifecycle and wrapper
+syntax checks pass; rebuild the exact-source authority and run one successor
+after CI/deployment.
+
 On 25 August 2026 the user/supervisor supplied the mandatory crystallographic
 checkpoint decision `proceed` for all three frozen crystals. This authorises a
 bounded pass-1 search while retaining, rather than clearing, the 75.2%
