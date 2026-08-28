@@ -1,13 +1,14 @@
 """Tests for the Phase III multi-fixed-component Phaser adapter."""
 
 import hashlib
+import json
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
-from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text
 from genome_to_diffraction.mr import (
     CandidateSearchComponent,
     FixedSearchComponent,
@@ -20,6 +21,11 @@ from genome_to_diffraction.schemas.manifests import PhenixInstallManifest
 from genome_to_diffraction.schemas.results import (
     MtzPreflightRecord,
     SequenceGroupRecord,
+)
+from genome_to_diffraction.schemas.v2 import (
+    DiffractionSelection,
+    DiffractionValueSource,
+    diffraction_dataset_id,
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -107,31 +113,65 @@ def _inputs(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
         model_uncertainty_source="candidate C control identity",
         model_uncertainty_evidence_sha256=hashlib.sha256(b"uncertainty:C").hexdigest(),
     )
-    manifest = tmp_path / "multi_fixed.json"
-    atomic_write_json(
-        manifest,
-        MultiFixedSearchManifest(
-            schema_version="2.0",
-            adapter_version="multi-fixed-component-search-input-v1",
-            crystal_id="9ECN",
-            parent_solution_id="parent_ab",
-            parent_combined_llg=1200.0,
-            fixed_components=fixed,
-            candidate=candidate,
-        ).model_dump(mode="json"),
-    )
     mtz = tmp_path / "control.mtz"
     mtz.write_bytes(b"synthetic multi-fixed MTZ")
     stub = MtzPreflightRecord.model_validate_json(
         (STUBS / "mtz_preflight.jsonl").read_text(encoding="utf-8")
     )
     preflight_record = stub.model_copy(
-        update={"crystal_id": "9ECN", "mtz_sha256": sha256_file(mtz)}
+        update={
+            "crystal_id": "9ECN",
+            "mtz_sha256": sha256_file(mtz),
+            "selected_observation_dataset_id": 1,
+            "selected_observation_labels": "F,SIGF",
+            "selected_observation_type": "amplitude",
+        }
     )
     preflight = tmp_path / "preflight.jsonl"
     preflight.write_text(
         f"{canonical_json_text(preflight_record)}\n",
         encoding="utf-8",
+    )
+    assert preflight_record.selected_observation_dataset_id is not None
+    assert preflight_record.selected_observation_labels is not None
+    assert preflight_record.selected_observation_type is not None
+    selection = DiffractionSelection.from_content(
+        crystal_id="9ECN",
+        diffraction_dataset_id=diffraction_dataset_id(
+            crystal_id="9ECN",
+            mtz_sha256=sha256_file(mtz),
+        ),
+        mtz_sha256=sha256_file(mtz),
+        preflight_id=preflight_record.preflight_id,
+        preflight_record_sha256=canonical_digest(preflight_record),
+        crystal_manifest_sha256="d" * 64,
+        observation_dataset_id=preflight_record.selected_observation_dataset_id,
+        observation_labels=tuple(
+            value.strip()
+            for value in preflight_record.selected_observation_labels.split(",")
+        ),
+        observation_type=preflight_record.selected_observation_type,
+        selected_space_group=preflight_record.space_group,
+        resolution_low_a=preflight_record.resolution_low_a,
+        resolution_high_a=preflight_record.resolution_high_a,
+        observation_source=DiffractionValueSource.MTZ_PREFLIGHT_AUTOMATIC,
+        space_group_source=DiffractionValueSource.MTZ_HEADER,
+        resolution_low_source=DiffractionValueSource.MTZ_RESOLUTION_RANGE,
+        resolution_high_source=DiffractionValueSource.MTZ_RESOLUTION_RANGE,
+    )
+    manifest = tmp_path / "multi_fixed.json"
+    atomic_write_json(
+        manifest,
+        MultiFixedSearchManifest(
+            schema_version="2.0",
+            adapter_version="multi-fixed-component-search-input-v2",
+            crystal_id="9ECN",
+            diffraction_selection=selection,
+            parent_solution_id="parent_ab",
+            parent_combined_llg=1200.0,
+            fixed_components=fixed,
+            candidate=candidate,
+        ).model_dump(mode="json"),
     )
     return manifest, sequence_groups, preflight, mtz
 
@@ -190,36 +230,37 @@ def _fake_runtime(
     return parameters
 
 
-def test_multi_fixed_manifest_accepts_one_fixed_a_for_b(tmp_path: Path) -> None:
+def test_multi_fixed_manifest_rejects_unqualified_one_fixed_a_route(
+    tmp_path: Path,
+) -> None:
     manifest_path, _, _, _ = _inputs(tmp_path)
     source = MultiFixedSearchManifest.model_validate_json(manifest_path.read_bytes())
     component_b = source.fixed_components[1]
 
-    manifest = MultiFixedSearchManifest(
-        schema_version="2.0",
-        adapter_version="multi-fixed-component-search-input-v1",
-        crystal_id=source.crystal_id,
-        parent_solution_id="parent_a",
-        parent_combined_llg=500.0,
-        fixed_components=(source.fixed_components[0],),
-        candidate=CandidateSearchComponent(
+    with pytest.raises(ValueError, match="at least 2"):
+        MultiFixedSearchManifest(
             schema_version="2.0",
-            label="B",
-            sequence_group_id=component_b.sequence_group_id,
-            model_id=component_b.model_id,
-            model_sha256=component_b.model_sha256,
-            model_path=component_b.coordinate_path,
-            requested_copy_count=component_b.requested_copy_count,
-            phaser_identity_fraction=component_b.phaser_identity_fraction,
-            model_uncertainty_source=component_b.model_uncertainty_source,
-            model_uncertainty_evidence_sha256=(
-                component_b.model_uncertainty_evidence_sha256
+            adapter_version="multi-fixed-component-search-input-v2",
+            crystal_id=source.crystal_id,
+            diffraction_selection=source.diffraction_selection,
+            parent_solution_id="parent_a",
+            parent_combined_llg=500.0,
+            fixed_components=(source.fixed_components[0],),
+            candidate=CandidateSearchComponent(
+                schema_version="2.0",
+                label="B",
+                sequence_group_id=component_b.sequence_group_id,
+                model_id=component_b.model_id,
+                model_sha256=component_b.model_sha256,
+                model_path=component_b.coordinate_path,
+                requested_copy_count=component_b.requested_copy_count,
+                phaser_identity_fraction=component_b.phaser_identity_fraction,
+                model_uncertainty_source=component_b.model_uncertainty_source,
+                model_uncertainty_evidence_sha256=(
+                    component_b.model_uncertainty_evidence_sha256
+                ),
             ),
-        ),
-    )
-
-    assert tuple(item.label for item in manifest.fixed_components) == ("A",)
-    assert manifest.candidate.label == "B"
+        )
 
 
 def test_multi_fixed_a_b_searches_two_c_without_claim(
@@ -243,6 +284,14 @@ def test_multi_fixed_a_b_searches_two_c_without_claim(
         threads=8,
     )
 
+    command = json.loads(
+        (tmp_path / "output/phaser_command.json").read_text(encoding="utf-8")
+    )
+    assert command["adapter_version"] == (
+        "phenix-multi-fixed-joint-component-v2-diffraction"
+    )
+    assert command["diffraction_selection_id"].startswith("diffsel_")
+    assert command["parameters_sha256"]
     assert result.execution_status == "completed_hit"
     assert result.fixed_component_labels == ("A", "B")
     assert result.candidate_component_label == "C"
@@ -263,6 +312,78 @@ def test_multi_fixed_a_b_searches_two_c_without_claim(
     assert "ensembles = search_C" in text
     assert "copies = 2" in text
     assert text.count("num = 2") == 3
+    assert "crystal_symmetry {" in text
+    assert "space_group =" in text
+    assert "resolution {" in text
+    assert "low = 20" in text
+    assert "high = 2" in text
+
+
+@pytest.mark.parametrize(
+    ("selection_field", "preflight_field", "changed_value", "rendered"),
+    (
+        ("selected_space_group", "space_group", "P 21 21 2", "P 21 21 2"),
+        ("resolution_low_a", "resolution_low_a", 25.0, "low = 25"),
+        ("resolution_high_a", "resolution_high_a", 2.5, "high = 2.5"),
+    ),
+)
+def test_multi_fixed_diffraction_change_changes_command_and_search_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    selection_field: str,
+    preflight_field: str,
+    changed_value: str | float,
+    rendered: str,
+) -> None:
+    manifest_path, groups, preflight_path, mtz = _inputs(tmp_path)
+    parameters = _fake_runtime(monkeypatch, log_text=NO_EXTENSION_LOG)
+    first = run_multi_fixed_search(
+        manifest_path=manifest_path,
+        sequence_groups_jsonl=groups,
+        preflight_jsonl=preflight_path,
+        mtz_path=mtz,
+        phenix_manifest=STUBS / "phenix_install_manifest.json",
+        output_directory=tmp_path / "first",
+    )
+    manifest = MultiFixedSearchManifest.model_validate_json(manifest_path.read_bytes())
+    preflight = MtzPreflightRecord.model_validate_json(preflight_path.read_bytes())
+    changed_preflight = preflight.model_copy(update={preflight_field: changed_value})
+    changed_preflight_path = tmp_path / "changed-preflight.jsonl"
+    changed_preflight_path.write_text(
+        f"{canonical_json_text(changed_preflight)}\n",
+        encoding="utf-8",
+    )
+    selection_values = manifest.diffraction_selection.model_dump(mode="python")
+    selection_values.pop("diffraction_selection_id")
+    selection_values[selection_field] = changed_value
+    selection_values["preflight_record_sha256"] = canonical_digest(changed_preflight)
+    changed_selection = DiffractionSelection.from_content(**selection_values)
+    changed_manifest = tmp_path / "changed-manifest.json"
+    atomic_write_json(
+        changed_manifest,
+        MultiFixedSearchManifest(
+            schema_version="2.0",
+            adapter_version="multi-fixed-component-search-input-v2",
+            crystal_id=manifest.crystal_id,
+            diffraction_selection=changed_selection,
+            parent_solution_id=manifest.parent_solution_id,
+            parent_combined_llg=manifest.parent_combined_llg,
+            fixed_components=manifest.fixed_components,
+            candidate=manifest.candidate,
+        ).model_dump(mode="json"),
+    )
+    second = run_multi_fixed_search(
+        manifest_path=changed_manifest,
+        sequence_groups_jsonl=groups,
+        preflight_jsonl=changed_preflight_path,
+        mtz_path=mtz,
+        phenix_manifest=STUBS / "phenix_install_manifest.json",
+        output_directory=tmp_path / "second",
+    )
+
+    assert first.search_id != second.search_id
+    assert parameters[0] != parameters[1]
+    assert rendered in parameters[1]
 
 
 def test_multi_fixed_missing_fixed_marker_remains_unpromoted(

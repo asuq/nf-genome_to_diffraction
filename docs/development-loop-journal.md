@@ -13885,3 +13885,71 @@ with a collapsed combined parent or a guessed command.
   qualify a PSORTb-only prototype while the empty gel evidence remains neutral.
   Do not materialise a new source-bound private authority or launch an unknown
   profile before that choice and the focused live-route integration.
+
+## 2026-08-27 - Adversarial pre-unknown integration closes local execution gaps
+
+- The operator explicitly authorised finding/building local PSORTb and
+  DeepTMHMM images. The pinned real CLIs and representative outputs were
+  inspected. Initial bridge-network catalogue outputs remain diagnostic only.
+  The network-none PSORTb successor completed with exit 0, zero network I/O,
+  and byte-identical output; the corresponding DeepTMHMM successor is still
+  computing and no unknown profile has run.
+- The live `provider_discovery` and `first_copy` routes now require a complete
+  localisation/gel bundle. The A funnel independently binds exact sequence and
+  source-record inventories, schedules active before neutral groups, and
+  retains every excluded model/copy hypothesis as a typed deferred record.
+  Explicit authenticated sequence-local tool failures remain neutral;
+  unexplained missing output fails closed.
+- A second review-only adversarial pass found that the first importer
+  self-asserted Docker provenance. The replacement capture boundary records and
+  revalidates raw container/image inspection JSON, exact commands, pinned image
+  digests, copied input/output bytes, exit status, logs, engine version, and
+  `network_mode=none`. A real source-bound unknown authority remains forbidden
+  until the terminal DeepTMHMM capture and full integration gate.
+- The general composition attempt is no longer a stub-only failure. One
+  complete Nextflow item uses the 4-CPU/16-GB MR class, the qualified partner
+  route for B and diffraction-bound multi-fixed route for C--F, exact
+  execution/Phenix/MTZ/Free-R/model/parent score/derivation evidence, and
+  claim-free typed terminal results. Infrastructure or contract status now
+  fails the task after retaining diagnostics. The 25-item/typed-empty/cached
+  stub and focused runtime tests pass; fixed-HPC qualification remains before
+  pass 2.
+- Wrong C is now bound to the frozen distinct P6/3U7Q sequence/model/source
+  manifest and differs from all positive 9ECN models. A hit is passed through
+  the same schema-v2 state, scope, and composition-assessment derivation used
+  by application evidence. It cannot become eligible or claimed without owned
+  review. Focused and fake-HPC regressions pass; one Marmic successor remains.
+- Next start: wait for the single existing network-none DeepTMHMM container,
+  capture/import/validate its exact evidence once, run the full locked gate,
+  commit/push once, watch one CI, deploy, then run one combined wrong-C control
+  successor before staging unknown discovery.
+
+## 2026-08-28 - Offline full-catalogue localisation is accepted locally
+
+- The sole retained network-none DeepTMHMM 1.0 container completed with exit 0
+  after the long 1,621-sequence catalogue run. Terminal Docker evidence records
+  `network_mode=none` and zero network I/O. The already-completed PSORTb 3.0.6
+  container has the same offline boundary; neither run was restarted or
+  duplicated.
+- The exact input FASTA SHA-256 is
+  `f8bbc63da7b0f3cb5f206befd0618264a5582789f46c3400267650777727d416`.
+  PSORTb and DeepTMHMM output SHA-256 values are
+  `4cf65b1b56f726e50e8fb4a0854a108d780aad4d43c365a877eb0a35ca8ce5fd`
+  and
+  `d99ac552fb231ca12e0af961cd9294977fb4da7b5d352bbce51f045e6339cfd0`;
+  each output, including retained DeepTMHMM GFF and summary, is byte-identical
+  to the earlier diagnostic run.
+- Inspected capture manifest
+  `localcontainermanifest_9a94a634e3b7e7c4a132c34ee4b352b62f865f836dd01dd7a370f5afeb01b1cd`
+  binds both image digests, terminal inspections, commands, copied FASTA/output
+  bytes, engine, and logs. The final portable v3 policy
+  `batchlocalpolicy_a3a03c7259427c1c7681b4552c2d66c0e162e37747cb52f140b5858e451f2192`
+  validates 1,625 source records and all 1,621 sequence groups: 1,310 active,
+  88 neutral, and 223 excluded, with 60 conflicts retained explicitly. Empty
+  gel evidence remains neutral.
+- PH4 local execution is complete. The single full locked pre-unknown gate is
+  green: 1,358 unit, 136 contract, and 88 integration tests plus schemas,
+  documentation, actionlint, Nextflow syntax and every stub/profile, offline
+  wheel parity, and wrapper syntax. Next commit/push once, watch exact-source
+  CI, deploy, and submit one combined Marmic wrong-C/control successor. Unknown
+  pass 1 remains stopped until that successor is collected and accepted.

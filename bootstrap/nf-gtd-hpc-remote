@@ -13,7 +13,7 @@ INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 MAX_FILE_BYTES=$((128 * 1024 * 1024))
-MAX_TOTAL_BYTES=$((512 * 1024 * 1024))
+MAX_TOTAL_BYTES=$((4 * 1024 * 1024 * 1024))
 MAX_LOG_BYTES=$((2 * 1024 * 1024))
 MAX_NEXTFLOW_DIAGNOSTIC_BYTES=$((2 * 1024 * 1024))
 MAX_REVIEW_FILE_BYTES=$((128 * 1024 * 1024))
@@ -3784,6 +3784,12 @@ collect_run() {
     local phase3_checksums="" phase3_output_root="" phase3_file=""
     local phase3_digest="" phase3_relative="" phase3_extra=""
     local phase3_count=0
+    local unknown_screen_checksums="" unknown_screen_output_root=""
+    local unknown_screen_digest="" unknown_screen_relative="" unknown_screen_extra=""
+    local unknown_screen_count=0
+    local unknown_discovery_checksums="" unknown_discovery_output_root=""
+    local unknown_discovery_digest="" unknown_discovery_relative=""
+    local unknown_discovery_extra="" unknown_discovery_count=0
     local -a files=()
     local -a diagnostic_omissions=()
     local -a p6_dynamic_models=()
@@ -4004,6 +4010,7 @@ collect_run() {
         artifacts/qualification/unknown-discovery-phenix-manifest.json \
         artifacts/qualification/unknown-discovery-phenix-verification.log \
         artifacts/qualification/unknown-discovery-checksums.sha256 \
+        artifacts/qualification/unknown-discovery-output-checksums.sha256 \
         artifacts/qualification/unknown-discovery-first-pipeline-info/report.html \
         artifacts/qualification/unknown-discovery-first-pipeline-info/timeline.html \
         artifacts/qualification/unknown-discovery-first-pipeline-info/trace.tsv \
@@ -4021,10 +4028,13 @@ collect_run() {
         artifacts/unknown-discovery/inputs/localisation_bundle/gel-evidence.json \
         artifacts/unknown-discovery/inputs/localisation_bundle/raw/psortb-terse.tsv \
         artifacts/unknown-discovery/inputs/localisation_bundle/raw/deeptmhmm-topologies.3line \
-        artifacts/unknown-discovery/results/phase3_provider_discovery/phase3_provider_discovery_manifest.json \
+        artifacts/unknown-discovery/inputs/localisation_bundle/container_execution/localisation_container_execution.json \
+        artifacts/unknown-discovery/inputs/localisation_bundle/container_execution/psortb-container.log \
+        artifacts/unknown-discovery/inputs/localisation_bundle/container_execution/deeptmhmm-container.log \
         artifacts/qualification/unknown-screen-phenix-manifest.json \
         artifacts/qualification/unknown-screen-phenix-verification.log \
         artifacts/qualification/unknown-screen-checksums.sha256 \
+        artifacts/qualification/unknown-screen-output-checksums.sha256 \
         artifacts/qualification/unknown-screen-first-pipeline-info/report.html \
         artifacts/qualification/unknown-screen-first-pipeline-info/timeline.html \
         artifacts/qualification/unknown-screen-first-pipeline-info/trace.tsv \
@@ -4042,6 +4052,9 @@ collect_run() {
         artifacts/unknown-screen/inputs/localisation_bundle/gel-evidence.json \
         artifacts/unknown-screen/inputs/localisation_bundle/raw/psortb-terse.tsv \
         artifacts/unknown-screen/inputs/localisation_bundle/raw/deeptmhmm-topologies.3line \
+        artifacts/unknown-screen/inputs/localisation_bundle/container_execution/localisation_container_execution.json \
+        artifacts/unknown-screen/inputs/localisation_bundle/container_execution/psortb-container.log \
+        artifacts/unknown-screen/inputs/localisation_bundle/container_execution/deeptmhmm-container.log \
         artifacts/unknown-screen/phase3_provider_discovery/phase3_provider_discovery_manifest.json \
         artifacts/unknown-screen/provider_preparation/provider_preparation.json \
         artifacts/unknown-screen/results/phase3_offline_provider_input/phase3_offline_provider_input.json \
@@ -4445,6 +4458,7 @@ collect_run() {
             wrong_C_input.json \
             wrong_C_sequence_groups.jsonl \
             wrong_C/component_search_result.json \
+            wrong_C/composition_assessment.json \
             wrong_C/phaser_command.json \
             wrong_C/component_search.eff \
             wrong_C/PHASER.log \
@@ -4500,6 +4514,84 @@ collect_run() {
         done < "$phase3_checksums"
         [[ "$phase3_count" -ge 20 && "$phase3_count" -le 128 ]] || \
             fail transfer_failure "9ECN control retained file count differs"
+    fi
+    unknown_discovery_output_root="$run/artifacts/unknown-discovery/results"
+    unknown_discovery_checksums="$run/artifacts/qualification/unknown-discovery-output-checksums.sha256"
+    if [[ "$profile" == unknown-discovery ]]; then
+        [[ -f "$unknown_discovery_checksums" && \
+           ! -L "$unknown_discovery_checksums" && \
+           -O "$unknown_discovery_checksums" && \
+           -d "$unknown_discovery_output_root" && \
+           ! -L "$unknown_discovery_output_root" ]] || \
+            fail transfer_failure "unknown-discovery output inventory is unavailable"
+        while read -r unknown_discovery_digest unknown_discovery_relative unknown_discovery_extra; do
+            [[ -n "$unknown_discovery_digest" && \
+               -n "$unknown_discovery_relative" && \
+               -z "$unknown_discovery_extra" && \
+               "$unknown_discovery_digest" =~ $CHECKSUM_RE && \
+               "$unknown_discovery_relative" =~ ^[A-Za-z0-9._/-]+$ && \
+               "$unknown_discovery_relative" != /* && \
+               "$unknown_discovery_relative" != *..* ]] || \
+                fail transfer_failure "unknown-discovery output checksum row is unsafe"
+            candidate="$unknown_discovery_output_root/$unknown_discovery_relative"
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" && \
+               "$(stat -c '%h' "$candidate")" -eq 1 ]] || \
+                fail transfer_failure "unknown-discovery output file is unsafe"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == \
+               "$unknown_discovery_digest" ]] || \
+                fail transfer_failure "unknown-discovery output checksum differs"
+            size="$(file_size "$candidate")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "unknown-discovery output file exceeds limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "artefacts exceed total limit"
+            files+=(
+                "artifacts/unknown-discovery/results/$unknown_discovery_relative"
+            )
+            unknown_discovery_count=$((unknown_discovery_count + 1))
+        done < "$unknown_discovery_checksums"
+        [[ "$unknown_discovery_count" -ge 1 && \
+           "$unknown_discovery_count" -le 20000 ]] || \
+            fail transfer_failure "unknown-discovery output file count differs"
+    fi
+    unknown_screen_output_root="$run/artifacts/unknown-screen/results"
+    unknown_screen_checksums="$run/artifacts/qualification/unknown-screen-output-checksums.sha256"
+    if [[ "$profile" == unknown-screen ]]; then
+        [[ -f "$unknown_screen_checksums" && ! -L "$unknown_screen_checksums" && \
+           -O "$unknown_screen_checksums" && \
+           -d "$unknown_screen_output_root" && \
+           ! -L "$unknown_screen_output_root" ]] || \
+            fail transfer_failure "unknown-screen output inventory is unavailable"
+        while read -r unknown_screen_digest unknown_screen_relative unknown_screen_extra; do
+            [[ -n "$unknown_screen_digest" && -n "$unknown_screen_relative" && \
+               -z "$unknown_screen_extra" && \
+               "$unknown_screen_digest" =~ $CHECKSUM_RE && \
+               "$unknown_screen_relative" =~ ^[A-Za-z0-9._/-]+$ && \
+               "$unknown_screen_relative" != /* && \
+               "$unknown_screen_relative" != *..* ]] || \
+                fail transfer_failure "unknown-screen output checksum row is unsafe"
+            candidate="$unknown_screen_output_root/$unknown_screen_relative"
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" && \
+               "$(stat -c '%h' "$candidate")" -eq 1 ]] || \
+                fail transfer_failure "unknown-screen output file is unsafe"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == \
+               "$unknown_screen_digest" ]] || \
+                fail transfer_failure "unknown-screen output checksum differs"
+            size="$(file_size "$candidate")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "unknown-screen output file exceeds limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "artefacts exceed total limit"
+            files+=(
+                "artifacts/unknown-screen/results/$unknown_screen_relative"
+            )
+            unknown_screen_count=$((unknown_screen_count + 1))
+        done < "$unknown_screen_checksums"
+        [[ "$unknown_screen_count" -ge 1 && \
+           "$unknown_screen_count" -le 20000 ]] || \
+            fail transfer_failure "unknown-screen output file count differs"
     fi
     if [[ -n "$job_id" ]]; then
         candidate="logs/slurm-${job_id}.out"

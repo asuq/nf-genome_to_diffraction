@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.cli import main
-from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text
 from genome_to_diffraction.mr import (
     PartnerSearchRequest,
     PhaserInputError,
@@ -24,6 +24,11 @@ from genome_to_diffraction.schemas.results import (
     MtzPreflightRecord,
     PartnerSearchResult,
     SequenceGroupRecord,
+)
+from genome_to_diffraction.schemas.v2 import (
+    DiffractionSelection,
+    DiffractionValueSource,
+    diffraction_dataset_id,
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -89,7 +94,14 @@ def _request(tmp_path: Path) -> PartnerSearchRequest:
     stub_preflight = MtzPreflightRecord.model_validate_json(
         (STUBS / "mtz_preflight.jsonl").read_text(encoding="utf-8")
     )
-    preflight = stub_preflight.model_copy(update={"mtz_sha256": sha256_file(mtz)})
+    preflight = stub_preflight.model_copy(
+        update={
+            "mtz_sha256": sha256_file(mtz),
+            "selected_observation_dataset_id": 1,
+            "selected_observation_labels": "F,SIGF",
+            "selected_observation_type": "amplitude",
+        }
+    )
     preflights = tmp_path / "preflight.jsonl"
     preflights.write_text(f"{canonical_json_text(preflight)}\n", encoding="utf-8")
     return PartnerSearchRequest(
@@ -112,6 +124,38 @@ def _request(tmp_path: Path) -> PartnerSearchRequest:
         output_directory=tmp_path / "partner_output",
         threads=8,
         progress=False,
+    )
+
+
+def _selection(request: PartnerSearchRequest) -> DiffractionSelection:
+    preflight = MtzPreflightRecord.model_validate_json(
+        request.preflight_jsonl.read_bytes()
+    )
+    assert preflight.selected_observation_dataset_id is not None
+    assert preflight.selected_observation_labels is not None
+    assert preflight.selected_observation_type is not None
+    return DiffractionSelection.from_content(
+        crystal_id=request.crystal_id,
+        diffraction_dataset_id=diffraction_dataset_id(
+            crystal_id=request.crystal_id,
+            mtz_sha256=preflight.mtz_sha256,
+        ),
+        mtz_sha256=preflight.mtz_sha256,
+        preflight_id=preflight.preflight_id,
+        preflight_record_sha256=canonical_digest(preflight),
+        crystal_manifest_sha256="9" * 64,
+        observation_dataset_id=preflight.selected_observation_dataset_id,
+        observation_labels=tuple(
+            value.strip() for value in preflight.selected_observation_labels.split(",")
+        ),
+        observation_type=preflight.selected_observation_type,
+        selected_space_group=preflight.space_group,
+        resolution_low_a=preflight.resolution_low_a,
+        resolution_high_a=preflight.resolution_high_a,
+        observation_source=DiffractionValueSource.MTZ_PREFLIGHT_AUTOMATIC,
+        space_group_source=DiffractionValueSource.MTZ_HEADER,
+        resolution_low_source=DiffractionValueSource.MTZ_RESOLUTION_RANGE,
+        resolution_high_source=DiffractionValueSource.MTZ_RESOLUTION_RANGE,
     )
 
 
@@ -186,7 +230,7 @@ def test_fixed_a_one_b_command_and_primary_result(
 
     result = output.result
     command = json.loads(output.command_json.read_text(encoding="utf-8"))
-    assert command["adapter_version"] == "phenix-fixed-a-joint-b-v6-native-placements"
+    assert command["adapter_version"] == "phenix-fixed-a-joint-b-v7-command-bound"
     assert result.execution_status == "completed_hit"
     assert result.partner_tfz == pytest.approx(49.7)
     assert result.combined_llg == pytest.approx(1622.91)
@@ -218,6 +262,28 @@ def test_fixed_a_one_b_command_and_primary_result(
     assert "xyzout = True" in text
     assert "xyzout_ensemble = True" in text
     assert "keywords = True" in text
+
+
+def test_phase3_partner_command_binds_reviewed_diffraction_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = _request(tmp_path)
+    selection = _selection(base)
+    request = replace(base, diffraction_selection=selection)
+    parameters = _fake_runtime(monkeypatch, log_text=NO_EXTENSION_LOG)
+
+    output = run_partner_search(request)
+
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert command["adapter_version"] == (
+        "phenix-fixed-a-joint-b-v8-phase3-diffraction"
+    )
+    assert command["diffraction_selection_id"] == (selection.diffraction_selection_id)
+    assert "crystal_symmetry {" in parameters[0]
+    assert f'space_group = "{selection.selected_space_group}"' in parameters[0]
+    assert f"low = {selection.resolution_low_a:g}" in parameters[0]
+    assert f"high = {selection.resolution_high_a:g}" in parameters[0]
 
 
 def test_fixed_two_a_searches_two_b_jointly(

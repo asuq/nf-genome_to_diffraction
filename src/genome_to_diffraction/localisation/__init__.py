@@ -20,6 +20,14 @@ from genome_to_diffraction.localisation.batch import (
     stage_catalogue_localisation_batch,
     validate_catalogue_localisation_batch,
 )
+from genome_to_diffraction.localisation.container_execution import (
+    LocalisationBatchExecutionManifest,
+    LocalisationContainerCaptureRequest,
+    LocalisationContainerExecutionError,
+    LocalisationContainerToolExecution,
+    capture_localisation_container_execution,
+    validate_localisation_container_execution,
+)
 from genome_to_diffraction.localisation.contracts import (
     DeepTMHMMInvocationPlan,
     DeepTMHMMRuntimeContract,
@@ -52,6 +60,14 @@ from genome_to_diffraction.localisation.policy import (
     plan_localisation_reopen,
     run_catalogue_localisation_task,
 )
+from genome_to_diffraction.localisation.reopen_batch import (
+    BatchLocalisationReopenError,
+    BatchLocalisationReopenOutput,
+    BatchLocalisationReopenPlan,
+    BatchLocalisationReopenRequest,
+    BatchLocalisationReopenStatus,
+    plan_batch_localisation_reopen,
+)
 
 __all__ = (
     "LOCALISATION_BATCH_ADAPTER_VERSION",
@@ -62,13 +78,22 @@ __all__ = (
     "BatchLocalisationImportOutput",
     "BatchLocalisationImportRequest",
     "BatchLocalisationPolicy",
+    "BatchLocalisationReopenError",
+    "BatchLocalisationReopenOutput",
+    "BatchLocalisationReopenPlan",
+    "BatchLocalisationReopenRequest",
+    "BatchLocalisationReopenStatus",
     "CatalogueLocalisationWavePolicy",
     "ContainerRuntimeEvidence",
     "DeepTMHMMBlockedResult",
     "DeepTMHMMInvocationPlan",
     "DeepTMHMMRuntimeContract",
     "FirstWaveDisposition",
+    "LocalisationBatchExecutionManifest",
     "LocalisationBatchImportError",
+    "LocalisationContainerCaptureRequest",
+    "LocalisationContainerExecutionError",
+    "LocalisationContainerToolExecution",
     "LocalisationGroupEvidence",
     "LocalisationOutcome",
     "LocalisationReopenPlan",
@@ -86,10 +111,12 @@ __all__ = (
     "build_catalogue_localisation_tasks",
     "build_catalogue_localisation_wave_policy",
     "build_psortb_command",
+    "capture_localisation_container_execution",
     "first_wave_disposition",
     "import_catalogue_localisation_batch",
     "localisation_result_identity",
     "parse_psortb_terse",
+    "plan_batch_localisation_reopen",
     "plan_deeptmhmm_invocation",
     "plan_localisation_reopen",
     "resolve_localisation_outcome",
@@ -97,5 +124,6 @@ __all__ = (
     "run_psortb",
     "stage_catalogue_localisation_batch",
     "validate_catalogue_localisation_batch",
+    "validate_localisation_container_execution",
     "write_sequence_group_fasta",
 )

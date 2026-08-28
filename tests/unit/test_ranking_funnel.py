@@ -21,6 +21,8 @@ from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
     MatthewsHypothesis,
+    MrHypothesis,
+    MrHypothesisStatus,
     PhysicalStatus,
     ProcessedModelRecord,
 )
@@ -423,8 +425,23 @@ def test_phase3_diverse_funnel_retains_but_skips_first_wave_exclusions(
     )
 
     assert result.hypotheses == ()
+    deferred = tuple(
+        MrHypothesis.model_validate_json(line)
+        for line in result.deferred_localisation_hypotheses_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    )
+    assert len(deferred) == 4
+    assert all(item.status is MrHypothesisStatus.SKIPPED for item in deferred)
+    assert all(
+        item.priority_features["localisation_first_wave_reason"]
+        == "retained_excluded_reopen_only_after_complete_zero_pack"
+        for item in deferred
+    )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["localisation_excluded_sequence_group_count"] == 1
+    assert manifest["retained_excluded_hypothesis_count"] == 4
     assert manifest["selected_hypothesis_count"] == 0
 
 

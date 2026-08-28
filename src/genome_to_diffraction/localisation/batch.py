@@ -39,6 +39,15 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.localisation.container_execution import (
+    DEEPTMHMM_IMAGE_MANIFEST_SHA256,
+    DEEPTMHMM_IMAGE_REFERENCE,
+    LOCALISATION_BATCH_ADAPTER_VERSION,
+    PSORTB_IMAGE_MANIFEST_SHA256,
+    PSORTB_IMAGE_REFERENCE,
+    LocalisationContainerToolExecution,
+    validate_localisation_container_execution,
+)
 from genome_to_diffraction.localisation.contracts import (
     LocalisationOutcome,
     OfflineExecutionProvenance,
@@ -60,22 +69,7 @@ from genome_to_diffraction.schemas.results import (
 )
 from genome_to_diffraction.status import InputContractError, ResultParseError
 
-LOCALISATION_BATCH_ADAPTER_VERSION = "container-localisation-batch-v2-network-none"
 _ADAPTER_VERSION = LOCALISATION_BATCH_ADAPTER_VERSION
-PSORTB_IMAGE_REFERENCE = (
-    "docker.io/brinkmanlab/psortb_commandline@"
-    "sha256:5fd2243b7ed4470e2d5ad521c6f32fcd254d1579600bb1537cbe6322a2181040"
-)
-PSORTB_IMAGE_MANIFEST_SHA256 = (
-    "5fd2243b7ed4470e2d5ad521c6f32fcd254d1579600bb1537cbe6322a2181040"
-)
-DEEPTMHMM_IMAGE_REFERENCE = (
-    "docker.io/deeptmhmm/deeptmhmm@"
-    "sha256:e527883fd2114007c6208c3d764fece40016cc95e209eab93016644c3e7ccb16"
-)
-DEEPTMHMM_IMAGE_MANIFEST_SHA256 = (
-    "e527883fd2114007c6208c3d764fece40016cc95e209eab93016644c3e7ccb16"
-)
 _DEEPTMHMM_TYPE = re.compile(r"^>(\S+) \| (TM|SP\+TM|SP|GLOB|BETA)$")
 type DeepTMHMMType = Literal["TM", "SP+TM", "SP", "GLOB", "BETA"]
 
@@ -88,18 +82,24 @@ class ContainerRuntimeEvidence(ContractModel):
     """Immutable local container identity used to create raw evidence."""
 
     schema_version: Literal["1.0"] = "1.0"
-    adapter_version: Literal["container-localisation-batch-v2-network-none"] = (
+    adapter_version: Literal["container-localisation-batch-v3-inspected"] = (
         _ADAPTER_VERSION
     )
     runtime_id: NonEmptyString
+    container_execution_id: NonEmptyString
+    container_id: Sha256Hex
     tool: Literal["psortb", "deeptmhmm"]
     tool_version: NonEmptyString
     image_reference: NonEmptyString
     image_manifest_sha256: Sha256Hex
+    image_id: NonEmptyString
     platform: Literal["linux/amd64"] = "linux/amd64"
     execution_backend: Literal["docker_local_offline"] = "docker_local_offline"
     network_mode: Literal["none"] = "none"
     container_engine_version: NonEmptyString
+    container_inspect_sha256: Sha256Hex
+    image_inspect_sha256: Sha256Hex
+    log_sha256: Sha256Hex
     command: tuple[NonEmptyString, ...] = Field(min_length=3)
     license_or_usage: NonEmptyString
     provenance: OfflineExecutionProvenance = Field(
@@ -107,58 +107,56 @@ class ContainerRuntimeEvidence(ContractModel):
     )
 
     @classmethod
-    def from_fixed_image(
+    def from_execution(
         cls,
         *,
-        tool: Literal["psortb", "deeptmhmm"],
-        container_engine_version: str,
+        execution: LocalisationContainerToolExecution,
     ) -> Self:
-        """Build the fixed image record used by this adapter version."""
+        """Bind one independently validated Docker execution."""
 
-        if tool == "psortb":
+        if execution.tool == "psortb":
             version = "3.0.6"
             reference = PSORTB_IMAGE_REFERENCE
             digest = PSORTB_IMAGE_MANIFEST_SHA256
-            command = (
-                "/usr/local/psortb/bin/psortb3.pl",
-                "-a",
-                "-o",
-                "terse",
-                "<catalogue.faa>",
-            )
             usage = "GNU GPL v3; Brinkman Lab PSORTb command-line image"
         else:
             version = "1.0"
             reference = DEEPTMHMM_IMAGE_REFERENCE
             digest = DEEPTMHMM_IMAGE_MANIFEST_SHA256
-            command = (
-                "python3",
-                "/openprotein/predict.py",
-                "--fasta",
-                "<catalogue.faa>",
-            )
             usage = "academic local use; image is checksum-bound and not redistributed"
         payload = {
             "adapter_version": _ADAPTER_VERSION,
-            "command": command,
-            "container_engine_version": container_engine_version,
+            "command": execution.effective_command,
+            "container_engine_version": execution.docker_engine_version,
+            "container_execution_id": execution.execution_id,
+            "container_id": execution.container_id,
+            "container_inspect_sha256": execution.container_inspect_sha256,
             "execution_backend": "docker_local_offline",
             "image_manifest_sha256": digest,
             "image_reference": reference,
+            "image_id": execution.image_id,
+            "image_inspect_sha256": execution.image_inspect_sha256,
             "license_or_usage": usage,
+            "log_sha256": execution.log_sha256,
             "network_mode": "none",
             "platform": "linux/amd64",
-            "tool": tool,
+            "tool": execution.tool,
             "tool_version": version,
         }
         return cls(
             runtime_id=content_id("localruntime_", payload),
-            tool=tool,
+            container_execution_id=execution.execution_id,
+            container_id=execution.container_id,
+            tool=execution.tool,
             tool_version=version,
             image_reference=reference,
             image_manifest_sha256=digest,
-            container_engine_version=container_engine_version,
-            command=command,
+            image_id=execution.image_id,
+            container_engine_version=execution.docker_engine_version,
+            container_inspect_sha256=execution.container_inspect_sha256,
+            image_inspect_sha256=execution.image_inspect_sha256,
+            log_sha256=execution.log_sha256,
+            command=execution.effective_command,
             license_or_usage=usage,
             network_mode="none",
         )
@@ -169,24 +167,11 @@ class ContainerRuntimeEvidence(ContractModel):
             expected_version = "3.0.6"
             expected_reference = PSORTB_IMAGE_REFERENCE
             expected_digest = PSORTB_IMAGE_MANIFEST_SHA256
-            expected_command = (
-                "/usr/local/psortb/bin/psortb3.pl",
-                "-a",
-                "-o",
-                "terse",
-                "<catalogue.faa>",
-            )
             expected_usage = "GNU GPL v3; Brinkman Lab PSORTb command-line image"
         else:
             expected_version = "1.0"
             expected_reference = DEEPTMHMM_IMAGE_REFERENCE
             expected_digest = DEEPTMHMM_IMAGE_MANIFEST_SHA256
-            expected_command = (
-                "python3",
-                "/openprotein/predict.py",
-                "--fasta",
-                "<catalogue.faa>",
-            )
             expected_usage = (
                 "academic local use; image is checksum-bound and not redistributed"
             )
@@ -194,10 +179,16 @@ class ContainerRuntimeEvidence(ContractModel):
             "adapter_version": self.adapter_version,
             "command": self.command,
             "container_engine_version": self.container_engine_version,
+            "container_execution_id": self.container_execution_id,
+            "container_id": self.container_id,
+            "container_inspect_sha256": self.container_inspect_sha256,
             "execution_backend": self.execution_backend,
             "image_manifest_sha256": self.image_manifest_sha256,
             "image_reference": self.image_reference,
+            "image_id": self.image_id,
+            "image_inspect_sha256": self.image_inspect_sha256,
             "license_or_usage": self.license_or_usage,
+            "log_sha256": self.log_sha256,
             "network_mode": self.network_mode,
             "platform": self.platform,
             "tool": self.tool,
@@ -207,7 +198,6 @@ class ContainerRuntimeEvidence(ContractModel):
             self.tool_version != expected_version
             or self.image_reference != expected_reference
             or self.image_manifest_sha256 != expected_digest
-            or self.command != expected_command
             or self.license_or_usage != expected_usage
             or self.runtime_id != content_id("localruntime_", payload)
         ):
@@ -220,12 +210,12 @@ def _evidence_payload(
     sequence_group_id: str,
     sequence_sha256: str,
     source_record_ids: tuple[str, ...],
-    psortb_raw_label: str,
-    psortb_score: float,
+    psortb_raw_label: str | None,
+    psortb_score: float | None,
     psortb_outcome: LocalisationOutcome,
-    deeptmhmm_type: str,
-    deeptmhmm_topology_sha256: str,
-    deeptmhmm_tmr_count: int,
+    deeptmhmm_type: str | None,
+    deeptmhmm_topology_sha256: str | None,
+    deeptmhmm_tmr_count: int | None,
     deeptmhmm_outcome: LocalisationOutcome,
     merged_outcome: LocalisationOutcome,
     disposition: FirstWaveDisposition,
@@ -255,19 +245,19 @@ class BatchLocalisationGroupEvidence(ContractModel):
     """One exact-sequence result collapsed from complete source records."""
 
     schema_version: Literal["2.0"] = "2.0"
-    adapter_version: Literal["container-localisation-batch-v2-network-none"] = (
+    adapter_version: Literal["container-localisation-batch-v3-inspected"] = (
         _ADAPTER_VERSION
     )
     evidence_id: NonEmptyString
     sequence_group_id: NonEmptyString
     sequence_sha256: Sha256Hex
     source_record_ids: tuple[NonEmptyString, ...] = Field(min_length=1)
-    psortb_raw_label: NonEmptyString
-    psortb_score: float = Field(ge=0)
+    psortb_raw_label: NonEmptyString | None = None
+    psortb_score: float | None = Field(default=None, ge=0)
     psortb_outcome: LocalisationOutcome
-    deeptmhmm_type: DeepTMHMMType
-    deeptmhmm_topology_sha256: Sha256Hex
-    deeptmhmm_tmr_count: int = Field(ge=0)
+    deeptmhmm_type: DeepTMHMMType | None = None
+    deeptmhmm_topology_sha256: Sha256Hex | None = None
+    deeptmhmm_tmr_count: int | None = Field(default=None, ge=0)
     deeptmhmm_outcome: LocalisationOutcome
     merged_outcome: LocalisationOutcome
     first_wave_disposition: FirstWaveDisposition
@@ -280,11 +270,11 @@ class BatchLocalisationGroupEvidence(ContractModel):
         *,
         group: SequenceGroupRecord,
         source_record_ids: Sequence[str],
-        psortb_raw_label: str,
-        psortb_score: float,
+        psortb_raw_label: str | None,
+        psortb_score: float | None,
         psortb_outcome: LocalisationOutcome,
-        deeptmhmm_type: DeepTMHMMType,
-        topology: str,
+        deeptmhmm_type: DeepTMHMMType | None,
+        topology: str | None,
     ) -> Self:
         """Derive conservative merged evidence from two parsed tool calls."""
 
@@ -295,7 +285,11 @@ class BatchLocalisationGroupEvidence(ContractModel):
             "GLOB": LocalisationOutcome.SOLUBLE,
             "SP": LocalisationOutcome.UNKNOWN,
         }
-        deep_outcome = deep_outcomes[deeptmhmm_type]
+        deep_outcome = (
+            LocalisationOutcome.FAILED
+            if deeptmhmm_type is None
+            else deep_outcomes[deeptmhmm_type]
+        )
         merged = resolve_localisation_outcome((psortb_outcome, deep_outcome))
         disposition = first_wave_disposition(merged)
         eligible = disposition is not FirstWaveDisposition.EXCLUDED
@@ -310,12 +304,24 @@ class BatchLocalisationGroupEvidence(ContractModel):
                     "psortb_replaced_selenocysteine_with_x",
                     "U" in group.sequence,
                 ),
+                (
+                    "psortb_sequence_local_failure",
+                    psortb_outcome is LocalisationOutcome.FAILED,
+                ),
+                (
+                    "deeptmhmm_sequence_local_failure",
+                    deep_outcome is LocalisationOutcome.FAILED,
+                ),
             )
             if present
         )
         ordered_sources = tuple(sorted(source_record_ids))
-        topology_sha256 = hashlib.sha256(topology.encode("ascii")).hexdigest()
-        tmr_count = _tmr_count(topology)
+        topology_sha256 = (
+            hashlib.sha256(topology.encode("ascii")).hexdigest()
+            if topology is not None
+            else None
+        )
+        tmr_count = _tmr_count(topology) if topology is not None else None
         payload = _evidence_payload(
             sequence_group_id=group.sequence_group_id,
             sequence_sha256=group.sha256,
@@ -358,6 +364,16 @@ class BatchLocalisationGroupEvidence(ContractModel):
             set(self.source_record_ids)
         ) != len(self.source_record_ids):
             raise ValueError("batch localisation source IDs are not canonical")
+        if (self.psortb_outcome is LocalisationOutcome.FAILED) != (
+            self.psortb_raw_label is None and self.psortb_score is None
+        ):
+            raise ValueError("PSORTb failure fields are inconsistent")
+        if (self.deeptmhmm_outcome is LocalisationOutcome.FAILED) != (
+            self.deeptmhmm_type is None
+            and self.deeptmhmm_topology_sha256 is None
+            and self.deeptmhmm_tmr_count is None
+        ):
+            raise ValueError("DeepTMHMM failure fields are inconsistent")
         expected_merged = resolve_localisation_outcome(
             (self.psortb_outcome, self.deeptmhmm_outcome)
         )
@@ -397,7 +413,7 @@ class BatchLocalisationPolicy(ContractModel):
     """Complete Phase III first-wave policy from two local batch tools."""
 
     schema_version: Literal["2.0"] = "2.0"
-    adapter_version: Literal["container-localisation-batch-v2-network-none"] = (
+    adapter_version: Literal["container-localisation-batch-v3-inspected"] = (
         _ADAPTER_VERSION
     )
     policy_id: NonEmptyString
@@ -407,6 +423,9 @@ class BatchLocalisationPolicy(ContractModel):
     source_records_sha256: Sha256Hex
     psortb_raw_sha256: Sha256Hex
     deeptmhmm_raw_sha256: Sha256Hex
+    source_fasta_sha256: Sha256Hex
+    container_execution_manifest_id: NonEmptyString
+    container_execution_manifest_sha256: Sha256Hex
     gel_evidence_sha256: Sha256Hex
     gel_observation_count: int = Field(ge=0)
     sequence_group_count: int = Field(ge=0)
@@ -472,10 +491,11 @@ class BatchLocalisationImportRequest:
 
     sequence_groups_jsonl: Path
     source_records_jsonl: Path
+    catalogue_fasta: Path
     psortb_terse: Path
     deeptmhmm_topologies: Path
     gel_evidence: Path
-    container_engine_version: str
+    container_execution_bundle: Path
     output_directory: Path
 
 
@@ -498,6 +518,9 @@ _BUNDLE_FILES = frozenset(
         "gel-evidence.json",
         "group_localisation_evidence.jsonl",
         "localisation_batch_manifest.json",
+        "container_execution/deeptmhmm-container.log",
+        "container_execution/localisation_container_execution.json",
+        "container_execution/psortb-container.log",
         "raw/deeptmhmm-topologies.3line",
         "raw/psortb-terse.tsv",
     }
@@ -636,6 +659,27 @@ def import_catalogue_localisation_batch(
         SourceProteinRecord,
         label="source-record input",
     )
+    try:
+        execution = validate_localisation_container_execution(
+            request.container_execution_bundle
+        )
+    except InputContractError as error:
+        raise LocalisationBatchImportError(
+            f"container execution evidence is invalid: {error}"
+        ) from error
+    if (
+        sha256_file(request.catalogue_fasta) != execution.source_fasta_sha256
+        or request.catalogue_fasta.stat().st_size != execution.source_fasta_size_bytes
+        or sha256_file(request.psortb_terse) != execution.psortb.raw_output_sha256
+        or request.psortb_terse.stat().st_size != execution.psortb.raw_output_size_bytes
+        or sha256_file(request.deeptmhmm_topologies)
+        != execution.deeptmhmm.raw_output_sha256
+        or request.deeptmhmm_topologies.stat().st_size
+        != execution.deeptmhmm.raw_output_size_bytes
+    ):
+        raise LocalisationBatchImportError(
+            "container execution inputs or outputs differ"
+        )
     group_by_id = {group.sequence_group_id: group for group in groups}
     if len(group_by_id) != len(groups):
         raise LocalisationBatchImportError("duplicate sequence-group ID")
@@ -672,7 +716,24 @@ def import_catalogue_localisation_batch(
         raise LocalisationBatchImportError("source/group coverage differs")
     psortb = _parse_psortb(request.psortb_terse)
     deeptmhmm = _parse_deeptmhmm(request.deeptmhmm_topologies)
-    if set(psortb) != set(source_by_header) or set(deeptmhmm) != set(source_by_protein):
+    psortb_failed = set(execution.psortb.explicit_failed_source_ids)
+    deeptmhmm_failed = set(execution.deeptmhmm.explicit_failed_source_ids)
+    expected_protein_ids = set(source_by_protein)
+    if (
+        not psortb_failed <= expected_protein_ids
+        or not deeptmhmm_failed <= expected_protein_ids
+    ):
+        raise LocalisationBatchImportError(
+            "localisation failure status contains an unknown source"
+        )
+    expected_psortb_headers = {
+        rows[0].original_header
+        for protein_id, rows in source_by_protein.items()
+        if protein_id not in psortb_failed
+    }
+    if set(psortb) != expected_psortb_headers or set(deeptmhmm) != (
+        expected_protein_ids - deeptmhmm_failed
+    ):
         raise LocalisationBatchImportError("localisation source coverage differs")
     evidence: list[BatchLocalisationGroupEvidence] = []
     for group in sorted(groups, key=lambda row: row.sequence_group_id):
@@ -681,15 +742,31 @@ def import_catalogue_localisation_batch(
             key=lambda row: row.source_record_id,
         )
         protein_ids = tuple(row.original_protein_id for row in group_sources)
-        psortb_rows = {psortb[row.original_header] for row in group_sources}
-        deep_rows = {deeptmhmm[protein_id] for protein_id in protein_ids}
+        psortb_rows = {
+            None
+            if row.original_protein_id in psortb_failed
+            else psortb[row.original_header]
+            for row in group_sources
+        }
+        deep_rows = {
+            None if protein_id in deeptmhmm_failed else deeptmhmm[protein_id]
+            for protein_id in protein_ids
+        }
         if len(psortb_rows) != 1 or len(deep_rows) != 1:
             raise LocalisationBatchImportError(
                 "duplicate exact sequences received different predictions"
             )
-        psortb_label, psortb_score, psortb_outcome = next(iter(psortb_rows))
-        deep_type, deep_sequence, topology = next(iter(deep_rows))
-        if deep_sequence != group.sequence:
+        psortb_row = next(iter(psortb_rows))
+        deep_row = next(iter(deep_rows))
+        psortb_label, psortb_score, psortb_outcome = (
+            (None, None, LocalisationOutcome.FAILED)
+            if psortb_row is None
+            else psortb_row
+        )
+        deep_type, deep_sequence, topology = (
+            (None, None, None) if deep_row is None else deep_row
+        )
+        if deep_sequence is not None and deep_sequence != group.sequence:
             raise LocalisationBatchImportError(
                 "DeepTMHMM sequence differs from catalogue group"
             )
@@ -710,13 +787,11 @@ def import_catalogue_localisation_batch(
         )
     except (OSError, ValueError) as error:
         raise LocalisationBatchImportError("gel evidence is invalid") from error
-    psortb_runtime = ContainerRuntimeEvidence.from_fixed_image(
-        tool="psortb",
-        container_engine_version=request.container_engine_version,
+    psortb_runtime = ContainerRuntimeEvidence.from_execution(
+        execution=execution.psortb,
     )
-    deep_runtime = ContainerRuntimeEvidence.from_fixed_image(
-        tool="deeptmhmm",
-        container_engine_version=request.container_engine_version,
+    deep_runtime = ContainerRuntimeEvidence.from_execution(
+        execution=execution.deeptmhmm,
     )
     ordered = tuple(evidence)
     active = tuple(
@@ -743,6 +818,11 @@ def import_catalogue_localisation_batch(
         "source_records_sha256": sha256_file(request.source_records_jsonl),
         "psortb_raw_sha256": sha256_file(request.psortb_terse),
         "deeptmhmm_raw_sha256": sha256_file(request.deeptmhmm_topologies),
+        "source_fasta_sha256": execution.source_fasta_sha256,
+        "container_execution_manifest_id": execution.manifest_id,
+        "container_execution_manifest_sha256": sha256_file(
+            request.container_execution_bundle / "localisation_container_execution.json"
+        ),
         "gel_evidence_sha256": sha256_file(request.gel_evidence),
         "gel_observation_count": len(gel.observations),
         "sequence_group_count": len(ordered),
@@ -770,6 +850,10 @@ def import_catalogue_localisation_batch(
     output.mkdir(parents=True)
     raw = output / "raw"
     raw.mkdir()
+    shutil.copytree(
+        request.container_execution_bundle.resolve(strict=True),
+        output / "container_execution",
+    )
     atomic_write_bytes(raw / "psortb-terse.tsv", request.psortb_terse.read_bytes())
     atomic_write_bytes(
         raw / "deeptmhmm-topologies.3line",
@@ -799,6 +883,11 @@ def import_catalogue_localisation_batch(
         "evidence_sha256": sha256_file(evidence_jsonl),
         "psortb_raw_sha256": policy.psortb_raw_sha256,
         "deeptmhmm_raw_sha256": policy.deeptmhmm_raw_sha256,
+        "source_fasta_sha256": policy.source_fasta_sha256,
+        "container_execution_manifest_id": policy.container_execution_manifest_id,
+        "container_execution_manifest_sha256": (
+            policy.container_execution_manifest_sha256
+        ),
         "gel_evidence_sha256": policy.gel_evidence_sha256,
         "sequence_group_count": policy.sequence_group_count,
         "source_record_count": policy.source_record_count,
@@ -827,6 +916,8 @@ def validate_catalogue_localisation_batch(
 ) -> BatchLocalisationPolicy:
     """Revalidate a portable batch without trusting its manifest claims."""
 
+    if bundle_directory.is_symlink():
+        raise LocalisationBatchImportError("localisation bundle is unsafe")
     try:
         root = bundle_directory.resolve(strict=True)
     except OSError as error:
@@ -865,6 +956,14 @@ def validate_catalogue_localisation_batch(
         raise LocalisationBatchImportError(
             "localisation bundle contract is invalid"
         ) from error
+    try:
+        execution = validate_localisation_container_execution(
+            root / "container_execution"
+        )
+    except InputContractError as error:
+        raise LocalisationBatchImportError(
+            "localisation container execution changed"
+        ) from error
     if evidence != policy.group_evidence:
         raise LocalisationBatchImportError("localisation evidence differs from policy")
     expected_first = "".join(f"{value}\n" for value in policy.first_wave_group_ids)
@@ -881,6 +980,17 @@ def validate_catalogue_localisation_batch(
         != policy.deeptmhmm_raw_sha256
         or sha256_file(files["gel-evidence.json"]) != policy.gel_evidence_sha256
         or len(gel.observations) != policy.gel_observation_count
+        or execution.manifest_id != policy.container_execution_manifest_id
+        or sha256_file(
+            files["container_execution/localisation_container_execution.json"]
+        )
+        != policy.container_execution_manifest_sha256
+        or execution.psortb.raw_output_sha256 != policy.psortb_raw_sha256
+        or execution.deeptmhmm.raw_output_sha256 != policy.deeptmhmm_raw_sha256
+        or ContainerRuntimeEvidence.from_execution(execution=execution.psortb)
+        != policy.psortb_runtime
+        or ContainerRuntimeEvidence.from_execution(execution=execution.deeptmhmm)
+        != policy.deeptmhmm_runtime
     ):
         raise LocalisationBatchImportError("localisation bundle evidence changed")
     manifest_values = {
@@ -891,6 +1001,11 @@ def validate_catalogue_localisation_batch(
         "evidence_sha256": sha256_file(files["group_localisation_evidence.jsonl"]),
         "psortb_raw_sha256": policy.psortb_raw_sha256,
         "deeptmhmm_raw_sha256": policy.deeptmhmm_raw_sha256,
+        "source_fasta_sha256": policy.source_fasta_sha256,
+        "container_execution_manifest_id": policy.container_execution_manifest_id,
+        "container_execution_manifest_sha256": (
+            policy.container_execution_manifest_sha256
+        ),
         "gel_evidence_sha256": policy.gel_evidence_sha256,
         "sequence_group_count": policy.sequence_group_count,
         "source_record_count": policy.source_record_count,

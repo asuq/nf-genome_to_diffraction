@@ -1,5 +1,6 @@
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,9 @@ from genome_to_diffraction.localisation.batch import (
 from genome_to_diffraction.schemas.results import (
     SequenceGroupRecord,
     SourceProteinRecord,
+)
+from tests.support.unknown_pass1_fixture import (
+    materialise_localisation_container_execution_fixture,
 )
 
 
@@ -100,15 +104,46 @@ def _inputs(tmp_path: Path) -> BatchLocalisationImportRequest:
     )
     gel = tmp_path / "gel.json"
     gel.write_text('{"schema_version":"2.0","observations":[]}\n', encoding="ascii")
+    group_by_id = {group.sequence_group_id: group for group in groups}
+    catalogue_fasta = tmp_path / "catalogue.faa"
+    catalogue_fasta.write_text(
+        "".join(
+            f">{source.original_header}\n"
+            f"{group_by_id[source.sequence_group_id].sequence}\n"
+            for source in sources
+            if source.source_record_id != "src_" + "f" * 64
+        ),
+        encoding="ascii",
+    )
+    execution = materialise_localisation_container_execution_fixture(
+        tmp_path,
+        catalogue_fasta=catalogue_fasta,
+        psortb_output=psortb,
+        deeptmhmm_output=deep,
+    )
     return BatchLocalisationImportRequest(
         sequence_groups_jsonl=sequence_groups,
         source_records_jsonl=source_records,
+        catalogue_fasta=catalogue_fasta,
         psortb_terse=psortb,
         deeptmhmm_topologies=deep,
         gel_evidence=gel,
-        container_engine_version="Docker Engine 29.6.2",
+        container_execution_bundle=execution,
         output_directory=tmp_path / "output",
     )
+
+
+def _reauthorise(
+    request: BatchLocalisationImportRequest,
+    root: Path,
+) -> BatchLocalisationImportRequest:
+    execution = materialise_localisation_container_execution_fixture(
+        root,
+        catalogue_fasta=request.catalogue_fasta,
+        psortb_output=request.psortb_terse,
+        deeptmhmm_output=request.deeptmhmm_topologies,
+    )
+    return replace(request, container_execution_bundle=execution)
 
 
 def test_importer_builds_complete_conservative_first_wave(tmp_path: Path) -> None:
@@ -160,12 +195,58 @@ def test_importer_rejects_incomplete_tool_coverage(tmp_path: Path) -> None:
         ),
         encoding="ascii",
     )
+    request = _reauthorise(request, tmp_path / "incomplete-execution")
 
     with pytest.raises(
         LocalisationBatchImportError,
         match="source coverage differs",
     ):
         import_catalogue_localisation_batch(request)
+
+
+def test_importer_keeps_explicit_sequence_local_failures_neutral(
+    tmp_path: Path,
+) -> None:
+    request = _inputs(tmp_path)
+    request.psortb_terse.write_text(
+        request.psortb_terse.read_text(encoding="ascii").replace(
+            "PROT_SOL test protein\tCytoplasmic\t9.50\n",
+            "",
+        ),
+        encoding="ascii",
+    )
+    deep_lines = request.deeptmhmm_topologies.read_text(encoding="ascii").splitlines()
+    request.deeptmhmm_topologies.write_text(
+        "\n".join(deep_lines[0:6] + deep_lines[9:]) + "\n",
+        encoding="ascii",
+    )
+    execution = materialise_localisation_container_execution_fixture(
+        tmp_path / "failed-execution",
+        catalogue_fasta=request.catalogue_fasta,
+        psortb_output=request.psortb_terse,
+        deeptmhmm_output=request.deeptmhmm_topologies,
+        psortb_failed_source_ids=("PROT_SOL",),
+        deeptmhmm_failed_source_ids=("PROT_SOL",),
+    )
+
+    result = import_catalogue_localisation_batch(
+        replace(
+            request,
+            container_execution_bundle=execution,
+            output_directory=tmp_path / "failed-output",
+        )
+    )
+
+    failed = next(
+        row
+        for row in result.policy.group_evidence
+        if row.merged_outcome is LocalisationOutcome.FAILED
+    )
+    assert failed.first_wave_disposition is FirstWaveDisposition.NEUTRAL
+    assert set(failed.warnings) >= {
+        "psortb_sequence_local_failure",
+        "deeptmhmm_sequence_local_failure",
+    }
 
 
 def test_importer_rejects_disagreement_for_duplicate_exact_sequence(
@@ -178,6 +259,7 @@ def test_importer_rejects_disagreement_for_duplicate_exact_sequence(
         ),
         encoding="ascii",
     )
+    request = _reauthorise(request, tmp_path / "disagreement-execution")
 
     with pytest.raises(
         LocalisationBatchImportError,
@@ -196,6 +278,7 @@ def test_importer_rejects_unknown_deeptmhmm_topology_label(tmp_path: Path) -> No
         ),
         encoding="ascii",
     )
+    request = _reauthorise(request, tmp_path / "unknown-label-execution")
 
     with pytest.raises(LocalisationBatchImportError, match="record 1 is invalid"):
         import_catalogue_localisation_batch(request)

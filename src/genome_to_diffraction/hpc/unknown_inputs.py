@@ -177,6 +177,15 @@ def _validate_localisation_authority(
         raise UnknownDiscoveryInputError(
             "localisation gel evidence differs from execution identity"
         )
+    fasta = tuple(
+        artifact
+        for artifact in execution.catalogue_artifacts
+        if artifact.role == "proteome_faa"
+    )
+    if len(fasta) != 1 or fasta[0].sha256 != policy.source_fasta_sha256:
+        raise UnknownDiscoveryInputError(
+            "localisation source FASTA differs from execution identity"
+        )
     tools = {tool.name: tool for tool in execution.tools}
     expected_tools = {
         "PSORTb": policy.psortb_runtime,

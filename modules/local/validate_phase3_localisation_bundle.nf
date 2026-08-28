@@ -5,6 +5,7 @@ nextflow.enable.types = true
 process VALIDATE_PHASE3_LOCALISATION_BUNDLE {
     tag 'phase3-localisation-bundle'
     label 'process_low'
+    stageInMode 'copy'
 
     input:
     localisation_bundle: Path

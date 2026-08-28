@@ -137,6 +137,7 @@ class DiverseFirstCopyFunnelOutput:
     hypotheses: tuple[MrHypothesis, ...]
     hypotheses_jsonl: Path
     hypotheses_tsv: Path
+    deferred_localisation_hypotheses_jsonl: Path
     model_registry_directory: Path
     manifest_json: Path
 
@@ -990,8 +991,6 @@ def _join_diverse_candidates(
             if localisation_by_group is not None
             else None
         )
-        if localisation is not None and not localisation.first_wave_eligible:
-            continue
         mapping: CoordinateHitMappingRecord | None = None
         if coordinate.provider == "pdb":
             mapping_id = model.processing_parameters.get("mapping_id")
@@ -1311,7 +1310,7 @@ def build_diverse_first_copy_funnel(
         if localisation_policy is not None
         else None
     )
-    candidates = _join_diverse_candidates(
+    all_candidates = _join_diverse_candidates(
         config=config,
         coordinates=coordinates,
         models=models,
@@ -1323,6 +1322,28 @@ def build_diverse_first_copy_funnel(
         crystal_ids=request.crystal_ids,
         joint_copy_search=request.joint_copy_search,
         localisation_by_group=localisation_by_group,
+    )
+    candidates = [
+        candidate
+        for candidate in all_candidates
+        if candidate.hypothesis.priority_features.get("localisation_wave_disposition")
+        != "excluded"
+    ]
+    deferred_localisation = tuple(
+        candidate.hypothesis.model_copy(
+            update={
+                "priority_features": {
+                    **candidate.hypothesis.priority_features,
+                    "localisation_first_wave_reason": (
+                        "retained_excluded_reopen_only_after_complete_zero_pack"
+                    ),
+                },
+                "status": MrHypothesisStatus.SKIPPED,
+            }
+        )
+        for candidate in sorted(all_candidates, key=_diverse_candidate_sort_key)
+        if candidate.hypothesis.priority_features.get("localisation_wave_disposition")
+        == "excluded"
     )
     selected, per_crystal_cap = _select_diverse_candidates(
         candidates,
@@ -1347,9 +1368,14 @@ def build_diverse_first_copy_funnel(
     )
     registry = registry_output.registry_directory
     hypotheses_jsonl = output / "mr_hypotheses.jsonl"
+    deferred_localisation_jsonl = output / "deferred_localisation_hypotheses.jsonl"
     atomic_write_text(
         hypotheses_jsonl,
         "".join(f"{canonical_json_text(item.hypothesis)}\n" for item in selected),
+    )
+    atomic_write_text(
+        deferred_localisation_jsonl,
+        "".join(f"{canonical_json_text(item)}\n" for item in deferred_localisation),
     )
     hypothesis_records = output / "hypotheses"
     hypothesis_records.mkdir()
@@ -1383,6 +1409,11 @@ def build_diverse_first_copy_funnel(
                 localisation_policy.excluded_count
                 if localisation_policy is not None
                 else 0
+            ),
+            "retained_excluded_hypothesis_count": len(deferred_localisation),
+            "deferred_localisation_hypotheses_sha256": sha256_file(
+                deferred_localisation_jsonl,
+                progress=False,
             ),
             "gel_observation_count": (
                 localisation_policy.gel_observation_count
@@ -1489,6 +1520,7 @@ def build_diverse_first_copy_funnel(
         hypotheses=tuple(item.hypothesis for item in selected),
         hypotheses_jsonl=hypotheses_jsonl,
         hypotheses_tsv=hypotheses_tsv,
+        deferred_localisation_hypotheses_jsonl=deferred_localisation_jsonl,
         model_registry_directory=registry,
         manifest_json=manifest_path,
     )

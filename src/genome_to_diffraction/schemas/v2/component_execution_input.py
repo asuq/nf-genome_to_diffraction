@@ -217,8 +217,8 @@ class ComponentExpansionExecutionInput(_ContentAddressedContract):
     schema_version: Literal["2.0"]
     execution_input_id: ComponentExpansionExecutionInputIdentifier
     command_boundary: Literal[
-        "installed_phaser_multi_fixed_component_v1_qualified_by_9ecn"
-    ] = "installed_phaser_multi_fixed_component_v1_qualified_by_9ecn"
+        "installed_phaser_partner_b_and_multi_fixed_c_to_f_v1_qualified"
+    ] = "installed_phaser_partner_b_and_multi_fixed_c_to_f_v1_qualified"
     depth_plan_id: ExpansionDepthPlanIdentifier
     selected_candidate: CompositionExpansionDepthCandidate
     parent_state: CompositionState

@@ -66,17 +66,24 @@ are joined by the original protein identifier. Repeated annotation/locus rows
 for one FASTA record are permitted only when they map to the same header,
 sequence-equivalence group, and prediction.
 
+After both containers terminate, `localisation capture-container-batch`
+invokes the Docker CLI to retain raw container/image inspection JSON, effective
+commands, image/config identities, `network_mode=none`, exit code, exact copied
+input/output bytes, engine version, and container logs. The importer accepts no
+caller-authored replacement for this content-addressed execution bundle.
+
 ## Portable input and outputs
 
 `genome-to-diffraction localisation import-batch` requires:
 
 - the frozen `sequence_groups.jsonl`;
 - the frozen `source_records.jsonl`;
+- the exact catalogue FASTA used inside both containers;
 - complete PSORTb terse TSV;
 - complete DeepTMHMM three-line topologies;
 - one schema-v2 gel-evidence manifest, which may honestly contain zero
   observations;
-- the exact container-engine version; and
+- the validated container-execution bundle; and
 - a new output directory.
 
 It publishes exactly:
@@ -87,6 +94,8 @@ It publishes exactly:
 - `first_wave_sequence_group_ids.txt`;
 - `excluded_sequence_group_ids.txt`;
 - `gel-evidence.json`;
+- `container_execution/localisation_container_execution.json` plus both raw
+  container logs;
 - `raw/psortb-terse.tsv`; and
 - `raw/deeptmhmm-topologies.3line`.
 
@@ -98,9 +107,44 @@ copies the complete bundle, and validates the staged copy again.
 The live `provider_discovery` and `first_copy` operations require this complete
 bundle. The Phase III A funnel binds the policy and group-evidence identities
 into hypothesis/cache identities, ranks active groups before neutral groups,
-and omits retained exclusions from the first wave. The current unknown input
-has no gel observations, so gel evidence is explicitly neutral rather than
-fabricated.
+and emits every excluded model/copy hypothesis as a typed skipped, checksum-
+bound `deferred_localisation_hypotheses.jsonl` record. Those records cannot run
+in the first wave and may be reopened only through the complete zero-pack
+policy. The current unknown input has no gel observations, so gel evidence is
+explicitly neutral rather than fabricated.
+
+After all first-wave MR items terminate, the production graph publishes one
+`phase3-localisation-zero-pack-reopen-v1` plan. Exact active-result coverage is
+mandatory. Packed, failed, missing, duplicate, or cross-policy evidence queues
+nothing. Complete zero packing may queue at most 175 retained hypotheses, but
+those hypotheses are not executed in pass 1; only the separately gated pass-2
+no-A expansion may consume them.
+
+## Accepted local catalogue execution
+
+The fixed network-none PSORTb 3.0.6 and DeepTMHMM 1.0 containers both
+terminated with exit code 0 and zero Docker network I/O. Their exact input FASTA
+has SHA-256
+`f8bbc63da7b0f3cb5f206befd0618264a5582789f46c3400267650777727d416`.
+The retained PSORTb and DeepTMHMM outputs have SHA-256
+`4cf65b1b56f726e50e8fb4a0854a108d780aad4d43c365a877eb0a35ca8ce5fd`
+and
+`d99ac552fb231ca12e0af961cd9294977fb4da7b5d352bbce51f045e6339cfd0`;
+each is byte-identical to its earlier diagnostic bridge-network output.
+
+Capture manifest
+`localcontainermanifest_9a94a634e3b7e7c4a132c34ee4b352b62f865f836dd01dd7a370f5afeb01b1cd`
+authenticates both terminal container/image inspections, commands, raw output,
+and logs. Portable policy
+`batchlocalpolicy_a3a03c7259427c1c7681b4552c2d66c0e162e37747cb52f140b5858e451f2192`
+independently validates 1,625 source records and 1,621 sequence groups: 1,310
+active, 88 neutral, and 223 excluded, with 60 conflicting predictions retained
+as neutral evidence. The gel manifest remains explicitly empty and neutral.
+This accepts local catalogue localisation execution; the combined locked and
+exact-source gates remain separate prerequisites for unknown pass 1. The local
+locked gate is now green: 1,358 unit, 136 contract, and 88 integration tests
+plus schemas, documentation, Nextflow syntax/stubs, offline wheel parity, and
+wrapper syntax. Exact-source CI and the Marmic wrong-C/control successor remain.
 
 ## Failure semantics and test coverage
 
@@ -108,7 +152,9 @@ Missing or duplicate coverage, malformed bytes, changed raw evidence, unsafe
 bundle members, inconsistent duplicate-locus mappings, different predictions
 for one exact sequence, an unbound gel manifest, a network mode other than
 `none`, or a catalogue mismatch is an input-contract failure before molecular
-replacement. A valid empty gel manifest is not a failure.
+replacement. An explicit sequence-local failure recorded by the authenticated
+execution manifest becomes typed `failed` neutral evidence; an unexplained
+missing result remains fatal. A valid empty gel manifest is not a failure.
 
 Focused tests cover active/excluded/conflicting outcomes, duplicate-locus
 mapping, incomplete coverage, changed raw bytes, first-wave filtering,

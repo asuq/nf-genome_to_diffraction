@@ -560,7 +560,7 @@ def test_execution_input_preserves_distinct_parent_uncertainties_and_all_ids() -
         == execution_input.diffraction_selection.diffraction_selection_id
     )
     assert execution_input.command_boundary == (
-        "installed_phaser_multi_fixed_component_v1_qualified_by_9ecn"
+        "installed_phaser_partner_b_and_multi_fixed_c_to_f_v1_qualified"
     )
 
 

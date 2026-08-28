@@ -13,8 +13,10 @@ The accepted 6RTZ/3U7Q component-coordinate controls and positive 9ECN
 fixed ensemble per placed component followed by one next-component search.
 Reusing the combined parent PDB as one 100%-identity ensemble remains
 prohibited. New records therefore carry the exact boundary
-`installed_phaser_multi_fixed_component_v1_qualified_by_9ecn`; this does not
-qualify other Phaser algorithms or establish component identity from scores.
+`installed_phaser_partner_b_and_multi_fixed_c_to_f_v1_qualified`. Depth-two
+A-to-B expansion uses the qualified partner adapter; only depth three onward
+uses the 9ECN-qualified multi-fixed adapter. This does not qualify other Phaser
+algorithms or establish component identity from scores.
 
 ## Retained 6RTZ/3U7Q coordinate audit
 
@@ -116,7 +118,9 @@ one.
 Paths are deliberately absent from this portable record. The qualified
 one-attempt executor receives explicit run-owned roots/files, resolves each
 recorded checksum, verifies the execution and all-model-registry identities,
-and uses only the installed-runtime-qualified multi-fixed syntax.
+requires the parent score plus component-derivation inventories, verifies the
+Phenix executable and adapter inventory, and uses only the qualified B or C--F
+route.
 
 ## Outputs, failure semantics, and cache identity
 

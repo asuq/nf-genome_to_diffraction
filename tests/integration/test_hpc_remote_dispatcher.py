@@ -551,13 +551,14 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "component_C/phaser_per_placement_inventory.json "
         "wrong_C_input.json wrong_C_sequence_groups.jsonl "
         "wrong_C/component_search_result.json wrong_C/phaser_command.json "
-        "wrong_C/PHASER.log)\n"
+        "wrong_C/PHASER.log wrong_C/composition_assessment.json)\n"
         '  for relative in "${paths[@]}"; do\n'
         '    directory="${relative%/*}"\n'
         '    [[ "$directory" == "$relative" ]] || mkdir -p "$outdir/$directory"\n'
         '    printf "fake 9ECN retained evidence\\n" > "$outdir/$relative"\n'
         "  done\n"
-        '  printf \'{"adapter_version":"9ecn-phase3-depth-three-control-v2-wrong-c",'
+        '  printf \'{"adapter_version":"9ecn-phase3-depth-three-control-v3-'
+        'wrong-c-assessment",'
         '"control":"9ECN_McrA_McrB_McrG_2A_2B_2C",'
         '"gate_passed":true,"component_copy_counts":{"A":2,"B":2,"C":2},'
         '"exact_identity_claimed_by_search":false,'
@@ -566,7 +567,12 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"wrong_c_execution_status":"completed_hit",'
         '"wrong_c_top_solution_packed":true,'
         '"wrong_c_exact_identity_claimed":false,'
-        '"wrong_c_complete_composition_claimed":false}\\n\' '
+        '"wrong_c_complete_composition_claimed":false,'
+        '"wrong_c_scientific_status":"search_evidence_only",'
+        '"wrong_c_assessment_claim_eligible":false,'
+        '"wrong_c_assessment_claimed":false,'
+        '"wrong_c_assessment_id":"compassess_'
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}\\n' "
         '> "$outdir/phase3-9ecn-control-summary.json"\n'
         '  (cd "$outdir" && sha256sum "${paths[@]}" '
         "phase3-9ecn-control-summary.json) "
@@ -3822,6 +3828,18 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
             "package_id": "providerdiscovery_" + "d" * 64,
         },
     )
+    provider_relative = (
+        "phase3_provider_discovery/phase3_provider_discovery_manifest.json"
+    )
+    provider_digest = hashlib.sha256(
+        (run / "artifacts/unknown-discovery/results" / provider_relative).read_bytes()
+    ).hexdigest()
+    qualification = run / "artifacts/qualification"
+    qualification.mkdir(exist_ok=True)
+    (qualification / "unknown-discovery-output-checksums.sha256").write_text(
+        f"{provider_digest}  {provider_relative}\n",
+        encoding="ascii",
+    )
     discovery_archive = _run(
         [str(dispatcher), "collect", UNKNOWN_DISCOVERY_RUN_ID, OWNER_ID],
         cwd=tmp_path,
@@ -3840,6 +3858,9 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
             "gel-evidence.json",
             "raw/psortb-terse.tsv",
             "raw/deeptmhmm-topologies.3line",
+            "container_execution/localisation_container_execution.json",
+            "container_execution/psortb-container.log",
+            "container_execution/deeptmhmm-container.log",
         )
     } <= discovery_members
     child_staged = _run(
@@ -3901,16 +3922,20 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         "done\n"
         '[[ -n "$outdir" ]] || exit 2\n'
         'mkdir -p "$outdir/pipeline_info" '
-        '"$outdir/phase3_offline_provider_input"\n'
+        '"$outdir/phase3_offline_provider_input" '
+        '"$outdir/phase3_localisation_reopen_stub"\n'
         'printf \'{"schema_version":"2.0"}\\n\' > '
         '"$outdir/phase3_offline_provider_input/'
         'phase3_offline_provider_input.json"\n'
+        'printf \'{"schema_version":"2.0","status":"stub_not_executed"}\\n\' > '
+        '"$outdir/phase3_localisation_reopen_stub/'
+        'localisation_reopen_plan.json"\n'
         'printf "process\\tstatus\\n" > "$outdir/pipeline_info/trace.tsv"\n'
         "for process in VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT "
         "VALIDATE_TASK05_INPUTS MTZ_PREFLIGHT ENUMERATE_MATTHEWS "
         "PREPARE_PREDICTED_MODELS PREPARE_EXPERIMENTAL_MODELS "
         "DISPATCH_CRYSTAL_ITEM RUN_PHASE3_FIRST_COPY_PHASER "
-        "BUILD_PHASE3_MR_SEED_REVIEW; do\n"
+        "BUILD_PHASE3_MR_SEED_REVIEW PLAN_PHASE3_LOCALISATION_REOPEN; do\n"
         '  printf "%s\\t%s\\n" "$process" "$status" '
         '>> "$outdir/pipeline_info/trace.tsv"\n'
         "done\n"
@@ -3937,7 +3962,7 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     ).read_text(encoding="utf-8")
     assert "RETRIEVE_AFDB_EXACT" not in screen_trace
     assert "REGISTER_PDB_COORDINATES" not in screen_trace
-    assert screen_trace.count("CACHED") == 9
+    assert screen_trace.count("CACHED") == 10
     screen_archive = _run(
         [str(dispatcher), "collect", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
         cwd=tmp_path,
@@ -3956,8 +3981,15 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
             "gel-evidence.json",
             "raw/psortb-terse.tsv",
             "raw/deeptmhmm-topologies.3line",
+            "container_execution/localisation_container_execution.json",
+            "container_execution/psortb-container.log",
+            "container_execution/deeptmhmm-container.log",
         )
     } <= screen_members
+    assert (
+        "artifacts/unknown-screen/results/phase3_localisation_reopen_stub/"
+        "localisation_reopen_plan.json" in screen_members
+    )
 
     decision = local_root / "a-seed.tsv"
     decision.write_text(
@@ -5400,6 +5432,10 @@ def test_9ecn_wrong_c_uses_the_frozen_distinct_control_model() -> None:
     assert '"$p6_inputs/wrong_partner/sequence_groups.jsonl"' in invocation
     assert '--wrong-c-sequence-group-id "$p6_wrong_group"' in invocation
     assert '--wrong-c-model "$p6_inputs/wrong_partner/model.pdb"' in invocation
+    assert (
+        '--wrong-c-control-manifest "$p6_inputs/preparation_manifest.json"'
+        in invocation
+    )
     assert '--expected-wrong-c-model-sha256 "$p6_wrong_model_sha"' in invocation
     assert '--wrong-c-model-identity-fraction "$p6_wrong_identity"' in invocation
 
@@ -5670,6 +5706,9 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert phase3_control["wrong_c_top_solution_packed"] is True
     assert phase3_control["wrong_c_exact_identity_claimed"] is False
     assert phase3_control["wrong_c_complete_composition_claimed"] is False
+    assert phase3_control["wrong_c_scientific_status"] == "search_evidence_only"
+    assert phase3_control["wrong_c_assessment_claim_eligible"] is False
+    assert phase3_control["wrong_c_assessment_claimed"] is False
     phase3_checksum_paths = {
         line.split(maxsplit=1)[1]
         for line in (phase3_control_root / "phase3-9ecn-control-checksums.sha256")
@@ -5682,6 +5721,7 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         "component_C/component_search_result.json",
         "component_C/phaser_per_placement_inventory.json",
         "wrong_C/component_search_result.json",
+        "wrong_C/composition_assessment.json",
         "phase3-9ecn-control-summary.json",
     } <= phase3_checksum_paths
     log = (run / "logs/heteromer-smoke.log").read_text(encoding="utf-8")

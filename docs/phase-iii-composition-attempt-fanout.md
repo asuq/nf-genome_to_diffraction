@@ -81,7 +81,11 @@ diffraction, Free-R, registry, and execution-identity context.
 coordinate root, all-model registry, sequence groups, preflight, MTZ, Phenix
 manifest, and complete execution identity. A real run independently validates
 all identities and raw Free-R membership before Phaser. Completed hit, no-hit,
-tool, parser, and infrastructure results remain distinct. Only parsed
+tool, parser, infrastructure, and contract results remain distinct. B uses the
+qualified fixed-parent partner adapter; C--F use the positive-9ECN-qualified
+multi-fixed adapter. Infrastructure and contract failures retain diagnostics
+but fail the task; only no-hit and candidate-local tool/parser outcomes remain
+normal sibling-safe items. Only parsed
 candidate-specific placement evidence can create a child state, and every
 result remains `search_evidence_only`; depths four through six carry
 `provisional_unvalidated_component_depth`.
@@ -105,6 +109,8 @@ inventory with zero execution tasks, and requires a second `-resume` run to
 reuse the same 25 task hashes with byte-identical retained output.
 
 `tests/unit/test_composition_runtime.py` covers a packed claim-free child state
-and a completed no-hit with no child. Real Phenix 2.1-6048/Phaser 2.8.4 was
+and a completed no-hit with no child, missing parent score/derivation evidence,
+stale adapter authority, and fail-closed infrastructure status. Real Phenix
+2.1-6048/Phaser 2.8.4 was
 qualified through 6RTZ, 3U7Q, and positive 9ECN; one fixed-HPC general-attempt
 profile remains before this boundary is accepted for unknown pass 2.

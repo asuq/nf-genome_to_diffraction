@@ -44,7 +44,7 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
-from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text, content_id
 from genome_to_diffraction.mr.phaser import (
     PhaserInputError,
     PhaserParseError,
@@ -62,11 +62,16 @@ from genome_to_diffraction.schemas.results import (
     PreflightDecision,
     SequenceGroupRecord,
 )
+from genome_to_diffraction.schemas.v2 import (
+    DiffractionSelection,
+    diffraction_dataset_id,
+)
 from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.partner")
-_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v6-native-placements"
+_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v7-command-bound"
+_PHASE3_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v8-phase3-diffraction"
 _ROOT = "PHASER"
 _PRIMARY_LLG = 100.0
 _PRIMARY_TFZ = 10.0
@@ -111,6 +116,7 @@ class PartnerSearchRequest:
     mtz: Path
     phenix_manifest: Path
     output_directory: Path
+    diffraction_selection: DiffractionSelection | None = None
     parent_copy_count: int = 1
     partner_copy_count: int = 1
     selection_plan_id: str | None = None
@@ -274,6 +280,25 @@ def _resolve(request: PartnerSearchRequest) -> _Resolved:
     )
     if mtz_sha256 != preflight.mtz_sha256:
         raise PhaserInputError("MTZ checksum differs from preflight")
+    selection = request.diffraction_selection
+    if selection is not None and (
+        selection.crystal_id != request.crystal_id
+        or selection.diffraction_dataset_id
+        != diffraction_dataset_id(
+            crystal_id=request.crystal_id,
+            mtz_sha256=preflight.mtz_sha256,
+        )
+        or selection.mtz_sha256 != preflight.mtz_sha256
+        or selection.preflight_id != preflight.preflight_id
+        or selection.preflight_record_sha256 != canonical_digest(preflight)
+        or selection.observation_dataset_id != preflight.selected_observation_dataset_id
+        or selection.rendered_observation_labels
+        != preflight.selected_observation_labels
+        or selection.selected_space_group != preflight.space_group
+        or selection.resolution_low_a != preflight.resolution_low_a
+        or selection.resolution_high_a != preflight.resolution_high_a
+    ):
+        raise PhaserInputError("partner diffraction selection differs from preflight")
     return _Resolved(
         parent_group=parent_group,
         partner_group=partner_group,
@@ -296,17 +321,38 @@ def _parameters(
     parent_copy_count: int,
     partner_copy_count: int,
     threads: int,
+    selection: DiffractionSelection | None,
 ) -> str:
     mtz = json.dumps(str(resolved.mtz))
     parent_sequence = json.dumps(str(parent_fasta))
     partner_sequence = json.dumps(str(partner_fasta))
     parent = json.dumps(str(resolved.parent_coordinate))
     partner = json.dumps(str(resolved.partner_model))
+    labels = (
+        selection.rendered_observation_labels
+        if selection is not None
+        else resolved.preflight.selected_observation_labels
+    )
+    symmetry = (
+        "  crystal_symmetry {\n"
+        f"    space_group = {json.dumps(selection.selected_space_group)}\n"
+        "  }\n"
+        if selection is not None
+        else ""
+    )
+    resolution = (
+        "    resolution {\n"
+        f"      low = {selection.resolution_low_a:.12g}\n"
+        f"      high = {selection.resolution_high_a:.12g}\n"
+        "    }\n"
+        if selection is not None
+        else ""
+    )
     return f"""phaser {{
   mode = MR_AUTO
   hklin = {mtz}
-  labin = {resolved.preflight.selected_observation_labels}
-  composition {{
+  labin = {labels}
+{symmetry}  composition {{
     chain {{
       chain_type = protein
       comp_type = sequence_file
@@ -348,6 +394,7 @@ def _parameters(
       keywords = True
     }}
     sgalternative {{ select = none }}
+{resolution}
   }}
 }}
 """
@@ -423,10 +470,17 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
             request.parent_copy_count,
             request.partner_copy_count,
             request.threads,
+            request.diffraction_selection,
         ),
     )
+    parameters_sha256 = sha256_file(parameters)
+    adapter_version = (
+        _PHASE3_ADAPTER_VERSION
+        if request.diffraction_selection is not None
+        else _ADAPTER_VERSION
+    )
     search_identity = {
-        "adapter_version": _ADAPTER_VERSION,
+        "adapter_version": adapter_version,
         "crystal_id": request.crystal_id,
         "parent_solution_id": request.parent_solution_id,
         "parent_sequence_sha256": resolved.parent_group.sha256,
@@ -444,6 +498,13 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         "selection_plan_id": request.selection_plan_id,
         "selection_plan_sha256": request.selection_plan_sha256,
         "partner_candidate_id": request.partner_candidate_id,
+        "diffraction_selection_id": (
+            request.diffraction_selection.diffraction_selection_id
+            if request.diffraction_selection is not None
+            else None
+        ),
+        "preflight_record_sha256": canonical_digest(resolved.preflight),
+        "parameters_sha256": parameters_sha256,
     }
     search_id = content_id("partner_", search_identity)
     arguments = ["phenix.phaser", str(parameters)]
@@ -452,13 +513,13 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         command_json,
         {
             "schema_version": "1.0",
-            "adapter_version": _ADAPTER_VERSION,
+            "adapter_version": adapter_version,
             "created_at": utc_now_iso(),
             "search_id": search_id,
             "arguments": arguments,
             "threads": request.threads,
             "timeout_seconds": request.timeout_seconds,
-            "parameters_sha256": sha256_file(parameters),
+            "parameters_sha256": parameters_sha256,
             "observation_labels": resolved.preflight.selected_observation_labels,
             "observation_dataset_id": (
                 resolved.preflight.selected_observation_dataset_id

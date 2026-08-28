@@ -1,6 +1,6 @@
 """Run one Phase III multi-fixed-component Phaser expansion.
 
-The adapter accepts one to five component-only coordinates already placed in
+The adapter accepts two to five component-only coordinates already placed in
 one parent frame, preserving each component's original Phaser identity/error
 model. It fixes every existing component at the origin and searches only the
 next ordered component. The output retains raw placement, packing, TFZ, and
@@ -34,7 +34,7 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
-from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text, content_id
 from genome_to_diffraction.mr.phaser import (
     PhaserInputError,
     PhaserParseError,
@@ -58,11 +58,15 @@ from genome_to_diffraction.schemas.results import (
     SequenceGroupRecord,
 )
 from genome_to_diffraction.schemas.v2.composition import ComponentLabel
+from genome_to_diffraction.schemas.v2.diffraction import (
+    DiffractionSelection,
+    diffraction_dataset_id,
+)
 from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
-_ADAPTER_VERSION = "phenix-multi-fixed-joint-component-v1"
-_INPUT_VERSION = "multi-fixed-component-search-input-v1"
+_ADAPTER_VERSION = "phenix-multi-fixed-joint-component-v2-diffraction"
+_INPUT_VERSION = "multi-fixed-component-search-input-v2"
 _ROOT = "PHASER"
 _LABELS = ("A", "B", "C", "D", "E", "F")
 _PRIMARY_LLG = 100.0
@@ -132,12 +136,13 @@ class MultiFixedSearchManifest(ContractModel):
     """Strict path-bearing execution manifest for one dependent expansion."""
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["multi-fixed-component-search-input-v1"]
+    adapter_version: Literal["multi-fixed-component-search-input-v2"]
     crystal_id: NonEmptyString
+    diffraction_selection: DiffractionSelection
     parent_solution_id: NonEmptyString
     parent_combined_llg: float
     fixed_components: tuple[FixedSearchComponent, ...] = Field(
-        min_length=1,
+        min_length=2,
         max_length=5,
     )
     candidate: CandidateSearchComponent
@@ -157,6 +162,8 @@ class MultiFixedSearchManifest(ContractModel):
             or self.candidate.sequence_group_id in groups
         ):
             raise ValueError("multi-fixed search repeats a sequence group")
+        if self.diffraction_selection.crystal_id != self.crystal_id:
+            raise ValueError("multi-fixed diffraction selection differs")
         return self
 
 
@@ -164,13 +171,13 @@ class MultiFixedSearchResult(ContractModel):
     """Terminal evidence for one multi-fixed search without a scientific claim."""
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["phenix-multi-fixed-joint-component-v1"]
+    adapter_version: Literal["phenix-multi-fixed-joint-component-v2-diffraction"]
     result_id: NonEmptyString
     search_id: NonEmptyString
     crystal_id: NonEmptyString
     tool_version: NonEmptyString
     input_manifest_sha256: Sha256Hex
-    fixed_component_labels: tuple[ComponentLabel, ...] = Field(min_length=1)
+    fixed_component_labels: tuple[ComponentLabel, ...] = Field(min_length=2)
     candidate_component_label: ComponentLabel
     requested_candidate_copy_count: PositiveInt
     execution_status: ExecutionStatus
@@ -291,6 +298,7 @@ def _parameters(
     labels: str,
     threads: int,
 ) -> str:
+    selection = manifest.diffraction_selection
     composition = "\n".join(
         "    chain {\n"
         "      chain_type = protein\n"
@@ -312,11 +320,22 @@ def _parameters(
         for item, path in zip(manifest.fixed_components, fixed_paths, strict=True)
     )
     candidate = manifest.candidate
+    symmetry = (
+        "  crystal_symmetry {\n"
+        f"    space_group = {json.dumps(selection.selected_space_group)}\n"
+        "  }\n"
+    )
+    resolution = (
+        "    resolution {\n"
+        f"      low = {selection.resolution_low_a:.12g}\n"
+        f"      high = {selection.resolution_high_a:.12g}\n"
+        "    }\n"
+    )
     return f"""phaser {{
   mode = MR_AUTO
   hklin = {json.dumps(str(mtz))}
   labin = {labels}
-  composition {{
+{symmetry}  composition {{
 {composition}
   }}
 {fixed}
@@ -340,6 +359,7 @@ def _parameters(
       keywords = True
     }}
     sgalternative {{ select = none }}
+{resolution}
   }}
 }}
 """
@@ -408,6 +428,28 @@ def run_multi_fixed_search(
         or preflight.selected_observation_labels is None
     ):
         raise PhaserInputError("multi-fixed preflight is not executable")
+    selection = manifest.diffraction_selection
+    if (
+        selection.diffraction_dataset_id
+        != diffraction_dataset_id(
+            crystal_id=manifest.crystal_id,
+            mtz_sha256=preflight.mtz_sha256,
+        )
+        or selection.mtz_sha256 != preflight.mtz_sha256
+        or selection.preflight_id != preflight.preflight_id
+        or selection.preflight_record_sha256 != canonical_digest(preflight)
+        or selection.observation_dataset_id != preflight.selected_observation_dataset_id
+        or selection.observation_labels
+        != tuple(
+            label.strip() for label in preflight.selected_observation_labels.split(",")
+        )
+        or selection.selected_space_group != preflight.space_group
+        or selection.resolution_low_a != preflight.resolution_low_a
+        or selection.resolution_high_a != preflight.resolution_high_a
+    ):
+        raise PhaserInputError(
+            "multi-fixed diffraction selection differs from preflight"
+        )
     mtz = mtz_path.resolve(strict=True)
     mtz_sha256 = sha256_file(mtz, progress=False)
     if mtz_sha256 != preflight.mtz_sha256:
@@ -437,6 +479,7 @@ def run_multi_fixed_search(
             threads,
         ),
     )
+    parameters_sha256 = sha256_file(parameters, progress=False)
     identity = {
         "adapter_version": _ADAPTER_VERSION,
         "manifest_sha256": manifest_sha256,
@@ -445,6 +488,10 @@ def run_multi_fixed_search(
         ],
         "candidate_model_sha256": manifest.candidate.model_sha256,
         "mtz_sha256": mtz_sha256,
+        "diffraction_selection_id": selection.diffraction_selection_id,
+        "preflight_record_sha256": canonical_digest(preflight),
+        "observation_labels": selection.observation_labels,
+        "parameters_sha256": parameters_sha256,
         "phenix_manifest_sha256": runtime_sha256,
         "threads": threads,
     }
@@ -572,6 +619,10 @@ def run_multi_fixed_search(
         "search_id": search_id,
         "crystal_id": manifest.crystal_id,
         "input_manifest_sha256": manifest_sha256,
+        "diffraction_selection_id": selection.diffraction_selection_id,
+        "preflight_record_sha256": canonical_digest(preflight),
+        "observation_labels": selection.observation_labels,
+        "parameters_sha256": parameters_sha256,
         "execution_status": status,
         "combined_coordinate_sha256": coordinate_sha,
         "output_mtz_sha256": result_mtz_sha,

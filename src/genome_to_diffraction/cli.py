@@ -109,9 +109,13 @@ from genome_to_diffraction.execution import (
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.localisation import (
     BatchLocalisationImportRequest,
+    BatchLocalisationReopenRequest,
+    LocalisationContainerCaptureRequest,
     build_catalogue_localisation_tasks,
     build_catalogue_localisation_wave_policy,
+    capture_localisation_container_execution,
     import_catalogue_localisation_batch,
+    plan_batch_localisation_reopen,
     plan_localisation_reopen,
     run_catalogue_localisation_task,
     stage_catalogue_localisation_batch,
@@ -662,6 +666,9 @@ def _build_parser() -> argparse.ArgumentParser:
     phase3_control_run_parser.add_argument("--wrong-c-sequence-group-id", required=True)
     phase3_control_run_parser.add_argument("--wrong-c-model", type=Path, required=True)
     phase3_control_run_parser.add_argument(
+        "--wrong-c-control-manifest", type=Path, required=True
+    )
+    phase3_control_run_parser.add_argument(
         "--expected-wrong-c-model-sha256", required=True
     )
     phase3_control_run_parser.add_argument(
@@ -1029,13 +1036,38 @@ def _build_parser() -> argparse.ArgumentParser:
         "--sequence-groups", type=Path, required=True
     )
     localisation_batch_parser.add_argument("--source-records", type=Path, required=True)
+    localisation_batch_parser.add_argument(
+        "--catalogue-fasta", type=Path, required=True
+    )
     localisation_batch_parser.add_argument("--psortb-terse", type=Path, required=True)
     localisation_batch_parser.add_argument(
         "--deeptmhmm-topologies", type=Path, required=True
     )
     localisation_batch_parser.add_argument("--gel-evidence", type=Path, required=True)
-    localisation_batch_parser.add_argument("--container-engine-version", required=True)
+    localisation_batch_parser.add_argument(
+        "--container-execution-bundle", type=Path, required=True
+    )
     localisation_batch_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_capture_parser = localisation_actions.add_parser(
+        "capture-container-batch",
+        help="capture terminal network-none Docker execution evidence",
+    )
+    localisation_capture_parser.add_argument(
+        "--catalogue-fasta", type=Path, required=True
+    )
+    localisation_capture_parser.add_argument("--psortb-container", required=True)
+    localisation_capture_parser.add_argument("--psortb-container-output", required=True)
+    localisation_capture_parser.add_argument(
+        "--psortb-output", type=Path, required=True
+    )
+    localisation_capture_parser.add_argument("--deeptmhmm-container", required=True)
+    localisation_capture_parser.add_argument(
+        "--deeptmhmm-container-output", required=True
+    )
+    localisation_capture_parser.add_argument(
+        "--deeptmhmm-output", type=Path, required=True
+    )
+    localisation_capture_parser.add_argument("--outdir", type=Path, required=True)
     localisation_validate_batch_parser = localisation_actions.add_parser(
         "validate-batch",
         help="revalidate a portable offline localisation batch",
@@ -1049,6 +1081,21 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     localisation_stage_batch_parser.add_argument("--bundle", type=Path, required=True)
     localisation_stage_batch_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_reopen_parser = localisation_actions.add_parser(
+        "plan-batch-reopen",
+        help="reopen retained exclusions only after complete zero packing",
+    )
+    localisation_reopen_parser.add_argument("--funnel", type=Path, required=True)
+    localisation_reopen_parser.add_argument(
+        "--result-directory", type=Path, action="append", default=[]
+    )
+    localisation_reopen_parser.add_argument(
+        "--localisation-bundle", type=Path, required=True
+    )
+    localisation_reopen_parser.add_argument(
+        "--maximum-reopened-attempts", type=int, default=175
+    )
+    localisation_reopen_parser.add_argument("--outdir", type=Path, required=True)
     localisation_tasks_parser = localisation_actions.add_parser(
         "build-tasks", help="emit one offline task per exact sequence group"
     )
@@ -2283,15 +2330,31 @@ def _run_catalogue(args: argparse.Namespace) -> int:
 
 
 def _run_localisation(args: argparse.Namespace) -> int:
+    if args.localisation_action == "capture-container-batch":
+        manifest = capture_localisation_container_execution(
+            LocalisationContainerCaptureRequest(
+                catalogue_fasta=args.catalogue_fasta,
+                psortb_container=args.psortb_container,
+                psortb_output_container_path=args.psortb_container_output,
+                psortb_output=args.psortb_output,
+                deeptmhmm_container=args.deeptmhmm_container,
+                deeptmhmm_output_container_path=args.deeptmhmm_container_output,
+                deeptmhmm_output=args.deeptmhmm_output,
+                output_directory=args.outdir,
+            )
+        )
+        print(f"Captured offline localisation container evidence: {manifest}")
+        return 0
     if args.localisation_action == "import-batch":
         imported = import_catalogue_localisation_batch(
             BatchLocalisationImportRequest(
                 sequence_groups_jsonl=args.sequence_groups,
                 source_records_jsonl=args.source_records,
+                catalogue_fasta=args.catalogue_fasta,
                 psortb_terse=args.psortb_terse,
                 deeptmhmm_topologies=args.deeptmhmm_topologies,
                 gel_evidence=args.gel_evidence,
-                container_engine_version=args.container_engine_version,
+                container_execution_bundle=args.container_execution_bundle,
                 output_directory=args.outdir,
             )
         )
@@ -2314,6 +2377,18 @@ def _run_localisation(args: argparse.Namespace) -> int:
             "Staged offline localisation for "
             f"{policy.sequence_group_count} sequence group(s): {args.outdir}"
         )
+        return 0
+    if args.localisation_action == "plan-batch-reopen":
+        output = plan_batch_localisation_reopen(
+            BatchLocalisationReopenRequest(
+                funnel_directory=args.funnel,
+                result_directories=tuple(args.result_directory),
+                localisation_bundle=args.localisation_bundle,
+                maximum_reopened_attempts=args.maximum_reopened_attempts,
+                output_directory=args.outdir,
+            )
+        )
+        print(f"Localisation reopen {output.plan.status.value}: {output.plan_json}")
         return 0
     if args.localisation_action == "build-tasks":
         result = build_catalogue_localisation_tasks(
@@ -2428,6 +2503,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
                 wrong_c_sequence_groups_jsonl=args.wrong_c_sequence_groups,
                 wrong_c_sequence_group_id=args.wrong_c_sequence_group_id,
                 wrong_c_model=args.wrong_c_model,
+                wrong_c_control_manifest=args.wrong_c_control_manifest,
                 expected_wrong_c_model_sha256=args.expected_wrong_c_model_sha256,
                 wrong_c_model_identity_fraction=args.wrong_c_model_identity_fraction,
                 output_directory=args.outdir,

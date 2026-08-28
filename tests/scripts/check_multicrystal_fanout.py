@@ -115,6 +115,7 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
             "BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL": 3,
             "RUN_PHASE3_FIRST_COPY_PHASER": 3,
             "BUILD_PHASE3_MR_SEED_REVIEW": 3,
+            "PLAN_PHASE3_LOCALISATION_REOPEN": 3,
         }
     )
     if Counter(_process_name(row) for row in first) != expected:
@@ -186,6 +187,7 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
             "BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL": 2,
             "RUN_PHASE3_FIRST_COPY_PHASER": 2,
             "BUILD_PHASE3_MR_SEED_REVIEW": 2,
+            "PLAN_PHASE3_LOCALISATION_REOPEN": 2,
         }
     )
     if Counter(_process_name(row) for row in reviewed_rows) != expected_reviewed:
@@ -330,6 +332,7 @@ def _check_first_copy_application(root: Path, environment: dict[str, str]) -> No
         or application["DISPATCH_CRYSTAL_ITEM"] != 3
         or application["RUN_PHASE3_FIRST_COPY_PHASER"] != 2
         or application["BUILD_PHASE3_MR_SEED_REVIEW"] != 2
+        or application["PLAN_PHASE3_LOCALISATION_REOPEN"] != 2
         or application["PDB_SEQUENCE_DISCOVERY"] != 0
         or application["RETRIEVE_AFDB_EXACT"] != 0
         or application["REGISTER_PDB_COORDINATES"] != 0

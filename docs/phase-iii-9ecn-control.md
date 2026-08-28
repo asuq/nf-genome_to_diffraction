@@ -76,6 +76,14 @@ evidence. A packed or high-scoring wrong C must remain
 always false. Tool, parser, input, or infrastructure failure is not accepted
 as a negative result.
 
+The negative result is then passed through the same schema-v2 component state,
+scope-decision, and composition-assessment derivation used by application
+results. With no owned sequence/composition review it must remain
+`search_evidence_only`, ineligible, and unclaimed even when the wrong model
+packs. A frozen P6 manifest independently binds the distinct 3U7Q source
+preparation, sequence group, model bytes, uncertainty, and negative-control
+role; any positive-9ECN model substitution fails before Phaser.
+
 The control cache/checksum identity advances when this wrong-C input or result
 changes. All positive and negative commands, raw logs, results, coordinates,
 manifests, and summary fields are retained by the fixed heteromer-smoke

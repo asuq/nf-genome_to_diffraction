@@ -196,7 +196,7 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
         "withLabel: process_prostt5_search", maxsplit=1
     )[0]
     assert "cpus = 4" in mr_block
-    assert "memory = '8 GB'" in mr_block
+    assert "memory = '16 GB'" in mr_block
     assert "25-job prototype fanout" in wrapper
     assert "withLabel: process_database_download" in wrapper
     assert "cpus = 100" in wrapper

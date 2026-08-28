@@ -10,6 +10,9 @@ include {
     RUN_PHASE3_FIRST_COPY_PHASER;
     VALIDATE_PHASE3_CRYSTALLOGRAPHIC_REVIEWS
 } from '../modules/local/phase3_multicrystal_first_copy_tasks'
+include {
+    PLAN_PHASE3_LOCALISATION_REOPEN
+} from '../modules/local/plan_phase3_localisation_reopen'
 include { CRYSTAL_FANOUT_WORKFLOW } from './crystal_fanout_workflow'
 
 // Phase III runs one manifest-owned branch per crystal while retaining one
@@ -286,6 +289,25 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
         )
     }
     reviews = BUILD_PHASE3_MR_SEED_REVIEW(active_reviews.mix(empty_reviews))
+    reopen_inputs = active_reviews
+        .mix(empty_reviews)
+        .map {
+            crystalId,
+            funnel,
+            results,
+            sequences,
+            sources,
+            matthewsRecords,
+            config,
+            dispatch,
+            catalogue,
+            provider,
+            reviewStage -> tuple(crystalId, funnel, results)
+        }
+    reopen = PLAN_PHASE3_LOCALISATION_REOPEN(
+        reopen_inputs,
+        localisation_bundle.first()
+    )
     if (owned_parent_run_id != null) {
         owned_inputs = reviews
             .join(funnel_items, by: 0)
@@ -308,5 +330,6 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
     results: Tuple = first_copy
     review: Tuple = reviews
     owned_review: Tuple = owned_reviews
+    localisation_reopen: Tuple = reopen
     hold: Tuple = holds
 }

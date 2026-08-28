@@ -47,12 +47,18 @@ from genome_to_diffraction.mr import (
     ExpectedPhaserComponent,
     FixedSearchComponent,
     MultiFixedSearchManifest,
+    PartnerSearchRequest,
     PhaserPerPlacementRequest,
     collect_phaser_per_placement_outputs,
     run_multi_fixed_search,
+    run_partner_search,
 )
 from genome_to_diffraction.schemas.base import NonEmptyString, Sha256Hex
-from genome_to_diffraction.schemas.results import SequenceGroupRecord
+from genome_to_diffraction.schemas.manifests import PhenixInstallManifest
+from genome_to_diffraction.schemas.results import (
+    NormalisedMrResult,
+    SequenceGroupRecord,
+)
 from genome_to_diffraction.schemas.v2 import (
     ComponentExpansionExecutionInput,
     ComponentExpansionScoreEvidence,
@@ -72,6 +78,9 @@ from genome_to_diffraction.schemas.v2.composition_attempts import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _ADAPTER_VERSION = "phase3-composition-attempt-execution-v1"
+_PARTNER_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v8-phase3-diffraction"
+_MULTI_FIXED_ADAPTER_VERSION = "phenix-multi-fixed-joint-component-v2-diffraction"
+_PLACEMENT_ADAPTER_VERSION = "phaser-component-coordinate-inventory-v2"
 _TERMINAL_WITHOUT_STATE = frozenset(
     {
         ExecutionStatus.COMPLETED_NO_HIT,
@@ -205,6 +214,73 @@ def _load_execution_identity(path: Path) -> PhaseIIIExecutionIdentity:
         ) from error
 
 
+def _verify_execution_authority(
+    *,
+    identity: PhaseIIIExecutionIdentity,
+    execution_input: ComponentExpansionExecutionInput,
+    phenix_manifest: Path,
+    mtz: Path,
+) -> Path:
+    adapters = dict(identity.adapter_versions)
+    route_name, route_version = (
+        ("phase3_partner_search", _PARTNER_ADAPTER_VERSION)
+        if execution_input.parent_state.depth == 1
+        else ("phase3_multi_fixed_search", _MULTI_FIXED_ADAPTER_VERSION)
+    )
+    required_adapters = {
+        "phase3_composition_attempt": _ADAPTER_VERSION,
+        "phase3_component_coordinates": _PLACEMENT_ADAPTER_VERSION,
+        route_name: route_version,
+    }
+    if any(
+        adapters.get(name) != version for name, version in required_adapters.items()
+    ):
+        raise CompositionAttemptExecutionError(
+            "Phase III execution identity lacks current composition adapters"
+        )
+    crystal = execution_input.parent_state.crystal_id
+    mtz_artifacts = tuple(
+        artifact
+        for artifact in identity.crystal_artifacts
+        if artifact.owner_id == crystal and artifact.role == "mtz"
+    )
+    if (
+        len(mtz_artifacts) != 1
+        or mtz_artifacts[0].sha256 != sha256_file(mtz, progress=False)
+        or mtz_artifacts[0].size_bytes != mtz.stat().st_size
+    ):
+        raise CompositionAttemptExecutionError(
+            "Phase III execution identity uses a different crystal MTZ"
+        )
+    manifest_path = _regular_file(phenix_manifest, label="attempt Phenix manifest")
+    try:
+        manifest = PhenixInstallManifest.model_validate_json(
+            manifest_path.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, ValidationError, ValueError) as error:
+        raise CompositionAttemptExecutionError(
+            "attempt Phenix manifest is invalid"
+        ) from error
+    execution_tools = {tool.name: tool for tool in identity.tools}
+    commands = {
+        command.name: command
+        for command in manifest.required_commands
+        if command.executable_sha256 is not None
+    }
+    if len(commands) != len(manifest.required_commands) or any(
+        name not in execution_tools
+        or execution_tools[name].executable_sha256 != command.executable_sha256
+        or execution_tools[name].version
+        != (command.version_text or manifest.phenix_version)
+        or execution_tools[name].adapter_version != "phase3-strict-phenix-manifest-v1"
+        for name, command in commands.items()
+    ):
+        raise CompositionAttemptExecutionError(
+            "attempt Phenix runtime differs from execution identity"
+        )
+    return manifest_path
+
+
 def _file_index(root: Path) -> dict[str, tuple[Path, ...]]:
     indexed: dict[str, list[Path]] = {}
     for path in sorted(root.rglob("*")):
@@ -224,12 +300,83 @@ def _fixed_paths(
     execution_input: ComponentExpansionExecutionInput,
 ) -> tuple[Path, ...]:
     index = _file_index(root)
+    parent = execution_input.parent_state
+    if execution_input.parent_score_evidence_sha256 not in index:
+        raise CompositionAttemptExecutionError("parent score evidence is absent")
+    valid_parent_score = False
+    for score_path in index[execution_input.parent_score_evidence_sha256]:
+        try:
+            if parent.depth == 1:
+                score = NormalisedMrResult.model_validate_json(
+                    score_path.read_text(encoding="utf-8")
+                )
+                valid_parent_score = (
+                    score.execution_status is ExecutionStatus.COMPLETED_HIT
+                    and score.llg == execution_input.parent_combined_llg
+                    and score.solution_coordinate_sha256
+                    == parent.combined_coordinate_sha256
+                )
+            else:
+                score = ComponentExpansionScoreEvidence.model_validate_json(
+                    score_path.read_text(encoding="utf-8")
+                )
+                valid_parent_score = (
+                    score.combined_llg == execution_input.parent_combined_llg
+                    and score.placement == parent.placements[-1]
+                    and score.execution_input.selected_candidate.hypothesis.component
+                    == parent.components[-1]
+                )
+        except OSError, UnicodeError, ValidationError, ValueError:
+            continue
+        if valid_parent_score:
+            break
+    if not valid_parent_score:
+        raise CompositionAttemptExecutionError("parent score evidence differs")
+    if parent.combined_coordinate_sha256 not in index:
+        raise CompositionAttemptExecutionError(
+            "parent combined coordinate evidence is absent"
+        )
     paths: list[Path] = []
-    for evidence in execution_input.fixed_components:
+    for component, evidence in zip(
+        parent.components,
+        execution_input.fixed_components,
+        strict=True,
+    ):
         matches = index.get(evidence.fixed_coordinate_sha256, ())
         if not matches:
             raise CompositionAttemptExecutionError(
                 "fixed component coordinate is absent"
+            )
+        derivations = index.get(evidence.coordinate_derivation_evidence_sha256, ())
+        if not derivations:
+            raise CompositionAttemptExecutionError(
+                "fixed component derivation evidence is absent"
+            )
+        valid_inventory = False
+        for derivation in derivations:
+            try:
+                inventory = PhaserPerPlacementInventory.model_validate_json(
+                    derivation.read_text(encoding="utf-8")
+                )
+            except OSError, UnicodeError, ValidationError, ValueError:
+                continue
+            groups = tuple(
+                group
+                for group in inventory.component_groups
+                if group.component_label == component.label
+            )
+            if (
+                inventory.crystal_id == parent.crystal_id
+                and inventory.combined_coordinate_sha256
+                == parent.combined_coordinate_sha256
+                and len(groups) == 1
+                and groups[0].coordinate_sha256 == evidence.fixed_coordinate_sha256
+            ):
+                valid_inventory = True
+                break
+        if not valid_inventory:
+            raise CompositionAttemptExecutionError(
+                "fixed component derivation inventory differs"
             )
         paths.append(matches[0])
     return tuple(paths)
@@ -373,6 +520,13 @@ def execute_composition_attempt(
         raise CompositionAttemptExecutionError(
             "attempt uses a different Phase III execution identity"
         )
+    mtz = _regular_file(request.mtz, label="attempt MTZ")
+    phenix_file = _verify_execution_authority(
+        identity=global_identity,
+        execution_input=execution_input,
+        phenix_manifest=request.phenix_manifest,
+        mtz=mtz,
+    )
     try:
         registry_root = _regular_root(request.model_registry, label="model registry")
         registry = load_all_eligible_model_registry(
@@ -407,7 +561,6 @@ def execute_composition_attempt(
         model_id=candidate.model_id,
         model_sha256=candidate.model_sha256,
     )
-    mtz = _regular_file(request.mtz, label="attempt MTZ")
     if (
         sha256_file(mtz, progress=False)
         != execution_input.diffraction_selection.mtz_sha256
@@ -432,126 +585,202 @@ def execute_composition_attempt(
         component.sequence_group_id for component in (*parent.components, candidate)
     )
     _sequence_groups(request.sequence_groups_jsonl, required_groups, subset)
-    fixed_manifest = output / "multi_fixed_search_input.json"
-    atomic_write_json(
-        fixed_manifest,
-        MultiFixedSearchManifest(
-            schema_version="2.0",
-            adapter_version="multi-fixed-component-search-input-v1",
-            crystal_id=parent.crystal_id,
-            parent_solution_id=parent.state_id,
-            parent_combined_llg=execution_input.parent_combined_llg,
-            fixed_components=tuple(
-                FixedSearchComponent(
-                    schema_version="2.0",
-                    label=component.label,
-                    sequence_group_id=component.sequence_group_id,
-                    model_id=component.model_id,
-                    model_sha256=component.model_sha256,
-                    coordinate_path=str(path),
-                    coordinate_sha256=evidence.fixed_coordinate_sha256,
-                    requested_copy_count=component.requested_copy_count,
-                    observed_copy_count=placement.observed_copy_count,
-                    phaser_identity_fraction=evidence.phaser_identity_fraction,
-                    model_uncertainty_source=evidence.model_uncertainty_source,
-                    model_uncertainty_evidence_sha256=(
-                        evidence.model_uncertainty_evidence_sha256
-                    ),
-                )
-                for component, placement, evidence, path in zip(
-                    parent.components,
-                    parent.placements,
-                    execution_input.fixed_components,
-                    fixed_paths,
-                    strict=True,
-                )
-            ),
-            candidate=CandidateSearchComponent(
-                schema_version="2.0",
-                label=candidate.label,
-                sequence_group_id=candidate.sequence_group_id,
-                model_id=candidate.model_id,
-                model_sha256=candidate.model_sha256,
-                model_path=str(candidate_model),
-                requested_copy_count=candidate.requested_copy_count,
-                phaser_identity_fraction=(
+    search_root = output / "search"
+    preflight_file = _regular_file(
+        request.preflight_jsonl,
+        label="attempt preflight",
+    )
+    if parent.depth == 1:
+        parent_component = parent.components[0]
+        parent_evidence = execution_input.fixed_components[0]
+        partner_output = run_partner_search(
+            PartnerSearchRequest(
+                crystal_id=parent.crystal_id,
+                parent_solution_id=parent.state_id,
+                parent_sequence_group_id=parent_component.sequence_group_id,
+                partner_sequence_group_id=candidate.sequence_group_id,
+                sequence_groups_jsonl=subset,
+                parent_coordinate=fixed_paths[0],
+                expected_parent_coordinate_sha256=(
+                    parent_evidence.fixed_coordinate_sha256
+                ),
+                parent_llg=execution_input.parent_combined_llg,
+                parent_model_identity_fraction=(
+                    parent_evidence.phaser_identity_fraction
+                ),
+                parent_model_uncertainty_source=(
+                    parent_evidence.model_uncertainty_source
+                ),
+                parent_copy_count=parent_component.requested_copy_count,
+                partner_model=candidate_model,
+                expected_partner_model_sha256=candidate.model_sha256,
+                partner_model_identity_fraction=(
                     execution_input.candidate_phaser_identity_fraction
                 ),
-                model_uncertainty_source=(
-                    execution_input.candidate_model_uncertainty_source
-                ),
-                model_uncertainty_evidence_sha256=(
-                    execution_input.candidate_model_uncertainty_evidence_sha256
-                ),
+                partner_copy_count=candidate.requested_copy_count,
+                preflight_jsonl=preflight_file,
+                mtz=mtz,
+                phenix_manifest=phenix_file,
+                output_directory=search_root,
+                diffraction_selection=execution_input.diffraction_selection,
+                threads=request.threads,
+                timeout_seconds=request.timeout_seconds,
+                progress=False,
+            )
+        )
+        native_result = partner_output.result
+        search_result_path = partner_output.result_json
+        command_record = partner_output.command_json
+        component_tfz = native_result.partner_tfz
+        score_ensemble_id = "search_partner"
+        expected_components = (
+            ExpectedPhaserComponent(
+                parent_component.label,
+                "fixed_parent",
+                parent_component.requested_copy_count,
             ),
-        ).model_dump(mode="json"),
-    )
-    search_root = output / "search"
-    search_result = run_multi_fixed_search(
-        manifest_path=fixed_manifest,
-        sequence_groups_jsonl=subset,
-        preflight_jsonl=_regular_file(
-            request.preflight_jsonl,
-            label="attempt preflight",
-        ),
-        mtz_path=mtz,
-        phenix_manifest=_regular_file(
-            request.phenix_manifest,
-            label="attempt Phenix manifest",
-        ),
-        output_directory=search_root,
-        threads=request.threads,
-        timeout_seconds=request.timeout_seconds,
-    )
-    search_result_path = search_root / "component_search_result.json"
+            ExpectedPhaserComponent(
+                candidate.label,
+                "search_partner",
+                candidate.requested_copy_count,
+            ),
+        )
+    else:
+        fixed_manifest = output / "multi_fixed_search_input.json"
+        atomic_write_json(
+            fixed_manifest,
+            MultiFixedSearchManifest(
+                schema_version="2.0",
+                adapter_version="multi-fixed-component-search-input-v2",
+                crystal_id=parent.crystal_id,
+                diffraction_selection=execution_input.diffraction_selection,
+                parent_solution_id=parent.state_id,
+                parent_combined_llg=execution_input.parent_combined_llg,
+                fixed_components=tuple(
+                    FixedSearchComponent(
+                        schema_version="2.0",
+                        label=component.label,
+                        sequence_group_id=component.sequence_group_id,
+                        model_id=component.model_id,
+                        model_sha256=component.model_sha256,
+                        coordinate_path=str(path),
+                        coordinate_sha256=evidence.fixed_coordinate_sha256,
+                        requested_copy_count=component.requested_copy_count,
+                        observed_copy_count=placement.observed_copy_count,
+                        phaser_identity_fraction=evidence.phaser_identity_fraction,
+                        model_uncertainty_source=evidence.model_uncertainty_source,
+                        model_uncertainty_evidence_sha256=(
+                            evidence.model_uncertainty_evidence_sha256
+                        ),
+                    )
+                    for component, placement, evidence, path in zip(
+                        parent.components,
+                        parent.placements,
+                        execution_input.fixed_components,
+                        fixed_paths,
+                        strict=True,
+                    )
+                ),
+                candidate=CandidateSearchComponent(
+                    schema_version="2.0",
+                    label=candidate.label,
+                    sequence_group_id=candidate.sequence_group_id,
+                    model_id=candidate.model_id,
+                    model_sha256=candidate.model_sha256,
+                    model_path=str(candidate_model),
+                    requested_copy_count=candidate.requested_copy_count,
+                    phaser_identity_fraction=(
+                        execution_input.candidate_phaser_identity_fraction
+                    ),
+                    model_uncertainty_source=(
+                        execution_input.candidate_model_uncertainty_source
+                    ),
+                    model_uncertainty_evidence_sha256=(
+                        execution_input.candidate_model_uncertainty_evidence_sha256
+                    ),
+                ),
+            ).model_dump(mode="json"),
+        )
+        native_result = run_multi_fixed_search(
+            manifest_path=fixed_manifest,
+            sequence_groups_jsonl=subset,
+            preflight_jsonl=preflight_file,
+            mtz_path=mtz,
+            phenix_manifest=phenix_file,
+            output_directory=search_root,
+            threads=request.threads,
+            timeout_seconds=request.timeout_seconds,
+        )
+        search_result_path = search_root / "component_search_result.json"
+        command_record = search_root / "phaser_command.json"
+        component_tfz = native_result.candidate_tfz
+        score_ensemble_id = f"search_{candidate.label}"
+        expected_components = (
+            *(
+                ExpectedPhaserComponent(
+                    component.label,
+                    f"fixed_{component.label}",
+                    component.requested_copy_count,
+                )
+                for component in parent.components
+            ),
+            ExpectedPhaserComponent(
+                candidate.label,
+                f"search_{candidate.label}",
+                candidate.requested_copy_count,
+            ),
+        )
+    execution_status = native_result.execution_status
+    search_id = native_result.search_id
+    tool_version = native_result.tool_version
+    combined_llg = native_result.combined_llg
+    top_solution_packed = native_result.top_solution_packed
+    combined_coordinate_path = native_result.combined_coordinate_path
+    combined_coordinate_sha256 = native_result.combined_coordinate_sha256
+    output_mtz_path = native_result.output_mtz_path
+    output_mtz_sha256 = native_result.output_mtz_sha256
     search_sha256 = sha256_file(search_result_path, progress=False)
     result_json = output / "composition_attempt_execution.json"
     child_state_json: Path | None = None
     warnings = (
         ("provisional_unvalidated_component_depth",) if parent.depth + 1 >= 4 else ()
     )
-    if search_result.execution_status is not ExecutionStatus.COMPLETED_HIT:
+    if execution_status is not ExecutionStatus.COMPLETED_HIT:
         result = CompositionAttemptExecutionResult.from_content(
             attempt_id=attempt.attempt_id,
             execution_input_id=execution_input.execution_input_id,
             crystal_id=parent.crystal_id,
             parent_state_id=parent.state_id,
             candidate_component_spec_id=candidate.component_spec_id,
-            execution_status=search_result.execution_status,
+            execution_status=execution_status,
             search_result_sha256=search_sha256,
             warnings=warnings,
         )
         atomic_write_json(result_json, result.model_dump(mode="json"))
+        checksums = _write_checksums(output)
+        if execution_status in {
+            ExecutionStatus.FAILED_INPUT_CONTRACT,
+            ExecutionStatus.FAILED_INFRASTRUCTURE,
+        }:
+            raise CompositionAttemptExecutionError(
+                f"composition attempt failed as {execution_status.value}"
+            )
         return CompositionAttemptExecutionOutput(
             result=result,
             result_json=result_json,
             child_state_json=None,
-            checksums=_write_checksums(output),
+            checksums=checksums,
         )
 
     placement = collect_phaser_per_placement_outputs(
         PhaserPerPlacementRequest(
             crystal_id=parent.crystal_id,
-            search_id=search_result.search_id,
-            phaser_version=search_result.tool_version,
+            search_id=search_id,
+            phaser_version=tool_version,
             output_directory=search_root,
-            command_record=search_root / "phaser_command.json",
+            command_record=command_record,
             result_record=search_result_path,
-            expected_components=(
-                *(
-                    ExpectedPhaserComponent(
-                        component.label,
-                        f"fixed_{component.label}",
-                        component.requested_copy_count,
-                    )
-                    for component in parent.components
-                ),
-                ExpectedPhaserComponent(
-                    candidate.label,
-                    f"search_{candidate.label}",
-                    candidate.requested_copy_count,
-                ),
-            ),
+            expected_components=expected_components,
             component_models=(
                 *(
                     (component.label, path)
@@ -568,26 +797,26 @@ def execute_composition_attempt(
     placement_inventory = PhaserPerPlacementInventory.model_validate_json(
         placement.inventory_json.read_text(encoding="utf-8")
     )
-    if search_result.combined_llg is None or search_result.candidate_tfz is None:
+    if combined_llg is None or component_tfz is None:
         raise CompositionAttemptExecutionError(
             "completed composition attempt lacks component scores"
         )
     score = ComponentExpansionScoreEvidence.from_observed(
         execution_input=execution_input,
         placement_inventory=placement_inventory,
-        score_ensemble_id=f"search_{candidate.label}",
-        combined_llg=search_result.combined_llg,
-        component_tfz=search_result.candidate_tfz,
-        packing_passed=search_result.top_solution_packed,
+        score_ensemble_id=score_ensemble_id,
+        combined_llg=combined_llg,
+        component_tfz=component_tfz,
+        packing_passed=top_solution_packed,
         warnings=warnings,
     )
     score_json = output / "component_score_evidence.json"
     atomic_write_json(score_json, score.model_dump(mode="json"))
-    if search_result.output_mtz_path is None:
+    if output_mtz_path is None:
         raise CompositionAttemptExecutionError(
             "completed composition attempt lacks output MTZ"
         )
-    output_mtz = (search_root / search_result.output_mtz_path).resolve(strict=True)
+    output_mtz = (search_root / output_mtz_path).resolve(strict=True)
     if search_root not in output_mtz.parents:
         raise CompositionAttemptExecutionError("attempt output MTZ escaped its root")
     free_r_comparison: FreeRMembershipComparison = compare_free_r_membership(
@@ -599,7 +828,7 @@ def execute_composition_attempt(
     candidate_lower, candidate_upper = _mass_bounds(candidate)
     support = (
         CompositionSupportState.PACKED
-        if search_result.top_solution_packed
+        if top_solution_packed
         and score.placement.observed_copy_count == candidate.requested_copy_count
         else CompositionSupportState.SEARCH_EVIDENCE_ONLY
     )
@@ -611,8 +840,8 @@ def execute_composition_attempt(
         depth=parent.depth + 1,
         components=(*parent.components, candidate),
         placements=(*parent.placements, score.placement),
-        combined_coordinate_sha256=search_result.combined_coordinate_sha256,
-        combined_mtz_sha256=search_result.output_mtz_sha256,
+        combined_coordinate_sha256=combined_coordinate_sha256,
+        combined_mtz_sha256=output_mtz_sha256,
         physical_mass_lower_da=parent.physical_mass_lower_da + candidate_lower,
         physical_mass_upper_da=parent.physical_mass_upper_da + candidate_upper,
         support_state=support,
@@ -626,12 +855,10 @@ def execute_composition_attempt(
         {
             "schema_version": "1.0",
             "state_id": child_state.state_id,
-            "combined_coordinate_path": (
-                f"search/{search_result.combined_coordinate_path}"
-            ),
-            "combined_coordinate_sha256": search_result.combined_coordinate_sha256,
-            "combined_mtz_path": f"search/{search_result.output_mtz_path}",
-            "combined_mtz_sha256": search_result.output_mtz_sha256,
+            "combined_coordinate_path": (f"search/{combined_coordinate_path}"),
+            "combined_coordinate_sha256": combined_coordinate_sha256,
+            "combined_mtz_path": f"search/{output_mtz_path}",
+            "combined_mtz_sha256": output_mtz_sha256,
             "placement_inventory_path": "search/phaser_per_placement_inventory.json",
             "placement_inventory_sha256": sha256_file(
                 placement.inventory_json,
@@ -645,7 +872,7 @@ def execute_composition_attempt(
         crystal_id=parent.crystal_id,
         parent_state_id=parent.state_id,
         candidate_component_spec_id=candidate.component_spec_id,
-        execution_status=search_result.execution_status,
+        execution_status=execution_status,
         search_result_sha256=search_sha256,
         placement_inventory_sha256=sha256_file(
             placement.inventory_json,

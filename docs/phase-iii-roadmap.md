@@ -398,25 +398,34 @@ LLG/TFZ 11234.964/55.8. Requested/observed copies are `2/2` for A, B, and C;
 exact grouped coordinates recombine to all 18,842 atoms; all 46 Phase III
 checksums validate. The generic search remains `search_evidence_only` with no
 identity or complete-composition claim. Positive depth three is accepted;
-wrong-C/no-false-C controls remain before the full validation ladder closes.
+the fixed successor now also binds the frozen distinct 3U7Q model as wrong C,
+passes any hit through the actual state/scope/assessment promotion boundary,
+and requires claim-free evidence. Focused and complete fake-HPC regressions
+pass; one exact-source Marmic successor remains before the negative ladder is
+accepted.
 
 ### PH4 - Localisation and gel evidence
 
-Status: the schema-v2 JSON/TSV gel manifest, crystal-reference validator, and
-checksum/version-bound offline PSORTb archaeal adapter are implemented on
-`dev/phase3`. The catalogue-wide local workflow emits one PSORTb item and one
-typed blocked DeepTMHMM result per sequence group, requires exact result coverage,
-retains all first-wave exclusions, and gates deterministic reopen on a complete
-zero-pack active wave. DeepTMHMM remains `blocked_unverified_cli` until the supplied
-image exposes a verifiable local entrypoint/output format. Composition-planner
-consumption is now implemented through the complete candidate-generation
-inventory; real runtime/profile qualification remains pending. A pre-unknown
-audit found that the live production `provider_discovery`/`first_copy` route
-does not yet carry the gel manifest or localisation policy into the A funnel,
-although the synthetic screen path does. The private gel manifest is valid and
-empty, so it remains neutral. No DeepTMHMM image or PSORTb runtime exists; no
-prediction has been fabricated. Unknown pass 1 remains stopped pending the
-smallest live-route integration and PSORTb runtime qualification.
+Status: the schema-v2 JSON/TSV gel manifest and empty neutral private evidence
+remain unchanged. The fixed PSORTb 3.0.6 and DeepTMHMM 1.0 image digests and
+real CLIs were inspected; bridge-network outputs remain diagnostic only. Both
+network-none full-catalogue successors completed with exit 0 and zero network
+I/O, and their PSORTb and DeepTMHMM outputs are byte-identical to the diagnostic
+runs. The authenticated v3 bundle covers all 1,621 sequence groups as 1,310
+active, 88 neutral, and 223 excluded, retaining 60 conflicts explicitly under
+policy `batchlocalpolicy_a3a03c7259427c1c7681b4552c2d66c0e162e37747cb52f140b5858e451f2192`.
+A new capture boundary authenticates raw Docker container/image inspection,
+effective commands, copied FASTA/output bytes, exit status, engine, logs, and
+network denial before import. Explicit sequence-local failures are neutral;
+unexplained missing rows remain fatal. Production
+`provider_discovery`/`first_copy` now require this complete bundle, bind exact
+sequence/source inventories, and retain every first-wave exclusion as a typed
+deferred hypothesis. The three-crystal cached Nextflow gate passes. Unknown
+deferred hypothesis. The completed pre-unknown locked gate passes with 1,358
+unit, 136 contract, and 88 integration tests plus every repository check.
+Unknown pass 1 remains stopped until exact-source CI and one Marmic wrong-C/
+control successor pass. A live zero-pack reopen plan is now published but
+cannot execute until the separately authorised pass-2 no-A profile consumes it.
 
 Run checksum-pinned local PSORTb 3.0.6 with its archaeal model and DeepTMHMM
 1.0 from a user-provided academic runtime image. Record runtime/image digests,

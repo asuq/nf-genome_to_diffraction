@@ -1,6 +1,7 @@
 """Materialise the synthetic public unknown-pass-1 integration fixture."""
 
 import hashlib
+import json
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -29,6 +30,12 @@ from genome_to_diffraction.localisation.batch import (
     DEEPTMHMM_IMAGE_MANIFEST_SHA256,
     LOCALISATION_BATCH_ADAPTER_VERSION,
     PSORTB_IMAGE_MANIFEST_SHA256,
+)
+from genome_to_diffraction.localisation.container_execution import (
+    DEEPTMHMM_IMAGE_REFERENCE,
+    PSORTB_IMAGE_REFERENCE,
+    LocalisationBatchExecutionManifest,
+    LocalisationContainerToolExecution,
 )
 from genome_to_diffraction.review.owned_run import (
     OwnedPhaseIIIReviewPackageSource,
@@ -87,6 +94,140 @@ _PHENIX = (
 )
 
 
+def materialise_localisation_container_execution_fixture(
+    root: Path,
+    *,
+    catalogue_fasta: Path,
+    psortb_output: Path,
+    deeptmhmm_output: Path,
+    psortb_failed_source_ids: tuple[str, ...] = (),
+    deeptmhmm_failed_source_ids: tuple[str, ...] = (),
+) -> Path:
+    """Write checksum-valid synthetic Docker inspection evidence for tests."""
+
+    output = root / "container-execution"
+    output.mkdir(parents=True)
+    records = []
+    for index, (
+        tool,
+        image_reference,
+        raw_output,
+        failed_source_ids,
+    ) in enumerate(
+        (
+            (
+                "psortb",
+                PSORTB_IMAGE_REFERENCE,
+                psortb_output,
+                psortb_failed_source_ids,
+            ),
+            (
+                "deeptmhmm",
+                DEEPTMHMM_IMAGE_REFERENCE,
+                deeptmhmm_output,
+                deeptmhmm_failed_source_ids,
+            ),
+        ),
+        start=1,
+    ):
+        digest = image_reference.rsplit("sha256:", maxsplit=1)[1]
+        command = (
+            ("/usr/local/bin/psort", "-a", "-o", "terse", "-i", "/input.faa")
+            if tool == "psortb"
+            else ("python3", "predict.py", "--fasta", "/input.faa")
+        )
+        working_directory = "/tmp/results" if tool == "psortb" else "/openprotein"
+        container_id = f"{index:064x}"
+        image_id = f"sha256:{index + 10:064x}"
+        container_json = json.dumps(
+            [
+                {
+                    "Id": container_id,
+                    "Image": image_id,
+                    "Path": command[0],
+                    "Args": list(command[1:]),
+                    "Config": {
+                        "Image": image_reference,
+                        "WorkingDir": working_directory,
+                    },
+                    "HostConfig": {"NetworkMode": "none"},
+                    "State": {
+                        "Status": "exited",
+                        "Running": False,
+                        "ExitCode": 0,
+                    },
+                }
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        image_json = json.dumps(
+            [
+                {
+                    "Id": image_id,
+                    "Os": "linux",
+                    "Architecture": "amd64",
+                    "RepoDigests": [image_reference.removeprefix("docker.io/")],
+                }
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        log_name = f"{tool}-container.log"
+        log = output / log_name
+        log.write_text(f"synthetic terminal {tool} log\n", encoding="ascii")
+        records.append(
+            LocalisationContainerToolExecution.from_content(
+                tool=tool,
+                tool_version="3.0.6" if tool == "psortb" else "1.0",
+                container_id=container_id,
+                image_reference=image_reference,
+                image_manifest_sha256=digest,
+                image_id=image_id,
+                platform="linux/amd64",
+                docker_engine_version="Docker Engine test",
+                container_inspect_json=container_json,
+                container_inspect_sha256=hashlib.sha256(
+                    container_json.encode("utf-8")
+                ).hexdigest(),
+                image_inspect_json=image_json,
+                image_inspect_sha256=hashlib.sha256(
+                    image_json.encode("utf-8")
+                ).hexdigest(),
+                effective_command=command,
+                working_directory=working_directory,
+                network_mode="none",
+                terminal_status="exited",
+                exit_code=0,
+                input_container_path="/input.faa",
+                input_fasta_sha256=sha256_file(catalogue_fasta),
+                input_fasta_size_bytes=catalogue_fasta.stat().st_size,
+                output_container_path=(
+                    "/tmp/results/psortb.tsv"
+                    if tool == "psortb"
+                    else "/openprotein/predicted_topologies.3line"
+                ),
+                raw_output_sha256=sha256_file(raw_output),
+                raw_output_size_bytes=raw_output.stat().st_size,
+                log_path=log_name,
+                log_sha256=sha256_file(log),
+                log_size_bytes=log.stat().st_size,
+                explicit_failed_source_ids=failed_source_ids,
+            )
+        )
+    manifest = LocalisationBatchExecutionManifest.from_content(
+        source_fasta_sha256=sha256_file(catalogue_fasta),
+        source_fasta_size_bytes=catalogue_fasta.stat().st_size,
+        psortb=records[0],
+        deeptmhmm=records[1],
+    )
+    atomic_write_json(
+        output / "localisation_container_execution.json",
+        manifest.model_dump(mode="json"),
+    )
+    return output
+
+
 def materialise_neutral_localisation_fixture(
     root: Path,
     *,
@@ -135,6 +276,7 @@ def materialise_neutral_localisation_fixture(
             raise ValueError("localisation fixture source/group identity differs")
     sequence_groups = root / "localisation-sequence-groups.jsonl"
     source_records = root / "localisation-source-records.jsonl"
+    catalogue_fasta = root / "localisation-catalogue.faa"
     psortb = root / "localisation-psortb.tsv"
     deeptmhmm = root / "localisation-deeptmhmm.3line"
     if sequence_groups_jsonl is None:
@@ -145,6 +287,10 @@ def materialise_neutral_localisation_fixture(
         atomic_write_text(source_records, f"{canonical_json_text(source)}\n")
     else:
         shutil.copyfile(source_records_jsonl, source_records)
+    catalogue_fasta.write_text(
+        f">{source.original_header}\n{sequence}\n",
+        encoding="ascii",
+    )
     atomic_write_text(
         psortb,
         f"SeqID\tLocalization\tScore\n{source.original_header}\t{psortb_label}\t9.50\n",
@@ -154,14 +300,21 @@ def materialise_neutral_localisation_fixture(
         f">{source.original_protein_id} | {deeptmhmm_type}\n{sequence}\n"
         f"{deeptmhmm_topology_label * len(sequence)}\n",
     )
+    execution = materialise_localisation_container_execution_fixture(
+        root,
+        catalogue_fasta=catalogue_fasta,
+        psortb_output=psortb,
+        deeptmhmm_output=deeptmhmm,
+    )
     return import_catalogue_localisation_batch(
         BatchLocalisationImportRequest(
             sequence_groups_jsonl=sequence_groups,
             source_records_jsonl=source_records,
+            catalogue_fasta=catalogue_fasta,
             psortb_terse=psortb,
             deeptmhmm_topologies=deeptmhmm,
             gel_evidence=gel_evidence,
-            container_engine_version="Docker Engine test",
+            container_execution_bundle=execution,
             output_directory=root / "localisation",
         )
     ).output_directory
@@ -365,12 +518,28 @@ def materialise_unknown_pass1_public_fixture(
             sorted(
                 (
                     (
+                        "phase3_component_coordinates",
+                        "phaser-component-coordinate-inventory-v2",
+                    ),
+                    (
+                        "phase3_composition_attempt",
+                        "phase3-composition-attempt-execution-v1",
+                    ),
+                    (
                         "phase3_first_copy_funnel",
                         "multi-source-first-copy-funnel-v3-phase3-evidence",
                     ),
                     (
                         "phase3_localisation_batch",
                         LOCALISATION_BATCH_ADAPTER_VERSION,
+                    ),
+                    (
+                        "phase3_multi_fixed_search",
+                        "phenix-multi-fixed-joint-component-v2-diffraction",
+                    ),
+                    (
+                        "phase3_partner_search",
+                        "phenix-fixed-a-joint-b-v8-phase3-diffraction",
                     ),
                     ("unknown_pass1_inventory", "unknown-pass1-screen-v1"),
                     ("unknown_pass1_stub", "unknown-pass1-nextflow-stub-v1"),

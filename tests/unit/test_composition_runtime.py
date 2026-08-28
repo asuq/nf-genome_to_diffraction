@@ -7,18 +7,22 @@ from types import SimpleNamespace
 
 import pytest
 
+from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.execution import (
     CompositionAttemptExecutionRequest,
     composition_runtime,
     execute_composition_attempt,
     write_composition_attempt_inventory,
 )
-from genome_to_diffraction.mr import PhaserPerPlacementRequest
+from genome_to_diffraction.mr import PartnerSearchRequest, PhaserPerPlacementRequest
+from genome_to_diffraction.schemas.manifests import PhenixInstallManifest
 from genome_to_diffraction.schemas.v2 import (
     ComponentIdentitySupport,
     ComponentPlacement,
     CompositionAttemptInventory,
     CompositionSupportState,
+    ExecutionArtifactIdentity,
+    ExecutionToolIdentity,
     PhaseIIIExecutionIdentity,
     diffraction_dataset_id,
 )
@@ -27,6 +31,9 @@ from tests.support.unknown_pass1_fixture import (
     materialise_unknown_pass1_public_fixture,
 )
 from tests.unit import test_composition_attempt_inventory as inventory_fixture
+
+REPOSITORY = Path(__file__).resolve().parents[2]
+STUBS = REPOSITORY / "tests/fixtures/stubs"
 
 
 def _sha(path: Path) -> str:
@@ -54,9 +61,66 @@ def _request(
     identity_root = tmp_path / "identity-fixture"
     identity_root.mkdir()
     identity_fixture = materialise_unknown_pass1_public_fixture(identity_root)
-    identity = PhaseIIIExecutionIdentity.model_validate_json(
+    base_identity = PhaseIIIExecutionIdentity.model_validate_json(
         identity_fixture.execution_identity.read_bytes()
     )
+    legacy_phenix = PhenixInstallManifest.model_validate_json(
+        (STUBS / "phenix_install_manifest.json").read_bytes()
+    )
+    strict_commands = tuple(
+        command.model_copy(
+            update={
+                "executable_sha256": hashlib.sha256(command.name.encode()).hexdigest()
+            }
+        )
+        for command in legacy_phenix.required_commands
+    )
+    phenix = legacy_phenix.model_copy(update={"required_commands": strict_commands})
+    phenix_manifest = tmp_path / "phenix_manifest.json"
+    atomic_write_json(phenix_manifest, phenix.model_dump(mode="json"))
+    strict_by_name = {command.name: command for command in phenix.required_commands}
+    tools = tuple(
+        sorted(
+            (
+                ExecutionToolIdentity.from_content(
+                    name=tool.name,
+                    version=(
+                        strict_by_name[tool.name].version_text or phenix.phenix_version
+                        if tool.name in strict_by_name
+                        else tool.version
+                    ),
+                    executable_sha256=(
+                        strict_by_name[tool.name].executable_sha256
+                        if tool.name in strict_by_name
+                        else tool.executable_sha256
+                    ),
+                    adapter_version=(
+                        "phase3-strict-phenix-manifest-v1"
+                        if tool.name.startswith("phenix.")
+                        else tool.adapter_version
+                    ),
+                )
+                for tool in base_identity.tools
+            ),
+            key=lambda item: (item.name, item.tool_identity_id),
+        )
+    )
+    identity_values = base_identity.model_dump(mode="python")
+    identity_values.pop("execution_identity_id")
+    identity_values["tools"] = tools
+    identity_values["crystal_artifacts"] = (
+        ExecutionArtifactIdentity.from_content(
+            scope="crystal",
+            owner_id=inventory_fixture.CRYSTAL_ID,
+            role="mtz",
+            sha256=mtz_sha256,
+            size_bytes=mtz.stat().st_size,
+            release_or_source="synthetic composition runtime",
+        ),
+    )
+    identity = PhaseIIIExecutionIdentity.from_content(**identity_values)
+    execution_identity = tmp_path / "phase3_execution_identity.json"
+    atomic_write_json(execution_identity, identity.model_dump(mode="json"))
     monkeypatch.setattr(
         inventory_fixture,
         "EXECUTION_IDENTITY_ID",
@@ -143,6 +207,7 @@ def _request(
                 tool_version="Phaser test",
                 combined_llg=None,
                 candidate_tfz=None,
+                partner_tfz=None,
                 top_solution_packed=False,
                 combined_coordinate_path=None,
                 combined_coordinate_sha256=None,
@@ -160,6 +225,7 @@ def _request(
             tool_version="Phaser test",
             combined_llg=1150.0,
             candidate_tfz=14.0,
+            partner_tfz=14.0,
             top_solution_packed=True,
             combined_coordinate_path=coordinate.name,
             combined_coordinate_sha256=_sha(coordinate),
@@ -168,6 +234,20 @@ def _request(
         )
 
     monkeypatch.setattr(composition_runtime, "run_multi_fixed_search", fake_search)
+
+    def fake_partner(request: PartnerSearchRequest) -> SimpleNamespace:
+        output = request.output_directory
+        native = fake_search(output_directory=output)
+        command = output / "phaser_command.json"
+        if not command.exists():
+            command.write_text("{}\n", encoding="ascii")
+        return SimpleNamespace(
+            result=native,
+            result_json=output / "component_search_result.json",
+            command_json=command,
+        )
+
+    monkeypatch.setattr(composition_runtime, "run_partner_search", fake_partner)
     if status is ExecutionStatus.COMPLETED_HIT:
         placement = ComponentPlacement.from_content(
             component_spec_id=candidate.component_spec_id,
@@ -243,8 +323,7 @@ def _request(
         )
     sequence_groups = tmp_path / "sequence_groups.jsonl"
     preflight = tmp_path / "preflight.jsonl"
-    phenix = tmp_path / "phenix.json"
-    for path in (sequence_groups, preflight, phenix):
+    for path in (sequence_groups, preflight):
         path.write_text("stub\n", encoding="ascii")
     return (
         CompositionAttemptExecutionRequest(
@@ -255,8 +334,8 @@ def _request(
             sequence_groups_jsonl=sequence_groups,
             preflight_jsonl=preflight,
             mtz=mtz,
-            phenix_manifest=phenix,
-            execution_identity=identity_fixture.execution_identity,
+            phenix_manifest=phenix_manifest,
+            execution_identity=execution_identity,
             output_directory=tmp_path / "output",
         ),
         inventory,
@@ -306,7 +385,96 @@ def test_composition_runtime_retains_no_hit_without_child_state(
     assert output.checksums.is_file()
 
 
-def test_composition_runtime_rejects_missing_fixed_coordinate(tmp_path: Path) -> None:
+def test_composition_runtime_fails_closed_on_infrastructure_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, _ = _request(
+        tmp_path,
+        monkeypatch,
+        status=ExecutionStatus.FAILED_INFRASTRUCTURE,
+    )
+
+    with pytest.raises(
+        composition_runtime.CompositionAttemptExecutionError,
+        match="failed as failed_infrastructure",
+    ):
+        execute_composition_attempt(request)
+
+    assert (request.output_directory / "composition_attempt_execution.json").is_file()
+    assert (request.output_directory / "composition_attempt_checksums.sha256").is_file()
+
+
+def test_composition_runtime_rejects_stale_adapter_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, inventory = _request(
+        tmp_path,
+        monkeypatch,
+        status=ExecutionStatus.COMPLETED_NO_HIT,
+    )
+    identity = PhaseIIIExecutionIdentity.model_validate_json(
+        request.execution_identity.read_bytes()
+    )
+    values = identity.model_dump(mode="python")
+    values.pop("execution_identity_id")
+    values["adapter_versions"] = tuple(
+        (name, "stale-composition-adapter")
+        if name == "phase3_composition_attempt"
+        else (name, version)
+        for name, version in identity.adapter_versions
+    )
+    stale = PhaseIIIExecutionIdentity.from_content(**values)
+
+    with pytest.raises(
+        composition_runtime.CompositionAttemptExecutionError,
+        match="lacks current composition adapters",
+    ):
+        composition_runtime._verify_execution_authority(
+            identity=stale,
+            execution_input=inventory.execution_inputs[0],
+            phenix_manifest=request.phenix_manifest,
+            mtz=request.mtz,
+        )
+
+
+def test_composition_runtime_rejects_swapped_phenix_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, inventory = _request(
+        tmp_path,
+        monkeypatch,
+        status=ExecutionStatus.COMPLETED_NO_HIT,
+    )
+    identity = PhaseIIIExecutionIdentity.model_validate_json(
+        request.execution_identity.read_bytes()
+    )
+    manifest = PhenixInstallManifest.model_validate_json(
+        request.phenix_manifest.read_bytes()
+    )
+    commands = list(manifest.required_commands)
+    commands[0] = commands[0].model_copy(update={"executable_sha256": "f" * 64})
+    changed = manifest.model_copy(update={"required_commands": tuple(commands)})
+    changed_path = tmp_path / "changed_phenix_manifest.json"
+    atomic_write_json(changed_path, changed.model_dump(mode="json"))
+
+    with pytest.raises(
+        composition_runtime.CompositionAttemptExecutionError,
+        match="Phenix runtime differs",
+    ):
+        composition_runtime._verify_execution_authority(
+            identity=identity,
+            execution_input=inventory.execution_inputs[0],
+            phenix_manifest=changed_path,
+            mtz=request.mtz,
+        )
+
+
+def test_composition_runtime_rejects_missing_parent_score_evidence(
+    tmp_path: Path,
+) -> None:
     parent = inventory_fixture._parent(1)
     _, inventory = inventory_fixture._inventory(
         parents=(parent,),
@@ -323,7 +491,7 @@ def test_composition_runtime_rejects_missing_fixed_coordinate(tmp_path: Path) ->
 
     with pytest.raises(
         composition_runtime.CompositionAttemptExecutionError,
-        match="fixed component coordinate is absent",
+        match="parent score evidence is absent",
     ):
         composition_runtime._fixed_paths(
             fixed_root,

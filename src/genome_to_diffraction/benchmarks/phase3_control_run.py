@@ -29,7 +29,11 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
-from genome_to_diffraction.diffraction import PreflightRequest, preflight_crystals
+from genome_to_diffraction.diffraction import (
+    PreflightRequest,
+    build_diffraction_selection,
+    preflight_crystals,
+)
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.mr import (
     CandidateSearchComponent,
@@ -44,10 +48,28 @@ from genome_to_diffraction.mr import (
     run_multi_fixed_search,
     run_partner_search,
 )
-from genome_to_diffraction.schemas.results import SequenceGroupRecord
+from genome_to_diffraction.schemas.manifests import CrystalManifest
+from genome_to_diffraction.schemas.results import (
+    MtzPreflightRecord,
+    SequenceGroupRecord,
+)
+from genome_to_diffraction.schemas.v2 import (
+    ComponentIdentitySupport,
+    ComponentPlacement,
+    ComponentScopeDecision,
+    ComponentScopeStatus,
+    ComponentSpec,
+    CompositionAssessment,
+    CompositionClaimBoundary,
+    CompositionScientificStatus,
+    CompositionState,
+    CompositionStopReason,
+    CompositionSupportState,
+    ResidualContentState,
+)
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
-_ADAPTER_VERSION = "9ecn-phase3-depth-three-control-v2-wrong-c"
+_ADAPTER_VERSION = "9ecn-phase3-depth-three-control-v3-wrong-c-assessment"
 _DIGEST = re.compile(r"^[a-f0-9]{64}$")
 
 
@@ -64,6 +86,7 @@ class Phase3ControlExecutionRequest:
     wrong_c_sequence_groups_jsonl: Path
     wrong_c_sequence_group_id: str
     wrong_c_model: Path
+    wrong_c_control_manifest: Path
     expected_wrong_c_model_sha256: str
     wrong_c_model_identity_fraction: float
     output_directory: Path
@@ -220,6 +243,78 @@ def _sequence_group_index(path: Path) -> dict[str, SequenceGroupRecord]:
     return records
 
 
+def _diffraction_selection(
+    crystal_manifest: Path,
+    preflight_jsonl: Path,
+):
+    try:
+        crystals = CrystalManifest.model_validate_json(crystal_manifest.read_bytes())
+        rows = tuple(
+            MtzPreflightRecord.model_validate_json(line)
+            for line in preflight_jsonl.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        )
+    except (OSError, UnicodeError, ValueError) as error:
+        raise Phase3ControlExecutionError(
+            "9ECN diffraction selection evidence is invalid"
+        ) from error
+    crystal_matches = tuple(
+        item for item in crystals.crystals if item.crystal_id == "9ECN"
+    )
+    preflight_matches = tuple(item for item in rows if item.crystal_id == "9ECN")
+    if len(crystal_matches) != 1 or len(preflight_matches) != 1:
+        raise Phase3ControlExecutionError("9ECN lacks one exact diffraction selection")
+    return build_diffraction_selection(
+        crystal=crystal_matches[0],
+        preflight=preflight_matches[0],
+        crystal_manifest_sha256=sha256_file(crystal_manifest, progress=False),
+    )
+
+
+def _validate_wrong_c_control(
+    *,
+    manifest_path: Path,
+    sequence_groups: Path,
+    sequence_group_id: str,
+    model: Path,
+    model_sha256: str,
+    positive_model_sha256s: frozenset[str],
+) -> None:
+    manifest = _load(manifest_path)
+    wrong = manifest.get("wrong_partner")
+    positive = manifest.get("positive_controls")
+    files = manifest.get("files")
+    positive_3u7q = positive.get("3U7Q") if isinstance(positive, dict) else None
+    wrong_model_record = (
+        files.get("wrong_partner_model") if isinstance(files, dict) else None
+    )
+    wrong_groups_record = (
+        files.get("wrong_sequence_groups") if isinstance(files, dict) else None
+    )
+    if (
+        manifest.get("adapter_version") != "heteromer-p6-control-slice-v2"
+        or not isinstance(wrong, dict)
+        or not isinstance(positive_3u7q, dict)
+        or wrong.get("partner_sequence_group_id") != sequence_group_id
+        or wrong.get("partner_model_sha256") != model_sha256
+        or positive_3u7q.get("partner_sequence_group_id") != sequence_group_id
+        or positive_3u7q.get("partner_model_sha256") != model_sha256
+        or model_sha256 in positive_model_sha256s
+    ):
+        raise Phase3ControlExecutionError(
+            "wrong-C frozen negative-control identity differs"
+        )
+    root = manifest_path.resolve(strict=True).parent
+    retained_model = _file(root, wrong_model_record, role="wrong-C model")
+    retained_groups = _file(root, wrong_groups_record, role="wrong-C groups")
+    if retained_model != model.resolve(
+        strict=True
+    ) or retained_groups != sequence_groups.resolve(strict=True):
+        raise Phase3ControlExecutionError(
+            "wrong-C files differ from frozen negative-control manifest"
+        )
+
+
 def run_9ecn_phase3_control(
     request: Phase3ControlExecutionRequest,
 ) -> Phase3ControlExecutionResult:
@@ -287,6 +382,16 @@ def run_9ecn_phase3_control(
         != request.expected_wrong_c_model_sha256
     ):
         raise Phase3ControlExecutionError("wrong-C model identity differs")
+    _validate_wrong_c_control(
+        manifest_path=request.wrong_c_control_manifest,
+        sequence_groups=request.wrong_c_sequence_groups_jsonl,
+        sequence_group_id=wrong_group.sequence_group_id,
+        model=wrong_model,
+        model_sha256=request.expected_wrong_c_model_sha256,
+        positive_model_sha256s=frozenset(
+            str(components[label]["model_sha256"]) for label in ("A", "B", "C")
+        ),
+    )
     output = request.output_directory.absolute()
     if output.exists() and any(output.iterdir()):
         raise Phase3ControlExecutionError("9ECN execution output is not empty")
@@ -308,6 +413,10 @@ def run_9ecn_phase3_control(
             progress=request.progress,
             xtriage_timeout_seconds=None,
         )
+    )
+    diffraction_selection = _diffraction_selection(
+        crystal_manifest,
+        preflight.jsonl_path,
     )
     parent = run_first_copy_phaser(
         PhaserRunRequest(
@@ -352,6 +461,7 @@ def run_9ecn_phase3_control(
             mtz=mtz,
             phenix_manifest=request.phenix_manifest,
             output_directory=output / "partner_B",
+            diffraction_selection=diffraction_selection,
             threads=request.threads,
             timeout_seconds=request.timeout_seconds,
             progress=request.progress,
@@ -417,8 +527,9 @@ def run_9ecn_phase3_control(
         expansion_manifest,
         MultiFixedSearchManifest(
             schema_version="2.0",
-            adapter_version="multi-fixed-component-search-input-v1",
+            adapter_version="multi-fixed-component-search-input-v2",
             crystal_id="9ECN",
+            diffraction_selection=diffraction_selection,
             parent_solution_id=partner.result.combined_solution_id,
             parent_combined_llg=partner.result.combined_llg,
             fixed_components=fixed_components,
@@ -507,8 +618,9 @@ def run_9ecn_phase3_control(
         wrong_manifest,
         MultiFixedSearchManifest(
             schema_version="2.0",
-            adapter_version="multi-fixed-component-search-input-v1",
+            adapter_version="multi-fixed-component-search-input-v2",
             crystal_id="9ECN",
+            diffraction_selection=diffraction_selection,
             parent_solution_id=partner.result.combined_solution_id,
             parent_combined_llg=partner.result.combined_llg,
             fixed_components=fixed_components,
@@ -547,6 +659,249 @@ def run_9ecn_phase3_control(
         or wrong_c_result.complete_composition_claimed
     ):
         raise Phase3ControlExecutionError("wrong-C search promoted a scientific claim")
+    parent_document = _load(parent.result_json)
+    parent_tfz = parent_document.get("tfz")
+    if isinstance(parent_tfz, bool) or not isinstance(parent_tfz, int | float):
+        raise Phase3ControlExecutionError("9ECN A parent TFZ is absent")
+    component_specs = {
+        label: ComponentSpec.from_content(
+            label=label,
+            sequence_group_id=str(components[label]["sequence_group_id"]),
+            sequence_sha256=control_groups[
+                str(components[label]["sequence_group_id"])
+            ].sha256,
+            model_id=str(components[label]["model_id"]),
+            model_sha256=str(components[label]["model_sha256"]),
+            requested_copy_count=2,
+            sequence_mass_da=control_groups[
+                str(components[label]["sequence_group_id"])
+            ].molecular_mass_da,
+            mass_evidence_sha256=control_groups[
+                str(components[label]["sequence_group_id"])
+            ].sha256,
+            model_evidence_sha256=str(components[label]["catalogue_sequence_sha256"]),
+        )
+        for label in ("A", "B")
+    }
+    parent_placements = {
+        "A": ComponentPlacement.from_content(
+            component_spec_id=component_specs["A"].component_spec_id,
+            component_label="A",
+            sequence_group_id=component_specs["A"].sequence_group_id,
+            model_id=component_specs["A"].model_id,
+            model_sha256=component_specs["A"].model_sha256,
+            requested_copy_count=2,
+            observed_copy_count=2,
+            execution_status=ExecutionStatus.COMPLETED_HIT,
+            component_tfz=float(parent_tfz),
+            incremental_llg=parent_llg,
+            packing_passed=True,
+            coordinate_sha256=str(fixed_rows["A"]["coordinate_sha256"]),
+            identity_support=ComponentIdentitySupport.UNRESOLVED,
+        ),
+        "B": ComponentPlacement.from_content(
+            component_spec_id=component_specs["B"].component_spec_id,
+            component_label="B",
+            sequence_group_id=component_specs["B"].sequence_group_id,
+            model_id=component_specs["B"].model_id,
+            model_sha256=component_specs["B"].model_sha256,
+            requested_copy_count=2,
+            observed_copy_count=2,
+            execution_status=ExecutionStatus.COMPLETED_HIT,
+            component_tfz=partner.result.partner_tfz,
+            incremental_llg=partner.result.incremental_llg,
+            packing_passed=partner.result.top_solution_packed,
+            coordinate_sha256=str(fixed_rows["B"]["coordinate_sha256"]),
+            identity_support=ComponentIdentitySupport.UNRESOLVED,
+        ),
+    }
+    if (
+        partner.result.combined_coordinate_sha256 is None
+        or partner.result.output_mtz_sha256 is None
+    ):
+        raise Phase3ControlExecutionError("9ECN A+B parent assets are absent")
+    parent_mass = sum(
+        component.sequence_mass_da * component.requested_copy_count
+        for component in component_specs.values()
+        if component.sequence_mass_da is not None
+    )
+    a_mass = component_specs["A"].sequence_mass_da
+    parent_mtz_sha256 = parent_document.get("output_mtz_sha256")
+    if a_mass is None or not isinstance(parent_mtz_sha256, str):
+        raise Phase3ControlExecutionError("9ECN A state mass or MTZ is absent")
+    a_state = CompositionState.from_content(
+        crystal_id="9ECN",
+        diffraction_dataset_id=diffraction_selection.diffraction_dataset_id,
+        diffraction_sha256=diffraction_selection.mtz_sha256,
+        parent_state_id=None,
+        depth=1,
+        components=(component_specs["A"],),
+        placements=(parent_placements["A"],),
+        combined_coordinate_sha256=parent_sha,
+        combined_mtz_sha256=parent_mtz_sha256,
+        physical_mass_lower_da=a_mass * 2,
+        physical_mass_upper_da=a_mass * 2,
+        support_state=CompositionSupportState.PACKED,
+    )
+    parent_state = CompositionState.from_content(
+        crystal_id="9ECN",
+        diffraction_dataset_id=diffraction_selection.diffraction_dataset_id,
+        diffraction_sha256=diffraction_selection.mtz_sha256,
+        parent_state_id=a_state.state_id,
+        depth=2,
+        components=(component_specs["A"], component_specs["B"]),
+        placements=(parent_placements["A"], parent_placements["B"]),
+        combined_coordinate_sha256=partner.result.combined_coordinate_sha256,
+        combined_mtz_sha256=partner.result.output_mtz_sha256,
+        physical_mass_lower_da=parent_mass,
+        physical_mass_upper_da=parent_mass,
+        support_state=CompositionSupportState.PACKED,
+    )
+    assessment_state = parent_state
+    wrong_inventory_sha256: str | None = None
+    if wrong_c_result.execution_status is ExecutionStatus.COMPLETED_HIT:
+        wrong_inventory_output = collect_phaser_per_placement_outputs(
+            PhaserPerPlacementRequest(
+                crystal_id="9ECN",
+                search_id=wrong_c_result.search_id,
+                phaser_version=wrong_c_result.tool_version,
+                output_directory=output / "wrong_C",
+                command_record=output / "wrong_C/phaser_command.json",
+                result_record=output / "wrong_C/component_search_result.json",
+                expected_components=(
+                    ExpectedPhaserComponent("A", "fixed_A", 2),
+                    ExpectedPhaserComponent("B", "fixed_B", 2),
+                    ExpectedPhaserComponent("C", "search_C", 2),
+                ),
+                component_models=(
+                    ("A", models["A"]),
+                    ("B", models["B"]),
+                    ("C", wrong_model),
+                ),
+            )
+        )
+        wrong_inventory = _load(wrong_inventory_output.inventory_json)
+        wrong_group_coordinates = _component_group(wrong_inventory, "C")
+        wrong_observed_copies = wrong_group_coordinates.get("observed_copy_count")
+        if isinstance(wrong_observed_copies, bool) or not isinstance(
+            wrong_observed_copies,
+            int,
+        ):
+            raise Phase3ControlExecutionError("wrong-C observed copy count is invalid")
+        wrong_inventory_sha256 = sha256_file(
+            wrong_inventory_output.inventory_json,
+            progress=False,
+        )
+        wrong_spec = ComponentSpec.from_content(
+            label="C",
+            sequence_group_id=wrong_group.sequence_group_id,
+            sequence_sha256=wrong_group.sha256,
+            model_id=f"wrong_c_{request.expected_wrong_c_model_sha256}",
+            model_sha256=request.expected_wrong_c_model_sha256,
+            requested_copy_count=2,
+            sequence_mass_da=wrong_group.molecular_mass_da,
+            mass_evidence_sha256=wrong_group.sha256,
+            model_evidence_sha256=wrong_group.sha256,
+        )
+        if (
+            wrong_c_result.candidate_tfz is None
+            or wrong_c_result.incremental_llg is None
+            or wrong_c_result.combined_coordinate_sha256 is None
+            or wrong_c_result.output_mtz_sha256 is None
+        ):
+            raise Phase3ControlExecutionError("wrong-C hit lacks terminal evidence")
+        wrong_placement = ComponentPlacement.from_content(
+            component_spec_id=wrong_spec.component_spec_id,
+            component_label="C",
+            sequence_group_id=wrong_spec.sequence_group_id,
+            model_id=wrong_spec.model_id,
+            model_sha256=wrong_spec.model_sha256,
+            requested_copy_count=2,
+            observed_copy_count=wrong_observed_copies,
+            execution_status=ExecutionStatus.COMPLETED_HIT,
+            component_tfz=wrong_c_result.candidate_tfz,
+            incremental_llg=wrong_c_result.incremental_llg,
+            packing_passed=wrong_c_result.top_solution_packed,
+            coordinate_sha256=str(wrong_group_coordinates["coordinate_sha256"]),
+            identity_support=ComponentIdentitySupport.UNRESOLVED,
+        )
+        wrong_mass = wrong_group.molecular_mass_da
+        if wrong_mass is None:
+            raise Phase3ControlExecutionError("wrong-C sequence mass is absent")
+        wrong_support = (
+            CompositionSupportState.PACKED
+            if wrong_c_result.top_solution_packed
+            and wrong_placement.observed_copy_count == 2
+            else CompositionSupportState.SEARCH_EVIDENCE_ONLY
+        )
+        assessment_state = CompositionState.from_content(
+            crystal_id="9ECN",
+            diffraction_dataset_id=diffraction_selection.diffraction_dataset_id,
+            diffraction_sha256=diffraction_selection.mtz_sha256,
+            parent_state_id=parent_state.state_id,
+            depth=3,
+            components=(*parent_state.components, wrong_spec),
+            placements=(*parent_state.placements, wrong_placement),
+            combined_coordinate_sha256=(wrong_c_result.combined_coordinate_sha256),
+            combined_mtz_sha256=wrong_c_result.output_mtz_sha256,
+            physical_mass_lower_da=parent_mass + wrong_mass * 2,
+            physical_mass_upper_da=parent_mass + wrong_mass * 2,
+            support_state=wrong_support,
+            warnings=("frozen_wrong_component_negative_control",),
+        )
+    retained_packed = int(
+        assessment_state.support_state is CompositionSupportState.PACKED
+        and assessment_state.depth == 3
+    )
+    stop_reason = (
+        CompositionStopReason.NO_PHYSICALLY_POSSIBLE_REMAINING_COMPONENT
+        if retained_packed
+        else CompositionStopReason.NO_RETAINED_PACKED_STATE
+    )
+    scope = ComponentScopeDecision.from_content(
+        crystal_id="9ECN",
+        state_id=assessment_state.state_id,
+        search_depth_reached=assessment_state.depth,
+        maximum_search_depth=6,
+        validated_component_depth=3,
+        total_additional_attempt_budget=100,
+        total_additional_attempts_used=1,
+        remaining_physical_hypothesis_count=0,
+        retained_packed_state_count=retained_packed,
+        state_support_state=assessment_state.support_state,
+        stop_reason=stop_reason,
+        residual_content_state=ResidualContentState.UNRESOLVED,
+        scope_status=ComponentScopeStatus.WITHIN_VALIDATED_COMPONENT_DEPTH,
+        claim_boundary=CompositionClaimBoundary.PARTIAL_OR_RESIDUAL_ONLY,
+        complete_composition_claim_eligible=False,
+        warnings=("frozen_wrong_component_negative_control",),
+    )
+    assessment_evidence = {
+        "negative_control_manifest": sha256_file(
+            request.wrong_c_control_manifest,
+            progress=False,
+        ),
+        "wrong_c_result": sha256_file(
+            output / "wrong_C/component_search_result.json",
+            progress=False,
+        ),
+    }
+    if wrong_inventory_sha256 is not None:
+        assessment_evidence["wrong_c_placement_inventory"] = wrong_inventory_sha256
+    wrong_assessment = CompositionAssessment.from_content(
+        crystal_id="9ECN",
+        state_id=assessment_state.state_id,
+        scope_decision=scope,
+        execution_status=wrong_c_result.execution_status,
+        state_support_state=assessment_state.support_state,
+        scientific_status=CompositionScientificStatus.SEARCH_EVIDENCE_ONLY,
+        complete_composition_claim_eligible=False,
+        complete_composition_claimed=False,
+        evidence_sha256=assessment_evidence,
+        warnings=("frozen_wrong_component_negative_control",),
+    )
+    wrong_assessment_path = output / "wrong_C/composition_assessment.json"
+    atomic_write_json(wrong_assessment_path, wrong_assessment.model_dump(mode="json"))
     report = output / "phase3-9ecn-control-summary.json"
     atomic_write_json(
         report,
@@ -566,6 +921,12 @@ def run_9ecn_phase3_control(
             "wrong_c_incremental_llg": wrong_c_result.incremental_llg,
             "wrong_c_exact_identity_claimed": False,
             "wrong_c_complete_composition_claimed": False,
+            "wrong_c_assessment_id": wrong_assessment.assessment_id,
+            "wrong_c_scientific_status": wrong_assessment.scientific_status,
+            "wrong_c_assessment_claim_eligible": (
+                wrong_assessment.complete_composition_claim_eligible
+            ),
+            "wrong_c_assessment_claimed": wrong_assessment.complete_composition_claimed,
             "component_copy_counts": {
                 label: groups[label]["observed_copy_count"] for label in ("A", "B", "C")
             },
@@ -583,6 +944,7 @@ def run_9ecn_phase3_control(
             "placement_inventory": "component_C/phaser_per_placement_inventory.json",
             "result": "component_C/component_search_result.json",
             "wrong_c_result": "wrong_C/component_search_result.json",
+            "wrong_c_assessment": "wrong_C/composition_assessment.json",
         },
     )
     for path in output.rglob("*"):

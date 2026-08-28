@@ -1949,6 +1949,18 @@ run_unknown_discovery() {
     "$GTD" --no-progress --log-format json \
         structure-search validate-phase3-provider-discovery-package \
         --package "$UNKNOWN_DISCOVERY_OUT/phase3_provider_discovery"
+    (
+        cd "$UNKNOWN_DISCOVERY_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(
+            find . -xdev -type f \
+                ! -path './pipeline_info/*' \
+                -print | LC_ALL=C sort
+        )
+    ) > "$qualification/unknown-discovery-output-checksums.sha256"
+    [[ -s "$qualification/unknown-discovery-output-checksums.sha256" ]] || return 4
     sha256sum \
         "$UNKNOWN_DISCOVERY_INPUTS/unknown_discovery_input_manifest.json" \
         "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/localisation_batch_manifest.json" \
@@ -1959,6 +1971,9 @@ run_unknown_discovery() {
         "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/gel-evidence.json" \
         "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/raw/psortb-terse.tsv" \
         "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/raw/deeptmhmm-topologies.3line" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/container_execution/localisation_container_execution.json" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/container_execution/psortb-container.log" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/container_execution/deeptmhmm-container.log" \
         "$PHENIX_MANIFEST" \
         "$UNKNOWN_DISCOVERY_OUT/phase3_provider_discovery/phase3_provider_discovery_manifest.json" \
         "$first_trace" \
@@ -2078,6 +2093,19 @@ run_unknown_screen() {
     ' "$first_trace" || return 4
     [[ -f "$UNKNOWN_SCREEN_OUT/phase3_offline_provider_input/phase3_offline_provider_input.json" ]] || \
         return 4
+    (
+        cd "$UNKNOWN_SCREEN_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(
+            find . -xdev -type f \
+                ! -path './pipeline_info/*' \
+                ! -path './phase3_offline_provider_input/*' \
+                -print | LC_ALL=C sort
+        )
+    ) > "$qualification/unknown-screen-output-checksums.sha256"
+    [[ -s "$qualification/unknown-screen-output-checksums.sha256" ]] || return 4
     sha256sum \
         "$UNKNOWN_SCREEN_DISCOVERY/phase3_provider_discovery_manifest.json" \
         "$UNKNOWN_SCREEN_PREPARATION/provider_preparation.json" \
@@ -2089,6 +2117,9 @@ run_unknown_screen() {
         "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/gel-evidence.json" \
         "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/raw/psortb-terse.tsv" \
         "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/raw/deeptmhmm-topologies.3line" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/container_execution/localisation_container_execution.json" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/container_execution/psortb-container.log" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/container_execution/deeptmhmm-container.log" \
         "$PHENIX_MANIFEST" \
         "$UNKNOWN_SCREEN_OUT/phase3_offline_provider_input/phase3_offline_provider_input.json" \
         "$first_trace" \
@@ -3295,6 +3326,7 @@ PY
         "$p6_inputs/wrong_partner/sequence_groups.jsonl" \
         --wrong-c-sequence-group-id "$p6_wrong_group" \
         --wrong-c-model "$p6_inputs/wrong_partner/model.pdb" \
+        --wrong-c-control-manifest "$p6_inputs/preparation_manifest.json" \
         --expected-wrong-c-model-sha256 "$p6_wrong_model_sha" \
         --wrong-c-model-identity-fraction "$p6_wrong_identity" \
         --threads "${SLURM_CPUS_PER_TASK:-1}" \
@@ -3306,7 +3338,7 @@ from pathlib import Path
 
 report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 if (
-    report.get("adapter_version") != "9ecn-phase3-depth-three-control-v2-wrong-c"
+    report.get("adapter_version") != "9ecn-phase3-depth-three-control-v3-wrong-c-assessment"
     or report.get("control") != "9ECN_McrA_McrB_McrG_2A_2B_2C"
     or report.get("gate_passed") is not True
     or report.get("component_copy_counts") != {"A": 2, "B": 2, "C": 2}
@@ -3315,6 +3347,10 @@ if (
     or report.get("wrong_c_claim_boundary_passed") is not True
     or report.get("wrong_c_exact_identity_claimed") is not False
     or report.get("wrong_c_complete_composition_claimed") is not False
+    or report.get("wrong_c_scientific_status") != "search_evidence_only"
+    or report.get("wrong_c_assessment_claim_eligible") is not False
+    or report.get("wrong_c_assessment_claimed") is not False
+    or not isinstance(report.get("wrong_c_assessment_id"), str)
     or report.get("wrong_c_execution_status")
     not in {"completed_hit", "completed_no_hit"}
 ):

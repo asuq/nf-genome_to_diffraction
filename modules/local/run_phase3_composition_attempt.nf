@@ -6,7 +6,7 @@ nextflow.enable.types = true
 // Phenix runtime before constructing the 9ECN-qualified multi-fixed command.
 process RUN_PHASE3_COMPOSITION_ATTEMPT {
     tag "composition-attempt:${item[0]}"
-    label 'process_single'
+    label 'process_mr'
     publishDir params.outdir, mode: 'copy', overwrite: true
 
     input:
