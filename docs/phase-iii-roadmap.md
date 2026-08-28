@@ -535,6 +535,22 @@ immutable database root/manifest; it performs no build, download, cleanup, or
 scheduler action. Focused local and remote tests pass; CI/deployment and the
 actual runtime restore remain before P0 restaging.
 
+Exact-source commit `ec1aaef`, CI `33174793722` / `98860496890`, restored the
+existing immutable database configuration without a build, staged P0 input
+`p0i_f8fcf6c526cf808f7bb3b167047f9104b153e560ced9ca500bc61c83d577bfe3`,
+installed P0 configuration
+`a5c06df2b5e7cea6d99681c17fbb286a017783466c8f65e4b9454aaae2a69475`,
+and passed readiness. Fresh discovery job `636168` then reached Nextflow, but
+Slurm rejected `RESOLVE_PROVIDER_PLAN` before provider execution because its
+`process_local` label supplied no scheduler time limit. The collected
+`.command.run` contains no `--time`; failure signature is
+`9355ef0dd07274d5c7bc753110cfb095f9fe6afe905014f295d2b93d3d3b89c0`.
+No PDB/Foldseek search or unknown-crystal MR ran, and the failed cache is not
+reusable. Finding `PH3-P1-33` adds only the missing bounded 1-CPU/1-GB/
+10-minute base resource class for all five provider-local modules. Its focused
+contract and Nextflow syntax checks pass; CI/deployment and one fresh discovery
+successor remain.
+
 On 25 August 2026 the user/supervisor supplied the mandatory crystallographic
 checkpoint decision `proceed` for all three frozen crystals. This authorises a
 bounded pass-1 search while retaining, rather than clearing, the 75.2%

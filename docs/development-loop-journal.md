@@ -14047,3 +14047,45 @@ with a collapsed combined parent or a guessed command.
   diff checks, commit/push once, watch CI, deploy, install the retained database
   runtime authority, restage P0, configure P0, require readiness, then stage one
   fresh unknown-discovery run.
+
+## 2026-08-28 - First scheduled discovery exposes a missing Slurm time class
+
+- Runtime-restore commit `ec1aaefc0b9453dae21593ce733fbac825431024`
+  passed CI `33174793722` / `98860496890` under Pixi 0.76.2. Deployed
+  dispatcher/job-wrapper/recovery SHA-256 values were
+  `827949c2ddf81f8434a8d63893b4b2ae8456b998aa26c4726c9b79bab9f7a78b`,
+  `966154f4483e11ce800f23343efbf5cd29297db2a5a3d1bda261b91201521284`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- The create-only database runtime restore accepted configuration SHA-256
+  `6aaf03a4ebd3f4ec665552f0b81ba69b8e0f4e8d523fd8e7fabc63c2265a014a`
+  without building, downloading, or scheduling. P0 input
+  `p0i_f8fcf6c526cf808f7bb3b167047f9104b153e560ced9ca500bc61c83d577bfe3`
+  and its 43,266,673-byte archive staged successfully; P0 configuration
+  `a5c06df2b5e7cea6d99681c17fbb286a017783466c8f65e4b9454aaae2a69475`
+  then passed readiness with Pixi 0.76.2.
+- Exact-source authority
+  `phase3exec_049e01994cfb186f5e09e8243d334041e161177f040015a76118a929cc8319a2`
+  and review stage
+  `unknownreviewstages_fef3a5ac7223519f83105ac6ecc7089c2de318f64d6b84146a7cd11a422e8a5f`
+  were staged as owned discovery input
+  `unknowninputs_1548cb01c33ed34862444211b189e90c418b866c62962527001eff1b5f1e45ed`.
+  Owned Marmic run
+  `gtd-unknown-discovery-20260828T135921Z-ec1aaefc0b94-fc19059b`, Slurm
+  `636168`, ended `FAILED`, exit 1, `test_failure`. It is diagnostic only and
+  must not be reused.
+- Phenix 2.1-6048 and all seven executable probes passed. Nextflow validated
+  the three-crystal review, Task05 inputs, and full localisation bundle, then
+  Slurm rejected `RESOLVE_PROVIDER_PLAN` before execution: its retained
+  `.command.run` has no `#SBATCH --time` and Slurm requires one. Three submitted
+  validators were killed; no provider search, model preparation, Phaser,
+  refinement, or unknown scientific interpretation occurred. Failure signature
+  is `9355ef0dd07274d5c7bc753110cfb095f9fe6afe905014f295d2b93d3d3b89c0`.
+- The newly qualified collector retained the exact rejected task scripts,
+  Nextflow/application logs, complete input/localisation authority, and failure
+  state without requiring a successful-output inventory, remotely accepting
+  `PH3-P1-31`. The database and P0 restores remotely accept `PH3-P1-32`.
+- New finding `PH3-P1-33` is the missing `process_local` resource class. The
+  minimal fix defines 1 CPU, 1 GB, and 10 minutes in the base configuration for
+  all five provider-local modules. Its focused contract and Nextflow syntax
+  checks pass. Commit/push once, watch CI, deploy, and submit one fresh
+  discovery successor; do not reuse job `636168` or its cache.

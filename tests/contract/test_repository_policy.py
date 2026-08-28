@@ -182,6 +182,26 @@ def test_diverse_funnel_stages_coordinate_sources_under_unique_names() -> None:
     assert "--coordinate-sources '${pdb_coordinate_sources}'" in module
 
 
+def test_provider_local_processes_have_complete_scheduler_resources() -> None:
+    base = (REPOSITORY / "conf/base.config").read_text(encoding="utf-8")
+    block = base.split("withLabel: process_local", maxsplit=1)[1].split(
+        "withLabel: process_single",
+        maxsplit=1,
+    )[0]
+
+    assert "cpus = 1" in block
+    assert "memory = '1 GB'" in block
+    assert "time = '10 min'" in block
+    for relative in (
+        "modules/local/resolve_provider_plan.nf",
+        "modules/local/emit_disabled_provider_bundle.nf",
+        "modules/local/provider_empty_graph_tasks.nf",
+        "modules/local/merge_pdb_provider_hits.nf",
+    ):
+        module = (REPOSITORY / relative).read_text(encoding="utf-8")
+        assert "label 'process_local'" in module
+
+
 def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -> None:
     gitmodules = (REPOSITORY / ".gitmodules").read_text(encoding="utf-8")
     assert "path = external/nf-helper" in gitmodules
