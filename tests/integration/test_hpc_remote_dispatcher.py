@@ -3735,8 +3735,7 @@ def test_unknown_discovery_stage_failure_is_collectable_without_outputs(
         "state/failure-class",
     } <= names
     assert (
-        "artifacts/qualification/unknown-discovery-output-checksums.sha256"
-        not in names
+        "artifacts/qualification/unknown-discovery-output-checksums.sha256" not in names
     )
     (run / "state/failure-class").write_text(
         "fabricated_failure\n",
