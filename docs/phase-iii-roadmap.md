@@ -984,6 +984,10 @@ checkout to create and verify a deterministic strict-v1 successor once, then
 install its path/checksum as the fixed Phase III binding. The focused and full
 locked gates pass; one exact-source migration plus one strict successor probe
 remain before fresh unknown discovery.
+The first real migration returned a generic environment failure without a
+binding and exposed that staged migration logs were not selected by the bounded
+log interface. That diagnostic selector is fixed locally and must be deployed
+to classify the retained failure before any migration retry.
 
 The remaining M6 execution-order defects are now fixed locally. Leakage cannot
 stage without a collected successful operational parent from the exact same

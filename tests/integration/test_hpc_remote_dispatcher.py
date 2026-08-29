@@ -5628,6 +5628,53 @@ def test_phase3_phenix_runtime_migration_is_create_only_and_rebinds_probe(
     )
 
 
+def test_staged_phase3_phenix_probe_logs_expose_migration_failure(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    legacy = tmp_path / "phenix-2.1-6048.json"
+    legacy.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    legacy_sha = hashlib.sha256(legacy.read_bytes()).hexdigest()
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            PHASE3_PHENIX_PROBE_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "phase3-phenix-probe",
+            str(legacy),
+            legacy_sha,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    run = dispatcher.parent.parent / "runs" / PHASE3_PHENIX_PROBE_RUN_ID
+    migration_log = run / "logs/phenix-runtime-migration.log"
+    migration_log.write_text("exact migration failure\n", encoding="ascii")
+
+    result = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                PHASE3_PHENIX_PROBE_RUN_ID,
+                OWNER_ID,
+                "20",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert result["log_path"] == str(migration_log)
+    assert base64.b64decode(result["content_base64"]).decode() == (
+        "exact migration failure\n"
+    )
+
+
 def test_phase3_phenix_probe_is_fixed_and_collectable(tmp_path: Path) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = dispatcher.parent.parent

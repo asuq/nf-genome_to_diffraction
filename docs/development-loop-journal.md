@@ -14233,3 +14233,39 @@ with a collapsed combined parent or a guessed command.
   deploy, stage one migration-only probe checkout, install the strict binding,
   then stage/submit exactly one strict-manifest successor probe. Only after it
   passes may a fresh unknown-discovery authority/run be created.
+
+## 2026-08-29 - Strict migration correction is exact-source qualified
+
+- Correction commit `6b60d08fcea0dc3b6eb55e2734b9de920d6c02e0` passed exact-source
+  CI `33235946131` / `99056840662` under Pixi 0.76.2. The deployed
+  dispatcher/job-wrapper/recovery SHA-256 values are `5c251684…`,
+  `5f2b7830…`, and `5334a95d…`.
+- Migration-only probe checkout
+  `gtd-phase3-phenix-probe-20260829T053939Z-6b60d08fcea0-4b39e84f`
+  is safely staged with no Slurm job. One reviewed `phenix-runtime-migrate`
+  call began from that checkout; no strict local binding had been published by
+  06:08 UTC, so no successor or scientific run was started and no retry was
+  issued while the 45-minute transport bound remained active.
+- Heartbeat `continue-phase3-phenix-migration` will re-enter after the original
+  call's hard deadline, reuse only this staged checkout, and submit one fresh
+  exact-source strict probe only after a two-line checksum-bound binding exists.
+  Failed probe `636484` and its cache remain diagnostic and non-reusable.
+
+## 2026-08-29 - Real migration failure exposes a staged-log blind spot
+
+- The original reviewed migration call reached its 45-minute transport bound
+  without publishing a local binding. After that bound, one idempotent call on
+  the same staged checkout failed in 15 seconds as `environment_failure` with
+  the retained top-level reason `strict Phenix manifest migration failed`.
+  No Slurm job, successor probe, strict binding, or scientific execution was
+  created.
+- Finding `PH3-P1-50` records that the bounded `logs` operation selected only
+  the unsubmitted profile log and could not expose the run-owned migration or
+  strict-verification log. The smallest correction selects the strict verify
+  log first and otherwise the migration log only for a staged
+  `phase3-phenix-probe`; all normal profile/scheduler log selection is
+  unchanged.
+- The focused real-dispatcher regression and wrapper syntax gate pass. Next
+  commit/push this diagnostic correction, watch one exact-source CI, deploy,
+  retrieve the existing staged run's bounded migration log, and classify the
+  exact Phenix failure before changing or retrying migration logic.

@@ -4068,6 +4068,12 @@ logs_run() {
     elif [[ "$profile" == t12 && "$phase" =~ ^(t12_input_staging|staged|stage_failed)$ && \
         -f "$run/logs/t12-stage.log" ]]; then
         log_path="$run/logs/t12-stage.log"
+    elif [[ "$profile" == phase3-phenix-probe && "$phase" == staged && \
+        -f "$run/logs/phenix-runtime-strict-verify.log" ]]; then
+        log_path="$run/logs/phenix-runtime-strict-verify.log"
+    elif [[ "$profile" == phase3-phenix-probe && "$phase" == staged && \
+        -f "$run/logs/phenix-runtime-migration.log" ]]; then
+        log_path="$run/logs/phenix-runtime-migration.log"
     elif [[ -n "$profile" && -f "$run/logs/${profile}.log" ]]; then
         log_path="$run/logs/${profile}.log"
     elif [[ -f "$run/state/job-id" ]]; then
