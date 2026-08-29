@@ -1906,6 +1906,7 @@ run_unknown_discovery() {
         "$RUN/cache/unknown-discovery-nextflow" \
         "$RUN/execution"
     load_p0_config
+    PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
     CRYSTALS="$UNKNOWN_DISCOVERY_INPUTS/phase3_crystals.json"
     input_id="$(<"$RUN/state/unknown-discovery-input-id")"
     execution_identity_id="$(<"$RUN/state/phase3-execution-identity-id")"
@@ -2077,6 +2078,7 @@ run_unknown_screen() {
         "$RUN/cache/unknown-screen-nextflow" \
         "$RUN/execution"
     load_p0_config
+    PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
     CRYSTALS="$UNKNOWN_SCREEN_INPUTS/phase3_crystals.json"
     [[ -d "$UNKNOWN_SCREEN_INPUTS" && ! -L "$UNKNOWN_SCREEN_INPUTS" && \
        -d "$UNKNOWN_SCREEN_INPUTS/localisation_bundle" && \
@@ -2254,6 +2256,7 @@ run_unknown_single_component() {
         "$RUN/cache/unknown-single-component-nextflow" \
         "$RUN/execution"
     load_p0_config
+    PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
     [[ "$UNKNOWN_SCREEN_PARENT_RUN_ID" =~ $RUN_ID_RE && \
        -d "$UNKNOWN_SINGLE_REGISTRY" && ! -L "$UNKNOWN_SINGLE_REGISTRY" && \
        -f "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" && \

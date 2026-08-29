@@ -235,6 +235,7 @@ _T12_ASSET_BASENAMES = (
 )
 _P0_QUALIFICATION_RELATIVE = Path(".untracked/m0-qualification")
 _P0_INPUT_SPEC_NAME = "p0-inputs.json"
+_PHASE3_PHENIX_BINDING_NAME = "hpc-phase3-phenix.paths"
 
 
 def _validated_p0_paths_payload(path: Path) -> bytes:
@@ -318,6 +319,26 @@ def _fixed_heteromer_phenix_binding(repository: Path) -> tuple[str, str]:
     """Return the preserved Marmic Phenix path and independently frozen digest."""
 
     qualification = repository / _P0_QUALIFICATION_RELATIVE
+    strict_binding = qualification / _PHASE3_PHENIX_BINDING_NAME
+    if strict_binding.exists() or strict_binding.is_symlink():
+        if (
+            strict_binding.is_symlink()
+            or not strict_binding.is_file()
+            or strict_binding.stat().st_mode & 0o777 != 0o600
+        ):
+            raise ValidationError("Phase III Phenix binding must be mode 0600")
+        try:
+            strict_lines = strict_binding.read_text(encoding="ascii").splitlines()
+        except (OSError, UnicodeError) as error:
+            raise ValidationError("Phase III Phenix binding is unreadable") from error
+        if (
+            len(strict_lines) != 2
+            or not strict_lines[0]
+            or re.fullmatch(r"[a-f0-9]{64}", strict_lines[1]) is None
+        ):
+            raise ValidationError("Phase III Phenix binding fields are invalid")
+        validate_remote_path(strict_lines[0], "strict Phase III Phenix manifest")
+        return strict_lines[0], strict_lines[1]
     paths = qualification / P0_PATHS_FILENAME
     lines = _validated_p0_paths_payload(paths).decode("ascii").splitlines()
     phenix_manifest = lines[6]
@@ -1746,6 +1767,50 @@ class HpcController:
             "dispatcher_sha256": dispatcher_checksum,
             "smoke_job_sha256": smoke_job_checksum,
             "recovery_sha256": recovery_checksum,
+        }
+
+    def phenix_runtime_migrate(self, run_id: str) -> dict[str, object]:
+        """Create and install one strict Phase III Phenix manifest binding."""
+
+        record = self._owned_run(run_id)
+        if record.profile != "phase3-phenix-probe" or record.site_id != "marmic":
+            raise ValidationError(
+                "Phenix runtime migration requires one staged Marmic probe run"
+            )
+        response = self.transport.run(
+            "phenix-runtime-migrate",
+            [record.run_id, record.owner_id],
+        )
+        manifest_path = response.get("strict_manifest")
+        manifest_sha256 = response.get("strict_manifest_sha256")
+        if not isinstance(manifest_path, str) or not isinstance(manifest_sha256, str):
+            raise RemoteOperationError(
+                "remote Phenix migration omitted its strict identity",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        validate_remote_path(manifest_path, "strict Phase III Phenix manifest")
+        if re.fullmatch(r"[a-f0-9]{64}", manifest_sha256) is None:
+            raise RemoteOperationError(
+                "remote Phenix migration returned an invalid checksum",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        binding = (
+            self.config.repository
+            / _P0_QUALIFICATION_RELATIVE
+            / _PHASE3_PHENIX_BINDING_NAME
+        )
+        payload = f"{manifest_path}\n{manifest_sha256}\n"
+        if binding.exists() or binding.is_symlink():
+            if binding.is_symlink() or binding.read_text(encoding="ascii") != payload:
+                raise ValidationError("Phase III Phenix binding already differs")
+        else:
+            atomic_write_text(binding, payload)
+            binding.chmod(0o600)
+        return {
+            **response,
+            "operation": "phenix-runtime-migrate",
+            "run_id": run_id,
+            "local_binding": str(binding),
         }
 
     def stage(

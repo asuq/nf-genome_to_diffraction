@@ -2176,6 +2176,72 @@ stage_archive_run() {
     stage_run_common "$@"
 }
 
+phenix_runtime_migrate_run() {
+    [[ "$#" -eq 2 ]] || \
+        fail wrapper_failure "phenix-runtime-migrate expects run ID and owner"
+    local run_id="$1" owner_id="$2" run profile source source_sha strict temporary
+    local strict_sha gtd
+    require_owned_run "$run_id" "$owner_id"
+    run="$(run_directory "$run_id")"
+    profile="$(<"$run/state/profile")"
+    [[ "$profile" == phase3-phenix-probe && \
+       "$(<"$run/state/phase")" == staged && \
+       ! -e "$run/state/job-id" && \
+       -f "$run/state/phenix-manifest" && \
+       -f "$run/state/phenix-manifest-sha256" ]] || \
+        fail wrapper_failure "Phenix migration requires one safely staged probe"
+    source="$(<"$run/state/phenix-manifest")"
+    source_sha="$(<"$run/state/phenix-manifest-sha256")"
+    [[ "$source" =~ $SAFE_PATH_RE && "$source" == *.json && \
+       "$source_sha" =~ $CHECKSUM_RE && -f "$source" && ! -L "$source" && \
+       "$(sha256sum "$source" | awk '{print $1}')" == "$source_sha" ]] || \
+        fail environment_failure "legacy Phenix manifest binding is invalid"
+    strict="${source%.json}-strict-v1.json"
+    [[ "$strict" =~ $SAFE_PATH_RE && "$strict" != "$source" ]] || \
+        fail wrapper_failure "strict Phenix manifest target is invalid"
+    gtd="$run/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    [[ -x "$gtd" ]] || fail environment_failure "locked HPC CLI is unavailable"
+    if [[ ! -e "$strict" ]]; then
+        temporary="$run/execution/phenix-strict-manifest.tmp.$$"
+        [[ ! -e "$temporary" ]] || \
+            fail wrapper_failure "temporary Phenix migration target exists"
+        "$gtd" --log-format json --no-progress phenix refresh-manifest \
+            --manifest "$source" \
+            --output "$temporary" \
+            --verification-log "$run/logs/phenix-runtime-migration.log" \
+            --no-command-timeout || \
+            fail environment_failure "strict Phenix manifest migration failed"
+        "$gtd" --log-format json --no-progress phenix verify \
+            --manifest "$temporary" \
+            --verification-log "$run/logs/phenix-runtime-strict-verify.log" \
+            --no-command-timeout || \
+            fail environment_failure "strict Phenix manifest verification failed"
+        chmod 600 "$temporary"
+        mv -- "$temporary" "$strict"
+    else
+        [[ -f "$strict" && ! -L "$strict" && -O "$strict" ]] || \
+            fail filesystem_failure "strict Phenix manifest target is unsafe"
+        "$gtd" --log-format json --no-progress phenix verify \
+            --manifest "$strict" \
+            --verification-log "$run/logs/phenix-runtime-strict-verify.log" \
+            --no-command-timeout || \
+            fail environment_failure "existing strict Phenix manifest is invalid"
+    fi
+    strict_sha="$(sha256sum "$strict" | awk '{print $1}')"
+    [[ "$strict_sha" =~ $CHECKSUM_RE ]] || \
+        fail filesystem_failure "strict Phenix manifest checksum failed"
+    atomic_text "$run/state/phenix-strict-manifest" "$strict"
+    atomic_text "$run/state/phenix-strict-manifest-sha256" "$strict_sha"
+    atomic_text "$run/state/phenix-manifest" "$strict"
+    atomic_text "$run/state/phenix-manifest-sha256" "$strict_sha"
+    append_event "$run" "phenix_runtime_migrated"
+    emit operation phenix-runtime-migrate
+    emit run_id "$run_id"
+    emit strict_manifest "$strict"
+    emit strict_manifest_sha256 "$strict_sha"
+    emit status ready
+}
+
 unknown_screen_stage_run() {
     [[ "$#" -eq 4 ]] || \
         fail wrapper_failure \
@@ -4273,6 +4339,8 @@ collect_run() {
         state/unknown-pass2-finding-closure-id \
         state/unknown-pass2-file-count \
         state/unknown-pass2-authority-checksums.sha256 \
+        state/phenix-strict-manifest \
+        state/phenix-strict-manifest-sha256 \
         state/heteromer-login-stage.sha256 \
         state/control-slice-archive-sha256 \
         state/control-slice-manifest-sha256 \
@@ -4318,6 +4386,8 @@ collect_run() {
         logs/p2-control.log \
         logs/heteromer-smoke.log \
         logs/phase3-phenix-probe.log \
+        logs/phenix-runtime-migration.log \
+        logs/phenix-runtime-strict-verify.log \
         logs/phase3-network-probe.log \
         logs/phase3-network-probe-nextflow.log \
         logs/unknown-discovery.log \
@@ -5992,6 +6062,7 @@ main() {
     shift
     case "$operation" in
         deploy-tools) deploy_tools "$@" ;;
+        phenix-runtime-migrate) phenix_runtime_migrate_run "$@" ;;
         readiness) readiness_p0 "$@" ;;
         p0-configure) p0_configure "$@" ;;
         p0-inputs-stage) p0_inputs_stage "$@" ;;

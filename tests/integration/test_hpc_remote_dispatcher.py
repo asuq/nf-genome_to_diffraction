@@ -5575,6 +5575,59 @@ def test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile(
     assert "artifacts/qualification/p2-control-artifact-sha256.tsv" in names
 
 
+def test_phase3_phenix_runtime_migration_is_create_only_and_rebinds_probe(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    legacy = tmp_path / "phenix-2.1-6048.json"
+    legacy.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    legacy_sha = hashlib.sha256(legacy.read_bytes()).hexdigest()
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                PHASE3_PHENIX_PROBE_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "phase3-phenix-probe",
+                str(legacy),
+                legacy_sha,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert staged["phase"] == "staged"
+
+    migrated = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "phenix-runtime-migrate",
+                PHASE3_PHENIX_PROBE_RUN_ID,
+                OWNER_ID,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    strict = tmp_path / "phenix-2.1-6048-strict-v1.json"
+    run = dispatcher.parent.parent / "runs" / PHASE3_PHENIX_PROBE_RUN_ID
+    assert migrated["strict_manifest"] == str(strict)
+    assert (
+        migrated["strict_manifest_sha256"]
+        == hashlib.sha256(strict.read_bytes()).hexdigest()
+    )
+    assert (run / "state/phenix-manifest").read_text().strip() == str(strict)
+    assert (run / "state/phenix-strict-manifest-sha256").read_text().strip() == (
+        migrated["strict_manifest_sha256"]
+    )
+
+
 def test_phase3_phenix_probe_is_fixed_and_collectable(tmp_path: Path) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = dispatcher.parent.parent

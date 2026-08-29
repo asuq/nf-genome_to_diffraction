@@ -145,6 +145,13 @@ class FakeTransport:
                 "parent_run_id": arguments[2],
                 "operational_precheck_sha256": arguments[4],
             }
+        if operation == "phenix-runtime-migrate":
+            return {
+                "run_id": arguments[0],
+                "strict_manifest": "/approved/phenix-strict-v1.json",
+                "strict_manifest_sha256": "f" * 64,
+                "status": "ready",
+            }
         response = {
             "run_id": arguments[0] if arguments else "",
             "remote_operation": operation,
@@ -1803,6 +1810,36 @@ def test_unknown_pass2_stage_rejects_missing_parent(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError, match="requires an owned"):
         controller.stage("unknown-pass2", "HEAD")
+
+
+def test_phenix_runtime_migration_installs_fixed_local_binding(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    qualification = tmp_path / ".untracked/m0-qualification"
+    qualification.mkdir(parents=True)
+    record = LocalRunRecord(
+        run_id="gtd-phase3-phenix-probe-20260829T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+        site_id="marmic",
+        commit=COMMIT,
+        owner_id="d" * 32,
+        profile="phase3-phenix-probe",
+        iteration=1,
+        parent_run_id=None,
+    )
+    record.write(controller.config.local_state_root)
+
+    migrated = controller.phenix_runtime_migrate(record.run_id)
+
+    binding = qualification / "hpc-phase3-phenix.paths"
+    assert migrated["strict_manifest_sha256"] == "f" * 64
+    assert binding.read_text(encoding="ascii") == (
+        "/approved/phenix-strict-v1.json\n" + "f" * 64 + "\n"
+    )
+    assert binding.stat().st_mode & 0o777 == 0o600
+    assert transport.calls[-1] == (
+        "phenix-runtime-migrate",
+        (record.run_id, record.owner_id),
+    )
 
 
 def test_network_probe_defaults_to_phase3_without_exposing_probe_inputs(

@@ -14205,3 +14205,31 @@ with a collapsed combined parent or a guessed command.
   all reviewed wrapper syntax also pass under Pixi 0.76.2. The next action is
   the final integration commit/push and one exact-source CI; no additional local
   full gate is needed before that CI.
+
+## 2026-08-29 - Strict Phenix fail-close exposes the missing one-time migration route
+
+- Exact integration commit `3ad251f4d0b9daac46daade7e7d6f76754e5c8f8`
+  passed CI `33233207900` / `99049521160` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `d179423b…`, `9573f04e…`, and
+  `5334a95d…`.
+- The first exact-source strict-runtime probe, run
+  `gtd-phase3-phenix-probe-20260829T043719Z-3ad251f4d0b9-dec95dc4`, Slurm
+  `636484`, failed closed before the Phaser interface probe: the configured
+  legacy manifest lacks `executable_sha256` for all seven required commands.
+  It is diagnostic `environment_failure`, exit 1, signature
+  `03257db92f2a56ccb058126134ac4054725dbff136f4b3e619d931586da0af42`;
+  no scientific execution/cache is reusable.
+- The smallest correction adds a create-only `phenix-runtime-migrate`
+  operation. It accepts only one safely staged Marmic probe, derives one fixed
+  strict-v1 sibling path, invokes the explicit legacy migration command once,
+  verifies the successor in place, records path/checksum state, and installs a
+  local mode-0600 fixed binding. Scientific wrappers continue to verify—not
+  refresh—the strict bytes. Existing/different/unsafe state fails closed.
+- Focused controller, wrapper, and fake-Marmic migration/probe tests pass. The
+  required full locked gate is green: 1,383 unit, 139 contract, and 93
+  integration tests plus all schema, public-panel, docs, actionlint, Nextflow/
+  stub, offline package, and wrapper checks.
+- Next start: commit/push this one correction, watch one exact-source CI,
+  deploy, stage one migration-only probe checkout, install the strict binding,
+  then stage/submit exactly one strict-manifest successor probe. Only after it
+  passes may a fresh unknown-discovery authority/run be created.

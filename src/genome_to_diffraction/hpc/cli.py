@@ -39,6 +39,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default="main",
         help="fixed remote branch containing the immutable commit",
     )
+    phenix_migrate = actions.add_parser(
+        "phenix-runtime-migrate",
+        help="create the one strict executable-hashed Phase III Phenix manifest",
+    )
+    phenix_migrate.add_argument("--run-id", required=True)
 
     readiness = actions.add_parser(
         "readiness",
@@ -258,6 +263,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.revision,
             source_branch=args.source_branch,
         )
+    if args.operation == "phenix-runtime-migrate":
+        return controller.phenix_runtime_migrate(args.run_id)
     if args.operation == "readiness":
         return controller.readiness(args.profile)
     if args.operation == "p0-configure":

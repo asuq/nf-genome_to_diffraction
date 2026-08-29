@@ -976,6 +976,15 @@ all nine packaged schemas, and package/CLI/Pixi/Nextflow version `0.2.0` were
 verified without contacting a package index. `PIPE-P3-01` is fixed; final
 release qualification must repeat this same gate after the version changes.
 
+The strict Phenix migration boundary is now explicit. Exact-source probe
+`636484` failed before scientific execution because the configured legacy
+manifest lacks all seven executable hashes. Scientific wrappers remain
+verify-only. A create-only reviewed operation can use one safely staged probe
+checkout to create and verify a deterministic strict-v1 successor once, then
+install its path/checksum as the fixed Phase III binding. The focused and full
+locked gates pass; one exact-source migration plus one strict successor probe
+remain before fresh unknown discovery.
+
 The remaining M6 execution-order defects are now fixed locally. Leakage cannot
 stage without a collected successful operational parent from the exact same
 site/source/lock/policy/runner authority. Its remote child binds the rehashed

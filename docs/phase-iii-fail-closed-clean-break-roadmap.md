@@ -240,7 +240,11 @@ Scope: `FCB-P1-03`, `FCB-P1-06`, and `FCB-P1-07`.
   focused fake-HPC tests atomically; then remove per-run refresh/inference.
   Completed locally: every fixed scientific wrapper verifies the staged strict
   manifest in place and retains those identical bytes; no wrapper invokes the
-  legacy refresh/migration command. Real exact-source qualification remains.
+  legacy refresh/migration command. Exact probe `636484` confirmed the current
+  configured manifest is legacy and missing all seven executable hashes. One
+  reviewed create-only migration operation now performs the explicit conversion
+  outside scientific execution, verifies the strict successor, and installs its
+  fixed binding. Exact-source migration/successor qualification remains.
 
 Acceptance: mass-absent selection, registry substitution, runtime version
 fabrication, missing executable identity, and migration fallback each fail a
