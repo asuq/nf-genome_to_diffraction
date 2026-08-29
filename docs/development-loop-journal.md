@@ -14292,3 +14292,24 @@ with a collapsed combined parent or a guessed command.
 - Next commit/push this focused correction, watch one CI, deploy, retrieve one
   concise summary from the retained staged run, and classify the exact failing
   command before any migration retry.
+
+## 2026-08-29 - Exact migration failure is a temporary-file suffix defect
+
+- Concise-diagnostic commit `2446da0d009362f9f0da0add90e27cb7f78d1731`
+  passed CI `33241613364` / `99071816805` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `6a35b5aa…`, `5f2b7830…`, and
+  `5334a95d…`. The retained summary proves all seven Phenix 2.1-6048 command
+  probes passed with executable hashes, accepting `PH3-P1-51`.
+- One post-classification migration call on the same staged checkout failed
+  after those seven successful probes because its temporary manifest ended in
+  `.tmp.<pid>`. The schema loader correctly refused to infer JSON from that
+  suffix. Exact captured error: `cannot infer input format from suffix`. No
+  strict binding, Slurm job, or scientific execution was created.
+- Finding `PH3-P1-52` changes only the run-owned temporary filename to end in
+  `.json`; the deterministic final strict-v1 target and atomic move are
+  unchanged. The fake-Marmic success regression now refuses a non-JSON refresh
+  output, directly protecting the observed boundary.
+- Next run the focused migration success test and wrapper syntax, commit/push
+  once, watch one CI, deploy, then retry migration once on the same staged
+  checkout. Only a verified two-line strict binding permits a fresh successor
+  probe.

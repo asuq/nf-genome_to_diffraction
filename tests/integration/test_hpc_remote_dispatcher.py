@@ -770,6 +770,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  printf "fake Phenix verified\\n" > "$verification_log"\n'
         'elif [[ "$mode" == phenix_refresh ]]; then\n'
         '  [[ -n "$verification_log" && -n "$refreshed" ]] || exit 18\n'
+        '  [[ "$refreshed" == *.json ]] || exit 19\n'
         '  if [[ "${FAKE_PHENIX_REFRESH_FAIL:-0}" == 1 ]]; then\n'
         '    printf "exact refresh failure\\n" >&2\n'
         "    exit 27\n"

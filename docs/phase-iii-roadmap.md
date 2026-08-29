@@ -992,6 +992,10 @@ The selector is now exact-source qualified, but the first real 2,000-line log
 tail was still dominated by command help and omitted the earlier failure.
 Structured command-result projection and separate future command capture are
 implemented locally so the retained run can be classified without raw access.
+Exact-source deployment then proved all seven installed commands pass and
+captured the actual post-probe defect: the temporary strict manifest did not
+end in `.json`, so the schema loader could not infer its format. The minimal
+suffix correction is local and awaits one CI/deployment/migration qualification.
 
 The remaining M6 execution-order defects are now fixed locally. Leakage cannot
 stage without a collected successful operational parent from the exact same

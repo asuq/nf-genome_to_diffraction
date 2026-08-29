@@ -2204,7 +2204,7 @@ phenix_runtime_migrate_run() {
     capture="$run/logs/phenix-runtime-migration-command.log"
     strict_capture="$run/logs/phenix-runtime-strict-verify-command.log"
     if [[ ! -e "$strict" ]]; then
-        temporary="$run/execution/phenix-strict-manifest.tmp.$$"
+        temporary="$run/execution/phenix-strict-manifest.tmp.$$.json"
         [[ ! -e "$temporary" ]] || \
             fail wrapper_failure "temporary Phenix migration target exists"
         "$gtd" --log-format json --no-progress phenix refresh-manifest \
