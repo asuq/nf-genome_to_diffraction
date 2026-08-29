@@ -405,8 +405,7 @@ def build_phase3_provider_discovery_package(
     }
     synthetic_stub = catalogue_manifest.software_version == "stub"
     if not synthetic_stub and (
-        not imported_authority
-        or not imported_authority.issubset(catalogue_authority)
+        not imported_authority or not imported_authority.issubset(catalogue_authority)
     ):
         raise PhaseIIIProviderDiscoveryError(
             "catalogue import differs from the execution identity"
@@ -491,9 +490,7 @@ def build_phase3_provider_discovery_package(
                     "inputs": tuple(
                         item.model_copy(
                             update={
-                                "path": (
-                                    f"authority/{item.catalogue_id}/{item.role}"
-                                )
+                                "path": (f"authority/{item.catalogue_id}/{item.role}")
                             }
                         )
                         for item in catalogue_manifest.inputs

@@ -206,36 +206,52 @@ def validate_phase3_finding_closure(
         )
 
     evidence_paths = {
-        "adverse_review_sha256": ("adverse-review", _regular_file(
-            evidence_files.adverse_review,
-            label="Phase III adverse review evidence",
-        )),
-        "integration_gate_sha256": ("integration-gate", _regular_file(
-            evidence_files.integration_gate,
-            label="Phase III integration-gate evidence",
-        )),
-        "known_control_evidence_sha256": ("known-control", _regular_file(
-            evidence_files.known_control_evidence,
-            label="Phase III known-control evidence",
-        )),
-        "m6_evidence_sha256": ("M6", _regular_file(
-            evidence_files.m6_evidence,
-            label="Phase III M6 evidence",
-        )),
-        "unknown_pass1_evidence_sha256": ("pass-1", _regular_file(
-            evidence_files.unknown_pass1_evidence,
-            label="Phase III pass-1 evidence",
-        )),
-        "exact_source_ci_evidence_sha256": ("exact-source CI", _regular_file(
-            evidence_files.exact_source_ci_evidence,
-            label="Phase III exact-source CI evidence",
-        )),
+        "adverse_review_sha256": (
+            "adverse-review",
+            _regular_file(
+                evidence_files.adverse_review,
+                label="Phase III adverse review evidence",
+            ),
+        ),
+        "integration_gate_sha256": (
+            "integration-gate",
+            _regular_file(
+                evidence_files.integration_gate,
+                label="Phase III integration-gate evidence",
+            ),
+        ),
+        "known_control_evidence_sha256": (
+            "known-control",
+            _regular_file(
+                evidence_files.known_control_evidence,
+                label="Phase III known-control evidence",
+            ),
+        ),
+        "m6_evidence_sha256": (
+            "M6",
+            _regular_file(
+                evidence_files.m6_evidence,
+                label="Phase III M6 evidence",
+            ),
+        ),
+        "unknown_pass1_evidence_sha256": (
+            "pass-1",
+            _regular_file(
+                evidence_files.unknown_pass1_evidence,
+                label="Phase III pass-1 evidence",
+            ),
+        ),
+        "exact_source_ci_evidence_sha256": (
+            "exact-source CI",
+            _regular_file(
+                evidence_files.exact_source_ci_evidence,
+                label="Phase III exact-source CI evidence",
+            ),
+        ),
     }
     for field_name, (label, path) in evidence_paths.items():
         if getattr(record, field_name) != sha256_file(path, progress=False):
-            raise PhaseIIIFindingClosureError(
-                f"Phase III {label} evidence differs"
-            )
+            raise PhaseIIIFindingClosureError(f"Phase III {label} evidence differs")
     try:
         ci_evidence = PhaseIIIExactSourceCIEvidence.model_validate(
             load_json_document(evidence_paths["exact_source_ci_evidence_sha256"][1])

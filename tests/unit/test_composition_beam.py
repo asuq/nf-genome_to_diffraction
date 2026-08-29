@@ -74,9 +74,7 @@ def _packed_attempt(root: Path, inventory) -> Path:
         coordinate = search / f"component_{component.label}.pdb"
         coordinate.write_text(f"ATOM COMPONENT {component.label}\n", encoding="ascii")
         coordinate_sha = sha256_file(coordinate)
-        ordinals = tuple(
-            range(ordinal, ordinal + component.requested_copy_count)
-        )
+        ordinals = tuple(range(ordinal, ordinal + component.requested_copy_count))
         placements.extend(
             PhaserPlacementArtifact.from_content(
                 solution_number=1,

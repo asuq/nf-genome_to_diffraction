@@ -173,9 +173,11 @@ def _path(root: Path, relative: PurePosixPath, *, directory: bool = False) -> Pa
         resolved = current.resolve(strict=True)
     except OSError as error:
         raise UnknownPass2InputError("pass-2 input path is absent") from error
-    if not resolved.is_relative_to(root) or (
-        directory and not resolved.is_dir()
-    ) or (not directory and not resolved.is_file()):
+    if (
+        not resolved.is_relative_to(root)
+        or (directory and not resolved.is_dir())
+        or (not directory and not resolved.is_file())
+    ):
         raise UnknownPass2InputError("pass-2 input path has the wrong type")
     return resolved
 
@@ -271,17 +273,14 @@ def _validate_source(
             "phase3_component_coordinates": (
                 "phaser-component-coordinate-inventory-v2"
             ),
-            "phase3_composition_attempt": (
-                "phase3-composition-attempt-execution-v1"
-            ),
+            "phase3_composition_attempt": ("phase3-composition-attempt-execution-v1"),
             "phase3_composition_beam": "phase3-composition-beam-depth-v1",
             "phase3_composition_depth": "phase3-composition-depth-input-v1",
             "phase3_no_a_expansion": "phase3-no-a-expansion-v2",
             "phase3_pass2_a_seed": "phase3-pass2-a-seed-v1",
         }
         if any(
-            adapters.get(name) != version
-            for name, version in required_adapters.items()
+            adapters.get(name) != version for name, version in required_adapters.items()
         ):
             raise UnknownPass2InputError(
                 f"pass-2 execution adapters differ for {crystal_id}"
@@ -290,17 +289,13 @@ def _validate_source(
             assessment.crystal_id != crystal_id
             or assessment.execution_identity_id != identity.execution_identity_id
         ):
-            raise UnknownPass2InputError(
-                f"pass-2 assessment differs for {crystal_id}"
-            )
+            raise UnknownPass2InputError(f"pass-2 assessment differs for {crystal_id}")
         credible = assessment.scientific_status in {
             UnknownPass1ScientificStatus.CREDIBLE_SINGLE_COMPONENT_SOLUTION,
             UnknownPass1ScientificStatus.CREDIBLE_PARTIAL_OR_RESIDUAL,
         }
         if mode == "composition_beam" and (
-            not credible
-            or "no_a_expansion_plan" in paths
-            or not 1 <= len(states) <= 3
+            not credible or "no_a_expansion_plan" in paths or not 1 <= len(states) <= 3
         ):
             raise UnknownPass2InputError(
                 f"pass-2 composition parent authority differs for {crystal_id}"
@@ -310,17 +305,17 @@ def _validate_source(
                 f"pass-2 no-A authority differs for {crystal_id}"
             )
         if any(
-                state.crystal_id != crystal_id
-                or state.depth != 1
-                or state.support_state.value
-                not in {
-                    "packed",
-                    "refined",
-                    "review_supported",
-                    "composition_supported",
-                }
-                for state in states
-            ):
+            state.crystal_id != crystal_id
+            or state.depth != 1
+            or state.support_state.value
+            not in {
+                "packed",
+                "refined",
+                "review_supported",
+                "composition_supported",
+            }
+            for state in states
+        ):
             raise UnknownPass2InputError(
                 f"pass-2 parent beam is invalid for {crystal_id}"
             )

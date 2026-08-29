@@ -211,8 +211,7 @@ def test_bounded_login_stage_round_trips(
     assert offline.manifest.remote_sequence_submission is False
     assert offline.manifest.compute_network_access is False
     workflow = (
-        Path(__file__).resolve().parents[2]
-        / "workflows/phase3_application_workflow.nf"
+        Path(__file__).resolve().parents[2] / "workflows/phase3_application_workflow.nf"
     ).read_text(encoding="utf-8")
     assert "afdb_exact_search/owned_coordinate_sources.jsonl" in workflow
     assert "pdb_coordinate_registration/owned_coordinate_sources.jsonl" in workflow

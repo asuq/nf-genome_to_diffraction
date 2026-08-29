@@ -319,6 +319,7 @@ def _live_request(
                         "hypothesis_id": HYPOTHESIS_ID,
                         "sequence_group_id": GROUP_ID,
                         "expected_copy_count": expected_copy_count,
+                        "placed_copy_count": placed_copy_count,
                         "requires_additional_copy": expected_copy_count > 1,
                         "source_solution_coordinate": root_coordinate.relative_to(
                             review

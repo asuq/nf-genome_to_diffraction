@@ -278,6 +278,7 @@ def test_pass2_archive_round_trip_accepts_one_no_a_crystal(tmp_path: Path) -> No
     assert validated.input_id == bundle.input_id
     assert validated.crystal_ids == (CRYSTAL,)
     assert validated.finding_closure_id == bundle.finding_closure_id
-    assert bundle.archive_sha256 == hashlib.sha256(
-        bundle.archive_path.read_bytes()
-    ).hexdigest()
+    assert (
+        bundle.archive_sha256
+        == hashlib.sha256(bundle.archive_path.read_bytes()).hexdigest()
+    )

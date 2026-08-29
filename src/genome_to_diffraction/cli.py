@@ -1490,9 +1490,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     composition_seed_parser.add_argument("--assessment", type=Path, required=True)
     composition_seed_parser.add_argument("--hypotheses", type=Path, required=True)
-    composition_seed_parser.add_argument(
-        "--copy-assessments", type=Path, required=True
-    )
+    composition_seed_parser.add_argument("--copy-assessments", type=Path, required=True)
     composition_seed_parser.add_argument("--packing-result", type=Path, required=True)
     composition_seed_parser.add_argument("--phaser-command", type=Path, required=True)
     composition_seed_parser.add_argument("--solution-file", type=Path, required=True)
@@ -1904,9 +1902,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "collect-derived-unknown-pass1-panel",
         help="collect exactly three independently derived unknown-pass-1 records",
     )
-    unknown_pass1_collect_parser.add_argument(
-        "--input-root", type=Path, required=True
-    )
+    unknown_pass1_collect_parser.add_argument("--input-root", type=Path, required=True)
     unknown_pass1_collect_parser.add_argument("--outdir", type=Path, required=True)
     owned_a_seed_package_parser = review_actions.add_parser(
         "build-owned-a-package",
@@ -1963,9 +1959,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="publish terminal pass-2 composition and sequence review packages",
     )
     pass2_package_parser.add_argument("--beam", type=Path, required=True)
-    pass2_package_parser.add_argument(
-        "--execution-identity", type=Path, required=True
-    )
+    pass2_package_parser.add_argument("--execution-identity", type=Path, required=True)
     pass2_package_parser.add_argument("--owned-parent-run", required=True)
     pass2_package_parser.add_argument("--crystal-id", required=True)
     pass2_package_parser.add_argument("--outdir", type=Path, required=True)

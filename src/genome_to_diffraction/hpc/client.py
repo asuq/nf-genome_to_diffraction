@@ -444,9 +444,7 @@ def _m6_operational_precheck(
     for relative in _M6_OPERATIONAL_PRECHECK_PATHS:
         path = collected.joinpath(*PurePosixPath(relative).parts)
         if path.is_symlink() or not path.is_file():
-            raise ValidationError(
-                f"M6 operational precheck is missing {relative}"
-            )
+            raise ValidationError(f"M6 operational precheck is missing {relative}")
         paths.append((relative, path))
     manifest = load_json_document(paths[0][1])
     result = load_json_document(paths[1][1])
@@ -1075,11 +1073,7 @@ class SshTransport:
                 if destination.stat().st_size <= MAX_LOG_BYTES
                 else b""
             )
-            fields = (
-                _decode_remote_fields(payload)
-                if payload
-                else {}
-            )
+            fields = _decode_remote_fields(payload) if payload else {}
             message = (
                 fields.get("message")
                 or result.stderr.decode("utf-8", errors="replace").strip()
@@ -2070,8 +2064,7 @@ class HpcController:
                 attached.get("run_id") != run_id
                 or attached.get("parent_run_id") != pass2_parent.run_id
                 or attached.get("input_id") != pass2_bundle.input_id
-                or attached.get("finding_closure_id")
-                != pass2_bundle.finding_closure_id
+                or attached.get("finding_closure_id") != pass2_bundle.finding_closure_id
             ):
                 raise RemoteOperationError(
                     "remote unknown-pass2 input identity differs",
@@ -2082,9 +2075,7 @@ class HpcController:
                 "unknown_pass1_parent_run_id": pass2_parent.run_id,
                 "unknown_pass2_input_id": pass2_bundle.input_id,
                 "finding_closure_id": pass2_bundle.finding_closure_id,
-                "unknown_pass2_crystal_count": str(
-                    len(pass2_bundle.crystal_ids)
-                ),
+                "unknown_pass2_crystal_count": str(len(pass2_bundle.crystal_ids)),
             }
         if profile == "m6-nextflow-smoke":
             remote_site = remote.get("site_id")
@@ -2537,9 +2528,7 @@ class HpcController:
                     "M6 leakage parent differs in profile, site, or source"
                 )
             operational_precheck_sha256 = _m6_operational_precheck(
-                self.config.local_state_root
-                / operational_parent.run_id
-                / "collected",
+                self.config.local_state_root / operational_parent.run_id / "collected",
                 operational_parent,
             )
         if source_branch == "main":
@@ -2581,9 +2570,7 @@ class HpcController:
             profile=profile,
             iteration=1,
             parent_run_id=(
-                operational_parent.run_id
-                if operational_parent is not None
-                else None
+                operational_parent.run_id if operational_parent is not None else None
             ),
         )
         local_path = record.write(self.config.local_state_root)

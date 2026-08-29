@@ -1120,9 +1120,7 @@ def _batch_search_records(
             root / "search/search_results.jsonl", StructuralSearchResult
         ):
             if record.search_id in result_ids:
-                raise PublicControlError(
-                    f"M6 {provider} search records are duplicated"
-                )
+                raise PublicControlError(f"M6 {provider} search records are duplicated")
             result_ids.add(record.search_id)
             if record.sequence_group_id in selected_group_ids:
                 results.append(record)
@@ -1130,9 +1128,7 @@ def _batch_search_records(
             root / "search/structural_hits.jsonl", StructuralSearchHit
         ):
             if hit.hit_id in hit_ids:
-                raise PublicControlError(
-                    f"M6 {provider} search records are duplicated"
-                )
+                raise PublicControlError(f"M6 {provider} search records are duplicated")
             hit_ids.add(hit.hit_id)
             if hit.sequence_group_id in selected_group_ids:
                 hits.append(hit)
@@ -2699,13 +2695,16 @@ def _atomic_gzip(source: Path, destination: Path) -> None:
             delete=False,
         ) as raw:
             temporary = Path(raw.name)
-            with gzip.GzipFile(
-                filename="",
-                mode="wb",
-                compresslevel=9,
-                fileobj=raw,
-                mtime=0,
-            ) as compressed, source.open("rb") as stream:
+            with (
+                gzip.GzipFile(
+                    filename="",
+                    mode="wb",
+                    compresslevel=9,
+                    fileobj=raw,
+                    mtime=0,
+                ) as compressed,
+                source.open("rb") as stream,
+            ):
                 shutil.copyfileobj(stream, compressed, length=1024 * 1024)
             raw.flush()
             os.fsync(raw.fileno())

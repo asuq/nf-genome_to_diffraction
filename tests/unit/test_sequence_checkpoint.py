@@ -449,9 +449,7 @@ def _phase3_live_request(tmp_path: Path) -> LiveSequenceCheckpointRequest:
         "".join(f"{canonical_json_text(item)}\n" for item in assessments),
         encoding="utf-8",
     )
-    stage_manifest["copy_count_assessments_sha256"] = sha256_file(
-        copy_assessments
-    )
+    stage_manifest["copy_count_assessments_sha256"] = sha256_file(copy_assessments)
     stage_manifest_path.write_text(
         json.dumps(stage_manifest, sort_keys=True),
         encoding="utf-8",

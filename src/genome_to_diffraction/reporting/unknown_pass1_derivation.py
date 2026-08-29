@@ -292,8 +292,7 @@ def _resolved_review(
     rows = tuple(
         row
         for row in decision.decisions
-        if row.crystal_id == crystal_id
-        and (item_id is None or row.item_id == item_id)
+        if row.crystal_id == crystal_id and (item_id is None or row.item_id == item_id)
     )
     if (
         not rows
@@ -319,9 +318,7 @@ def _resolved_review(
             package_crystal_id=crystal_id,
             package_item_id=row.item_id,
             review_package_id=resolved.review_package_id,
-            review_package_manifest_sha256=(
-                resolved.review_package_manifest_sha256
-            ),
+            review_package_manifest_sha256=(resolved.review_package_manifest_sha256),
             decision_crystal_id=crystal_id,
             decision_item_id=row.item_id,
             decision_file_id=decision.decision_file_id,
@@ -355,7 +352,7 @@ def _copy_assessment(path: Path, *, state_id: str) -> CopyCountAssessment:
     try:
         try:
             records = (CopyCountAssessment.model_validate_json(payload),)
-        except (ValidationError, ValueError):
+        except ValidationError, ValueError:
             records = tuple(
                 CopyCountAssessment.model_validate_json(line)
                 for line in payload.splitlines()
@@ -597,9 +594,7 @@ def derive_unknown_pass1_assessment(
             raise UnknownPass1DerivationError(
                 "solution derivation requires all final owned reviews"
             )
-        copy_assessment_path = _present(
-            request.copy_assessment, "copy assessment"
-        )
+        copy_assessment_path = _present(request.copy_assessment, "copy assessment")
         packing_result_path = _present(request.packing_result, "packing result")
         combined_coordinate_path = _present(
             request.combined_coordinate, "combined coordinate"
@@ -607,9 +602,7 @@ def derive_unknown_pass1_assessment(
         refinement_result_path = _present(
             request.refinement_result, "refinement result"
         )
-        sequence_result_path = _present(
-            request.sequence_result, "sequence result"
-        )
+        sequence_result_path = _present(request.sequence_result, "sequence result")
         refined_coordinate_path = _present(
             request.refined_coordinate, "refined coordinate"
         )
@@ -648,9 +641,11 @@ def derive_unknown_pass1_assessment(
             crystal_id=request.crystal_id,
             checkpoint=PhaseIIIReviewCheckpoint.COMPOSITION,
         )
-        if len(a_reviews) != 1 or len(sequence_reviews) != 1 or len(
-            composition_reviews
-        ) != 1:
+        if (
+            len(a_reviews) != 1
+            or len(sequence_reviews) != 1
+            or len(composition_reviews) != 1
+        ):
             raise UnknownPass1DerivationError(
                 "solution derivation requires one selected item per final review"
             )
@@ -683,7 +678,7 @@ def derive_unknown_pass1_assessment(
                     packing_path.read_bytes().splitlines()[0]
                 )
             )
-        except (IndexError, ValidationError, ValueError):
+        except IndexError, ValidationError, ValueError:
             try:
                 packing = AdditionalCopyResult.model_validate_json(
                     packing_path.read_bytes().splitlines()[0]
@@ -707,9 +702,7 @@ def derive_unknown_pass1_assessment(
             packing_hypothesis_id = packing.hypothesis_id
             packing_copy_count = packing.placed_copy_count
             packing_status = packing.execution_status
-            packing_passed = (
-                packing.packing_summary.get("top_solution_packed") is True
-            )
+            packing_passed = packing.packing_summary.get("top_solution_packed") is True
             packing_coordinate_sha256 = packing.solution_coordinate_sha256
         else:
             packing_hypothesis_id = packing.hypothesis_id
@@ -824,14 +817,9 @@ def derive_unknown_pass1_assessment(
             execution_status = ExecutionStatus.COMPLETED_NO_HIT
 
     expected_profile = (
-        "unknown-single-component"
-        if single_registry is not None
-        else "unknown-screen"
+        "unknown-single-component" if single_registry is not None else "unknown-screen"
     )
-    if (
-        job.get("run_id") != parent_run_id
-        or job.get("profile") != expected_profile
-    ):
+    if job.get("run_id") != parent_run_id or job.get("profile") != expected_profile:
         raise UnknownPass1DerivationError(
             "terminal job result belongs to another owned run"
         )
@@ -879,9 +867,7 @@ def derive_unknown_pass1_assessment(
         )
         solution = solution.model_copy(
             update={
-                "parsed_final_metrics_evidence_sha256": sha256_file(
-                    final_metrics_path
-                )
+                "parsed_final_metrics_evidence_sha256": sha256_file(final_metrics_path)
             }
         )
 
@@ -996,8 +982,7 @@ def collect_derived_unknown_pass1_panel(
         if (
             not isinstance(manifest, dict)
             or manifest.get("schema_version") != "1.0"
-            or manifest.get("adapter_version")
-            != "unknown-pass1-owned-derivation-v1"
+            or manifest.get("adapter_version") != "unknown-pass1-owned-derivation-v1"
             or manifest.get("crystal_id") != crystal_id
             or not isinstance(manifest.get("assessment"), dict)
             or not isinstance(manifest.get("evidence"), list)
@@ -1009,9 +994,9 @@ def collect_derived_unknown_pass1_panel(
         assessments.append(
             UnknownPass1AssessmentSource(
                 crystal_id=crystal_id,
-                relative_path=(
-                    directory / str(assessment["relative_path"])
-                ).relative_to(root).as_posix(),
+                relative_path=(directory / str(assessment["relative_path"]))
+                .relative_to(root)
+                .as_posix(),
                 sha256=str(assessment["sha256"]),
                 size_bytes=int(assessment["size_bytes"]),
             )
@@ -1026,9 +1011,9 @@ def collect_derived_unknown_pass1_panel(
                     crystal_id=crystal_id,
                     kind=UnknownPass1CollectedFileKind(str(item["kind"])),
                     role=str(item["role"]),
-                    relative_path=(
-                        directory / str(item["relative_path"])
-                    ).relative_to(root).as_posix(),
+                    relative_path=(directory / str(item["relative_path"]))
+                    .relative_to(root)
+                    .as_posix(),
                     sha256=str(item["sha256"]),
                     size_bytes=int(item["size_bytes"]),
                 )

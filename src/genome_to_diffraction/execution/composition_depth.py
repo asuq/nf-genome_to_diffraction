@@ -178,12 +178,11 @@ def _find_component_inventory(root: Path, state: CompositionState) -> Path:
             inventory = PhaserPerPlacementInventory.model_validate_json(
                 path.read_bytes()
             )
-        except (OSError, ValidationError, ValueError):
+        except OSError, ValidationError, ValueError:
             continue
         if (
             inventory.crystal_id == state.crystal_id
-            and inventory.combined_coordinate_sha256
-            == state.combined_coordinate_sha256
+            and inventory.combined_coordinate_sha256 == state.combined_coordinate_sha256
         ):
             matches.setdefault(sha256_file(path), path)
     if len(matches) != 1:
@@ -202,7 +201,7 @@ def _parent_score(
         for path in root.rglob("normalised_mr_result.json"):
             try:
                 result = NormalisedMrResult.model_validate_json(path.read_bytes())
-            except (OSError, ValidationError, ValueError):
+            except OSError, ValidationError, ValueError:
                 continue
             if (
                 result.execution_status is ExecutionStatus.COMPLETED_HIT
@@ -217,7 +216,7 @@ def _parent_score(
                 score = ComponentExpansionScoreEvidence.model_validate_json(
                     path.read_bytes()
                 )
-            except (OSError, ValidationError, ValueError):
+            except OSError, ValidationError, ValueError:
                 continue
             if (
                 score.execution_input.parent_state.state_id == state.parent_state_id
@@ -353,16 +352,13 @@ def build_composition_depth_inputs(
     adapters = dict(identity.adapter_versions)
     required_adapters = {
         "phase3_all_model_registry": "all-eligible-model-registry-v3",
-        "phase3_component_coordinates": (
-            "phaser-component-coordinate-inventory-v2"
-        ),
+        "phase3_component_coordinates": ("phaser-component-coordinate-inventory-v2"),
         "phase3_composition_attempt": "phase3-composition-attempt-execution-v1",
         "phase3_composition_beam": "phase3-composition-beam-depth-v1",
         "phase3_composition_depth": _ADAPTER_VERSION,
     }
     if any(
-        adapters.get(name) != version
-        for name, version in required_adapters.items()
+        adapters.get(name) != version for name, version in required_adapters.items()
     ):
         raise CompositionDepthInputError(
             "execution identity lacks current composition-depth adapters"

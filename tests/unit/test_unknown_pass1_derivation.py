@@ -55,9 +55,7 @@ def test_zero_model_screen_derives_no_supported_candidate(tmp_path: Path) -> Non
     fixture = materialise_unknown_pass1_public_fixture(fixture_root)
     crystal_id = fixture.crystals[0].crystal_id
     screen_run = "gtd-unknown-screen-20260828T000000Z-aaaaaaaaaaaa-bbbbbbbb"
-    single_run = (
-        "gtd-unknown-single-component-20260828T000100Z-aaaaaaaaaaaa-cccccccc"
-    )
+    single_run = "gtd-unknown-single-component-20260828T000100Z-aaaaaaaaaaaa-cccccccc"
     evidence_root = tmp_path / "a-evidence"
     evidence_root.mkdir()
     (evidence_root / "mr_seed_review_manifest.json").write_text(
@@ -158,10 +156,7 @@ def test_zero_model_screen_derives_no_supported_candidate(tmp_path: Path) -> Non
         execution_identity=fixture.execution_identity,
     )
     decision = (
-        fixture.review_stage
-        / "stages"
-        / crystal_id
-        / "phase3_review_decision.json"
+        fixture.review_stage / "stages" / crystal_id / "phase3_review_decision.json"
     )
 
     output = derive_unknown_pass1_assessment(
@@ -325,18 +320,16 @@ def test_credible_solution_is_derived_from_owned_scientific_records(
     sequence_group_id = str(sequence["candidates"][0]["sequence_group_id"])
     assessments = tuple(
         line
-        for line in (
-            checkpoint_request.stage_bundle / "copy_count_assessments.jsonl"
-        ).read_text(encoding="utf-8").splitlines()
+        for line in (checkpoint_request.stage_bundle / "copy_count_assessments.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
         if json.loads(line)["seed_solution_id"] == state_id
     )
     assert len(assessments) == 1
     copy_record = json.loads(assessments[0])
     assert copy_record["seed_solution_id"] == state_id
     assert copy_record["best_supported_copy_count"] == refinement["input_copy_count"]
-    copy_assessment = (
-        checkpoint_request.stage_bundle / "copy_count_assessments.jsonl"
-    )
+    copy_assessment = checkpoint_request.stage_bundle / "copy_count_assessments.jsonl"
     combined = checkpoint_request.stage_bundle / f"parents/{state_id}/parent.pdb"
     packing = NormalisedMrResult(
         schema_version="1.0",
@@ -360,9 +353,7 @@ def test_credible_solution_is_derived_from_owned_scientific_records(
         encoding="utf-8",
     )
     screen_run = "gtd-unknown-screen-20260828T000000Z-aaaaaaaaaaaa-bbbbbbbb"
-    single_run = (
-        "gtd-unknown-single-component-20260828T000100Z-aaaaaaaaaaaa-cccccccc"
-    )
+    single_run = "gtd-unknown-single-component-20260828T000100Z-aaaaaaaaaaaa-cccccccc"
     crystal_run = "phase3-crystallographic-review-test"
 
     crystal_package = _generic_package(

@@ -80,8 +80,7 @@ def test_credible_pass1_builds_claim_free_refined_a_parent(tmp_path: Path) -> No
     combined.write_bytes(model.read_bytes())
     solution_file = tmp_path / "PHASER.sol"
     solution_file.write_text(
-        "SOLU SET LLG=100\n"
-        "SOLU 6DIM ENSE search_A EULER 1 0 0 FRAC 0 0 0 BFAC 0\n",
+        "SOLU SET LLG=100\nSOLU 6DIM ENSE search_A EULER 1 0 0 FRAC 0 0 0 BFAC 0\n",
         encoding="ascii",
     )
     hypothesis = MrHypothesis(
@@ -207,7 +206,9 @@ def test_credible_pass1_builds_claim_free_refined_a_parent(tmp_path: Path) -> No
     base_root = tmp_path / "base"
     base_root.mkdir()
     base = PhaseIIIExecutionIdentity.model_validate_json(
-        materialise_unknown_pass1_public_fixture(base_root).execution_identity.read_bytes()
+        materialise_unknown_pass1_public_fixture(
+            base_root
+        ).execution_identity.read_bytes()
     )
     identity_values = base.model_dump(mode="python")
     identity_values.pop("execution_identity_id")

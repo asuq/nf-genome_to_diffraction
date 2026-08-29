@@ -279,9 +279,7 @@ def _attempt_evidence(
         raise CompositionBeamError(
             "attempt child evidence violates its contract"
         ) from error
-    selected_component = (
-        score.execution_input.selected_candidate.hypothesis.component
-    )
+    selected_component = score.execution_input.selected_candidate.hypothesis.component
     if (
         result.child_state_id != state.state_id
         or result.child_state_sha256 != sha256_file(state_path)
@@ -534,9 +532,7 @@ def collect_composition_beam_depth(
     )
     atomic_write_text(
         output / "terminal_review_states.jsonl",
-        "".join(
-            f"{canonical_json_text(item)}\n" for item in terminal_review_states
-        ),
+        "".join(f"{canonical_json_text(item)}\n" for item in terminal_review_states),
     )
     checksums = output / "composition_beam_depth_checksums.sha256"
     retained_files = tuple(

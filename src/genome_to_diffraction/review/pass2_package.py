@@ -131,16 +131,12 @@ def build_pass2_review_packages(
         "composition_assessments.jsonl",
         "composition_beam_depth_checksums.sha256",
     }
-    evidence_paths = {
-        path
-        for name in summary_names
-        if (path := root / name).is_file()
-    }
+    evidence_paths = {path for name in summary_names if (path := root / name).is_file()}
     state_ids = {state.state_id for state in states}
     for state_path in root.glob("attempts/*/composition_state.json"):
         try:
             state = CompositionState.model_validate_json(state_path.read_bytes())
-        except (OSError, ValidationError, ValueError):
+        except OSError, ValidationError, ValueError:
             continue
         if state.state_id in state_ids:
             evidence_paths.update(

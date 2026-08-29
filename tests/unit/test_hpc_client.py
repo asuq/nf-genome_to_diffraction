@@ -1498,9 +1498,7 @@ def test_unknown_discovery_stage_attaches_only_fixed_private_inputs(
             {
                 "schema_version": "1.0",
                 "crystallographic_review_stage": str(fixture.review_stage),
-                "crystallographic_review_registry": str(
-                    fixture.owned_run_registry
-                ),
+                "crystallographic_review_registry": str(fixture.owned_run_registry),
                 "execution_identity": str(fixture.execution_identity),
                 "afdb_accession_map": str(afdb_map),
                 "crystal_manifest": str(phase3_crystals),
@@ -1754,10 +1752,7 @@ def test_unknown_pass2_stage_requires_parent_and_attaches_rg7_archive(
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     parent = LocalRunRecord(
-        run_id=(
-            "gtd-unknown-single-component-20260825T000000Z-"
-            "aaaaaaaaaaaa-bbbbbbbb"
-        ),
+        run_id=("gtd-unknown-single-component-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb"),
         site_id="marmic",
         commit=COMMIT,
         owner_id="d" * 32,
@@ -2179,8 +2174,7 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
             },
         )
         (
-            collected
-            / "artifacts/qualification/m6-scientific-checksums.sha256"
+            collected / "artifacts/qualification/m6-scientific-checksums.sha256"
         ).write_text("a" * 64 + "  result.json\n", encoding="ascii")
 
     result = controller.m6_scientific_stage(

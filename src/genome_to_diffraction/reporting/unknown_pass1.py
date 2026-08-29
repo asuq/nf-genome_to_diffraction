@@ -226,9 +226,7 @@ def _validate_review_sources(
         role="terminal_result",
         schema=UnknownPass1TerminalEvidence,
     )
-    single_component_parent = (
-        terminal.parent_profile == "unknown-single-component"
-    )
+    single_component_parent = terminal.parent_profile == "unknown-single-component"
     for evidence in assessment.review_evidence:
         package_paths = paths_by_digest.get(
             evidence.review_package_manifest_sha256,
@@ -339,9 +337,7 @@ def _validate_review_sources(
                 raise UnknownPass1CollectionError(
                     "review package contains undeclared evidence"
                 )
-            package_digests.setdefault(package.checkpoint, set()).add(
-                artifact.sha256
-            )
+            package_digests.setdefault(package.checkpoint, set()).add(artifact.sha256)
     return package_digests
 
 
@@ -394,7 +390,7 @@ def _copy_support_contract(
         payload = path.read_bytes()
         try:
             records = (CopyCountAssessment.model_validate_json(payload),)
-        except (ValidationError, ValueError):
+        except ValidationError, ValueError:
             records = tuple(
                 CopyCountAssessment.model_validate_json(line)
                 for line in payload.splitlines()
@@ -402,8 +398,7 @@ def _copy_support_contract(
             )
     except (OSError, ValidationError, ValueError) as error:
         raise UnknownPass1CollectionError(
-            "owned scientific copy_support evidence violates its authoritative "
-            "contract"
+            "owned scientific copy_support evidence violates its authoritative contract"
         ) from error
     matches = tuple(item for item in records if item.seed_solution_id == state_id)
     if len(matches) != 1:
@@ -650,7 +645,7 @@ def _validate_scientific_sources(
         packing: NormalisedMrResult | AdditionalCopyResult = (
             NormalisedMrResult.model_validate_json(packing_path.read_bytes())
         )
-    except (OSError, ValidationError, ValueError):
+    except OSError, ValidationError, ValueError:
         try:
             packing = AdditionalCopyResult.model_validate_json(
                 packing_path.read_bytes()

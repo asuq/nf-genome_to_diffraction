@@ -231,12 +231,16 @@ Scope: `FCB-P1-03`, `FCB-P1-06`, and `FCB-P1-07`.
   evidence; absent masses remain explicitly unsearchable.
 - Migrate ranking, Phaser, and partner search to content-bound v2 all-model
   registry entries; delete the synthetic v1 compatibility manifest.
-  The synthetic writer is now deleted locally; active first-copy consumers use
-  the independently verified v2 registry, while exact-source CI and owned-HPC
-  qualification remain outstanding.
+  The synthetic writer is deleted. Registry v3 now also binds executable model
+  sequence identity, uncertainty source, and its evidence digest; first-copy,
+  pass-2 seed, planning, and Phaser consumers require that exact authority.
+  Exact-source CI and owned-HPC qualification remain outstanding.
 - Perform one reviewed migration to a strict, complete, executable-hashed
   Phenix runtime manifest. Update owned staging, fixed profile contracts, and
   focused fake-HPC tests atomically; then remove per-run refresh/inference.
+  Completed locally: every fixed scientific wrapper verifies the staged strict
+  manifest in place and retains those identical bytes; no wrapper invokes the
+  legacy refresh/migration command. Real exact-source qualification remains.
 
 Acceptance: mass-absent selection, registry substitution, runtime version
 fabrication, missing executable identity, and migration fallback each fail a
@@ -316,6 +320,20 @@ The pass retains at most six distinct components, three parent states per
 depth, 25 attempts per depth, and 100 additional-component attempts per
 crystal. Depths four to six remain provisional; human final composition and
 sequence review remain mandatory.
+
+Implementation status: `unknown-pass2` is now a fixed, argument-free reviewed
+profile. Its mode-0600 input archive rehashes every RG7 evidence file and CI
+record, binds the exact source/execution identity, and rejects an incomplete
+ledger before submit and again in every depth planner. Credible A states run a
+static B--F beam; no-A states run the retained 175-hypothesis expansion and
+stop at an owned A review. Terminal states produce scope/assessment plus owned
+composition and sequence packages; no automated claim is possible. Local
+focused, cached-stub, wrapper, and fake-Marmic gates pass. RG7 itself remains
+closed until real M6/pass-1 evidence and final finding dispositions exist.
+The named local integration candidate passes 1,382 unit, 139 contract, and 92
+integration tests plus every repository scientific, schema, documentation,
+Nextflow/stub, packaging, and wrapper gate. Exact-source CI and the real-evidence
+dependencies above remain deliberately unsatisfied.
 
 ## Test and operational policy
 

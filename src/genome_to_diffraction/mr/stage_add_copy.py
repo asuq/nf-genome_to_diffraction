@@ -541,27 +541,21 @@ def _stage_approved_seed_models(
             )
             normalised_result_sha256 = sha256_file(normalised_result)
             if normalised_result_sha256 != copied_sha.get("normalised_result"):
-                raise ValueError(
-                    f"first-copy result checksum differs: {solution_id}"
-                )
+                raise ValueError(f"first-copy result checksum differs: {solution_id}")
             try:
                 result_lines = normalised_result.read_bytes().splitlines()
                 if len(result_lines) != 1:
                     raise ValueError("expected exactly one JSONL record")
-                parsed_result = NormalisedMrResult.model_validate_json(
-                    result_lines[0]
-                )
+                parsed_result = NormalisedMrResult.model_validate_json(result_lines[0])
             except (OSError, ValidationError, ValueError) as error:
                 raise ValueError(
                     f"first-copy result is invalid: {solution_id}: {error}"
                 ) from error
             if (
                 parsed_result.hypothesis_id != hypothesis.hypothesis_id
-                or parsed_result.execution_status
-                is not ExecutionStatus.COMPLETED_HIT
+                or parsed_result.execution_status is not ExecutionStatus.COMPLETED_HIT
                 or parsed_result.placed_copy_count < 1
-                or parsed_result.placed_copy_count
-                > hypothesis.copy_count_expected
+                or parsed_result.placed_copy_count > hypothesis.copy_count_expected
                 or parsed_result.solution_coordinate_sha256 != coordinate_sha
             ):
                 raise ValueError(
@@ -946,13 +940,11 @@ def validate_phase3_seed_stage(
             or isinstance(expected_copy_count, bool)
             or not isinstance(expected_copy_count, int)
             or not 1 <= placed_copy_count <= expected_copy_count
-            or requires_additional
-            is not (placed_copy_count < expected_copy_count)
+            or requires_additional is not (placed_copy_count < expected_copy_count)
             or sha256_file(model) != model_sha
             or row.get("search_model_sha256") != model_sha
             or row.get("expected_copy_count") != str(expected_copy_count)
-            or row.get("requires_additional_copy")
-            != str(requires_additional).lower()
+            or row.get("requires_additional_copy") != str(requires_additional).lower()
         ):
             raise ValueError(f"Phase III staged model differs: {seed_id}")
         normalised_result = _owned_review_asset(
@@ -960,9 +952,7 @@ def validate_phase3_seed_stage(
             source.get("normalised_result"),
             "Phase III first-copy normalised result",
         )
-        if sha256_file(normalised_result) != source.get(
-            "normalised_result_sha256"
-        ):
+        if sha256_file(normalised_result) != source.get("normalised_result_sha256"):
             raise ValueError(f"Phase III first-copy result differs: {seed_id}")
         model_sources[seed_id] = source
     review_document = _load_object(review_manifest, "owned MR review manifest")

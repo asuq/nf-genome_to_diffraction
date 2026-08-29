@@ -14157,3 +14157,51 @@ with a collapsed combined parent or a guessed command.
   code waves, run one named full locked integration gate, then commit/push and
   qualify one fresh exact-source discovery. Never use `87174e1` as a screen
   parent.
+
+## 2026-08-28 - Pre-screen audit fixes and the fixed pass-2 path are complete locally
+
+- Local commits `662d29a`, `2faa1c7`, and `5a189a7` close the reviewed code
+  defects without launching a remote run. Full discovery authority, run-owned
+  offline coordinates, source/P0/database parent binding, joint-copy
+  continuation, 25-MR/four-refinement concurrency, complete replay/collection,
+  and package-contained terminal derivation are implemented. Current terminal
+  records bind the scheduler manifest/result and execution identity; historical
+  v2 assessment evidence remains read-only.
+- M6 leakage now requires the collected successful same-source operational
+  parent and shares only its truthless cache. Coordinate materialisation is
+  offline, partitioning/aggregation and collection stream with bounded memory,
+  and Marmic input qualification accepts `dev/phase3`. The remote parent/cache
+  binding regression, 73 focused M6 tests, and the cache-mutation stub pass; no
+  real M6 scientific track has run.
+- The general pass-2 route is executable. A credible pass-1 state becomes one
+  refined, identity-unresolved A state with exact component coordinates. The
+  static B--F beam enforces width three, 25 attempts/depth, depth six, and 100
+  attempts total. Initial cap-deferred A hypotheses are retained; a no-A case
+  runs at most 175 additional hypotheses with 25 concurrent tasks and stops at
+  a new owned A review. Terminal depths emit scope decisions, claim-free
+  assessments, and owned composition/sequence packages; depth four and beyond
+  is always provisional.
+- The fixed `unknown-pass2` wrapper accepts only one checksum-inventoried private
+  archive whose execution identity and every RG7 evidence file revalidate. It
+  uses an 8-CPU/32-GB/72-hour outer allocation, compares byte-identical cached
+  replay, and streams up to 12 GiB of collected evidence instead of buffering
+  it in RAM. The cached beam/no-A stub, 202 focused scientific/HPC tests, Ruff,
+  ty, Nextflow syntax, Bash syntax, the 81-case dispatcher integration file,
+  and focused Phenix/unknown/M6 lifecycle tests pass.
+- No per-run scientific wrapper refreshes or infers a Phenix manifest now; each
+  verifies and retains the one staged executable-hashed authority. Active
+  single-component route records and composition manifests are package-relative.
+- Next start: run the one named full locked integration gate on the current
+  candidate, commit the final review evidence/docs, push once, watch one exact-
+  source CI, deploy, rebuild the private authority for that commit, and submit
+  exactly one fresh unknown-discovery successor. Job `636381` and every earlier
+  failed discovery/cache remain diagnostic only and must not be reused.
+- The named locked integration gate is now green after one stale current-
+  manifest test fixture and two obsolete network-label contract assertions were
+  corrected. Final counts are 1,382 unit, 139 contract, and 92 integration
+  tests. Schema/example validation, the 12-entry public panel, documentation,
+  actionlint, Nextflow syntax and complete stub matrix, heteromer/M6/cache/
+  composition/localisation/unknown fan-outs, offline wheel/install parity, and
+  all reviewed wrapper syntax also pass under Pixi 0.76.2. The next action is
+  the final integration commit/push and one exact-source CI; no additional local
+  full gate is needed before that CI.

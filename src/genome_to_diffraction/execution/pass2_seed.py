@@ -119,10 +119,14 @@ def build_pass2_a_seed(request: Pass2SeedRequest) -> Pass2SeedOutput:
         UnknownPass1CrystalAssessment,
         "pass-1 assessment",
     )
-    if assessment.scientific_status not in {
-        UnknownPass1ScientificStatus.CREDIBLE_SINGLE_COMPONENT_SOLUTION,
-        UnknownPass1ScientificStatus.CREDIBLE_PARTIAL_OR_RESIDUAL,
-    } or assessment.solution_evidence is None:
+    if (
+        assessment.scientific_status
+        not in {
+            UnknownPass1ScientificStatus.CREDIBLE_SINGLE_COMPONENT_SOLUTION,
+            UnknownPass1ScientificStatus.CREDIBLE_PARTIAL_OR_RESIDUAL,
+        }
+        or assessment.solution_evidence is None
+    ):
         raise Pass2SeedError("pass-1 assessment does not retain a credible A state")
     solution = assessment.solution_evidence
     identity = _model(
@@ -134,8 +138,7 @@ def build_pass2_a_seed(request: Pass2SeedRequest) -> Pass2SeedOutput:
     if (
         assessment.execution_identity_id != identity.execution_identity_id
         or adapters.get("phase3_pass2_a_seed") != _ADAPTER
-        or adapters.get("phase3_all_model_registry")
-        != "all-eligible-model-registry-v3"
+        or adapters.get("phase3_all_model_registry") != "all-eligible-model-registry-v3"
         or adapters.get("phase3_component_coordinates")
         != "phaser-component-coordinate-inventory-v2"
     ):
@@ -195,9 +198,17 @@ def build_pass2_a_seed(request: Pass2SeedRequest) -> Pass2SeedOutput:
     output_mtz = request.output_mtz.resolve(strict=True)
     solution_file = request.solution_file.resolve(strict=True)
     model_path = (registry.root / entry.model_path).resolve(strict=True)
-    if any(path.is_symlink() or not path.is_file() for path in (
-        command_path, combined, source_mtz, output_mtz, solution_file, model_path
-    )):
+    if any(
+        path.is_symlink() or not path.is_file()
+        for path in (
+            command_path,
+            combined,
+            source_mtz,
+            output_mtz,
+            solution_file,
+            model_path,
+        )
+    ):
         raise Pass2SeedError("A scientific asset is absent or unsafe")
     mtz_sha256 = sha256_file(source_mtz)
     mtz_artifacts = tuple(
@@ -330,9 +341,7 @@ def build_pass2_a_seed(request: Pass2SeedRequest) -> Pass2SeedOutput:
             "assessment_id": assessment.assessment_id,
             "state_id": state.state_id,
             "model_registry_id": registry.manifest.registry_id,
-            "component_inventory_sha256": sha256_file(
-                placement_output.inventory_json
-            ),
+            "component_inventory_sha256": sha256_file(placement_output.inventory_json),
             "exact_identity_claimed": False,
             "complete_composition_claimed": False,
         },

@@ -169,9 +169,7 @@ def _review_registry_files(root: Path) -> tuple[tuple[str, Path], ...]:
         if path.is_file()
     )
     if not files:
-        raise UnknownDiscoveryInputError(
-            "crystallographic review registry is empty"
-        )
+        raise UnknownDiscoveryInputError("crystallographic review registry is empty")
     return files
 
 
@@ -235,10 +233,8 @@ def _validate_localisation_authority(
         adapters.get("phase3_localisation_batch") != policy.adapter_version
         or adapters.get("phase3_first_copy_funnel")
         != "multi-source-first-copy-funnel-v4-phase3-evidence"
-        or adapters.get("phase3_all_model_registry")
-        != "all-eligible-model-registry-v3"
-        or adapters.get("phase3_composition_beam")
-        != "phase3-composition-beam-depth-v1"
+        or adapters.get("phase3_all_model_registry") != "all-eligible-model-registry-v3"
+        or adapters.get("phase3_composition_beam") != "phase3-composition-beam-depth-v1"
         or adapters.get("phase3_composition_depth")
         != "phase3-composition-depth-input-v1"
         or adapters.get("phase3_no_a_expansion") != "phase3-no-a-expansion-v2"
@@ -338,12 +334,10 @@ def _phase3_crystal_manifest(
                 or not resolved_mtz.is_file()
                 or not resolved_mtz.is_relative_to(root)
                 or resolved_mtz.stat().st_size != artifacts[0].size_bytes
-                or sha256_file(resolved_mtz, progress=False)
-                != artifacts[0].sha256
+                or sha256_file(resolved_mtz, progress=False) != artifacts[0].sha256
             ):
                 raise UnknownDiscoveryInputError(
-                    f"Phase III MTZ differs from its P0 authority: "
-                    f"{crystal.crystal_id}"
+                    f"Phase III MTZ differs from its P0 authority: {crystal.crystal_id}"
                 )
     return document
 
@@ -669,12 +663,9 @@ def validate_unknown_discovery_input_tree(
         execution.execution_identity_id != expected_execution_identity_id
         or review_index.stage_index_id != expected_review_stage_index_id
         or review_index.execution_identity_id != execution.execution_identity_id
-        or review_registry.owned_run_registry_id
-        != manifest.get("review_registry_id")
-        or review_registry.owned_run_registry_id
-        != review_index.owned_run_registry_id
-        or review_registry.execution_identity_id
-        != execution.execution_identity_id
+        or review_registry.owned_run_registry_id != manifest.get("review_registry_id")
+        or review_registry.owned_run_registry_id != review_index.owned_run_registry_id
+        or review_registry.execution_identity_id != execution.execution_identity_id
         or review_registry.run_id != review_index.owned_parent_run_id
     ):
         raise UnknownDiscoveryInputError(

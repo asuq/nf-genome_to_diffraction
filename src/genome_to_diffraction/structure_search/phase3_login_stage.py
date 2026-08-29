@@ -276,9 +276,7 @@ def _copy_coordinate_objects(
         destination.parent.mkdir(parents=True, exist_ok=True)
         if not destination.exists():
             shutil.copy2(resolved, destination)
-        staged.append(
-            record.model_copy(update={"coordinate_path": str(published)})
-        )
+        staged.append(record.model_copy(update={"coordinate_path": str(published)}))
     return len(seen), tuple(staged)
 
 
@@ -310,9 +308,7 @@ def _validate_owned_coordinate_sources(
             "owned provider coordinate records are invalid"
         ) from error
     if len(rows) != expected_count:
-        raise PhaseIIIProviderLoginStageError(
-            "owned provider coordinate count differs"
-        )
+        raise PhaseIIIProviderLoginStageError("owned provider coordinate count differs")
     if not rows:
         return
     coordinate_root = (root / "coordinate_objects").resolve(strict=True)
@@ -373,9 +369,7 @@ def validate_phase3_provider_login_stage(
         )
     _validate_owned_coordinate_sources(
         root,
-        relative_path=(
-            "pdb_coordinate_registration/owned_coordinate_sources.jsonl"
-        ),
+        relative_path=("pdb_coordinate_registration/owned_coordinate_sources.jsonl"),
         expected_count=manifest.pdb_coordinate_source_count,
     )
     _validate_owned_coordinate_sources(
@@ -573,12 +567,9 @@ def stage_phase3_provider_coordinates(
             output_root=temporary / "coordinate_objects",
             published_root=output / "coordinate_objects",
         )
-        owned_by_id = {
-            item.coordinate_id: item for item in owned_coordinate_sources
-        }
+        owned_by_id = {item.coordinate_id: item for item in owned_coordinate_sources}
         _write_owned_coordinate_sources(
-            temporary
-            / "pdb_coordinate_registration/owned_coordinate_sources.jsonl",
+            temporary / "pdb_coordinate_registration/owned_coordinate_sources.jsonl",
             tuple(
                 owned_by_id[item.coordinate_id]
                 for item in pdb_output.coordinate_sources

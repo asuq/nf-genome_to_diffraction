@@ -85,7 +85,6 @@ def test_network_acquisition_processes_use_both_reviewed_controller_labels() -> 
     modules = {
         "REGISTER_PDB_COORDINATES": "modules/local/register_pdb_coordinates.nf",
         "RETRIEVE_AFDB_EXACT": "modules/local/retrieve_afdb_exact.nf",
-        "M6_STAGE_COORDINATES": "modules/local/m6_nextflow_tasks.nf",
     }
     for process_name, relative_path in modules.items():
         source = (REPOSITORY / relative_path).read_text(encoding="utf-8")
@@ -97,6 +96,16 @@ def test_network_acquisition_processes_use_both_reviewed_controller_labels() -> 
         assert "label 'needs_internet'" in process
         assert "label 'run_local'" in process
 
+    m6_source = (REPOSITORY / "modules/local/m6_nextflow_tasks.nf").read_text(
+        encoding="utf-8"
+    )
+    m6_materialisation = m6_source.split("process M6_STAGE_COORDINATES", maxsplit=1)[
+        1
+    ].split("input:", maxsplit=1)[0]
+    assert "label 'run_local'" in m6_materialisation
+    assert "label 'process_network'" not in m6_materialisation
+    assert "label 'needs_internet'" not in m6_materialisation
+
     login_labelled = {
         path.relative_to(REPOSITORY).as_posix()
         for path in (REPOSITORY / "modules").rglob("*.nf")
@@ -105,7 +114,10 @@ def test_network_acquisition_processes_use_both_reviewed_controller_labels() -> 
             for label in ("label 'needs_internet'", "label 'run_local'")
         )
     }
-    assert login_labelled == set(modules.values())
+    assert login_labelled == {
+        *modules.values(),
+        "modules/local/m6_nextflow_tasks.nf",
+    }
 
     sites = REPOSITORY / "external/nf-helper/conf/sites"
     marmic = (sites / "marmic.config").read_text(encoding="utf-8")
@@ -212,16 +224,15 @@ def test_phase3_foldseek_batches_retain_unmapped_database_targets() -> None:
 
 def test_phase3_scientific_concurrency_matches_the_approved_envelope() -> None:
     first_copy = (
-        REPOSITORY
-        / "modules/local/phase3_multicrystal_first_copy_tasks.nf"
+        REPOSITORY / "modules/local/phase3_multicrystal_first_copy_tasks.nf"
     ).read_text(encoding="utf-8")
     first_copy_process = first_copy.split(
         "process RUN_PHASE3_FIRST_COPY_PHASER",
         maxsplit=1,
     )[1].split("input:", maxsplit=1)[0]
-    refinement = (
-        REPOSITORY / "modules/local/run_brief_refinement.nf"
-    ).read_text(encoding="utf-8")
+    refinement = (REPOSITORY / "modules/local/run_brief_refinement.nf").read_text(
+        encoding="utf-8"
+    )
     refinement_process = refinement.split(
         "process RUN_PHASE3_BRIEF_REFINEMENT",
         maxsplit=1,
@@ -493,9 +504,12 @@ def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     assert "M6_BUILD_SEARCH_BATCHES" in workflow
     assert "M6_STAGE_COORDINATES" in workflow
     assert "M6_SEARCH_PDB" in modules and "M6_SEARCH_FOLDSEEK" in modules
-    assert all(
-        label in modules for label in ("process_network", "needs_internet", "run_local")
-    )
+    coordinate_materialisation = modules.split("process M6_STAGE_COORDINATES", 1)[
+        1
+    ].split("process M6_PREPARE_ACTIVE_CASE", 1)[0]
+    assert "label 'run_local'" in coordinate_materialisation
+    assert "process_network" not in coordinate_materialisation
+    assert "needs_internet" not in coordinate_materialisation
     case_process = modules.split("process M6_PREPARE_ACTIVE_CASE", 1)[1].split(
         "process M6_PREPARE_EARLY_CASE", 1
     )[0]

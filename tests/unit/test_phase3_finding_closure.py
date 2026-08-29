@@ -16,6 +16,8 @@ from genome_to_diffraction.execution.finding_closure import (
 
 COMMIT = "1" * 40
 TREE = "2" * 40
+
+
 def _write_ledger(path: Path, *, first_status: str = "Fixed") -> None:
     path.write_text(
         "# Finding ledger\n\n"

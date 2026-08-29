@@ -129,9 +129,7 @@ def test_single_component_joint_copy_partition_is_supported(tmp_path: Path) -> N
             output_directory=output,
             command_record=command,
             result_record=result,
-            expected_components=(
-                ExpectedPhaserComponent("A", "search_A", 2),
-            ),
+            expected_components=(ExpectedPhaserComponent("A", "search_A", 2),),
             component_models=(("A", model),),
         )
     )

@@ -589,6 +589,19 @@ screen stub, and the full multicrystal cached stub pass locally. Exact-source
 CI/deployment and one fresh discovery remain; source `87174e1` is diagnostic
 only and must not parent an unknown-screen run.
 
+The completed pre-screen hardening audit is now implemented in local commits
+`662d29a` and `2faa1c7`. Full crystallographic authority, run-owned provider
+coordinates, exact parent/child source/P0/database bindings, bounded MR and
+refinement concurrency, complete replay/collection inventories, true joint-A
+copy continuation, and relative single-component routes are enforced. A fixed
+post-review derivation command constructs zero-model, shortlist, mixed failure,
+and credible terminal records only from the collected scheduler/source record,
+all four owned review checkpoints, package-contained copy/packing/refinement/
+map/sequence evidence, and immutable scientific assets. Current v3 and
+historical v2 evidence remain readable; no status is accepted as a caller
+input. Exact-source CI/deployment and one fresh discovery are the next remote
+gate.
+
 On 25 August 2026 the user/supervisor supplied the mandatory crystallographic
 checkpoint decision `proceed` for all three frozen crystals. This authorises a
 bounded pass-1 search while retaining, rather than clearing, the 75.2%
@@ -963,6 +976,20 @@ all nine packaged schemas, and package/CLI/Pixi/Nextflow version `0.2.0` were
 verified without contacting a package index. `PIPE-P3-01` is fixed; final
 release qualification must repeat this same gate after the version changes.
 
+The remaining M6 execution-order defects are now fixed locally. Leakage cannot
+stage without a collected successful operational parent from the exact same
+site/source/lock/policy/runner authority. Its remote child binds the rehashed
+operational precheck and shares only the operational Nextflow cache; the job
+verifier still permits exactly the six truthless discovery tasks to cache and
+requires every track-specific task to execute. PDB coordinate materialisation
+is explicitly offline and fails if the separately qualified cache is missing;
+no M6 worker can download a coordinate. Discovery partitioning and final JSONL/
+gzip aggregation stream with bounded memory, M6 input qualification accepts
+the reviewed Marmic `dev/phase3` authority, and large collections stream to a
+bounded temporary archive rather than RAM. Focused M6 tests, the mutation stub,
+and fake remote parent binding pass. Real operational collection/classification
+and the separately submitted leakage track remain the PH6 acceptance gate.
+
 ### PH7 - Unknown-dataset pass 2
 
 Hard stop: do not stage, submit, resume, or otherwise execute the second pass
@@ -973,13 +1000,26 @@ or `Deleted` disposition with its focused regression, exact-source acceptance,
 and any required fixed-HPC evidence. The reviewed second-pass profile must
 reject an absent, stale, changed, or incomplete closure record.
 
-Status: the content-addressed closure-record verifier is implemented locally.
-It authenticates the exact source commit/tree and ledger bytes, requires one
-final entry for every finding plus exact-source CI/control/M6/pass-1 evidence,
-and rejects local/pending wording, stale or incomplete inventories, malformed
-JSON, and cross-source records. Exact-source CI `32912485774` passed on
-`cd2c6a7`; fixed pass-2 profile integration and the real RG7 evidence remain
-pending.
+Status: the closure verifier and fixed profile are implemented locally. The
+verifier independently rehashes the adverse review, integration gate, public
+controls, M6, pass-1, and exact-source CI files and parses the CI run/job/head/
+conclusion; the fixed archive and every depth planner consume that closure.
+Credible A states are converted into claim-free depth-one component states and
+run through a statically bounded B--F Nextflow beam (25 attempts/depth, width
+three, depth six, 100 total). Depths four-to-six are always provisional. A
+no-A crystal executes the retained 175-hypothesis expansion in 25-concurrent
+batches and stops at a new owned A review. Every terminal composition emits a
+scope decision, evidence-derived assessment, and separate owned composition/
+sequence packages. Cached beam/no-A stubs and focused scientific/fake-Marmic
+gates pass on local commit `5a189a7`; the final all-finding RG7 record, exact-
+source CI, and real pass-2 inputs remain pending.
+
+The named post-audit locked integration gate is green on the current worktree:
+1,382 unit, 139 contract, and 92 integration tests plus schemas, the public
+panel, documentation, actionlint, every Nextflow/stub workflow, offline wheel/
+install parity, and reviewed wrapper syntax. This is local integration evidence,
+not RG7 authorisation: exact-source CI, fresh pass-1 evidence, real M6, and final
+finding dispositions remain mandatory before `unknown-pass2` can stage.
 
 Reuse identical frozen inputs, gel/localisation evidence, thresholds,
 databases, and tools. For a credible A state, launch the automatic B-F beam

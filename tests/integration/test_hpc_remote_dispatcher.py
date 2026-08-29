@@ -60,6 +60,7 @@ M6_NEXTFLOW_SMOKE_RUN_ID = (
     "gtd-m6-nextflow-smoke-20260802T120000Z-0123456789ab-01234567"
 )
 M6_OPERATIONAL_RUN_ID = "gtd-m6-operational-20260802T120000Z-0123456789ab-01234567"
+M6_LEAKAGE_RUN_ID = "gtd-m6-leakage-20260802T120001Z-0123456789ab-01234568"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 T12_RUN_ID = "gtd-t12-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
@@ -1554,6 +1555,92 @@ def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
     if source_archive:
         assert (state / "source-archive-sha256").read_text().strip() == source_digest
         assert not mirror.exists()
+
+
+def test_m6_leakage_binds_only_collected_same_source_operational_cache(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    parent = remote_root / "runs" / M6_OPERATIONAL_RUN_ID
+    child = remote_root / "runs" / M6_LEAKAGE_RUN_ID
+    parent_owner = "2" * 32
+    child_owner = "3" * 32
+    common = {
+        "site-id": "marmic",
+        "commit": commit,
+        "pixi-lock-sha256": "1" * 64,
+        "execution-policy-sha256": "2" * 64,
+        "database-manifest-sha256": "3" * 64,
+        "phenix-manifest-sha256": "4" * 64,
+        "m6-runner-archive-sha256": "5" * 64,
+        "m6-runner-manifest-sha256": "6" * 64,
+    }
+    for root, owner, profile, phase in (
+        (parent, parent_owner, "m6-operational", "completed"),
+        (child, child_owner, "m6-leakage", "staged"),
+    ):
+        state = root / "state"
+        state.mkdir(parents=True)
+        (root / "artifacts/qualification").mkdir(parents=True)
+        (root / "cache").mkdir()
+        (state / "owner-id").write_text(f"{owner}\n", encoding="ascii")
+        (state / "profile").write_text(f"{profile}\n", encoding="ascii")
+        (state / "phase").write_text(f"{phase}\n", encoding="ascii")
+        for name, value in common.items():
+            (state / name).write_text(f"{value}\n", encoding="ascii")
+    (parent / "state/failure-class").write_text("success\n", encoding="ascii")
+    (parent / "state/exit-code").write_text("0\n", encoding="ascii")
+    (parent / "cache/m6-nextflow-operational").mkdir()
+    (parent / "manifest.json").write_text(
+        '{"profile":"m6-operational"}\n', encoding="ascii"
+    )
+    (parent / "state/job-result.json").write_text(
+        '{"scheduler_state":"COMPLETED","failure_class":"success","exit_code":0}\n',
+        encoding="ascii",
+    )
+    (parent / "artifacts/qualification/m6-scientific-summary.json").write_text(
+        '{"schema_version":"2.0","track":"operational"}\n',
+        encoding="ascii",
+    )
+    (parent / "artifacts/qualification/m6-scientific-checksums.sha256").write_text(
+        "retained\n", encoding="ascii"
+    )
+    relatives = (
+        "manifest.json",
+        "state/job-result.json",
+        "artifacts/qualification/m6-scientific-summary.json",
+        "artifacts/qualification/m6-scientific-checksums.sha256",
+    )
+    inventory = "".join(
+        f"{hashlib.sha256((parent / relative).read_bytes()).hexdigest()}  {relative}\n"
+        for relative in relatives
+    )
+    precheck = hashlib.sha256(inventory.encode("ascii")).hexdigest()
+
+    bound = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "m6-leakage-parent-bind",
+                M6_LEAKAGE_RUN_ID,
+                child_owner,
+                M6_OPERATIONAL_RUN_ID,
+                parent_owner,
+                precheck,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert bound["status"] == "ready"
+    assert (child / "state/m6-operational-parent-run-id").read_text().strip() == (
+        M6_OPERATIONAL_RUN_ID
+    )
+    assert (child / "state/m6-shared-cache-dir").read_text().strip() == str(
+        parent / "cache/m6-nextflow-operational"
+    )
 
 
 @pytest.mark.parametrize(
@@ -4150,10 +4237,10 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         'printf \'{"schema_version":"2.0","status":"stub_not_executed"}\\n\' > '
         '"$outdir/phase3_localisation_reopen_stub/'
         'localisation_reopen_plan.json"\n'
-        'for crystal in crystal_a crystal_b crystal_c; do\n'
+        "for crystal in crystal_a crystal_b crystal_c; do\n"
         '  printf \'{"schema_version":"2.0"}\\n\' > '
         '"$outdir/phase3_owned_a_review_${crystal}/package.json"\n'
-        'done\n'
+        "done\n"
         'printf "hash\\tprocess\\ttag\\tstatus\\n" > '
         '"$outdir/pipeline_info/trace.tsv"\n'
         "for process in VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT "
@@ -4222,12 +4309,10 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     )
     assert (
         "artifacts/unknown-screen/provider_preparation/"
-        "pdb_coordinate_registration/owned_coordinate_sources.jsonl"
-        in screen_members
+        "pdb_coordinate_registration/owned_coordinate_sources.jsonl" in screen_members
     )
     assert (
-        "artifacts/qualification/unknown-screen-before-resume.sha256"
-        in screen_members
+        "artifacts/qualification/unknown-screen-before-resume.sha256" in screen_members
     )
     assert (
         "artifacts/qualification/unknown-screen-resume-task-identities.tsv"

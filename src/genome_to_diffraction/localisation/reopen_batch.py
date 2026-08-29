@@ -356,9 +356,7 @@ def plan_batch_localisation_reopen(
             "funnel_id": content_id("funnel_", funnel_identity),
             "adapter_version": _ADAPTER_VERSION,
             "selected_hypothesis_count": len(reopened),
-            "hypotheses": [
-                {"hypothesis_id": item.hypothesis_id} for item in reopened
-            ],
+            "hypotheses": [{"hypothesis_id": item.hypothesis_id} for item in reopened],
             "execution_status": ExecutionStatus.COMPLETED_SUCCESS.value,
         },
     )

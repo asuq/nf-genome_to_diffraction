@@ -1328,9 +1328,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
         copy_assessments_jsonl = output / "copy_count_assessments.jsonl"
         atomic_write_text(
             copy_assessments_jsonl,
-            "".join(
-                f"{canonical_json_text(item)}\n" for item in copy_assessments
-            ),
+            "".join(f"{canonical_json_text(item)}\n" for item in copy_assessments),
         )
 
     stage_identity = {
