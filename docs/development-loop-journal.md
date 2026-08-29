@@ -14404,3 +14404,51 @@ with a collapsed combined parent or a guessed command.
   build retains 100 CPUs/2 TB. Next run focused resource,
   fan-out, cancellation, and wrapper tests, then one CI/deployment and one fresh
   authority/run; never resume the cancelled discovery.
+
+## 2026-08-29 - Scheduler-managed Foldseek replacement is submitted
+
+- Resource correction `e898700f325e3ae59f50c5db404359d2564a214f`, tree
+  `6945ecea…`, passed CI `33261882387` / `99125110145` under Pixi 0.76.2.
+  Deployed dispatcher/job-wrapper/recovery digests are `740f830d…`,
+  `5f2b7830…`, and `5334a95d…`.
+- Fresh authority attempt 8 binds execution identity `phase3exec_316b986b…`
+  and review stage `unknownreviewstages_b50c5151…` to the resized source,
+  strict Phenix, accepted localisation, restored P0/database state, and the
+  same three owned review decisions.
+- Replacement discovery
+  `gtd-unknown-discovery-20260829T162509Z-e898700f325e-b2f8875b`, Slurm
+  `636570`, is the sole active nf-genome_to_diffraction scheduler submission.
+  Its 38-file input is
+  `unknowninputs_54dc167adcd0d40ce5fe43f47f891a23698d066fff358b7169e311d5d2b51827`
+  with archive SHA-256
+  `7d3f8c0966f731cd437e3a87e2628ce9c2281eff8e0c162ca7557ea2ad8f68fd`.
+  Poll only this run; verify that all 13 batch children request 32 CPUs/192 GB,
+  are scheduler-controlled, and complete before any unknown-screen child.
+
+## 2026-08-29 - Scheduler-managed discovery is accepted
+
+- Exact source `e898700f325e3ae59f50c5db404359d2564a214f`, CI
+  `33261882387` / `99125110145`, authority attempt 8, pinned nf-helper, and
+  Pixi 0.76.2 completed as Marmic controller `636570` in 9 minutes 38 seconds.
+  Provider package is `providerdiscovery_c495df17e0817f1e59016637963dee189ebaf1447c1bc013325df3d18b59bbc8`.
+- All 13 independent Foldseek children were submitted together and completed
+  successfully with 32 CPUs, 192 GB, and four-hour limits. Their observed
+  durations were 41 seconds to 4 minutes 41 seconds, peak RSS 21.1--22.2 GB,
+  and peak virtual memory 45.8--45.9 GB. The full resume reported the identical
+  13 native jobs as `CACHED`.
+- Complete coverage is retained for 1,625 source records and 1,621 sequence
+  groups. Foldseek produced 1,621 typed results across exactly 13 batches
+  (1,283 hit, 337 no-hit, one ineligible) and direct PDB produced 1,621 results
+  (911 hit, 709 no-hit, one ineligible). The merged provider package retains
+  6,262 hits.
+- All 38 private input-authority members, three owned crystallographic reviews,
+  strict Phenix, P0/database/localisation/empty-gel identities, raw per-batch
+  logs/results, and output inventories passed collection. AFDB remained
+  explicit-mapping-only, ESM Atlas disabled, network acquisition false, and no
+  coordinate acquisition/registration, model preparation, Phaser, refinement,
+  or other scientific MR process ran. Before/after output manifests and first/
+  resume task identities are byte-identical.
+- `PH3-P1-34`, `PH3-P1-36`, and `PH3-P1-53` are accepted; discovery-side
+  qualification for `PH3-P1-35`, `PH3-P1-37`, and `PH3-P1-40` passes. Commit
+  this evidence, then stage only the parent-bound bounded-login unknown-screen
+  child from exact source `e898700`; never use the cancelled predecessor.

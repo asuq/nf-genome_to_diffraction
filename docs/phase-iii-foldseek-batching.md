@@ -23,6 +23,10 @@ The existing `process_prostt5_search` label retains site resource policy. Each
 batch is an independent Nextflow item; no process-local `maxForks` cap is set,
 so the site scheduler owns placement, fairness, and concurrent execution.
 
+Exact-source Marmic job `636570` qualified this policy with all 13 children
+submitted together at 32 CPUs and 192 GB. Every child completed in under five
+minutes at 21.1--22.2 GB peak RSS and was recovered as `CACHED` on resume.
+
 Direct PDB search, disabled providers, existing search thresholds, and
 non-Phase-III application modes retain their previous behaviour. No Python
 thread pool or nested scheduler performs scientific work.

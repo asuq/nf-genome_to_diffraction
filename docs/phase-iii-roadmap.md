@@ -467,6 +467,12 @@ queries, with scheduler-controlled batch concurrency. AFDB exact remains explici
 only and ESM Atlas remains disabled. Run at most 25 first-copy hypotheses per
 crystal and emit three seed-review packages.
 
+Exact-source Marmic discovery `636570` now accepts this boundary: all 13
+32-CPU/192-GB batches completed concurrently in 1--5 minutes with 21--22 GB
+peak RSS, full 1,621-group coverage, complete raw evidence, and byte-identical
+cached resume. The resulting provider package is the sole valid parent for the
+bounded-login unknown-screen child.
+
 The worker-offline boundary requires one explicit operational checkpoint. The
 user approved a compute-only `unknown-discovery` run, bounded reviewed
 login-side coordinate staging, and then an offline `unknown-screen` MR run.
