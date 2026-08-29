@@ -818,6 +818,8 @@ def _owned_terminal_files(
         "manifest.json": json.dumps(manifest).encode(),
         "state/job-id": f"{job_id}\n".encode(),
         "state/job-result.json": json.dumps(result).encode(),
+        "state/phase": b"completed\n",
+        "state/failure-class": f"{failure_class}\n".encode(),
     }
 
 
@@ -2817,6 +2819,30 @@ def test_collection_accepts_owned_successful_terminal_evidence(tmp_path: Path) -
 
     assert result["failure_signature"] is None
     assert (Path(str(result["destination"])) / "state" / "job-result.json").is_file()
+
+
+def test_collection_accepts_owned_stage_failure_without_scheduler_evidence(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    files = _owned_terminal_files(controller, run_id)
+    del files["state/job-id"]
+    del files["state/job-result.json"]
+    files["state/phase"] = b"stage_failed\n"
+    files["state/failure-class"] = b"transfer_failure\n"
+    files["logs/stage.log"] = b"exact stage failure\n"
+    transport.archive = _archive(files)
+
+    result = controller.collect(run_id)
+
+    destination = Path(str(result["destination"]))
+    assert result["failure_signature"] is not None
+    assert not (destination / "state/job-result.json").exists()
+    assert (destination / "logs/stage.log").read_text(encoding="ascii") == (
+        "exact stage failure\n"
+    )
 
 
 @pytest.mark.parametrize(

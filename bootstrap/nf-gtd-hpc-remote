@@ -4070,6 +4070,15 @@ logs_run() {
     elif [[ "$profile" == t12 && "$phase" =~ ^(t12_input_staging|staged|stage_failed)$ && \
         -f "$run/logs/t12-stage.log" ]]; then
         log_path="$run/logs/t12-stage.log"
+    elif [[ "$profile" == unknown-screen && "$phase" == stage_failed && \
+        -f "$run/logs/unknown-screen-provider-validation.log" ]]; then
+        log_path="$run/logs/unknown-screen-provider-validation.log"
+    elif [[ "$profile" == unknown-screen && "$phase" == stage_failed && \
+        -f "$run/logs/unknown-screen-login-stage.log" ]]; then
+        log_path="$run/logs/unknown-screen-login-stage.log"
+    elif [[ "$profile" == unknown-screen && "$phase" == stage_failed && \
+        -f "$run/logs/unknown-screen-parent-validation.log" ]]; then
+        log_path="$run/logs/unknown-screen-parent-validation.log"
     elif [[ "$profile" == phase3-phenix-probe && "$phase" == staged && \
         -f "$run/logs/phenix-runtime-strict-verify-command.log" ]]; then
         log_path="$run/logs/phenix-runtime-strict-verify-command.log"

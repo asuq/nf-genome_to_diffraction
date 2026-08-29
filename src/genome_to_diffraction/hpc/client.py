@@ -3661,7 +3661,8 @@ def _validated_terminal_inventory(result: Mapping[str, object]) -> None:
 
 
 def _owned_terminal_archive_evidence(archive: ArchivePayload) -> dict[str, bytes]:
-    required = frozenset({"manifest.json", "state/job-id", "state/job-result.json"})
+    required = frozenset({"manifest.json", "state/phase", "state/failure-class"})
+    selected = required | {"state/job-id", "state/job-result.json"}
     if _archive_size(archive) > MAX_ARTIFACT_TOTAL_BYTES:
         raise _terminal_evidence_error(
             "compressed archive exceeds the collection limit"
@@ -3697,7 +3698,7 @@ def _owned_terminal_archive_evidence(archive: ArchivePayload) -> dict[str, bytes
                     raise _terminal_evidence_error(
                         "artefacts exceed total collection limit"
                     )
-                if name in required:
+                if name in selected:
                     if member.size > MAX_LOG_BYTES:
                         raise _terminal_evidence_error(
                             f"terminal evidence exceeds its bounded size: {name}"
@@ -3756,6 +3757,44 @@ def _validated_owned_terminal_result(
             raise _terminal_evidence_error(f"manifest {field} is absent")
 
     try:
+        phase = evidence["state/phase"].decode("ascii").removesuffix("\n")
+        recorded_failure = (
+            evidence["state/failure-class"].decode("ascii").removesuffix("\n")
+        )
+    except UnicodeDecodeError as error:
+        raise _terminal_evidence_error("phase or failure class is not ASCII") from error
+    try:
+        failure = FailureClass(recorded_failure)
+    except ValueError as error:
+        raise _terminal_evidence_error("recorded failure class is invalid") from error
+    if phase == "stage_failed":
+        if failure is FailureClass.SUCCESS:
+            raise _terminal_evidence_error("stage failure is recorded as success")
+        if "state/job-id" in evidence or "state/job-result.json" in evidence:
+            raise _terminal_evidence_error(
+                "stage failure unexpectedly has scheduler evidence"
+            )
+        return {
+            "schema_version": "1.0",
+            "run_id": record.run_id,
+            "profile": record.profile,
+            "scheduler_state": "FAILED",
+            "exit_code": 1,
+            "failure_class": failure.value,
+            "structured_test_reports": [],
+            "retained_artifacts": [],
+        }
+    if phase not in {"completed", "cancel_requested"}:
+        raise _terminal_evidence_error("terminal phase is invalid")
+    missing_scheduler = sorted(
+        {"state/job-id", "state/job-result.json"} - evidence.keys()
+    )
+    if missing_scheduler:
+        raise _terminal_evidence_error(
+            "required scheduler evidence is absent: " + ", ".join(missing_scheduler)
+        )
+
+    try:
         job_id = evidence["state/job-id"].decode("ascii").removesuffix("\n")
     except UnicodeDecodeError as error:
         raise _terminal_evidence_error("scheduler job ID is not ASCII") from error
@@ -3780,7 +3819,11 @@ def _validated_owned_terminal_result(
                 f"job result {field} does not match the owned scheduler run"
             )
     _validated_terminal_timestamps(result)
-    _validated_failure_outcome(result)
+    result_failure = _validated_failure_outcome(result)
+    if result_failure is not failure:
+        raise _terminal_evidence_error(
+            "job result failure class differs from recorded state"
+        )
     _validated_terminal_inventory(result)
     return result
 
@@ -4251,7 +4294,34 @@ def _atomic_write_bytes(path: Path, payload: bytes) -> None:
 def _failure_signature(destination: Path) -> str | None:
     result_path = destination / "state" / "job-result.json"
     if not result_path.is_file():
-        raise _terminal_evidence_error("job-result.json is absent after collection")
+        phase_path = destination / "state" / "phase"
+        failure_path = destination / "state" / "failure-class"
+        try:
+            phase = phase_path.read_text(encoding="ascii").strip()
+            failure = FailureClass(failure_path.read_text(encoding="ascii").strip())
+        except (OSError, UnicodeError, ValueError) as error:
+            raise _terminal_evidence_error(
+                "stage-failure state is invalid after collection"
+            ) from error
+        if phase != "stage_failed" or failure is FailureClass.SUCCESS:
+            raise _terminal_evidence_error("job-result.json is absent after collection")
+        logs = destination / "logs"
+        candidates = sorted(
+            path
+            for path in logs.glob("*.log")
+            if path.is_file() and not path.is_symlink()
+        )
+        if not candidates:
+            raise _terminal_evidence_error("stage-failure diagnostic log is absent")
+        digest = hashlib.sha256()
+        for path in candidates:
+            digest.update(path.relative_to(destination).as_posix().encode("ascii"))
+            digest.update(b"\0")
+            digest.update(sha256_file(path).encode("ascii"))
+            digest.update(b"\0")
+        return hashlib.sha256(
+            f"{failure.value}\0stage_failed\0{digest.hexdigest()}".encode()
+        ).hexdigest()
     try:
         value = load_json_document(result_path)
     except ContractLoadError as error:

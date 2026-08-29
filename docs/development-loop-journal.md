@@ -14452,3 +14452,22 @@ with a collapsed combined parent or a guessed command.
   qualification for `PH3-P1-35`, `PH3-P1-37`, and `PH3-P1-40` passes. Commit
   this evidence, then stage only the parent-bound bounded-login unknown-screen
   child from exact source `e898700`; never use the cancelled predecessor.
+
+## 2026-08-29 - Unknown-screen staging exposes incomplete stage-failure diagnostics
+
+- Parent-bound child
+  `gtd-unknown-screen-20260829T205819Z-e898700f325e-1759da00` failed before
+  scheduler submission with `transfer_failure` during bounded login-side
+  provider acquisition. No unknown-screen scientific execution or cache exists.
+- The reviewed `logs` call returned empty because stage-specific unknown-screen
+  logs were not selected. Remote collection retained the stage state/logs, but
+  the local validator rejected the archive because it incorrectly required a
+  Slurm job ID/result for every terminal state. These are diagnostics defects;
+  provider logic remains unclassified until the exact acquisition log is read.
+- `PH3-P1-55` selects the latest unknown-screen parent/acquisition/validation
+  stage log. `PH3-P1-56` authenticates `stage_failed` archives from manifest,
+  phase, non-success failure class, and retained logs without fabricating
+  scheduler evidence; scheduled terminal runs retain all existing checks.
+- Next run the two focused regressions plus neighbouring terminal-evidence and
+  wrapper gates, commit/push once, deploy, then retrieve this exact failed stage
+  before any provider edit or successor.

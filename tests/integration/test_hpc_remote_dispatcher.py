@@ -5732,6 +5732,33 @@ def test_staged_phase3_phenix_probe_logs_expose_migration_failure(
     assert "verbose help" not in content
 
 
+def test_unknown_screen_stage_failure_exposes_login_acquisition_log(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / UNKNOWN_SCREEN_RUN_ID
+    (run / "state").mkdir(parents=True)
+    (run / "logs").mkdir()
+    (run / "state/owner-id").write_text("2" * 32 + "\n", encoding="ascii")
+    (run / "state/profile").write_text("unknown-screen\n", encoding="ascii")
+    (run / "state/phase").write_text("stage_failed\n", encoding="ascii")
+    login_log = run / "logs/unknown-screen-login-stage.log"
+    login_log.write_text("exact acquisition failure\n", encoding="ascii")
+
+    result = _decode_protocol(
+        _run(
+            [str(dispatcher), "logs", UNKNOWN_SCREEN_RUN_ID, "2" * 32, "200"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert result["log_path"] == str(login_log)
+    assert base64.b64decode(result["content_base64"]).decode() == (
+        "exact acquisition failure\n"
+    )
+
+
 def test_phase3_phenix_migration_retains_exact_command_failure(
     tmp_path: Path,
 ) -> None:
