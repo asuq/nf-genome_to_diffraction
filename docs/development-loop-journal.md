@@ -14471,3 +14471,22 @@ with a collapsed combined parent or a guessed command.
 - Next run the two focused regressions plus neighbouring terminal-evidence and
   wrapper gates, commit/push once, deploy, then retrieve this exact failed stage
   before any provider edit or successor.
+
+## 2026-08-29 - Retained mapping gaps were incorrectly treated as selected coordinates
+
+- Diagnostic commit `a2e4fb86d89e28f0819a1b9cef037234226f3c63` passed CI
+  `33275315980` / `99160909436` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `53087356…`, `5f2b7830…`, and
+  `5334a95d…`. Bounded logs and stage-failure collection now pass for the exact
+  failed child; failure signature is `9c7e1aec…`.
+- The retained acquisition log shows all parent/plan contracts passed. It then
+  rejected Foldseek hit `hit_d4e12697…`, whose discovery evidence explicitly
+  records `eligibility_status=deferred`, namespace `foldseek_target_unmapped`,
+  and reason `retained Foldseek hit without a PDB sequence coordinate mapping`.
+- `PH3-P1-57` records the defect: coordinate staging validated every retained
+  hit as selected before applying its bounded selection. The minimal fix keeps
+  all deferred evidence immutable but validates, ranks, and acquires coordinates
+  only for `selected` hits. One focused mapping-gap regression protects the
+  exact real shape.
+- Next run the focused coordinate/owned-stage tests plus lint/type/wrapper gates,
+  commit/push once, deploy, and stage one fresh parent-bound screen successor.

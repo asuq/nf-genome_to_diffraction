@@ -525,7 +525,10 @@ def register_pdb_coordinates(
     )
     if not hits:
         _validate_empty_provider_results(request, groups)
-    for hit in hits:
+    selected_hits = tuple(
+        hit for hit in hits if hit.eligibility_status is EligibilityStatus.SELECTED
+    )
+    for hit in selected_hits:
         _validate_hit(hit, group_index)
     sequence_resource, foldseek_resource, cache_resource = _resources(
         request.database_manifest
@@ -534,11 +537,14 @@ def register_pdb_coordinates(
         _DIRECT_PROVIDER: sequence_resource.database_id,
         _PROSTT5_PROVIDER: foldseek_resource.database_id,
     }
-    if any(hit.database_id != expected_database_ids.get(hit.provider) for hit in hits):
+    if any(
+        hit.database_id != expected_database_ids.get(hit.provider)
+        for hit in selected_hits
+    ):
         raise PdbCoordinateInputError(
             "PDB hit database_id differs from its qualified discovery resource"
         )
-    selected = _select_hits(hits, request)
+    selected = _select_hits(selected_hits, request)
     output = request.output_directory.resolve()
     if output.exists() and any(output.iterdir()):
         raise PdbCoordinateInputError(

@@ -471,6 +471,37 @@ def test_registration_requires_search_snapshot_sequence_identity(
         register_pdb_coordinates(_request(tmp_path, hit_path, groups, manifest))
 
 
+def test_registration_ignores_retained_deferred_mapping_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hit_path, groups, manifest, hits = _inputs(tmp_path)
+    deferred = hits[1].model_copy(
+        update={
+            "provider": "foldseek_prostt5_pdb",
+            "database_id": "db_test_pdb_foldseek",
+            "identifier_namespace": "foldseek_target_unmapped",
+            "eligibility_status": EligibilityStatus.DEFERRED,
+            "eligibility_reason": "retained mapping gap",
+            "raw_metrics": {"coordinate_mapping_status": "unavailable"},
+        }
+    )
+    hit_path.write_text(
+        "".join(
+            f"{canonical_json_text(item)}\n" for item in (deferred, hits[0], hits[2])
+        ),
+        encoding="utf-8",
+    )
+    calls = _fake_download(monkeypatch)
+
+    output = register_pdb_coordinates(_request(tmp_path, hit_path, groups, manifest))
+
+    assert {item.hit_id for item in output.mappings} == {
+        "hit_first_best",
+        "hit_second_best",
+    }
+    assert calls == ["1abc", "3abc"]
+
+
 def test_registration_materialises_one_relative_object_for_reused_entry(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
