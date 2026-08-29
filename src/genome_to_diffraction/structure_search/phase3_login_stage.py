@@ -230,7 +230,7 @@ def _copy_coordinate_objects(
     output_root: Path,
     published_root: Path,
 ) -> tuple[int, tuple[CoordinateSourceRecord, ...]]:
-    seen: set[str] = set()
+    published_by_sha256: dict[str, Path] = {}
     staged: list[CoordinateSourceRecord] = []
     for record in records:
         source = Path(record.coordinate_path)
@@ -259,25 +259,25 @@ def _copy_coordinate_objects(
             raise PhaseIIIProviderLoginStageError(
                 "login-staged coordinate checksum differs from its record"
             )
-        if record.coordinate_sha256 in seen:
-            continue
-        seen.add(record.coordinate_sha256)
-        suffix = "".join(resolved.suffixes) or ".bin"
-        destination = (
-            output_root
-            / record.coordinate_sha256[:2]
-            / f"{record.coordinate_sha256}{suffix}"
-        )
-        published = (
-            published_root
-            / record.coordinate_sha256[:2]
-            / f"{record.coordinate_sha256}{suffix}"
-        )
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if not destination.exists():
-            shutil.copy2(resolved, destination)
+        published = published_by_sha256.get(record.coordinate_sha256)
+        if published is None:
+            suffix = "".join(resolved.suffixes) or ".bin"
+            destination = (
+                output_root
+                / record.coordinate_sha256[:2]
+                / f"{record.coordinate_sha256}{suffix}"
+            )
+            published = (
+                published_root
+                / record.coordinate_sha256[:2]
+                / f"{record.coordinate_sha256}{suffix}"
+            )
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if not destination.exists():
+                shutil.copy2(resolved, destination)
+            published_by_sha256[record.coordinate_sha256] = published
         staged.append(record.model_copy(update={"coordinate_path": str(published)}))
-    return len(seen), tuple(staged)
+    return len(published_by_sha256), tuple(staged)
 
 
 def _write_owned_coordinate_sources(

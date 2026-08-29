@@ -80,6 +80,24 @@ def _fake_pdb_registration(
     )
 
 
+def _fake_pdb_registration_shared_object(
+    request: PdbCoordinateRegistrationRequest,
+) -> PdbCoordinateRegistrationOutput:
+    registered = _fake_pdb_registration(request)
+    first = registered.coordinate_sources[0]
+    second = first.model_copy(
+        update={
+            "coordinate_id": "coord_public_login_stub_second_entity",
+            "provider_accession": "1ABC:2:B",
+        }
+    )
+    atomic_write_text(
+        registered.coordinate_sources_jsonl,
+        f"{canonical_json_text(first)}\n{canonical_json_text(second)}\n",
+    )
+    return replace(registered, coordinate_sources=(first, second))
+
+
 def _fake_afdb_exact(request: AfdbExactRequest) -> AfdbExactOutput:
     output = request.output_directory
     output.mkdir()
@@ -215,6 +233,43 @@ def test_bounded_login_stage_round_trips(
     ).read_text(encoding="utf-8")
     assert "afdb_exact_search/owned_coordinate_sources.jsonl" in workflow
     assert "pdb_coordinate_registration/owned_coordinate_sources.jsonl" in workflow
+
+
+def test_bounded_login_stage_retains_records_that_share_one_coordinate_object(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    discovery = build_phase3_provider_discovery_package(_request(tmp_path))
+    monkeypatch.setattr(
+        stage_module,
+        "register_pdb_coordinates",
+        _fake_pdb_registration_shared_object,
+    )
+    monkeypatch.setattr(stage_module, "search_afdb_exact", _fake_afdb_exact)
+
+    staged = stage_phase3_provider_coordinates(
+        PhaseIIIProviderLoginStageRequest(
+            discovery_package=discovery.package_directory,
+            output_directory=tmp_path / "provider_stage",
+            progress=False,
+        )
+    )
+    observed = validate_phase3_provider_login_stage(staged.preparation_directory)
+    owned_sources = tuple(
+        CoordinateSourceRecord.model_validate_json(line)
+        for line in (
+            staged.preparation_directory
+            / "pdb_coordinate_registration/owned_coordinate_sources.jsonl"
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+
+    assert observed.pdb_coordinate_source_count == 2
+    assert observed.staged_coordinate_object_count == 1
+    assert len(owned_sources) == 2
+    assert len({source.coordinate_id for source in owned_sources}) == 2
+    assert len({source.coordinate_path for source in owned_sources}) == 1
 
 
 def test_changed_login_stage_file_fails(

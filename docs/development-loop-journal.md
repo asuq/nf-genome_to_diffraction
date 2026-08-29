@@ -14490,3 +14490,30 @@ with a collapsed combined parent or a guessed command.
   exact real shape.
 - Next run the focused coordinate/owned-stage tests plus lint/type/wrapper gates,
   commit/push once, deploy, and stage one fresh parent-bound screen successor.
+
+## 2026-08-29 - Shared PDB bytes must retain every entity-specific source record
+
+- Coordinate-selection correction `0ea68c4e5df5f25932a0d3f84a1873ca872af1e1`
+  passed CI `33276701627` / `99164570976` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `53087356…`, `5f2b7830…`, and
+  `5334a95d…`. Exact-source authority attempt 9 was built as
+  `phase3exec_1ef7f20c…` with review stage `unknownreviewstages_77c42248…`.
+- Fresh discovery `gtd-unknown-discovery-20260829T220429Z-0ea68c4e5df5-40c5f37d`,
+  Slurm `636621`, entered the 13-batch search. It was cancelled deliberately
+  and is non-reusable after a read-only audit proved its exact source could not
+  safely parent the next screen; cancellation is terminal with a persisted
+  non-success class.
+- The real 25-mapping selection contains three records from 7NKG, two from
+  9NTA, three from 9O17, and three from 9ZNF. Each entry's chain/entity records
+  legitimately share one downloaded mmCIF checksum. Login staging copied one
+  object per checksum but also skipped later records, so subsequent owned-source
+  lookup would fail (`PH3-P1-58`).
+- The minimal correction stores one published path per object checksum and
+  still rewrites and retains every coordinate-source record. The focused
+  two-entity/one-object round trip, all seven coordinate-registration tests,
+  neighbouring login-stage tests, three client stage tests, and the real
+  dispatcher unknown-screen integration pass.
+- Formatting, lint, type, documentation, diff, and wrapper checks pass. Next
+  commit/push once, watch one CI, deploy, build fresh authority attempt 10, and
+  run one fresh discovery before its exact-parent screen. Never reuse job
+  `636621`, failed screen ending `1759da00`, or their caches.

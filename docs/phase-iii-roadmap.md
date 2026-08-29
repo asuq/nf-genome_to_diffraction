@@ -470,8 +470,20 @@ crystal and emit three seed-review packages.
 Exact-source Marmic discovery `636570` now accepts this boundary: all 13
 32-CPU/192-GB batches completed concurrently in 1--5 minutes with 21--22 GB
 peak RSS, full 1,621-group coverage, complete raw evidence, and byte-identical
-cached resume. The resulting provider package is the sole valid parent for the
-bounded-login unknown-screen child.
+cached resume. At that exact source, the resulting provider package was the
+only admissible parent for its bounded-login unknown-screen child; it cannot be
+carried across a later source correction.
+
+The first child stage from that parent ended before scheduling because
+coordinate registration treated a deliberately retained, unmapped Foldseek hit
+as selected. Exact-source commit `0ea68c4` and CI `33276701627` correct that
+selection boundary. A fresh discovery at that source was then stopped after a
+read-only audit of the real 25-hit selection found `PH3-P1-58`: four PDB entries
+contribute multiple selected chain/entity records that share one mmCIF object,
+while login staging retained only the first record for each shared object. The
+current focused correction copies each unique object once but retains every
+entity-specific source record. Neither the failed screen nor the cancelled
+discovery is reusable; one fresh exact-source discovery and child remain.
 
 The worker-offline boundary requires one explicit operational checkpoint. The
 user approved a compute-only `unknown-discovery` run, bounded reviewed
