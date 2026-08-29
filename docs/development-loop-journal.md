@@ -14517,3 +14517,34 @@ with a collapsed combined parent or a guessed command.
   commit/push once, watch one CI, deploy, build fresh authority attempt 10, and
   run one fresh discovery before its exact-parent screen. Never reuse job
   `636621`, failed screen ending `1759da00`, or their caches.
+
+## 2026-08-30 - Atomic login staging exposed stale owned coordinate paths
+
+- Shared-record correction `8c5a253dcd3e4f379b2b6dd9994189c10149898e`
+  passed CI `33278273200` / `99168785296`. Fresh authority attempt 10 bound
+  execution `phase3exec_2f65e9fd…` and review stage
+  `unknownreviewstages_e187ea9a…` to that exact source.
+- Discovery run `gtd-unknown-discovery-20260829T224347Z-8c5a253dcd3e-8f67422a`,
+  Slurm `636646`, completed successfully. It retained 1,625 source records,
+  1,621 sequence groups, 13 concurrent 32-CPU/192-GB Foldseek batches, 6,262
+  merged hits, and provider package `providerdiscovery_a61e4f21…`; all 23
+  resume tasks cached and the task/output manifests are byte-identical.
+- Exact-parent screen staging produced preparation `providerstage_53ee2431…`:
+  all deferred evidence remained retained, exactly 25 selected mappings and 25
+  entity-specific source records passed, and 18 unique mmCIF objects were copied.
+  This accepts the login boundaries of `PH3-P1-57` and `PH3-P1-58`.
+- Screen job `636671` then ended `environment_failure` before Nextflow, model
+  preparation, or MR. Every owned source still pointed below the temporary
+  `.unknown-screen-stage.tmp.*` directory that the wrapper had atomically moved;
+  the final coordinate objects existed but the recorded paths did not
+  (`PH3-P1-59`, signature `119bc421…`).
+- The minimal clean-break correction advances provider-login to v3, publishes
+  `../coordinate_objects/...` paths relative to both owned source files, rejects
+  absolute owned paths, and resolves each row against its package location.
+  The shared-object regression now relocates the whole preparation before
+  validation; 29 focused provider/discovery/screen tests pass.
+- Formatting, lint, type, documentation, wrapper, diff, client, and dispatcher
+  checks pass together with 33 focused provider/discovery/screen cases. Next
+  commit/push once, watch one CI, deploy, then stage one fresh exact-parent
+  screen from accepted discovery `636646`. Never reuse failed job `636671` or
+  its cache.

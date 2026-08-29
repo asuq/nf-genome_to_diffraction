@@ -80,7 +80,7 @@ ProviderOfflineInputIdentifier = Annotated[
     Field(pattern=r"^provideroffline_[a-f0-9]{64}$"),
 ]
 
-_ADAPTER_VERSION = "phase3-provider-login-stage-v2"
+_ADAPTER_VERSION = "phase3-provider-login-stage-v3"
 _MANIFEST_NAME = "provider_preparation.json"
 _OFFLINE_INPUT_NAME = "phase3_offline_provider_input.json"
 _MAXIMUM_HITS_PER_GROUP = 3
@@ -115,7 +115,7 @@ class PhaseIIIProviderLoginStageManifest(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "providerstage_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["phase3-provider-login-stage-v2"]
+    adapter_version: Literal["phase3-provider-login-stage-v3"]
     preparation_id: ProviderPreparationIdentifier
     discovery_package_id: Annotated[
         str,
@@ -314,8 +314,12 @@ def _validate_owned_coordinate_sources(
     coordinate_root = (root / "coordinate_objects").resolve(strict=True)
     for record in rows:
         coordinate = Path(record.coordinate_path)
+        if coordinate.is_absolute():
+            raise PhaseIIIProviderLoginStageError(
+                "owned provider coordinate must be package-relative"
+            )
         try:
-            resolved = coordinate.resolve(strict=True)
+            resolved = (path.parent / coordinate).resolve(strict=True)
         except OSError as error:
             raise PhaseIIIProviderLoginStageError(
                 "owned provider coordinate is absent"
@@ -565,7 +569,7 @@ def stage_phase3_provider_coordinates(
         coordinate_count, owned_coordinate_sources = _copy_coordinate_objects(
             (*pdb_output.coordinate_sources, *afdb_coordinates),
             output_root=temporary / "coordinate_objects",
-            published_root=output / "coordinate_objects",
+            published_root=Path("../coordinate_objects"),
         )
         owned_by_id = {item.coordinate_id: item for item in owned_coordinate_sources}
         _write_owned_coordinate_sources(

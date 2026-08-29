@@ -917,7 +917,7 @@ def materialise_phase3_provider_login_stub(
         if path.is_file() and path.name != "provider_preparation.json"
     )
     manifest = PhaseIIIProviderLoginStageManifest.from_content(
-        adapter_version="phase3-provider-login-stage-v2",
+        adapter_version="phase3-provider-login-stage-v3",
         discovery_package_id=discovery.package_id,
         discovery_owned_run_id=discovery.owned_run_id,
         execution_identity_id=discovery.execution_identity_id,

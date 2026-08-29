@@ -210,7 +210,12 @@ def test_bounded_login_stage_round_trips(
         .splitlines()
     )
     assert len(owned_sources) == 1
-    owned_coordinate = Path(owned_sources[0].coordinate_path)
+    assert owned_sources[0].coordinate_path.startswith("../coordinate_objects/")
+    owned_coordinate = (
+        staged.preparation_directory
+        / "pdb_coordinate_registration"
+        / owned_sources[0].coordinate_path
+    ).resolve(strict=True)
     assert owned_coordinate.is_relative_to(
         staged.preparation_directory / "coordinate_objects"
     )
@@ -254,12 +259,15 @@ def test_bounded_login_stage_retains_records_that_share_one_coordinate_object(
             progress=False,
         )
     )
-    observed = validate_phase3_provider_login_stage(staged.preparation_directory)
+    relocated_parent = tmp_path / "relocated"
+    relocated_parent.mkdir()
+    relocated = relocated_parent / "provider_stage"
+    staged.preparation_directory.rename(relocated)
+    observed = validate_phase3_provider_login_stage(relocated)
     owned_sources = tuple(
         CoordinateSourceRecord.model_validate_json(line)
         for line in (
-            staged.preparation_directory
-            / "pdb_coordinate_registration/owned_coordinate_sources.jsonl"
+            relocated / "pdb_coordinate_registration/owned_coordinate_sources.jsonl"
         )
         .read_text(encoding="utf-8")
         .splitlines()
@@ -270,6 +278,7 @@ def test_bounded_login_stage_retains_records_that_share_one_coordinate_object(
     assert len(owned_sources) == 2
     assert len({source.coordinate_id for source in owned_sources}) == 2
     assert len({source.coordinate_path for source in owned_sources}) == 1
+    assert not Path(owned_sources[0].coordinate_path).is_absolute()
 
 
 def test_changed_login_stage_file_fails(

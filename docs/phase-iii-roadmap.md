@@ -485,6 +485,16 @@ current focused correction copies each unique object once but retains every
 entity-specific source record. Neither the failed screen nor the cancelled
 discovery is reusable; one fresh exact-source discovery and child remain.
 
+Exact-source discovery job `636646` subsequently completed the same 1,621-group,
+13-batch provider gate with all 23 resume tasks cached. Its bounded login child
+retained all 25 selected mappings and 25 coordinate-source records while copying
+18 unique mmCIF objects, accepting `PH3-P1-57` and `PH3-P1-58`. Screen job
+`636671` then stopped before Nextflow or MR because those owned records named the
+temporary atomic-staging directory that had been moved into the final run tree
+(`PH3-P1-59`). Provider-login v3 now publishes package-relative coordinate
+paths and independently validates them relative to each owned source file; one
+exact-source child successor remains.
+
 The worker-offline boundary requires one explicit operational checkpoint. The
 user approved a compute-only `unknown-discovery` run, bounded reviewed
 login-side coordinate staging, and then an offline `unknown-screen` MR run.
