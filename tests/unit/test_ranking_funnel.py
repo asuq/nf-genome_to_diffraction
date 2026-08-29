@@ -298,7 +298,7 @@ def test_phase3_diverse_funnel_searches_all_declared_copies_jointly(
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["adapter_version"] == (
-        "multi-source-first-copy-funnel-v3-phase3-evidence"
+        "multi-source-first-copy-funnel-v4-phase3-evidence"
     )
     assert manifest["copy_search_mode"] == "joint_declared_copies"
     assert manifest["maximum_joint_copy_count"] == 4
@@ -607,6 +607,18 @@ def test_diverse_funnel_applies_stricter_execution_cap(tmp_path: Path) -> None:
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["per_crystal_first_copy_cap"] == 1
     assert manifest["requested_execution_cap"] == 1
+    deferred = tuple(
+        MrHypothesis.model_validate_json(line)
+        for line in result.deferred_cap_hypotheses_jsonl.read_text().splitlines()
+        if line
+    )
+    assert len(deferred) == manifest["candidate_count_before_caps"] - 1
+    assert all(
+        item.status is MrHypothesisStatus.SKIPPED
+        and item.priority_features["first_copy_execution_disposition"]
+        == "deferred_initial_25_cap_reopen_only_after_complete_zero_pack"
+        for item in deferred
+    )
 
 
 def test_diverse_a_cap_does_not_change_all_model_registry_identity(

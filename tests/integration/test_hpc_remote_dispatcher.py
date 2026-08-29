@@ -53,6 +53,7 @@ UNKNOWN_SCREEN_RUN_ID = "gtd-unknown-screen-20260802T120001Z-0123456789ab-012345
 UNKNOWN_SINGLE_RUN_ID = (
     "gtd-unknown-single-component-20260802T120002Z-0123456789ab-01234569"
 )
+UNKNOWN_PASS2_RUN_ID = "gtd-unknown-pass2-20260802T120003Z-0123456789ab-01234570"
 CONTROL_MATRIX_RUN_ID = "gtd-control-matrix-20260802T120000Z-0123456789ab-01234567"
 M6_INPUTS_RUN_ID = "gtd-m6-inputs-20260802T120000Z-0123456789ab-01234567"
 M6_NEXTFLOW_SMOKE_RUN_ID = (
@@ -1308,6 +1309,51 @@ def test_m6_input_qualification_uses_small_fixed_resources(tmp_path: Path) -> No
     )
     assert '[[ "${SLURM_CPUS_PER_TASK:-0}" == 1 ]]' in m6_body
     assert "benchmark verify-m6-runner" in m6_body
+
+
+def test_unknown_pass2_submit_requires_rg7_authority_and_72_hour_bound(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    run = remote_root / "runs" / UNKNOWN_PASS2_RUN_ID
+    state = run / "state"
+    authority = run / "artifacts/unknown-pass2"
+    state.mkdir(parents=True)
+    authority.mkdir(parents=True)
+    (run / "logs").mkdir()
+    manifest = authority / "phase3_pass2_input_manifest.json"
+    manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (state / "phase").write_text("staged\n", encoding="ascii")
+    (state / "profile").write_text("unknown-pass2\n", encoding="ascii")
+    for name, value in (
+        ("unknown-pass2-parent-run-id", UNKNOWN_SINGLE_RUN_ID),
+        ("unknown-pass2-input-id", f"phase3pass2inputs_{'1' * 64}"),
+        ("unknown-pass2-input-sha256", "2" * 64),
+        ("unknown-pass2-execution-identity-id", f"phase3exec_{'3' * 64}"),
+        ("unknown-pass2-finding-closure-id", f"phase3closure_{'4' * 64}"),
+        ("unknown-pass2-file-count", "1"),
+    ):
+        (state / name).write_text(f"{value}\n", encoding="ascii")
+    (state / "unknown-pass2-authority-checksums.sha256").write_text(
+        f"{hashlib.sha256(manifest.read_bytes()).hexdigest()}  {manifest.name}\n",
+        encoding="ascii",
+    )
+
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", UNKNOWN_PASS2_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert submitted["job_id"] == "123"
+    arguments = (tmp_path / "sbatch-args").read_text().splitlines()
+    assert "--cpus-per-task=8" in arguments
+    assert "--mem=32G" in arguments
+    assert "--time=72:00:00" in arguments
 
 
 @pytest.mark.parametrize(

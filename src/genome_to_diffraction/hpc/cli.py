@@ -110,6 +110,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "unknown-discovery",
             "unknown-screen",
             "unknown-single-component",
+            "unknown-pass2",
             "m6-nextflow-smoke",
         ),
     )
@@ -137,6 +138,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "unknown-discovery",
             "unknown-screen",
             "unknown-single-component",
+            "unknown-pass2",
             "control-slice",
             "control-matrix",
             "m6-inputs",

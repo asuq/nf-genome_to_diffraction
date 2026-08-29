@@ -14,7 +14,8 @@ import subprocess
 import tarfile
 import tempfile
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -65,6 +66,9 @@ from genome_to_diffraction.hpc.p0_inputs import (
 )
 from genome_to_diffraction.hpc.unknown_inputs import (
     build_unknown_discovery_input_bundle,
+)
+from genome_to_diffraction.hpc.unknown_pass2_inputs import (
+    build_unknown_pass2_input_bundle,
 )
 from genome_to_diffraction.hpc.unknown_single_inputs import (
     build_unknown_single_component_input_bundle,
@@ -149,6 +153,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/unknown-discovery.log",
         "logs/unknown-screen.log",
         "logs/unknown-single-component.log",
+        "logs/unknown-pass2.log",
         "logs/control-slice.log",
         "logs/control-matrix.log",
         "logs/m6-inputs.log",
@@ -161,7 +166,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -492,6 +497,14 @@ class TextTransport(Protocol):
     def collect(self, run_id: str, owner_id: str) -> bytes:
         """Return the fixed whitelisted artefact archive for an owned run."""
 
+    def collect_to_path(
+        self,
+        run_id: str,
+        owner_id: str,
+        destination: Path,
+    ) -> None:
+        """Stream the fixed whitelisted archive to one new local file."""
+
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
         """Return manifest-selected and checksum-gated MR review assets."""
 
@@ -542,6 +555,13 @@ class TextTransport(Protocol):
         archive_path: Path,
     ) -> dict[str, str]:
         """Attach reviewed A-seed decisions to one owned screen child."""
+
+    def unknown_pass2_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Attach one RG7-closed pass-2 archive to its owned pass-1 child."""
 
     def m4_import_stage(
         self,
@@ -1024,6 +1044,51 @@ class SshTransport:
             )
         return result.stdout
 
+    def collect_to_path(
+        self,
+        run_id: str,
+        owner_id: str,
+        destination: Path,
+    ) -> None:
+        """Stream the fixed remote archive without buffering it in memory."""
+
+        if destination.exists() or destination.is_symlink():
+            raise ValidationError("collection archive destination must be absent")
+        try:
+            with destination.open("xb") as output:
+                result = subprocess.run(
+                    self._command("collect", [run_id, owner_id]),
+                    check=False,
+                    stdout=output,
+                    stderr=subprocess.PIPE,
+                    timeout=SSH_COLLECTION_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote collection exceeded the fixed "
+                f"{SSH_COLLECTION_TIMEOUT_SECONDS}-second transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        if result.returncode != 0:
+            payload = (
+                destination.read_bytes()
+                if destination.stat().st_size <= MAX_LOG_BYTES
+                else b""
+            )
+            fields = (
+                _decode_remote_fields(payload)
+                if payload
+                else {}
+            )
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+            )
+            raise RemoteOperationError(
+                message or "remote artefact collection failed",
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
         """Stream only assets selected by one immutable MR review manifest."""
 
@@ -1297,6 +1362,46 @@ class SshTransport:
         if not fields:
             raise RemoteOperationError(
                 "remote unknown-single-component staging returned no fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
+    def unknown_pass2_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one closure-gated Phase III pass-2 input archive."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("unknown-pass2-inputs-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote unknown-pass2 staging exceeded the fixed "
+                f"{P0_INPUT_STAGE_TIMEOUT_SECONDS}-second timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote unknown-pass2 input staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote unknown-pass2 input staging returned no fields",
                 failure_class=FailureClass.TRANSFER_FAILURE,
             )
         return fields
@@ -1675,6 +1780,7 @@ class HpcController:
                 "unknown-discovery",
                 "unknown-screen",
                 "unknown-single-component",
+                "unknown-pass2",
             }
             else "main"
         )
@@ -1686,6 +1792,7 @@ class HpcController:
                 "unknown-discovery",
                 "unknown-screen",
                 "unknown-single-component",
+                "unknown-pass2",
                 "m6-nextflow-smoke",
             }:
                 raise ValidationError(
@@ -1699,6 +1806,7 @@ class HpcController:
             raise ValidationError("source branch is not approved for HPC staging")
         screen_parent: LocalRunRecord | None = None
         single_parent: LocalRunRecord | None = None
+        pass2_parent: LocalRunRecord | None = None
         if profile == "unknown-screen":
             if parent_run_id is None:
                 raise ValidationError(
@@ -1737,6 +1845,24 @@ class HpcController:
                     "unknown-single-component child must use the exact screen "
                     "source commit"
                 )
+        if profile == "unknown-pass2":
+            if parent_run_id is None:
+                raise ValidationError(
+                    "unknown-pass2 staging requires an owned single-component parent"
+                )
+            pass2_parent = self._owned_run(parent_run_id)
+            if pass2_parent.profile != "unknown-single-component":
+                raise ValidationError(
+                    "unknown-pass2 parent must use unknown-single-component"
+                )
+            if pass2_parent.site_id != self.config.site_id:
+                raise ValidationError(
+                    "unknown-pass2 parent belongs to another HPC site"
+                )
+            if pass2_parent.commit != commit:
+                raise ValidationError(
+                    "unknown-pass2 child must use the exact pass-1 source commit"
+                )
         iteration, parent = self._next_iteration(parent_run_id)
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
         run_id = f"gtd-{profile}-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
@@ -1771,6 +1897,7 @@ class HpcController:
             "unknown-discovery",
             "unknown-screen",
             "unknown-single-component",
+            "unknown-pass2",
         }:
             phenix_manifest, phenix_sha256 = _fixed_heteromer_phenix_binding(
                 self.config.repository
@@ -1911,6 +2038,53 @@ class HpcController:
                 "unknown_screen_parent_run_id": single_parent.run_id,
                 "unknown_single_input_id": bundle.input_id,
                 "unknown_single_decision_count": str(bundle.decision_count),
+            }
+        if profile == "unknown-pass2":
+            if pass2_parent is None:
+                raise AssertionError("validated unknown-pass2 parent is absent")
+            with tempfile.TemporaryDirectory(
+                prefix="nf-gtd-unknown-pass2-",
+                dir="/tmp",
+            ) as temporary:
+                archive_path = Path(temporary) / "unknown-pass2-inputs.tar"
+                pass2_bundle = build_unknown_pass2_input_bundle(
+                    repository=self.config.repository,
+                    archive_path=archive_path,
+                )
+                attached = self.transport.unknown_pass2_inputs_stage(
+                    [
+                        run_id,
+                        owner_id,
+                        pass2_parent.run_id,
+                        pass2_parent.owner_id,
+                        pass2_bundle.input_id,
+                        pass2_bundle.archive_sha256,
+                        str(pass2_bundle.archive_size_bytes),
+                        pass2_bundle.execution_identity_id,
+                        pass2_bundle.finding_closure_id,
+                        str(pass2_bundle.file_count),
+                    ],
+                    pass2_bundle.archive_path,
+                )
+            if (
+                attached.get("run_id") != run_id
+                or attached.get("parent_run_id") != pass2_parent.run_id
+                or attached.get("input_id") != pass2_bundle.input_id
+                or attached.get("finding_closure_id")
+                != pass2_bundle.finding_closure_id
+            ):
+                raise RemoteOperationError(
+                    "remote unknown-pass2 input identity differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {
+                **remote,
+                "unknown_pass1_parent_run_id": pass2_parent.run_id,
+                "unknown_pass2_input_id": pass2_bundle.input_id,
+                "finding_closure_id": pass2_bundle.finding_closure_id,
+                "unknown_pass2_crystal_count": str(
+                    len(pass2_bundle.crystal_ids)
+                ),
             }
         if profile == "m6-nextflow-smoke":
             remote_site = remote.get("site_id")
@@ -2912,6 +3086,7 @@ class HpcController:
                             "unknown-discovery",
                             "unknown-screen",
                             "unknown-single-component",
+                            "unknown-pass2",
                             "control-slice",
                             "control-matrix",
                             "m6-nextflow-smoke",
@@ -3033,21 +3208,26 @@ class HpcController:
 
         record = self._owned_run(run_id)
         self.logger.info("collecting HPC run artefacts", extra={"run_id": run_id})
-        archive = self.transport.collect(run_id, record.owner_id)
         source_lock_sha256 = hashlib.sha256(
             self.git.read_file_at_commit(record.commit, PurePosixPath("pixi.lock"))
         ).hexdigest()
-        _validated_owned_terminal_result(
-            archive,
-            record,
-            source_lock_sha256=source_lock_sha256,
-        )
         destination = self.config.local_state_root / run_id / "collected"
-        files = _extract_approved_archive(
-            archive,
-            destination,
-            progress=self.progress,
-        )
+        with tempfile.TemporaryDirectory(
+            prefix="nf-gtd-collect-",
+            dir="/tmp",
+        ) as temporary:
+            archive_path = Path(temporary) / "collection.tar.gz"
+            self.transport.collect_to_path(run_id, record.owner_id, archive_path)
+            _validated_owned_terminal_result(
+                archive_path,
+                record,
+                source_lock_sha256=source_lock_sha256,
+            )
+            files = _extract_approved_archive(
+                archive_path,
+                destination,
+                progress=self.progress,
+            )
         failure_signature = _failure_signature(destination)
         if failure_signature is not None:
             replace(record, failure_signature=failure_signature).write(
@@ -3250,13 +3430,30 @@ def _failure_class(value: str | None) -> FailureClass:
         return FailureClass.UNKNOWN_FAILURE
 
 
+ArchivePayload = bytes | Path
+
+
+def _archive_size(archive: ArchivePayload) -> int:
+    return len(archive) if isinstance(archive, bytes) else archive.stat().st_size
+
+
+@contextmanager
+def _open_collection_archive(archive: ArchivePayload) -> Iterator[tarfile.TarFile]:
+    if isinstance(archive, bytes):
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as handle:
+            yield handle
+    else:
+        with tarfile.open(archive, mode="r:gz") as handle:
+            yield handle
+
+
 def _extract_approved_archive(
-    archive: bytes,
+    archive: ArchivePayload,
     destination: Path,
     *,
     progress: bool,
 ) -> list[str]:
-    if len(archive) > MAX_ARTIFACT_TOTAL_BYTES:
+    if _archive_size(archive) > MAX_ARTIFACT_TOTAL_BYTES:
         raise RemoteOperationError(
             "compressed artefact archive exceeds the local collection limit",
             failure_class=FailureClass.TRANSFER_FAILURE,
@@ -3266,7 +3463,7 @@ def _extract_approved_archive(
     destination.mkdir(parents=True, exist_ok=True)
     destination_resolved = destination.resolve()
     try:
-        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
+        with _open_collection_archive(archive) as tar:
             members = tar.getmembers()
             with tqdm(
                 total=len(members),
@@ -3411,9 +3608,9 @@ def _validated_terminal_inventory(result: Mapping[str, object]) -> None:
             seen.add(value)
 
 
-def _owned_terminal_archive_evidence(archive: bytes) -> dict[str, bytes]:
+def _owned_terminal_archive_evidence(archive: ArchivePayload) -> dict[str, bytes]:
     required = frozenset({"manifest.json", "state/job-id", "state/job-result.json"})
-    if len(archive) > MAX_ARTIFACT_TOTAL_BYTES:
+    if _archive_size(archive) > MAX_ARTIFACT_TOTAL_BYTES:
         raise _terminal_evidence_error(
             "compressed archive exceeds the collection limit"
         )
@@ -3421,7 +3618,7 @@ def _owned_terminal_archive_evidence(archive: bytes) -> dict[str, bytes]:
     seen: set[str] = set()
     total = 0
     try:
-        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
+        with _open_collection_archive(archive) as tar:
             for member in tar.getmembers():
                 relative = PurePosixPath(member.name)
                 if (
@@ -3471,7 +3668,7 @@ def _owned_terminal_archive_evidence(archive: bytes) -> dict[str, bytes]:
 
 
 def _validated_owned_terminal_result(
-    archive: bytes,
+    archive: ArchivePayload,
     record: LocalRunRecord,
     *,
     source_lock_sha256: str,

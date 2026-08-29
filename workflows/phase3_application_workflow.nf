@@ -364,14 +364,20 @@ workflow PHASE3_REVIEWED_SINGLE_COMPONENT_APPLICATION_WORKFLOW {
                 }
                 tuple(
                     item.crystal_id as String,
-                    file(item.review_stage as String, checkIfExists: true),
+                    file(
+                        manifest.parent.resolve(item.review_stage as String),
+                        checkIfExists: true
+                    ),
                     file(
                         owned_run_registry.resolve(
                             "packages/${matches[0].review_package_id}"
                         ),
                         checkIfExists: true
                     ),
-                    file(item.hypotheses as String, checkIfExists: true)
+                    file(
+                        manifest.parent.resolve(item.hypotheses as String),
+                        checkIfExists: true
+                    )
                 )
             }
         }

@@ -29,6 +29,11 @@ from genome_to_diffraction.review.owned_run import (
     resolve_phase3_owned_review_package,
     validate_phase3_owned_run_registry,
 )
+from genome_to_diffraction.review.pass2_package import (
+    Pass2ReviewPackageError,
+    Pass2ReviewPackageOutput,
+    build_pass2_review_packages,
+)
 from genome_to_diffraction.review.phase3_package import (
     PhaseIIIReviewEvidenceSource,
     PhaseIIIReviewPackageError,
@@ -77,6 +82,8 @@ __all__ = [
     "MrSeedReviewRequest",
     "OwnedPhaseIIIParentRun",
     "OwnedPhaseIIIReviewPackageSource",
+    "Pass2ReviewPackageError",
+    "Pass2ReviewPackageOutput",
     "PhaseIIIOwnedRunError",
     "PhaseIIIReviewEvidenceSource",
     "PhaseIIIReviewPackageError",
@@ -100,6 +107,7 @@ __all__ = [
     "build_owned_phase3_a_seed_review_package",
     "build_owned_phase3_composition_review_package",
     "build_owned_phase3_sequence_review_package",
+    "build_pass2_review_packages",
     "build_phase3_review_package",
     "build_resource_summary",
     "build_sequence_checkpoint",

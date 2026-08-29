@@ -63,7 +63,7 @@ from genome_to_diffraction.time import utc_now_iso
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
 _ADAPTER_VERSION = "exact-predicted-funnel-v1"
 _DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v1"
-_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v3-phase3-evidence"
+_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v4-phase3-evidence"
 _PHASE3_MAXIMUM_COPY_COUNT = 4
 _PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
@@ -137,6 +137,7 @@ class DiverseFirstCopyFunnelOutput:
     hypotheses: tuple[MrHypothesis, ...]
     hypotheses_jsonl: Path
     hypotheses_tsv: Path
+    deferred_cap_hypotheses_jsonl: Path
     deferred_localisation_hypotheses_jsonl: Path
     model_registry_directory: Path
     manifest_json: Path
@@ -1351,6 +1352,22 @@ def build_diverse_first_copy_funnel(
         request.maximum_first_copy_jobs,
         joint_copy_search=request.joint_copy_search,
     )
+    selected_ids = {item.hypothesis.hypothesis_id for item in selected}
+    deferred_cap = tuple(
+        item.hypothesis.model_copy(
+            update={
+                "priority_features": {
+                    **item.hypothesis.priority_features,
+                    "first_copy_execution_disposition": (
+                        "deferred_initial_25_cap_reopen_only_after_complete_zero_pack"
+                    ),
+                },
+                "status": MrHypothesisStatus.SKIPPED,
+            }
+        )
+        for item in sorted(candidates, key=_diverse_candidate_sort_key)
+        if item.hypothesis.hypothesis_id not in selected_ids
+    )
     output = request.output_directory.resolve()
     if output.exists() and any(output.iterdir()):
         raise FunnelInputError(
@@ -1368,10 +1385,15 @@ def build_diverse_first_copy_funnel(
     )
     registry = registry_output.registry_directory
     hypotheses_jsonl = output / "mr_hypotheses.jsonl"
+    deferred_cap_jsonl = output / "deferred_cap_hypotheses.jsonl"
     deferred_localisation_jsonl = output / "deferred_localisation_hypotheses.jsonl"
     atomic_write_text(
         hypotheses_jsonl,
         "".join(f"{canonical_json_text(item.hypothesis)}\n" for item in selected),
+    )
+    atomic_write_text(
+        deferred_cap_jsonl,
+        "".join(f"{canonical_json_text(item)}\n" for item in deferred_cap),
     )
     atomic_write_text(
         deferred_localisation_jsonl,
@@ -1411,6 +1433,8 @@ def build_diverse_first_copy_funnel(
                 else 0
             ),
             "retained_excluded_hypothesis_count": len(deferred_localisation),
+            "retained_cap_deferred_hypothesis_count": len(deferred_cap),
+            "deferred_cap_hypotheses_sha256": sha256_file(deferred_cap_jsonl),
             "deferred_localisation_hypotheses_sha256": sha256_file(
                 deferred_localisation_jsonl,
                 progress=False,
@@ -1520,6 +1544,7 @@ def build_diverse_first_copy_funnel(
         hypotheses=tuple(item.hypothesis for item in selected),
         hypotheses_jsonl=hypotheses_jsonl,
         hypotheses_tsv=hypotheses_tsv,
+        deferred_cap_hypotheses_jsonl=deferred_cap_jsonl,
         deferred_localisation_hypotheses_jsonl=deferred_localisation_jsonl,
         model_registry_directory=registry,
         manifest_json=manifest_path,

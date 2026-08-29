@@ -543,6 +543,10 @@ def materialise_unknown_pass1_public_fixture(
             sorted(
                 (
                     (
+                        "phase3_all_model_registry",
+                        "all-eligible-model-registry-v3",
+                    ),
+                    (
                         "phase3_component_coordinates",
                         "phaser-component-coordinate-inventory-v2",
                     ),
@@ -551,8 +555,16 @@ def materialise_unknown_pass1_public_fixture(
                         "phase3-composition-attempt-execution-v1",
                     ),
                     (
+                        "phase3_composition_beam",
+                        "phase3-composition-beam-depth-v1",
+                    ),
+                    (
+                        "phase3_composition_depth",
+                        "phase3-composition-depth-input-v1",
+                    ),
+                    (
                         "phase3_first_copy_funnel",
-                        "multi-source-first-copy-funnel-v3-phase3-evidence",
+                        "multi-source-first-copy-funnel-v4-phase3-evidence",
                     ),
                     (
                         "phase3_localisation_batch",
@@ -561,6 +573,14 @@ def materialise_unknown_pass1_public_fixture(
                     (
                         "phase3_multi_fixed_search",
                         "phenix-multi-fixed-joint-component-v2-diffraction",
+                    ),
+                    (
+                        "phase3_no_a_expansion",
+                        "phase3-no-a-expansion-v2",
+                    ),
+                    (
+                        "phase3_pass2_a_seed",
+                        "phase3-pass2-a-seed-v1",
                     ),
                     (
                         "phase3_partner_search",

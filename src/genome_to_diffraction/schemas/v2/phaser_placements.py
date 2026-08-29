@@ -126,8 +126,8 @@ class PhaserPerPlacementInventory(_ContentAddressedContract):
         "phaser.keywords.general.xyzout_ensemble=True;"
         "phaser.keywords.general.keywords=True"
     ]
-    placements: tuple[PhaserPlacementArtifact, ...] = Field(min_length=2)
-    component_groups: tuple[PhaserPlacementComponentGroup, ...] = Field(min_length=2)
+    placements: tuple[PhaserPlacementArtifact, ...] = Field(min_length=1)
+    component_groups: tuple[PhaserPlacementComponentGroup, ...] = Field(min_length=1)
     combined_atom_count: PositiveInt
     recombined_atom_count: PositiveInt
     recombined_atom_sha256: Sha256Hex

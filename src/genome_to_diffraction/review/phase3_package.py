@@ -584,8 +584,16 @@ def build_owned_phase3_a_seed_review_package(
     owned_parent_run_id: str,
     crystal_id: str,
     output_directory: Path,
+    parent_profile: str = "unknown-screen",
+    parent_phase: str = "phase3-pass1",
 ) -> PhaseIIIReviewPackageOutput:
     """Publish one owned A checkpoint from complete crystal-bound MR evidence."""
+
+    if (parent_profile, parent_phase) not in {
+        ("unknown-screen", "phase3-pass1"),
+        ("unknown-pass2", "phase3-pass2"),
+    }:
+        raise PhaseIIIReviewPackageError("owned A package parent profile is invalid")
 
     try:
         identity = PhaseIIIExecutionIdentity.model_validate_json(
@@ -677,8 +685,8 @@ def build_owned_phase3_a_seed_review_package(
         PhaseIIIReviewPackageRequest(
             checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
             owned_parent_run_id=owned_parent_run_id,
-            parent_profile="unknown-screen",
-            parent_phase="phase3-pass1",
+            parent_profile=parent_profile,
+            parent_phase=parent_phase,
             execution_identity_id=identity.execution_identity_id,
             crystal_id=crystal_id,
             target_item_ids=solution_ids,

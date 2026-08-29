@@ -21,6 +21,7 @@ coverage lives in ``tests/unit/test_composition_runtime.py`` and
 
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import ClassVar, Literal, Self
@@ -228,6 +229,7 @@ def _verify_execution_authority(
         else ("phase3_multi_fixed_search", _MULTI_FIXED_ADAPTER_VERSION)
     )
     required_adapters = {
+        "phase3_all_model_registry": "all-eligible-model-registry-v3",
         "phase3_composition_attempt": _ADAPTER_VERSION,
         "phase3_component_coordinates": _PLACEMENT_ADAPTER_VERSION,
         route_name: route_version,
@@ -580,6 +582,24 @@ def execute_composition_attempt(
     if output.exists() or output.is_symlink():
         raise CompositionAttemptExecutionError("composition attempt output exists")
     output.mkdir(parents=True)
+    staged_models = output / "models"
+    staged_models.mkdir()
+    staged_fixed_paths: list[Path] = []
+    for component, source in zip(parent.components, fixed_paths, strict=True):
+        destination = staged_models / f"fixed_{component.label}.pdb"
+        shutil.copy2(source, destination)
+        if sha256_file(destination) != sha256_file(source):
+            raise CompositionAttemptExecutionError(
+                "staged fixed-component checksum differs"
+            )
+        staged_fixed_paths.append(destination)
+    staged_candidate_model = staged_models / f"candidate_{candidate.label}.pdb"
+    candidate_source_sha256 = sha256_file(candidate_model)
+    shutil.copy2(candidate_model, staged_candidate_model)
+    if sha256_file(staged_candidate_model) != candidate_source_sha256:
+        raise CompositionAttemptExecutionError("staged candidate checksum differs")
+    fixed_paths = tuple(staged_fixed_paths)
+    candidate_model = staged_candidate_model
     subset = output / "attempt_sequence_groups.jsonl"
     required_groups = frozenset(
         component.sequence_group_id for component in (*parent.components, candidate)
@@ -663,7 +683,7 @@ def execute_composition_attempt(
                         sequence_group_id=component.sequence_group_id,
                         model_id=component.model_id,
                         model_sha256=component.model_sha256,
-                        coordinate_path=str(path),
+                        coordinate_path=path.relative_to(output).as_posix(),
                         coordinate_sha256=evidence.fixed_coordinate_sha256,
                         requested_copy_count=component.requested_copy_count,
                         observed_copy_count=placement.observed_copy_count,
@@ -687,7 +707,7 @@ def execute_composition_attempt(
                     sequence_group_id=candidate.sequence_group_id,
                     model_id=candidate.model_id,
                     model_sha256=candidate.model_sha256,
-                    model_path=str(candidate_model),
+                    model_path=candidate_model.relative_to(output).as_posix(),
                     requested_copy_count=candidate.requested_copy_count,
                     phaser_identity_fraction=(
                         execution_input.candidate_phaser_identity_fraction

@@ -98,7 +98,13 @@ from genome_to_diffraction.diffraction import (
 )
 from genome_to_diffraction.execution import (
     CompositionAttemptExecutionRequest,
+    CompositionBeamCollectionRequest,
+    CompositionDepthInputRequest,
+    Pass2SeedRequest,
     ProviderEmptyGraphRequest,
+    build_composition_depth_inputs,
+    build_pass2_a_seed,
+    collect_composition_beam_depth,
     complete_provider_empty_graph,
     execute_composition_attempt,
     publish_unknown_pass1_crystallographic_review_routes,
@@ -212,6 +218,7 @@ from genome_to_diffraction.review import (
     build_owned_phase3_a_seed_review_package,
     build_owned_phase3_composition_review_package,
     build_owned_phase3_sequence_review_package,
+    build_pass2_review_packages,
     build_resource_summary,
     build_sequence_checkpoint,
     validate_mr_seed_approvals,
@@ -1409,6 +1416,97 @@ def _build_parser() -> argparse.ArgumentParser:
     composition_run_parser.add_argument("--threads", type=int, default=1)
     composition_run_parser.add_argument("--timeout-seconds", type=float)
     composition_run_parser.add_argument("--outdir", type=Path, required=True)
+    composition_plan_parser = composition_actions.add_parser(
+        "plan-depth",
+        help="build one complete bounded B--F depth inventory",
+    )
+    composition_plan_parser.add_argument("--parent-states", type=Path, required=True)
+    composition_plan_parser.add_argument("--sequence-groups", type=Path, required=True)
+    composition_plan_parser.add_argument(
+        "--localisation-policy", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--active-wave-completion", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--localisation-reopen-plan", type=Path, required=True
+    )
+    composition_plan_parser.add_argument("--gel-evidence", type=Path, required=True)
+    composition_plan_parser.add_argument("--preflight", type=Path, required=True)
+    composition_plan_parser.add_argument("--model-registry", type=Path, required=True)
+    composition_plan_parser.add_argument(
+        "--model-ranking-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--diffraction-selection", type=Path, required=True
+    )
+    composition_plan_parser.add_argument("--free-r-identity", type=Path, required=True)
+    composition_plan_parser.add_argument(
+        "--fixed-coordinate-root", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    composition_plan_parser.add_argument("--finding-closure", type=Path, required=True)
+    composition_plan_parser.add_argument("--finding-ledger", type=Path, required=True)
+    composition_plan_parser.add_argument(
+        "--adverse-review-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--integration-gate-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--known-control-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument("--m6-evidence", type=Path, required=True)
+    composition_plan_parser.add_argument(
+        "--unknown-pass1-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--exact-source-ci-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--global-attempts-used-before", type=int, default=0
+    )
+    composition_plan_parser.add_argument(
+        "--per-depth-attempt-budget", type=int, default=25
+    )
+    composition_plan_parser.add_argument("--outdir", type=Path, required=True)
+    composition_collect_parser = composition_actions.add_parser(
+        "collect-depth",
+        help="verify one complete attempt fan-out and retain the next beam",
+    )
+    composition_collect_parser.add_argument(
+        "--attempt-inventory", type=Path, required=True
+    )
+    composition_collect_parser.add_argument(
+        "--attempt-result", type=Path, action="append", default=[]
+    )
+    composition_collect_parser.add_argument("--beam-width", type=int, default=3)
+    composition_collect_parser.add_argument("--outdir", type=Path, required=True)
+    composition_seed_parser = composition_actions.add_parser(
+        "build-pass2-a-seed",
+        help="derive one executable claim-free A parent from credible pass 1",
+    )
+    composition_seed_parser.add_argument("--assessment", type=Path, required=True)
+    composition_seed_parser.add_argument("--hypotheses", type=Path, required=True)
+    composition_seed_parser.add_argument(
+        "--copy-assessments", type=Path, required=True
+    )
+    composition_seed_parser.add_argument("--packing-result", type=Path, required=True)
+    composition_seed_parser.add_argument("--phaser-command", type=Path, required=True)
+    composition_seed_parser.add_argument("--solution-file", type=Path, required=True)
+    composition_seed_parser.add_argument(
+        "--combined-coordinate", type=Path, required=True
+    )
+    composition_seed_parser.add_argument("--source-mtz", type=Path, required=True)
+    composition_seed_parser.add_argument("--output-mtz", type=Path, required=True)
+    composition_seed_parser.add_argument("--sequence-groups", type=Path, required=True)
+    composition_seed_parser.add_argument("--model-registry", type=Path, required=True)
+    composition_seed_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    composition_seed_parser.add_argument("--outdir", type=Path, required=True)
 
     mr_parser = subparsers.add_parser(
         "mr", help="execute bounded molecular-replacement hypotheses"
@@ -1822,6 +1920,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--execution-identity", type=Path, required=True
     )
     owned_a_seed_package_parser.add_argument("--owned-parent-run", required=True)
+    owned_a_seed_package_parser.add_argument(
+        "--parent-profile",
+        choices=("unknown-screen", "unknown-pass2"),
+        default="unknown-screen",
+    )
+    owned_a_seed_package_parser.add_argument(
+        "--parent-phase",
+        choices=("phase3-pass1", "phase3-pass2"),
+        default="phase3-pass1",
+    )
     owned_a_seed_package_parser.add_argument("--crystal-id", required=True)
     owned_a_seed_package_parser.add_argument("--outdir", type=Path, required=True)
     owned_sequence_package_parser = review_actions.add_parser(
@@ -1850,6 +1958,17 @@ def _build_parser() -> argparse.ArgumentParser:
     owned_composition_package_parser.add_argument("--owned-parent-run", required=True)
     owned_composition_package_parser.add_argument("--crystal-id", required=True)
     owned_composition_package_parser.add_argument("--outdir", type=Path, required=True)
+    pass2_package_parser = review_actions.add_parser(
+        "build-pass2-packages",
+        help="publish terminal pass-2 composition and sequence review packages",
+    )
+    pass2_package_parser.add_argument("--beam", type=Path, required=True)
+    pass2_package_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    pass2_package_parser.add_argument("--owned-parent-run", required=True)
+    pass2_package_parser.add_argument("--crystal-id", required=True)
+    pass2_package_parser.add_argument("--outdir", type=Path, required=True)
     mr_seed_review_parser = review_actions.add_parser(
         "build-mr-seed",
         help="assemble a bounded first-copy MR review package",
@@ -3353,29 +3472,97 @@ def _run_ranking(args: argparse.Namespace) -> int:
 
 
 def _run_composition(args: argparse.Namespace) -> int:
-    if args.composition_action != "run-attempt":
-        raise AssertionError(f"unhandled composition action: {args.composition_action}")
-    output = execute_composition_attempt(
-        CompositionAttemptExecutionRequest(
-            attempt_inventory=args.attempt_inventory,
-            attempt_id=args.attempt_id,
-            fixed_coordinate_root=args.fixed_coordinate_root,
-            model_registry=args.model_registry,
-            sequence_groups_jsonl=args.sequence_groups,
-            preflight_jsonl=args.preflight,
-            mtz=args.mtz,
-            phenix_manifest=args.phenix_manifest,
-            execution_identity=args.execution_identity,
-            output_directory=args.outdir,
-            threads=args.threads,
-            timeout_seconds=args.timeout_seconds,
+    if args.composition_action == "run-attempt":
+        output = execute_composition_attempt(
+            CompositionAttemptExecutionRequest(
+                attempt_inventory=args.attempt_inventory,
+                attempt_id=args.attempt_id,
+                fixed_coordinate_root=args.fixed_coordinate_root,
+                model_registry=args.model_registry,
+                sequence_groups_jsonl=args.sequence_groups,
+                preflight_jsonl=args.preflight,
+                mtz=args.mtz,
+                phenix_manifest=args.phenix_manifest,
+                execution_identity=args.execution_identity,
+                output_directory=args.outdir,
+                threads=args.threads,
+                timeout_seconds=args.timeout_seconds,
+            )
         )
-    )
-    print(
-        f"Composition attempt {output.result.attempt_id} "
-        f"{output.result.execution_status.value}: {output.result_json}"
-    )
-    return 0
+        print(
+            f"Composition attempt {output.result.attempt_id} "
+            f"{output.result.execution_status.value}: {output.result_json}"
+        )
+        return 0
+    if args.composition_action == "plan-depth":
+        output = build_composition_depth_inputs(
+            CompositionDepthInputRequest(
+                parent_states_jsonl=args.parent_states,
+                sequence_groups_jsonl=args.sequence_groups,
+                localisation_policy=args.localisation_policy,
+                active_wave_completion=args.active_wave_completion,
+                localisation_reopen_plan=args.localisation_reopen_plan,
+                gel_evidence=args.gel_evidence,
+                preflight_jsonl=args.preflight,
+                model_registry=args.model_registry,
+                model_ranking_evidence_jsonl=args.model_ranking_evidence,
+                diffraction_selection=args.diffraction_selection,
+                free_r_identity=args.free_r_identity,
+                fixed_coordinate_root=args.fixed_coordinate_root,
+                execution_identity=args.execution_identity,
+                finding_closure=args.finding_closure,
+                finding_ledger=args.finding_ledger,
+                adverse_review_evidence=args.adverse_review_evidence,
+                integration_gate_evidence=args.integration_gate_evidence,
+                known_control_evidence=args.known_control_evidence,
+                m6_evidence=args.m6_evidence,
+                unknown_pass1_evidence=args.unknown_pass1_evidence,
+                exact_source_ci_evidence=args.exact_source_ci_evidence,
+                output_directory=args.outdir,
+                global_attempts_used_before=args.global_attempts_used_before,
+                per_depth_attempt_budget=args.per_depth_attempt_budget,
+            )
+        )
+        print(
+            f"Planned {output.attempt_count} composition attempt(s): "
+            f"{output.attempt_inventory}"
+        )
+        return 0
+    if args.composition_action == "collect-depth":
+        output = collect_composition_beam_depth(
+            CompositionBeamCollectionRequest(
+                attempt_inventory=args.attempt_inventory,
+                attempt_result_directories=tuple(args.attempt_result),
+                output_directory=args.outdir,
+                beam_width=args.beam_width,
+            )
+        )
+        print(
+            f"Collected composition depth {output.result.target_depth} "
+            f"as {output.result.status.value}: {output.result_json}"
+        )
+        return 0
+    if args.composition_action == "build-pass2-a-seed":
+        output = build_pass2_a_seed(
+            Pass2SeedRequest(
+                assessment=args.assessment,
+                hypothesis_jsonl=args.hypotheses,
+                copy_assessments_jsonl=args.copy_assessments,
+                packing_result=args.packing_result,
+                phaser_command=args.phaser_command,
+                solution_file=args.solution_file,
+                combined_coordinate=args.combined_coordinate,
+                source_mtz=args.source_mtz,
+                output_mtz=args.output_mtz,
+                sequence_groups_jsonl=args.sequence_groups,
+                model_registry=args.model_registry,
+                execution_identity=args.execution_identity,
+                output_directory=args.outdir,
+            )
+        )
+        print(f"Built pass-2 A state {output.state.state_id}: {output.state_json}")
+        return 0
+    raise AssertionError(f"unhandled composition action: {args.composition_action}")
 
 
 def _run_mr(args: argparse.Namespace) -> int:
@@ -3715,6 +3902,8 @@ def _run_review(args: argparse.Namespace) -> int:
             owned_parent_run_id=args.owned_parent_run,
             crystal_id=args.crystal_id,
             output_directory=args.outdir,
+            parent_profile=args.parent_profile,
+            parent_phase=args.parent_phase,
         )
         print(f"Built owned Phase III A-seed review package: {package.manifest}")
         return 0
@@ -3737,6 +3926,19 @@ def _run_review(args: argparse.Namespace) -> int:
             output_directory=args.outdir,
         )
         print(f"Built owned Phase III composition review package: {package.manifest}")
+        return 0
+    if args.review_action == "build-pass2-packages":
+        packages = build_pass2_review_packages(
+            beam_directory=args.beam,
+            execution_identity=args.execution_identity,
+            owned_parent_run_id=args.owned_parent_run,
+            crystal_id=args.crystal_id,
+            output_directory=args.outdir,
+        )
+        print(
+            "Built pass-2 composition/sequence review packages: "
+            f"{packages.composition.manifest}, {packages.sequence.manifest}"
+        )
         return 0
     if args.review_action == "build-resource-summary":
         resources = build_resource_summary(

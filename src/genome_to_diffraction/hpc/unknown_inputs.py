@@ -234,7 +234,15 @@ def _validate_localisation_authority(
     if (
         adapters.get("phase3_localisation_batch") != policy.adapter_version
         or adapters.get("phase3_first_copy_funnel")
-        != "multi-source-first-copy-funnel-v3-phase3-evidence"
+        != "multi-source-first-copy-funnel-v4-phase3-evidence"
+        or adapters.get("phase3_all_model_registry")
+        != "all-eligible-model-registry-v3"
+        or adapters.get("phase3_composition_beam")
+        != "phase3-composition-beam-depth-v1"
+        or adapters.get("phase3_composition_depth")
+        != "phase3-composition-depth-input-v1"
+        or adapters.get("phase3_no_a_expansion") != "phase3-no-a-expansion-v2"
+        or adapters.get("phase3_pass2_a_seed") != "phase3-pass2-a-seed-v1"
     ):
         raise UnknownDiscoveryInputError(
             "localisation adapters differ from execution identity"

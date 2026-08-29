@@ -121,8 +121,8 @@ def _top_solution_entries(solution_file: Path) -> tuple[tuple[str, str], ...]:
 def _expected_components(
     values: tuple[ExpectedPhaserComponent, ...],
 ) -> tuple[ExpectedPhaserComponent, ...]:
-    if len(values) < 2:
-        raise PhaserPerPlacementError("per-placement control requires two components")
+    if not values:
+        raise PhaserPerPlacementError("per-placement mapping requires a component")
     ordered = tuple(
         sorted(values, key=lambda item: (item.component_label, item.ensemble_id))
     )

@@ -8,16 +8,22 @@ include {
     PHASE3_FIRST_COPY_APPLICATION_WORKFLOW;
     PHASE3_REVIEWED_SINGLE_COMPONENT_APPLICATION_WORKFLOW
 } from './workflows/phase3_application_workflow'
+include {
+    PHASE3_FULL_COMPOSITION_BEAM_WORKFLOW
+} from './workflows/phase3_full_composition_beam_workflow'
+include {
+    PHASE3_NO_A_EXPANSION_WORKFLOW
+} from './workflows/phase3_no_a_expansion_workflow'
 
 params {
-    catalogues: Path
-    crystals: Path
-    config: Path
-    database_manifest: Path
-    phenix_manifest: Path
+    catalogues: Path? = null
+    crystals: Path? = null
+    config: Path? = null
+    database_manifest: Path? = null
+    phenix_manifest: Path? = null
     phase3_operation: String
-    phase3_execution_identity: Path
-    phase3_owned_parent_run_id: String
+    phase3_execution_identity: Path? = null
+    phase3_owned_parent_run_id: String? = null
     phase3_crystallographic_review_stage: Path? = null
     phase3_reviewed_crystal_manifest: Path? = null
     phase3_owned_run_registry: Path? = null
@@ -25,6 +31,7 @@ params {
     phase3_provider_discovery: Path? = null
     phase3_provider_preparation: Path? = null
     phase3_localisation_bundle: Path? = null
+    phase3_pass2_input_manifest: Path? = null
     outdir: Path = file('results')
     cache_root: Path = file('.cache')
     review_mode: String = 'prepare'
@@ -51,17 +58,24 @@ workflow {
     if (!(params.phase3_operation in [
         'provider_discovery',
         'first_copy',
-        'reviewed_single_component'
+        'reviewed_single_component',
+        'composition_beam'
     ])) {
         error "Unsupported phase3_operation: ${params.phase3_operation}"
     }
     if (params.phase3_operation == 'provider_discovery') {
         if (
             params.phase3_crystallographic_review_stage == null ||
+            params.catalogues == null || params.crystals == null ||
+            params.config == null || params.database_manifest == null ||
+            params.phenix_manifest == null ||
+            params.phase3_execution_identity == null ||
+            params.phase3_owned_parent_run_id == null ||
             params.afdb_accession_map == null ||
             params.phase3_provider_discovery != null ||
             params.phase3_provider_preparation != null ||
             params.phase3_localisation_bundle == null ||
+            params.phase3_pass2_input_manifest != null ||
             params.phase3_reviewed_crystal_manifest != null ||
             params.phase3_owned_run_registry != null ||
             params.phase3_owned_sequence_parent_run_id != null
@@ -96,9 +110,15 @@ workflow {
     } else if (params.phase3_operation == 'first_copy') {
         if (
             params.phase3_crystallographic_review_stage == null ||
+            params.catalogues == null || params.crystals == null ||
+            params.config == null || params.database_manifest == null ||
+            params.phenix_manifest == null ||
+            params.phase3_execution_identity == null ||
+            params.phase3_owned_parent_run_id == null ||
             params.phase3_provider_discovery == null ||
             params.phase3_provider_preparation == null ||
             params.phase3_localisation_bundle == null ||
+            params.phase3_pass2_input_manifest != null ||
             params.afdb_accession_map != null ||
             params.phase3_reviewed_crystal_manifest != null ||
             params.phase3_owned_run_registry != null ||
@@ -124,12 +144,18 @@ workflow {
             params.phase3_provider_preparation,
             params.phase3_localisation_bundle
         )
-    } else {
+    } else if (params.phase3_operation == 'reviewed_single_component') {
         if (
             params.phase3_crystallographic_review_stage != null ||
+            params.catalogues == null || params.crystals == null ||
+            params.config == null || params.database_manifest == null ||
+            params.phenix_manifest == null ||
             params.phase3_provider_discovery != null ||
             params.phase3_provider_preparation != null ||
             params.phase3_localisation_bundle != null ||
+            params.phase3_execution_identity == null ||
+            params.phase3_owned_parent_run_id == null ||
+            params.phase3_pass2_input_manifest != null ||
             params.phase3_reviewed_crystal_manifest == null ||
             params.phase3_owned_run_registry == null ||
             params.phase3_owned_sequence_parent_run_id == null ||
@@ -153,6 +179,101 @@ workflow {
             params.phase3_execution_identity,
             params.phase3_owned_parent_run_id,
             params.phase3_owned_sequence_parent_run_id
+        )
+    } else {
+        if (
+            params.phase3_pass2_input_manifest == null ||
+            params.catalogues != null || params.crystals != null ||
+            params.config != null || params.database_manifest != null ||
+            params.phenix_manifest != null ||
+            params.phase3_execution_identity != null ||
+            params.phase3_owned_parent_run_id == null ||
+            params.phase3_crystallographic_review_stage != null ||
+            params.phase3_provider_discovery != null ||
+            params.phase3_provider_preparation != null ||
+            params.phase3_localisation_bundle != null ||
+            params.phase3_reviewed_crystal_manifest != null ||
+            params.phase3_owned_run_registry != null ||
+            params.phase3_owned_sequence_parent_run_id != null
+        ) {
+            error 'Phase III composition beam requires only its RG7-closed pass-2 authority'
+        }
+        pass2Items = Channel.fromPath(
+            params.phase3_pass2_input_manifest,
+            checkIfExists: true
+        ).flatMap { Path manifest ->
+            def document = new groovy.json.JsonSlurper().parseText(
+                manifest.toFile().text
+            )
+            def root = manifest.parent
+            (document.source.items as List)
+                .findAll { item -> item.mode == 'composition_beam' }
+                .collect { item ->
+                tuple(
+                    item.crystal_id as String,
+                    file(root.resolve(item.parent_states as String), checkIfExists: true),
+                    file(root.resolve(item.sequence_groups as String), checkIfExists: true),
+                    file(root.resolve(item.localisation_policy as String), checkIfExists: true),
+                    file(root.resolve(item.active_wave_completion as String), checkIfExists: true),
+                    file(root.resolve(item.localisation_reopen_plan as String), checkIfExists: true),
+                    file(root.resolve(item.gel_evidence as String), checkIfExists: true),
+                    file(root.resolve(item.preflight as String), checkIfExists: true),
+                    file(root.resolve(item.model_registry as String), checkIfExists: true),
+                    file(root.resolve(item.model_ranking_evidence as String), checkIfExists: true),
+                    file(root.resolve(item.diffraction_selection as String), checkIfExists: true),
+                    file(root.resolve(item.free_r_identity as String), checkIfExists: true),
+                    file(root.resolve(item.fixed_coordinate_root as String), checkIfExists: true),
+                    file(root.resolve(item.execution_identity as String), checkIfExists: true),
+                    file(root.resolve(item.mtz as String), checkIfExists: true),
+                    file(root.resolve(item.phenix_manifest as String), checkIfExists: true),
+                    0,
+                    25,
+                    file(root.resolve(document.source.finding_closure as String), checkIfExists: true),
+                    file(root.resolve(document.source.finding_ledger as String), checkIfExists: true),
+                    file(root.resolve(document.source.adverse_review_evidence as String), checkIfExists: true),
+                    file(root.resolve(document.source.integration_gate_evidence as String), checkIfExists: true),
+                    file(root.resolve(document.source.known_control_evidence as String), checkIfExists: true),
+                    file(root.resolve(document.source.m6_evidence as String), checkIfExists: true),
+                    file(root.resolve(document.source.unknown_pass1_evidence as String), checkIfExists: true),
+                    file(root.resolve(document.source.exact_source_ci_evidence as String), checkIfExists: true)
+                )
+            }
+        }
+        noAItems = Channel.fromPath(
+            params.phase3_pass2_input_manifest,
+            checkIfExists: true
+        ).flatMap { Path manifest ->
+            def document = new groovy.json.JsonSlurper().parseText(
+                manifest.toFile().text
+            )
+            def root = manifest.parent
+            (document.source.items as List)
+                .findAll { item -> item.mode == 'no_a_expansion' }
+                .collect { item ->
+                tuple(
+                    item.crystal_id as String,
+                    file(root.resolve(item.pass1_assessment as String), checkIfExists: true),
+                    file(root.resolve(item.no_a_expansion_plan as String), checkIfExists: true),
+                    file(root.resolve(item.sequence_groups as String), checkIfExists: true),
+                    file(root.resolve(item.model_registry as String), checkIfExists: true),
+                    file(root.resolve(item.preflight as String), checkIfExists: true),
+                    file(root.resolve(item.mtz as String), checkIfExists: true),
+                    file(root.resolve(item.diffraction_selection as String), checkIfExists: true),
+                    file(root.resolve(item.phenix_manifest as String), checkIfExists: true),
+                    file(root.resolve(item.execution_identity as String), checkIfExists: true),
+                    file(root.resolve(item.source_records as String), checkIfExists: true),
+                    file(root.resolve(item.matthews as String), checkIfExists: true),
+                    file(root.resolve(item.pipeline_config as String), checkIfExists: true)
+                )
+            }
+        }
+        PHASE3_FULL_COMPOSITION_BEAM_WORKFLOW(
+            pass2Items,
+            params.phase3_owned_parent_run_id
+        )
+        PHASE3_NO_A_EXPANSION_WORKFLOW(
+            noAItems,
+            params.phase3_owned_parent_run_id
         )
     }
 }

@@ -60,7 +60,7 @@ from genome_to_diffraction.schemas.v2.composition import (
 )
 from genome_to_diffraction.status import InputContractError
 
-_ADAPTER_VERSION = "all-eligible-model-registry-v2"
+_ADAPTER_VERSION = "all-eligible-model-registry-v3"
 _PREDICTED_PROVIDERS = frozenset({"afdb", "esm_atlas"})
 _REGISTRY_FILENAME = "all_model_registry.json"
 _PROCESSED_MODELS_FILENAME = "processed_models.jsonl"
@@ -96,6 +96,9 @@ class AllEligibleModelEntry(ContractModel):
     model_mass_da: PositiveFloat
     retained_fraction: float = Field(gt=0, le=1)
     estimated_coordinate_error: float | None = Field(default=None, ge=0)
+    model_sequence_identity: float = Field(ge=0, le=1)
+    model_uncertainty_source: NonEmptyString
+    model_uncertainty_evidence_sha256: Sha256Hex
     quality_flags: tuple[str, ...] = ()
     mapping_id: str | None = None
     mapping_record_sha256: Sha256Hex | None = None
@@ -154,7 +157,7 @@ class AllEligibleModelRegistryManifest(ContractModel):
 
     schema_version: Literal["2.0"]
     registry_id: AllModelRegistryIdentifier
-    adapter_version: Literal["all-eligible-model-registry-v2"]
+    adapter_version: Literal["all-eligible-model-registry-v3"]
     scope: Literal["all_eligible_processed_models"]
     processed_models_path: Literal["processed_models.jsonl"]
     processed_models_sha256: Sha256Hex
@@ -485,6 +488,23 @@ def build_all_eligible_model_registry(
             model_mass_da=model.model_mass_da,
             retained_fraction=retained_fraction,
             estimated_coordinate_error=model.estimated_coordinate_error,
+            model_sequence_identity=(
+                mapping.sequence_identity if mapping is not None else 1.0
+            ),
+            model_uncertainty_source=(
+                "pdb_mapping_sequence_identity"
+                if mapping is not None
+                else "exact_catalogue_sequence_model"
+            ),
+            model_uncertainty_evidence_sha256=canonical_digest(
+                {
+                    "processed_model": model,
+                    "mapping": mapping,
+                    "model_sequence_identity": (
+                        mapping.sequence_identity if mapping is not None else 1.0
+                    ),
+                }
+            ),
             quality_flags=model.quality_flags,
             mapping_id=mapping.mapping_id if mapping is not None else None,
             mapping_record_sha256=(

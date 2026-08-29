@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -39,7 +39,8 @@ if [[ "$PROFILE" == heteromer-smoke && "${SLURM_CPUS_PER_TASK:-}" != 8 ]]; then
 fi
 if [[ ( "$PROFILE" == unknown-discovery || \
         "$PROFILE" == unknown-screen || \
-        "$PROFILE" == unknown-single-component ) && \
+        "$PROFILE" == unknown-single-component || \
+        "$PROFILE" == unknown-pass2 ) && \
       "${SLURM_CPUS_PER_TASK:-}" != 8 ]]; then
     printf 'Phase III unknown profile requires exactly 8 allocated CPUs\n' >&2
     exit 2
@@ -193,6 +194,9 @@ finalise() {
     elif [[ "$PROFILE" == unknown-single-component ]]; then
         reports_json='["artifacts/unknown-single-component/unknown_single_component_stage_manifest.json","artifacts/unknown-single-component/reviewed_crystals.json","artifacts/unknown-single-component/owned_run_registry/phase3_owned_run_registry.json"]'
         retained_json='["artifacts/unknown-single-component","artifacts/qualification"]'
+    elif [[ "$PROFILE" == unknown-pass2 ]]; then
+        reports_json='["artifacts/qualification/unknown-pass2-summary.json","artifacts/qualification/unknown-pass2-checksums.sha256"]'
+        retained_json='["artifacts/unknown-pass2","artifacts/qualification"]'
     elif [[ "$PROFILE" == control-slice ]]; then
         reports_json='["artifacts/qualification/control-slice-summary.json","artifacts/qualification/control-slice-case-results.jsonl","artifacts/qualification/control-slice-first-copy-results.jsonl","artifacts/qualification/control-slice-copy-two-results.jsonl","artifacts/qualification/control-slice-refinement-results.jsonl","artifacts/qualification/control-slice-sequence-results.jsonl"]'
         retained_json='["artifacts/control-slice-inputs","artifacts/control-slice","artifacts/qualification"]'
@@ -1718,11 +1722,11 @@ run_phase3_phenix_probe() {
     PHASE=preflight
     printf 'phase=phase3_phenix_manifest_verify profile=phase3-phenix-probe\n'
     refreshed_manifest="$qualification/phase3-phenix-manifest.json"
-    "$gtd" --log-format json --no-progress phenix refresh-manifest \
+    "$gtd" --log-format json --no-progress phenix verify \
         --manifest "$legacy_manifest" \
-        --output "$refreshed_manifest" \
         --verification-log "$qualification/phase3-phenix-verification.log" \
         --no-command-timeout
+    cp -- "$legacy_manifest" "$refreshed_manifest"
 
     PHASE=test
     printf 'phase=phase3_phaser_interface_probe profile=phase3-phenix-probe\n'
@@ -1933,12 +1937,12 @@ run_unknown_discovery() {
        "$(sha256sum "$legacy_phenix_manifest" | awk '{print $1}')" == \
        "$expected_phenix_sha256" ]] || return 2
     refreshed_phenix_manifest="$qualification/unknown-discovery-phenix-manifest.json"
-    "$GTD" --log-format json --no-progress phenix refresh-manifest \
+    "$GTD" --log-format json --no-progress phenix verify \
         --manifest "$legacy_phenix_manifest" \
-        --output "$refreshed_phenix_manifest" \
         --verification-log \
         "$qualification/unknown-discovery-phenix-verification.log" \
         --no-command-timeout
+    cp -- "$legacy_phenix_manifest" "$refreshed_phenix_manifest"
     PHENIX_MANIFEST="$refreshed_phenix_manifest"
 
     cd "$RUN/execution"
@@ -2098,11 +2102,11 @@ run_unknown_screen() {
        "$(sha256sum "$legacy_phenix_manifest" | awk '{print $1}')" == \
        "$expected_phenix_sha256" ]] || return 2
     refreshed_phenix_manifest="$qualification/unknown-screen-phenix-manifest.json"
-    "$GTD" --log-format json --no-progress phenix refresh-manifest \
+    "$GTD" --log-format json --no-progress phenix verify \
         --manifest "$legacy_phenix_manifest" \
-        --output "$refreshed_phenix_manifest" \
         --verification-log "$qualification/unknown-screen-phenix-verification.log" \
         --no-command-timeout
+    cp -- "$legacy_phenix_manifest" "$refreshed_phenix_manifest"
     PHENIX_MANIFEST="$refreshed_phenix_manifest"
 
     cd "$RUN/execution"
@@ -2267,12 +2271,12 @@ run_unknown_single_component() {
        "$(sha256sum "$legacy_phenix_manifest" | awk '{print $1}')" == \
        "$expected_phenix_sha256" ]] || return 2
     refreshed_phenix_manifest="$qualification/unknown-single-component-phenix-manifest.json"
-    "$GTD" --log-format json --no-progress phenix refresh-manifest \
+    "$GTD" --log-format json --no-progress phenix verify \
         --manifest "$legacy_phenix_manifest" \
-        --output "$refreshed_phenix_manifest" \
         --verification-log \
         "$qualification/unknown-single-component-phenix-verification.log" \
         --no-command-timeout
+    cp -- "$legacy_phenix_manifest" "$refreshed_phenix_manifest"
     PHENIX_MANIFEST="$refreshed_phenix_manifest"
 
     cd "$RUN/execution"
@@ -2354,6 +2358,177 @@ run_unknown_single_component() {
         "$resume_trace" \
         > "$qualification/unknown-single-component-checksums.sha256"
     printf 'unknown_single_component_status=passed\n'
+}
+
+run_unknown_pass2_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/unknown-pass2-nextflow-${label}.log" \
+        run "$RUN/source/phase3_application.nf" \
+        "$@" \
+        -profile marmic \
+        --phase3_operation composition_beam \
+        --phase3_pass2_input_manifest \
+        "$UNKNOWN_PASS2_ROOT/phase3_pass2_input_manifest.json" \
+        --phase3_owned_parent_run_id "$RUN_ID" \
+        --outdir "$UNKNOWN_PASS2_OUT" \
+        --cache_root "$RUN/cache/unknown-pass2-nextflow"
+}
+
+run_unknown_pass2() {
+    local qualification="$RUN/artifacts/qualification"
+    local first_trace resume_trace cache_counts total cached
+    UNKNOWN_PASS2_ROOT="$RUN/artifacts/unknown-pass2"
+    UNKNOWN_PASS2_OUT="$UNKNOWN_PASS2_ROOT/results"
+    [[ -f "$UNKNOWN_PASS2_ROOT/phase3_pass2_input_manifest.json" && \
+       ! -L "$UNKNOWN_PASS2_ROOT/phase3_pass2_input_manifest.json" ]] || return 2
+    mkdir -p \
+        "$qualification" \
+        "$UNKNOWN_PASS2_OUT" \
+        "$RUN/cache/unknown-pass2-nextflow" \
+        "$RUN/cache/apptainer" \
+        "$RUN/execution"
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"
+    cd "$RUN/execution"
+    printf 'phase=unknown_pass2_first profile=unknown-pass2\n'
+    run_unknown_pass2_nextflow first
+    cp -a "$UNKNOWN_PASS2_OUT/pipeline_info" \
+        "$qualification/unknown-pass2-first-pipeline-info"
+    (
+        cd "$UNKNOWN_PASS2_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-pass2-before-resume.sha256"
+    [[ -s "$qualification/unknown-pass2-before-resume.sha256" ]] || return 4
+    printf 'phase=unknown_pass2_resume profile=unknown-pass2\n'
+    run_unknown_pass2_nextflow resume -resume
+    cp -a "$UNKNOWN_PASS2_OUT/pipeline_info" \
+        "$qualification/unknown-pass2-resume-pipeline-info"
+    (
+        cd "$UNKNOWN_PASS2_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-pass2-after-resume.sha256"
+    cmp -s \
+        "$qualification/unknown-pass2-before-resume.sha256" \
+        "$qualification/unknown-pass2-after-resume.sha256" || return 4
+    first_trace="$qualification/unknown-pass2-first-pipeline-info/trace.tsv"
+    resume_trace="$qualification/unknown-pass2-resume-pipeline-info/trace.tsv"
+    [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    write_trace_identity_manifest "$first_trace" \
+        "$qualification/unknown-pass2-first-task-identities.tsv"
+    write_trace_identity_manifest "$resume_trace" \
+        "$qualification/unknown-pass2-resume-task-identities.tsv"
+    cmp -s \
+        "$qualification/unknown-pass2-first-task-identities.tsv" \
+        "$qualification/unknown-pass2-resume-task-identities.tsv" || return 4
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$resume_trace")"
+    read -r total cached <<< "$cache_counts"
+    [[ "$total" =~ $INTEGER_RE && "$total" -ge 2 && \
+       "$cached" -eq "$total" ]] || return 4
+    "$RUN/source/.pixi/envs/hpc/bin/python" - \
+        "$UNKNOWN_PASS2_ROOT/phase3_pass2_input_manifest.json" \
+        "$UNKNOWN_PASS2_OUT" \
+        "$qualification/unknown-pass2-summary.json" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+authority_path, output_root, summary_path = map(Path, sys.argv[1:])
+authority = json.loads(authority_path.read_text(encoding="utf-8"))
+items = authority["source"]["items"]
+expected = sorted(item["crystal_id"] for item in items)
+composition_expected = sorted(
+    item["crystal_id"] for item in items if item["mode"] == "composition_beam"
+)
+no_a_expected = sorted(
+    item["crystal_id"] for item in items if item["mode"] == "no_a_expansion"
+)
+terminal = {}
+all_results = []
+for path in sorted(output_root.glob("composition_beam_*/composition_beam_depth_result.json")):
+    record = json.loads(path.read_text(encoding="utf-8"))
+    all_results.append((path, record))
+    if record.get("status") == "terminal":
+        crystal = record.get("crystal_id")
+        if crystal in terminal:
+            raise SystemExit("duplicate terminal pass-2 crystal")
+        terminal[crystal] = record
+if sorted(terminal) != composition_expected:
+    raise SystemExit("pass-2 terminal crystal inventory differs")
+for crystal, record in terminal.items():
+    if (
+        record.get("target_depth", 0) > 6
+        or record.get("global_attempts_used_after", 101) > 100
+        or (record.get("target_depth", 0) >= 4 and not record.get("provisional_component_depth"))
+    ):
+        raise SystemExit(f"pass-2 bound differs for {crystal}")
+no_a_reviews = sorted(
+    path.name.removeprefix("phase3_owned_a_review_")
+    for path in output_root.glob("phase3_owned_a_review_*")
+    if path.is_dir()
+)
+if no_a_reviews != no_a_expected:
+    raise SystemExit("pass-2 no-A review-package inventory differs")
+composition_reviews = sorted(
+    path.name.removeprefix("phase3_pass2_review_")
+    for path in output_root.glob("phase3_pass2_review_*")
+    if path.is_dir()
+)
+if composition_reviews != composition_expected:
+    raise SystemExit("pass-2 composition review-package inventory differs")
+payload = {
+    "schema_version": "1.0",
+    "adapter_version": "phase3-pass2-fixed-profile-v1",
+    "input_id": authority["input_id"],
+    "finding_closure_id": authority["finding_closure_id"],
+    "crystal_ids": expected,
+    "terminal_results": [terminal[crystal] for crystal in composition_expected],
+    "no_a_review_required_crystal_ids": no_a_reviews,
+    "composition_review_required_crystal_ids": composition_reviews,
+    "depth_result_count": len(all_results),
+    "execution_status": (
+        "human_a_review_required" if no_a_reviews else "terminal_complete"
+    ),
+    "complete_composition_claimed": False,
+}
+text = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
+summary_path.write_text(text, encoding="utf-8")
+PY
+    cp "$qualification/unknown-pass2-after-resume.sha256" \
+        "$qualification/unknown-pass2-output-checksums.sha256"
+    sha256sum \
+        "$UNKNOWN_PASS2_ROOT/phase3_pass2_input_manifest.json" \
+        "$qualification/unknown-pass2-summary.json" \
+        "$qualification/unknown-pass2-before-resume.sha256" \
+        "$qualification/unknown-pass2-after-resume.sha256" \
+        "$qualification/unknown-pass2-output-checksums.sha256" \
+        "$qualification/unknown-pass2-first-task-identities.tsv" \
+        "$qualification/unknown-pass2-resume-task-identities.tsv" \
+        "$first_trace" \
+        "$resume_trace" \
+        > "$qualification/unknown-pass2-checksums.sha256"
+    printf 'unknown_pass2_status=passed\n'
 }
 
 run_heteromer_smoke() {
@@ -2443,11 +2618,11 @@ run_heteromer_smoke() {
     sha256sum -c "$RUN/state/heteromer-login-stage.sha256"
     printf 'phase=heteromer_phenix_verify profile=heteromer-smoke\n'
     refreshed_phenix_manifest="$qualification/heteromer-smoke-phenix-manifest.json"
-    "$GTD" --log-format json --no-progress phenix refresh-manifest \
+    "$GTD" --log-format json --no-progress phenix verify \
         --manifest "$legacy_phenix_manifest" \
-        --output "$refreshed_phenix_manifest" \
         --verification-log "$qualification/heteromer-smoke-phenix-verification.log" \
         --no-command-timeout
+    cp -- "$legacy_phenix_manifest" "$refreshed_phenix_manifest"
     PHENIX_MANIFEST="$refreshed_phenix_manifest"
 
     PHASE=test
@@ -5010,6 +5185,7 @@ case "$PROFILE" in
     unknown-discovery) run_unknown_discovery ;;
     unknown-screen) run_unknown_screen ;;
     unknown-single-component) run_unknown_single_component ;;
+    unknown-pass2) run_unknown_pass2 ;;
     control-slice) run_control_slice ;;
     control-matrix) run_control_matrix ;;
     m6-inputs) run_m6_inputs ;;

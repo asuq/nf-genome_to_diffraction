@@ -207,6 +207,8 @@ process BUILD_PHASE3_OWNED_A_REVIEW_PACKAGE {
 
     script:
     def outputName = "phase3_owned_a_review_${item[0]}"
+    def parentProfile = item.size() > 5 ? item[5] : 'unknown-screen'
+    def parentPhase = item.size() > 6 ? item[6] : 'phase3-pass1'
     """
     genome-to-diffraction \
         --no-progress \
@@ -216,6 +218,8 @@ process BUILD_PHASE3_OWNED_A_REVIEW_PACKAGE {
         --hypotheses '${item[2]}' \
         --execution-identity '${item[3]}' \
         --owned-parent-run '${item[4]}' \
+        --parent-profile '${parentProfile}' \
+        --parent-phase '${parentPhase}' \
         --crystal-id '${item[0]}' \
         --outdir '${outputName}'
     """

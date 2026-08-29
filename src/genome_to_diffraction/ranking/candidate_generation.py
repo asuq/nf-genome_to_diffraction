@@ -317,7 +317,7 @@ class GeneratedComponentExpansionRow(ContractModel):
             self.selected_model_registry_entry_sha256 is not None
         ):
             raise ValueError("candidate model availability lacks registry evidence")
-        if candidate.model_identity_supported != candidate.model_available:
+        if candidate.model_identity_supported and not candidate.model_available:
             raise ValueError("candidate model identity support lacks registry evidence")
         return self
 
@@ -1022,7 +1022,7 @@ def _component_specs(
     else:
         model_id = model_entry.model_id
         model_sha256 = model_entry.model_sha256
-        model_evidence_sha256 = model_entry.processed_model_record_sha256
+        model_evidence_sha256 = model_entry.model_uncertainty_evidence_sha256
     label = _COMPONENT_LABELS[parent.state.depth]
     mass_evidence_sha256 = canonical_digest(group)
     return tuple(
@@ -1201,7 +1201,10 @@ def build_component_expansion_inputs(
                     if item.physically_eligible
                 ),
                 model_available=draft.model_entry is not None,
-                model_identity_supported=draft.model_entry is not None,
+                model_identity_supported=(
+                    draft.model_entry is not None
+                    and draft.model_entry.model_sequence_identity > 0
+                ),
                 localisation_wave_eligible=draft.wave_eligible,
                 reviewer_allowed=True,
                 model_provider=(

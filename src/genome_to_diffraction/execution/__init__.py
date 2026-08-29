@@ -6,12 +6,33 @@ from genome_to_diffraction.execution.composition import (
     load_composition_attempt_inventory,
     write_composition_attempt_inventory,
 )
+from genome_to_diffraction.execution.composition_beam import (
+    CompositionBeamAttemptEvidence,
+    CompositionBeamCollectionOutput,
+    CompositionBeamCollectionRequest,
+    CompositionBeamDepthResult,
+    CompositionBeamDepthStatus,
+    CompositionBeamError,
+    collect_composition_beam_depth,
+)
+from genome_to_diffraction.execution.composition_depth import (
+    CompositionDepthInputError,
+    CompositionDepthInputOutput,
+    CompositionDepthInputRequest,
+    build_composition_depth_inputs,
+)
 from genome_to_diffraction.execution.composition_runtime import (
     CompositionAttemptExecutionError,
     CompositionAttemptExecutionOutput,
     CompositionAttemptExecutionRequest,
     CompositionAttemptExecutionResult,
     execute_composition_attempt,
+)
+from genome_to_diffraction.execution.pass2_seed import (
+    Pass2SeedError,
+    Pass2SeedOutput,
+    Pass2SeedRequest,
+    build_pass2_a_seed,
 )
 from genome_to_diffraction.execution.provider_empty_graph import (
     ProviderEmptyGraphError,
@@ -42,6 +63,18 @@ __all__ = [
     "CompositionAttemptExecutionRequest",
     "CompositionAttemptExecutionResult",
     "CompositionAttemptInventoryError",
+    "CompositionBeamAttemptEvidence",
+    "CompositionBeamCollectionOutput",
+    "CompositionBeamCollectionRequest",
+    "CompositionBeamDepthResult",
+    "CompositionBeamDepthStatus",
+    "CompositionBeamError",
+    "CompositionDepthInputError",
+    "CompositionDepthInputOutput",
+    "CompositionDepthInputRequest",
+    "Pass2SeedError",
+    "Pass2SeedOutput",
+    "Pass2SeedRequest",
     "ProviderEmptyGraphError",
     "ProviderEmptyGraphRequest",
     "UnknownPass1CrystalInput",
@@ -51,7 +84,10 @@ __all__ = [
     "UnknownPass1ScreenError",
     "UnknownPass1SharedPreparationInput",
     "build_composition_attempt_inventory",
+    "build_composition_depth_inputs",
+    "build_pass2_a_seed",
     "build_unknown_pass1_screen_inventory",
+    "collect_composition_beam_depth",
     "complete_provider_empty_graph",
     "execute_composition_attempt",
     "load_composition_attempt_inventory",

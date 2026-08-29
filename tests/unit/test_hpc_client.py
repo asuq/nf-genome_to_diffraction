@@ -9,6 +9,7 @@ import tarfile
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
+from types import SimpleNamespace
 
 import pytest
 
@@ -180,6 +181,15 @@ class FakeTransport:
         self.calls.append(("collect", (run_id, owner_id)))
         return self.archive
 
+    def collect_to_path(
+        self,
+        run_id: str,
+        owner_id: str,
+        destination: Path,
+    ) -> None:
+        self.calls.append(("collect", (run_id, owner_id)))
+        destination.write_bytes(self.archive)
+
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
         self.calls.append(("review-collect", (run_id, owner_id, manifest_sha256)))
         return self.review_archive
@@ -293,6 +303,20 @@ class FakeTransport:
             "run_id": arguments[0],
             "parent_run_id": arguments[2],
             "input_id": arguments[4],
+        }
+
+    def unknown_pass2_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        self.calls.append(("unknown-pass2-inputs-stage", tuple(arguments)))
+        assert archive_path.is_file()
+        return {
+            "run_id": arguments[0],
+            "parent_run_id": arguments[2],
+            "input_id": arguments[4],
+            "finding_closure_id": arguments[8],
         }
 
     def m4_import_stage(
@@ -945,6 +969,12 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
         transport.run("database-stage", ["1" * 40])
     with pytest.raises(RemoteOperationError, match="transport timeout") as collection:
         transport.collect("gtd-p0-20260802T120000Z-0123456789ab-01234567", "1" * 32)
+    with pytest.raises(RemoteOperationError, match="transport timeout") as streamed:
+        transport.collect_to_path(
+            "gtd-p0-20260802T120000Z-0123456789ab-01234567",
+            "1" * 32,
+            tmp_path / "collection.tar.gz",
+        )
     with pytest.raises(RemoteOperationError, match="transport timeout") as review:
         transport.review_collect(
             "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567",
@@ -956,11 +986,13 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
     assert p0_staging.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert staging.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert collection.value.failure_class is FailureClass.TRANSFER_FAILURE
+    assert streamed.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert review.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert timeouts == [
         SSH_OPERATION_TIMEOUT_SECONDS,
         P0_STAGE_TIMEOUT_SECONDS,
         DATABASE_STAGE_TIMEOUT_SECONDS,
+        SSH_COLLECTION_TIMEOUT_SECONDS,
         SSH_COLLECTION_TIMEOUT_SECONDS,
         SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS,
     ]
@@ -1713,6 +1745,69 @@ def test_unknown_single_component_stage_rejects_a_different_source_commit(
             "HEAD",
             parent_run_id=parent.run_id,
         )
+
+
+def test_unknown_pass2_stage_requires_parent_and_attaches_rg7_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    parent = LocalRunRecord(
+        run_id=(
+            "gtd-unknown-single-component-20260825T000000Z-"
+            "aaaaaaaaaaaa-bbbbbbbb"
+        ),
+        site_id="marmic",
+        commit=COMMIT,
+        owner_id="d" * 32,
+        profile="unknown-single-component",
+        iteration=1,
+        parent_run_id=None,
+    )
+    parent.write(controller.config.local_state_root)
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client._fixed_heteromer_phenix_binding",
+        lambda _repository: ("/approved/phenix.json", "a" * 64),
+    )
+
+    def bundle(*, repository: Path, archive_path: Path) -> SimpleNamespace:
+        assert repository == tmp_path
+        archive_path.write_bytes(b"pass2 archive")
+        return SimpleNamespace(
+            input_id=f"phase3pass2inputs_{'1' * 64}",
+            archive_path=archive_path,
+            archive_sha256=sha256_file(archive_path),
+            archive_size_bytes=archive_path.stat().st_size,
+            execution_identity_id=f"phase3exec_{'2' * 64}",
+            finding_closure_id=f"phase3closure_{'3' * 64}",
+            file_count=12,
+            crystal_ids=("AD4QS1P4G2_18",),
+        )
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client.build_unknown_pass2_input_bundle",
+        bundle,
+    )
+
+    staged = controller.stage(
+        "unknown-pass2",
+        "HEAD",
+        parent_run_id=parent.run_id,
+    )
+
+    assert staged["profile"] == "unknown-pass2"
+    assert staged["unknown_pass1_parent_run_id"] == parent.run_id
+    assert staged["finding_closure_id"] == f"phase3closure_{'3' * 64}"
+    assert transport.calls[-2][0] == "stage"
+    assert transport.calls[-1][0] == "unknown-pass2-inputs-stage"
+
+
+def test_unknown_pass2_stage_rejects_missing_parent(tmp_path: Path) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+
+    with pytest.raises(ValidationError, match="requires an owned"):
+        controller.stage("unknown-pass2", "HEAD")
 
 
 def test_network_probe_defaults_to_phase3_without_exposing_probe_inputs(

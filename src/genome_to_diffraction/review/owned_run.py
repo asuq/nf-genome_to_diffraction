@@ -184,7 +184,12 @@ def _bind_package(
         _assert_equal(observed, expected, f"owned review package {label} differs")
     in_run_checkpoint = (
         checkpoint is PhaseIIIReviewCheckpoint.A_SEED
-        and parent.profile == "unknown-screen"
+        and parent.profile in {"unknown-screen", "unknown-pass2"}
+        and parent.phase
+        in {
+            "phase3-pass1",
+            "phase3-pass2",
+        }
     ) or (
         checkpoint
         in {

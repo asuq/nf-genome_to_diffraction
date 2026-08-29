@@ -1,10 +1,10 @@
-"""Plan the retained localisation-excluded A wave after complete zero packing.
+"""Plan the retained no-A expansion after complete zero packing.
 
 This adapter consumes one Phase III first-wave funnel, all of its terminal MR
 result directories, and the exact portable localisation bundle. It never runs
-Phaser. It reopens retained excluded model/copy hypotheses only when every
-scheduled active hypothesis has a completed scientific result and none packed.
-Any missing, duplicated, failed, or nonterminal result blocks reopening.
+Phaser. It first reopens active hypotheses deferred by the initial 25-attempt
+cap, then localisation-excluded hypotheses, only when every scheduled active
+hypothesis completed and none packed. Missing or nonterminal evidence blocks it.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.schemas.v2.composition import _ContentAddressedContract
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
-_ADAPTER_VERSION = "phase3-localisation-zero-pack-reopen-v1"
+_ADAPTER_VERSION = "phase3-no-a-expansion-v2"
 
 
 class BatchLocalisationReopenStatus(StrEnum):
@@ -55,19 +55,21 @@ class BatchLocalisationReopenPlan(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "localreopen_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["phase3-localisation-zero-pack-reopen-v1"] = (
-        _ADAPTER_VERSION
-    )
+    adapter_version: Literal["phase3-no-a-expansion-v2"] = _ADAPTER_VERSION
     plan_id: NonEmptyString
     localisation_policy_id: NonEmptyString
     funnel_manifest_sha256: Sha256Hex
     active_hypotheses_sha256: Sha256Hex
+    deferred_cap_hypotheses_sha256: Sha256Hex
+    deferred_localisation_hypotheses_sha256: Sha256Hex
     deferred_hypotheses_sha256: Sha256Hex
     terminal_results_sha256: Sha256Hex
     active_hypothesis_count: int = Field(ge=0, le=25)
     terminal_result_count: int = Field(ge=0, le=25)
     failed_or_incomplete_count: int = Field(ge=0, le=25)
     packed_result_count: int = Field(ge=0, le=25)
+    cap_deferred_hypothesis_count: int = Field(ge=0)
+    localisation_deferred_hypothesis_count: int = Field(ge=0)
     deferred_hypothesis_count: int = Field(ge=0)
     maximum_reopened_attempts: int = Field(ge=1, le=175)
     reopened_hypothesis_count: int = Field(ge=0, le=175)
@@ -89,7 +91,12 @@ class BatchLocalisationReopenPlan(_ContentAddressedContract):
         if self.deferred_hypothesis_count != (
             self.reopened_hypothesis_count + self.remaining_deferred_count
         ):
-            raise ValueError("reopen inventory does not conserve exclusions")
+            raise ValueError("reopen inventory does not conserve deferred hypotheses")
+        if self.deferred_hypothesis_count != (
+            self.cap_deferred_hypothesis_count
+            + self.localisation_deferred_hypothesis_count
+        ):
+            raise ValueError("reopen inventory does not conserve both deferred waves")
         expected = (
             BatchLocalisationReopenStatus.BLOCKED_INCOMPLETE
             if self.failed_or_incomplete_count
@@ -130,6 +137,7 @@ class BatchLocalisationReopenOutput:
     plan: BatchLocalisationReopenPlan
     plan_json: Path
     hypotheses_jsonl: Path
+    funnel_manifest_json: Path
 
 
 def _hypotheses(path: Path, *, label: str) -> tuple[MrHypothesis, ...]:
@@ -172,16 +180,24 @@ def plan_batch_localisation_reopen(
     if (
         not isinstance(manifest, dict)
         or manifest.get("adapter_version")
-        != "multi-source-first-copy-funnel-v3-phase3-evidence"
+        != "multi-source-first-copy-funnel-v4-phase3-evidence"
         or manifest.get("localisation_policy_id") != policy.policy_id
     ):
         raise BatchLocalisationReopenError(
             "first-wave funnel uses a different localisation policy"
         )
     active_path = root / "mr_hypotheses.jsonl"
-    deferred_path = root / "deferred_localisation_hypotheses.jsonl"
+    deferred_cap_path = root / "deferred_cap_hypotheses.jsonl"
+    deferred_localisation_path = root / "deferred_localisation_hypotheses.jsonl"
     active = _hypotheses(active_path, label="active first-wave hypotheses")
-    deferred = _hypotheses(deferred_path, label="deferred localisation hypotheses")
+    deferred_cap = _hypotheses(
+        deferred_cap_path,
+        label="cap-deferred active hypotheses",
+    )
+    deferred_localisation = _hypotheses(
+        deferred_localisation_path,
+        label="deferred localisation hypotheses",
+    )
     if len(active) > 25 or any(
         item.status is not MrHypothesisStatus.QUEUED
         or item.sequence_group_id in policy.retained_excluded_group_ids
@@ -190,11 +206,25 @@ def plan_batch_localisation_reopen(
         raise BatchLocalisationReopenError("active first-wave inventory differs")
     if any(
         item.status is not MrHypothesisStatus.SKIPPED
+        or item.priority_features.get("first_copy_execution_disposition")
+        != "deferred_initial_25_cap_reopen_only_after_complete_zero_pack"
+        or item.sequence_group_id in policy.retained_excluded_group_ids
+        for item in deferred_cap
+    ):
+        raise BatchLocalisationReopenError("cap-deferred hypothesis inventory differs")
+    if any(
+        item.status is not MrHypothesisStatus.SKIPPED
         or item.priority_features.get("localisation_wave_disposition") != "excluded"
         or item.sequence_group_id not in policy.retained_excluded_group_ids
-        for item in deferred
+        for item in deferred_localisation
     ):
         raise BatchLocalisationReopenError("deferred localisation inventory differs")
+    deferred = (*deferred_cap, *deferred_localisation)
+    deferred_ids = tuple(item.hypothesis_id for item in deferred)
+    if len(deferred_ids) != len(set(deferred_ids)) or set(deferred_ids) & {
+        item.hypothesis_id for item in active
+    }:
+        raise BatchLocalisationReopenError("deferred hypotheses are duplicated")
     results = tuple(_result(path) for path in request.result_directories)
     by_hypothesis = {result.hypothesis_id: result for result in results}
     if len(by_hypothesis) != len(results) or set(by_hypothesis) != {
@@ -226,12 +256,22 @@ def plan_batch_localisation_reopen(
         "localisation_policy_id": policy.policy_id,
         "funnel_manifest_sha256": sha256_file(manifest_path),
         "active_hypotheses_sha256": sha256_file(active_path),
-        "deferred_hypotheses_sha256": sha256_file(deferred_path),
+        "deferred_cap_hypotheses_sha256": sha256_file(deferred_cap_path),
+        "deferred_localisation_hypotheses_sha256": sha256_file(
+            deferred_localisation_path
+        ),
+        "deferred_hypotheses_sha256": hashlib.sha256(
+            "".join(f"{canonical_json_text(item)}\n" for item in deferred).encode(
+                "utf-8"
+            )
+        ).hexdigest(),
         "terminal_results_sha256": result_sha256,
         "active_hypothesis_count": len(active),
         "terminal_result_count": len(active) - incomplete,
         "failed_or_incomplete_count": incomplete,
         "packed_result_count": packed,
+        "cap_deferred_hypothesis_count": len(deferred_cap),
+        "localisation_deferred_hypothesis_count": len(deferred_localisation),
         "deferred_hypothesis_count": len(deferred),
         "maximum_reopened_attempts": request.maximum_reopened_attempts,
         "reopened_hypothesis_count": len(selected),
@@ -269,7 +309,15 @@ def plan_batch_localisation_reopen(
                     **item.priority_features,
                     "source_hypothesis_id": item.hypothesis_id,
                     "localisation_reopen_evidence_id": reopen_evidence_id,
-                    "localisation_reopened_after_zero_pack": True,
+                    "no_a_expansion_after_zero_pack": True,
+                    "source_deferred_wave": (
+                        "initial_25_cap"
+                        if item in deferred_cap
+                        else "localisation_excluded"
+                    ),
+                    "localisation_reopened_after_zero_pack": (
+                        item in deferred_localisation
+                    ),
                 },
                 "status": MrHypothesisStatus.QUEUED,
             }
@@ -289,9 +337,41 @@ def plan_batch_localisation_reopen(
         hypotheses_jsonl,
         "".join(f"{canonical_json_text(item)}\n" for item in reopened),
     )
+    atomic_write_text(
+        output / "mr_hypotheses.jsonl",
+        hypotheses_jsonl.read_text(encoding="utf-8"),
+    )
     plan_json = output / "localisation_reopen_plan.json"
     atomic_write_json(plan_json, plan.model_dump(mode="json"))
-    return BatchLocalisationReopenOutput(plan, plan_json, hypotheses_jsonl)
+    funnel_manifest = output / "reopened_funnel_manifest.json"
+    funnel_identity = {
+        "adapter_version": _ADAPTER_VERSION,
+        "plan_id": plan.plan_id,
+        "hypothesis_ids": list(plan.reopened_hypothesis_ids),
+    }
+    atomic_write_json(
+        funnel_manifest,
+        {
+            "schema_version": "1.0",
+            "funnel_id": content_id("funnel_", funnel_identity),
+            "adapter_version": _ADAPTER_VERSION,
+            "selected_hypothesis_count": len(reopened),
+            "hypotheses": [
+                {"hypothesis_id": item.hypothesis_id} for item in reopened
+            ],
+            "execution_status": ExecutionStatus.COMPLETED_SUCCESS.value,
+        },
+    )
+    atomic_write_text(
+        output / "funnel_manifest.json",
+        funnel_manifest.read_text(encoding="utf-8"),
+    )
+    return BatchLocalisationReopenOutput(
+        plan,
+        plan_json,
+        hypotheses_jsonl,
+        funnel_manifest,
+    )
 
 
 __all__ = [

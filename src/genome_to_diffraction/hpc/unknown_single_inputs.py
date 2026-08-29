@@ -479,8 +479,8 @@ def stage_unknown_single_component_handoff(
         routes.append(
             {
                 "crystal_id": crystal_id,
-                "review_stage": str((stages / crystal_id).resolve()),
-                "hypotheses": str(hypotheses.resolve()),
+                "review_stage": f"a_seed_stages/{crystal_id}",
+                "hypotheses": f"hypotheses/{crystal_id}.jsonl",
             }
         )
         stage_records.append(

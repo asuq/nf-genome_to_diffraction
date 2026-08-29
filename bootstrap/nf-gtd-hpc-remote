@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -13,7 +13,7 @@ INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
 SAFE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 MAX_FILE_BYTES=$((128 * 1024 * 1024))
-MAX_TOTAL_BYTES=$((4 * 1024 * 1024 * 1024))
+MAX_TOTAL_BYTES=$((12 * 1024 * 1024 * 1024))
 MAX_LOG_BYTES=$((2 * 1024 * 1024))
 MAX_NEXTFLOW_DIAGNOSTIC_BYTES=$((2 * 1024 * 1024))
 MAX_REVIEW_FILE_BYTES=$((128 * 1024 * 1024))
@@ -21,6 +21,7 @@ MAX_REVIEW_TOTAL_BYTES=$((512 * 1024 * 1024))
 MAX_P0_INPUT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_UNKNOWN_DISCOVERY_INPUT_ARCHIVE_BYTES=$((512 * 1024 * 1024))
 MAX_UNKNOWN_SINGLE_INPUT_ARCHIVE_BYTES=$((4 * 1024 * 1024))
+MAX_UNKNOWN_PASS2_INPUT_ARCHIVE_BYTES=$((8 * 1024 * 1024 * 1024))
 MAX_SOURCE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
 MAX_M4_IMPORT_ARCHIVE_BYTES=$((128 * 1024 * 1024))
 MAX_CONTROL_SLICE_ARCHIVE_BYTES=$((64 * 1024 * 1024))
@@ -1063,6 +1064,7 @@ stage_run_common() {
           "$profile" == unknown-discovery || \
           "$profile" == unknown-screen || \
           "$profile" == unknown-single-component || \
+          "$profile" == unknown-pass2 || \
           ( "$SITE_ID" == marmic && \
             ( "$profile" == m6-operational || "$profile" == m6-leakage ) ) ]]; then
         [[ "$#" -eq 8 || "$#" -eq 11 ]] || \
@@ -1084,6 +1086,7 @@ stage_run_common() {
               "$profile" == unknown-discovery || \
               "$profile" == unknown-screen || \
               "$profile" == unknown-single-component || \
+              "$profile" == unknown-pass2 || \
               ( "$SITE_ID" == marmic && \
                 ( "$profile" == m6-operational || "$profile" == m6-leakage ) ) ]]; then
             source_archive_sha256="$9"
@@ -1318,7 +1321,8 @@ stage_run_common() {
           "$profile" == phase3-phenix-probe || \
           "$profile" == unknown-discovery || \
           "$profile" == unknown-screen || \
-          "$profile" == unknown-single-component ]]; then
+          "$profile" == unknown-single-component || \
+          "$profile" == unknown-pass2 ]]; then
         [[ "$SITE_ID" == marmic ]] || \
             fail environment_failure \
                 "fixed Phenix-bound profile is currently qualified only on Marmic"
@@ -1347,6 +1351,7 @@ stage_run_common() {
           "$profile" == unknown-discovery || \
           "$profile" == unknown-screen || \
           "$profile" == unknown-single-component || \
+          "$profile" == unknown-pass2 || \
           ( "$profile" == m4-copy && "${M4_CROSS_SITE_IMPORT:-false}" != true ) ]]; then
         p0_config_readiness || true
         [[ "$P0_CONFIG_STATUS" == ready ]] || {
@@ -1455,6 +1460,7 @@ stage_run_common() {
               "$profile" == unknown-discovery || \
               "$profile" == unknown-screen || \
               "$profile" == unknown-single-component || \
+              "$profile" == unknown-pass2 || \
               "$profile" == control-slice || "$profile" == control-matrix || \
               "$profile" == m6-nextflow-smoke || \
               "$profile" == m6-operational || "$profile" == m6-leakage || \
@@ -2152,7 +2158,7 @@ stage_run() {
     [[ "$#" -eq 6 || ( "$#" -eq 8 && \
        ( "$6" == heteromer-smoke || "$6" == phase3-phenix-probe || \
          "$6" == unknown-discovery || "$6" == unknown-screen || \
-         "$6" == unknown-single-component ) ) ]] || \
+         "$6" == unknown-single-component || "$6" == unknown-pass2 ) ) ]] || \
         fail wrapper_failure "stage received an invalid fixed argument set"
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
@@ -2163,7 +2169,7 @@ stage_archive_run() {
     [[ "$#" -eq 9 || ( "$#" -eq 11 && \
        ( "$6" == heteromer-smoke || "$6" == phase3-phenix-probe || \
          "$6" == unknown-discovery || "$6" == unknown-screen || \
-         "$6" == unknown-single-component ) ) ]] || \
+         "$6" == unknown-single-component || "$6" == unknown-pass2 ) ) ]] || \
         fail wrapper_failure "stage-archive received an invalid fixed argument set"
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
@@ -3218,6 +3224,103 @@ m6_leakage_parent_bind_run() {
     emit status ready
 }
 
+unknown_pass2_inputs_stage_run() {
+    [[ "$#" -eq 10 ]] || \
+        fail wrapper_failure "unknown-pass2-inputs-stage expects ten fixed fields"
+    local run_id="$1" owner_id="$2" parent_run_id="$3" parent_owner_id="$4"
+    local input_id="$5" archive_sha256="$6" archive_size="$7"
+    local execution_identity_id="$8" finding_closure_id="$9" file_count="${10}"
+    local run parent profile archive staging output python observed_count
+    validate_run_id "$run_id"
+    validate_owner "$owner_id"
+    validate_run_id "$parent_run_id"
+    validate_owner "$parent_owner_id"
+    [[ "$input_id" =~ ^phase3pass2inputs_[0-9a-f]{64}$ && \
+       "$archive_sha256" =~ $CHECKSUM_RE && \
+       "$archive_size" =~ $BYTE_COUNT_RE && \
+       "$archive_size" -ge 1 && \
+       "$archive_size" -le "$MAX_UNKNOWN_PASS2_INPUT_ARCHIVE_BYTES" && \
+       "$execution_identity_id" =~ ^phase3exec_[0-9a-f]{64}$ && \
+       "$finding_closure_id" =~ ^phase3closure_[0-9a-f]{64}$ && \
+       "$file_count" =~ $INTEGER_RE && \
+       "$file_count" -ge 2 && "$file_count" -le 50001 ]] || \
+        fail wrapper_failure "invalid unknown-pass2 input identity or bound"
+    require_owned_run "$run_id" "$owner_id"
+    require_owned_run "$parent_run_id" "$parent_owner_id"
+    run="$(run_directory "$run_id")"
+    parent="$(run_directory "$parent_run_id")"
+    profile="$(<"$run/state/profile")"
+    [[ "$profile" == unknown-pass2 && \
+       "$(<"$run/state/phase")" == staged && \
+       ! -e "$run/state/job-id" ]] || \
+        fail wrapper_failure "unknown-pass2 child is not safely staged"
+    [[ "$(<"$parent/state/profile")" == unknown-single-component && \
+       "$(<"$parent/state/phase")" == completed && \
+       "$(<"$parent/state/failure-class")" == success && \
+       "$(<"$parent/state/exit-code")" == 0 ]] || \
+        fail wrapper_failure "unknown-pass2 parent is not successful"
+    [[ "$(<"$run/state/commit")" == "$(<"$parent/state/commit")" && \
+       "$(<"$run/state/site-id")" == "$(<"$parent/state/site-id")" && \
+       "$(<"$run/state/phenix-manifest-sha256")" == \
+       "$(<"$parent/state/phenix-manifest-sha256")" ]] || \
+        fail wrapper_failure "unknown-pass2 parent authority differs"
+    archive="$run/execution/.unknown-pass2-inputs.tar.tmp.$$"
+    staging="$run/execution/.unknown-pass2-inputs.tmp.$$"
+    output="$run/artifacts/unknown-pass2"
+    [[ ! -e "$archive" && ! -e "$staging" && ! -e "$output" ]] || \
+        fail wrapper_failure "unknown-pass2 staging target already exists"
+    if ! head -c "$archive_size" >"$archive"; then
+        fail transfer_failure "unknown-pass2 input transfer failed"
+    fi
+    [[ "$(stat -c '%s' "$archive")" -eq "$archive_size" ]] || \
+        fail transfer_failure "unknown-pass2 input was truncated"
+    [[ "$(sha256sum "$archive" | awk '{print $1}')" == "$archive_sha256" ]] || \
+        fail transfer_failure "unknown-pass2 archive checksum differs"
+    if ! tar -tf "$archive" >"$run/logs/unknown-pass2-input-members.log" 2>&1; then
+        fail transfer_failure "unknown-pass2 archive cannot be listed"
+    fi
+    if awk 'BEGIN { bad=0 } /^\// || /(^|\/)\.\.($|\/)/ { bad=1 } END { exit bad }' \
+        "$run/logs/unknown-pass2-input-members.log"; then
+        :
+    else
+        fail wrapper_failure "unknown-pass2 archive has an unsafe path"
+    fi
+    mkdir -m 700 "$staging"
+    tar -xf "$archive" -C "$staging" \
+        >"$run/logs/unknown-pass2-input-extract.log" 2>&1 || \
+        fail transfer_failure "unknown-pass2 extraction failed"
+    if find "$staging" -xdev -type l -print -quit | grep -q .; then
+        fail wrapper_failure "unknown-pass2 input tree contains a symlink"
+    fi
+    observed_count="$(find "$staging" -xdev -type f | wc -l | awk '{print $1}')"
+    [[ "$observed_count" -eq "$file_count" ]] || \
+        fail transfer_failure "unknown-pass2 input file count differs"
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$python" ]] || fail environment_failure "locked Python is unavailable"
+    "$python" -m genome_to_diffraction.hpc.unknown_pass2_inputs \
+        "$staging" \
+        --expected-input-id "$input_id" \
+        --write-checksums "$run/state/unknown-pass2-authority-checksums.sha256" \
+        >"$run/logs/unknown-pass2-input-validation.log" 2>&1 || \
+        fail wrapper_failure "unknown-pass2 input validation failed"
+    mv -- "$staging" "$output"
+    rm -f -- "$archive"
+    atomic_text "$run/state/unknown-pass2-parent-run-id" "$parent_run_id"
+    atomic_text "$run/state/unknown-pass2-input-id" "$input_id"
+    atomic_text "$run/state/unknown-pass2-input-sha256" "$archive_sha256"
+    atomic_text "$run/state/unknown-pass2-execution-identity-id" \
+        "$execution_identity_id"
+    atomic_text "$run/state/unknown-pass2-finding-closure-id" "$finding_closure_id"
+    atomic_text "$run/state/unknown-pass2-file-count" "$file_count"
+    append_event "$run" "stage_unknown_pass2_bound"
+    emit operation unknown-pass2-inputs-stage
+    emit run_id "$run_id"
+    emit parent_run_id "$parent_run_id"
+    emit input_id "$input_id"
+    emit finding_closure_id "$finding_closure_id"
+    emit status ready
+}
+
 m4_import_stage_run() {
     [[ "$#" -eq 9 ]] || \
         fail wrapper_failure "m4-import-stage expects nine fixed arguments"
@@ -3507,6 +3610,28 @@ submit_run() {
         ) || fail wrapper_failure \
             "unknown-single-component authority changed before submit"
     fi
+    if [[ "$profile" == unknown-pass2 ]]; then
+        [[ -f "$run/state/unknown-pass2-parent-run-id" && \
+           -f "$run/state/unknown-pass2-input-id" && \
+           -f "$run/state/unknown-pass2-input-sha256" && \
+           -f "$run/state/unknown-pass2-execution-identity-id" && \
+           -f "$run/state/unknown-pass2-finding-closure-id" && \
+           -f "$run/state/unknown-pass2-file-count" && \
+           -f "$run/state/unknown-pass2-authority-checksums.sha256" && \
+           -f "$run/artifacts/unknown-pass2/phase3_pass2_input_manifest.json" ]] || \
+            fail wrapper_failure "unknown-pass2 submit requires its RG7 authority"
+        actual_authority_count="$(find \
+            "$run/artifacts/unknown-pass2" -xdev -type f | wc -l | awk '{print $1}')"
+        [[ "$actual_authority_count" -eq \
+           "$(<"$run/state/unknown-pass2-file-count")" ]] || \
+            fail wrapper_failure "unknown-pass2 authority cardinality changed"
+        (
+            cd "$run/artifacts/unknown-pass2"
+            sha256sum -c \
+                "$run/state/unknown-pass2-authority-checksums.sha256" \
+                >"$DISCARD" 2>&1
+        ) || fail wrapper_failure "unknown-pass2 authority changed before submit"
+    fi
     walltime=00:45:00
     cpus=2
     memory=8G
@@ -3524,7 +3649,8 @@ submit_run() {
     fi
     if [[ "$profile" == unknown-discovery || \
           "$profile" == unknown-screen || \
-          "$profile" == unknown-single-component ]]; then
+          "$profile" == unknown-single-component || \
+          "$profile" == unknown-pass2 ]]; then
         cpus=8
         memory=32G
     fi
@@ -3551,6 +3677,7 @@ submit_run() {
           "$profile" == t12 ]]; then
         walltime=24:00:00
     fi
+    [[ "$profile" != unknown-pass2 ]] || walltime=72:00:00
 
     exec 9>"$LOCKS/submit.lock"
     flock -x 9
@@ -4078,6 +4205,12 @@ collect_run() {
     local unknown_single_authority_digest="" unknown_single_authority_relative=""
     local unknown_single_authority_extra="" unknown_single_authority_count=0
     local unknown_single_authority_expected_count=""
+    local unknown_pass2_checksums="" unknown_pass2_output_root=""
+    local unknown_pass2_digest="" unknown_pass2_relative="" unknown_pass2_extra=""
+    local unknown_pass2_count=0 unknown_pass2_authority_checksums=""
+    local unknown_pass2_authority_root="" unknown_pass2_authority_digest=""
+    local unknown_pass2_authority_relative="" unknown_pass2_authority_extra=""
+    local unknown_pass2_authority_count=0 unknown_pass2_expected_count=""
     local unknown_input_checksums="" unknown_input_root=""
     local unknown_input_digest="" unknown_input_relative="" unknown_input_extra=""
     local unknown_input_archive_prefix="" unknown_input_count=0
@@ -4133,6 +4266,13 @@ collect_run() {
         state/unknown-single-stage-sha256 \
         state/unknown-single-authority-checksums.sha256 \
         state/unknown-single-authority-file-count \
+        state/unknown-pass2-parent-run-id \
+        state/unknown-pass2-input-id \
+        state/unknown-pass2-input-sha256 \
+        state/unknown-pass2-execution-identity-id \
+        state/unknown-pass2-finding-closure-id \
+        state/unknown-pass2-file-count \
+        state/unknown-pass2-authority-checksums.sha256 \
         state/heteromer-login-stage.sha256 \
         state/control-slice-archive-sha256 \
         state/control-slice-manifest-sha256 \
@@ -4199,6 +4339,12 @@ collect_run() {
         logs/unknown-single-component-handoff.log \
         logs/unknown-single-component-nextflow-first.log \
         logs/unknown-single-component-nextflow-resume.log \
+        logs/unknown-pass2.log \
+        logs/unknown-pass2-input-members.log \
+        logs/unknown-pass2-input-extract.log \
+        logs/unknown-pass2-input-validation.log \
+        logs/unknown-pass2-nextflow-first.log \
+        logs/unknown-pass2-nextflow-resume.log \
         logs/m4-copy.log \
         logs/database.log \
         logs/nextflow-first.log \
@@ -4371,6 +4517,21 @@ collect_run() {
         artifacts/qualification/unknown-single-component-resume-pipeline-info/timeline.html \
         artifacts/qualification/unknown-single-component-resume-pipeline-info/trace.tsv \
         artifacts/qualification/unknown-single-component-resume-pipeline-info/dag.html \
+        artifacts/qualification/unknown-pass2-summary.json \
+        artifacts/qualification/unknown-pass2-checksums.sha256 \
+        artifacts/qualification/unknown-pass2-output-checksums.sha256 \
+        artifacts/qualification/unknown-pass2-before-resume.sha256 \
+        artifacts/qualification/unknown-pass2-after-resume.sha256 \
+        artifacts/qualification/unknown-pass2-first-task-identities.tsv \
+        artifacts/qualification/unknown-pass2-resume-task-identities.tsv \
+        artifacts/qualification/unknown-pass2-first-pipeline-info/report.html \
+        artifacts/qualification/unknown-pass2-first-pipeline-info/timeline.html \
+        artifacts/qualification/unknown-pass2-first-pipeline-info/trace.tsv \
+        artifacts/qualification/unknown-pass2-first-pipeline-info/dag.html \
+        artifacts/qualification/unknown-pass2-resume-pipeline-info/report.html \
+        artifacts/qualification/unknown-pass2-resume-pipeline-info/timeline.html \
+        artifacts/qualification/unknown-pass2-resume-pipeline-info/trace.tsv \
+        artifacts/qualification/unknown-pass2-resume-pipeline-info/dag.html \
         artifacts/qualification/control-slice-summary.json \
         artifacts/qualification/control-slice-case-results.jsonl \
         artifacts/qualification/control-slice-first-copy-results.jsonl \
@@ -4971,6 +5132,54 @@ collect_run() {
             "$failure_class" == success ]]; then
         fail transfer_failure "unknown-single authority inventory is unavailable"
     fi
+    if [[ "$profile" == unknown-pass2 ]]; then
+        unknown_pass2_authority_root="$run/artifacts/unknown-pass2"
+        unknown_pass2_authority_checksums="$run/state/unknown-pass2-authority-checksums.sha256"
+        unknown_pass2_expected_count="$(<"$run/state/unknown-pass2-file-count")"
+    fi
+    if [[ -n "$unknown_pass2_authority_checksums" && \
+          -f "$unknown_pass2_authority_checksums" ]]; then
+        [[ ! -L "$unknown_pass2_authority_checksums" && \
+           -O "$unknown_pass2_authority_checksums" && \
+           -d "$unknown_pass2_authority_root" && \
+           ! -L "$unknown_pass2_authority_root" && \
+           "$unknown_pass2_expected_count" =~ $INTEGER_RE && \
+           "$unknown_pass2_expected_count" -ge 2 && \
+           "$unknown_pass2_expected_count" -le 50001 ]] || \
+            fail transfer_failure "unknown-pass2 authority inventory is unsafe"
+        while read -r unknown_pass2_authority_digest unknown_pass2_authority_relative unknown_pass2_authority_extra; do
+            [[ -n "$unknown_pass2_authority_digest" && \
+               -n "$unknown_pass2_authority_relative" && \
+               -z "$unknown_pass2_authority_extra" && \
+               "$unknown_pass2_authority_digest" =~ $CHECKSUM_RE && \
+               "$unknown_pass2_authority_relative" =~ ^[A-Za-z0-9._/-]+$ && \
+               "$unknown_pass2_authority_relative" != /* && \
+               "$unknown_pass2_authority_relative" != *..* && \
+               "$unknown_pass2_authority_relative" != results/* ]] || \
+                fail transfer_failure "unknown-pass2 authority row is unsafe"
+            candidate="$unknown_pass2_authority_root/$unknown_pass2_authority_relative"
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" && \
+               "$(stat -c '%h' "$candidate")" -eq 1 ]] || \
+                fail transfer_failure "unknown-pass2 authority file is unsafe"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == \
+               "$unknown_pass2_authority_digest" ]] || \
+                fail transfer_failure "unknown-pass2 authority checksum differs"
+            size="$(file_size "$candidate")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "unknown-pass2 authority file exceeds limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "artefacts exceed total limit"
+            files+=("artifacts/unknown-pass2/$unknown_pass2_authority_relative")
+            unknown_pass2_authority_count=$((unknown_pass2_authority_count + 1))
+        done < "$unknown_pass2_authority_checksums"
+        [[ "$unknown_pass2_authority_count" -eq \
+           "$unknown_pass2_expected_count" ]] || \
+            fail transfer_failure "unknown-pass2 authority count differs"
+    elif [[ -n "$unknown_pass2_authority_checksums" && \
+            "$failure_class" == success ]]; then
+        fail transfer_failure "unknown-pass2 authority inventory is unavailable"
+    fi
     unknown_discovery_output_root="$run/artifacts/unknown-discovery/results"
     unknown_discovery_checksums="$run/artifacts/qualification/unknown-discovery-output-checksums.sha256"
     if [[ "$profile" == unknown-discovery && \
@@ -5099,6 +5308,45 @@ collect_run() {
         [[ "$unknown_single_count" -ge 1 && \
            "$unknown_single_count" -le 20000 ]] || \
             fail transfer_failure "unknown-single output file count differs"
+    fi
+    unknown_pass2_output_root="$run/artifacts/unknown-pass2/results"
+    unknown_pass2_checksums="$run/artifacts/qualification/unknown-pass2-output-checksums.sha256"
+    if [[ "$profile" == unknown-pass2 && ! -f "$unknown_pass2_checksums" ]]; then
+        [[ -n "$failure_class" && "$failure_class" != success ]] || \
+            fail transfer_failure "unknown-pass2 output inventory is unavailable"
+    elif [[ "$profile" == unknown-pass2 ]]; then
+        [[ ! -L "$unknown_pass2_checksums" && \
+           -O "$unknown_pass2_checksums" && \
+           -d "$unknown_pass2_output_root" && \
+           ! -L "$unknown_pass2_output_root" ]] || \
+            fail transfer_failure "unknown-pass2 output inventory is unsafe"
+        while read -r unknown_pass2_digest unknown_pass2_relative unknown_pass2_extra; do
+            [[ -n "$unknown_pass2_digest" && -n "$unknown_pass2_relative" && \
+               -z "$unknown_pass2_extra" && \
+               "$unknown_pass2_digest" =~ $CHECKSUM_RE && \
+               "$unknown_pass2_relative" =~ ^[A-Za-z0-9._/-]+$ && \
+               "$unknown_pass2_relative" != /* && \
+               "$unknown_pass2_relative" != *..* ]] || \
+                fail transfer_failure "unknown-pass2 output row is unsafe"
+            candidate="$unknown_pass2_output_root/$unknown_pass2_relative"
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" && \
+               "$(stat -c '%h' "$candidate")" -eq 1 ]] || \
+                fail transfer_failure "unknown-pass2 output file is unsafe"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == \
+               "$unknown_pass2_digest" ]] || \
+                fail transfer_failure "unknown-pass2 output checksum differs"
+            size="$(file_size "$candidate")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "unknown-pass2 output file exceeds limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "artefacts exceed total limit"
+            files+=("artifacts/unknown-pass2/results/$unknown_pass2_relative")
+            unknown_pass2_count=$((unknown_pass2_count + 1))
+        done < "$unknown_pass2_checksums"
+        [[ "$unknown_pass2_count" -ge 1 && \
+           "$unknown_pass2_count" -le 50000 ]] || \
+            fail transfer_failure "unknown-pass2 output file count differs"
     fi
     if [[ -n "$job_id" ]]; then
         candidate="logs/slurm-${job_id}.out"
@@ -5750,6 +5998,7 @@ main() {
         unknown-discovery-inputs-stage) unknown_discovery_inputs_stage "$@" ;;
         unknown-screen-stage) unknown_screen_stage_run "$@" ;;
         unknown-single-component-stage) unknown_single_component_stage_run "$@" ;;
+        unknown-pass2-inputs-stage) unknown_pass2_inputs_stage_run "$@" ;;
         database-readiness) database_readiness "$@" ;;
         database-runtime-configure) database_runtime_configure "$@" ;;
         stage) stage_run "$@" ;;

@@ -71,6 +71,7 @@ def _case(
         }
     )
     active_path = funnel / "mr_hypotheses.jsonl"
+    (funnel / "deferred_cap_hypotheses.jsonl").write_text("", encoding="utf-8")
     deferred_path = funnel / "deferred_localisation_hypotheses.jsonl"
     active_path.write_text(f"{canonical_json_text(active)}\n", encoding="utf-8")
     deferred_path.write_text(
@@ -81,7 +82,7 @@ def _case(
         json.dumps(
             {
                 "adapter_version": (
-                    "multi-source-first-copy-funnel-v3-phase3-evidence"
+                    "multi-source-first-copy-funnel-v4-phase3-evidence"
                 ),
                 "localisation_policy_id": policy.policy_id,
             }
@@ -139,6 +140,51 @@ def test_complete_zero_pack_reopens_retained_exclusion(tmp_path: Path) -> None:
     assert reopened.status is MrHypothesisStatus.QUEUED
     assert reopened.hypothesis_id != source_id
     assert reopened.priority_features["localisation_reopened_after_zero_pack"] is True
+
+
+def test_no_a_expansion_prioritises_initial_cap_before_localisation_exclusion(
+    tmp_path: Path,
+) -> None:
+    request, excluded_source_id = _case(
+        tmp_path,
+        status=ExecutionStatus.COMPLETED_NO_HIT,
+        packed=False,
+    )
+    active = MrHypothesis.model_validate_json(
+        (request.funnel_directory / "mr_hypotheses.jsonl").read_text()
+    )
+    cap_deferred = active.model_copy(
+        update={
+            "hypothesis_id": "mrhyp_cap_deferred",
+            "priority_features": {
+                **active.priority_features,
+                "first_copy_execution_disposition": (
+                    "deferred_initial_25_cap_reopen_only_after_complete_zero_pack"
+                ),
+            },
+            "status": MrHypothesisStatus.SKIPPED,
+        }
+    )
+    (request.funnel_directory / "deferred_cap_hypotheses.jsonl").write_text(
+        f"{canonical_json_text(cap_deferred)}\n",
+        encoding="utf-8",
+    )
+
+    output = plan_batch_localisation_reopen(request)
+    reopened = tuple(
+        MrHypothesis.model_validate_json(line)
+        for line in output.hypotheses_jsonl.read_text().splitlines()
+        if line
+    )
+
+    assert output.plan.source_hypothesis_ids == (
+        cap_deferred.hypothesis_id,
+        excluded_source_id,
+    )
+    assert [item.priority_features["source_deferred_wave"] for item in reopened] == [
+        "initial_25_cap",
+        "localisation_excluded",
+    ]
 
 
 @pytest.mark.parametrize(

@@ -98,6 +98,49 @@ def _request(
     )
 
 
+def test_single_component_joint_copy_partition_is_supported(tmp_path: Path) -> None:
+    output = tmp_path / "single-phaser"
+    output.mkdir()
+    model = tmp_path / "source_A.pdb"
+    model.write_text(_pdb((("M", _A_RESIDUES),)), encoding="ascii")
+    (output / "PHASER.1.pdb").write_text(
+        _pdb((("A", _A_RESIDUES), ("B", _A_RESIDUES))),
+        encoding="ascii",
+    )
+    (output / "PHASER.sol").write_text(
+        "SOLU SET LLG=100\n"
+        "SOLU 6DIM ENSE search_A EULER 1 0 0 FRAC 0 0 0 BFAC 0\n"
+        "SOLU 6DIM ENSE search_A EULER 2 0 0 FRAC 0 0 0 BFAC 0\n",
+        encoding="ascii",
+    )
+    command = output / "phaser_command.json"
+    command.write_text('{"command":"phenix.phaser"}\n', encoding="ascii")
+    result = output / "normalised_mr_result.json"
+    result.write_text(
+        '{"execution_status":"completed_hit"}\n',
+        encoding="ascii",
+    )
+
+    collected = collect_phaser_per_placement_outputs(
+        PhaserPerPlacementRequest(
+            crystal_id="joint_A",
+            search_id="joint_A_search",
+            phaser_version="2.8.3",
+            output_directory=output,
+            command_record=command,
+            result_record=result,
+            expected_components=(
+                ExpectedPhaserComponent("A", "search_A", 2),
+            ),
+            component_models=(("A", model),),
+        )
+    )
+
+    assert len(collected.inventory.component_groups) == 1
+    assert collected.inventory.component_groups[0].observed_copy_count == 2
+    assert len(collected.inventory.placements) == 2
+
+
 def _fixed_component_request(tmp_path: Path) -> FixedComponentEvidenceRequest:
     request = _request(tmp_path)
     inventory = collect_phaser_per_placement_outputs(request)
