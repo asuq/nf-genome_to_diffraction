@@ -14548,3 +14548,30 @@ with a collapsed combined parent or a guessed command.
   commit/push once, watch one CI, deploy, then stage one fresh exact-parent
   screen from accepted discovery `636646`. Never reuse failed job `636671` or
   its cache.
+
+## 2026-08-30 - Portable coordinates must remain inside provider ownership
+
+- At the user's direction, provider-login v3 correction
+  `e8be84c1bc2f5d9a618c486a960bc3039a1f53f4` used `[skip ci]` after 33 focused
+  provider/discovery/screen, dispatcher, client, formatting, lint, type, docs,
+  wrapper, and diff checks passed locally.
+- Fresh discovery job `636672` completed successfully with provider package
+  `providerdiscovery_1f731c91…`: 1,625 source records, 1,621 groups, 6,262 hits,
+  all 13 bounded Foldseek batches, and all 23 resume tasks cached with
+  byte-identical output and task manifests.
+- Exact-parent screen `636699` validated the relocated v3 preparation and strict
+  Phenix runtime, accepting `PH3-P1-59`. It reached Nextflow model preparation,
+  then failed before MR because `../coordinate_objects/...` correctly violated
+  the experimental adapter's registration-confinement rule. Failure signature
+  is `90f9433e…`; this failed run/cache is non-reusable (`PH3-P1-60`).
+- The smallest correction keeps the generic model-preparation confinement rule.
+  PDB and AFDB preparations now each own their deduplicated
+  `coordinate_objects/` subtree and publish paths relative to their own source
+  file. Shared PDB entity rows still converge on one provider-owned object, and
+  relocating the complete preparation remains valid. Twenty-nine focused
+  provider/discovery/screen tests pass.
+- Formatting, lint, type, docs, wrapper, diff, client, and dispatcher checks
+  pass with the 29 focused provider/discovery/screen cases. Next commit/push
+  with `[skip ci]`, deploy, build a fresh exact-source authority, and run one
+  discovery/screen successor. Never reuse jobs `636671` or `636699` or their
+  caches.

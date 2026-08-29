@@ -495,6 +495,15 @@ temporary atomic-staging directory that had been moved into the final run tree
 paths and independently validates them relative to each owned source file; one
 exact-source child successor remains.
 
+No-CI correction `e8be84c` (per the user's exhausted-token instruction) passed
+the focused local gate. Discovery job `636672` completed successfully and
+screen job `636699` independently validated its relocated provider preparation,
+accepting `PH3-P1-59`. Experimental model preparation then rejected the
+otherwise portable `../coordinate_objects/...` rows because they escaped the
+registration directory (`PH3-P1-60`). Provider-login v3 now keeps one
+deduplicated object store inside each provider package and emits confined
+`coordinate_objects/...` paths; one exact-source successor remains before MR.
+
 The worker-offline boundary requires one explicit operational checkpoint. The
 user approved a compute-only `unknown-discovery` run, bounded reviewed
 login-side coordinate staging, and then an offline `unknown-screen` MR run.

@@ -210,14 +210,13 @@ def test_bounded_login_stage_round_trips(
         .splitlines()
     )
     assert len(owned_sources) == 1
-    assert owned_sources[0].coordinate_path.startswith("../coordinate_objects/")
+    assert owned_sources[0].coordinate_path.startswith("coordinate_objects/")
     owned_coordinate = (
-        staged.preparation_directory
-        / "pdb_coordinate_registration"
-        / owned_sources[0].coordinate_path
-    ).resolve(strict=True)
+        staged.preparation_directory / "pdb_coordinate_registration"
+    ) / owned_sources[0].coordinate_path
+    owned_coordinate = owned_coordinate.resolve(strict=True)
     assert owned_coordinate.is_relative_to(
-        staged.preparation_directory / "coordinate_objects"
+        staged.preparation_directory / "pdb_coordinate_registration/coordinate_objects"
     )
     assert owned_coordinate.is_file()
     assert sha256_file(owned_coordinate, progress=False) == (

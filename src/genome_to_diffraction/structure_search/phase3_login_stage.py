@@ -311,7 +311,7 @@ def _validate_owned_coordinate_sources(
         raise PhaseIIIProviderLoginStageError("owned provider coordinate count differs")
     if not rows:
         return
-    coordinate_root = (root / "coordinate_objects").resolve(strict=True)
+    coordinate_root = (path.parent / "coordinate_objects").resolve(strict=True)
     for record in rows:
         coordinate = Path(record.coordinate_path)
         if coordinate.is_absolute():
@@ -566,10 +566,20 @@ def stage_phase3_provider_coordinates(
                 output_directory=temporary / "esm_atlas_search",
             )
         )
-        coordinate_count, owned_coordinate_sources = _copy_coordinate_objects(
-            (*pdb_output.coordinate_sources, *afdb_coordinates),
-            output_root=temporary / "coordinate_objects",
-            published_root=Path("../coordinate_objects"),
+        pdb_coordinate_count, owned_pdb_coordinate_sources = _copy_coordinate_objects(
+            pdb_output.coordinate_sources,
+            output_root=(temporary / "pdb_coordinate_registration/coordinate_objects"),
+            published_root=Path("coordinate_objects"),
+        )
+        afdb_coordinate_count, owned_afdb_coordinate_sources = _copy_coordinate_objects(
+            afdb_coordinates,
+            output_root=temporary / "afdb_exact_search/coordinate_objects",
+            published_root=Path("coordinate_objects"),
+        )
+        coordinate_count = pdb_coordinate_count + afdb_coordinate_count
+        owned_coordinate_sources = (
+            *owned_pdb_coordinate_sources,
+            *owned_afdb_coordinate_sources,
         )
         owned_by_id = {item.coordinate_id: item for item in owned_coordinate_sources}
         _write_owned_coordinate_sources(
