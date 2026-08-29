@@ -14313,3 +14313,47 @@ with a collapsed combined parent or a guessed command.
   once, watch one CI, deploy, then retry migration once on the same staged
   checkout. Only a verified two-line strict binding permits a fresh successor
   probe.
+
+## 2026-08-29 - Strict Phenix manifest is installed; successor probe submitted
+
+- JSON-suffix correction `c3fb668362a12101651e28d0f2ef53028c2643b9`
+  passed CI `33242662535` / `99074535860` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `2ff61263…`, `5f2b7830…`, and
+  `5334a95d…`.
+- One reviewed migration retry on the existing non-scheduled checkout passed
+  both seven-command Phenix 2.1-6048 inspections and installed strict manifest
+  SHA-256 `60d9b222976147d71d7762641c9e6dc05933e28c8f70a1b9b47be959ce0d4726`.
+  The local fixed binding contains exactly its remote path and checksum.
+  `PH3-P1-52` is remotely accepted; the migration-only checkout remains
+  unsubmitted.
+- Fresh exact-source probe
+  `gtd-phase3-phenix-probe-20260829T084108Z-c3fb668362a1-adda4ef1`, Slurm
+  `636509`, is the sole strict successor. It binds pinned nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb` and Pixi 0.76.2. Next poll only
+  this job, then collect and classify the strict manifest, fixed Phaser
+  interface command, seven executable identities, and retained checksums before
+  any unknown-discovery authority is rebuilt.
+
+## 2026-08-29 - Strict Phenix runtime and interface probe are accepted
+
+- Exact source `c3fb668362a12101651e28d0f2ef53028c2643b9`, CI
+  `33242662535` / `99074535860`, pinned nf-helper, and Pixi 0.76.2 ran as the
+  sole successor probe `gtd-phase3-phenix-probe-20260829T084108Z-c3fb668362a1-adda4ef1`,
+  Slurm `636509`. It completed with scheduler `COMPLETED`, exit 0, and
+  `failure_class=success` in 25 seconds.
+- Strict manifest SHA-256
+  `60d9b222976147d71d7762641c9e6dc05933e28c8f70a1b9b47be959ce0d4726`
+  verifies Phenix 2.1-6048 and all seven required executable paths and hashes.
+  Runtime identity is
+  `b92cbb9d53bfab235601bb98df42247d569a7ea88e0149e28113d01319a75b93`.
+- The fixed executed command is exactly `phenix.phaser --show_defaults`, exit
+  0. Probe `phaserinterface_ee2f570dda3fa9b4b30f6d82bb80e955a47595869fbdb47e6715c9aa23aed302`
+  records `scientific_execution_performed=false` and observes the Phaser,
+  ENSEMBLE, XYZOUT, and per-ensemble XYZOUT controls. Defaults SHA-256 is
+  `35eeb2a1349e47f91860b54270f4017bf97a1b10e92cb1e9d107e56531b4283b`.
+- Collection revalidated all four qualification checksums: strict manifest,
+  verification log `c439d0c6…`, interface record `488d9658…`, and defaults
+  `35eeb2a1…`; no failure signature exists. `PH3-P1-49`, `PH3-P1-52`, and
+  `FCB-P1-07` are accepted. Next commit/push this evidence, then build a fresh
+  exact-source private authority attempt 7 and run one new unknown-discovery;
+  no failed discovery or probe cache is reusable.

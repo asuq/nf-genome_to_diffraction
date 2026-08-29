@@ -244,7 +244,10 @@ Scope: `FCB-P1-03`, `FCB-P1-06`, and `FCB-P1-07`.
   configured manifest is legacy and missing all seven executable hashes. One
   reviewed create-only migration operation now performs the explicit conversion
   outside scientific execution, verifies the strict successor, and installs its
-  fixed binding. Exact-source migration/successor qualification remains.
+  fixed binding. Strict manifest `60d9b222…` and exact-source Marmic successor
+  job `636509` now verify all seven executable hashes and the fixed
+  `phenix.phaser --show_defaults` interface without scientific execution.
+  `FCB-P1-07` is accepted.
 
 Acceptance: mass-absent selection, registry substitution, runtime version
 fabrication, missing executable identity, and migration fallback each fail a

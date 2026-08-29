@@ -996,6 +996,10 @@ Exact-source deployment then proved all seven installed commands pass and
 captured the actual post-probe defect: the temporary strict manifest did not
 end in `.json`, so the schema loader could not infer its format. The minimal
 suffix correction is local and awaits one CI/deployment/migration qualification.
+That correction is now qualified: one reviewed migration installed strict
+manifest `60d9b222…`, and exact-source Marmic job `636509` verified all seven
+executables plus `phenix.phaser --show_defaults` with no scientific execution.
+The strict-runtime stop is cleared for a fresh exact-source discovery authority.
 
 The remaining M6 execution-order defects are now fixed locally. Leakage cannot
 stage without a collected successful operational parent from the exact same
