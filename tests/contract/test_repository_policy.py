@@ -220,6 +220,11 @@ def test_phase3_foldseek_batches_retain_unmapped_database_targets() -> None:
     ).read_text(encoding="utf-8")
 
     assert "--retain-unmapped-targets" in module
+    process = module.split(
+        "process SEARCH_PHASE3_FOLDSEEK_BATCH",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    assert "maxForks" not in process
 
 
 def test_phase3_scientific_concurrency_matches_the_approved_envelope() -> None:
@@ -258,15 +263,27 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
     assert "cpus = 4" in mr_block
     assert "memory = '16 GB'" in mr_block
     assert "25-job prototype fanout" in wrapper
-    assert "withLabel: process_database_download" in wrapper
-    assert "cpus = 100" in wrapper
-    assert "memory = '2000 GB'" in wrapper
-    assert "time = '48 hours'" in wrapper
-    assert "withLabel: process_prostt5_search" in wrapper
-    assert "time = '1000 hours'" in wrapper
+    database_block = wrapper.split("withLabel: process_database_download", maxsplit=1)[
+        1
+    ].split("withLabel: process_search", maxsplit=1)[0]
+    assert "cpus = 100" in database_block
+    assert "memory = '2000 GB'" in database_block
+    assert "time = '48 hours'" in database_block
+    prostt5_block = wrapper.split("withLabel: process_prostt5_search", maxsplit=1)[
+        1
+    ].split("withName: SEARCH_PHASE3_FOLDSEEK_BATCH", maxsplit=1)[0]
+    assert "cpus = 64" in prostt5_block
+    assert "memory = '192 GB'" in prostt5_block
+    assert "time = '24 hours'" in prostt5_block
+    phase3_batch_block = wrapper.split(
+        "withName: SEARCH_PHASE3_FOLDSEEK_BATCH", maxsplit=1
+    )[1].split("withLabel: m6_small", maxsplit=1)[0]
+    assert "cpus = 32" in phase3_batch_block
+    assert "memory = '192 GB'" in phase3_batch_block
+    assert "time = '4 hours'" in phase3_batch_block
     assert "withLabel: m6_pdb_search" in wrapper
     assert "withLabel: m6_foldseek_search" in wrapper
-    assert wrapper.count("cpus = 32") >= 2
+    assert wrapper.count("cpus = 32") >= 3
 
     nextflow_config = (REPOSITORY / "nextflow.config").read_text(encoding="utf-8")
     assert "includeConfig 'conf/marmic.config'" in nextflow_config

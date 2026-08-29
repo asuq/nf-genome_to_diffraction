@@ -34,11 +34,14 @@ smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin, while P1,
 P2, P2-diverse, and P2-control use
 the Marmic site's 1,000-hour maximum margin because NFS-cold executable and
 database access are not predictably bounded. The direct PDB
-`process_search` child requests 16 CPUs, 64 GB, and 24 hours. The distinct
-`process_prostt5_search` child requests 100 CPUs, 2,000 GB, and the same
-1,000-hour site margin because catalogue-scale sequence-to-3Di inference is the
-memory-intensive step. The small outer allocation only coordinates those children. The database driver
-uses the same partition with 100 CPUs, 2,000 GB, and a 48-hour walltime. The
+`process_search` child requests 16 CPUs, 64 GB, and 24 hours. Whole-catalogue
+`process_prostt5_search` uses the existing cross-site bound of 64 CPUs, 192 GB,
+and 24 hours. The Phase III `SEARCH_PHASE3_FOLDSEEK_BATCH` override requests
+32 CPUs, 192 GB, and four hours per bounded 128-query batch. A real Marmic
+batch completed in 44 seconds with 64.6 GiB MaxRSS; Slurm controls concurrency
+across the independent batches. The small outer allocation only coordinates
+those children. The database driver separately uses 100 CPUs, 2,000 GB, and a
+48-hour walltime. The
 large memory request supplies `/dev/shm` build space;
 the node's full 4 TB is not requested because it would not accelerate serial
 network, checksum, or copy-back I/O. Only one managed job may be active across

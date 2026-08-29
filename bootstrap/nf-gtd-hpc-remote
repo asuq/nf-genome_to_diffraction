@@ -4150,14 +4150,18 @@ cancel_run() {
     [[ "$#" -eq 2 ]] || fail wrapper_failure "cancel expects run ID and owner ID"
     local run_id="$1"
     local owner_id="$2"
-    local run job_id
+    local run job_id phase
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
+    phase="$(<"$run/state/phase")"
     [[ -f "$run/state/job-id" ]] || fail wrapper_failure "run has no recorded scheduler job"
     job_id="$(<"$run/state/job-id")"
     [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
     scancel "$job_id" || fail scheduler_rejection "Slurm cancellation failed"
     atomic_text "$run/state/phase" "cancel_requested"
+    if [[ "$phase" != completed ]]; then
+        atomic_text "$run/state/failure-class" "unknown_failure"
+    fi
     append_event "$run" "cancel_requested"
     emit operation cancel
     emit run_id "$run_id"

@@ -37,11 +37,10 @@ process PLAN_PHASE3_FOLDSEEK_BATCHES {
 
 
 // Each independent Foldseek database invocation receives at most 128 sorted
-// sequence groups. maxForks=1 reserves only one large-memory node at a time.
+// sequence groups. Slurm owns placement and concurrency across batch items.
 process SEARCH_PHASE3_FOLDSEEK_BATCH {
     tag "phase3-prostt5-foldseek:${batch[0]}"
     label 'process_prostt5_search'
-    maxForks 1
 
     input:
     batch: Tuple

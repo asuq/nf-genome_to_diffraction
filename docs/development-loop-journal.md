@@ -14357,3 +14357,50 @@ with a collapsed combined parent or a guessed command.
   `FCB-P1-07` are accepted. Next commit/push this evidence, then build a fresh
   exact-source private authority attempt 7 and run one new unknown-discovery;
   no failed discovery or probe cache is reusable.
+
+## 2026-08-29 - Authority attempt 7 enters fresh unknown discovery
+
+- Strict-runtime evidence commit `93ae2ff01eca66b8b5c97f21b6ebe6786d18751a`
+  passed CI `33245001669` / `99080842493` under Pixi 0.76.2. Private authority
+  attempt 7 binds source tree `ab40cf12…`, strict Phenix `60d9b222…`, pinned
+  nf-helper, the restored P0/database authorities, accepted v3 localisation,
+  empty neutral gel evidence, three frozen MTZs, and all three owned `proceed`
+  reviews. Its execution/review IDs are `phase3exec_81c9283…` and
+  `unknownreviewstages_deacea26…`.
+- First staging record
+  `gtd-unknown-discovery-20260829T094828Z-93ae2ff01eca-8f4a18e5`
+  stopped locally before input transfer/submission because the worktree's
+  ignored fixed spec still had the older six-field authority. It has no Slurm
+  job, was never submitted, and is not reusable. The original private spec was
+  already correct; the worktree copy now selects attempt 7 and its mandatory
+  owned review registry.
+- Corrected fresh run
+  `gtd-unknown-discovery-20260829T095234Z-93ae2ff01eca-eeee438a`, Slurm
+  `636517`, is the sole scheduler submission. Its 38-file private archive is
+  `unknowninputs_3f42c60a60119c3228420a3b7623800902c785abc13e2330c512a9262ccf0e18`
+  with SHA-256
+  `7cda4c4c65aa4fe10d285d92b4c30fbf74f3ae798603214c400cabc1259a3c21`.
+  Poll only this run and classify complete provider-discovery evidence before
+  any unknown-screen child.
+
+## 2026-08-29 - Real Foldseek accounting rejects the 2-TB serial policy
+
+- The first 128-query Foldseek child, Slurm `636525`, completed successfully in
+  44 seconds; it did not fail. It used 67,687,712 KiB MaxRSS (64.6 GiB) and
+  140,276,752 KiB MaxVM (133.8 GiB). The next independent child `636562`
+  remained pending over five hours for 100 CPUs and 2,000 GB.
+- Live Marmic capacity showed many idle 1--3 TB nodes, but the 100-CPU/2-TB
+  combination fit none of them: 2-TB nodes have 40 CPUs, 3-TB nodes have 64,
+  and 100+ CPU nodes were occupied. The oversized request, not Foldseek
+  runtime, caused the delay.
+- At the user's direction, owned controller `636517` was cancelled and then the
+  exact orphaned pending child `636562` was cancelled; no other job was touched.
+  The cancelled run/cache is non-reusable. Collection exposed that active
+  cancellation did not persist a failure class (`PH3-P1-54`).
+- `PH3-P1-53` adds a name-specific Marmic batch class with 32 CPUs, 192 GB, and
+  four hours and removes `maxForks 1`, leaving concurrency to Slurm. At the
+  user's direction, the shared whole-catalogue class is also reduced to the
+  existing Viper bound of 64 CPUs, 192 GB, and 24 hours; only the database
+  build retains 100 CPUs/2 TB. Next run focused resource,
+  fan-out, cancellation, and wrapper tests, then one CI/deployment and one fresh
+  authority/run; never resume the cancelled discovery.

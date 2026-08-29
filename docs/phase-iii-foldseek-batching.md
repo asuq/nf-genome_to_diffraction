@@ -19,8 +19,9 @@ sequence bytes, and configured search parameters cross every process boundary.
 Each Nextflow `SEARCH_PHASE3_FOLDSEEK_BATCH` task invokes the existing
 `structure-search prostt5-foldseek` adapter once with its own complete,
 already-bounded catalogue and without an additional within-batch pilot cap.
-The existing `process_prostt5_search` label retains site resource policy, while
-`maxForks 1` ensures only one large-memory Foldseek invocation runs at a time.
+The existing `process_prostt5_search` label retains site resource policy. Each
+batch is an independent Nextflow item; no process-local `maxForks` cap is set,
+so the site scheduler owns placement, fairness, and concurrent execution.
 
 Direct PDB search, disabled providers, existing search thresholds, and
 non-Phase-III application modes retain their previous behaviour. No Python

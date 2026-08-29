@@ -1226,6 +1226,9 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=environment,
     )
     assert (tmp_path / "cancelled-job").read_text(encoding="utf-8").strip() == "123"
+    assert (
+        tmp_path / "remote-root" / "runs" / RUN_ID / "state" / "failure-class"
+    ).read_text(encoding="ascii").strip() == "success"
 
     rejected = _run(
         [str(dispatcher), "clean", RUN_ID, OWNER_ID, "wrong"],
@@ -1242,6 +1245,43 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=environment,
     )
     assert not (tmp_path / "remote-root" / "runs" / RUN_ID).exists()
+
+
+def test_active_cancel_records_a_collectable_failure_class(tmp_path: Path) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "smoke",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    _run(
+        [str(dispatcher), "submit", RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    _run(
+        [str(dispatcher), "cancel", RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    run = tmp_path / "remote-root" / "runs" / RUN_ID
+    assert (run / "state/phase").read_text(encoding="ascii").strip() == (
+        "cancel_requested"
+    )
+    assert (run / "state/failure-class").read_text(encoding="ascii").strip() == (
+        "unknown_failure"
+    )
 
 
 def test_control_matrix_submit_reuses_measured_control_slice_resources(

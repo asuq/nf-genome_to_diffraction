@@ -463,7 +463,7 @@ anisotropy signal.
 The fixed `unknown-screen` profile shares catalogue, localisation, and provider
 preparation and emits exactly three crystal items. Run direct PDB plus
 full-catalogue ProstT5/Foldseek in 13 deterministic batches of at most 128
-queries, one large-memory batch at a time. AFDB exact remains explicit-mapping
+queries, with scheduler-controlled batch concurrency. AFDB exact remains explicit-mapping
 only and ESM Atlas remains disabled. Run at most 25 first-copy hypotheses per
 crystal and emit three seed-review packages.
 
