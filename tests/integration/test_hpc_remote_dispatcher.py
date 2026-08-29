@@ -770,6 +770,10 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  printf "fake Phenix verified\\n" > "$verification_log"\n'
         'elif [[ "$mode" == phenix_refresh ]]; then\n'
         '  [[ -n "$verification_log" && -n "$refreshed" ]] || exit 18\n'
+        '  if [[ "${FAKE_PHENIX_REFRESH_FAIL:-0}" == 1 ]]; then\n'
+        '    printf "exact refresh failure\\n" >&2\n'
+        "    exit 27\n"
+        "  fi\n"
         '  mkdir -p "$(dirname "$verification_log")"\n'
         '  printf "fake Phenix refreshed\\n" > "$verification_log"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$refreshed"\n'
@@ -5653,7 +5657,17 @@ def test_staged_phase3_phenix_probe_logs_expose_migration_failure(
     )
     run = dispatcher.parent.parent / "runs" / PHASE3_PHENIX_PROBE_RUN_ID
     migration_log = run / "logs/phenix-runtime-migration.log"
-    migration_log.write_text("exact migration failure\n", encoding="ascii")
+    migration_log.write_text(
+        "## phenix.phaser\n"
+        "path=/fixed/phenix.phaser\n"
+        "executable_sha256=" + "a" * 64 + "\n"
+        'probe_args=["--help"]\n'
+        "exit=1\n"
+        "result=failed\n"
+        "reason=exact migration failure\n"
+        "verbose help that must not dominate diagnostics\n",
+        encoding="ascii",
+    )
 
     result = _decode_protocol(
         _run(
@@ -5670,9 +5684,65 @@ def test_staged_phase3_phenix_probe_logs_expose_migration_failure(
     )
 
     assert result["log_path"] == str(migration_log)
-    assert base64.b64decode(result["content_base64"]).decode() == (
-        "exact migration failure\n"
+    content = base64.b64decode(result["content_base64"]).decode()
+    assert "## phenix.phaser" in content
+    assert "result=failed" in content
+    assert "reason=exact migration failure" in content
+    assert "verbose help" not in content
+
+
+def test_phase3_phenix_migration_retains_exact_command_failure(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    legacy = tmp_path / "phenix-2.1-6048.json"
+    legacy.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    legacy_sha = hashlib.sha256(legacy.read_bytes()).hexdigest()
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            PHASE3_PHENIX_PROBE_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "phase3-phenix-probe",
+            str(legacy),
+            legacy_sha,
+        ],
+        cwd=tmp_path,
+        environment=environment,
     )
+    failed_environment = {**environment, "FAKE_PHENIX_REFRESH_FAIL": "1"}
+    _run(
+        [
+            str(dispatcher),
+            "phenix-runtime-migrate",
+            PHASE3_PHENIX_PROBE_RUN_ID,
+            OWNER_ID,
+        ],
+        cwd=tmp_path,
+        environment=failed_environment,
+        success=False,
+    )
+
+    result = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                PHASE3_PHENIX_PROBE_RUN_ID,
+                OWNER_ID,
+                "20",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    content = base64.b64decode(result["content_base64"]).decode()
+    assert result["log_path"].endswith("/logs/phenix-runtime-migration-command.log")
+    assert content == "exact refresh failure\n"
 
 
 def test_phase3_phenix_probe_is_fixed_and_collectable(tmp_path: Path) -> None:

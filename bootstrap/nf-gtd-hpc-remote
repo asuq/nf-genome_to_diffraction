@@ -2180,7 +2180,7 @@ phenix_runtime_migrate_run() {
     [[ "$#" -eq 2 ]] || \
         fail wrapper_failure "phenix-runtime-migrate expects run ID and owner"
     local run_id="$1" owner_id="$2" run profile source source_sha strict temporary
-    local strict_sha gtd
+    local strict_sha gtd capture strict_capture
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     profile="$(<"$run/state/profile")"
@@ -2201,6 +2201,8 @@ phenix_runtime_migrate_run() {
         fail wrapper_failure "strict Phenix manifest target is invalid"
     gtd="$run/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     [[ -x "$gtd" ]] || fail environment_failure "locked HPC CLI is unavailable"
+    capture="$run/logs/phenix-runtime-migration-command.log"
+    strict_capture="$run/logs/phenix-runtime-strict-verify-command.log"
     if [[ ! -e "$strict" ]]; then
         temporary="$run/execution/phenix-strict-manifest.tmp.$$"
         [[ ! -e "$temporary" ]] || \
@@ -2209,12 +2211,12 @@ phenix_runtime_migrate_run() {
             --manifest "$source" \
             --output "$temporary" \
             --verification-log "$run/logs/phenix-runtime-migration.log" \
-            --no-command-timeout || \
+            --no-command-timeout >"$capture" 2>&1 || \
             fail environment_failure "strict Phenix manifest migration failed"
         "$gtd" --log-format json --no-progress phenix verify \
             --manifest "$temporary" \
             --verification-log "$run/logs/phenix-runtime-strict-verify.log" \
-            --no-command-timeout || \
+            --no-command-timeout >"$strict_capture" 2>&1 || \
             fail environment_failure "strict Phenix manifest verification failed"
         chmod 600 "$temporary"
         mv -- "$temporary" "$strict"
@@ -2224,7 +2226,7 @@ phenix_runtime_migrate_run() {
         "$gtd" --log-format json --no-progress phenix verify \
             --manifest "$strict" \
             --verification-log "$run/logs/phenix-runtime-strict-verify.log" \
-            --no-command-timeout || \
+            --no-command-timeout >"$strict_capture" 2>&1 || \
             fail environment_failure "existing strict Phenix manifest is invalid"
     fi
     strict_sha="$(sha256sum "$strict" | awk '{print $1}')"
@@ -4050,7 +4052,7 @@ logs_run() {
     local lines="$3"
     local run job_id="" log_path="" diagnostic_log="" content="" profile="" phase=""
     local diagnostic_dir="" diagnostic_header="failed command log"
-    local main_lines diagnostic_lines
+    local main_lines diagnostic_lines phenix_summary=false
     require_owned_run "$run_id" "$owner_id"
     [[ "$lines" =~ $INTEGER_RE ]] || fail wrapper_failure "log line count is invalid"
     (( lines >= 1 && lines <= 2000 )) || fail wrapper_failure "log line count is outside 1..2000"
@@ -4069,11 +4071,19 @@ logs_run() {
         -f "$run/logs/t12-stage.log" ]]; then
         log_path="$run/logs/t12-stage.log"
     elif [[ "$profile" == phase3-phenix-probe && "$phase" == staged && \
+        -f "$run/logs/phenix-runtime-strict-verify-command.log" ]]; then
+        log_path="$run/logs/phenix-runtime-strict-verify-command.log"
+    elif [[ "$profile" == phase3-phenix-probe && "$phase" == staged && \
+        -f "$run/logs/phenix-runtime-migration-command.log" ]]; then
+        log_path="$run/logs/phenix-runtime-migration-command.log"
+    elif [[ "$profile" == phase3-phenix-probe && "$phase" == staged && \
         -f "$run/logs/phenix-runtime-strict-verify.log" ]]; then
         log_path="$run/logs/phenix-runtime-strict-verify.log"
+        phenix_summary=true
     elif [[ "$profile" == phase3-phenix-probe && "$phase" == staged && \
         -f "$run/logs/phenix-runtime-migration.log" ]]; then
         log_path="$run/logs/phenix-runtime-migration.log"
+        phenix_summary=true
     elif [[ -n "$profile" && -f "$run/logs/${profile}.log" ]]; then
         log_path="$run/logs/${profile}.log"
     elif [[ -f "$run/state/job-id" ]]; then
@@ -4100,7 +4110,14 @@ logs_run() {
             fi
         fi
     fi
-    if [[ -n "$diagnostic_log" ]]; then
+    if [[ "$phenix_summary" == true ]]; then
+        content="$(
+            awk '/^## / || /^path=/ || /^executable_sha256=/ || \
+                 /^probe_args=/ || /^exit=/ || /^result=/ || /^reason=/' \
+                "$log_path" | tail -n "$lines" | \
+                tail -c "$MAX_LOG_BYTES" | base64 | tr -d '\n'
+        )"
+    elif [[ -n "$diagnostic_log" ]]; then
         if (( lines == 1 )); then
             content="$(
                 tail -n 1 -- "$diagnostic_log" | \
@@ -4392,7 +4409,9 @@ collect_run() {
         logs/p2-control.log \
         logs/heteromer-smoke.log \
         logs/phase3-phenix-probe.log \
+        logs/phenix-runtime-migration-command.log \
         logs/phenix-runtime-migration.log \
+        logs/phenix-runtime-strict-verify-command.log \
         logs/phenix-runtime-strict-verify.log \
         logs/phase3-network-probe.log \
         logs/phase3-network-probe-nextflow.log \

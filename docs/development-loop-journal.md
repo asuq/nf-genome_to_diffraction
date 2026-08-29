@@ -14269,3 +14269,26 @@ with a collapsed combined parent or a guessed command.
   commit/push this diagnostic correction, watch one exact-source CI, deploy,
   retrieve the existing staged run's bounded migration log, and classify the
   exact Phenix failure before changing or retrying migration logic.
+
+## 2026-08-29 - Verbose Phenix help obscures the migration failure reason
+
+- Diagnostic commit `7a3d57ec963458e7830004a3e3f1b8780e40117a` passed CI
+  `33239172950` / `99065412978` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `593382d0…`, `5f2b7830…`, and
+  `5334a95d…`. The existing staged run's migration log is now reachable,
+  remotely accepting `PH3-P1-50`.
+- A single 2,000-line retrieval showed passed `phenix.refine`,
+  `phenix.sequence_from_map`, `phenix.maps`, and
+  `phenix.reflection_file_converter` sections, but their very large help text
+  displaced the earlier command result and exact failure reason. It did not
+  establish that every command passed, and no strict binding or successor was
+  created.
+- Finding `PH3-P1-51` makes staged runtime diagnostics concise and complete:
+  existing verification logs are projected to command header, path, executable
+  hash, arguments, exit, result, and reason lines; future migration and strict
+  verification commands also retain their exact stdout/stderr separately.
+  Two focused diagnostic regressions, the existing successful migration test,
+  and wrapper syntax pass.
+- Next commit/push this focused correction, watch one CI, deploy, retrieve one
+  concise summary from the retained staged run, and classify the exact failing
+  command before any migration retry.
