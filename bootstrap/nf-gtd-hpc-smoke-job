@@ -111,7 +111,7 @@ atomic_text() {
 finalise() {
     local exit_code="$?"
     local failure_class scheduler_state ended_at result_tmp active_run="" active_job=""
-    local active_lock="$ROOT/_locks/active-smoke"
+    local active_lock="$ROOT/_locks/active-smoke-$PROFILE"
     local cleanup_failed=false reports_json='[]' retained_json='[]'
     trap - EXIT TERM INT
     set +e

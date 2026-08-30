@@ -14668,3 +14668,22 @@ with a collapsed combined parent or a guessed command.
   focused `[skip ci]` commit is integrated, qualify the exact source and
   deployed wrappers before staging the reviewed A-decision continuation from a
   genuinely successful collected screen.
+
+## 2026-08-30 - Independent fixed profiles may run concurrently
+
+- The user explicitly authorised a fresh integrated-source discovery alongside
+  the active earlier-source unknown screen. The existing global managed-run
+  lock correctly blocked the first submit before Slurm; no duplicate job was
+  created and the staged run is retained as non-scheduler diagnostic state.
+- Managed-run locks are now scoped by fixed profile. A second run of the same
+  profile remains rejected, while a different reviewed profile may be admitted
+  for scheduler-controlled execution. The submit lock still serialises the
+  decision and each job removes only its own profile lock.
+- The transition explicitly recognises the one active legacy global lock,
+  authenticates its run and recorded profile, and permits only a different
+  profile beside it. Invalid legacy state fails closed; a stale legacy lock is
+  removed only after the scheduler reports no active job.
+- The focused real-dispatcher regression exercises a legacy active smoke lock,
+  a concurrently admitted network-probe profile, same-profile rejection, and
+  stale-lock recovery. Formatting, lint, Bash wrapper syntax, and diff hygiene
+  pass locally. GitHub CI remains skipped at the user's direction.

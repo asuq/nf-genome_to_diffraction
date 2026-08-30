@@ -7249,7 +7249,7 @@ def test_p2_diverse_stage_classifies_coordinate_registration_failure(
     ).strip() == "transfer_failure"
 
 
-def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
+def test_remote_dispatcher_classifies_scheduler_rejection_and_profile_concurrency(
     tmp_path: Path,
 ) -> None:
     dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
@@ -7285,6 +7285,33 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
         cwd=tmp_path,
         environment=environment,
     )
+    remote_root = dispatcher.parent.parent
+    (remote_root / "_locks/active-smoke-smoke").replace(
+        remote_root / "_locks/active-smoke"
+    )
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            PHASE3_NETWORK_PROBE_RUN_ID,
+            commit,
+            lock_checksum,
+            OWNER_ID,
+            "1",
+            "phase3-network-probe",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    active_environment = dict(environment)
+    active_environment["FAKE_SQUEUE_STATE"] = "RUNNING"
+    parallel = _run(
+        [str(dispatcher), "submit", PHASE3_NETWORK_PROBE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=active_environment,
+    )
+    assert _decode_protocol(parallel.stdout)["profile"] == "phase3-network-probe"
+
     third_run = "gtd-smoke-20260802T120002Z-0123456789ab-01234569"
     _run(
         [
@@ -7300,8 +7327,6 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
         cwd=tmp_path,
         environment=environment,
     )
-    active_environment = dict(environment)
-    active_environment["FAKE_SQUEUE_STATE"] = "RUNNING"
     concurrent = _run(
         [str(dispatcher), "submit", third_run, OWNER_ID],
         cwd=tmp_path,
