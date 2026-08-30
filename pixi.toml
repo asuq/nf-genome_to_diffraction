@@ -65,6 +65,9 @@ test-integration = "pytest --basetemp=/tmp/nf-gtd-pytest-integration -q tests/in
 test = { depends-on = ["test-unit", "test-contract", "test-integration"] }
 schema-check = "genome-to-diffraction schema-check"
 docs-check = "python tests/scripts/check_docs.py"
+docs-atlas-inventory = "python tools/docs_atlas/build_inventory.py"
+docs-atlas-build = "python tools/docs_atlas/build_html.py"
+docs-atlas-check = "python tools/docs_atlas/build_html.py --check"
 actionlint-check = "actionlint .github/workflows/ci.yml"
 nextflow-check = "python tests/scripts/check_nextflow.py --syntax"
 nextflow-stub = "python tests/scripts/check_nextflow.py --stub"

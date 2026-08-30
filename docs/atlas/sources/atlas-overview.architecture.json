@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "nf-genome_to_diffraction Documentation Atlas",
+    "locale": "en",
+    "output": "docs/atlas/current/index.html",
+    "quality_profile": "showcase",
+    "viewBox": [1280, 720],
+    "views": [
+      {
+        "id": "scientific_route",
+        "label": "Scientific route",
+        "focus": ["atlas_home", "scientist_portal", "subsystems", "modules", "functions"],
+        "note": "Follow scientific intent through shared subsystem truth into implementation detail."
+      },
+      {
+        "id": "developer_route",
+        "label": "Developer route",
+        "focus": ["atlas_home", "developer_portal", "subsystems", "modules", "functions"],
+        "note": "Drill from architecture into substantive modules and critical functions."
+      },
+      {
+        "id": "validation_route",
+        "label": "Validation route",
+        "focus": ["atlas_home", "validation_portal", "release_snapshot"],
+        "note": "Inspect controls and release-blocking evidence before freezing a release atlas."
+      }
+    ]
+  },
+  "components": [
+    {"id": "atlas_home", "type": "frontend", "label": "Atlas Home", "sublabel": "private offline index", "pos": [50, 280], "size": [150, 64]},
+    {"id": "scientist_portal", "type": "frontend", "label": "Scientist / Operator", "sublabel": "workflow + evidence", "pos": [280, 80], "size": [180, 64]},
+    {"id": "developer_portal", "type": "backend", "label": "Developer", "sublabel": "architecture + code", "pos": [280, 280], "size": [160, 64]},
+    {"id": "validation_portal", "type": "security", "label": "Validation & Evidence", "sublabel": "controls + release gates", "pos": [280, 480], "size": [190, 64]},
+    {"id": "subsystems", "type": "backend", "label": "Shared Subsystems", "sublabel": "canonical role-based pages", "pos": [540, 180], "size": [180, 64]},
+    {"id": "modules", "type": "backend", "label": "Substantive Modules", "sublabel": "Python + Nextflow + wrappers", "pos": [780, 180], "size": [190, 64]},
+    {"id": "functions", "type": "backend", "label": "Functions & Processes", "sublabel": "signatures + call relationships", "pos": [1010, 180], "size": [190, 64]},
+    {"id": "release_snapshot", "type": "cloud", "label": "Frozen Release Atlas", "sublabel": "validated deterministic HTML", "pos": [1010, 480], "size": [190, 64]}
+  ],
+  "connections": [
+    {"id": "home_scientist", "from": "atlas_home", "to": "scientist_portal", "variant": "emphasis", "fromSide": "right", "toSide": "left", "via": [[235, 312], [235, 112]]},
+    {"id": "home_developer", "from": "atlas_home", "to": "developer_portal", "variant": "emphasis"},
+    {"id": "home_validation", "from": "atlas_home", "to": "validation_portal", "variant": "security", "fromSide": "right", "toSide": "left", "via": [[235, 312], [235, 512]]},
+    {"id": "scientist_subsystems", "from": "scientist_portal", "to": "subsystems", "label": "converge", "fromSide": "right", "toSide": "left", "via": [[500, 112], [500, 212]]},
+    {"id": "developer_subsystems", "from": "developer_portal", "to": "subsystems", "fromSide": "right", "toSide": "left", "via": [[500, 312], [500, 212]]},
+    {"id": "subsystems_modules", "from": "subsystems", "to": "modules", "variant": "emphasis"},
+    {"id": "modules_functions", "from": "modules", "to": "functions", "variant": "emphasis"},
+    {"id": "functions_release", "from": "functions", "to": "release_snapshot", "fromSide": "bottom", "toSide": "top"},
+    {"id": "validation_release", "from": "validation_portal", "to": "release_snapshot", "label": "release gate", "variant": "security"}
+  ],
+  "cards": [
+    {"dot": "cyan", "title": "Progressive Disclosure", "items": ["Audience portals converge on shared subsystem truth", "Every substantive module is indexed", "Critical paths drill into functions and processes"]},
+    {"dot": "emerald", "title": "Deterministic Offline Delivery", "items": ["Curated sources and generated HTML are committed", "The release check rejects stale pages", "Current atlas freezes into versioned snapshots"]},
+    {"dot": "violet", "title": "Scientific Integrity", "items": ["Contracts and external tools have first-class pages", "Evidence is sanitised and independently owned", "Private unknown-crystal reports remain outside the atlas"]}
+  ]
+}
