@@ -57,7 +57,6 @@ process PLAN_PHASE3_COMPOSITION_DEPTH {
 process RUN_PHASE3_BEAM_ATTEMPT {
     tag "composition-beam-attempt:${item[1]}"
     label 'process_mr'
-    maxForks 25
 
     input:
     item: Tuple

@@ -58,7 +58,6 @@ process RUN_BRIEF_REFINEMENT {
 process RUN_PHASE3_BRIEF_REFINEMENT {
     tag "phase3-t12:${item[4]}:${item[0][0]}"
     label 'process_refine'
-    maxForks 4
     cache 'deep'
     errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }
     publishDir params.outdir, mode: 'copy', overwrite: true

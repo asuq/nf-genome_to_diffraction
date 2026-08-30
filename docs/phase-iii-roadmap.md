@@ -637,7 +637,8 @@ A pre-screen adverse review then found additional real-run blockers rather
 than isolated test polish. The local hardening wave binds source/P0/catalogue/
 database authority across discovery and both children, makes the copied
 login-stage coordinates the only offline sources, preserves joint A copy
-counts, enforces 25-MR/four-refinement concurrency, compares first/resume task
+counts, leaves independent MR/refinement concurrency to Slurm, compares first/
+resume task
 and output inventories, and collects complete login/single-component authority
 and results (`PH3-P1-37`--`PH3-P1-40`). It also establishes real zero-transition
 copy evidence and specialised-package containment for future terminal reports.
@@ -649,7 +650,8 @@ only and must not parent an unknown-screen run.
 The completed pre-screen hardening audit is now implemented in local commits
 `662d29a` and `2faa1c7`. Full crystallographic authority, run-owned provider
 coordinates, exact parent/child source/P0/database bindings, bounded MR and
-refinement concurrency, complete replay/collection inventories, true joint-A
+refinement attempt inventories, scheduler-managed concurrency, complete replay/
+collection inventories, true joint-A
 copy continuation, and relative single-component routes are enforced. A fixed
 post-review derivation command constructs zero-model, shortlist, mixed failure,
 and credible terminal records only from the collected scheduler/source record,
@@ -1165,8 +1167,8 @@ Release validated research version `v0.3.0` only when:
 - Run one CI workflow per pushed milestone.
 - Fixed wrappers expose no paths, crystal IDs, thresholds, or arbitrary
   commands.
-- Pass-1 MR: 75 attempts, 4 CPUs/16 GB each, at most 25 concurrent.
-- Refinement: at most nine finalists, 4 CPUs/16 GB, at most four concurrent.
+- Pass-1 MR: 75 attempts, 4 CPUs/16 GB each; Slurm owns concurrency.
+- Refinement: at most nine finalists, 4 CPUs/16 GB; Slurm owns concurrency.
 - Pass-2 expansion: at most 100 additional-component attempts per crystal, 25
   per depth, beam width three, depth six.
 - No-A expansion: at most 175 new first-copy attempts per crystal.

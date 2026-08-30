@@ -236,7 +236,7 @@ def test_phase3_foldseek_batches_retain_unmapped_database_targets() -> None:
     assert "maxForks" not in process
 
 
-def test_phase3_scientific_concurrency_matches_the_approved_envelope() -> None:
+def test_phase3_scientific_concurrency_is_scheduler_managed() -> None:
     first_copy = (
         REPOSITORY / "modules/local/phase3_multicrystal_first_copy_tasks.nf"
     ).read_text(encoding="utf-8")
@@ -251,9 +251,27 @@ def test_phase3_scientific_concurrency_matches_the_approved_envelope() -> None:
         "process RUN_PHASE3_BRIEF_REFINEMENT",
         maxsplit=1,
     )[1].split("input:", maxsplit=1)[0]
+    no_a = (REPOSITORY / "modules/local/phase3_no_a_tasks.nf").read_text(
+        encoding="utf-8"
+    )
+    no_a_process = no_a.split(
+        "process RUN_PHASE3_NO_A_FIRST_COPY",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    beam = (REPOSITORY / "modules/local/phase3_composition_beam_tasks.nf").read_text(
+        encoding="utf-8"
+    )
+    beam_process = beam.split(
+        "process RUN_PHASE3_BEAM_ATTEMPT",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    marmic = (REPOSITORY / "conf/marmic.config").read_text(encoding="utf-8")
 
-    assert "maxForks 25" in first_copy_process
-    assert "maxForks 4" in refinement_process
+    assert "maxForks" not in first_copy_process
+    assert "maxForks" not in refinement_process
+    assert "maxForks" not in no_a_process
+    assert "maxForks" not in beam_process
+    assert "queueSize = 0" in marmic
 
 
 def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -> None:

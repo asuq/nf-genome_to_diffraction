@@ -3,7 +3,6 @@ nextflow.enable.types = true
 process RUN_PHASE3_NO_A_FIRST_COPY {
     tag "phase3-no-a:${item[0]}:${item[1]}"
     label 'process_mr'
-    maxForks 25
     publishDir params.outdir, mode: 'copy', overwrite: false
 
     input:

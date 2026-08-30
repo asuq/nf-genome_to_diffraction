@@ -14703,3 +14703,18 @@ with a collapsed combined parent or a guessed command.
   profiles, concurrent same-profile runs, and duplicate submission rejection.
   Formatting, lint, Bash wrapper syntax, documentation, and diff hygiene pass
   locally. GitHub CI remains skipped at the user's direction.
+
+## 2026-08-30 - Slurm owns Phase III child-job concurrency
+
+- The user separately removed Nextflow's job-count upper limits. This does not
+  change scientific attempt budgets: pass-1 still contains 75 MR hypotheses,
+  refinement still retains at most nine finalists, pass 2 still permits 25
+  attempts per depth and 100 per crystal, and no-A expansion remains 175.
+- Phase III first-copy, refinement, no-A, and composition-beam processes no
+  longer declare `maxForks`. Marmic sets `executor.queueSize = 0`, which
+  Nextflow treats as unlimited task-monitor capacity, so Slurm owns admission
+  and concurrent placement. The bounded submission-rate setting remains a
+  controller-protection rate, not a concurrent-job limit.
+- The active screen was already submitted and is unchanged. The focused policy
+  regression now rejects process-local caps and requires the Marmic unlimited
+  queue setting; exact-source syntax/config and future Marmic evidence remain.
