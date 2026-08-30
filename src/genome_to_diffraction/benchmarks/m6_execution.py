@@ -218,7 +218,8 @@ class M6ChildOutputTask(ContractModel):
 class M6ChildOutputEvidence(ContractModel):
     """First-pass or checksum-bound resume inventory for every scientific task."""
 
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.1"]
+    track: Literal["operational", "leakage"]
     phase: Literal["first", "resume"]
     trace_sha256: Sha256Hex
     baseline_sha256: Sha256Hex | None = None
@@ -228,11 +229,17 @@ class M6ChildOutputEvidence(ContractModel):
     @model_validator(mode="after")
     def _validate_tasks(self) -> Self:
         identities = tuple((task.process, task.tag) for task in self.tasks)
-        expected_status = "COMPLETED" if self.phase == "first" else "CACHED"
+        expected_statuses = tuple(
+            expected_m6_child_status(self.track, self.phase, task.process)
+            for task in self.tasks
+        )
         if (
             self.task_count != len(self.tasks)
             or identities != tuple(sorted(set(identities)))
-            or any(task.status != expected_status for task in self.tasks)
+            or any(
+                task.status != expected
+                for task, expected in zip(self.tasks, expected_statuses, strict=True)
+            )
             or (self.baseline_sha256 is None) != (self.phase == "first")
         ):
             raise ValueError("M6 child output task inventory is incomplete")
@@ -243,9 +250,39 @@ class M6ChildOutputEvidence(ContractModel):
 class M6ChildOutputEvidenceRequest:
     """Collect first outputs or compare one cached resume to that exact baseline."""
 
+    track: Literal["operational", "leakage"]
     trace: Path
     output: Path
     baseline: Path | None = None
+
+
+M6_SHARED_TRUTHLESS_PROCESSES = frozenset(
+    {
+        "M6_IMPORT_CATALOGUE",
+        "M6_SEARCH_PDB",
+        "M6_SEARCH_FOLDSEEK",
+    }
+)
+
+
+def m6_process_name(process: str) -> str:
+    """Return the stable process name from a qualified Nextflow trace name."""
+
+    return process.rsplit(":", maxsplit=1)[-1]
+
+
+def expected_m6_child_status(
+    track: Literal["operational", "leakage"],
+    phase: Literal["first", "resume"],
+    process: str,
+) -> Literal["COMPLETED", "CACHED"]:
+    """Return the only valid task status for one fixed M6 track phase."""
+
+    if phase == "resume":
+        return "CACHED"
+    if track == "leakage" and m6_process_name(process) in M6_SHARED_TRUTHLESS_PROCESSES:
+        return "CACHED"
+    return "COMPLETED"
 
 
 def load_m6_execution_policy(path: Path) -> M6ExecutionPolicy:
@@ -461,6 +498,10 @@ def collect_m6_child_output_evidence(
             ) from error
         if baseline.phase != "first":
             raise PublicControlError("M6 child output baseline is not a first pass")
+        if baseline.track != request.track:
+            raise PublicControlError(
+                "M6 child output baseline belongs to another track"
+            )
         baseline_sha256 = sha256_file(baseline_path)
 
     records: list[M6ChildOutputTask] = []
@@ -506,7 +547,8 @@ def collect_m6_child_output_evidence(
             sorted(records, key=lambda item: (item.process, item.tag))
         )
         evidence = M6ChildOutputEvidence(
-            schema_version="1.0",
+            schema_version="1.1",
+            track=request.track,
             phase="first" if baseline is None else "resume",
             trace_sha256=sha256_file(trace),
             baseline_sha256=baseline_sha256,

@@ -225,7 +225,17 @@ run-owned Apptainer cache. Viper retains its fixed site-manifest Phenix
 binding. Marmic reuses the independently frozen Phenix manifest and checksum
 already qualified by the Phase III control profile; it does not infer that
 path from Viper's incompatible site configuration. Both final tracks must use
-the same reviewed site and its exact frozen policy checksum.
+the same reviewed site and its exact frozen policy checksum. The controller
+accepts only Viper with `main` or Marmic with `dev/phase3`; the cross-site
+branch combinations fail before archive inspection or transfer.
+
+Leakage staging and final truth-side collection both authenticate the exact
+successful operational parent. The leakage first-pass child inventory permits
+`CACHED` only for catalogue import, PDB search, and ProstT5/Foldseek search;
+every track-specific task must be newly `COMPLETED`, and the resume inventory
+must be entirely `CACHED`. Final collection rehashes the operational precheck
+and requires every reused truthless task hash and complete child-file inventory
+to equal its operational parent.
 
 If the reviewed site has no usable bare Git mirror, the controller retries only
 that exact classified staging failure. It streams the existing checksum-bound,
@@ -322,4 +332,7 @@ unaffected tasks and child outputs remain byte-identical. It also deletes one
 required child from a cached catalogue bundle and requires an explicit
 `hold_missing_required_child` verifier outcome; an unchanged published aggregate
 does not establish child completeness. This focused probe is not remote M6
-acceptance evidence.
+acceptance evidence. The current per-track `cache_invalidation_verified` field
+checks content-key sensitivity only; it cannot close the real mutation gate.
+M6 acceptance still requires a separately checksum-bound observed mutation
+record from the fixed execution authority.

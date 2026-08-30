@@ -14601,6 +14601,7 @@ with a collapsed combined parent or a guessed command.
   with `[skip ci]`, deploy, build a fresh exact-source authority, and run one
   discovery/screen successor. Never reuse jobs `636699` or `636733` or their
   caches.
+
 ## 2026-08-30 - Pass-2 closure now binds the executed source and complete panel
 
 - Read-only RG7 review found that the private pass-2 closure was internally
@@ -14622,3 +14623,25 @@ with a collapsed combined parent or a guessed command.
   alternative retention, result-to-attempt binding, and PH8 reporting/release.
   Next start with focused format/lint/type/docs/wrapper/diff gates, then review
   and commit this bounded correction without launching pass 2.
+## 2026-08-30 - M6 preflight audit closes three fixed-profile blockers
+
+- `PH3-P1-64` found that leakage correctly reused truthless tasks, but the
+  baseline child/resource evidence required every first-pass task to be newly
+  completed. Track-aware schema-1.1 evidence now permits cached import, PDB,
+  and Foldseek tasks only; every track-specific task must complete and every
+  resume task must cache.
+- `PH3-P1-65` closes the M6 source/site bypass. Both input and scientific
+  staging now accept only Viper/`main` or Marmic/`dev/phase3`, rejecting the
+  crossed pairs before archive inspection or transfer.
+- `PH3-P1-66` makes final collection independently authenticate the exact
+  operational parent, rehash its four-file precheck, and match every reused
+  truthless task hash and complete child-file inventory. Missing, changed, or
+  cross-parent evidence fails closed.
+- Sixty focused M6 unit tests, 18 M6 HPC client/CLI tests, three fake-dispatcher
+  integrations, the 26-task cache-mutation stub, formatting, lint, type,
+  documentation, wrapper syntax, and diff hygiene pass. No HPC profile ran.
+- `PH3-P1-67` remains open: the per-track cache-invalidation flag proves key
+  sensitivity, not a checksum-bound observed fixed-profile mutation. Next run
+  exact-source CI for this focused commit, then qualify operational, observed
+  mutation, and leakage separately; do not reinterpret the local stub as M6
+  acceptance.

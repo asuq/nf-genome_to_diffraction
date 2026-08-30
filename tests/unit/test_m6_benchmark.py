@@ -1009,6 +1009,7 @@ def _synthetic_collection(
     protocol_path: Path = PROTOCOL,
     controller_stage: bool = False,
     site_id: str = "viper-cpu",
+    shared_task_hash: str = "aa/000000",
 ) -> Path:
     scientific = _synthetic_scientific_output(
         tmp_path,
@@ -1034,6 +1035,18 @@ def _synthetic_collection(
         ),
     ):
         (qualification / destination).write_bytes(source.read_bytes())
+    (qualification / "m6-scientific-checksums.sha256").write_text(
+        "".join(
+            f"{sha256_file(qualification / name)}  {name}\n"
+            for name in (
+                "m6-scientific-summary.json",
+                "m6-execution-verification.json",
+                "m6-case-results.jsonl",
+                "m6-candidate-rankings.jsonl.gz",
+            )
+        ),
+        encoding="ascii",
+    )
     profile = f"m6-{track}"
     run_id = f"gtd-{profile}-20260817T000000Z-{commit[:12]}-01234567"
     nextflow = adapter_version in {"m6-nextflow-run-v1", "m6-nextflow-run-v2"}
@@ -1098,7 +1111,7 @@ def _synthetic_collection(
                 {
                     "process": "M6_SEARCH_FOLDSEEK",
                     "tag": "batch",
-                    "status": "COMPLETED",
+                    "status": "CACHED" if track == "leakage" else "COMPLETED",
                     "native_job_id": "101",
                     "requested_cpus": 32,
                     "requested_memory_gb": 16.0,
@@ -1138,7 +1151,7 @@ def _synthetic_collection(
             list[dict[str, object]], resources.get("controller_stages", [])
         )
         tasks = [*jobs, *controller_jobs]
-        rows: list[tuple[str, str, str, Path]] = []
+        rows: list[tuple[str, str, str, Path, str]] = []
         for index, task in enumerate(tasks):
             work = tmp_path / f"{track}-task-{index}"
             output = work / "result"
@@ -1147,24 +1160,39 @@ def _synthetic_collection(
                 f'{{"task":"{task["process"]}"}}\n', encoding="utf-8"
             )
             rows.append(
-                (str(task["process"]), str(task["tag"]), f"aa/{index:06d}", work)
+                (
+                    str(task["process"]),
+                    str(task["tag"]),
+                    (
+                        shared_task_hash
+                        if str(task["process"]).endswith("M6_SEARCH_FOLDSEEK")
+                        else f"aa/{index:06d}"
+                    ),
+                    work,
+                    str(task["status"]),
+                )
             )
-        for trace, status in ((first_trace, "COMPLETED"), (resume_trace, "CACHED")):
+        for trace, resume_phase in ((first_trace, False), (resume_trace, True)):
             trace.write_text(
                 "process\ttag\tstatus\thash\tworkdir\n"
                 + "".join(
-                    f"{process}\t{tag}\t{status}\t{task_hash}\t{work}\n"
-                    for process, tag, task_hash, work in rows
+                    f"{process}\t{tag}\t"
+                    f"{'CACHED' if resume_phase else first_status}\t"
+                    f"{task_hash}\t{work}\n"
+                    for process, tag, task_hash, work, first_status in rows
                 ),
                 encoding="utf-8",
             )
         first_outputs = qualification / "m6-first-child-outputs.json"
         resumed_outputs = qualification / "m6-resume-child-outputs.json"
         collect_m6_child_output_evidence(
-            M6ChildOutputEvidenceRequest(trace=first_trace, output=first_outputs)
+            M6ChildOutputEvidenceRequest(
+                track=track, trace=first_trace, output=first_outputs
+            )
         )
         collect_m6_child_output_evidence(
             M6ChildOutputEvidenceRequest(
+                track=track,
                 trace=resume_trace,
                 baseline=first_outputs,
                 output=resumed_outputs,
@@ -1208,6 +1236,28 @@ def _synthetic_collection(
     (state / "exit-code").write_text("0\n", encoding="ascii")
     (state / "m6-runner-archive-sha256").write_text("5" * 64, encoding="ascii")
     (state / "m6-runner-manifest-sha256").write_text("1" * 64, encoding="ascii")
+    if track == "leakage":
+        operational = tmp_path / "collection-operational"
+        operational_manifest = json.loads(
+            (operational / "manifest.json").read_text(encoding="utf-8")
+        )
+        precheck_paths = (
+            "manifest.json",
+            "state/job-result.json",
+            "artifacts/qualification/m6-scientific-summary.json",
+            "artifacts/qualification/m6-scientific-checksums.sha256",
+        )
+        inventory = "".join(
+            f"{sha256_file(operational / relative)}  {relative}\n"
+            for relative in precheck_paths
+        )
+        (state / "m6-operational-parent-run-id").write_text(
+            f"{operational_manifest['run_id']}\n", encoding="ascii"
+        )
+        (state / "m6-operational-precheck-sha256").write_text(
+            f"{hashlib.sha256(inventory.encode('ascii')).hexdigest()}\n",
+            encoding="ascii",
+        )
     return root
 
 
@@ -1241,6 +1291,69 @@ def test_m6_collection_rejects_legacy_tracks_for_corrected_acceptance(
                 operational_collection=operational,
                 leakage_collection=leakage,
                 output=tmp_path / "collected-evidence.json",
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["missing_parent", "wrong_parent", "wrong_precheck", "wrong_cached_task"],
+)
+def test_m6_collection_revalidates_leakage_operational_parent(
+    tmp_path: Path, mutation: str
+) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+        shared_task_hash=(
+            "bb/000000" if mutation == "wrong_cached_task" else "aa/000000"
+        ),
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+    )
+    parent = leakage / "state/m6-operational-parent-run-id"
+    precheck = leakage / "state/m6-operational-precheck-sha256"
+    if mutation == "missing_parent":
+        parent.unlink()
+    elif mutation == "wrong_parent":
+        parent.write_text(
+            "gtd-m6-operational-20260817T000000Z-aaaaaaaaaaaa-deadbeef\n",
+            encoding="ascii",
+        )
+    elif mutation == "wrong_precheck":
+        precheck.write_text(f"{'f' * 64}\n", encoding="ascii")
+
+    with pytest.raises(
+        PublicControlError,
+        match=(
+            "missing collected M6 state"
+            if mutation == "missing_parent"
+            else (
+                "cached truthless tasks differ"
+                if mutation == "wrong_cached_task"
+                else "does not bind the collected operational parent"
+            )
+        ),
+    ):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=_private_truth_file(
+                    tmp_path, protocol_path, protocol
+                ),
+                operational_collection=operational,
+                leakage_collection=leakage,
+                output=tmp_path / "rejected-evidence.json",
             )
         )
 
@@ -2094,10 +2207,13 @@ def test_m6_cached_child_inventory_refuses_missing_or_changed_outputs(
 
     baseline_path = tmp_path / "first-child-outputs.json"
     baseline = collect_m6_child_output_evidence(
-        M6ChildOutputEvidenceRequest(trace=first_trace, output=baseline_path)
+        M6ChildOutputEvidenceRequest(
+            track="operational", trace=first_trace, output=baseline_path
+        )
     )
     resumed = collect_m6_child_output_evidence(
         M6ChildOutputEvidenceRequest(
+            track="operational",
             trace=resume_trace,
             baseline=baseline_path,
             output=tmp_path / "cached-child-outputs.json",
@@ -2122,9 +2238,67 @@ def test_m6_cached_child_inventory_refuses_missing_or_changed_outputs(
     with pytest.raises(PublicControlError, match="missing or changed child outputs"):
         collect_m6_child_output_evidence(
             M6ChildOutputEvidenceRequest(
+                track="operational",
                 trace=resume_trace,
                 baseline=baseline_path,
                 output=tmp_path / "rejected-child-outputs.json",
+            )
+        )
+
+
+def test_m6_leakage_child_evidence_accepts_only_truthless_first_cache(
+    tmp_path: Path,
+) -> None:
+    import_work = tmp_path / "import-work"
+    policy_work = tmp_path / "policy-work"
+    for work, payload in ((import_work, "import"), (policy_work, "policy")):
+        work.mkdir()
+        (work / "result.json").write_text(f'{{"task":"{payload}"}}\n', encoding="utf-8")
+    first_trace = tmp_path / "leakage-first.tsv"
+    resume_trace = tmp_path / "leakage-resume.tsv"
+    header = "process\ttag\tstatus\thash\tworkdir\n"
+    first_trace.write_text(
+        header
+        + f"M6_IMPORT_CATALOGUE\timport\tCACHED\taa/000001\t{import_work}\n"
+        + f"M6_APPLY_POLICY\tpolicy\tCOMPLETED\taa/000002\t{policy_work}\n",
+        encoding="utf-8",
+    )
+    resume_trace.write_text(
+        header
+        + f"M6_IMPORT_CATALOGUE\timport\tCACHED\taa/000001\t{import_work}\n"
+        + f"M6_APPLY_POLICY\tpolicy\tCACHED\taa/000002\t{policy_work}\n",
+        encoding="utf-8",
+    )
+    baseline_path = tmp_path / "leakage-first-child-outputs.json"
+    baseline = collect_m6_child_output_evidence(
+        M6ChildOutputEvidenceRequest(
+            track="leakage", trace=first_trace, output=baseline_path
+        )
+    )
+    resumed = collect_m6_child_output_evidence(
+        M6ChildOutputEvidenceRequest(
+            track="leakage",
+            trace=resume_trace,
+            baseline=baseline_path,
+            output=tmp_path / "leakage-resume-child-outputs.json",
+        )
+    )
+
+    assert [task.status for task in baseline.tasks] == ["COMPLETED", "CACHED"]
+    assert {task.status for task in resumed.tasks} == {"CACHED"}
+
+    first_trace.write_text(
+        header
+        + f"M6_IMPORT_CATALOGUE\timport\tCOMPLETED\taa/000001\t{import_work}\n"
+        + f"M6_APPLY_POLICY\tpolicy\tCACHED\taa/000002\t{policy_work}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(PublicControlError, match="child output evidence is invalid"):
+        collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(
+                track="leakage",
+                trace=first_trace,
+                output=tmp_path / "rejected-leakage-child-outputs.json",
             )
         )
 

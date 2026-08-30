@@ -2294,6 +2294,43 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
 
 
 @pytest.mark.parametrize(
+    ("site_id", "source_branch"),
+    [("viper-cpu", "dev/phase3"), ("marmic", "main")],
+)
+@pytest.mark.parametrize("operation", ["inputs", "scientific"])
+def test_m6_stage_rejects_source_branch_for_another_site(
+    tmp_path: Path,
+    site_id: str,
+    source_branch: str,
+    operation: str,
+) -> None:
+    archive = tmp_path / "m6-runner.tar"
+    archive.write_bytes(b"not inspected after the branch refusal")
+    transport = FakeTransport(stage_site_id=site_id)
+    controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id=site_id)
+
+    with pytest.raises(ValidationError, match=f"M6 site {site_id} requires"):
+        if operation == "inputs":
+            controller.m6_inputs_stage(
+                "HEAD",
+                archive,
+                "a" * 64,
+                source_branch=source_branch,
+            )
+        else:
+            controller.m6_scientific_stage(
+                "HEAD",
+                archive,
+                "a" * 64,
+                "operational",
+                source_branch=source_branch,
+            )
+
+    assert transport.calls == []
+
+
+@pytest.mark.parametrize(
     "message",
     ["bare Git mirror is absent", "configured Git mirror is not bare"],
 )

@@ -77,7 +77,9 @@ def main() -> None:
         inventories = {tag: _inventory(row) for tag, row in baseline.items()}
         child_baseline = output / "pipeline_info/m6-first-child-outputs.json"
         collect_m6_child_output_evidence(
-            M6ChildOutputEvidenceRequest(trace=trace, output=child_baseline)
+            M6ChildOutputEvidenceRequest(
+                track="operational", trace=trace, output=child_baseline
+            )
         )
         published = _published(output)
 
@@ -87,6 +89,7 @@ def main() -> None:
             raise RuntimeError("M6 baseline resume was not 26 cached tasks")
         collect_m6_child_output_evidence(
             M6ChildOutputEvidenceRequest(
+                track="operational",
                 trace=trace,
                 baseline=child_baseline,
                 output=output / "pipeline_info/m6-resume-child-outputs.json",
@@ -116,6 +119,7 @@ def main() -> None:
         try:
             collect_m6_child_output_evidence(
                 M6ChildOutputEvidenceRequest(
+                    track="operational",
                     trace=trace,
                     baseline=child_baseline,
                     output=output / "pipeline_info/rejected-child-outputs.json",

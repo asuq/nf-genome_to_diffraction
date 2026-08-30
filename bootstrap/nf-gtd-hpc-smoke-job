@@ -4424,6 +4424,7 @@ run_m6_scientific() {
         --trace "$qualification/m6-first-pipeline-info/trace.tsv" \
         --output "$qualification/m6-child-resource-evidence.json"
     "$GTD" --log-format json --no-progress benchmark collect-m6-child-outputs \
+        --track "$M6_TRACK" \
         --trace "$qualification/m6-first-pipeline-info/trace.tsv" \
         --output "$qualification/m6-first-child-outputs.json"
     "$RUN/source/.pixi/envs/hpc/bin/python" - \
@@ -4514,6 +4515,7 @@ PY
     [[ "$expected" -gt 0 && "$total" -eq "$expected" && \
        "$cached" -eq "$expected" ]] || return 4
     "$GTD" --log-format json --no-progress benchmark collect-m6-child-outputs \
+        --track "$M6_TRACK" \
         --trace "$qualification/m6-resume-pipeline-info/trace.tsv" \
         --baseline "$qualification/m6-first-child-outputs.json" \
         --output "$qualification/m6-resume-child-outputs.json"

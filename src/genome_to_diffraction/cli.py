@@ -995,6 +995,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "collect-m6-child-outputs",
         help="verify complete first-pass or cached M6 child outputs",
     )
+    m6_child_outputs.add_argument(
+        "--track", choices=("operational", "leakage"), required=True
+    )
     m6_child_outputs.add_argument("--trace", type=Path, required=True)
     m6_child_outputs.add_argument("--baseline", type=Path)
     m6_child_outputs.add_argument("--output", type=Path, required=True)
@@ -2972,6 +2975,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
     if args.benchmark_action == "collect-m6-child-outputs":
         child_outputs = collect_m6_child_output_evidence(
             M6ChildOutputEvidenceRequest(
+                track=args.track,
                 trace=args.trace,
                 baseline=args.baseline,
                 output=args.output,

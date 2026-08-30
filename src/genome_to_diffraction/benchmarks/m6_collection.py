@@ -1,10 +1,12 @@
 """Assemble two collected opaque M6 tracks at the truth-side boundary.
 
 The collector accepts only completed checksum-fixed operational and leakage
-Viper collections.  It verifies their immutable software, runner, database,
-Phenix, resource, resume, cache, identity-decision, and partial-output evidence
-before joining opaque case IDs and sequence digests to the approved protocol
-and private family truth. Corrected acceptance requires two identity-bearing v2
+collections from one reviewed site. It verifies their immutable software,
+runner, database, Phenix, resource, resume, cache, identity-decision, and
+partial-output evidence, rehashes the leakage parent binding, and authenticates
+every shared truthless task against the operational child inventory before
+joining opaque case IDs and sequence digests to the approved protocol and
+private family truth. Corrected acceptance requires two identity-bearing v2
 tracks; legacy results remain independently verifiable but cannot enter this
 gate. The collector never changes runner ranks, LLG/TFZ annotations, candidate
 counts, or copy evidence.
@@ -39,8 +41,11 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
     M6SoftwareProvenance,
 )
 from genome_to_diffraction.benchmarks.m6_execution import (
+    M6_SHARED_TRUTHLESS_PROCESSES,
     M6ChildOutputEvidence,
     M6ResourceEvidence,
+    expected_m6_child_status,
+    m6_process_name,
 )
 from genome_to_diffraction.benchmarks.m6_identity import M6IdentityDecision
 from genome_to_diffraction.benchmarks.m6_nextflow import M6CaseEvidence
@@ -70,6 +75,12 @@ from genome_to_diffraction.schemas.io import (
 )
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_M6_OPERATIONAL_PRECHECK_PATHS = (
+    "manifest.json",
+    "state/job-result.json",
+    "artifacts/qualification/m6-scientific-summary.json",
+    "artifacts/qualification/m6-scientific-checksums.sha256",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,8 +165,11 @@ class _CollectedTrack:
     runtime: dict[str, object]
     cases: tuple[dict[str, object], ...]
     rankings: tuple[dict[str, object], ...]
+    first_child_outputs: M6ChildOutputEvidence | None
     runner_archive_sha256: str
     runner_manifest_sha256: str
+    operational_parent_run_id: str | None
+    operational_precheck_sha256: str | None
 
 
 def _json_object(path: Path, label: str) -> dict[str, object]:
@@ -319,12 +333,51 @@ def _state_text(root: Path, name: str) -> str:
     return value
 
 
+def _operational_precheck_sha256(root: Path) -> str:
+    """Recreate the exact successful-parent digest bound before leakage."""
+
+    resolved = root.resolve(strict=True)
+    inventory: list[str] = []
+    for relative in _M6_OPERATIONAL_PRECHECK_PATHS:
+        path = resolved.joinpath(*Path(relative).parts)
+        try:
+            confined = path.resolve(strict=True)
+        except OSError as error:
+            raise PublicControlError(
+                f"collected M6 operational precheck is missing {relative}"
+            ) from error
+        if (
+            path.is_symlink()
+            or not confined.is_file()
+            or not confined.is_relative_to(resolved)
+        ):
+            raise PublicControlError(
+                f"collected M6 operational precheck is unsafe: {relative}"
+            )
+        inventory.append(f"{sha256_file(confined)}  {relative}\n")
+    return hashlib.sha256("".join(inventory).encode("ascii")).hexdigest()
+
+
+def _shared_child_inventory(
+    evidence: M6ChildOutputEvidence | None,
+) -> dict[tuple[str, str], tuple[str, object]]:
+    """Return the content identities of all cross-track-cacheable tasks."""
+
+    if evidence is None:
+        raise PublicControlError("collected M6 child output evidence is absent")
+    return {
+        (task.process, task.tag): (task.task_hash, task.outputs)
+        for task in evidence.tasks
+        if m6_process_name(task.process) in M6_SHARED_TRUTHLESS_PROCESSES
+    }
+
+
 def _verify_child_output_evidence(
     qualification: Path,
     track: M6ScientificTrack,
     resources: M6ResourceEvidence,
     resume_cache: dict[str, object],
-) -> None:
+) -> M6ChildOutputEvidence:
     """Require the same complete checksum-bound outputs after cached resume."""
 
     baseline_path = qualification / "m6-first-child-outputs.json"
@@ -358,6 +411,8 @@ def _verify_child_output_evidence(
     if (
         baseline.phase != "first"
         or resumed.phase != "resume"
+        or baseline.track != track
+        or resumed.track != track
         or baseline.trace_sha256 != first_trace_sha256
         or resumed.trace_sha256 != resume_trace_sha256
         or resumed.baseline_sha256 != sha256_file(baseline_path)
@@ -377,6 +432,7 @@ def _verify_child_output_evidence(
         raise PublicControlError(
             f"collected M6 {track} cached child output evidence changed"
         )
+    return baseline
 
 
 def _load_track(
@@ -469,6 +525,7 @@ def _load_track(
         or resume.get("resume_equivalent") is not True
     ):
         raise PublicControlError(f"collected M6 {track} resume differs")
+    first_child_outputs: M6ChildOutputEvidence | None = None
     if runtime.get("execution_model") == "nextflow_dsl2_slurm_fanout":
         try:
             resource_evidence = M6ResourceEvidence.model_validate(
@@ -486,7 +543,7 @@ def _load_track(
             "resume-cache evidence",
         )
         if summary.get("adapter_version") == "m6-nextflow-run-v2":
-            _verify_child_output_evidence(
+            first_child_outputs = _verify_child_output_evidence(
                 qualification, track, resource_evidence, resume_cache
             )
         if (
@@ -510,7 +567,13 @@ def _load_track(
             != runtime.get("peak_aggregate_memory_gb")
             or resource_evidence.peak_concurrent_phenix_jobs
             != runtime.get("maximum_concurrent_phenix_attempts")
-            or any(job.status != "COMPLETED" for job in resource_evidence.jobs)
+            or any(
+                job.status != expected_m6_child_status(track, "first", job.process)
+                for job in (
+                    *resource_evidence.jobs,
+                    *resource_evidence.controller_stages,
+                )
+            )
             or any(
                 re.fullmatch(r"[0-9]+", job.native_job_id) is None
                 for job in resource_evidence.jobs
@@ -551,6 +614,24 @@ def _load_track(
         != summary.get("scientific_output_digest")
     ):
         raise PublicControlError(f"collected M6 {track} provenance is inconsistent")
+    parent_path = resolved / "state/m6-operational-parent-run-id"
+    precheck_path = resolved / "state/m6-operational-precheck-sha256"
+    if track == "leakage":
+        operational_parent_run_id = _state_text(
+            resolved, "m6-operational-parent-run-id"
+        )
+        operational_precheck_sha256 = _state_text(
+            resolved, "m6-operational-precheck-sha256"
+        )
+        if _SHA256_RE.fullmatch(operational_precheck_sha256) is None:
+            raise PublicControlError("collected M6 leakage precheck is invalid")
+    else:
+        if parent_path.exists() or precheck_path.exists():
+            raise PublicControlError(
+                "collected M6 operational track has leakage parent state"
+            )
+        operational_parent_run_id = None
+        operational_precheck_sha256 = None
     return _CollectedTrack(
         track=track,
         run_id=run_id,
@@ -561,8 +642,11 @@ def _load_track(
         runtime=runtime,
         cases=cases,
         rankings=rankings,
+        first_child_outputs=first_child_outputs,
         runner_archive_sha256=runner_archive,
         runner_manifest_sha256=runner_manifest,
+        operational_parent_run_id=operational_parent_run_id,
+        operational_precheck_sha256=operational_precheck_sha256,
     )
 
 
@@ -997,6 +1081,20 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
         )
     if operational.run_id == leakage.run_id:
         raise PublicControlError("M6 requires two distinct scientific run IDs")
+    if (
+        leakage.operational_parent_run_id != operational.run_id
+        or leakage.operational_precheck_sha256
+        != _operational_precheck_sha256(request.operational_collection)
+    ):
+        raise PublicControlError(
+            "M6 leakage does not bind the collected operational parent"
+        )
+    operational_shared = _shared_child_inventory(operational.first_child_outputs)
+    leakage_shared = _shared_child_inventory(leakage.first_child_outputs)
+    if not operational_shared or leakage_shared != operational_shared:
+        raise PublicControlError(
+            "M6 leakage cached truthless tasks differ from its operational parent"
+        )
     common_manifest_fields = ("commit", "nf_helper_commit", "pixi_lock_sha256")
     for name in common_manifest_fields:
         if operational.manifest.get(name) != leakage.manifest.get(name):

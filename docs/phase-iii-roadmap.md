@@ -1049,16 +1049,22 @@ The strict-runtime stop is cleared for a fresh exact-source discovery authority.
 The remaining M6 execution-order defects are now fixed locally. Leakage cannot
 stage without a collected successful operational parent from the exact same
 site/source/lock/policy/runner authority. Its remote child binds the rehashed
-operational precheck and shares only the operational Nextflow cache; the job
-verifier still permits exactly the six truthless discovery tasks to cache and
-requires every track-specific task to execute. PDB coordinate materialisation
-is explicitly offline and fails if the separately qualified cache is missing;
-no M6 worker can download a coordinate. Discovery partitioning and final JSONL/
-gzip aggregation stream with bounded memory, M6 input qualification accepts
-the reviewed Marmic `dev/phase3` authority, and large collections stream to a
-bounded temporary archive rather than RAM. Focused M6 tests, the mutation stub,
-and fake remote parent binding pass. Real operational collection/classification
-and the separately submitted leakage track remain the PH6 acceptance gate.
+operational precheck and shares only the operational Nextflow cache. The
+track-aware child/resource contracts permit first-pass cache reuse only for
+truthless import and search tasks, require every track-specific task to execute,
+and require the full resume to cache. Final collection independently rehashes
+the parent precheck and matches every shared task hash and child-file inventory.
+The controller also enforces Viper/`main` and Marmic/`dev/phase3` rather than
+accepting cross-site branch authority. PDB coordinate materialisation is
+explicitly offline and fails if the separately qualified cache is missing; no
+M6 worker can download a coordinate. Discovery partitioning and final JSONL/
+gzip aggregation stream with bounded memory, and large collections stream to a
+bounded temporary archive rather than RAM. Focused M6, client, and fake-remote
+regressions pass locally. The existing mutation stub remains local evidence;
+the per-track key-sensitivity flag cannot replace a checksum-bound observed
+mutation record. Real operational collection/classification, observed mutation
+qualification, and the separately submitted leakage track remain the PH6 gate.
+This closes `PH3-P1-64` through `PH3-P1-66` locally; `PH3-P1-67` remains open.
 
 ### PH7 - Unknown-dataset pass 2
 

@@ -451,6 +451,20 @@ _M6_OPERATIONAL_PRECHECK_PATHS = (
     "artifacts/qualification/m6-scientific-summary.json",
     "artifacts/qualification/m6-scientific-checksums.sha256",
 )
+_M6_SOURCE_BRANCH_BY_SITE = {
+    "viper-cpu": "main",
+    "marmic": "dev/phase3",
+}
+
+
+def _validate_m6_source_branch(site_id: str, source_branch: str) -> None:
+    """Require the one reviewed immutable source line for each M6 site."""
+
+    expected = _M6_SOURCE_BRANCH_BY_SITE.get(site_id)
+    if expected is None or source_branch != expected:
+        raise ValidationError(
+            f"M6 site {site_id} requires source branch {expected or 'unavailable'}"
+        )
 
 
 def _m6_operational_precheck(
@@ -2506,6 +2520,7 @@ class HpcController:
             raise ValidationError("m6-inputs-stage requires a reviewed HPC site")
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
+        _validate_m6_source_branch(self.config.site_id, source_branch)
         if source_branch == "main":
             self.git.ensure_reachable_from_origin_main(commit)
         elif source_branch == "dev/phase3":
@@ -2603,6 +2618,7 @@ class HpcController:
             raise ValidationError("M6 scientific track must be operational or leakage")
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
+        _validate_m6_source_branch(self.config.site_id, source_branch)
         operational_parent: LocalRunRecord | None = None
         operational_precheck_sha256: str | None = None
         if track == "operational":

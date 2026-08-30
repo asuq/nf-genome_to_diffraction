@@ -1505,6 +1505,8 @@ def test_m6_scientific_submit_uses_approved_bounded_resources(
     assert '"execution_policy": "$M6_EXECUTION_POLICY_ID"' in m6_body
     assert "m6-child-resource-evidence.json" in m6_body
     assert m6_body.count("benchmark collect-m6-child-outputs") == 2
+    assert m6_body.count('--track "$M6_TRACK"') == 2
+    assert m6_command.count('--track "$M6_TRACK"') == 1
     assert "m6-first-child-outputs.json" in m6_body
     assert "m6-resume-child-outputs.json" in m6_body
     assert "first_child_output_sha256" in m6_body
