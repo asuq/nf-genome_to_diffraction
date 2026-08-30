@@ -188,6 +188,12 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         (bootstrap / name).chmod(0o755)
     shutil.copy2(REPOSITORY / "qualification.nf", source / "qualification.nf")
     shutil.copytree(REPOSITORY / "src", source / "src")
+    docs = source / "docs"
+    docs.mkdir()
+    shutil.copy2(
+        REPOSITORY / "docs/phase-iii-finding-ledger.md",
+        docs / "phase-iii-finding-ledger.md",
+    )
     conf = source / "conf"
     conf.mkdir()
     shutil.copy2(REPOSITORY / "conf/marmic.config", conf / "marmic.config")
@@ -226,6 +232,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         "bootstrap",
         "qualification.nf",
         "src",
+        "docs",
         "conf",
         "workflows",
         "benchmarks",
@@ -1360,7 +1367,7 @@ def test_m6_input_qualification_uses_small_fixed_resources(tmp_path: Path) -> No
 def test_unknown_pass2_submit_requires_rg7_authority_and_72_hour_bound(
     tmp_path: Path,
 ) -> None:
-    dispatcher, _, environment, _ = _prepare_remote_layout(tmp_path)
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = dispatcher.parent.parent
     run = remote_root / "runs" / UNKNOWN_PASS2_RUN_ID
     state = run / "state"
@@ -1368,17 +1375,28 @@ def test_unknown_pass2_submit_requires_rg7_authority_and_72_hour_bound(
     state.mkdir(parents=True)
     authority.mkdir(parents=True)
     (run / "logs").mkdir()
+    _run(
+        ["git", "clone", "-q", str(tmp_path / "source-origin"), str(run / "source")],
+        cwd=tmp_path,
+    )
+    source_tree = _git(run / "source", "rev-parse", "HEAD^{tree}")
+    ledger_sha256 = hashlib.sha256(
+        (run / "source/docs/phase-iii-finding-ledger.md").read_bytes()
+    ).hexdigest()
     manifest = authority / "phase3_pass2_input_manifest.json"
     manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
     (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
     (state / "phase").write_text("staged\n", encoding="ascii")
     (state / "profile").write_text("unknown-pass2\n", encoding="ascii")
+    (state / "commit").write_text(f"{commit}\n", encoding="ascii")
     for name, value in (
         ("unknown-pass2-parent-run-id", UNKNOWN_SINGLE_RUN_ID),
         ("unknown-pass2-input-id", f"phase3pass2inputs_{'1' * 64}"),
         ("unknown-pass2-input-sha256", "2" * 64),
         ("unknown-pass2-execution-identity-id", f"phase3exec_{'3' * 64}"),
         ("unknown-pass2-finding-closure-id", f"phase3closure_{'4' * 64}"),
+        ("unknown-pass2-source-tree", source_tree),
+        ("unknown-pass2-finding-ledger-sha256", ledger_sha256),
         ("unknown-pass2-file-count", "1"),
     ):
         (state / name).write_text(f"{value}\n", encoding="ascii")
@@ -1400,6 +1418,15 @@ def test_unknown_pass2_submit_requires_rg7_authority_and_72_hour_bound(
     assert "--cpus-per-task=8" in arguments
     assert "--mem=32G" in arguments
     assert "--time=72:00:00" in arguments
+    stage_body = (
+        dispatcher.read_text(encoding="utf-8")
+        .split("unknown_pass2_inputs_stage_run() {", maxsplit=1)[1]
+        .split("m4_import_stage_run() {", maxsplit=1)[0]
+    )
+    assert '--expected-source-commit "$source_commit"' in stage_body
+    assert '--expected-source-tree "$source_tree"' in stage_body
+    assert '--expected-parent-run-id "$parent_run_id"' in stage_body
+    assert '--expected-finding-ledger-sha256 "$finding_ledger_sha256"' in stage_body
 
 
 @pytest.mark.parametrize(

@@ -14601,3 +14601,24 @@ with a collapsed combined parent or a guessed command.
   with `[skip ci]`, deploy, build a fresh exact-source authority, and run one
   discovery/screen successor. Never reuse jobs `636699` or `636733` or their
   caches.
+## 2026-08-30 - Pass-2 closure now binds the executed source and complete panel
+
+- Read-only RG7 review found that the private pass-2 closure was internally
+  source-consistent but not compared with the commit/tree actually staged for
+  execution or the successful single-component parent. It also accepted any
+  one-to-three subset of the three frozen crystals.
+- Input-bundle v2 requires the expected staged commit/tree, parent run, and
+  tracked finding-ledger checksum. Every assessment and execution identity must
+  agree; the remote checkout independently re-derives those values at archive
+  acceptance and again before submit. The fixed panel must contain each frozen
+  crystal exactly once.
+- Focused archive mutation/subset, client propagation, and fake-dispatcher
+  checks pass locally. No HPC operation ran. Findings `PH3-P1-62` and
+  `PH3-P1-63` remain locally fixed pending exact-source CI and required remote
+  qualification.
+- Remaining independent review findings are deliberately out of this wave:
+  typed RG7 evidence semantics and immutable original-finding inventory,
+  no-A hypothesis-byte binding, pass-2 human-decision continuation, terminal
+  alternative retention, result-to-attempt binding, and PH8 reporting/release.
+  Next start with focused format/lint/type/docs/wrapper/diff gates, then review
+  and commit this bounded correction without launching pass 2.

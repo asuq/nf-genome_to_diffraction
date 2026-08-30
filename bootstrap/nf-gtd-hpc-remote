@@ -3299,6 +3299,7 @@ unknown_pass2_inputs_stage_run() {
     local input_id="$5" archive_sha256="$6" archive_size="$7"
     local execution_identity_id="$8" finding_closure_id="$9" file_count="${10}"
     local run parent profile archive staging output python observed_count
+    local source_commit source_tree finding_ledger_sha256
     validate_run_id "$run_id"
     validate_owner "$owner_id"
     validate_run_id "$parent_run_id"
@@ -3332,6 +3333,21 @@ unknown_pass2_inputs_stage_run() {
        "$(<"$run/state/phenix-manifest-sha256")" == \
        "$(<"$parent/state/phenix-manifest-sha256")" ]] || \
         fail wrapper_failure "unknown-pass2 parent authority differs"
+    source_commit="$(<"$run/state/commit")"
+    source_tree="$(git -C "$run/source" rev-parse --verify 'HEAD^{tree}' \
+        2>"$DISCARD")" || \
+        fail wrapper_failure "unknown-pass2 staged source tree is unavailable"
+    [[ "$source_commit" =~ $COMMIT_RE && "$source_tree" =~ $COMMIT_RE && \
+       "$(git -C "$run/source" rev-parse --verify HEAD 2>"$DISCARD")" == \
+       "$source_commit" ]] || \
+        fail wrapper_failure "unknown-pass2 staged source identity differs"
+    [[ -f "$run/source/docs/phase-iii-finding-ledger.md" && \
+       ! -L "$run/source/docs/phase-iii-finding-ledger.md" ]] || \
+        fail wrapper_failure "unknown-pass2 tracked finding ledger is unavailable"
+    finding_ledger_sha256="$(sha256sum \
+        "$run/source/docs/phase-iii-finding-ledger.md" | awk '{print $1}')"
+    [[ "$finding_ledger_sha256" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "unknown-pass2 tracked finding ledger cannot be hashed"
     archive="$run/execution/.unknown-pass2-inputs.tar.tmp.$$"
     staging="$run/execution/.unknown-pass2-inputs.tmp.$$"
     output="$run/artifacts/unknown-pass2"
@@ -3368,6 +3384,10 @@ unknown_pass2_inputs_stage_run() {
     "$python" -m genome_to_diffraction.hpc.unknown_pass2_inputs \
         "$staging" \
         --expected-input-id "$input_id" \
+        --expected-source-commit "$source_commit" \
+        --expected-source-tree "$source_tree" \
+        --expected-parent-run-id "$parent_run_id" \
+        --expected-finding-ledger-sha256 "$finding_ledger_sha256" \
         --write-checksums "$run/state/unknown-pass2-authority-checksums.sha256" \
         >"$run/logs/unknown-pass2-input-validation.log" 2>&1 || \
         fail wrapper_failure "unknown-pass2 input validation failed"
@@ -3379,6 +3399,9 @@ unknown_pass2_inputs_stage_run() {
     atomic_text "$run/state/unknown-pass2-execution-identity-id" \
         "$execution_identity_id"
     atomic_text "$run/state/unknown-pass2-finding-closure-id" "$finding_closure_id"
+    atomic_text "$run/state/unknown-pass2-source-tree" "$source_tree"
+    atomic_text "$run/state/unknown-pass2-finding-ledger-sha256" \
+        "$finding_ledger_sha256"
     atomic_text "$run/state/unknown-pass2-file-count" "$file_count"
     append_event "$run" "stage_unknown_pass2_bound"
     emit operation unknown-pass2-inputs-stage
@@ -3684,6 +3707,8 @@ submit_run() {
            -f "$run/state/unknown-pass2-input-sha256" && \
            -f "$run/state/unknown-pass2-execution-identity-id" && \
            -f "$run/state/unknown-pass2-finding-closure-id" && \
+           -f "$run/state/unknown-pass2-source-tree" && \
+           -f "$run/state/unknown-pass2-finding-ledger-sha256" && \
            -f "$run/state/unknown-pass2-file-count" && \
            -f "$run/state/unknown-pass2-authority-checksums.sha256" && \
            -f "$run/artifacts/unknown-pass2/phase3_pass2_input_manifest.json" ]] || \
@@ -3693,6 +3718,15 @@ submit_run() {
         [[ "$actual_authority_count" -eq \
            "$(<"$run/state/unknown-pass2-file-count")" ]] || \
             fail wrapper_failure "unknown-pass2 authority cardinality changed"
+        [[ "$(git -C "$run/source" rev-parse --verify HEAD 2>"$DISCARD")" == \
+           "$(<"$run/state/commit")" && \
+           "$(git -C "$run/source" rev-parse --verify 'HEAD^{tree}' \
+               2>"$DISCARD")" == \
+           "$(<"$run/state/unknown-pass2-source-tree")" && \
+           "$(sha256sum "$run/source/docs/phase-iii-finding-ledger.md" | \
+               awk '{print $1}')" == \
+           "$(<"$run/state/unknown-pass2-finding-ledger-sha256")" ]] || \
+            fail wrapper_failure "unknown-pass2 staged source changed before submit"
         (
             cd "$run/artifacts/unknown-pass2"
             sha256sum -c \
@@ -4373,6 +4407,8 @@ collect_run() {
         state/unknown-pass2-input-sha256 \
         state/unknown-pass2-execution-identity-id \
         state/unknown-pass2-finding-closure-id \
+        state/unknown-pass2-source-tree \
+        state/unknown-pass2-finding-ledger-sha256 \
         state/unknown-pass2-file-count \
         state/unknown-pass2-authority-checksums.sha256 \
         state/phenix-strict-manifest \

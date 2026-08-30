@@ -1074,6 +1074,10 @@ Status: the closure verifier and fixed profile are implemented locally. The
 verifier independently rehashes the adverse review, integration gate, public
 controls, M6, pass-1, and exact-source CI files and parses the CI run/job/head/
 conclusion; the fixed archive and every depth planner consume that closure.
+Input-bundle v2 additionally requires all three frozen crystals and binds every
+assessment, execution identity, closure, and the tracked ledger to the exact
+staged commit/tree and successful single-component parent; remote staging
+independently re-derives those values before accepting the archive and submit.
 Credible A states are converted into claim-free depth-one component states and
 run through a statically bounded B--F Nextflow beam (25 attempts/depth, width
 three, depth six, 100 total). Depths four-to-six are always provisional. A

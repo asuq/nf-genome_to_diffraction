@@ -330,8 +330,11 @@ sequence review remain mandatory.
 
 Implementation status: `unknown-pass2` is now a fixed, argument-free reviewed
 profile. Its mode-0600 input archive rehashes every RG7 evidence file and CI
-record, binds the exact source/execution identity, and rejects an incomplete
-ledger before submit and again in every depth planner. Credible A states run a
+record, requires the exact three-crystal panel, binds the staged commit/tree,
+tracked ledger, execution identity, and successful pass-1 parent, and rejects
+an incomplete ledger before submit and again in every depth planner. Remote
+staging independently re-derives the source/tree/ledger before archive
+acceptance and submit. Credible A states run a
 static B--F beam; no-A states run the retained 175-hypothesis expansion and
 stop at an owned A review. Terminal states produce scope/assessment plus owned
 composition and sequence packages; no automated claim is possible. Local

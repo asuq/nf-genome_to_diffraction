@@ -46,6 +46,7 @@ from tests.support.unknown_pass1_fixture import (
 )
 
 COMMIT = "1" * 40
+TREE = "2" * 40
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
@@ -78,6 +79,11 @@ class FakeGit:
         if revision not in {"HEAD", COMMIT}:
             raise ValidationError("revision")
         return COMMIT
+
+    def resolve_tree(self, commit: str) -> str:
+        if commit != COMMIT:
+            raise ValidationError("tree")
+        return TREE
 
     def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
         if commit != COMMIT or self.repository is None:
@@ -1760,6 +1766,9 @@ def test_unknown_pass2_stage_requires_parent_and_attaches_rg7_archive(
 ) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
+    ledger = tmp_path / "docs/phase-iii-finding-ledger.md"
+    ledger.parent.mkdir()
+    ledger.write_text("# exact tracked ledger\n", encoding="utf-8")
     parent = LocalRunRecord(
         run_id=("gtd-unknown-single-component-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb"),
         site_id="marmic",
@@ -1775,8 +1784,22 @@ def test_unknown_pass2_stage_requires_parent_and_attaches_rg7_archive(
         lambda _repository: ("/approved/phenix.json", "a" * 64),
     )
 
-    def bundle(*, repository: Path, archive_path: Path) -> SimpleNamespace:
+    def bundle(
+        *,
+        repository: Path,
+        archive_path: Path,
+        expected_source_commit: str,
+        expected_source_tree: str,
+        expected_parent_run_id: str,
+        expected_finding_ledger_sha256: str,
+    ) -> SimpleNamespace:
         assert repository == tmp_path
+        assert expected_source_commit == COMMIT
+        assert expected_source_tree == TREE
+        assert expected_parent_run_id == parent.run_id
+        assert expected_finding_ledger_sha256 == sha256_file(
+            tmp_path / "docs/phase-iii-finding-ledger.md"
+        )
         archive_path.write_bytes(b"pass2 archive")
         return SimpleNamespace(
             input_id=f"phase3pass2inputs_{'1' * 64}",
@@ -1786,7 +1809,15 @@ def test_unknown_pass2_stage_requires_parent_and_attaches_rg7_archive(
             execution_identity_id=f"phase3exec_{'2' * 64}",
             finding_closure_id=f"phase3closure_{'3' * 64}",
             file_count=12,
-            crystal_ids=("AD4QS1P4G2_18",),
+            crystal_ids=(
+                "AD4QS1P4G2_18",
+                "CD4QS2P2G1_15",
+                "CD6QS2P2G1_5",
+            ),
+            source_commit=expected_source_commit,
+            source_tree=expected_source_tree,
+            parent_run_id=expected_parent_run_id,
+            finding_ledger_sha256=expected_finding_ledger_sha256,
         )
 
     monkeypatch.setattr(

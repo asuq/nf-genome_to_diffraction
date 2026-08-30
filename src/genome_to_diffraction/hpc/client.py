@@ -634,6 +634,9 @@ class GitRepository(Protocol):
     def resolve_commit(self, revision: str) -> str:
         """Resolve HEAD or a full SHA to a full commit SHA."""
 
+    def resolve_tree(self, commit: str) -> str:
+        """Resolve the exact root tree for one validated commit."""
+
     def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
         """Read one fixed repository file from an exact commit."""
 
@@ -696,6 +699,13 @@ class SubprocessGitRepository:
             )
         commit = self._run(["rev-parse", "--verify", f"{revision}^{{commit}}"])
         return validate_commit(commit)
+
+    def resolve_tree(self, commit: str) -> str:
+        """Resolve the immutable root tree for one exact commit."""
+
+        validate_commit(commit)
+        tree = self._run(["rev-parse", "--verify", f"{commit}^{{tree}}"])
+        return validate_commit(tree)
 
     def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
         """Read a fixed path without checking out or interpreting shell syntax."""
@@ -2106,10 +2116,30 @@ class HpcController:
                 dir="/tmp",
             ) as temporary:
                 archive_path = Path(temporary) / "unknown-pass2-inputs.tar"
+                source_tree = self.git.resolve_tree(commit)
+                finding_ledger_sha256 = hashlib.sha256(
+                    self.git.read_file_at_commit(
+                        commit,
+                        PurePosixPath("docs/phase-iii-finding-ledger.md"),
+                    )
+                ).hexdigest()
                 pass2_bundle = build_unknown_pass2_input_bundle(
                     repository=self.config.repository,
                     archive_path=archive_path,
+                    expected_source_commit=commit,
+                    expected_source_tree=source_tree,
+                    expected_parent_run_id=pass2_parent.run_id,
+                    expected_finding_ledger_sha256=finding_ledger_sha256,
                 )
+                if (
+                    pass2_bundle.source_commit != commit
+                    or pass2_bundle.source_tree != source_tree
+                    or pass2_bundle.parent_run_id != pass2_parent.run_id
+                    or pass2_bundle.finding_ledger_sha256 != finding_ledger_sha256
+                ):
+                    raise ValidationError(
+                        "pass-2 input bundle differs from its staged authority"
+                    )
                 attached = self.transport.unknown_pass2_inputs_stage(
                     [
                         run_id,

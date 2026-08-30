@@ -1,11 +1,12 @@
 """Build and validate the fixed private Phase III pass-2 input archive.
 
 The local mode-0600 spec points to one prepared run-owned directory. The
-builder rejects symlinks, path escapes, undeclared fields, incomplete crystal
-items, stale closure evidence, and cross-source execution identities before
-creating a deterministic archive. The extracted validator repeats every byte,
-contract, closure, and source check. No scheduler or external scientific tool
-is invoked.
+builder rejects symlinks, path escapes, undeclared fields, an incomplete frozen
+crystal panel, stale closure evidence, cross-parent assessments, execution
+identities that differ from the staged commit/tree, and a ledger that differs
+from that exact source before creating a deterministic archive. The extracted
+validator repeats every byte, contract, closure, parent, and source check. No
+scheduler or external scientific tool is invoked.
 """
 
 from __future__ import annotations
@@ -48,7 +49,7 @@ from genome_to_diffraction.status import InputContractError
 PASS2_SPEC_RELATIVE = Path(".untracked/phase3-unknown-pass2/pass2-inputs.json")
 PASS2_SOURCE_MANIFEST = "phase3_pass2_source.json"
 PASS2_INPUT_MANIFEST = "phase3_pass2_input_manifest.json"
-_ADAPTER = "phase3-pass2-input-bundle-v1"
+_ADAPTER = "phase3-pass2-input-bundle-v2"
 _MAX_SPEC_BYTES = 16 * 1024
 _MAX_FILE_COUNT = 50_000
 _MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
@@ -112,6 +113,10 @@ class UnknownPass2InputBundle:
     archive_size_bytes: int
     file_count: int
     crystal_ids: tuple[str, ...]
+    source_commit: str
+    source_tree: str
+    parent_run_id: str
+    finding_ledger_sha256: str
     execution_identity_id: str
     finding_closure_id: str
 
@@ -195,7 +200,7 @@ def _source_manifest(root: Path, expected_sha256: str) -> dict[str, object]:
         or set(document) != _GLOBAL_KEYS
         or document.get("schema_version") != "1.0"
         or not isinstance(document.get("items"), list)
-        or not 1 <= len(document["items"]) <= 3
+        or not 1 <= len(document["items"]) <= len(_CRYSTALS)
     ):
         raise UnknownPass2InputError("pass-2 source manifest fields are invalid")
     return document
@@ -221,6 +226,11 @@ def _inventory(root: Path) -> tuple[tuple[str, Path, str, int], ...]:
 def _validate_source(
     root: Path,
     source: dict[str, object],
+    *,
+    expected_source_commit: str,
+    expected_source_tree: str,
+    expected_parent_run_id: str,
+    expected_finding_ledger_sha256: str,
 ) -> tuple[tuple[str, ...], PhaseIIIExecutionIdentity, str]:
     global_paths = {
         key: _path(root, _relative(source[key], label=key))
@@ -288,6 +298,7 @@ def _validate_source(
         if (
             assessment.crystal_id != crystal_id
             or assessment.execution_identity_id != identity.execution_identity_id
+            or assessment.owned_parent_run_id != expected_parent_run_id
         ):
             raise UnknownPass2InputError(f"pass-2 assessment differs for {crystal_id}")
         credible = assessment.scientific_status in {
@@ -366,12 +377,34 @@ def _validate_source(
                 f"pass-2 MTZ/execution authority differs for {crystal_id}"
             )
         identities.append(identity)
-    if len(crystal_ids) != len(set(crystal_ids)):
-        raise UnknownPass2InputError("pass-2 crystal items are duplicated")
+    if tuple(sorted(crystal_ids)) != tuple(sorted(_CRYSTALS)):
+        raise UnknownPass2InputError(
+            "pass-2 source must contain the exact three-crystal panel"
+        )
     execution_ids = {item.execution_identity_id for item in identities}
     if len(execution_ids) != 1:
         raise UnknownPass2InputError("pass-2 crystal items use different executions")
     first = identities[0]
+    if (
+        first.source_commit != expected_source_commit
+        or first.source_tree != expected_source_tree
+    ):
+        raise UnknownPass2InputError(
+            "pass-2 execution identity differs from the staged source"
+        )
+    if any(
+        item.source_commit != expected_source_commit
+        or item.source_tree != expected_source_tree
+        for item in identities
+    ):
+        raise UnknownPass2InputError("pass-2 crystal items use another staged source")
+    if (
+        sha256_file(global_paths["finding_ledger"], progress=False)
+        != expected_finding_ledger_sha256
+    ):
+        raise UnknownPass2InputError(
+            "pass-2 finding ledger differs from the exact staged source"
+        )
     closure = validate_phase3_finding_closure(
         global_paths["finding_closure"],
         global_paths["finding_ledger"],
@@ -403,13 +436,24 @@ def build_unknown_pass2_input_bundle(
     *,
     repository: Path,
     archive_path: Path,
+    expected_source_commit: str,
+    expected_source_tree: str,
+    expected_parent_run_id: str,
+    expected_finding_ledger_sha256: str,
 ) -> UnknownPass2InputBundle:
     """Validate the private source tree and create one deterministic tar archive."""
 
     spec = _owned_spec(repository / PASS2_SPEC_RELATIVE)
     root = _root(Path(str(spec["input_root"])))
     source = _source_manifest(root, str(spec["source_manifest_sha256"]))
-    crystal_ids, identity, closure_id = _validate_source(root, source)
+    crystal_ids, identity, closure_id = _validate_source(
+        root,
+        source,
+        expected_source_commit=expected_source_commit,
+        expected_source_tree=expected_source_tree,
+        expected_parent_run_id=expected_parent_run_id,
+        expected_finding_ledger_sha256=expected_finding_ledger_sha256,
+    )
     rows = _inventory(root)
     file_records = [
         {"relative_path": relative, "sha256": digest, "size_bytes": size}
@@ -417,6 +461,10 @@ def build_unknown_pass2_input_bundle(
     ]
     identity_payload = {
         "adapter_version": _ADAPTER,
+        "source_commit": expected_source_commit,
+        "source_tree": expected_source_tree,
+        "parent_run_id": expected_parent_run_id,
+        "finding_ledger_sha256": expected_finding_ledger_sha256,
         "execution_identity_id": identity.execution_identity_id,
         "finding_closure_id": closure_id,
         "crystal_ids": list(crystal_ids),
@@ -448,6 +496,10 @@ def build_unknown_pass2_input_bundle(
         archive_size_bytes=archive_path.stat().st_size,
         file_count=len(rows) + 1,
         crystal_ids=crystal_ids,
+        source_commit=expected_source_commit,
+        source_tree=expected_source_tree,
+        parent_run_id=expected_parent_run_id,
+        finding_ledger_sha256=expected_finding_ledger_sha256,
         execution_identity_id=identity.execution_identity_id,
         finding_closure_id=closure_id,
     )
@@ -457,6 +509,10 @@ def validate_unknown_pass2_input_tree(
     root: Path,
     *,
     expected_input_id: str,
+    expected_source_commit: str,
+    expected_source_tree: str,
+    expected_parent_run_id: str,
+    expected_finding_ledger_sha256: str,
 ) -> UnknownPass2InputBundle:
     """Revalidate an extracted pass-2 archive and its complete file inventory."""
 
@@ -471,6 +527,10 @@ def validate_unknown_pass2_input_tree(
         or manifest.get("schema_version") != "1.0"
         or manifest.get("adapter_version") != _ADAPTER
         or manifest.get("input_id") != expected_input_id
+        or manifest.get("source_commit") != expected_source_commit
+        or manifest.get("source_tree") != expected_source_tree
+        or manifest.get("parent_run_id") != expected_parent_run_id
+        or manifest.get("finding_ledger_sha256") != expected_finding_ledger_sha256
         or not isinstance(manifest.get("source"), dict)
         or not isinstance(manifest.get("files"), list)
     ):
@@ -509,11 +569,19 @@ def validate_unknown_pass2_input_tree(
     crystal_ids, identity, closure_id = _validate_source(
         checked_root,
         manifest["source"],
+        expected_source_commit=expected_source_commit,
+        expected_source_tree=expected_source_tree,
+        expected_parent_run_id=expected_parent_run_id,
+        expected_finding_ledger_sha256=expected_finding_ledger_sha256,
     )
     rebuilt = content_id(
         "phase3pass2inputs_",
         {
             "adapter_version": _ADAPTER,
+            "source_commit": expected_source_commit,
+            "source_tree": expected_source_tree,
+            "parent_run_id": expected_parent_run_id,
+            "finding_ledger_sha256": expected_finding_ledger_sha256,
             "execution_identity_id": identity.execution_identity_id,
             "finding_closure_id": closure_id,
             "crystal_ids": list(crystal_ids),
@@ -530,6 +598,10 @@ def validate_unknown_pass2_input_tree(
         archive_size_bytes=0,
         file_count=len(declared) + 1,
         crystal_ids=crystal_ids,
+        source_commit=expected_source_commit,
+        source_tree=expected_source_tree,
+        parent_run_id=expected_parent_run_id,
+        finding_ledger_sha256=expected_finding_ledger_sha256,
         execution_identity_id=identity.execution_identity_id,
         finding_closure_id=closure_id,
     )
@@ -539,6 +611,10 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
     parser.add_argument("--expected-input-id", required=True)
+    parser.add_argument("--expected-source-commit", required=True)
+    parser.add_argument("--expected-source-tree", required=True)
+    parser.add_argument("--expected-parent-run-id", required=True)
+    parser.add_argument("--expected-finding-ledger-sha256", required=True)
     parser.add_argument("--write-checksums", type=Path)
     return parser
 
@@ -549,6 +625,10 @@ def main(argv: list[str] | None = None) -> int:
         output = validate_unknown_pass2_input_tree(
             args.root,
             expected_input_id=args.expected_input_id,
+            expected_source_commit=args.expected_source_commit,
+            expected_source_tree=args.expected_source_tree,
+            expected_parent_run_id=args.expected_parent_run_id,
+            expected_finding_ledger_sha256=(args.expected_finding_ledger_sha256),
         )
     except (OSError, UnknownPass2InputError, ValueError) as error:
         print(str(error), file=sys.stderr)
