@@ -3622,8 +3622,7 @@ submit_run() {
     [[ "$#" -eq 2 ]] || fail wrapper_failure "submit expects run ID and owner ID"
     local run_id="$1"
     local owner_id="$2"
-    local run active_run active_job active_state active_profile active_run_dir
-    local active_lock legacy_active_lock submission job_id profile walltime
+    local run submission job_id profile walltime
     local cpus memory actual_authority_count
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
@@ -3788,41 +3787,10 @@ submit_run() {
 
     exec 9>"$LOCKS/submit.lock"
     flock -x 9
-    legacy_active_lock="$LOCKS/active-smoke"
-    active_lock="$LOCKS/active-smoke-$profile"
-    if [[ -f "$legacy_active_lock" ]]; then
-        read -r active_run active_job < "$legacy_active_lock" || true
-        if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
-            active_state="$(scheduler_queue_state "$active_job")"
-            if [[ -n "$active_state" ]]; then
-                [[ "${active_run:-}" =~ $RUN_ID_RE ]] || \
-                    fail wrapper_failure "legacy active managed run ID is invalid"
-                active_run_dir="$(run_directory "$active_run")"
-                [[ -f "$active_run_dir/state/profile" && \
-                   ! -L "$active_run_dir/state/profile" ]] || \
-                    fail wrapper_failure "legacy active managed profile is absent"
-                active_profile="$(<"$active_run_dir/state/profile")"
-                validate_profile "$active_profile"
-                [[ "$active_profile" != "$profile" ]] || \
-                    fail scheduler_rejection \
-                        "another managed run for this fixed profile is still active"
-            else
-                rm -f -- "$legacy_active_lock"
-            fi
-        else
-            rm -f -- "$legacy_active_lock"
-        fi
-    fi
-    if [[ -f "$active_lock" ]]; then
-        read -r active_run active_job < "$active_lock" || true
-        if [[ "${active_job:-}" =~ $INTEGER_RE ]]; then
-            active_state="$(scheduler_queue_state "$active_job")"
-            [[ -z "$active_state" ]] || \
-                fail scheduler_rejection \
-                    "another managed run for this fixed profile is still active"
-        fi
-        rm -f -- "$active_lock"
-    fi
+    [[ "$(<"$run/state/phase")" == staged ]] || \
+        fail wrapper_failure "run is not in the staged state"
+    [[ ! -e "$run/state/job-id" ]] || \
+        fail wrapper_failure "run already has a scheduler job"
 
     if ! submission="$(sbatch --parsable \
         --partition=slurm \
@@ -3842,7 +3810,6 @@ submit_run() {
     [[ "$job_id" =~ $INTEGER_RE ]] || fail scheduler_rejection "sbatch returned an invalid job ID"
     atomic_text "$run/state/job-id" "$job_id"
     atomic_text "$run/state/phase" "submitted"
-    printf '%s %s\n' "$run_id" "$job_id" > "$active_lock"
     append_event "$run" "submitted"
     emit operation submit
     emit run_id "$run_id"

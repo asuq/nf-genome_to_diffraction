@@ -111,7 +111,7 @@ atomic_text() {
 finalise() {
     local exit_code="$?"
     local failure_class scheduler_state ended_at result_tmp active_run="" active_job=""
-    local active_lock="$ROOT/_locks/active-smoke-$PROFILE"
+    local active_lock=""
     local cleanup_failed=false reports_json='[]' retained_json='[]'
     trap - EXIT TERM INT
     set +e
@@ -131,15 +131,16 @@ finalise() {
         failure_class=software_failure
         scheduler_state=FAILED
     fi
-    exec 9>"$ROOT/_locks/submit.lock"
-    flock -x 9
     if [[ "$PROFILE" == database ]]; then
+        exec 9>"$ROOT/_locks/submit.lock"
+        flock -x 9
         active_lock="$ROOT/_locks/active-database"
-    fi
-    if [[ -f "$active_lock" ]]; then
-        read -r active_run active_job < "$active_lock" || true
-        if [[ "$active_run" == "$RUN_ID" && "$active_job" == "$SLURM_JOB_ID" ]]; then
-            rm -f -- "$active_lock"
+        if [[ -f "$active_lock" ]]; then
+            read -r active_run active_job < "$active_lock" || true
+            if [[ "$active_run" == "$RUN_ID" && \
+                  "$active_job" == "$SLURM_JOB_ID" ]]; then
+                rm -f -- "$active_lock"
+            fi
         fi
     fi
     if [[ -n "$SCRATCH" && -e "$SCRATCH" ]]; then

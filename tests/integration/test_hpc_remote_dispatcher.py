@@ -7249,7 +7249,7 @@ def test_p2_diverse_stage_classifies_coordinate_registration_failure(
     ).strip() == "transfer_failure"
 
 
-def test_remote_dispatcher_classifies_scheduler_rejection_and_profile_concurrency(
+def test_remote_dispatcher_allows_scheduler_concurrency_and_rejects_duplicate_submit(
     tmp_path: Path,
 ) -> None:
     dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
@@ -7285,10 +7285,6 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_profile_concurrenc
         cwd=tmp_path,
         environment=environment,
     )
-    remote_root = dispatcher.parent.parent
-    (remote_root / "_locks/active-smoke-smoke").replace(
-        remote_root / "_locks/active-smoke"
-    )
     _run(
         [
             str(dispatcher),
@@ -7303,12 +7299,10 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_profile_concurrenc
         cwd=tmp_path,
         environment=environment,
     )
-    active_environment = dict(environment)
-    active_environment["FAKE_SQUEUE_STATE"] = "RUNNING"
     parallel = _run(
         [str(dispatcher), "submit", PHASE3_NETWORK_PROBE_RUN_ID, OWNER_ID],
         cwd=tmp_path,
-        environment=active_environment,
+        environment=environment,
     )
     assert _decode_protocol(parallel.stdout)["profile"] == "phase3-network-probe"
 
@@ -7330,36 +7324,17 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_profile_concurrenc
     concurrent = _run(
         [str(dispatcher), "submit", third_run, OWNER_ID],
         cwd=tmp_path,
-        environment=active_environment,
-        success=False,
-    )
-    assert _decode_protocol(concurrent.stdout)["failure_class"] == (
-        "scheduler_rejection"
-    )
-
-    fourth_run = "gtd-smoke-20260802T120003Z-0123456789ab-0123456a"
-    _run(
-        [
-            str(dispatcher),
-            "stage",
-            fourth_run,
-            commit,
-            lock_checksum,
-            OWNER_ID,
-            "1",
-            "smoke",
-        ],
-        cwd=tmp_path,
         environment=environment,
     )
-    stale_lock_environment = dict(environment)
-    stale_lock_environment["FAKE_SQUEUE_FAIL"] = "1"
-    recovered = _run(
-        [str(dispatcher), "submit", fourth_run, OWNER_ID],
+    assert _decode_protocol(concurrent.stdout)["job_id"] == "123"
+
+    duplicate = _run(
+        [str(dispatcher), "submit", third_run, OWNER_ID],
         cwd=tmp_path,
-        environment=stale_lock_environment,
+        environment=environment,
+        success=False,
     )
-    assert _decode_protocol(recovered.stdout)["job_id"] == "123"
+    assert _decode_protocol(duplicate.stdout)["failure_class"] == "wrapper_failure"
 
 
 def test_remote_dispatcher_classifies_node_failure_and_oversized_collection(

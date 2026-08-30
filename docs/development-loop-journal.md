@@ -14687,3 +14687,19 @@ with a collapsed combined parent or a guessed command.
   a concurrently admitted network-probe profile, same-profile rejection, and
   stale-lock recovery. Formatting, lint, Bash wrapper syntax, and diff hygiene
   pass locally. GitHub CI remains skipped at the user's direction.
+
+## 2026-08-30 - Slurm owns managed scientific-run concurrency
+
+- The user rejected the remaining same-profile admission restriction as
+  unnecessary. It was an operational guard, not a scientific dependency, and
+  duplicated scheduler policy already owned by Slurm.
+- The clean break removes all non-database active-run locks. The global submit
+  lock now only serialises admission and rechecks the exact run's staged phase
+  and absent job ID inside that critical section. Separate owned runs may be
+  submitted concurrently, including the same fixed profile; the same run
+  cannot be submitted twice.
+- Database administration retains its separate active-database lock. The
+  focused dispatcher regression covers rejected `sbatch`, concurrent different
+  profiles, concurrent same-profile runs, and duplicate submission rejection.
+  Formatting, lint, Bash wrapper syntax, documentation, and diff hygiene pass
+  locally. GitHub CI remains skipped at the user's direction.
