@@ -504,6 +504,14 @@ registration directory (`PH3-P1-60`). Provider-login v3 now keeps one
 deduplicated object store inside each provider package and emits confined
 `coordinate_objects/...` paths; one exact-source successor remains before MR.
 
+Exact-source screen job `636733` then validated the confined preparation and
+completed experimental model preparation, accepting `PH3-P1-60`. The three
+crystal funnels stopped before Phaser because Nextflow restaged the already
+validated localisation directory as a symlink, which the importer correctly
+rejects (`PH3-P1-61`). The funnel now uses Nextflow copy staging for its complete
+input set, so the strict localisation contract receives task-owned physical
+bytes without weakening symlink checks; one exact-source successor remains.
+
 The worker-offline boundary requires one explicit operational checkpoint. The
 user approved a compute-only `unknown-discovery` run, bounded reviewed
 login-side coordinate staging, and then an offline `unknown-screen` MR run.

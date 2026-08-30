@@ -194,6 +194,15 @@ def test_diverse_funnel_stages_coordinate_sources_under_unique_names() -> None:
     assert "--coordinate-sources '${pdb_coordinate_sources}'" in module
 
 
+def test_phase3_funnel_copies_validated_localisation_bundle() -> None:
+    module = (
+        REPOSITORY / "modules" / "local" / "build_phase3_diverse_first_copy_funnel.nf"
+    ).read_text(encoding="utf-8")
+
+    assert "stageInMode 'copy'" in module
+    assert "--localisation-bundle '${localisation_bundle}'" in module
+
+
 def test_provider_local_processes_have_complete_scheduler_resources() -> None:
     base = (REPOSITORY / "conf/base.config").read_text(encoding="utf-8")
     block = base.split("withLabel: process_local", maxsplit=1)[1].split(

@@ -14575,3 +14575,29 @@ with a collapsed combined parent or a guessed command.
   with `[skip ci]`, deploy, build a fresh exact-source authority, and run one
   discovery/screen successor. Never reuse jobs `636671` or `636699` or their
   caches.
+
+## 2026-08-30 - Funnel tasks must own validated localisation bytes
+
+- Provider-package confinement correction
+  `af7365ccff93c5e622b73d2a3f05527fadae60f6` used `[skip ci]` at the user's
+  direction after the focused local gate passed. Fresh discovery job `636707`
+  completed with 1,621 groups on both provider routes, 6,262 merged hits, 13
+  bounded Foldseek batches, and all 23 resume tasks cached.
+- Exact-parent screen `636733` validated provider preparation
+  `providerstage_87451224…`, strict Phenix, all three crystal dispatches, and
+  completed both predicted and experimental model preparation. This accepts
+  `PH3-P1-60`.
+- All three first-copy funnels then failed before Phaser because Nextflow linked
+  the physical `VALIDATE_PHASE3_LOCALISATION_BUNDLE` output directory into each
+  task. The localisation importer correctly rejected the symlink root as unsafe
+  (`PH3-P1-61`, signature `e6a67233…`). No MR or scientific result exists and
+  the failed run/cache is non-reusable.
+- The smallest fix retains strict localisation safety and sets
+  `stageInMode 'copy'` only on the Phase III funnel process. Its exact
+  localisation path remains unchanged, while all staged inputs become
+  task-owned physical bytes. The focused repository-policy regression,
+  Nextflow syntax gate, and complete three-crystal cached stub pass.
+- Formatting, lint, type, docs, wrapper, and diff checks pass. Next commit/push
+  with `[skip ci]`, deploy, build a fresh exact-source authority, and run one
+  discovery/screen successor. Never reuse jobs `636699` or `636733` or their
+  caches.

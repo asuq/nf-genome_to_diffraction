@@ -7,6 +7,7 @@ nextflow.enable.types = true
 process BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL {
     tag "phase3-diverse-first-copy-funnel:${crystal_id}"
     label 'process_low'
+    stageInMode 'copy'
     publishDir params.outdir,
         mode: 'copy',
         overwrite: true,
