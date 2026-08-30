@@ -512,6 +512,18 @@ rejects (`PH3-P1-61`). The funnel now uses Nextflow copy staging for its complet
 input set, so the strict localisation contract receives task-owned physical
 bytes without weakening symlink checks; one exact-source successor remains.
 
+A review-only continuation audit then found four independent fixed-profile
+defects (`PH3-P1-68`--`PH3-P1-71`). The real screen job writes `completed_at`,
+the handoff now consumes that canonical field and creates the empty owned-run
+registry required by its registrar, and a complete wrapper-shaped success case
+materialises the registry, A stage, hypotheses, and reviewed route. The screen
+wrapper now conserves exactly three reviewed crystal outcomes across owned A
+packages and crystallographic holds instead of forcing three packages. Marmic
+screen and single-component controllers now retain 48 hours around their
+24-hour MR children. Focused real-record, mixed-outcome, duplicate-outcome,
+dispatcher, wrapper, lint, and type checks pass locally; exact-source CI,
+deployment, and fixed-HPC qualification remain.
+
 The worker-offline boundary requires one explicit operational checkpoint. The
 user approved a compute-only `unknown-discovery` run, bounded reviewed
 login-side coordinate staging, and then an offline `unknown-screen` MR run.

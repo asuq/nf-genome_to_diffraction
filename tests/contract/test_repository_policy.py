@@ -271,6 +271,7 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
     )[0]
     assert "cpus = 4" in mr_block
     assert "memory = '16 GB'" in mr_block
+    assert "time = '24 hours'" in mr_block
     assert "25-job prototype fanout" in wrapper
     database_block = wrapper.split("withLabel: process_database_download", maxsplit=1)[
         1

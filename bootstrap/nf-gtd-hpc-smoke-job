@@ -2067,7 +2067,12 @@ run_unknown_screen() {
     local qualification="$RUN/artifacts/qualification"
     local first_trace resume_trace cache_counts total cached
     local legacy_phenix_manifest refreshed_phenix_manifest expected_phenix_sha256
+    local directory outcome_name
     local -a owned_a_packages=()
+    local -a crystallographic_holds=()
+    local -a expected_review_stages=()
+    local -a outcome_ids=()
+    local -a expected_ids=()
     UNKNOWN_SCREEN_INPUTS="$RUN/artifacts/unknown-screen/inputs"
     UNKNOWN_SCREEN_DISCOVERY="$RUN/artifacts/unknown-screen/phase3_provider_discovery"
     UNKNOWN_SCREEN_PREPARATION="$RUN/artifacts/unknown-screen/provider_preparation"
@@ -2176,7 +2181,31 @@ run_unknown_screen() {
         find "$UNKNOWN_SCREEN_OUT" -maxdepth 1 -type d \
             -name 'phase3_owned_a_review_*' -print0
     )
-    [[ "${#owned_a_packages[@]}" -eq 3 ]] || return 4
+    mapfile -d '' -t crystallographic_holds < <(
+        find "$UNKNOWN_SCREEN_OUT" -maxdepth 1 -type d \
+            -name 'phase3_crystallographic_hold_*' -print0
+    )
+    mapfile -d '' -t expected_review_stages < <(
+        find "$UNKNOWN_SCREEN_INPUTS/crystallographic_review_stage/stages" \
+            -mindepth 1 -maxdepth 1 -type d -print0
+    )
+    [[ "$(( ${#owned_a_packages[@]} + ${#crystallographic_holds[@]} ))" -eq 3 && \
+       "${#expected_review_stages[@]}" -eq 3 ]] || return 4
+    for directory in "${owned_a_packages[@]}"; do
+        outcome_name="${directory##*/}"
+        outcome_ids+=("${outcome_name#phase3_owned_a_review_}")
+    done
+    for directory in "${crystallographic_holds[@]}"; do
+        outcome_name="${directory##*/}"
+        outcome_ids+=("${outcome_name#phase3_crystallographic_hold_}")
+    done
+    for directory in "${expected_review_stages[@]}"; do
+        expected_ids+=("${directory##*/}")
+    done
+    mapfile -t outcome_ids < <(printf '%s\n' "${outcome_ids[@]}" | LC_ALL=C sort -u)
+    mapfile -t expected_ids < <(printf '%s\n' "${expected_ids[@]}" | LC_ALL=C sort -u)
+    [[ "${#outcome_ids[@]}" -eq 3 && "${#expected_ids[@]}" -eq 3 && \
+       "${outcome_ids[*]}" == "${expected_ids[*]}" ]] || return 4
     (
         cd "$UNKNOWN_SCREEN_OUT"
         while IFS= read -r relative; do

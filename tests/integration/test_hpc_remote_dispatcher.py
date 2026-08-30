@@ -4021,8 +4021,14 @@ def test_unknown_discovery_stage_failure_is_collectable_without_outputs(
     assert _decode_protocol(rejected.stdout)["failure_class"] == "wrapper_failure"
 
 
+@pytest.mark.parametrize(
+    ("held_crystal", "screen_success"),
+    (("public_stub_02", True), ("public_stub_01", False)),
+)
 def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     tmp_path: Path,
+    held_crystal: str,
+    screen_success: bool,
 ) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
@@ -4284,7 +4290,7 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     child_sbatch = (tmp_path / "sbatch-args").read_text(encoding="utf-8")
     assert "--cpus-per-task=8" in child_sbatch
     assert "--mem=32G" in child_sbatch
-    assert "--time=24:00:00" in child_sbatch
+    assert "--time=48:00:00" in child_sbatch
     fake_nextflow = child / "source/.pixi/envs/hpc/bin/nextflow"
     _write_executable(
         fake_nextflow,
@@ -4293,6 +4299,7 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         "outdir=\n"
         "status=COMPLETED\n"
         "previous=\n"
+        'hold_crystal="${FAKE_UNKNOWN_HOLD_CRYSTAL:-public_stub_02}"\n'
         'for argument in "$@"; do\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
         '  [[ "$argument" != -resume ]] || status=CACHED\n'
@@ -4302,19 +4309,21 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         'mkdir -p "$outdir/pipeline_info" '
         '"$outdir/phase3_offline_provider_input" '
         '"$outdir/phase3_localisation_reopen_stub" '
-        '"$outdir/phase3_owned_a_review_crystal_a" '
-        '"$outdir/phase3_owned_a_review_crystal_b" '
-        '"$outdir/phase3_owned_a_review_crystal_c"\n'
+        '"$outdir/phase3_owned_a_review_public_stub_01" '
+        '"$outdir/phase3_crystallographic_hold_${hold_crystal}" '
+        '"$outdir/phase3_owned_a_review_public_stub_03"\n'
         'printf \'{"schema_version":"2.0"}\\n\' > '
         '"$outdir/phase3_offline_provider_input/'
         'phase3_offline_provider_input.json"\n'
         'printf \'{"schema_version":"2.0","status":"stub_not_executed"}\\n\' > '
         '"$outdir/phase3_localisation_reopen_stub/'
         'localisation_reopen_plan.json"\n'
-        "for crystal in crystal_a crystal_b crystal_c; do\n"
+        "for crystal in public_stub_01 public_stub_03; do\n"
         '  printf \'{"schema_version":"2.0"}\\n\' > '
         '"$outdir/phase3_owned_a_review_${crystal}/package.json"\n'
         "done\n"
+        'printf \'{"decision":"hold"}\\n\' > '
+        '"$outdir/phase3_crystallographic_hold_${hold_crystal}/hold.json"\n'
         'printf "hash\\tprocess\\ttag\\tstatus\\n" > '
         '"$outdir/pipeline_info/trace.tsv"\n'
         "for process in VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT "
@@ -4334,14 +4343,22 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     job_environment["SLURM_JOB_ID"] = "123"
     job_environment["SLURM_CPUS_PER_TASK"] = "8"
     job_environment["SLURM_TMPDIR"] = str(tmp_path / "unknown-screen-slurm-tmp")
+    job_environment["FAKE_UNKNOWN_HOLD_CRYSTAL"] = held_crystal
     _run(
         [str(smoke_job), UNKNOWN_SCREEN_RUN_ID, str(remote_root), "unknown-screen"],
         cwd=tmp_path,
         environment=job_environment,
+        success=screen_success,
     )
     screen_result = json.loads(
         (child / "state/job-result.json").read_text(encoding="utf-8")
     )
+    if not screen_success:
+        assert screen_result["failure_class"] == "test_failure"
+        assert not (
+            child / "artifacts/qualification/unknown-screen-output-checksums.sha256"
+        ).exists()
+        return
     assert screen_result["failure_class"] == "success"
     assert screen_result["scheduler_state"] == "COMPLETED"
     screen_trace = (
@@ -4498,6 +4515,8 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     assert _decode_protocol(single_submitted.stdout)["profile"] == (
         "unknown-single-component"
     )
+    single_sbatch = (tmp_path / "sbatch-args").read_text(encoding="utf-8")
+    assert "--time=48:00:00" in single_sbatch
     single_nextflow = single / "source/.pixi/envs/hpc/bin/nextflow"
     _write_executable(
         single_nextflow,

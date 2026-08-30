@@ -14623,6 +14623,7 @@ with a collapsed combined parent or a guessed command.
   alternative retention, result-to-attempt binding, and PH8 reporting/release.
   Next start with focused format/lint/type/docs/wrapper/diff gates, then review
   and commit this bounded correction without launching pass 2.
+
 ## 2026-08-30 - M6 preflight audit closes three fixed-profile blockers
 
 - `PH3-P1-64` found that leakage correctly reused truthless tasks, but the
@@ -14645,3 +14646,25 @@ with a collapsed combined parent or a guessed command.
   exact-source CI for this focused commit, then qualify operational, observed
   mutation, and leakage separately; do not reinterpret the local stub as M6
   acceptance.
+
+## 2026-08-30 - Unknown continuation handoff is locally executable
+
+- A read-only continuation audit found four blockers independent of the active
+  screen: the handoff consumed nonexistent `finished_at` rather than the
+  wrapper's canonical `completed_at`, omitted the empty directory required by
+  owned-run registration, converted a valid crystallographic hold into wrapper
+  failure by demanding three A packages, and gave the controller no runtime
+  slack beyond a 24-hour MR child.
+- The focused clean break consumes only canonical `completed_at`, creates the
+  registry before registration, conserves exactly three distinct reviewed
+  crystal outcomes across A packages and holds, and gives screen and
+  single-component controllers 48 hours while retaining the 24-hour MR-child
+  bound. Discovery remains 24 hours and pass 2 remains 72 hours.
+- Seven focused handoff tests, the two-case real dispatcher lifecycle, and 24
+  repository-policy tests pass. The lifecycle accepts two A packages plus one
+  hold and rejects a duplicated hold/package crystal that omits its sibling.
+  Formatting, lint, type, documentation, and all reviewed wrapper syntax pass.
+- No HPC operation or scientific interpretation was performed. After this
+  focused `[skip ci]` commit is integrated, qualify the exact source and
+  deployed wrappers before staging the reviewed A-decision continuation from a
+  genuinely successful collected screen.

@@ -392,14 +392,14 @@ def stage_unknown_single_component_handoff(
         or result.get("scheduler_state") != "COMPLETED"
         or result.get("failure_class") != "success"
         or result.get("exit_code") != 0
-        or not isinstance(result.get("finished_at"), str)
+        or not isinstance(result.get("completed_at"), str)
     ):
         raise UnknownSingleComponentInputError(
             "unknown-screen parent lacks successful terminal evidence"
         )
     try:
         completed_at = datetime.fromisoformat(
-            str(result["finished_at"]).replace("Z", "+00:00")
+            str(result["completed_at"]).replace("Z", "+00:00")
         )
     except ValueError as error:
         raise UnknownSingleComponentInputError(
@@ -436,6 +436,7 @@ def stage_unknown_single_component_handoff(
         )
     output.mkdir(parents=True)
     registry = output / "owned_run_registry"
+    registry.mkdir()
     registered = register_phase3_owned_run(
         parent=OwnedPhaseIIIParentRun(
             run_id=parent_run_id,
