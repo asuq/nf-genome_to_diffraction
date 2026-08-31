@@ -14767,3 +14767,13 @@ with a collapsed combined parent or a guessed command.
   requested, and retain it as the successor to the unintegrated blanket
   eight-CPU change. Do not deploy or alter the current Marmic chain; integrate
   and build a new source-bound authority only after its mandatory checkpoint.
+- After the user requested immediate `dev/phase3` integration, CI run
+  `33437926992` exposed two stub-only workflows inheriting the production
+  four-CPU minimum on a two-CPU runner. Follow-up run `33438716467` passed all
+  1,653 Python tests and most workflow gates, then exposed the same constraint
+  in the composition fan-out stub. Every portable stub profile now caps
+  `process_mr` at one CPU/1 GB while the dedicated retry fixture deliberately
+  retains dynamic resources. All affected stubs and a structural policy test
+  pass locally; production resource directives are unchanged. Next run one
+  replacement exact-source CI and delete the temporary feature branch locally
+  and remotely after it finishes.

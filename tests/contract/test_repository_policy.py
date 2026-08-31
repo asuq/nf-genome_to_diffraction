@@ -318,6 +318,28 @@ def test_phase3_mr_retry_policy_is_bounded_and_resource_only() -> None:
     assert "'retry' : 'finish'" in block
 
 
+def test_portable_stub_profiles_fit_two_cpu_ci_runners() -> None:
+    stub_root = REPOSITORY / "tests/fixtures/stubs"
+    portable = (
+        "p6_empty_partner",
+        "composition_attempt_fanout",
+        "phase3_composition_beam",
+        "unknown_pass1_screen",
+        "multi_crystal_fanout",
+        "provider_empty_graph",
+        "localisation_wave",
+    )
+    for name in portable:
+        config = (stub_root / name / "nextflow.config").read_text(encoding="utf-8")
+        block = config.split("withLabel: process_mr", maxsplit=1)[1]
+        assert "cpus = 1" in block, name
+        assert "memory = '1 GB'" in block, name
+    retry = (stub_root / "mr_resource_retry/nextflow.config").read_text(
+        encoding="utf-8"
+    )
+    assert "withLabel: process_mr" not in retry
+
+
 def test_nextflow_process_scripts_avoid_parameterised_runtime_casts() -> None:
     """Reject the cast form that failed live script construction on Marmic."""
 
