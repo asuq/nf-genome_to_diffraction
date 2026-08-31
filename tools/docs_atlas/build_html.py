@@ -444,20 +444,20 @@ def _composition_loop() -> str:
     cycle = '<span class="composition-arrow">→</span>'.join(
         f'<span class="composition-cycle-step">{label}</span>'
         for label in (
-            "Choose another protein from the supplied list",
+            "Evaluate one candidate gene product as a possible heteromer partner",
             "Test 1, 2, 3, or 4 copies with Molecular Replacement",
             "Collect states",
             "Human review",
         )
     )
     return (
-        '<section class="composition-loop" aria-label="Additional distinct-component search loop">'
-        '<h3>How the additional distinct-component loop works</h3>'
-        '<p>The first component is reviewed before expansion. The workflow may then add as many as five different components, one at each depth.</p>'
+        '<section class="composition-loop" aria-label="Heteromer-partner search loop">'
+        '<h3>How the heteromer-partner loop works</h3>'
+        '<p>A gene product is the protein encoded by one gene. Each hypothesis adds one candidate gene product to the retained component set and tests whether they can work together as a heteromer. Competing hypotheses may test different candidate partners.</p>'
         f'<div class="composition-slots" aria-label="Component depth progression">{components}</div>'
         f'<div class="composition-cycle" aria-label="Work repeated at each additional-component depth">{cycle}</div>'
-        '<div class="composition-loopback"><strong>Stop</strong> → publish the reviewed result &nbsp; | &nbsp; <strong>Continue</strong> ↻ repeat the cycle for the next component.</div>'
-        '<p class="composition-limits">Limits: at most 25 attempts per depth, up to three retained parent states, 100 additional-component attempts per crystal, and six total components. Depths four through six remain provisional.</p>'
+        '<div class="composition-loopback"><strong>Stop</strong> → publish the reviewed result &nbsp; | &nbsp; <strong>Continue</strong> ↻ repeat with the next partner candidate.</div>'
+        '<p class="composition-limits">Limits: at most 25 attempts per depth, up to three retained parent states, 100 partner attempts per crystal, and six total components. Depths four through six remain provisional.</p>'
         '</section>'
     )
 
@@ -781,7 +781,7 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
             '      <section class="atlas-workflow-intro" aria-labelledby="atlas-workflow-intro-title">'
             '<h2 id="atlas-workflow-intro-title">What this workflow does</h2>'
             '<div class="atlas-workflow-copy"><p>The workflow narrows many possible proteins into a small set of structural explanations that scientists can inspect.</p>'
-            '<ol class="atlas-workflow-steps"><li><strong>1 · Check data</strong>Check the MTZ diffraction measurements.</li><li><strong>2 · Find models</strong>Find protein structure models for proteins on the supplied list.</li><li><strong>3 · Choose copy counts</strong>Use Matthews analysis to keep copy counts that physically fit.</li><li><strong>4 · Test and review</strong>Place each model hypothesis with Molecular Replacement, then inspect maps.</li><li><strong>5 · Expand or finish</strong>Test other proteins if needed, then write a reviewed report.</li></ol>'
+            '<ol class="atlas-workflow-steps"><li><strong>1 · Check data</strong>Check the MTZ diffraction measurements.</li><li><strong>2 · Find models</strong>Find protein structure models for proteins on the supplied list.</li><li><strong>3 · Choose copy counts</strong>Use Matthews analysis to keep copy counts that physically fit.</li><li><strong>4 · Test and review</strong>Place each model hypothesis with Molecular Replacement, then inspect maps.</li><li><strong>5 · Expand or finish</strong>Evaluate candidate gene products as possible heteromer partners, then write a reviewed report.</li></ol>'
             '<p class="atlas-workflow-inputs"><strong>You provide:</strong> an organism or sample name; a required protein FASTA, annotation source/version, and MTZ file; and optional genome FASTA, GFF/GBFF, localisation, and molecular-weight evidence. The input boxes below mark required and optional items separately.</p></div>'
             '</section>\n'
             '      <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
@@ -976,7 +976,7 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         ],
     )
     composition = {
-        "title": "Additional-component search loop",
+        "title": "Heteromer-partner search loop",
         "summary": by_id["composition"]["summary"],
         "purpose": by_id["composition"]["purpose"],
         "inputs": by_id["composition"]["inputs"],

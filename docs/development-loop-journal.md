@@ -14764,5 +14764,9 @@ with a collapsed combined parent or a guessed command.
   and annotation describe the supplied protein list; the protein FASTA feeds
   model discovery; the MTZ feeds preflight; localisation and molecular-weight
   evidence changes search order. Required paths are solid and context/optional
-  paths are dashed. Next inspect the live prototype before further workflow-
-  documentation changes.
+  paths are dashed.
+- The composition wording now describes the actual heteromer mechanism: each
+  hypothesis adds one candidate gene product to a retained component set and
+  tests whether they work together. Competing hypotheses may evaluate different
+  partner candidates; no arbitrary single protein is chosen in advance. Next
+  inspect the live prototype before further workflow-documentation changes.

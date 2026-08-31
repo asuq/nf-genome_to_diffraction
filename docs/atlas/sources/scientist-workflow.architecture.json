@@ -31,7 +31,7 @@
         "id": "composition_loop",
         "label": "Additional-component loop",
         "focus": ["first_component_search_review", "next_distinct_component", "additional_component_copy_search", "report"],
-        "note": "Choose another protein, test plausible copy counts, review the result, and either repeat or stop."
+        "note": "Evaluate one candidate gene product per hypothesis as a possible heteromer partner, review the result, and either repeat or stop."
       }
     ]
   },
@@ -120,9 +120,9 @@
     {
       "id": "next_distinct_component",
       "type": "database",
-      "label": "Choose Another Protein",
-      "sublabel": "from the supplied list",
-      "tag": "up to six total components",
+      "label": "Evaluate Heteromer Partner",
+      "sublabel": "one gene product per hypothesis",
+      "tag": "tested with retained components",
       "pos": [570, 470],
       "size": [220, 68]
     },
@@ -131,7 +131,7 @@
       "type": "backend",
       "label": "Test Copy Count + Review",
       "sublabel": "1, 2, 3, or 4 copies",
-      "tag": "repeat when another protein may fit",
+      "tag": "review partner placement",
       "pos": [580, 590],
       "size": [200, 68]
     },
@@ -160,7 +160,7 @@
     },
     {
       "kind": "region",
-      "label": "Additional proteins, up to six total",
+      "label": "Heteromer partners, up to six components total",
       "wraps": ["next_distinct_component", "additional_component_copy_search", "report"],
       "pad": 30
     }
@@ -270,7 +270,7 @@
       "id": "copy_search_next_component",
       "from": "additional_component_copy_search",
       "to": "next_distinct_component",
-      "label": "another distinct protein",
+      "label": "next partner candidate",
       "labelAt": [900, 555],
       "variant": "dashed",
       "fromSide": "right",

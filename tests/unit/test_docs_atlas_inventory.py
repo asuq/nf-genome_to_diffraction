@@ -175,10 +175,11 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     )
     assert "phase3-composition-beam-stub" in composition
     assert "Depths 4-6 remain visible but unvalidated" in composition
-    assert "How the additional distinct-component loop works" in composition
-    assert "The first component is reviewed before expansion" in composition
+    assert "How the heteromer-partner loop works" in composition
+    assert "A gene product is the protein encoded by one gene" in composition
+    assert "Each hypothesis adds one candidate gene product" in composition
+    assert "Competing hypotheses may test different candidate partners" in composition
     assert "Test 1, 2, 3, or 4 copies with Molecular Replacement" in composition
-    assert "five different components, one at each depth" in composition
     assert "six total components" in composition
     assert "next slot" not in composition
     assert 'class="stage-navigator"' in composition
@@ -273,7 +274,10 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "proceed decision" not in scientist
     assert "First-Component Search + Review" in scientist
     assert "Matthews count → joint search → maps" in scientist
-    assert "Choose Another Protein" in scientist
+    assert "Evaluate Heteromer Partner" in scientist
+    assert "one gene product per hypothesis" in scientist
+    assert "next partner candidate" in scientist
+    assert "Choose Another Protein" not in scientist
     assert "Test Copy Count + Review" in scientist
     assert "Organism / Sample Name" in scientist
     assert "dedicated field not yet implemented" in scientist
