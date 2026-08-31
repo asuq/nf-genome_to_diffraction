@@ -19,26 +19,26 @@
       {
         "id": "end_to_end",
         "label": "End-to-end analysis",
-        "focus": ["inputs", "preflight", "discover_prepare", "rank_mr", "review_refine", "component_slots", "composition_cycle", "report"],
+        "focus": ["inputs", "preflight", "discover_prepare", "first_component_copy_search", "review_first_component", "next_distinct_component", "additional_component_copy_search", "report"],
         "note": "Follow one crystal from fixed source inputs to a bounded scientific report."
       },
       {
         "id": "inputs_records",
         "label": "Inputs and evidence",
-        "focus": ["localisation_weight", "inputs", "preflight", "invalid_input"],
+        "focus": ["localisation_weight", "inputs", "preflight"],
         "note": "This evidence may change which candidates are tested first; it cannot exclude candidates or prove identity/composition."
       },
       {
         "id": "search_and_review",
         "label": "Search and review",
-        "focus": ["discover_prepare", "rank_mr", "review_refine", "component_slots", "composition_cycle", "report"],
+        "focus": ["discover_prepare", "first_component_copy_search", "review_first_component", "next_distinct_component", "additional_component_copy_search", "report"],
         "note": "Model discovery leads to candidate testing, human review, and an honestly bounded conclusion."
       },
       {
         "id": "composition_loop",
-        "label": "Additional component loop",
-        "focus": ["review_refine", "component_slots", "composition_cycle", "report"],
-        "note": "Test each additional slot in order, repeat the run-and-review cycle, then stop with a reviewed report."
+        "label": "Additional distinct-component loop",
+        "focus": ["review_first_component", "next_distinct_component", "additional_component_copy_search", "report"],
+        "note": "Test each additional component in order, repeat the run-and-review cycle, then stop with a reviewed report."
       }
     ]
   },
@@ -58,8 +58,8 @@
       "label": "MTZ Preflight",
       "sublabel": "symmetry + Free-R",
       "tag": "automatic check",
-      "pos": [180, 110],
-      "size": [140, 68]
+      "pos": [170, 200],
+      "size": [130, 68]
     },
     {
       "id": "discover_prepare",
@@ -67,44 +67,44 @@
       "label": "Find + Prepare Models",
       "sublabel": "PDB + local Foldseek",
       "tag": "offline compute",
-      "pos": [180, 290],
+      "pos": [330, 200],
       "size": [170, 68]
     },
     {
-      "id": "rank_mr",
+      "id": "first_component_copy_search",
       "type": "backend",
-      "label": "Rank + Molecular Replacement",
-      "sublabel": "Matthews + Phaser",
-      "tag": "search evidence",
-      "pos": [450, 200],
-      "size": [210, 68]
+      "label": "First-Component Joint Search",
+      "sublabel": "Matthews-retained copy count",
+      "tag": "1-4 copies; sequential rescue only",
+      "pos": [530, 200],
+      "size": [220, 68]
     },
     {
-      "id": "review_refine",
+      "id": "review_first_component",
       "type": "security",
-      "label": "Review + Maps",
-      "sublabel": "seed + sequence + claims",
-      "tag": "human gates",
-      "pos": [730, 200],
-      "size": [140, 68]
+      "label": "Review First-Component Solutions",
+      "sublabel": "retain up to three states",
+      "tag": "maps + file-based decision",
+      "pos": [780, 200],
+      "size": [220, 68]
     },
     {
-      "id": "component_slots",
+      "id": "next_distinct_component",
       "type": "database",
-      "label": "Additional Slots",
-      "sublabel": "B → C → D → E → F",
+      "label": "Next Distinct Component",
+      "sublabel": "component 2 → 3 → 4 → 5 → 6",
       "tag": "depth 4-6 tentative",
-      "pos": [720, 430],
-      "size": [160, 68]
+      "pos": [790, 430],
+      "size": [200, 68]
     },
     {
-      "id": "composition_cycle",
+      "id": "additional_component_copy_search",
       "type": "backend",
-      "label": "Repeat at Each Slot",
-      "sublabel": "plan → run → collect → review",
-      "tag": "one slot at a time",
-      "pos": [720, 560],
-      "size": [160, 68]
+      "label": "Test Its Copy Count",
+      "sublabel": "1, 2, 3, or 4 copies",
+      "tag": "then collect + review",
+      "pos": [800, 560],
+      "size": [180, 68]
     },
     {
       "id": "report",
@@ -112,7 +112,7 @@
       "label": "Reviewed Report",
       "sublabel": "supported claims",
       "tag": "bounded conclusion",
-      "pos": [510, 560],
+      "pos": [520, 560],
       "size": [160, 68]
     },
     {
@@ -121,30 +121,21 @@
       "label": "Localisation + Molecular Weight",
       "sublabel": "user-supplied prior",
       "tag": "missing is neutral",
-      "pos": [445, 30],
+      "pos": [530, 30],
       "size": [220, 68]
-    },
-    {
-      "id": "invalid_input",
-      "type": "security",
-      "label": "Input Error",
-      "sublabel": "invalid diffraction data",
-      "tag": "analysis stops",
-      "pos": [30, 420],
-      "size": [170, 68]
     }
   ],
   "boundaries": [
     {
       "kind": "region",
-      "label": "Initial A screening",
-      "wraps": ["localisation_weight", "inputs", "preflight", "discover_prepare", "rank_mr", "review_refine", "invalid_input"],
+      "label": "First-component screening",
+      "wraps": ["localisation_weight", "inputs", "preflight", "discover_prepare", "first_component_copy_search", "review_first_component"],
       "pad": 16
     },
     {
       "kind": "region",
-      "label": "Additional components B-F",
-      "wraps": ["component_slots", "composition_cycle", "report"],
+      "label": "Additional distinct components 2-6",
+      "wraps": ["next_distinct_component", "additional_component_copy_search", "report"],
       "pad": 16
     }
   ],
@@ -156,96 +147,79 @@
       "variant": "emphasis"
     },
     {
-      "id": "inputs_discovery",
-      "from": "inputs",
-      "to": "discover_prepare",
-      "variant": "emphasis"
-    },
-    {
-      "id": "preflight_mr",
+      "id": "preflight_discovery",
       "from": "preflight",
-      "to": "rank_mr",
-      "label": "usable; warnings retained",
-      "variant": "emphasis",
-      "fromSide": "right",
-      "toSide": "left"
-    },
-    {
-      "id": "discovery_mr",
-      "from": "discover_prepare",
-      "to": "rank_mr",
-      "variant": "emphasis",
-      "fromSide": "right",
-      "toSide": "left"
-    },
-    {
-      "id": "mr_review",
-      "from": "rank_mr",
-      "to": "review_refine",
+      "to": "discover_prepare",
       "variant": "emphasis",
       "route": "straight",
       "fromSide": "right",
       "toSide": "left"
     },
     {
-      "id": "review_slots",
-      "from": "review_refine",
-      "to": "component_slots",
-      "label": "first component approved",
-      "labelAt": [800, 340],
+      "id": "discovery_first_component_copy_search",
+      "from": "discover_prepare",
+      "to": "first_component_copy_search",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "copy_search_review",
+      "from": "first_component_copy_search",
+      "to": "review_first_component",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "review_next_distinct_component",
+      "from": "review_first_component",
+      "to": "next_distinct_component",
+      "label": "reviewed first component",
+      "labelAt": [890, 340],
       "variant": "security",
       "route": "straight",
       "fromSide": "bottom",
       "toSide": "top"
-    },
-    {
-      "id": "preflight_invalid",
-      "from": "preflight",
-      "to": "invalid_input",
-      "label": "invalid input",
-      "labelAt": [62, 380],
-      "variant": "security",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "via": [[250, 190], [10, 190], [10, 390], [115, 390]]
     },
     {
       "id": "localisation_ranking",
       "from": "localisation_weight",
-      "to": "rank_mr",
+      "to": "first_component_copy_search",
       "label": "changes test order",
       "variant": "dashed",
-      "route": "straight",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelAt": [555, 150]
+      "route": "straight",
+      "labelAt": [640, 142]
     },
     {
-      "id": "slots_cycle",
-      "from": "component_slots",
-      "to": "composition_cycle",
+      "id": "component_copy_search",
+      "from": "next_distinct_component",
+      "to": "additional_component_copy_search",
       "variant": "emphasis",
       "route": "straight",
       "fromSide": "bottom",
       "toSide": "top"
     },
     {
-      "id": "cycle_slots",
-      "from": "composition_cycle",
-      "to": "component_slots",
-      "label": "continue to next slot",
-      "labelAt": [970, 529],
+      "id": "copy_search_next_component",
+      "from": "additional_component_copy_search",
+      "to": "next_distinct_component",
+      "label": "continue with next component",
+      "labelAt": [1120, 529],
       "variant": "dashed",
       "fromSide": "right",
       "toSide": "right",
-      "via": [[970, 594], [970, 464]]
+      "via": [[1120, 594], [1120, 464]]
     },
     {
       "id": "cycle_report",
-      "from": "composition_cycle",
+      "from": "additional_component_copy_search",
       "to": "report",
       "label": "stop",
-      "labelAt": [700, 540],
+      "labelAt": [780, 540],
       "variant": "security",
       "route": "straight",
       "fromSide": "left",

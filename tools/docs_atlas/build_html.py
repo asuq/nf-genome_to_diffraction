@@ -437,27 +437,27 @@ def _list(items: list[str]) -> str:
 
 
 def _composition_loop() -> str:
-    slots = '<span class="composition-arrow">→</span>'.join(
-        f'<span class="composition-slot{(" reviewed" if label == "A" else "")}">{label}</span>'
-        for label in ("A", "B", "C", "D", "E", "F")
+    components = '<span class="composition-arrow">→</span>'.join(
+        f'<span class="composition-slot{(" reviewed" if number == 1 else "")}">Component {number}</span>'
+        for number in range(1, 7)
     )
     cycle = '<span class="composition-arrow">→</span>'.join(
         f'<span class="composition-cycle-step">{label}</span>'
         for label in (
-            "Plan candidates",
-            "Run Molecular Replacement attempts",
+            "Choose an unrepresented catalogue component",
+            "Test 1, 2, 3, or 4 copies with Molecular Replacement",
             "Collect states",
             "Human review",
         )
     )
     return (
-        '<section class="composition-loop" aria-label="B through F additional-component search loop">'
-        '<h3>How the B-F loop works</h3>'
-        '<p><strong>A</strong> is the first reviewed component. <strong>B-F</strong> means up to five additional component slots tested one depth at a time.</p>'
-        f'<div class="composition-slots" aria-label="Component depth progression">{slots}</div>'
+        '<section class="composition-loop" aria-label="Additional distinct-component search loop">'
+        '<h3>How the additional distinct-component loop works</h3>'
+        '<p>The first component is reviewed before expansion. The workflow may then add as many as five different components, one at each depth.</p>'
+        f'<div class="composition-slots" aria-label="Component depth progression">{components}</div>'
         f'<div class="composition-cycle" aria-label="Work repeated at each additional-component depth">{cycle}</div>'
-        '<div class="composition-loopback"><strong>Stop</strong> → publish the reviewed result &nbsp; | &nbsp; <strong>Continue</strong> ↻ repeat the cycle for the next slot.</div>'
-        '<p class="composition-limits">Limits: at most 25 attempts per depth, up to three retained parent states, 100 additional-component attempts per crystal, and six total component slots. Depths four through six remain provisional.</p>'
+        '<div class="composition-loopback"><strong>Stop</strong> → publish the reviewed result &nbsp; | &nbsp; <strong>Continue</strong> ↻ repeat the cycle for the next component.</div>'
+        '<p class="composition-limits">Limits: at most 25 attempts per depth, up to three retained parent states, 100 additional-component attempts per crystal, and six total components. Depths four through six remain provisional.</p>'
         '</section>'
     )
 
@@ -745,7 +745,7 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
         arrow_legend = (
             '      <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
             '<span class="atlas-arrow-key">Solid green: forward workflow step</span>'
-            '<span class="atlas-arrow-key decision">Dashed red: review decision, invalid input, or stop</span>'
+            '<span class="atlas-arrow-key decision">Dashed red: review decision or stop</span>'
             '<span class="atlas-arrow-key context">Dashed purple: evidence influence or repeat/continue</span>'
             "</div>\n"
         )
@@ -818,8 +818,11 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
             by_id["discovery-models"],
             [("Open full detail", "stages/discovery-models.html")],
         ),
-        "rank_mr": (by_id["rank-mr"], [("Open full detail", "stages/rank-mr.html")]),
-        "review_refine": (
+        "first_component_copy_search": (
+            by_id["rank-mr"],
+            [("Open full detail", "stages/rank-mr.html")],
+        ),
+        "review_first_component": (
             by_id["review-refine-maps"],
             [("Open full detail", "stages/review-refine-maps.html")],
         ),
@@ -836,11 +839,11 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         "warning": "Depths four through six remain provisional, and deeper private analysis still requires complete review evidence.",
         "extra_html": _composition_loop(),
     }
-    mapping["component_slots"] = (
+    mapping["next_distinct_component"] = (
         composition,
         [("Open composition detail", "stages/composition.html")],
     )
-    mapping["composition_cycle"] = (
+    mapping["additional_component_copy_search"] = (
         composition,
         [("Open composition detail", "stages/composition.html")],
     )
@@ -878,33 +881,6 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
     mapping["localisation_weight"] = (
         localisation,
         [("Open full detail", f"subsystems/{_slug('localisation_weight')}.html")],
-    )
-    invalid_input = {
-        "title": "Invalid diffraction input",
-        "summary": "Preflight found no usable observation selection or detected a fatal diffraction-data problem, so the analysis stops with an explicit input error.",
-        "purpose": "Fail clearly on unusable diffraction input without presenting the failure as a request for routine approval.",
-        "inputs": by_id["preflight"]["inputs"],
-        "outputs": [
-            "Failed-input status",
-            "Preflight findings and report",
-            "Actionable reason the analysis stopped",
-        ],
-        "decisions": [
-            "Stop when no dataset-qualified observation selection is available",
-            "Stop when preflight detects a fatal condition",
-            "Continue automatically when preflight passes or completes with warnings",
-        ],
-        "boundaries": [
-            "This is an input failure, not a routine human checkpoint",
-            "Warnings alone do not stop the workflow",
-            "No protein identity is inferred",
-        ],
-        "maturity": "implemented fail-closed input validation",
-        "warning": "Correct or replace invalid diffraction input before starting a new analysis.",
-    }
-    mapping["invalid_input"] = (
-        invalid_input,
-        [("Open preflight detail", "stages/preflight.html")],
     )
     return "".join(_node_detail(node_id, *value) for node_id, value in mapping.items())
 

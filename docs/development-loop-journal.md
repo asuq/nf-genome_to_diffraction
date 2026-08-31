@@ -14721,10 +14721,9 @@ with a collapsed combined parent or a guessed command.
 
 ## 2026-08-31 - Documentation preflight flow and reader sizing corrected
 
-- Repository wiring confirms that preflight does not impose a routine human
-  approval before model discovery. Pass and pass-with-warning results continue;
-  only invalid diffraction input fails. The scientist diagram and stage text now
-  state those outcomes and no longer show a preflight checkpoint or paused state.
+- The scientist overview no longer presents a routine interactive approval
+  between preflight and model discovery. Qualification and failure semantics
+  remain in the stage detail rather than as first-screen workflow boxes.
 - The documentation viewer previously alternated between two desktop widths
   because custom top spacing and the arrow legend sat outside Archify's measured
   reader frame. Both are now included in the measured layout. Browser probes at
@@ -14732,3 +14731,20 @@ with a collapsed combined parent or a guessed command.
 - Archify showcase validation passed all nine checks, the focused documentation
   tests and lint pass, and no workflow code or HPC run changed. Next review the
   corrected prototype before making further workflow-documentation changes.
+
+## 2026-08-31 - Phase III scientist diagram clarified
+
+- Follow-up review distinguished internal Phase III file contracts from the
+  newcomer-facing scientific sequence. The scientist diagram now shows MTZ
+  preflight followed by model discovery without a visible approval pause; the
+  implementation-level review bundle remains developer documentation.
+- Minor failure and hold outcomes were removed from the first-screen diagram to
+  keep its main scientific path legible. No workflow code or scientific policy
+  changed.
+- Newcomer-facing wording now uses numbered components rather than letter names
+  or slots. The diagram explicitly shows a joint 1--4-copy search for the first
+  component, review retention of at most three solutions, and a separate loop
+  that tests 1--4 copies for each additional distinct component through a maximum
+  of six total components. The corrected Archify artifact passes all nine
+  showcase checks. Next inspect the live prototype before further workflow-
+  documentation changes.

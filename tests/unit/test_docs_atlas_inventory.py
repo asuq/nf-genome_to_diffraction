@@ -148,7 +148,7 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     assert "supplies these observations at the beginning" in scientist
     assert "depths four through six remain provisional" in scientist
     assert "Solid green: forward workflow step" in scientist
-    assert "Dashed red: review decision, invalid input, or stop" in scientist
+    assert "Dashed red: review decision or stop" in scientist
     assert "Dashed purple: evidence influence or repeat/continue" in scientist
 
     composition = outputs[module.CURRENT / "stages/composition.html"].decode("utf-8")
@@ -158,9 +158,12 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     )
     assert "phase3-composition-beam-stub" in composition
     assert "Depths 4-6 remain visible but unvalidated" in composition
-    assert "How the B-F loop works" in composition
-    assert "<strong>A</strong> is the first reviewed component" in composition
-    assert "Run Molecular Replacement attempts" in composition
+    assert "How the additional distinct-component loop works" in composition
+    assert "The first component is reviewed before expansion" in composition
+    assert "Test 1, 2, 3, or 4 copies with Molecular Replacement" in composition
+    assert "five different components, one at each depth" in composition
+    assert "six total components" in composition
+    assert "next slot" not in composition
     assert 'class="stage-navigator"' in composition
     assert "data-stage-select" in composition
     assert composition.count('aria-current="step"') == 1
@@ -202,13 +205,12 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
         "inputs",
         "preflight",
         "discover_prepare",
-        "rank_mr",
-        "review_refine",
-        "component_slots",
-        "composition_cycle",
+        "first_component_copy_search",
+        "review_first_component",
+        "next_distinct_component",
+        "additional_component_copy_search",
         "report",
         "localisation_weight",
-        "invalid_input",
     ):
         assert f'data-atlas-node-doc="{node_id}"' in scientist
     for node_id in (
@@ -246,8 +248,21 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "data-theme-toggle" not in stage
     assert "Preflight Checkpoint" not in scientist
     assert "Paused before Molecular Replacement" not in scientist
-    assert "Continue automatically after a pass" in stage
-    assert "Invalid diffraction input" in scientist
+    assert "no interactive pause between preflight and model discovery" in stage
+    assert "Crystallographic Review" not in scientist
+    assert "proceed decision" not in scientist
+    assert "First-Component Joint Search" in scientist
+    assert "Matthews-retained copy count" in scientist
+    assert "sequential rescue only" in scientist
+    assert "Next Distinct Component" in scientist
+    assert "component 2 → 3 → 4 → 5 → 6" in scientist
+    assert "Components B-F" not in scientist
+    assert "Additional Slots" not in scientist
+    assert "Input Error" not in scientist
+    assert "Held Dataset" not in scientist
+    assert scientist.index("MTZ Preflight") < scientist.index(
+        "Find + Prepare Models"
+    ) < scientist.index("First-Component Joint Search")
 
 
 def test_developer_legend_uses_domain_labels() -> None:
