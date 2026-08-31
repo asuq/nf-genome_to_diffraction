@@ -30,7 +30,7 @@
   },
   "components": [
     {"id": "atlas_home", "type": "frontend", "label": "Atlas Home", "sublabel": "private offline index", "pos": [50, 280], "size": [150, 64]},
-    {"id": "scientist_portal", "type": "frontend", "label": "Scientist / Operator", "sublabel": "workflow + evidence", "pos": [280, 80], "size": [180, 64]},
+    {"id": "scientist_portal", "type": "frontend", "label": "Scientist", "sublabel": "workflow + evidence", "pos": [280, 80], "size": [180, 64]},
     {"id": "developer_portal", "type": "backend", "label": "Developer", "sublabel": "architecture + code", "pos": [280, 280], "size": [160, 64]},
     {"id": "validation_portal", "type": "security", "label": "Validation & Evidence", "sublabel": "controls + release gates", "pos": [280, 480], "size": [190, 64]},
     {"id": "subsystems", "type": "backend", "label": "Shared Subsystems", "sublabel": "canonical role-based pages", "pos": [540, 180], "size": [180, 64]},

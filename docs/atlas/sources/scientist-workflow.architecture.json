@@ -6,7 +6,7 @@
     "locale": "en",
     "output": "docs/atlas/current/diagrams/scientist-workflow.html",
     "quality_profile": "showcase",
-    "viewBox": [1250, 560],
+    "viewBox": [1250, 730],
     "legend": {
       "mode": "auto",
       "entries": {
@@ -19,20 +19,26 @@
       {
         "id": "end_to_end",
         "label": "End-to-end analysis",
-        "focus": ["inputs", "preflight", "preflight_review", "discover_prepare", "rank_mr", "review_refine", "conclusion"],
+        "focus": ["inputs", "preflight", "preflight_checkpoint", "discover_prepare", "rank_mr", "review_refine", "component_slots", "composition_cycle", "report"],
         "note": "Follow one crystal from fixed source inputs to a bounded scientific report."
       },
       {
         "id": "inputs_records",
         "label": "Inputs and evidence",
-        "focus": ["localisation_weight", "inputs", "preflight", "preflight_review", "needs_review"],
+        "focus": ["localisation_weight", "inputs", "preflight", "preflight_checkpoint", "paused"],
         "note": "This evidence may change which candidates are tested first; it cannot exclude candidates or prove identity/composition."
       },
       {
         "id": "search_and_review",
         "label": "Search and review",
-        "focus": ["discover_prepare", "rank_mr", "review_refine", "conclusion"],
+        "focus": ["discover_prepare", "rank_mr", "review_refine", "component_slots", "composition_cycle", "report"],
         "note": "Model discovery leads to candidate testing, human review, and an honestly bounded conclusion."
+      },
+      {
+        "id": "composition_loop",
+        "label": "Additional component loop",
+        "focus": ["review_refine", "component_slots", "composition_cycle", "report"],
+        "note": "Test each additional slot in order, repeat the run-and-review cycle, then stop with a reviewed report."
       }
     ]
   },
@@ -43,8 +49,8 @@
       "label": "Inputs",
       "sublabel": "catalogue + MTZ",
       "tag": "annotation fixed",
-      "pos": [30, 250],
-      "size": [130, 68]
+      "pos": [30, 180],
+      "size": [110, 68]
     },
     {
       "id": "preflight",
@@ -52,17 +58,17 @@
       "label": "MTZ Preflight",
       "sublabel": "symmetry + Free-R",
       "tag": "checks evidence",
-      "pos": [185, 250],
-      "size": [130, 68]
+      "pos": [165, 180],
+      "size": [110, 68]
     },
     {
-      "id": "preflight_review",
+      "id": "preflight_checkpoint",
       "type": "security",
-      "label": "Preflight Review",
-      "sublabel": "proceed / needs review",
+      "label": "Preflight Checkpoint",
+      "sublabel": "proceed or pause",
       "tag": "human checkpoint",
-      "pos": [340, 250],
-      "size": [150, 68]
+      "pos": [300, 180],
+      "size": [140, 68]
     },
     {
       "id": "discover_prepare",
@@ -70,7 +76,7 @@
       "label": "Find + Prepare Models",
       "sublabel": "PDB + local Foldseek",
       "tag": "offline compute",
-      "pos": [515, 250],
+      "pos": [465, 180],
       "size": [150, 68]
     },
     {
@@ -79,8 +85,8 @@
       "label": "Rank + Molecular Replacement",
       "sublabel": "Matthews + Phaser",
       "tag": "search evidence",
-      "pos": [690, 250],
-      "size": [210, 68]
+      "pos": [640, 180],
+      "size": [200, 68]
     },
     {
       "id": "review_refine",
@@ -88,35 +94,67 @@
       "label": "Review + Maps",
       "sublabel": "seed + sequence + claims",
       "tag": "human gates",
-      "pos": [925, 250],
+      "pos": [865, 180],
       "size": [130, 68]
     },
     {
-      "id": "conclusion",
+      "id": "component_slots",
       "type": "database",
-      "label": "Conclude",
-      "sublabel": "composition + report",
+      "label": "Additional Slots",
+      "sublabel": "B → C → D → E → F",
       "tag": "depth 4-6 tentative",
-      "pos": [1080, 250],
-      "size": [130, 68]
+      "pos": [850, 430],
+      "size": [160, 68]
+    },
+    {
+      "id": "composition_cycle",
+      "type": "backend",
+      "label": "Repeat at Each Slot",
+      "sublabel": "plan → run → collect → review",
+      "tag": "one slot at a time",
+      "pos": [850, 560],
+      "size": [160, 68]
+    },
+    {
+      "id": "report",
+      "type": "database",
+      "label": "Reviewed Report",
+      "sublabel": "supported claims",
+      "tag": "bounded conclusion",
+      "pos": [650, 560],
+      "size": [160, 68]
     },
     {
       "id": "localisation_weight",
       "type": "database",
-      "label": "Localisation + MW",
+      "label": "Localisation + Molecular Weight",
       "sublabel": "user-supplied prior",
       "tag": "missing is neutral",
-      "pos": [30, 70],
-      "size": [150, 68]
+      "pos": [30, 40],
+      "size": [220, 68]
     },
     {
-      "id": "needs_review",
+      "id": "paused",
       "type": "security",
-      "label": "Needs Review",
-      "sublabel": "check diffraction before Molecular Replacement",
-      "tag": "not started",
-      "pos": [280, 410],
-      "size": [270, 68]
+      "label": "Paused",
+      "sublabel": "resolve diffraction issue",
+      "tag": "before Molecular Replacement",
+      "pos": [260, 310],
+      "size": [220, 68]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Initial A screening",
+      "wraps": ["localisation_weight", "inputs", "preflight", "preflight_checkpoint", "discover_prepare", "rank_mr", "review_refine", "paused"],
+      "pad": 16
+    },
+    {
+      "kind": "region",
+      "label": "Additional components B-F",
+      "wraps": ["component_slots", "composition_cycle", "report"],
+      "pad": 16
     }
   ],
   "connections": [
@@ -130,20 +168,20 @@
       "toSide": "left"
     },
     {
-      "id": "preflight_checkpoint",
+      "id": "preflight_to_checkpoint",
       "from": "preflight",
-      "to": "preflight_review",
+      "to": "preflight_checkpoint",
       "variant": "emphasis",
       "route": "straight",
       "fromSide": "right",
       "toSide": "left"
     },
     {
-      "id": "review_discovery",
-      "from": "preflight_review",
+      "id": "checkpoint_discovery",
+      "from": "preflight_checkpoint",
       "to": "discover_prepare",
       "label": "proceed",
-      "labelAt": [502, 230],
+      "labelAt": [452, 150],
       "variant": "emphasis",
       "route": "straight",
       "fromSide": "right",
@@ -168,22 +206,22 @@
       "toSide": "left"
     },
     {
-      "id": "review_conclusion",
+      "id": "review_slots",
       "from": "review_refine",
-      "to": "conclusion",
-      "label": "reviewed",
-      "labelAt": [1068, 230],
+      "to": "component_slots",
+      "label": "first component approved",
+      "labelAt": [930, 340],
       "variant": "security",
       "route": "straight",
-      "fromSide": "right",
-      "toSide": "left"
+      "fromSide": "bottom",
+      "toSide": "top"
     },
     {
-      "id": "review_needs_review",
-      "from": "preflight_review",
-      "to": "needs_review",
-      "label": "needs review",
-      "labelAt": [415, 364],
+      "id": "checkpoint_paused",
+      "from": "preflight_checkpoint",
+      "to": "paused",
+      "label": "pause",
+      "labelAt": [370, 280],
       "variant": "security",
       "route": "straight",
       "fromSide": "bottom",
@@ -197,7 +235,38 @@
       "variant": "dashed",
       "fromSide": "right",
       "toSide": "top",
-      "via": [[795, 104]]
+      "via": [[740, 74]]
+    },
+    {
+      "id": "slots_cycle",
+      "from": "component_slots",
+      "to": "composition_cycle",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "cycle_slots",
+      "from": "composition_cycle",
+      "to": "component_slots",
+      "label": "continue to next slot",
+      "labelAt": [1100, 529],
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "right",
+      "via": [[1100, 594], [1100, 464]]
+    },
+    {
+      "id": "cycle_report",
+      "from": "composition_cycle",
+      "to": "report",
+      "label": "stop",
+      "labelAt": [830, 540],
+      "variant": "security",
+      "route": "straight",
+      "fromSide": "left",
+      "toSide": "right"
     }
   ]
 }

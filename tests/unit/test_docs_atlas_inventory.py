@@ -147,14 +147,20 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     assert "User-provided localisation and molecular-weight evidence" in scientist
     assert "supplies these observations at the beginning" in scientist
     assert "depths four through six remain provisional" in scientist
+    assert "Solid green: forward workflow step" in scientist
+    assert "Dashed red: reviewed decision, pause, or stop" in scientist
+    assert "Dashed purple: evidence influence or repeat/continue" in scientist
 
     composition = outputs[module.CURRENT / "stages/composition.html"].decode("utf-8")
     assert (
-        "<details><summary>Operator commands and implementation links</summary>"
+        "<details><summary>Run commands and implementation links</summary>"
         in composition
     )
     assert "phase3-composition-beam-stub" in composition
     assert "Depths 4-6 remain visible but unvalidated" in composition
+    assert "How the B-F loop works" in composition
+    assert "<strong>A</strong> is the first reviewed component" in composition
+    assert "Run Molecular Replacement attempts" in composition
     assert 'class="stage-navigator"' in composition
     assert "data-stage-select" in composition
     assert composition.count('aria-current="step"') == 1
@@ -195,12 +201,15 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     for node_id in (
         "inputs",
         "preflight",
+        "preflight_checkpoint",
         "discover_prepare",
         "rank_mr",
         "review_refine",
-        "conclusion",
+        "component_slots",
+        "composition_cycle",
+        "report",
         "localisation_weight",
-        "needs_review",
+        "paused",
     ):
         assert f'data-atlas-node-doc="{node_id}"' in scientist
     for node_id in (
@@ -232,8 +241,9 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     stage = outputs[module.CURRENT / "stages/preflight.html"].decode("utf-8")
     assert 'data-theme="dark"' in stage
     assert "data-theme-toggle" not in stage
-    assert "Needs Review" in stage
-    assert "Paused before Molecular Replacement" in stage
+    assert "Preflight Checkpoint" in scientist
+    assert "Paused" in stage
+    assert "Paused before Molecular Replacement" in scientist
 
 
 def test_developer_legend_uses_domain_labels() -> None:

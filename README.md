@@ -697,8 +697,8 @@ assembly-qualified `PDBID-assemblyN_CHAIN` targets resolve to the same PDB entry
 and case-sensitive chain key while the original search identifier remains in
 the evidence. Biological-assembly symmetry copies such as
 `PDBID-assemblyN_CHAIN-2` and `..._CHAIN-12-60` resolve through the original
-SEQRES chain while retaining the Foldseek chain, assembly number, and operator
-indices as raw source records. The MMseqs2 sequence hit must have the exact fixed
+SEQRES chain while retaining the Foldseek chain, assembly number, and symmetry-
+operation indices as raw source records. The MMseqs2 sequence hit must have the exact fixed
 query hash;
 Foldseek additionally enforces its score and coverage thresholds without
 confusing structural rank with sequence identity. Preparation
@@ -710,7 +710,7 @@ Immutable metadata sidecars and the digest index are verified together. The
 manifest retains query, result, and log checksums. Revalidation reruns the local
 known queries, compares deterministic scores and output hashes, and writes
 `database_manifest.verification.json`, but never downloads or repairs resources.
-It requires the frozen manifest and its operator-recorded SHA-256, so mutable
+It requires the frozen manifest and its user-recorded SHA-256, so mutable
 `current` links and sidecars are not the trust anchor:
 
 SEQRES compound targets canonicalise the case-insensitive PDB entry component
@@ -760,13 +760,13 @@ to the staged commit and `pixi.lock` checksum.
 During compute preparation, an allow-listing `aria2c` adapter maps only the three
 exact Foldseek HTTPS source URLs to the verified local bundle and rejects every
 other HTTP(S) URL. Failed extraction or index staging is retained for diagnosis,
-and a retained incomplete resource blocks a new build until an operator handles
+and a retained incomplete resource blocks a new build until the user resolves
 it through a separately approved administrative action. The pipeline never
 deletes retained resource staging automatically. Source transfer is resumable;
 extraction and index construction are restartable only after that review.
 
 Before a large administration job, run the compute-node preflight with explicit
-absolute paths and operator-reviewed capacity requirements:
+absolute paths and reviewed capacity requirements:
 
 ```bash
 genome-to-diffraction --log-format json --no-progress databases preflight \
@@ -825,7 +825,7 @@ job-owned compute staging. Those start commands remain approval-gated; the routi
   database boundaries, and trusted catalogue normalisation; later scientific
   subsystems remain reserved.
 - `schemas/`: stable draft scientific contracts from the approved handoff.
-- `examples/`: schema and operator-contract examples.
+- `examples/`: schema and input-contract examples.
 - `workflows/`, `modules/local/`: typed Nextflow wiring and process adapters.
 - `conf/`: base, local, Slurm, test, and site-example configuration.
 - `tests/`: unit, contract, integration-scaffold, and workflow checks.

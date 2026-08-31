@@ -506,7 +506,7 @@ def _stage_page(
         f'<section class="detail-panel"><h2>Decisions and statuses</h2>{_list(stage["decisions"])}</section>'
         "</div><h2>Claim and failure boundaries</h2>"
         f"{_list(stage['boundaries'])}"
-        "<details><summary>Operator commands and implementation links</summary>"
+        "<details><summary>Run commands and implementation links</summary>"
         "<p>Use commands only with the reviewed configuration, immutable source, and owned inputs for the intended site. Placeholders are deliberate.</p>"
         f'<pre><code>{_escape(commands)}</code></pre><div class="callout-links">{subsystem_links}'
         '<a href="../inventory.html">Search implementation inventory</a></div></details>'
@@ -584,6 +584,11 @@ VIEWER_DRAWER_STYLE = """
     .composition-limits { font-size: 11px; color: color-mix(in srgb, var(--toolbar-text) 68%, transparent) !important; }
     .atlas-node-back { border: 0; padding: 0; background: transparent; color: var(--frontend-stroke); cursor: pointer; font: inherit; }
     .atlas-node-detail[hidden], .atlas-docs-index-panel[hidden] { display: none !important; }
+    .atlas-arrow-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 0 0 .75rem; padding: .55rem .75rem; border: 1px solid var(--toolbar-border); border-radius: .75rem; background: color-mix(in srgb, var(--toolbar-bg) 88%, transparent); color: var(--toolbar-text); font: 600 .68rem/1.35 ui-sans-serif, system-ui, sans-serif; }
+    .atlas-arrow-key { display: inline-flex; gap: 7px; align-items: center; }
+    .atlas-arrow-key::before { content: ""; width: 26px; border-top: 3px solid var(--arrow-emphasis); }
+    .atlas-arrow-key.decision::before { border-top-color: var(--security-stroke); border-top-style: dashed; }
+    .atlas-arrow-key.context::before { border-top-color: var(--database-stroke); border-top-style: dashed; }
     @media (max-width: 700px) {
       html[data-atlas-docs-open="true"] body { padding-right: 0; }
       html[data-atlas-docs-open="true"] .toolbar { right: 1rem; }
@@ -724,6 +729,22 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
         f"{view_switch}{toggle}{toolbar_end}",
         1,
     )
+    if audience == "scientist":
+        diagram_marker = '    <div class="diagram-container"'
+        if document.count(diagram_marker) != 1:
+            raise ValueError(
+                "unexpected Archify diagram container; refusing unsafe injection"
+            )
+        arrow_legend = (
+            '    <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
+            '<span class="atlas-arrow-key">Solid green: forward workflow step</span>'
+            '<span class="atlas-arrow-key decision">Dashed red: reviewed decision, pause, or stop</span>'
+            '<span class="atlas-arrow-key context">Dashed purple: evidence influence or repeat/continue</span>'
+            "</div>\n"
+        )
+        document = document.replace(
+            diagram_marker, f"{arrow_legend}{diagram_marker}", 1
+        )
     if document.count("</body>") != 1:
         raise ValueError("unexpected Archify viewer body; refusing unsafe injection")
     derived = document.replace("</body>", f"{drawer}{VIEWER_DRAWER_SCRIPT}\n</body>", 1)
@@ -790,25 +811,53 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
             [("Open full detail", "stages/review-refine-maps.html")],
         ),
     }
-    conclusion = {
-        "title": "Composition and reviewed report",
-        "summary": f"{by_id['composition']['summary']} {by_id['report']['summary']}",
-        "purpose": f"{by_id['composition']['purpose']} {by_id['report']['purpose']}",
+    checkpoint = {
+        "title": "Preflight Checkpoint",
+        "summary": "A recorded review decides whether the diffraction data can proceed or the analysis must pause.",
+        "purpose": "Make the proceed-or-pause decision explicit before model preparation begins.",
+        "inputs": by_id["preflight"]["outputs"],
+        "outputs": [
+            "Proceed decision that permits model preparation",
+            "Paused status with the diffraction issue and retained findings",
+        ],
+        "decisions": [
+            "Proceed only after reviewing the preflight evidence",
+            "Pause when symmetry, observations, or Free-R information needs resolution",
+        ],
+        "boundaries": [
+            "Model preparation cannot start automatically from preflight output",
+            "A paused analysis schedules no Molecular Replacement job",
+        ],
+        "maturity": by_id["preflight"]["maturity"],
+        "warning": by_id["preflight"]["warning"],
+    }
+    mapping["preflight_checkpoint"] = (
+        checkpoint,
+        [("Open preflight detail", "stages/preflight.html")],
+    )
+    composition = {
+        "title": "Additional-component search loop",
+        "summary": by_id["composition"]["summary"],
+        "purpose": by_id["composition"]["purpose"],
         "inputs": by_id["composition"]["inputs"],
-        "outputs": by_id["report"]["outputs"],
-        "decisions": by_id["composition"]["decisions"] + by_id["report"]["decisions"],
-        "boundaries": by_id["composition"]["boundaries"]
-        + by_id["report"]["boundaries"],
+        "outputs": by_id["composition"]["outputs"],
+        "decisions": by_id["composition"]["decisions"],
+        "boundaries": by_id["composition"]["boundaries"],
         "maturity": "depth three validated; deeper component searches restricted",
         "warning": "Depths four through six remain provisional, and deeper private analysis still requires complete review evidence.",
         "extra_html": _composition_loop(),
     }
-    mapping["conclusion"] = (
-        conclusion,
-        [
-            ("Open composition detail", "stages/composition.html"),
-            ("Open report detail", "stages/report.html"),
-        ],
+    mapping["component_slots"] = (
+        composition,
+        [("Open composition detail", "stages/composition.html")],
+    )
+    mapping["composition_cycle"] = (
+        composition,
+        [("Open composition detail", "stages/composition.html")],
+    )
+    mapping["report"] = (
+        by_id["report"],
+        [("Open report detail", "stages/report.html")],
     )
     localisation = {
         "title": "User-provided localisation and molecular-weight evidence",
@@ -841,13 +890,13 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         localisation,
         [("Open full detail", f"subsystems/{_slug('localisation_weight')}.html")],
     )
-    needs_review = {
-        "title": "Needs Review — paused before Molecular Replacement",
+    paused = {
+        "title": "Paused before Molecular Replacement",
         "summary": "Diffraction preflight could not proceed. The data and findings are kept for human inspection, and no Molecular Replacement job starts until the issue is resolved.",
         "purpose": "Preserve a valid review-required outcome without scheduling downstream molecular replacement.",
         "inputs": by_id["preflight"]["inputs"],
         "outputs": [
-            "Needs Review status",
+            "Paused status",
             "Retained preflight findings",
             "Human-readable reason no Molecular Replacement job was scheduled",
         ],
@@ -858,14 +907,14 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         ],
         "boundaries": [
             "No Molecular Replacement job starts while this status is active",
-            "Needs Review is not an execution crash",
+            "Paused is not an execution crash",
             "No protein identity is inferred",
         ],
         "maturity": "implemented fail-closed outcome",
         "warning": "Human resolution is required before the workflow can continue.",
     }
-    mapping["needs_review"] = (
-        needs_review,
+    mapping["paused"] = (
+        paused,
         [("Open preflight detail", "stages/preflight.html")],
     )
     return "".join(_node_detail(node_id, *value) for node_id, value in mapping.items())
@@ -949,7 +998,7 @@ def _scientist_page(
         for stage in stages
     )
     content = (
-        "<p>Use the guided workflow as the primary map. Open a stage below for purpose, inputs, outputs, decisions, claim limits, maturity, and deep operator commands.</p>"
+        "<p>Use the guided workflow as the primary map. Open a stage below for purpose, inputs, outputs, decisions, claim limits, maturity, and detailed run commands.</p>"
         f'<ol class="atlas-docs-list">{items}</ol>'
         '<section class="atlas-docs-rail"><strong>User-provided localisation and molecular-weight evidence</strong>'
         "<p>The user supplies these observations at the beginning. They can change which candidates are tested first; missing evidence is neutral, and apparent molecular weight is never ASU total mass.</p>"
@@ -958,7 +1007,7 @@ def _scientist_page(
         "<p>Deeper private analysis remains unauthorised until every required review gate is complete. Depth three is positively qualified by the known three-component control (PDB 9ECN); depths four through six remain provisional.</p></section>"
     )
     drawer = _drawer_shell(
-        "Scientist / Operator",
+        "Scientist",
         content,
         _scientist_node_details(stages),
         inventory["inventory_id"],
