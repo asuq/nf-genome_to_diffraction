@@ -3,6 +3,13 @@
 Foundation repository for a reproducible Nextflow and Python pipeline that will
 narrow an unidentified prokaryotic crystal to reviewable protein candidates.
 
+## Documentation
+
+Open the [workflow documentation](docs/atlas/current/documentation.html). Its
+upper-right Scientist | Developer toggle switches between the scientific
+workflow and implementation architecture while keeping one canonical
+documentation entrypoint.
+
 ## Current status
 
 Version `0.2.0` is the experimental bounded two-component heteromer prototype.
@@ -74,7 +81,7 @@ same-component path by selecting each approved seed's last
 checksum-authenticated supported state and running the qualified
 brief-refinement/map/sequence adapter on every retained alternative. It refines
 against the original FreeR-bearing diffraction MTZ;
-the corresponding Phaser solution MTZ is preserved as provenance only. The
+the corresponding Phaser solution MTZ is preserved as a source record only. The
 normal path then builds the T12.5 top-10, top-25, full-results, HTML, asset,
 and header-only second-decision package directly from the typed finalist
 outputs. Preliminary ranks never create an approval, and typed failed/no-hit
@@ -185,7 +192,7 @@ results are written to standard output; diagnostic `logging` and optional
 The fixed `m4-import-stage` boundary resumes the prototype from the collected
 11-candidate Marmic P2 evidence without repeating P0-P2. It retains every
 candidate and binds review, decision, MTZ, model-derivation, Git, submodule,
-Pixi, lock, Phenix, and site provenance.
+Pixi, lock, Phenix, and site records.
 
 The one-time `p0-inputs-stage` boundary packages only the seven frozen pilot
 files named by the private typed manifests, checks them against the frozen
@@ -289,7 +296,7 @@ pixi run genome-to-diffraction diffraction preflight \
 `--skip-xtriage` exists for preparation and automated tests only. It always adds
 `xtriage_not_run` and yields `pass_with_review`, never a clean pass. Xtriage
 anisotropy, translational-NCS, twinning, and symmetry concerns are normalised but
-the raw log remains authoritative. A map-only MTZ, ambiguous observation arrays,
+the raw log remains the source record. A map-only MTZ, ambiguous observation arrays,
 an invalid Free-R override, or incompatible cell/symmetry yields `fail` and stops
 the workflow.
 
@@ -417,7 +424,7 @@ for debugging; an existing versioned installation is never overwritten.
   `structure-search stage-phase3-provider-coordinates` on the resulting owned
   package; both operations require the complete checksum-pinned offline
   localisation/gel bundle. `first_copy` then requires all three exact
-  authorities and executes model preparation plus MR without network access.
+  input records and executes model preparation plus MR without network access.
 
 The reviewed `unknown-discovery` wrapper exposes no input paths. It reads one
 owned mode-0600 untracked specification at
@@ -571,7 +578,7 @@ output directory. The live T12 stage writes `finalists.tsv`,
 present. A missing result bundle is an execution failure rather than evidence
 that another copy is absent. After all T12 candidate processes finish, the
 workflow publishes `t12_sequence_checkpoint/` with bounded review views, full
-scores, self-contained Coot assets and provenance, per-finalist typed outcomes,
+scores, self-contained Coot assets and source records, per-finalist typed outcomes,
 and an intentionally empty `approved_sequence_groups.tsv`. A `-resume` run
 caches both the candidate work and this deterministic checkpoint.
 
@@ -691,7 +698,7 @@ and case-sensitive chain key while the original search identifier remains in
 the evidence. Biological-assembly symmetry copies such as
 `PDBID-assemblyN_CHAIN-2` and `..._CHAIN-12-60` resolve through the original
 SEQRES chain while retaining the Foldseek chain, assembly number, and operator
-indices as raw provenance. The MMseqs2 sequence hit must have the exact fixed
+indices as raw source records. The MMseqs2 sequence hit must have the exact fixed
 query hash;
 Foldseek additionally enforces its score and coverage thresholds without
 confusing structural rank with sequence identity. Preparation

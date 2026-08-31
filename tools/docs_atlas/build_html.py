@@ -31,14 +31,15 @@ OBSOLETE_GENERATED = (
     Path("docs/atlas/current/portals/scientist.html"),
     Path("docs/atlas/current/portals/developer.html"),
     Path("docs/atlas/current/portals/validation.html"),
+    Path("docs/atlas/current/scientist.html"),
+    Path("docs/atlas/current/developer.html"),
     Path("docs/atlas/current/diagrams/scientist-workflow.visual-check.json"),
     Path("docs/atlas/current/diagrams/developer-architecture.visual-check.json"),
 )
 
 
 STYLE = """\
-:root { color-scheme:light dark; --bg:#f4f7fb; --panel:#fff; --panel2:#edf3f9; --text:#172033; --muted:#5d6a80; --line:#d5deea; --accent:#1769d2; --accent2:#087f5b; --warn:#9a5b00; --warn-bg:#fff7df; --code:#eaf0f7; --shadow:0 12px 34px rgba(28,45,74,.08); }
-:root[data-theme='dark'] { --bg:#0c1320; --panel:#141e2d; --panel2:#1b283a; --text:#e8eef8; --muted:#a8b5c9; --line:#314057; --accent:#79adff; --accent2:#61d8ae; --warn:#ffd274; --warn-bg:#302713; --code:#202c3d; --shadow:0 14px 40px rgba(0,0,0,.28); }
+:root { color-scheme:dark; --bg:#0c1320; --panel:#141e2d; --panel2:#1b283a; --text:#e8eef8; --muted:#a8b5c9; --line:#314057; --accent:#79adff; --accent2:#61d8ae; --warn:#ffd274; --warn-bg:#302713; --code:#202c3d; --shadow:0 14px 40px rgba(0,0,0,.28); }
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
 body { margin:0; font:15px/1.58 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg); color:var(--text); }
@@ -94,27 +95,30 @@ ul.clean li { padding:5px 0; }
 .breadcrumbs a { color:inherit; }
 .callout-links { display:flex; gap:12px; flex-wrap:wrap; }
 .callout-links a { border:1px solid var(--line); border-radius:9px; padding:8px 11px; text-decoration:none; background:var(--panel); }
+.stage-reference { display:grid; grid-template-columns:230px minmax(0,1fr); gap:28px; align-items:start; }
+.stage-navigator { position:sticky; top:76px; max-height:calc(100vh - 96px); overflow:auto; padding:14px; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+.stage-navigator > a { display:block; margin-bottom:12px; font-weight:700; text-decoration:none; }
+.stage-navigator ol { margin:0; padding-left:22px; }
+.stage-navigator li { padding:4px 0; }
+.stage-navigator a[aria-current='step'] { color:var(--text); font-weight:750; }
+.stage-select-label,.stage-select { display:none; }
+.stage-content { min-width:0; }
 footer { color:var(--muted); border-top:1px solid var(--line); padding-top:20px; margin-top:48px; }
-@media (max-width:760px) { main,.bar { padding-left:14px; padding-right:14px; } .detail-grid { grid-template-columns:1fr; } th { position:static; } }
+@media (max-width:700px) { main,.bar { padding-left:14px; padding-right:14px; } .detail-grid { grid-template-columns:1fr; } th { position:static; } .stage-reference { display:block; } .stage-navigator { top:0; z-index:2; max-height:none; margin:0 -14px 18px; padding:9px 14px; border-width:0 0 1px; border-radius:0; overflow:visible; } .stage-navigator > a,.stage-navigator ol { display:none; } .stage-select-label { display:block; color:var(--muted); font-size:.76rem; } .stage-select { display:block; width:100%; margin-top:4px; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--panel2); color:var(--text); } }
 """
 
 
 SCRIPT = """\
 (() => {
-  const root = document.documentElement;
-  const stored = localStorage.getItem('nf-gtd-atlas-theme');
-  if (stored === 'light' || stored === 'dark') root.dataset.theme = stored;
-  document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
-    const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
-    root.dataset.theme = next;
-    localStorage.setItem('nf-gtd-atlas-theme', next);
-  });
   const input = document.querySelector('[data-atlas-search]');
   if (input) input.addEventListener('input', () => {
     const query = input.value.trim().toLowerCase();
     document.querySelectorAll('[data-search-row]').forEach((row) => {
       row.hidden = query && !row.dataset.searchRow.includes(query);
     });
+  });
+  document.querySelector('[data-stage-select]')?.addEventListener('change', (event) => {
+    window.location.href = event.currentTarget.value;
   });
 })();
 """
@@ -181,24 +185,23 @@ def _page(relative: Path, title: str, body: str, inventory_id: str) -> bytes:
     prefix = "../" * depth
     current_top = relative.parts[0] if relative.parts else relative.name
     current_target = {
-        "stages": "scientist.html",
-        "modules": "developer.html",
-        "contracts": "developer.html",
-        "external-tools.html": "developer.html",
+        "stages": "documentation.html",
+        "modules": "documentation.html",
+        "contracts": "documentation.html",
+        "external-tools.html": "documentation.html",
     }.get(current_top, current_top)
     navigation = "".join(
         f'<a href="{prefix}{target}"{(' aria-current="page"' if current_target == target else "")}>{label}</a>'
         for target, label in (
-            ("scientist.html", "Scientist / Operator"),
-            ("developer.html", "Developer"),
+            ("documentation.html", "Documentation"),
             ("validation.html", "Validation & Evidence"),
             ("inventory.html", "Inventory"),
         )
     )
     document = f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{_escape(title)} - nf-genome_to_diffraction</title><link rel="stylesheet" href="{prefix}assets/atlas.css"></head>
-<body><a class="skip-link" href="#main-content">Skip to main content</a><header><div class="bar"><div class="brand">nf-genome_to_diffraction</div><nav aria-label="Primary">{navigation}</nav><button data-theme-toggle type="button" aria-label="Toggle light and dark theme">Light / Dark</button></div></header>
+<body><a class="skip-link" href="#main-content">Skip to main content</a><header><div class="bar"><div class="brand">nf-genome_to_diffraction</div><nav aria-label="Primary">{navigation}</nav></div></header>
 <main id="main-content">{body}<footer>Deterministic private atlas inventory <code>{_escape(inventory_id)}</code></footer></main>
 <script src="{prefix}assets/atlas.js"></script></body></html>
 """
@@ -303,7 +306,7 @@ def _module_page(module: dict[str, Any], inventory_id: str) -> tuple[Path, bytes
         else ""
     )
     body = (
-        f'<div class="breadcrumbs"><a href="../developer.html">Developer</a> / Module</div>'
+        f'<div class="breadcrumbs"><a href="../documentation.html#developer">Documentation</a> / Module</div>'
         f'<h1>{_escape(module["path"])}</h1><p class="lead">{_escape(module["surface"])} surface in '
         f'<a href="../subsystems/{_slug(module["subsystem"])}.html">{_escape(module["subsystem"])}</a>.</p>'
         f'<div class="stats"><span>{len(module.get("symbols", []))} symbols</span><span>{"substantive" if module.get("substantive") else "inventory only"}</span></div>'
@@ -335,7 +338,7 @@ def _subsystem_page(
             f'<span class="badge">{_escape(module["surface"])}</span></li>'
         )
     body = (
-        '<div class="breadcrumbs"><a href="../developer.html">Developer</a> / Subsystem</div>'
+        '<div class="breadcrumbs"><a href="../documentation.html">Documentation</a> / Subsystem</div>'
         f'<h1>{_escape(subsystem["title"])}</h1><div class="grid">'
         f'<section class="card"><h3>Scientific view</h3><p>{_escape(subsystem["scientific_summary"])}</p></section>'
         f'<section class="card"><h3>Developer view</h3><p>{_escape(subsystem["developer_summary"])}</p></section></div>'
@@ -351,7 +354,7 @@ def _contract_page(contract: dict[str, Any], inventory_id: str) -> tuple[Path, b
         f"<li><code>{_escape(item)}</code></li>" for item in contract["required_fields"]
     )
     body = (
-        '<div class="breadcrumbs"><a href="../developer.html">Developer</a> / Data contract</div>'
+        '<div class="breadcrumbs"><a href="../documentation.html#developer">Documentation</a> / Data contract</div>'
         f"<h1>{_escape(contract.get('title') or contract['path'])}</h1>"
         f'<p class="lead"><code>{_escape(contract["path"])}</code></p>'
         f'<p><a href="{source}">Open JSON Schema source</a></p>'
@@ -445,8 +448,16 @@ def _stage_page(
         previous_next.append(
             f'<a href="{following["id"]}.html">{_escape(following["title"])} →</a>'
         )
-    body = (
-        '<div class="breadcrumbs"><a href="../scientist.html">Scientist / Operator</a> / Workflow stage</div>'
+    stage_links = "".join(
+        f'<li><a href="{item["id"]}.html"{(' aria-current="step"' if item["id"] == stage["id"] else "")}>{_escape(item["number"])}. {_escape(item["title"])}</a></li>'
+        for item in stages
+    )
+    stage_options = "".join(
+        f'<option value="{item["id"]}.html"{(" selected" if item["id"] == stage["id"] else "")}>{_escape(item["number"])}. {_escape(item["title"])}</option>'
+        for item in stages
+    )
+    content_body = (
+        '<div class="breadcrumbs"><a href="../documentation.html">Documentation</a> / Workflow stage</div>'
         f'<div class="eyebrow">Stage {_escape(stage["number"])}</div><h1>{_escape(stage["title"])}</h1>'
         f'<p class="lead">{_escape(stage["summary"])}</p>'
         f'<p><span class="badge maturity">Current maturity: {_escape(stage["maturity"])}</span></p>'
@@ -464,14 +475,31 @@ def _stage_page(
         '<a href="../inventory.html">Search implementation inventory</a></div></details>'
         f'<nav class="callout-links" aria-label="Workflow stage navigation">{"".join(previous_next)}</nav>'
     )
+    navigator = (
+        '<nav class="stage-navigator" aria-label="Workflow stages">'
+        '<a href="../documentation.html">← Return to workflow viewer</a>'
+        f'<ol>{stage_links}</ol><label class="stage-select-label" for="stage-select">Workflow reference</label>'
+        f'<select class="stage-select" id="stage-select" data-stage-select><option value="../documentation.html">Return to workflow viewer</option>{stage_options}</select></nav>'
+    )
+    body = f'<div class="stage-reference">{navigator}<article class="stage-content">{content_body}</article></div>'
     return relative, _page(relative, stage["title"], body, inventory_id)
 
 
 VIEWER_DRAWER_STYLE = """
     /* Documentation navigation injected by the deterministic atlas builder. */
+    html, body { max-width: 100%; overflow-x: clip; }
+    html[data-atlas-docs-open="true"] body { padding-right: 440px; }
+    html[data-atlas-docs-open="true"] .toolbar { right: calc(440px + 1rem); }
+    html[data-atlas-docs-open="true"] .toolbar .preset-wrap,
+    html[data-atlas-docs-open="true"] .toolbar #btn-motion,
+    html[data-atlas-docs-open="true"] .toolbar #btn-present,
+    html[data-atlas-docs-open="true"] .toolbar .export-wrap,
+    html[data-atlas-docs-open="true"] .toolbar .atlas-docs-toggle { display: none !important; }
+    html[data-atlas-docs-open="true"] .header { padding-right: 210px; }
+    #btn-theme, .focus-chip, .semantic-sigil { display: none !important; }
     .atlas-docs-drawer {
       position: fixed; inset: 0 0 0 auto; z-index: 2147483000;
-      width: min(440px, 94vw); height: 100dvh; overflow: auto;
+      width: 440px; max-width: 100vw; height: 100dvh; overflow: auto;
       background: color-mix(in srgb, var(--toolbar-menu-bg) 97%, transparent);
       color: var(--toolbar-text); border-left: 1px solid var(--toolbar-border);
       box-shadow: -20px 0 60px rgba(0,0,0,.34); padding: 0 22px 28px;
@@ -485,9 +513,11 @@ VIEWER_DRAWER_STYLE = """
     .atlas-docs-drawer h3 { margin: 24px 0 7px; color: var(--toolbar-text); font-size: 14px; }
     .atlas-docs-drawer p { color: color-mix(in srgb, var(--toolbar-text) 78%, transparent); margin: 6px 0 12px; }
     .atlas-docs-close { flex: none; border: 1px solid var(--toolbar-border); border-radius: 8px; background: var(--toolbar-bg); color: var(--toolbar-text); width: 34px; height: 34px; cursor: pointer; font-size: 20px; }
-    .atlas-docs-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 14px; }
-    .atlas-docs-switch a, .atlas-docs-utility a { display: block; border: 1px solid var(--toolbar-border); border-radius: 8px; padding: 8px 10px; color: var(--toolbar-text); text-decoration: none; background: var(--toolbar-bg); }
-    .atlas-docs-switch a[aria-current="page"] { border-color: var(--frontend-stroke); color: var(--frontend-stroke); }
+    .atlas-view-switch { display: inline-flex; border: 1px solid var(--toolbar-border); border-radius: .625rem; overflow: hidden; background: var(--toolbar-bg); backdrop-filter: blur(10px); }
+    .atlas-view-switch a { min-height: 2.625rem; display: inline-flex; align-items: center; padding: .5rem .7rem; color: var(--toolbar-text); text-decoration: none; font-size: .72rem; font-weight: 600; }
+    .atlas-view-switch a + a { border-left: 1px solid var(--toolbar-border); }
+    .atlas-view-switch a[aria-current="page"] { color: var(--frontend-stroke); background: color-mix(in srgb, var(--frontend-fill) 42%, var(--toolbar-bg)); }
+    .atlas-docs-utility a { display: block; border: 1px solid var(--toolbar-border); border-radius: 8px; padding: 8px 10px; color: var(--toolbar-text); text-decoration: none; background: var(--toolbar-bg); }
     .atlas-docs-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--toolbar-border); }
     .atlas-docs-list li { margin: 0; padding: 13px 0; border-bottom: 1px solid var(--toolbar-border); }
     .atlas-docs-list a { color: var(--toolbar-text); text-decoration: none; }
@@ -502,44 +532,98 @@ VIEWER_DRAWER_STYLE = """
     .atlas-docs-rail a, .atlas-docs-clean-break a, .atlas-docs-utility a { color: var(--frontend-stroke); }
     .atlas-docs-utility { display: grid; gap: 8px; margin-top: 18px; }
     .atlas-docs-foot { margin-top: 20px !important; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; opacity: .72; overflow-wrap: anywhere; }
-    @media print { .atlas-docs-drawer, .atlas-docs-toggle { display: none !important; } }
+    .atlas-node-detail h3 { margin-top: 18px; }
+    .atlas-node-detail ul { margin: 6px 0 12px; padding-left: 20px; color: color-mix(in srgb, var(--toolbar-text) 78%, transparent); }
+    .atlas-node-detail li { margin: 4px 0; }
+    .atlas-node-back { border: 0; padding: 0; background: transparent; color: var(--frontend-stroke); cursor: pointer; font: inherit; }
+    .atlas-node-detail[hidden], .atlas-docs-index-panel[hidden] { display: none !important; }
+    @media (max-width: 700px) {
+      html[data-atlas-docs-open="true"] body { padding-right: 0; }
+      html[data-atlas-docs-open="true"] .toolbar { right: 1rem; }
+      .atlas-docs-drawer { width: 100vw; }
+      .atlas-view-switch a { padding-inline: .52rem; }
+    }
+    @media print { .atlas-docs-drawer, .atlas-docs-toggle, .atlas-view-switch { display: none !important; } }
 """
 
 
 VIEWER_DRAWER_SCRIPT = """
   <script>
   (() => {
+    const root = document.documentElement;
     const drawer = document.getElementById('atlas-docs-drawer');
     const toggle = document.getElementById('atlas-docs-toggle');
     const close = document.getElementById('atlas-docs-close');
+    const indexPanel = document.getElementById('atlas-docs-index-panel');
+    const details = Array.from(drawer.querySelectorAll('[data-atlas-node-doc]'));
+    const backButtons = Array.from(drawer.querySelectorAll('[data-atlas-docs-index]'));
+    const forceDark = () => {
+      if (root.dataset.theme !== 'dark') root.dataset.theme = 'dark';
+      try { localStorage.setItem('archify-theme', 'dark'); } catch (_) {}
+    };
+    const showIndex = () => {
+      details.forEach((detail) => { detail.hidden = true; });
+      indexPanel.hidden = false;
+    };
+    const showNode = (nodeId) => {
+      const detail = details.find((candidate) => candidate.dataset.atlasNodeDoc === nodeId);
+      if (!detail) return false;
+      indexPanel.hidden = true;
+      details.forEach((candidate) => { candidate.hidden = candidate !== detail; });
+      drawer.hidden = false;
+      root.dataset.atlasDocsOpen = 'true';
+      toggle.setAttribute('aria-expanded', 'true');
+      drawer.scrollTop = 0;
+      return true;
+    };
     const closeDrawer = (restoreFocus = false) => {
       if (drawer.hidden) return;
       drawer.hidden = true;
+      delete root.dataset.atlasDocsOpen;
       toggle.setAttribute('aria-expanded', 'false');
       if (restoreFocus) toggle.focus();
     };
     toggle.addEventListener('click', () => {
+      showIndex();
       drawer.hidden = false;
+      root.dataset.atlasDocsOpen = 'true';
       toggle.setAttribute('aria-expanded', 'true');
       close.focus();
     });
+    backButtons.forEach((button) => button.addEventListener('click', showIndex));
     close.addEventListener('click', () => closeDrawer(true));
+    const syncNodeSelection = (node) => requestAnimationFrame(() => {
+      if (node.hasAttribute('data-focus-selected')) showNode(node.dataset.nodeId);
+      else closeDrawer(false);
+    });
+    document.addEventListener('click', (event) => {
+      const node = event.target.closest?.('svg [data-node-id]');
+      if (node) syncNodeSelection(node);
+    });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && !drawer.hidden) {
         event.preventDefault();
         event.stopImmediatePropagation();
         closeDrawer(true);
       }
+      const node = event.target.closest?.('svg [data-node-id]');
+      if (node && (event.key === 'Enter' || event.key === ' ')) syncNodeSelection(node);
+      if (event.key.toLowerCase() === 't' && !event.target.closest?.('input, textarea, select, [contenteditable]')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
     }, true);
     new MutationObserver(() => {
-      if (document.documentElement.dataset.present === 'true') closeDrawer(false);
-    }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-present'] });
+      forceDark();
+      if (root.dataset.present === 'true') closeDrawer(false);
+    }).observe(root, { attributes: true, attributeFilter: ['data-present', 'data-theme'] });
+    forceDark();
   })();
   </script>
 """
 
 
-def _derive_viewer_home(base: bytes, drawer: str) -> bytes:
+def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
     document = base.decode("utf-8")
     had_final_newline = document.endswith("\n")
     document = "\n".join(line.rstrip() for line in document.splitlines())
@@ -555,6 +639,30 @@ def _derive_viewer_home(base: bytes, drawer: str) -> bytes:
             "unexpected Archify viewer structure; refusing unsafe injection"
         )
     document = document.replace("</style>", f"{VIEWER_DRAWER_STYLE}\n  </style>", 1)
+    canonical_script = (
+        "  <script>\n"
+        "    document.documentElement.dataset.theme = 'dark';\n"
+        "    try { localStorage.setItem('archify-theme', 'dark'); } catch (_) {}\n"
+        + (
+            "    if (location.hash === '#developer') location.replace('developer-view.html#developer');\n"
+            if audience == "scientist"
+            else "    try { history.replaceState(null, '', 'documentation.html#developer'); } catch (_) {}\n"
+        )
+        + "  </script>\n"
+    )
+    async_font_marker = "  <!-- Async font load:"
+    if document.count(async_font_marker) != 1:
+        raise ValueError("unexpected Archify viewer head; refusing unsafe injection")
+    document = document.replace(
+        async_font_marker, f"{canonical_script}{async_font_marker}", 1
+    )
+    scientist_current = ' aria-current="page"' if audience == "scientist" else ""
+    developer_current = ' aria-current="page"' if audience == "developer" else ""
+    view_switch = (
+        '\n    <nav class="atlas-view-switch" aria-label="Documentation view">'
+        f'<a href="documentation.html"{scientist_current}>Scientist</a>'
+        f'<a href="developer-view.html#developer"{developer_current}>Developer</a></nav>'
+    )
     toggle = (
         '\n    <button id="atlas-docs-toggle" class="atlas-docs-toggle" type="button" '
         'aria-label="Open documentation" aria-controls="atlas-docs-drawer" '
@@ -562,14 +670,12 @@ def _derive_viewer_home(base: bytes, drawer: str) -> bytes:
     )
     document = document.replace(
         toolbar_end,
-        f"{toggle}{toolbar_end}",
+        f"{view_switch}{toggle}{toolbar_end}",
         1,
     )
     if document.count("</body>") != 1:
         raise ValueError("unexpected Archify viewer body; refusing unsafe injection")
-    derived = document.replace(
-        "</body>", f"{drawer}{VIEWER_DRAWER_SCRIPT}\n</body>", 1
-    )
+    derived = document.replace("</body>", f"{drawer}{VIEWER_DRAWER_SCRIPT}\n</body>", 1)
     had_final_newline = derived.endswith("\n")
     derived = "\n".join(line.rstrip() for line in derived.splitlines())
     if had_final_newline:
@@ -577,27 +683,211 @@ def _derive_viewer_home(base: bytes, drawer: str) -> bytes:
     return derived.encode("utf-8")
 
 
-def _drawer_shell(audience: str, title: str, content: str, inventory_id: str) -> str:
-    scientist_current = ' aria-current="page"' if audience == "scientist" else ""
-    developer_current = ' aria-current="page"' if audience == "developer" else ""
+def _drawer_shell(title: str, content: str, details: str, inventory_id: str) -> str:
     return (
         '<aside class="atlas-docs-drawer" id="atlas-docs-drawer" aria-label="Documentation" hidden>'
         '<div class="atlas-docs-head"><div><span class="atlas-docs-eyebrow">Documentation</span>'
         f'<h2>{_escape(title)}</h2></div><button class="atlas-docs-close" id="atlas-docs-close" type="button" aria-label="Close documentation">&times;</button></div>'
-        '<nav class="atlas-docs-switch" aria-label="Audience">'
-        f'<a href="scientist.html"{scientist_current}>Scientist / Operator</a>'
-        f'<a href="developer.html"{developer_current}>Developer</a></nav>'
-        f"{content}"
+        f'<div class="atlas-docs-index-panel" id="atlas-docs-index-panel">{content}'
         '<div class="atlas-docs-utility"><a href="validation.html">Validation &amp; Evidence</a>'
-        '<a href="inventory.html">Search implementation inventory</a></div>'
+        '<a href="inventory.html">Search implementation inventory</a></div></div>'
+        f"{details}"
         f'<p class="atlas-docs-foot">Inventory {_escape(inventory_id)}</p></aside>'
     )
+
+
+def _node_detail(
+    node_id: str, record: dict[str, Any], links: list[tuple[str, str]]
+) -> str:
+    link_html = "".join(
+        f'<a href="{href}">{_escape(label)}</a>' for label, href in links
+    )
+    return (
+        f'<section class="atlas-node-detail" data-atlas-node-doc="{_escape(node_id)}" hidden>'
+        '<button class="atlas-node-back" type="button" data-atlas-docs-index>← All documentation</button>'
+        f"<h2>{_escape(record['title'])}</h2><p>{_escape(record['summary'])}</p>"
+        f'<span class="atlas-docs-maturity">{_escape(record["maturity"])}</span>'
+        f'<p class="atlas-docs-warning">{_escape(record["warning"])}</p>'
+        f"<h3>Purpose</h3><p>{_escape(record['purpose'])}</p>"
+        f"<h3>Key inputs</h3>{_list(record['inputs'])}"
+        f"<h3>Key outputs</h3>{_list(record['outputs'])}"
+        f"<h3>Decisions</h3>{_list(record['decisions'])}"
+        f"<h3>Boundaries</h3>{_list(record['boundaries'])}"
+        f'<div class="atlas-docs-utility">{link_html}</div></section>'
+    )
+
+
+def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
+    by_id = {stage["id"]: stage for stage in stages}
+    mapping = {
+        "inputs": (
+            by_id["inputs-records"],
+            [("Open full detail", "stages/inputs-records.html")],
+        ),
+        "preflight": (
+            by_id["preflight"],
+            [("Open full detail", "stages/preflight.html")],
+        ),
+        "discover_prepare": (
+            by_id["discovery-models"],
+            [("Open full detail", "stages/discovery-models.html")],
+        ),
+        "rank_mr": (by_id["rank-mr"], [("Open full detail", "stages/rank-mr.html")]),
+        "review_refine": (
+            by_id["review-refine-maps"],
+            [("Open full detail", "stages/review-refine-maps.html")],
+        ),
+    }
+    conclusion = {
+        "title": "Composition and reviewed report",
+        "summary": f"{by_id['composition']['summary']} {by_id['report']['summary']}",
+        "purpose": f"{by_id['composition']['purpose']} {by_id['report']['purpose']}",
+        "inputs": by_id["composition"]["inputs"],
+        "outputs": by_id["report"]["outputs"],
+        "decisions": by_id["composition"]["decisions"] + by_id["report"]["decisions"],
+        "boundaries": by_id["composition"]["boundaries"]
+        + by_id["report"]["boundaries"],
+        "maturity": "depth three validated; deeper composition and pass 2 restricted",
+        "warning": "Depths four through six remain provisional, and private pass 2 still requires final RG0-RG7 evidence.",
+    }
+    mapping["conclusion"] = (
+        conclusion,
+        [
+            ("Open composition detail", "stages/composition.html"),
+            ("Open report detail", "stages/report.html"),
+        ],
+    )
+    localisation = {
+        "title": "User-provided localisation and gel evidence",
+        "summary": "The user supplies these observations with the input data; they then remain available across discovery, ranking, review, and composition.",
+        "purpose": "Order search waves without turning localisation or apparent gel mass into identity, ASU-mass, or oligomeric-state proof.",
+        "inputs": [
+            "User-provided gel observations",
+            "User-provided or offline-derived localisation evidence",
+            "Missing-evidence state when either input is unavailable",
+        ],
+        "outputs": [
+            "Cross-cutting search-order priors",
+            "Neutral missing-evidence records",
+            "Traceable localisation and topology evidence",
+        ],
+        "decisions": [
+            "Bind supplied evidence at the beginning",
+            "Use it throughout candidate ordering",
+            "Keep missing evidence neutral",
+        ],
+        "boundaries": [
+            "This evidence is supplied before staged processing begins",
+            "Apparent gel mass is a monomer prior",
+            "Localisation cannot establish exact identity",
+        ],
+        "maturity": "implemented as cross-cutting input evidence",
+        "warning": "Evidence can change search order but cannot prove identity or composition.",
+    }
+    mapping["localisation_gel"] = (
+        localisation,
+        [("Open full detail", f"subsystems/{_slug('localisation_gel')}.html")],
+    )
+    needs_review = {
+        "title": "Needs Review — paused before MR",
+        "summary": "Diffraction preflight could not proceed. The data and findings are kept for human inspection, and no MR job starts until the issue is resolved.",
+        "purpose": "Preserve a valid review-required outcome without scheduling downstream molecular replacement.",
+        "inputs": by_id["preflight"]["inputs"],
+        "outputs": [
+            "Needs Review status",
+            "Retained preflight findings",
+            "Human-readable reason no MR was scheduled",
+        ],
+        "decisions": [
+            "Inspect the preserved findings",
+            "Resolve or replace the problematic input",
+            "Proceed only through an authenticated review decision",
+        ],
+        "boundaries": [
+            "No MR job starts while this status is active",
+            "Needs Review is not an execution crash",
+            "No protein identity is inferred",
+        ],
+        "maturity": "implemented fail-closed outcome",
+        "warning": "Human resolution is required before the workflow can continue.",
+    }
+    mapping["needs_review"] = (
+        needs_review,
+        [("Open preflight detail", "stages/preflight.html")],
+    )
+    return "".join(_node_detail(node_id, *value) for node_id, value in mapping.items())
+
+
+def _developer_node_details(
+    layers: list[dict[str, Any]], subsystems: list[dict[str, Any]]
+) -> str:
+    by_id = {layer["id"]: layer for layer in layers}
+    by_subsystem = {item["id"]: item for item in subsystems}
+    node_to_layer = {
+        "control_plane": "control-plane",
+        "public_entrypoints": "entrypoints",
+        "phase3_entrypoint": "entrypoints",
+        "nextflow": "nextflow",
+        "process_modules": "process-modules",
+        "python_services": "python-services",
+        "contracts": "python-services",
+        "external_tools": "external-boundaries",
+        "human_review": "evidence-publication",
+        "evidence_store": "evidence-publication",
+        "publication": "evidence-publication",
+    }
+    details: list[str] = []
+    for node_id, layer_id in node_to_layer.items():
+        layer = by_id[layer_id]
+        primary = layer["subsystems"][0]
+        links = [
+            (
+                f"Open full detail: {by_subsystem[primary]['title']}",
+                f"subsystems/{_slug(primary)}.html",
+            )
+        ]
+        details.append(_node_detail(node_id, layer, links))
+    validation = {
+        "title": "Internal validation",
+        "summary": "Known controls, robustness checks, fixtures, and release gates run outside the normal scientific application path.",
+        "purpose": "Test scientific and operational boundaries without mixing control truth into private analyses.",
+        "inputs": [
+            "Frozen control definitions",
+            "Exact-source workflow build",
+            "Isolated validation profiles",
+        ],
+        "outputs": [
+            "Control and robustness evidence",
+            "Release-gate results",
+            "Explicit unresolved findings",
+        ],
+        "decisions": [
+            "Keep validation outside normal analysis",
+            "Fail stale or incomplete evidence",
+            "Separate local, HPC, and scientific acceptance",
+        ],
+        "boundaries": [
+            "A passing unit test is not scientific validation",
+            "Controls cannot tune private unknown-crystal heuristics",
+            "Incomplete validation remains visible",
+        ],
+        "maturity": "cross-cutting; final closure pending",
+        "warning": "Final RG0-RG7 evidence is still required before private pass 2.",
+    }
+    details.append(
+        _node_detail(
+            "validation_plane",
+            validation,
+            [("Open full detail", "validation.html")],
+        )
+    )
+    return "".join(details)
 
 
 def _scientist_page(
     stages: list[dict[str, Any]], inventory: dict[str, Any], base: bytes
 ) -> tuple[Path, bytes]:
-    relative = Path("scientist.html")
+    relative = Path("documentation.html")
     items = "".join(
         '<li><a href="stages/'
         f'{stage["id"]}.html"><strong><span class="atlas-docs-index">{_escape(stage["number"])}</span>{_escape(stage["title"])}</strong>'
@@ -608,16 +898,19 @@ def _scientist_page(
     content = (
         "<p>Use the guided workflow as the primary map. Open a stage below for purpose, inputs, outputs, decisions, claim limits, maturity, and deep operator commands.</p>"
         f'<ol class="atlas-docs-list">{items}</ol>'
-        '<section class="atlas-docs-rail"><strong>Cross-cutting localisation and gel evidence</strong>'
-        "<p>These observations order search waves; missing evidence is neutral, and apparent gel mass is never ASU total mass.</p>"
+        '<section class="atlas-docs-rail"><strong>User-provided localisation and gel evidence</strong>'
+        "<p>The user supplies these observations at the beginning. They then remain cross-cutting and order search waves; missing evidence is neutral, and apparent gel mass is never ASU total mass.</p>"
         f'<a href="subsystems/{_slug("localisation_gel")}.html">Inspect the evidence contract</a></section>'
         '<section class="atlas-docs-clean-break"><strong>Visible maturity boundaries</strong>'
         "<p>Pass 2 remains unauthorised pending final RG0-RG7 evidence. Depth three is positively qualified by 9ECN; depths four through six remain provisional.</p></section>"
     )
     drawer = _drawer_shell(
-        "scientist", "Scientist / Operator", content, inventory["inventory_id"]
+        "Scientist / Operator",
+        content,
+        _scientist_node_details(stages),
+        inventory["inventory_id"],
     )
-    return relative, _derive_viewer_home(base, drawer)
+    return relative, _derive_viewer_home(base, drawer, "scientist")
 
 
 def _developer_page(
@@ -626,7 +919,7 @@ def _developer_page(
     inventory: dict[str, Any],
     base: bytes,
 ) -> tuple[Path, bytes]:
-    relative = Path("developer.html")
+    relative = Path("developer-view.html")
     items = "".join(
         '<li><strong><span class="atlas-docs-index">'
         f"{_escape(layer['number'])}</span>{_escape(layer['title'])}</strong>"
@@ -637,23 +930,25 @@ def _developer_page(
     content = (
         "<p>The diagram owns the architecture view. This drawer leads from each responsibility layer to its implementation evidence.</p>"
         f'<ol class="atlas-docs-list">{items}</ol>'
-        '<section class="atlas-docs-clean-break"><strong>Transitional application authority</strong>'
-        "<p><code>phase3_application.nf</code> is the current reviewed Phase III owner while archival <code>main.nf</code> remains the v0.2 route. The accepted large clean break makes Phase III the sole public <code>main.nf</code>, retains <code>prepare_databases.nf</code>, and removes superseded roots, milestone names, aliases, and shims together.</p></section>"
-        '<div class="atlas-docs-utility"><a href="external-tools.html">External tool boundaries</a>'
-        '<a href="scientist.html">Follow the scientific runtime sequence</a></div>'
+        '<section class="atlas-docs-clean-break"><strong>Current transitional application entrypoint</strong>'
+        "<p><code>phase3_application.nf</code> is the current reviewed Phase III entrypoint while archival <code>main.nf</code> remains the v0.2 route. The accepted large clean break makes Phase III the sole public <code>main.nf</code>, retains <code>prepare_databases.nf</code>, and removes superseded roots, milestone names, aliases, and shims together.</p></section>"
+        '<div class="atlas-docs-utility"><a href="external-tools.html">External runtime boundaries</a></div>'
     )
     drawer = _drawer_shell(
-        "developer", "Developer architecture", content, inventory["inventory_id"]
+        "Developer architecture",
+        content,
+        _developer_node_details(layers, subsystems),
+        inventory["inventory_id"],
     )
-    return relative, _derive_viewer_home(base, drawer)
+    return relative, _derive_viewer_home(base, drawer, "developer")
 
 
 def _validation_page(inventory: dict[str, Any]) -> tuple[Path, bytes]:
     relative = Path("validation.html")
     body = (
-        '<div class="breadcrumbs"><a href="scientist.html">Scientist / Operator</a> or <a href="developer.html">Developer</a> / Cross-cutting area</div>'
+        '<div class="breadcrumbs"><a href="documentation.html">Documentation</a> / Cross-cutting area</div>'
         '<div class="eyebrow">Cross-cutting</div><h1>Validation &amp; Evidence</h1>'
-        '<p class="lead">Controls, robustness evidence, provenance checks, and release gates remain separate from normal scientific analyses while supporting both audience views.</p>'
+        '<p class="lead">Controls, robustness evidence, source-record checks, and release gates remain separate from normal scientific analyses while supporting both audience views.</p>'
         '<div class="stats">'
         f"<span>{len(inventory['test_modules'])} test modules</span><span>{len(inventory['schemas'])} active schemas</span>"
         f"<span>{len(inventory['active_milestone_identifiers'])} legacy milestone-name occurrences queued for clean break</span></div>"
@@ -703,7 +998,7 @@ def _external_tools_page(inventory_id: str) -> tuple[Path, bytes]:
 def _index_redirect() -> tuple[Path, bytes]:
     relative = Path("index.html")
     content = b"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=scientist.html"><meta name="robots" content="noindex"><title></title><script>location.replace('scientist.html');</script></head><body></body></html>
+<html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=documentation.html"><meta name="robots" content="noindex"><title></title><script>location.replace('documentation.html');</script></head><body></body></html>
 """
     return relative, content
 

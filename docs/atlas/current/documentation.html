@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="generator" content="archify 2.16.0-dev.0">
-  <title>Genome-to-Diffraction Developer Architecture Diagram</title>
+  <title>Genome-to-Diffraction Scientific Workflow Diagram</title>
   <script>
     // Resolve the theme before first paint so light-preference users don't
     // see a dark flash. The toolbar script below re-applies with UI state.
@@ -30,6 +30,11 @@
         document.documentElement.setAttribute('data-theme', theme);
       } catch (_) {}
     })();
+  </script>
+  <script>
+    document.documentElement.dataset.theme = 'dark';
+    try { localStorage.setItem('archify-theme', 'dark'); } catch (_) {}
+    if (location.hash === '#developer') location.replace('developer-view.html#developer');
   </script>
   <!-- Async font load: a blackholed network must not block first paint.
        The body font stack falls back to system monospace until it lands. -->
@@ -4848,9 +4853,19 @@
     }
 
     /* Documentation navigation injected by the deterministic atlas builder. */
+    html, body { max-width: 100%; overflow-x: clip; }
+    html[data-atlas-docs-open="true"] body { padding-right: 440px; }
+    html[data-atlas-docs-open="true"] .toolbar { right: calc(440px + 1rem); }
+    html[data-atlas-docs-open="true"] .toolbar .preset-wrap,
+    html[data-atlas-docs-open="true"] .toolbar #btn-motion,
+    html[data-atlas-docs-open="true"] .toolbar #btn-present,
+    html[data-atlas-docs-open="true"] .toolbar .export-wrap,
+    html[data-atlas-docs-open="true"] .toolbar .atlas-docs-toggle { display: none !important; }
+    html[data-atlas-docs-open="true"] .header { padding-right: 210px; }
+    #btn-theme, .focus-chip, .semantic-sigil { display: none !important; }
     .atlas-docs-drawer {
       position: fixed; inset: 0 0 0 auto; z-index: 2147483000;
-      width: min(440px, 94vw); height: 100dvh; overflow: auto;
+      width: 440px; max-width: 100vw; height: 100dvh; overflow: auto;
       background: color-mix(in srgb, var(--toolbar-menu-bg) 97%, transparent);
       color: var(--toolbar-text); border-left: 1px solid var(--toolbar-border);
       box-shadow: -20px 0 60px rgba(0,0,0,.34); padding: 0 22px 28px;
@@ -4864,9 +4879,11 @@
     .atlas-docs-drawer h3 { margin: 24px 0 7px; color: var(--toolbar-text); font-size: 14px; }
     .atlas-docs-drawer p { color: color-mix(in srgb, var(--toolbar-text) 78%, transparent); margin: 6px 0 12px; }
     .atlas-docs-close { flex: none; border: 1px solid var(--toolbar-border); border-radius: 8px; background: var(--toolbar-bg); color: var(--toolbar-text); width: 34px; height: 34px; cursor: pointer; font-size: 20px; }
-    .atlas-docs-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 14px; }
-    .atlas-docs-switch a, .atlas-docs-utility a { display: block; border: 1px solid var(--toolbar-border); border-radius: 8px; padding: 8px 10px; color: var(--toolbar-text); text-decoration: none; background: var(--toolbar-bg); }
-    .atlas-docs-switch a[aria-current="page"] { border-color: var(--frontend-stroke); color: var(--frontend-stroke); }
+    .atlas-view-switch { display: inline-flex; border: 1px solid var(--toolbar-border); border-radius: .625rem; overflow: hidden; background: var(--toolbar-bg); backdrop-filter: blur(10px); }
+    .atlas-view-switch a { min-height: 2.625rem; display: inline-flex; align-items: center; padding: .5rem .7rem; color: var(--toolbar-text); text-decoration: none; font-size: .72rem; font-weight: 600; }
+    .atlas-view-switch a + a { border-left: 1px solid var(--toolbar-border); }
+    .atlas-view-switch a[aria-current="page"] { color: var(--frontend-stroke); background: color-mix(in srgb, var(--frontend-fill) 42%, var(--toolbar-bg)); }
+    .atlas-docs-utility a { display: block; border: 1px solid var(--toolbar-border); border-radius: 8px; padding: 8px 10px; color: var(--toolbar-text); text-decoration: none; background: var(--toolbar-bg); }
     .atlas-docs-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--toolbar-border); }
     .atlas-docs-list li { margin: 0; padding: 13px 0; border-bottom: 1px solid var(--toolbar-border); }
     .atlas-docs-list a { color: var(--toolbar-text); text-decoration: none; }
@@ -4881,7 +4898,18 @@
     .atlas-docs-rail a, .atlas-docs-clean-break a, .atlas-docs-utility a { color: var(--frontend-stroke); }
     .atlas-docs-utility { display: grid; gap: 8px; margin-top: 18px; }
     .atlas-docs-foot { margin-top: 20px !important; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; opacity: .72; overflow-wrap: anywhere; }
-    @media print { .atlas-docs-drawer, .atlas-docs-toggle { display: none !important; } }
+    .atlas-node-detail h3 { margin-top: 18px; }
+    .atlas-node-detail ul { margin: 6px 0 12px; padding-left: 20px; color: color-mix(in srgb, var(--toolbar-text) 78%, transparent); }
+    .atlas-node-detail li { margin: 4px 0; }
+    .atlas-node-back { border: 0; padding: 0; background: transparent; color: var(--frontend-stroke); cursor: pointer; font: inherit; }
+    .atlas-node-detail[hidden], .atlas-docs-index-panel[hidden] { display: none !important; }
+    @media (max-width: 700px) {
+      html[data-atlas-docs-open="true"] body { padding-right: 0; }
+      html[data-atlas-docs-open="true"] .toolbar { right: 1rem; }
+      .atlas-docs-drawer { width: 100vw; }
+      .atlas-view-switch a { padding-inline: .52rem; }
+    }
+    @media print { .atlas-docs-drawer, .atlas-docs-toggle, .atlas-view-switch { display: none !important; } }
 
   </style>
 </head>
@@ -4982,6 +5010,7 @@
         </div>
       </div>
     </div>
+    <nav class="atlas-view-switch" aria-label="Documentation view"><a href="documentation.html" aria-current="page">Scientist</a><a href="developer-view.html#developer">Developer</a></nav>
     <button id="atlas-docs-toggle" class="atlas-docs-toggle" type="button" aria-label="Open documentation" aria-controls="atlas-docs-drawer" aria-expanded="false">Documentation</button>
   </div>
 
@@ -4993,11 +5022,11 @@
            data-preset-badge-blueprint="BLUEPRINT / REV 01"
            data-preset-badge-editorial="EDITORIAL / FIELD NOTE">
         <div class="pulse-dot"></div>
-        <h1>Genome-to-Diffraction Developer Architecture</h1>
+        <h1>Genome-to-Diffraction Scientific Workflow</h1>
       </div>
     </div>
 
-    <script id="archify-guided-views-data" type="application/json">[{"id":"ownership","label":"Code ownership","focus":["control_plane","public_entrypoints","nextflow","process_modules","python_services"],"note":"Follow responsibility from reviewed launch through orchestration into scientific code."},{"id":"contracts","label":"Contracts and evidence","focus":["contracts","python_services","human_review","evidence_store","publication"],"note":"See how typed identities, decisions and checksums bind every published result."},{"id":"external_boundary","label":"External tool boundary","focus":["process_modules","python_services","external_tools","evidence_store"],"note":"Inspect the narrow adapters around licensed, database-backed and localisation tools."},{"id":"clean_break","label":"Transitional clean break","focus":["phase3_entrypoint","public_entrypoints","validation_plane"],"note":"Distinguish the current Phase III owner from the final public main.nf architecture."}]</script>
+    <script id="archify-guided-views-data" type="application/json">[{"id":"end_to_end","label":"End-to-end analysis","focus":["inputs","preflight","discover_prepare","rank_mr","review_refine","conclusion"],"note":"Follow one crystal from fixed source inputs to a bounded scientific report."},{"id":"inputs_records","label":"Inputs and evidence","focus":["localisation_gel","inputs","preflight","needs_review"],"note":"Required inputs and optional localisation or gel evidence are supplied before analysis; missing optional evidence is neutral."},{"id":"search_and_review","label":"Search and review","focus":["discover_prepare","rank_mr","review_refine","conclusion"],"note":"Model discovery and evidence-informed ordering lead to human review and an honestly bounded conclusion."}]</script>
 
     <script id="archify-i18n-data" type="application/json">{"locale":"en","messages":{"viewer.kind.frontend":"Frontend","viewer.kind.backend":"Backend","viewer.kind.database":"Database","viewer.kind.cloud":"Cloud","viewer.kind.security":"Security","viewer.kind.messagebus":"Message bus","viewer.kind.external":"External","viewer.kind.neutral":"Neutral","viewer.kind.node":"Node","viewer.kind.start":"Start","viewer.kind.active":"Active","viewer.kind.waiting":"Waiting","viewer.kind.decision":"Decision","viewer.kind.success":"Success","viewer.kind.failure":"Failure","viewer.toolbar.actions":"Diagram actions","viewer.theme.toggle.title":"Toggle theme (T)","viewer.theme.toggle":"Toggle color theme","viewer.theme.dark":"Dark","viewer.theme.light":"Light","viewer.preset.choose.title":"Choose visual style (S cycles)","viewer.preset.choose":"Choose visual style","viewer.preset.style":"Style","viewer.preset.menu":"Visual style","viewer.preset.identity":"Visual identity","viewer.preset.cycles":"S cycles","viewer.preset.classic":"Classic","viewer.preset.classic.short":"Classic","viewer.preset.classic.hint":"Stable technical default","viewer.preset.flow":"Signal Flow","viewer.preset.flow.short":"Flow","viewer.preset.flow.hint":"Motion-forward presentation","viewer.preset.blueprint":"Blueprint","viewer.preset.blueprint.hint":"Engineering review","viewer.preset.editorial":"Editorial","viewer.preset.editorial.hint":"Publication and launch notes","viewer.preset.badge.signalFlow":"SIGNAL FLOW","viewer.preset.badge.blueprint":"BLUEPRINT / REV 01","viewer.preset.badge.editorial":"EDITORIAL / FIELD NOTE","viewer.preset.badge.editorialPlate":"ARCHIFY / PLATE 04","viewer.preset.current":"Visual style: {style}. Choose visual style","viewer.motion.live":"Live","viewer.motion.still":"Still","viewer.motion.pause":"Pause motion","viewer.motion.resume":"Resume motion","viewer.motion.reduced":"Motion paused by reduced-motion preference","viewer.motion.hidden":"Motion paused while this page is hidden","viewer.motion.yielding":"Pause motion; currently yielding to {owner}","viewer.motion.yielding.title":"Live preview enabled · yielding to {owner}","viewer.owner.story":"the guided story","viewer.owner.chapter":"the active chapter","viewer.owner.chapterPreview":"the chapter delta preview","viewer.owner.handoff":"the chapter handoff","viewer.owner.route":"Route Probe","viewer.owner.lens":"Semantic Lens","viewer.owner.relationship":"Relationship Preview","viewer.owner.intent":"Intent Trace","viewer.owner.focus":"semantic focus","viewer.owner.legend":"legend preview","viewer.owner.reader":"reader interaction","viewer.present.enter":"Enter presentation stage","viewer.present.enter.title":"Presentation stage (F)","viewer.present.exit":"Exit presentation stage","viewer.present.exit.title":"Exit presentation stage (F or Escape)","viewer.present.present":"Present","viewer.present.exit.label":"Exit","viewer.export.button":"Export","viewer.export.button.title":"Export diagram (E)","viewer.export.diagram":"Export diagram","viewer.export.menu":"Export","viewer.export.subtitle":"Portable, clean outputs","viewer.export.share":"Share","viewer.export.shareCard":"Share Card","viewer.export.routeShareCard":"Route Share Card","viewer.export.reachShareCard":"Reach Share Card","viewer.export.copyShareCard":"Copy Share Card","viewer.export.copyDiagram":"Copy diagram","viewer.export.clipboardPng":"PNG to clipboard","viewer.export.raster":"Raster images","viewer.export.image":"Image","viewer.export.lossless":"Lossless image","viewer.export.compact":"Compact image","viewer.export.modern":"Modern image","viewer.export.vectorMotion":"Vector and motion","viewer.export.vectorMotion.heading":"Vector \u0026 motion","viewer.export.editable":"Editable vector","viewer.export.motion6s":"6s motion","viewer.export.unsupported":"Not supported by this browser","viewer.export.clipboardUnsupported":"Clipboard image write not supported by this browser","viewer.export.clipboardUnsupported.period":"Clipboard image write not supported by this browser.","viewer.export.clipboardUnsupported.short":"Clipboard image write not supported in this browser.","viewer.export.motionUnavailable":"Motion capture unavailable in this browser","viewer.export.webmUnavailable":"WebM unavailable in this browser","viewer.export.failed":"Export failed: {message}","viewer.export.unknownVariant":"Unknown Share Card variant: {variant}","viewer.export.routeRequired":"Trace a route before exporting a Route Share Card","viewer.export.reachRequired":"Trace authored reach before exporting a Reach Share Card","viewer.export.unknown":"unknown","viewer.export.routeFailed":"Route Share Card export failed: {message}","viewer.export.reachFailed":"Reach Share Card export failed: {message}","viewer.export.copyFailed":"Copy failed: {message}","viewer.export.copiedPng":"Copied PNG to clipboard","viewer.export.copiedShare":"Copied Share Card","viewer.export.downloadedShare":"Downloaded Share Card","viewer.export.downloadedRoute":"Downloaded Route Share Card","viewer.export.downloadedReach":"Downloaded Reach Share Card","viewer.export.downloadedWebm":"Downloaded WebM","viewer.export.recording":"Recording 6 seconds of motion…","viewer.export.card.routeSummary.one":"Route: {source} → {target} · {count} directed hop","viewer.export.card.routeSummary.other":"Route: {source} → {target} · {count} directed hops","viewer.export.card.reachSummary":"Authored {direction} from {origin} · {nodes} · {links} · max {hops}","viewer.export.card.node.one":"{count} node","viewer.export.card.node.other":"{count} nodes","viewer.export.card.link.one":"{count} link","viewer.export.card.link.other":"{count} links","viewer.export.card.hop.one":"{count} hop","viewer.export.card.hop.other":"{count} hops","viewer.export.card.routeBadge":"ARCHIFY · ROUTE · {hops}","viewer.export.card.reachBadge":"ARCHIFY · {direction} REACH","viewer.export.card.defaultBadge":"ARCHIFY · {preset} · {theme}","viewer.export.direction.upstream":"Upstream","viewer.export.direction.downstream":"Downstream","viewer.export.error.canvasUnavailable":"Canvas unavailable for {label}","viewer.export.error.contextUnavailable":"2D canvas context unavailable for {label}","viewer.export.error.toBlobUnavailable":"canvas.toBlob unavailable for {label}","viewer.export.error.toBlobNull":"canvas.toBlob returned no data for {label}","viewer.export.error.variantsCombined":"Share Card variants cannot be combined","viewer.export.error.viewerState":"Share Card export could not remove temporary viewer state","viewer.export.error.routeState":"Route Card export could not preserve the resolved route safely","viewer.export.error.reachState":"Reach Card export could not preserve authored reach safely","viewer.export.error.webmRequirements":"WebM motion export requires a trace animation and browser MediaRecorder support","viewer.export.error.mediaRecorder":"MediaRecorder failed","viewer.export.error.emptyWebm":"MediaRecorder produced an empty WebM","viewer.export.error.webmBackground":"SVG background could not be loaded for WebM export","viewer.guided.region":"Guided diagram views","viewer.guided.previous":"Previous guided view","viewer.guided.previous.title":"Previous guided view ([)","viewer.guided.next":"Next guided view","viewer.guided.next.title":"Next guided view (])","viewer.guided.views":"Guided views","viewer.guided.explore":"Explore this system","viewer.guided.intro":"Step through curated paths without changing the source diagram.","viewer.guided.trail":"Story trail","viewer.guided.beat":"Beat","viewer.guided.nextBeat":"Next","viewer.guided.play":"Play guided story","viewer.guided.play.title":"Play guided story (P)","viewer.guided.pause":"Pause guided story","viewer.guided.pause.title":"Pause guided story (P)","viewer.guided.replay":"Replay guided story","viewer.guided.replay.title":"Replay guided story (P)","viewer.guided.playStory":"Play story","viewer.guided.pauseStory":"Pause","viewer.guided.replayStory":"Replay story","viewer.guided.motionUnavailable":"Story playback unavailable while motion is Still","viewer.guided.enableMotion":"Switch motion to Live to play the guided story","viewer.guided.selectBeatLink":"Select a Story Beat to copy its exact link","viewer.guided.copyMoment":"Copy moment","viewer.guided.momentCopied":"Moment link copied","viewer.guided.momentCopyFailed":"Could not copy story moment link","viewer.guided.copied":"Copied","viewer.guided.copyFailed":"Copy failed","viewer.guided.showAll":"Show all","viewer.guided.showAll.aria":"Show entire diagram","viewer.guided.chapters":"Story chapters","viewer.guided.storyTrail":"Story trail for {label}: {count} beats","viewer.guided.chapter.open":"Open chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.current":"Current chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.selectedNodes":"{count} selected nodes","viewer.guided.chapter.stops":"{count} stops","viewer.guided.chapter.stop.one":"{count} stop","viewer.guided.chapter.stop.other":"{count} stops","viewer.guided.chapter.current.title":"{label} — current chapter, {count} stops","viewer.guided.chapter.delta.expanded":"{stay} stay, {enter} enter, {leave} leave","viewer.guided.chapter.delta.aria":"Open chapter {index} of {total}: {label}. Chapter focus delta: {delta}","viewer.guided.chapter.delta.title":"{label} — {delta} chapter focus","viewer.guided.handoff":"{from} → {to} · via {label}","viewer.guided.share.chapter":"Chapter {index} / {total}","viewer.guided.share.initial":"Chapter 01 / 01","viewer.guided.share.default":"Guided chapter","viewer.guided.state.ready":"Ready","viewer.guided.state.playing":"Playing","viewer.guided.state.settled":"Settled","viewer.guided.state.paused":"Paused","viewer.guided.state.pinned":"Pinned","viewer.guided.state.still":"Still","viewer.guided.share.step":"Step {index} / {total} · {label}","viewer.guided.share.staticMoment":"{step} · Static moment","viewer.guided.share.complete":"{count} steps complete · {note}","viewer.guided.share.settled":"Path settled for reading.","viewer.guided.share.staticPath":"{count} steps · Static path","viewer.guided.share.ready":"{count} steps · Ready","viewer.guided.share.aria":"{state} chapter {index} of {total}: {label}. {beat}. {route}","viewer.guided.beat.start":"Beat {index} / {total} · {label} · starting point","viewer.guided.beat.forward":"Beat {index} / {total} · {from} → {to}","viewer.guided.beat.reverse":"Beat {index} / {total} · {from} → {to} · reverse authored link","viewer.guided.beat.multiple":"Beat {index} / {total} · {from} ⇄ {to} · {count} authored links","viewer.guided.beat.group":"Beat {index} / {total} · {from} · {to} · grouped · no direct link","viewer.guided.beat.aria.prefix":"Story beat {index} of {total}: {label}. ","viewer.guided.beat.aria.start":"Starting point.","viewer.guided.beat.aria.forward":"From {from} through one authored forward relationship.","viewer.guided.beat.aria.reverse":"From {from}; the authored relationship points from {to} to {from}.","viewer.guided.beat.aria.multiple":"From {from} through {count} authored relationships; shown without arbitrary motion.","viewer.guided.beat.aria.group":"Grouped from {from} with no direct authored relationship.","viewer.guided.caption.start":"Starting point","viewer.guided.caption.grouped":"Grouped transition · no direct authored link","viewer.guided.caption.more":" +{count} more","viewer.guided.caption.reverse":"Reverse authored relationship","viewer.guided.caption.relationships":"{count} authored relationships","viewer.guided.caption.relationship":"Authored relationship","viewer.guided.caption.direction":"authored direction: {from} → {to}","viewer.guided.caption.starting":"Authored starting point","viewer.guided.beatLink":"Copy link to current story moment: Beat {index} of {total}: {label}","viewer.guided.noStory":"This diagram has no authored guided story.","viewer.guide.eyebrow":"Diagram guide","viewer.guide.close":"Close diagram guide","viewer.guide.inspecting":"Inspecting compiled semantics","viewer.guide.actions":"Diagram exploration actions","viewer.guide.find":"Find any node","viewer.guide.find.hint":"Search labels, responsibilities, kinds, and stable IDs.","viewer.guide.route":"Trace a route","viewer.guide.route.aria":"Trace a directed route","viewer.guide.route.hint":"Ask how two semantic nodes connect in authored direction.","viewer.guide.map":"See the whole system","viewer.guide.map.hint":"Open Semantic Radar with a live viewport and stable nodes.","viewer.guide.lens":"Compare semantic kinds","viewer.guide.lens.hint":"Count roles, reveal their traffic, and compare direct authored links.","viewer.guide.story":"Play the guided story","viewer.guide.story.hint":"Walk the authored chapters and real relationships.","viewer.guide.present":"Enter Presentation Stage","viewer.guide.present.hint":"Give the live diagram the viewport without changing export.","viewer.guide.shortcuts":"Additional keyboard shortcuts","viewer.guide.shortcut.export":"Export","viewer.guide.shortcut.theme":"Theme","viewer.guide.shortcut.style":"Style","viewer.guide.shortcut.reset":"Reset","viewer.guide.shortcut.zoomIn":"Zoom in","viewer.guide.shortcut.zoomOut":"Zoom out","viewer.guide.shortcut.close":"Close","viewer.guide.facts":"{nodes} · {relationships} · {views}","viewer.guide.fact.node.one":"{count} semantic node","viewer.guide.fact.node.other":"{count} semantic nodes","viewer.guide.fact.relationship.one":"{count} relationship","viewer.guide.fact.relationship.other":"{count} relationships","viewer.guide.fact.view.one":"{count} guided view","viewer.guide.fact.view.other":"{count} guided views","viewer.guide.story.available.one":"Walk {count} authored chapter and its real relationships.","viewer.guide.story.available.other":"Walk {count} authored chapters and their real relationships.","viewer.guide.story.unavailable":"No authored guided story in this diagram.","viewer.guide.open":"Open diagram guide","viewer.guide.noStory":"This diagram has no authored guided story.","viewer.finder.title":"Find a node","viewer.finder.close":"Close node finder","viewer.finder.placeholder":"Search labels or IDs","viewer.finder.search":"Search diagram nodes","viewer.finder.results":"Diagram nodes","viewer.finder.empty":"No matching nodes","viewer.finder.result.focus":"Focus {label}","viewer.finder.result.routeStart":"Choose {label} as route start","viewer.finder.result.routeTarget":"Choose {label} as route destination, {links}","viewer.finder.status.empty":"No matching nodes","viewer.finder.status.count.one":"{count} matching node","viewer.finder.status.count.other":"{count} matching nodes","viewer.finder.noun.nodes":"nodes","viewer.finder.link.one":"{count} link","viewer.finder.link.other":"{count} links","viewer.finder.result.focus.one":"Focus {label}, {count} related connection","viewer.finder.result.focus.other":"Focus {label}, {count} related connections","viewer.finder.status.filtered":"{visible} of {available} {noun}","viewer.finder.status.all":"{available} {noun}","viewer.passport.eyebrow":"Semantic passport","viewer.passport.metadata":"Node metadata","viewer.passport.evidence":"Verified source evidence","viewer.passport.verified":"Verified source","viewer.passport.reach":"Authored reach","viewer.passport.reach.trace":"Trace authored reachability","viewer.passport.upstream":"Upstream","viewer.passport.downstream":"Downstream","viewer.passport.upstream.trace":"Trace upstream authored reachability","viewer.passport.downstream.trace":"Trace downstream authored reachability","viewer.passport.close":"Close semantic passport","viewer.passport.copy":"Copy link","viewer.passport.copy.focus":"Copy link to focused node","viewer.passport.relations":"Relations","viewer.passport.relations.show":"Show connected relationships","viewer.passport.relations.hide":"Hide connected relationships","viewer.passport.relations.list":"Connected relationships","viewer.passport.copyRelation":"Copy relation","viewer.passport.copyNode":"Copy node","viewer.passport.copyPinned":"Copy link to pinned relationship","viewer.passport.copySource":"Copy link to source node","viewer.passport.copy.focused.success":"Focused node link copied","viewer.passport.copy.pinned.success":"Pinned relationship link copied","viewer.passport.copy.focused.failed":"Could not copy focused node link","viewer.passport.copy.pinned.failed":"Could not copy pinned relationship link","viewer.passport.relationship.none":"No connected relationships","viewer.passport.relationship.count.one":"{count} relation","viewer.passport.relationship.count.other":"{count} relations","viewer.passport.relationship.show.one":"Show {count} connected relationship","viewer.passport.relationship.show.other":"Show {count} connected relationships","viewer.passport.relationship.summary":"{out} outgoing · {in} incoming{loops}","viewer.passport.relationship.loops":" · {count} loop","viewer.passport.relationship.explorer":"Direct relationship explorer","viewer.passport.relationship.help":"Use arrow keys to explore relationships. Press Enter or Space to pin details; Escape clears.","viewer.passport.relationship.loopsBack":"loops back","viewer.passport.relationship.connectsTo":"connects to","viewer.passport.relationship.connectsFrom":"connects from","viewer.passport.relationship.pinned":"Pinned relationship · {from} → {to} · {label}","viewer.passport.relationship.inspect":"Inspect relationship {index} of {total}: {from} to {to}, {label}. Press Enter for details.","viewer.passport.relationship.group.out":"Outgoing","viewer.passport.relationship.group.in":"Incoming","viewer.passport.relationship.group.loop":"Self loops","viewer.passport.relationship.row":"{group}: {relationship}, {neighbor}","viewer.passport.relationship.direction.out":"OUT →","viewer.passport.relationship.direction.in":"← IN","viewer.passport.relationship.direction.loop":"LOOP","viewer.passport.sourceCount.one":"{count} verified source reference","viewer.passport.sourceCount.other":"{count} verified source references","viewer.passport.sourceMarker":"SRC","viewer.passport.beacon.one":"{count} verified source; focus this node to inspect","viewer.passport.beacon.other":"{count} verified sources; focus this node to inspect","viewer.passport.repository.open":"Open verified repository revision {revision}","viewer.passport.source.open":"Open verified source {path} at revision {revision}","viewer.passport.source.openLink":"Open ↗","viewer.passport.reach.upstream.one":"Trace {count} upstream authored node","viewer.passport.reach.upstream.other":"Trace {count} upstream authored nodes","viewer.passport.reach.downstream.one":"Trace {count} downstream authored node","viewer.passport.reach.downstream.other":"Trace {count} downstream authored nodes","viewer.passport.reach.noUpstream":"No upstream authored nodes","viewer.passport.reach.noDownstream":"No downstream authored nodes","viewer.passport.reach.status":"{direction} · {nodes} nodes · {links} links · max {hops} hops","viewer.route.eyebrow":"Route probe","viewer.route.start":"Choose a start node","viewer.route.start.find":"Find start","viewer.route.start.find.aria":"Find a route start","viewer.route.copy":"Copy link","viewer.route.copy.aria":"Copy link to traced route","viewer.route.clear":"Clear","viewer.route.clear.aria":"Clear route probe","viewer.route.traced":"Traced route","viewer.route.pickTwo":"Pick two semantic nodes on the diagram","viewer.route.pickOne":"Pick a semantic node on the diagram","viewer.route.controls":"Route journey controls","viewer.route.previous":"Previous route position","viewer.route.play":"Play route journey","viewer.route.pause":"Pause route journey","viewer.route.replay":"Replay route journey","viewer.route.next":"Next route position","viewer.route.journey":"Journey","viewer.route.pause.label":"Pause","viewer.route.replay.label":"Replay","viewer.route.overview":"Overview","viewer.route.overview.aria":"Show complete route overview","viewer.route.instructions":"Choose the source, then the destination. Direction matters.","viewer.route.destination":"Choose a destination from {label}","viewer.route.destination.find":"Find target","viewer.route.destination.find.aria":"Find a reachable route destination","viewer.route.differentDestination":"Choose a different destination","viewer.route.distinct":"A route needs two distinct semantic nodes.","viewer.route.unreachable":"No directed route to {label}","viewer.route.unreachable.detail":"{target} is not reachable from {source}. Pick a highlighted destination.","viewer.route.start.instructions":"Select the source. The next step will reveal only directed destinations.","viewer.route.copy.success":"Traced route link copied","viewer.route.copy.failed":"Could not copy traced route link","viewer.route.position":"Route position {index} of {total}: {label}","viewer.route.step":"Step {index} of {total} · {phase} · {label}","viewer.route.motionRequired":"Automatic journey requires Live motion","viewer.route.trigger.clear":"Clear traced route","viewer.route.overview.status":"{nodes} · {hops} · shortest authored route","viewer.route.overview.node.one":"{count} node","viewer.route.overview.node.other":"{count} nodes","viewer.route.overview.hop.one":"{count} directed hop","viewer.route.overview.hop.other":"{count} directed hops","viewer.route.phase.playing":"Playing","viewer.route.phase.complete":"Complete","viewer.route.phase.inspecting":"Inspecting","viewer.route.destination.count.one":"{count} directed destination available. Pick a highlighted node.","viewer.route.destination.count.other":"{count} directed destinations available. Pick a highlighted node.","viewer.route.noOutgoing":"No outgoing route starts here. Clear and choose another source.","viewer.route.result.title":"{source} to {target}","viewer.route.finder.source.title":"Choose route start","viewer.route.finder.source.placeholder":"Search route sources","viewer.route.finder.source.empty":"No matching route sources","viewer.route.finder.source.results":"Nodes that can start a route","viewer.route.finder.source.noun":"route sources","viewer.route.finder.source.badge":"start","viewer.route.finder.target.title":"Destination from {label}","viewer.route.finder.target.placeholder":"Search reachable destinations","viewer.route.finder.target.empty":"No matching reachable destinations","viewer.route.finder.target.results":"Reachable route destinations","viewer.route.finder.target.noun":"reachable destinations","viewer.route.hop.one":"{count} hop","viewer.route.hop.other":"{count} hops","viewer.lens.eyebrow":"Semantic lens","viewer.lens.title":"Compare system roles","viewer.lens.close":"Close semantic lens","viewer.lens.instruction":"Choose up to two semantic kinds. One reveals its real traffic; two compare only direct authored relationships.","viewer.lens.kinds":"Semantic kinds","viewer.lens.choose":"Choose a kind to inspect its nodes and touching relationships.","viewer.lens.copy":"Copy link to semantic lens","viewer.lens.clear":"Clear semantic lens","viewer.lens.open":"Open semantic lens","viewer.lens.openActive":"Open active semantic lens","viewer.lens.legend":"Semantic legend","viewer.lens.legend.inspect.one":"Inspect {label}, {count} node","viewer.lens.legend.inspect.other":"Inspect {label}, {count} nodes","viewer.lens.kind.count.one":"{label}, {count} node","viewer.lens.kind.count.other":"{label}, {count} nodes","viewer.lens.compare.one":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationship","viewer.lens.compare.other":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationships","viewer.lens.single":"{nodes} · {relationships} · connected peers remain visible","viewer.lens.node.one":"{count} {label} node","viewer.lens.node.other":"{count} {label} nodes","viewer.lens.relationship.one":"{count} touching relationship","viewer.lens.relationship.other":"{count} touching relationships","viewer.radar.title":"Semantic radar","viewer.radar.building":"Building overview","viewer.radar.openFull":"Open full semantic radar","viewer.radar.open":"Open radar","viewer.radar.close":"Close semantic radar","viewer.radar.surface":"Diagram overview. Click a node to focus it, or use arrow keys to pan.","viewer.radar.click":"Click node","viewer.radar.drag":"Drag to pan","viewer.radar.space":"Semantic radar needs more MAP space.","viewer.radar.nodes":"Semantic diagram radar nodes","viewer.radar.focus":"Focus {label} from Semantic Radar","viewer.radar.status":"{count} nodes · {viewport}","viewer.radar.fullMap":"{count} nodes · full map","viewer.radar.compacted":"Radar compacted to avoid covering the Semantic Passport or MAP controls.","viewer.radar.cancelWaiting":"Cancel semantic radar waiting for more MAP space","viewer.radar.needsSpace":"Semantic radar needs more visible MAP space","viewer.radar.viewport.full":"full map","viewer.radar.viewport.width":"{percent}% width","viewer.radar.viewport.scale":"{percent}% viewport","viewer.nav.controls":"Diagram view controls","viewer.nav.route":"Trace a directed route","viewer.nav.route.title":"Trace route (R)","viewer.nav.route.short":"PATH","viewer.nav.radar":"Open semantic radar","viewer.nav.radar.title":"Semantic radar (M)","viewer.nav.radar.short":"MAP","viewer.nav.lens":"Open semantic lens","viewer.nav.lens.title":"Semantic lens (L)","viewer.nav.lens.short":"LENS","viewer.nav.find":"Find a node","viewer.nav.find.title":"Find a node (/)","viewer.nav.guide":"Open diagram guide","viewer.nav.guide.title":"Diagram guide (?)","viewer.nav.zoomOut":"Zoom out","viewer.nav.zoomOut.title":"Zoom out (-)","viewer.nav.reset":"Reset diagram view","viewer.nav.reset.title":"Reset view (0)","viewer.nav.read":"READ","viewer.nav.zoomIn":"Zoom in","viewer.nav.zoomIn.title":"Zoom in (+)","viewer.nav.camera":"{hint}. Reset diagram view","viewer.nav.camera.title":"{semantic}{hint} · reset view (0)","viewer.nav.camera.semantic":"Semantic camera active · ","viewer.nav.level.map":"MAP","viewer.nav.level.read":"READ","viewer.nav.level.full":"FULL","viewer.nav.level.auto":"AUTO","viewer.nav.detail.map":"Zoom in to reveal relationship labels and node context","viewer.nav.detail.read":"Zoom in again to reveal tags and annotations","viewer.nav.detail.full":"Full diagram detail","viewer.intent.summary":"{label}. {out} outgoing, {in} incoming{loops}. {total} connections. Press Enter for details.","viewer.intent.loops":", {count} self loop","viewer.common.copied":"Copied","viewer.common.copyFailed":"Copy failed","viewer.common.copyLink":"Copy link","viewer.common.clear":"Clear","viewer.common.close":"Close"}}</script>
     <div class="guided-views no-print" id="guided-views" hidden aria-label="Guided diagram views">
@@ -5042,8 +5071,8 @@
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / PLATE 04">
-      <svg viewBox="0 0 1300 720" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
-        <title id="archify-diagram-title">Genome-to-Diffraction Developer Architecture</title>
+      <svg viewBox="0 0 1120 560" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
+        <title id="archify-diagram-title">Genome-to-Diffraction Scientific Workflow</title>
         <desc id="archify-diagram-description">An architecture diagram generated by Archify.</desc>
         <!-- Definitions -->
         <defs>
@@ -5071,213 +5100,136 @@
 
 
         <!-- Connection paths (before components for correct z-order) -->
-        <path data-edge-from="control_plane" data-edge-to="public_entrypoints" data-edge-label="reviewed launch" data-edge-key="0" data-edge-id="control_launch" data-composition-points="190,375;220,375" d="M 190 375 L 220 375" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="phase3_entrypoint" data-edge-to="public_entrypoints" data-edge-label="large clean break" data-edge-key="1" data-edge-id="phase3_migration" data-composition-points="310,178;310,259;310,259;310,340" d="M 310 178 L 310 259 L 310 259 L 310 340" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="public_entrypoints" data-edge-to="nextflow" data-edge-label="operations" data-edge-key="2" data-edge-id="entrypoints_workflows" data-composition-points="400,375;430,375" d="M 400 375 L 430 375" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="nextflow" data-edge-to="process_modules" data-edge-label="complete channel items" data-edge-key="3" data-edge-id="workflows_processes" data-composition-points="620,375;650,375" d="M 620 375 L 650 375" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="process_modules" data-edge-to="python_services" data-edge-label="one task" data-edge-key="4" data-edge-id="processes_python" data-composition-points="830,375;860,375" d="M 830 375 L 860 375" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="contracts" data-edge-to="python_services" data-edge-label="validate + identify" data-edge-key="5" data-edge-id="contracts_services" data-composition-points="955,168;955,254;955,254;955,340" d="M 955 168 L 955 254 L 955 254 L 955 340" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="python_services" data-edge-to="external_tools" data-edge-label="command + raw output" data-edge-key="6" data-edge-id="services_tools" data-composition-points="955,410;955,490;955,490;955,570" d="M 955 410 L 955 490 L 955 490 L 955 570" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="python_services" data-edge-to="evidence_store" data-edge-label="typed records" data-edge-key="7" data-edge-id="services_evidence" data-composition-points="1050,375;1090,375" d="M 1050 375 L 1090 375" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="human_review" data-edge-to="evidence_store" data-edge-label="owned decisions" data-edge-key="8" data-edge-id="review_evidence" data-composition-points="1190,168;1190,254;1190,254;1190,340" d="M 1190 168 L 1190 254 L 1190 254 L 1190 340" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="evidence_store" data-edge-to="publication" data-edge-label="checksums + status" data-edge-key="9" data-edge-id="evidence_publication" data-composition-points="1190,410;1190,490;1190,490;1190,570" d="M 1190 410 L 1190 490 L 1190 490 L 1190 570" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="validation_plane" data-edge-to="public_entrypoints" data-edge-label="release gates" data-edge-key="10" data-edge-id="validation_entrypoints" data-composition-points="525,168;525,254;310,254;310,340" d="M 525 168 L 525 246 Q 525 254 517 254 L 318 254 Q 310 254 310 262 L 310 340" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="inputs" data-edge-to="preflight" data-edge-key="0" data-edge-id="inputs_preflight" data-composition-points="160,284;205,284" d="M 160 284 L 205 284" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="preflight" data-edge-to="discover_prepare" data-edge-label="proceed" data-edge-key="1" data-edge-id="preflight_discovery" data-composition-points="335,284;380,284" d="M 335 284 L 380 284" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="discover_prepare" data-edge-to="rank_mr" data-edge-key="2" data-edge-id="discovery_mr" data-composition-points="530,284;555,284" d="M 530 284 L 555 284" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="rank_mr" data-edge-to="review_refine" data-edge-key="3" data-edge-id="mr_review" data-composition-points="685,284;730,284" d="M 685 284 L 730 284" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="review_refine" data-edge-to="conclusion" data-edge-label="reviewed" data-edge-key="4" data-edge-id="review_conclusion" data-composition-points="860,284;905,284" d="M 860 284 L 905 284" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="preflight" data-edge-to="needs_review" data-edge-label="needs review" data-edge-key="5" data-edge-id="preflight_review" data-composition-points="270,318;270,410" d="M 270 318 L 270 410" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="localisation_gel" data-edge-to="rank_mr" data-edge-label="orders candidates" data-edge-key="6" data-edge-id="localisation_ranking" data-composition-points="180,104;620,104;620,250" d="M 180 104 L 612 104 Q 620 104 620 112 L 620 250" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
 
         <!-- Components -->
-        <g id="node-control_plane" data-node-id="control_plane" data-node-label="Reviewed Control Plane" tabindex="0" role="button" aria-label="Focus Reviewed Control Plane, clean commit + fixed profile, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="clean commit + fixed profile" data-node-context="Architecture component">
-          <title>Reviewed Control Plane · clean commit + fixed profile · Architecture component</title>
-          <rect x="20" y="340" width="170" height="70" rx="6" class="c-mask"/>
-          <rect x="20" y="340" width="170" height="70" rx="6" class="c-external" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(26 346) scale(0.6875)">
-            <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
-            <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="105" y="373" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Reviewed Control Plane</text>
-        <text data-detail="context" x="105" y="389" class="t-muted" font-size="9" text-anchor="middle">clean commit + fixed profile</text>
-        </g>
-
-        <g id="node-public_entrypoints" data-node-id="public_entrypoints" data-node-label="Final Public Entrypoints" tabindex="0" role="button" aria-label="Focus Final Public Entrypoints, main.nf + prepare_databases.nf, Architecture component" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="main.nf + prepare_databases.nf" data-node-tag="v0.3 clean break" data-node-context="Architecture component">
-          <title>Final Public Entrypoints · main.nf + prepare_databases.nf · Architecture component · v0.3 clean break</title>
-          <rect x="220" y="340" width="180" height="70" rx="6" class="c-mask"/>
-          <rect x="220" y="340" width="180" height="70" rx="6" class="c-frontend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(226 346) scale(0.6875)">
-            <rect x="2" y="3" width="12" height="10" rx="2"/>
-            <path d="M2 6.5h12"/>
-            <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
-            <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="310" y="373" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Final Public Entrypoints</text>
-        <text data-detail="context" x="310" y="389" class="t-muted" font-size="9" text-anchor="middle">main.nf + prepare_databases.nf</text>
-        <text data-detail="fine" x="310" y="402" class="t-frontend" font-size="7" text-anchor="middle">v0.3 clean break</text>
-        </g>
-
-        <g id="node-phase3_entrypoint" data-node-id="phase3_entrypoint" data-node-label="Phase III Entrypoint" tabindex="0" role="button" aria-label="Focus Phase III Entrypoint, phase3_application.nf, Architecture component" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="phase3_application.nf" data-node-tag="transitional owner" data-node-context="Architecture component">
-          <title>Phase III Entrypoint · phase3_application.nf · Architecture component · transitional owner</title>
-          <rect x="220" y="110" width="180" height="68" rx="6" class="c-mask"/>
-          <rect x="220" y="110" width="180" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(226 116) scale(0.6875)">
-            <rect x="2" y="3" width="12" height="10" rx="2"/>
-            <path d="M2 6.5h12"/>
-            <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
-            <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="310" y="142" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Phase III Entrypoint</text>
-        <text data-detail="context" x="310" y="158" class="t-muted" font-size="9" text-anchor="middle">phase3_application.nf</text>
-        <text data-detail="fine" x="310" y="170" class="t-frontend" font-size="7" text-anchor="middle">transitional owner</text>
-        </g>
-
-        <g id="node-nextflow" data-node-id="nextflow" data-node-label="Nextflow DSL2 Workflows" tabindex="0" role="button" aria-label="Focus Nextflow DSL2 Workflows, fan-out + scheduling + resume, Architecture component" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="fan-out + scheduling + resume" data-node-context="Architecture component">
-          <title>Nextflow DSL2 Workflows · fan-out + scheduling + resume · Architecture component</title>
-          <rect x="430" y="340" width="190" height="70" rx="6" class="c-mask"/>
-          <rect x="430" y="340" width="190" height="70" rx="6" class="c-messagebus" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(436 346) scale(0.6875)">
-            <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>
-            <circle cx="5" cy="4.5" r="1" class="sigil-fill"/>
-            <circle cx="10.5" cy="8" r="1" class="sigil-fill"/>
-            <circle cx="7" cy="11.5" r="1" class="sigil-fill"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="525" y="373" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Nextflow DSL2 Workflows</text>
-        <text data-detail="context" x="525" y="389" class="t-muted" font-size="9" text-anchor="middle">fan-out + scheduling + resume</text>
-        </g>
-
-        <g id="node-process_modules" data-node-id="process_modules" data-node-label="Thin Process Modules" tabindex="0" role="button" aria-label="Focus Thin Process Modules, typed I/O + one CLI task, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="typed I/O + one CLI task" data-node-context="Architecture component">
-          <title>Thin Process Modules · typed I/O + one CLI task · Architecture component</title>
-          <rect x="650" y="340" width="180" height="70" rx="6" class="c-mask"/>
-          <rect x="650" y="340" width="180" height="70" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(656 346) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="740" y="373" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Thin Process Modules</text>
-        <text data-detail="context" x="740" y="389" class="t-muted" font-size="9" text-anchor="middle">typed I/O + one CLI task</text>
-        </g>
-
-        <g id="node-python_services" data-node-id="python_services" data-node-label="Python Scientific Services" tabindex="0" role="button" aria-label="Focus Python Scientific Services, policy + planning + parsing, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="policy + planning + parsing" data-node-context="Architecture component">
-          <title>Python Scientific Services · policy + planning + parsing · Architecture component</title>
-          <rect x="860" y="340" width="190" height="70" rx="6" class="c-mask"/>
-          <rect x="860" y="340" width="190" height="70" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(866 346) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="955" y="373" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Python Scientific Services</text>
-        <text data-detail="context" x="955" y="389" class="t-muted" font-size="9" text-anchor="middle">policy + planning + parsing</text>
-        </g>
-
-        <g id="node-contracts" data-node-id="contracts" data-node-label="Typed Contracts" tabindex="0" role="button" aria-label="Focus Typed Contracts, schemas + IDs + checksums, Architecture component" aria-pressed="false" data-node-kind="security" data-node-sublabel="schemas + IDs + checksums" data-node-context="Architecture component">
-          <title>Typed Contracts · schemas + IDs + checksums · Architecture component</title>
-          <rect x="860" y="100" width="190" height="68" rx="6" class="c-mask"/>
-          <rect x="860" y="100" width="190" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(866 106) scale(0.6875)">
-            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
-            <path d="m5.8 8 1.5 1.5 3-3"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="955" y="132" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Typed Contracts</text>
-        <text data-detail="context" x="955" y="148" class="t-muted" font-size="9" text-anchor="middle">schemas + IDs + checksums</text>
-        </g>
-
-        <g id="node-external_tools" data-node-id="external_tools" data-node-label="External Tool Adapters" tabindex="0" role="button" aria-label="Focus External Tool Adapters, Phenix + Foldseek + localisation, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="Phenix + Foldseek + localisation" data-node-context="Architecture component">
-          <title>External Tool Adapters · Phenix + Foldseek + localisation · Architecture component</title>
-          <rect x="860" y="570" width="190" height="70" rx="6" class="c-mask"/>
-          <rect x="860" y="570" width="190" height="70" rx="6" class="c-external" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(866 576) scale(0.6875)">
-            <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
-            <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="955" y="603" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">External Tool Adapters</text>
-        <text data-detail="context" x="955" y="619" class="t-muted" font-size="9" text-anchor="middle">Phenix + Foldseek + localisation</text>
-        </g>
-
-        <g id="node-human_review" data-node-id="human_review" data-node-label="File-based Review Gates" tabindex="0" role="button" aria-label="Focus File-based Review Gates, crystal + A + claims, Architecture component" aria-pressed="false" data-node-kind="security" data-node-sublabel="crystal + A + claims" data-node-context="Architecture component">
-          <title>File-based Review Gates · crystal + A + claims · Architecture component</title>
-          <rect x="1090" y="100" width="200" height="68" rx="6" class="c-mask"/>
-          <rect x="1090" y="100" width="200" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(1096 106) scale(0.6875)">
-            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
-            <path d="m5.8 8 1.5 1.5 3-3"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="1190" y="132" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">File-based Review Gates</text>
-        <text data-detail="context" x="1190" y="148" class="t-muted" font-size="9" text-anchor="middle">crystal + A + claims</text>
-        </g>
-
-        <g id="node-evidence_store" data-node-id="evidence_store" data-node-label="Owned Evidence Packages" tabindex="0" role="button" aria-label="Focus Owned Evidence Packages, attempts + immutable manifests, Architecture component" aria-pressed="false" data-node-kind="database" data-node-sublabel="attempts + immutable manifests" data-node-context="Architecture component">
-          <title>Owned Evidence Packages · attempts + immutable manifests · Architecture component</title>
-          <rect x="1090" y="340" width="200" height="70" rx="6" class="c-mask"/>
-          <rect x="1090" y="340" width="200" height="70" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(1096 346) scale(0.6875)">
+        <g id="node-inputs" data-node-id="inputs" data-node-label="Inputs" tabindex="0" role="button" aria-label="Focus Inputs, catalogue + MTZ, Architecture component" aria-pressed="false" data-node-kind="database" data-node-sublabel="catalogue + MTZ" data-node-tag="annotation fixed" data-node-context="Architecture component">
+          <title>Inputs · catalogue + MTZ · Architecture component · annotation fixed</title>
+          <rect x="30" y="250" width="130" height="68" rx="6" class="c-mask"/>
+          <rect x="30" y="250" width="130" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(36 256) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="1190" y="373" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Owned Evidence Packages</text>
-        <text data-detail="context" x="1190" y="389" class="t-muted" font-size="9" text-anchor="middle">attempts + immutable manifests</text>
+          <text data-node-label="" data-detail-anchor="" x="95" y="282" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Inputs</text>
+        <text data-detail="context" x="95" y="298" class="t-muted" font-size="9" text-anchor="middle">catalogue + MTZ</text>
+        <text data-detail="fine" x="95" y="310" class="t-database" font-size="7" text-anchor="middle">annotation fixed</text>
         </g>
 
-        <g id="node-publication" data-node-id="publication" data-node-label="Publication and Collection" tabindex="0" role="button" aria-label="Focus Publication and Collection, cache + trace + verified reports, Architecture component" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="cache + trace + verified reports" data-node-context="Architecture component">
-          <title>Publication and Collection · cache + trace + verified reports · Architecture component</title>
-          <rect x="1090" y="570" width="200" height="70" rx="6" class="c-mask"/>
-          <rect x="1090" y="570" width="200" height="70" rx="6" class="c-cloud" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="cloud" class="semantic-sigil s-cloud" transform="translate(1096 576) scale(0.6875)">
-            <path d="M4.3 12.5h7.3a2.4 2.4 0 0 0 .2-4.8 4 4 0 0 0-7.5-1.3A3.1 3.1 0 0 0 4.3 12.5Z"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="1190" y="603" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Publication and Collection</text>
-        <text data-detail="context" x="1190" y="619" class="t-muted" font-size="9" text-anchor="middle">cache + trace + verified reports</text>
-        </g>
-
-        <g id="node-validation_plane" data-node-id="validation_plane" data-node-label="Internal Validation Plane" tabindex="0" role="button" aria-label="Focus Internal Validation Plane, role-named validation.nf, Architecture component" aria-pressed="false" data-node-kind="security" data-node-sublabel="role-named validation.nf" data-node-tag="outside normal analysis" data-node-context="Architecture component">
-          <title>Internal Validation Plane · role-named validation.nf · Architecture component · outside normal analysis</title>
-          <rect x="430" y="100" width="190" height="68" rx="6" class="c-mask"/>
-          <rect x="430" y="100" width="190" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(436 106) scale(0.6875)">
+        <g id="node-preflight" data-node-id="preflight" data-node-label="MTZ Preflight" tabindex="0" role="button" aria-label="Focus MTZ Preflight, symmetry + Free-R, Architecture component" aria-pressed="false" data-node-kind="security" data-node-sublabel="symmetry + Free-R" data-node-tag="proceed / review" data-node-context="Architecture component">
+          <title>MTZ Preflight · symmetry + Free-R · Architecture component · proceed / review</title>
+          <rect x="205" y="250" width="130" height="68" rx="6" class="c-mask"/>
+          <rect x="205" y="250" width="130" height="68" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(211 256) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="525" y="132" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Internal Validation Plane</text>
-        <text data-detail="context" x="525" y="148" class="t-muted" font-size="9" text-anchor="middle">role-named validation.nf</text>
-        <text data-detail="fine" x="525" y="160" class="t-security" font-size="7" text-anchor="middle">outside normal analysis</text>
+          <text data-node-label="" data-detail-anchor="" x="270" y="282" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">MTZ Preflight</text>
+        <text data-detail="context" x="270" y="298" class="t-muted" font-size="9" text-anchor="middle">symmetry + Free-R</text>
+        <text data-detail="fine" x="270" y="310" class="t-security" font-size="7" text-anchor="middle">proceed / review</text>
+        </g>
+
+        <g id="node-discover_prepare" data-node-id="discover_prepare" data-node-label="Find + Prepare Models" tabindex="0" role="button" aria-label="Focus Find + Prepare Models, PDB + local Foldseek, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="PDB + local Foldseek" data-node-tag="offline compute" data-node-context="Architecture component">
+          <title>Find + Prepare Models · PDB + local Foldseek · Architecture component · offline compute</title>
+          <rect x="380" y="250" width="150" height="68" rx="6" class="c-mask"/>
+          <rect x="380" y="250" width="150" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(386 256) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="455" y="282" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Find + Prepare Models</text>
+        <text data-detail="context" x="455" y="298" class="t-muted" font-size="9" text-anchor="middle">PDB + local Foldseek</text>
+        <text data-detail="fine" x="455" y="310" class="t-backend" font-size="7" text-anchor="middle">offline compute</text>
+        </g>
+
+        <g id="node-rank_mr" data-node-id="rank_mr" data-node-label="Rank + MR" tabindex="0" role="button" aria-label="Focus Rank + MR, Matthews + Phaser, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Matthews + Phaser" data-node-tag="search evidence" data-node-context="Architecture component">
+          <title>Rank + MR · Matthews + Phaser · Architecture component · search evidence</title>
+          <rect x="555" y="250" width="130" height="68" rx="6" class="c-mask"/>
+          <rect x="555" y="250" width="130" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(561 256) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="620" y="282" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Rank + MR</text>
+        <text data-detail="context" x="620" y="298" class="t-muted" font-size="9" text-anchor="middle">Matthews + Phaser</text>
+        <text data-detail="fine" x="620" y="310" class="t-backend" font-size="7" text-anchor="middle">search evidence</text>
+        </g>
+
+        <g id="node-review_refine" data-node-id="review_refine" data-node-label="Review + Maps" tabindex="0" role="button" aria-label="Focus Review + Maps, seed + sequence + claims, Architecture component" aria-pressed="false" data-node-kind="security" data-node-sublabel="seed + sequence + claims" data-node-tag="human gates" data-node-context="Architecture component">
+          <title>Review + Maps · seed + sequence + claims · Architecture component · human gates</title>
+          <rect x="730" y="250" width="130" height="68" rx="6" class="c-mask"/>
+          <rect x="730" y="250" width="130" height="68" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(736 256) scale(0.6875)">
+            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
+            <path d="m5.8 8 1.5 1.5 3-3"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="795" y="282" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Review + Maps</text>
+        <text data-detail="context" x="795" y="298" class="t-muted" font-size="8.4" text-anchor="middle">seed + sequence + claims</text>
+        <text data-detail="fine" x="795" y="310" class="t-security" font-size="7" text-anchor="middle">human gates</text>
+        </g>
+
+        <g id="node-conclusion" data-node-id="conclusion" data-node-label="Conclude" tabindex="0" role="button" aria-label="Focus Conclude, B-F + report, Architecture component" aria-pressed="false" data-node-kind="database" data-node-sublabel="B-F + report" data-node-tag="depth 4-6 tentative" data-node-context="Architecture component">
+          <title>Conclude · B-F + report · Architecture component · depth 4-6 tentative</title>
+          <rect x="905" y="250" width="130" height="68" rx="6" class="c-mask"/>
+          <rect x="905" y="250" width="130" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(911 256) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="970" y="282" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Conclude</text>
+        <text data-detail="context" x="970" y="298" class="t-muted" font-size="9" text-anchor="middle">B-F + report</text>
+        <text data-detail="fine" x="970" y="310" class="t-database" font-size="7" text-anchor="middle">depth 4-6 tentative</text>
+        </g>
+
+        <g id="node-localisation_gel" data-node-id="localisation_gel" data-node-label="Localisation + Gel" tabindex="0" role="button" aria-label="Focus Localisation + Gel, user-supplied prior, Architecture component" aria-pressed="false" data-node-kind="database" data-node-sublabel="user-supplied prior" data-node-tag="missing is neutral" data-node-context="Architecture component">
+          <title>Localisation + Gel · user-supplied prior · Architecture component · missing is neutral</title>
+          <rect x="30" y="70" width="150" height="68" rx="6" class="c-mask"/>
+          <rect x="30" y="70" width="150" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(36 76) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="105" y="102" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Localisation + Gel</text>
+        <text data-detail="context" x="105" y="118" class="t-muted" font-size="9" text-anchor="middle">user-supplied prior</text>
+        <text data-detail="fine" x="105" y="130" class="t-database" font-size="7" text-anchor="middle">missing is neutral</text>
+        </g>
+
+        <g id="node-needs_review" data-node-id="needs_review" data-node-label="Needs Review" tabindex="0" role="button" aria-label="Focus Needs Review, check diffraction before MR, Architecture component" aria-pressed="false" data-node-kind="security" data-node-sublabel="check diffraction before MR" data-node-tag="no MR yet" data-node-context="Architecture component">
+          <title>Needs Review · check diffraction before MR · Architecture component · no MR yet</title>
+          <rect x="200" y="410" width="140" height="68" rx="6" class="c-mask"/>
+          <rect x="200" y="410" width="140" height="68" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(206 416) scale(0.6875)">
+            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
+            <path d="m5.8 8 1.5 1.5 3-3"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="270" y="442" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Needs Review</text>
+        <text data-detail="context" x="270" y="458" class="t-muted" font-size="8.1" text-anchor="middle">check diffraction before MR</text>
+        <text data-detail="fine" x="270" y="470" class="t-security" font-size="7" text-anchor="middle">no MR yet</text>
         </g>
 
         <!-- Connection labels -->
-        <g data-detail="context" data-edge-from="control_plane" data-edge-to="public_entrypoints" data-edge-label="reviewed launch" data-edge-key="0" data-edge-id="control_launch">
-          <rect x="164" y="414" width="82" height="14" rx="3" class="c-mask"/>
-          <text x="205" y="424" class="t-backend" font-size="8" text-anchor="middle">reviewed launch</text>
+
+        <g data-detail="context" data-edge-from="preflight" data-edge-to="discover_prepare" data-edge-label="proceed" data-edge-key="1" data-edge-id="preflight_discovery">
+          <rect x="335.7" y="264" width="43.6" height="14" rx="3" class="c-mask"/>
+          <text x="357.5" y="274" class="t-backend" font-size="8" text-anchor="middle">proceed</text>
         </g>
-        <g data-detail="context" data-edge-from="phase3_entrypoint" data-edge-to="public_entrypoints" data-edge-label="large clean break" data-edge-key="1" data-edge-id="phase3_migration">
-          <rect x="264.2" y="205" width="91.6" height="14" rx="3" class="c-mask"/>
-          <text x="310" y="215" class="t-messagebus" font-size="8" text-anchor="middle">large clean break</text>
+
+
+        <g data-detail="context" data-edge-from="review_refine" data-edge-to="conclusion" data-edge-label="reviewed" data-edge-key="4" data-edge-id="review_conclusion">
+          <rect x="858.3" y="264" width="48.4" height="14" rx="3" class="c-mask"/>
+          <text x="882.5" y="274" class="t-security" font-size="8" text-anchor="middle">reviewed</text>
         </g>
-        <g data-detail="context" data-edge-from="public_entrypoints" data-edge-to="nextflow" data-edge-label="operations" data-edge-key="2" data-edge-id="entrypoints_workflows">
-          <rect x="386" y="414" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="415" y="424" class="t-backend" font-size="8" text-anchor="middle">operations</text>
+        <g data-detail="context" data-edge-from="preflight" data-edge-to="needs_review" data-edge-label="needs review" data-edge-key="5" data-edge-id="preflight_review">
+          <rect x="236.2" y="354" width="67.6" height="14" rx="3" class="c-mask"/>
+          <text x="270" y="364" class="t-security" font-size="8" text-anchor="middle">needs review</text>
         </g>
-        <g data-detail="context" data-edge-from="nextflow" data-edge-to="process_modules" data-edge-label="complete channel items" data-edge-key="3" data-edge-id="workflows_processes">
-          <rect x="577.2" y="414" width="115.6" height="14" rx="3" class="c-mask"/>
-          <text x="635" y="424" class="t-backend" font-size="8" text-anchor="middle">complete channel items</text>
-        </g>
-        <g data-detail="context" data-edge-from="process_modules" data-edge-to="python_services" data-edge-label="one task" data-edge-key="4" data-edge-id="processes_python">
-          <rect x="820.8" y="414" width="48.4" height="14" rx="3" class="c-mask"/>
-          <text x="845" y="424" class="t-backend" font-size="8" text-anchor="middle">one task</text>
-        </g>
-        <g data-detail="context" data-edge-from="contracts" data-edge-to="python_services" data-edge-label="validate + identify" data-edge-key="5" data-edge-id="contracts_services">
-          <rect x="904.4" y="234" width="101.2" height="14" rx="3" class="c-mask"/>
-          <text x="955" y="244" class="t-security" font-size="8" text-anchor="middle">validate + identify</text>
-        </g>
-        <g data-detail="context" data-edge-from="python_services" data-edge-to="external_tools" data-edge-label="command + raw output" data-edge-key="6" data-edge-id="services_tools">
-          <rect x="902" y="480" width="106" height="14" rx="3" class="c-mask"/>
-          <text x="955" y="490" class="t-messagebus" font-size="8" text-anchor="middle">command + raw output</text>
-        </g>
-        <g data-detail="context" data-edge-from="python_services" data-edge-to="evidence_store" data-edge-label="typed records" data-edge-key="7" data-edge-id="services_evidence">
-          <rect x="1033.8" y="414" width="72.4" height="14" rx="3" class="c-mask"/>
-          <text x="1070" y="424" class="t-backend" font-size="8" text-anchor="middle">typed records</text>
-        </g>
-        <g data-detail="context" data-edge-from="human_review" data-edge-to="evidence_store" data-edge-label="owned decisions" data-edge-key="8" data-edge-id="review_evidence">
-          <rect x="1149" y="240" width="82" height="14" rx="3" class="c-mask"/>
-          <text x="1190" y="250" class="t-security" font-size="8" text-anchor="middle">owned decisions</text>
-        </g>
-        <g data-detail="context" data-edge-from="evidence_store" data-edge-to="publication" data-edge-label="checksums + status" data-edge-key="9" data-edge-id="evidence_publication">
-          <rect x="1141.8" y="480" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
-          <text x="1190" y="490" class="t-backend" font-size="8" text-anchor="middle">checksums + status</text>
-        </g>
-        <g data-detail="context" data-edge-from="validation_plane" data-edge-to="public_entrypoints" data-edge-label="release gates" data-edge-key="10" data-edge-id="validation_entrypoints">
-          <rect x="383.8" y="240" width="72.4" height="14" rx="3" class="c-mask"/>
-          <text x="420" y="250" class="t-security" font-size="8" text-anchor="middle">release gates</text>
+        <g data-detail="context" data-edge-from="localisation_gel" data-edge-to="rank_mr" data-edge-label="orders candidates" data-edge-key="6" data-edge-id="localisation_ranking">
+          <rect x="574.2" y="157" width="91.6" height="14" rx="3" class="c-mask"/>
+          <text x="620" y="167" class="t-messagebus" font-size="8" text-anchor="middle">orders candidates</text>
         </g>
 
         <!-- Boundary labels (foreground masks keep routes out of titles) -->
@@ -5285,34 +5237,18 @@
 
         <!-- Legend -->
         <g data-legend="" data-legend-bridge="">
-          <text x="40" y="684" class="t-primary" font-size="12" font-weight="650">Legend</text>
-          <g data-legend-semantic-kind="frontend" data-legend-kind="frontend" data-legend-label="Frontend" data-legend-x="40" data-legend-baseline="704" data-legend-width="83">
-            <rect x="40" y="695" width="16" height="10" rx="2.5" class="c-frontend" stroke-width="1"/>
-            <text x="62" y="704" class="t-muted" font-size="10" font-weight="500">Frontend</text>
+          <text x="40" y="524" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Analysis step" data-legend-x="40" data-legend-baseline="544" data-legend-width="108">
+            <rect x="40" y="535" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1"/>
+            <text x="62" y="544" class="t-muted" font-size="10" font-weight="500">Analysis step</text>
           </g>
-          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Backend" data-legend-x="145" data-legend-baseline="704" data-legend-width="78">
-            <rect x="145" y="695" width="16" height="10" rx="2.5" class="c-backend" stroke-width="1"/>
-            <text x="167" y="704" class="t-muted" font-size="10" font-weight="500">Backend</text>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Input / evidence" data-legend-x="170" data-legend-baseline="544" data-legend-width="123">
+            <rect x="170" y="535" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
+            <text x="192" y="544" class="t-muted" font-size="10" font-weight="500">Input / evidence</text>
           </g>
-          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Database" data-legend-x="245" data-legend-baseline="704" data-legend-width="83">
-            <rect x="245" y="695" width="16" height="10" rx="2.5" class="c-database" stroke-width="1"/>
-            <text x="267" y="704" class="t-muted" font-size="10" font-weight="500">Database</text>
-          </g>
-          <g data-legend-semantic-kind="cloud" data-legend-kind="cloud" data-legend-label="Cloud" data-legend-x="350" data-legend-baseline="704" data-legend-width="68">
-            <rect x="350" y="695" width="16" height="10" rx="2.5" class="c-cloud" stroke-width="1"/>
-            <text x="372" y="704" class="t-muted" font-size="10" font-weight="500">Cloud</text>
-          </g>
-          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Security" data-legend-x="440" data-legend-baseline="704" data-legend-width="83">
-            <rect x="440" y="695" width="16" height="10" rx="2.5" class="c-security" stroke-width="1"/>
-            <text x="462" y="704" class="t-muted" font-size="10" font-weight="500">Security</text>
-          </g>
-          <g data-legend-semantic-kind="messagebus" data-legend-kind="messagebus" data-legend-label="Message bus" data-legend-x="545" data-legend-baseline="704" data-legend-width="98">
-            <rect x="545" y="695" width="16" height="10" rx="2.5" class="c-messagebus" stroke-width="1"/>
-            <text x="567" y="704" class="t-muted" font-size="10" font-weight="500">Message bus</text>
-          </g>
-          <g data-legend-semantic-kind="external" data-legend-kind="external" data-legend-label="External" data-legend-x="665" data-legend-baseline="704" data-legend-width="83">
-            <rect x="665" y="695" width="16" height="10" rx="2.5" class="c-external" stroke-width="1"/>
-            <text x="687" y="704" class="t-muted" font-size="10" font-weight="500">External</text>
+          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Human / validation gate" data-legend-x="315" data-legend-baseline="544" data-legend-width="158">
+            <rect x="315" y="535" width="16" height="10" rx="2.5" class="c-security" stroke-width="1"/>
+            <text x="337" y="544" class="t-muted" font-size="10" font-weight="500">Human / validation gate</text>
           </g>
         </g>
       </svg>
@@ -14908,34 +14844,77 @@
       }
     });
   </script>
-<aside class="atlas-docs-drawer" id="atlas-docs-drawer" aria-label="Documentation" hidden><div class="atlas-docs-head"><div><span class="atlas-docs-eyebrow">Documentation</span><h2>Developer architecture</h2></div><button class="atlas-docs-close" id="atlas-docs-close" type="button" aria-label="Close documentation">&times;</button></div><nav class="atlas-docs-switch" aria-label="Audience"><a href="scientist.html">Scientist / Operator</a><a href="developer.html" aria-current="page">Developer</a></nav><p>The diagram owns the architecture view. This drawer leads from each responsibility layer to its implementation evidence.</p><ol class="atlas-docs-list"><li><strong><span class="atlas-docs-index">01</span>Reviewed control plane</strong><small>Stages only clean immutable commits, fixed profiles, owned inputs, and reviewed site bindings.</small><div class="atlas-docs-utility"><a href="subsystems/execution-hpc-830c452725.html">Execution, HPC &amp; Caching</a></div></li><li><strong><span class="atlas-docs-index">02</span>Application entrypoints</strong><small>phase3_application.nf is the transitional Phase III authority. The large clean break converges the public application into main.nf beside prepare_databases.nf.</small><div class="atlas-docs-utility"><a href="subsystems/execution-hpc-830c452725.html">Execution, HPC &amp; Caching</a></div></li><li><strong><span class="atlas-docs-index">03</span>Typed Nextflow workflows</strong><small>DSL2 workflows own channel-item fan-out, scheduling, retries, resume, and publication.</small><div class="atlas-docs-utility"><a href="subsystems/execution-hpc-830c452725.html">Execution, HPC &amp; Caching</a><a href="subsystems/composition-search-d0d775819e.html">Multi-component Composition Search</a></div></li><li><strong><span class="atlas-docs-index">04</span>Thin process modules</strong><small>Each adapter binds typed inputs and performs one efficiently bounded external or Python task.</small><div class="atlas-docs-utility"><a href="subsystems/provider-discovery-3466837c74.html">Databases &amp; Provider Discovery</a><a href="subsystems/molecular-replacement-f47ddc34ec.html">Molecular Replacement</a><a href="subsystems/refinement-maps-eac2f27039.html">Refinement, Maps &amp; Sequence Assessment</a></div></li><li><strong><span class="atlas-docs-index">05</span>Python scientific services</strong><small>Small services own validation, policy, planning, parsing, status derivation, and schemas.</small><div class="atlas-docs-utility"><a href="subsystems/contracts-provenance-edcdb4006f.html">Contracts, Identity &amp; Provenance</a><a href="subsystems/candidate-ranking-4f06ae7273.html">Candidate Ranking &amp; Matthews Priors</a><a href="subsystems/composition-search-d0d775819e.html">Multi-component Composition Search</a></div></li><li><strong><span class="atlas-docs-index">06</span>External boundaries</strong><small>Phenix, MMseqs2, Foldseek, PSORTb, DeepTMHMM, Slurm, and containers remain narrow versioned adapters.</small><div class="atlas-docs-utility"><a href="subsystems/provider-discovery-3466837c74.html">Databases &amp; Provider Discovery</a><a href="subsystems/localisation-gel-b0516ad4a9.html">Localisation &amp; Gel Evidence</a><a href="subsystems/execution-hpc-830c452725.html">Execution, HPC &amp; Caching</a></div></li><li><strong><span class="atlas-docs-index">07</span>Evidence and publication</strong><small>Owned packages, immutable manifests, file-based review, cache records, and verified reports carry every result forward.</small><div class="atlas-docs-utility"><a href="subsystems/review-reporting-6fb0a86519.html">Human Review &amp; Reporting</a><a href="subsystems/contracts-provenance-edcdb4006f.html">Contracts, Identity &amp; Provenance</a></div></li></ol><section class="atlas-docs-clean-break"><strong>Transitional application authority</strong><p><code>phase3_application.nf</code> is the current reviewed Phase III owner while archival <code>main.nf</code> remains the v0.2 route. The accepted large clean break makes Phase III the sole public <code>main.nf</code>, retains <code>prepare_databases.nf</code>, and removes superseded roots, milestone names, aliases, and shims together.</p></section><div class="atlas-docs-utility"><a href="external-tools.html">External tool boundaries</a><a href="scientist.html">Follow the scientific runtime sequence</a></div><div class="atlas-docs-utility"><a href="validation.html">Validation &amp; Evidence</a><a href="inventory.html">Search implementation inventory</a></div><p class="atlas-docs-foot">Inventory atlasinv_b872c6f1259f36488be8920f4ec7bd64a4e70f9f20acb57f16a3e8084c8a272d</p></aside>
+<aside class="atlas-docs-drawer" id="atlas-docs-drawer" aria-label="Documentation" hidden><div class="atlas-docs-head"><div><span class="atlas-docs-eyebrow">Documentation</span><h2>Scientist / Operator</h2></div><button class="atlas-docs-close" id="atlas-docs-close" type="button" aria-label="Close documentation">&times;</button></div><div class="atlas-docs-index-panel" id="atlas-docs-index-panel"><p>Use the guided workflow as the primary map. Open a stage below for purpose, inputs, outputs, decisions, claim limits, maturity, and deep operator commands.</p><ol class="atlas-docs-list"><li><a href="stages/inputs-records.html"><strong><span class="atlas-docs-index">01</span>Input data and source records</strong><small>Bind one trusted protein catalogue and the diffraction datasets to immutable identities before any search begins.</small><span class="atlas-docs-maturity">implemented</span></a><p class="atlas-docs-warning">Input records are checksum-verified; a changed byte creates a different identity.</p></li><li><a href="stages/preflight.html"><strong><span class="atlas-docs-index">02</span>Crystallographic preflight</strong><small>Select observations, symmetry, resolution, anisotropy, Patterson evidence, and the exact Free-R source before scheduling molecular replacement.</small><span class="atlas-docs-maturity">locally tested</span></a><p class="atlas-docs-warning">Qualification and runtime checks exist; fixed-profile evidence remains source- and site-specific.</p></li><li><a href="stages/discovery-models.html"><strong><span class="atlas-docs-index">03</span>Discovery and model preparation</strong><small>Search bounded providers, preserve no-hits, and prepare coordinate hypotheses without promoting provider labels to catalogue identities.</small><span class="atlas-docs-maturity">HPC-qualified</span></a><p class="atlas-docs-warning">Individual providers and profiles have different qualification evidence; no-hit remains scientifically valid.</p></li><li><a href="stages/rank-mr.html"><strong><span class="atlas-docs-index">04</span>Rank candidates and test MR hypotheses</strong><small>Order candidates with explicit priors, enumerate physically plausible copy counts, and run independent first-copy Phaser attempts.</small><span class="atlas-docs-maturity">locally tested</span></a><p class="atlas-docs-warning">The scientific path is implemented, but broad fixed-profile qualification is still incomplete.</p></li><li><a href="stages/review-refine-maps.html"><strong><span class="atlas-docs-index">05</span>Review, refine, and read maps</strong><small>Authenticate the A-seed decision, refine retained states, inspect maps, and narrow identity only as far as the evidence supports.</small><span class="atlas-docs-maturity">locally tested</span></a><p class="atlas-docs-warning">Real Phenix and fixed-HPC qualification remain incomplete for some paths.</p></li><li><a href="stages/composition.html"><strong><span class="atlas-docs-index">06</span>Bounded composition expansion</strong><small>Expand reviewed states through B-F hypotheses with explicit depth, beam, attempt, and review boundaries.</small><span class="atlas-docs-maturity">scientifically validated to depth three</span></a><p class="atlas-docs-warning">Depths 4-6 remain visible but unvalidated and cannot support a complete-composition claim.</p></li><li><a href="stages/report.html"><strong><span class="atlas-docs-index">07</span>Reviewed report and evidence package</strong><small>Assemble checksummed results that distinguish supported findings, ambiguity, no-hit, provisional depth, needs-review status, and execution failure.</small><span class="atlas-docs-maturity">implemented; not authorised for private pass 2</span></a><p class="atlas-docs-warning">Visible implementation is not run authorisation: final RG0-RG7 evidence is still pending.</p></li></ol><section class="atlas-docs-rail"><strong>User-provided localisation and gel evidence</strong><p>The user supplies these observations at the beginning. They then remain cross-cutting and order search waves; missing evidence is neutral, and apparent gel mass is never ASU total mass.</p><a href="subsystems/localisation-gel-b0516ad4a9.html">Inspect the evidence contract</a></section><section class="atlas-docs-clean-break"><strong>Visible maturity boundaries</strong><p>Pass 2 remains unauthorised pending final RG0-RG7 evidence. Depth three is positively qualified by 9ECN; depths four through six remain provisional.</p></section><div class="atlas-docs-utility"><a href="validation.html">Validation &amp; Evidence</a><a href="inventory.html">Search implementation inventory</a></div></div><section class="atlas-node-detail" data-atlas-node-doc="inputs" hidden><button class="atlas-node-back" type="button" data-atlas-docs-index>← All documentation</button><h2>Input data and source records</h2><p>Bind one trusted protein catalogue and the diffraction datasets to immutable identities before any search begins.</p><span class="atlas-docs-maturity">implemented</span><p class="atlas-docs-warning">Input records are checksum-verified; a changed byte creates a different identity.</p><h3>Purpose</h3><p>Establish which catalogue, annotation source, sequences, MTZ files, and operator declarations are allowed to support the analysis.</p><h3>Key inputs</h3><ul><li>One imported protein catalogue from one annotation source</li><li>Diffraction MTZ files and crystal identifiers</li><li>User-provided localisation and gel evidence, when available</li><li>Versioned run configuration and database manifests</li></ul><h3>Key outputs</h3><ul><li>Checksum-bound catalogue and sequence-equivalence groups</li><li>Owned diffraction identities</li><li>Run and source records used by every later stage</li></ul><h3>Decisions</h3><ul><li>Reject mixed annotation sources</li><li>Stop when a required source file is missing, changed, duplicated, or malformed</li><li>Preserve every compatible locus when sequences are identical</li></ul><h3>Boundaries</h3><ul><li>External structure providers cannot create a reportable identity</li><li>Missing evidence is not converted into a negative observation</li><li>A catalogue import is trusted; taxonomy and gene prediction are out of scope</li></ul><div class="atlas-docs-utility"><a href="stages/inputs-records.html">Open full detail</a></div></section><section class="atlas-node-detail" data-atlas-node-doc="preflight" hidden><button class="atlas-node-back" type="button" data-atlas-docs-index>← All documentation</button><h2>Crystallographic preflight</h2><p>Select observations, symmetry, resolution, anisotropy, Patterson evidence, and the exact Free-R source before scheduling molecular replacement.</p><span class="atlas-docs-maturity">locally tested</span><p class="atlas-docs-warning">Qualification and runtime checks exist; fixed-profile evidence remains source- and site-specific.</p><h3>Purpose</h3><p>Decide whether each diffraction dataset is qualified to proceed, must be held for review, or is invalid.</p><h3>Key inputs</h3><ul><li>Owned MTZ and crystal identifier</li><li>Operator crystallographic declarations</li><li>Installed Phenix runtime manifest</li></ul><h3>Key outputs</h3><ul><li>Diffraction selection and Free-R identity</li><li>Review package marked proceed or needs review</li><li>Raw preflight and Xtriage evidence</li></ul><h3>Decisions</h3><ul><li>Proceed only from an authenticated file-based review</li><li>Keep data and findings for human inspection when preflight cannot proceed</li><li>Fail on inconsistent symmetry, observations, or Free-R identity</li></ul><h3>Boundaries</h3><ul><li>Preflight qualifies data; it does not identify a protein</li><li>Needs Review means Paused before MR: no MR job starts until the issue is resolved</li><li>Phenix is an external licensed runtime and is never installed by the workflow</li></ul><div class="atlas-docs-utility"><a href="stages/preflight.html">Open full detail</a></div></section><section class="atlas-node-detail" data-atlas-node-doc="discover_prepare" hidden><button class="atlas-node-back" type="button" data-atlas-docs-index>← All documentation</button><h2>Discovery and model preparation</h2><p>Search bounded providers, preserve no-hits, and prepare coordinate hypotheses without promoting provider labels to catalogue identities.</p><span class="atlas-docs-maturity">HPC-qualified</span><p class="atlas-docs-warning">Individual providers and profiles have different qualification evidence; no-hit remains scientifically valid.</p><h3>Purpose</h3><p>Create a complete eligible model registry and a bounded prepared search set from experimental and predicted structures.</p><h3>Key inputs</h3><ul><li>Catalogue sequence-equivalence groups</li><li>Versioned local PDB and ProstT5/Foldseek resources</li><li>Optional remote ESM Atlas consent and cache</li></ul><h3>Key outputs</h3><ul><li>Provider plans, hits, no-hits, and mapping gaps</li><li>All-eligible model registry</li><li>Prepared coordinate models with uncertainty and source records</li></ul><h3>Decisions</h3><ul><li>Keep provider no-hit separate from execution failure</li><li>Require explicit consent before remote sequence submission</li><li>Retain eligible models outside the first-copy cap for later composition search</li></ul><h3>Boundaries</h3><ul><li>Predicted models are hypotheses, not experimental evidence</li><li>Normal runs never silently prepare databases</li><li>Remote responses are versioned and cached by sequence digest</li></ul><div class="atlas-docs-utility"><a href="stages/discovery-models.html">Open full detail</a></div></section><section class="atlas-node-detail" data-atlas-node-doc="rank_mr" hidden><button class="atlas-node-back" type="button" data-atlas-docs-index>← All documentation</button><h2>Rank candidates and test MR hypotheses</h2><p>Order candidates with explicit priors, enumerate physically plausible copy counts, and run independent first-copy Phaser attempts.</p><span class="atlas-docs-maturity">locally tested</span><p class="atlas-docs-warning">The scientific path is implemented, but broad fixed-profile qualification is still incomplete.</p><h3>Purpose</h3><p>Narrow a large candidate/model space into reviewable placement hypotheses while preserving all raw evidence and deferred reasons.</p><h3>Key inputs</h3><ul><li>Catalogue identities and prepared model registry</li><li>Qualified diffraction selection</li><li>User-provided localisation and gel evidence bound at the beginning of the analysis</li></ul><h3>Key outputs</h3><ul><li>Candidate funnel and retained/deferred inventory</li><li>Matthews copy-count priors</li><li>Per-hypothesis Phaser commands, placements, scores, and status records</li></ul><h3>Decisions</h3><ul><li>Retain multiple plausible copy counts</li><li>Treat rank and Matthews probability as priors</li><li>Continue sibling hypotheses after candidate-specific scientific failure</li></ul><h3>Boundaries</h3><ul><li>SDS-PAGE mass is an apparent monomer prior, never ASU total mass</li><li>A placement is search evidence until reviewed</li><li>Rfree is not a high-throughput screening objective</li></ul><div class="atlas-docs-utility"><a href="stages/rank-mr.html">Open full detail</a></div></section><section class="atlas-node-detail" data-atlas-node-doc="review_refine" hidden><button class="atlas-node-back" type="button" data-atlas-docs-index>← All documentation</button><h2>Review, refine, and read maps</h2><p>Authenticate the A-seed decision, refine retained states, inspect maps, and narrow identity only as far as the evidence supports.</p><span class="atlas-docs-maturity">locally tested</span><p class="atlas-docs-warning">Real Phenix and fixed-HPC qualification remain incomplete for some paths.</p><h3>Purpose</h3><p>Turn machine-ranked placements into human-reviewed structural states with explicit claim and abstention boundaries.</p><h3>Key inputs</h3><ul><li>Owned first-copy evidence package</li><li>File-based A-seed decision</li><li>Qualified diffraction and Free-R identities</li></ul><h3>Key outputs</h3><ul><li>Approved, rejected, or deferred seed state</li><li>Refinement metrics and maps</li><li>Sequence and component review packages</li></ul><h3>Decisions</h3><ul><li>Resolve decisions only through the registered review package</li><li>Accept ambiguity or abstention</li><li>Separate malformed output from a scientific no-hit</li></ul><h3>Boundaries</h3><ul><li>Map support may be insufficient to distinguish paralogues or loci</li><li>Rwork/Rfree and map-model fit must remain visible</li><li>A review decision cannot invent an unregistered state</li></ul><div class="atlas-docs-utility"><a href="stages/review-refine-maps.html">Open full detail</a></div></section><section class="atlas-node-detail" data-atlas-node-doc="conclusion" hidden><button class="atlas-node-back" type="button" data-atlas-docs-index>← All documentation</button><h2>Composition and reviewed report</h2><p>Expand reviewed states through B-F hypotheses with explicit depth, beam, attempt, and review boundaries. Assemble checksummed results that distinguish supported findings, ambiguity, no-hit, provisional depth, needs-review status, and execution failure.</p><span class="atlas-docs-maturity">depth three validated; deeper composition and pass 2 restricted</span><p class="atlas-docs-warning">Depths four through six remain provisional, and private pass 2 still requires final RG0-RG7 evidence.</p><h3>Purpose</h3><p>Test whether additional catalogue components explain residual content without turning search exhaustion into a complete-composition claim. Publish a portable, auditable conclusion whose strength never exceeds the reviewed evidence.</p><h3>Key inputs</h3><ul><li>Reviewed A state or authenticated no-A continuation</li><li>All-eligible model registry</li><li>Parent-bound depth plan and operator composition decisions</li></ul><h3>Key outputs</h3><ul><li>Human-readable reviewed report</li><li>Machine-readable statuses and scope decisions</li><li>Immutable evidence and resource summary</li></ul><h3>Decisions</h3><ul><li>Retain at most three parent states per depth</li><li>Bound work to 25 attempts per depth and 100 additional-component attempts per crystal</li><li>Stop on depth, budget, no-model, needs-review status, or no residual content</li><li>Refuse claims when required review or source records are absent</li><li>Keep scientific status separate from execution status</li><li>Publish no-hit and ambiguity as valid completed analyses</li></ul><h3>Boundaries</h3><ul><li>Depth three is positively qualified by 9ECN</li><li>Depths four through six are always provisional</li><li>No automatic identity or complete-composition claim is made between depths</li><li>Models remain hypotheses unless supported by diffraction and review</li><li>Exact locus identity is withheld when the map cannot discriminate it</li><li>Pass 2 remains unauthorised until RG0-RG7 closure evidence is final</li></ul><div class="atlas-docs-utility"><a href="stages/composition.html">Open composition detail</a><a href="stages/report.html">Open report detail</a></div></section><section class="atlas-node-detail" data-atlas-node-doc="localisation_gel" hidden><button class="atlas-node-back" type="button" data-atlas-docs-index>← All documentation</button><h2>User-provided localisation and gel evidence</h2><p>The user supplies these observations with the input data; they then remain available across discovery, ranking, review, and composition.</p><span class="atlas-docs-maturity">implemented as cross-cutting input evidence</span><p class="atlas-docs-warning">Evidence can change search order but cannot prove identity or composition.</p><h3>Purpose</h3><p>Order search waves without turning localisation or apparent gel mass into identity, ASU-mass, or oligomeric-state proof.</p><h3>Key inputs</h3><ul><li>User-provided gel observations</li><li>User-provided or offline-derived localisation evidence</li><li>Missing-evidence state when either input is unavailable</li></ul><h3>Key outputs</h3><ul><li>Cross-cutting search-order priors</li><li>Neutral missing-evidence records</li><li>Traceable localisation and topology evidence</li></ul><h3>Decisions</h3><ul><li>Bind supplied evidence at the beginning</li><li>Use it throughout candidate ordering</li><li>Keep missing evidence neutral</li></ul><h3>Boundaries</h3><ul><li>This evidence is supplied before staged processing begins</li><li>Apparent gel mass is a monomer prior</li><li>Localisation cannot establish exact identity</li></ul><div class="atlas-docs-utility"><a href="subsystems/localisation-gel-b0516ad4a9.html">Open full detail</a></div></section><section class="atlas-node-detail" data-atlas-node-doc="needs_review" hidden><button class="atlas-node-back" type="button" data-atlas-docs-index>← All documentation</button><h2>Needs Review — paused before MR</h2><p>Diffraction preflight could not proceed. The data and findings are kept for human inspection, and no MR job starts until the issue is resolved.</p><span class="atlas-docs-maturity">implemented fail-closed outcome</span><p class="atlas-docs-warning">Human resolution is required before the workflow can continue.</p><h3>Purpose</h3><p>Preserve a valid review-required outcome without scheduling downstream molecular replacement.</p><h3>Key inputs</h3><ul><li>Owned MTZ and crystal identifier</li><li>Operator crystallographic declarations</li><li>Installed Phenix runtime manifest</li></ul><h3>Key outputs</h3><ul><li>Needs Review status</li><li>Retained preflight findings</li><li>Human-readable reason no MR was scheduled</li></ul><h3>Decisions</h3><ul><li>Inspect the preserved findings</li><li>Resolve or replace the problematic input</li><li>Proceed only through an authenticated review decision</li></ul><h3>Boundaries</h3><ul><li>No MR job starts while this status is active</li><li>Needs Review is not an execution crash</li><li>No protein identity is inferred</li></ul><div class="atlas-docs-utility"><a href="stages/preflight.html">Open preflight detail</a></div></section><p class="atlas-docs-foot">Inventory atlasinv_78d17893e727ff59f14f4a07eb24635224782e0cd848674a8b55b0780ed35665</p></aside>
   <script>
   (() => {
+    const root = document.documentElement;
     const drawer = document.getElementById('atlas-docs-drawer');
     const toggle = document.getElementById('atlas-docs-toggle');
     const close = document.getElementById('atlas-docs-close');
+    const indexPanel = document.getElementById('atlas-docs-index-panel');
+    const details = Array.from(drawer.querySelectorAll('[data-atlas-node-doc]'));
+    const backButtons = Array.from(drawer.querySelectorAll('[data-atlas-docs-index]'));
+    const forceDark = () => {
+      if (root.dataset.theme !== 'dark') root.dataset.theme = 'dark';
+      try { localStorage.setItem('archify-theme', 'dark'); } catch (_) {}
+    };
+    const showIndex = () => {
+      details.forEach((detail) => { detail.hidden = true; });
+      indexPanel.hidden = false;
+    };
+    const showNode = (nodeId) => {
+      const detail = details.find((candidate) => candidate.dataset.atlasNodeDoc === nodeId);
+      if (!detail) return false;
+      indexPanel.hidden = true;
+      details.forEach((candidate) => { candidate.hidden = candidate !== detail; });
+      drawer.hidden = false;
+      root.dataset.atlasDocsOpen = 'true';
+      toggle.setAttribute('aria-expanded', 'true');
+      drawer.scrollTop = 0;
+      return true;
+    };
     const closeDrawer = (restoreFocus = false) => {
       if (drawer.hidden) return;
       drawer.hidden = true;
+      delete root.dataset.atlasDocsOpen;
       toggle.setAttribute('aria-expanded', 'false');
       if (restoreFocus) toggle.focus();
     };
     toggle.addEventListener('click', () => {
+      showIndex();
       drawer.hidden = false;
+      root.dataset.atlasDocsOpen = 'true';
       toggle.setAttribute('aria-expanded', 'true');
       close.focus();
     });
+    backButtons.forEach((button) => button.addEventListener('click', showIndex));
     close.addEventListener('click', () => closeDrawer(true));
+    const syncNodeSelection = (node) => requestAnimationFrame(() => {
+      if (node.hasAttribute('data-focus-selected')) showNode(node.dataset.nodeId);
+      else closeDrawer(false);
+    });
+    document.addEventListener('click', (event) => {
+      const node = event.target.closest?.('svg [data-node-id]');
+      if (node) syncNodeSelection(node);
+    });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && !drawer.hidden) {
         event.preventDefault();
         event.stopImmediatePropagation();
         closeDrawer(true);
       }
+      const node = event.target.closest?.('svg [data-node-id]');
+      if (node && (event.key === 'Enter' || event.key === ' ')) syncNodeSelection(node);
+      if (event.key.toLowerCase() === 't' && !event.target.closest?.('input, textarea, select, [contenteditable]')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
     }, true);
     new MutationObserver(() => {
-      if (document.documentElement.dataset.present === 'true') closeDrawer(false);
-    }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-present'] });
+      forceDark();
+      if (root.dataset.present === 'true') closeDrawer(false);
+    }).observe(root, { attributes: true, attributeFilter: ['data-present', 'data-theme'] });
+    forceDark();
   })();
   </script>
 

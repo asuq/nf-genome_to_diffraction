@@ -3,14 +3,15 @@
 ## Binding design decisions
 
 - Build a multi-page static atlas committed with deterministic source and HTML.
-- Provide separate Scientist / Operator and Developer portals plus a first-class
-  Validation & Evidence portal.
-- Converge portals at shared canonical subsystem pages.
+- Surface one canonical `documentation.html` home with an upper-right Scientist
+  / Developer view toggle and node-specific integrated documentation panel.
+- Keep Validation & Evidence cross-cutting and converge both views at shared
+  canonical workflow-stage and subsystem pages.
 - Give every substantive active module a page; retain a complete searchable
   inventory for all functions, classes, Nextflow workflows/processes, CLI
   commands, schemas, reviewed wrapper operations, and important Bash functions.
 - Use curated call diagrams for public and scientifically, operationally, or
-  provenance-critical paths. Function sections show signatures, callers and
+  traceability-critical paths. Function sections show signatures, callers and
   callees, tests, failures, source links, and small critical excerpts.
 - Generate structural facts from source while maintaining scientific narrative,
   subsystem boundaries, maturity, and diagrams as reviewed metadata.
@@ -45,7 +46,7 @@
 ## Sequence
 
 1. Generate the complete current executable inventory in a separate worktree.
-2. Build the atlas generator, portal skeleton, shared subsystem pages, module
+2. Build the atlas generator, canonical viewer home, shared subsystem pages, module
    pages, contract pages, boundary indexes, and deterministic checks.
 3. Secure unknown-pass-1 evidence and mandatory review from the active scientific
    source before moving executable code.

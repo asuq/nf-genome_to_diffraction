@@ -71,10 +71,12 @@ def test_html_atlas_is_deterministic_and_private_path_free() -> None:
 
     assert first == second
     assert module.CURRENT / "index.html" in first
-    assert module.CURRENT / "scientist.html" in first
-    assert module.CURRENT / "developer.html" in first
+    assert module.CURRENT / "documentation.html" in first
+    assert module.CURRENT / "developer-view.html" in first
+    assert module.CURRENT / "scientist.html" not in first
+    assert module.CURRENT / "developer.html" not in first
     assert module.CURRENT / "validation.html" in first
-    assert module.CURRENT / "stages/authorities.html" in first
+    assert module.CURRENT / "stages/inputs-records.html" in first
     assert module.CURRENT / "stages/report.html" in first
     assert module.CURRENT / "diagrams/scientist-workflow.html" in first
     assert module.CURRENT / "diagrams/developer-architecture.html" in first
@@ -85,14 +87,14 @@ def test_html_atlas_is_deterministic_and_private_path_free() -> None:
     assert b"/bioinf/" not in generated
 
 
-def test_html_atlas_surfaces_two_audience_homes_and_keeps_index_internal() -> None:
+def test_html_atlas_has_one_canonical_home_and_internal_developer_view() -> None:
     module = _html_module()
     outputs = module.build_outputs(REPOSITORY)
     index = outputs[module.CURRENT / "index.html"].decode("utf-8")
-    scientist = outputs[module.CURRENT / "scientist.html"].decode("utf-8")
-    developer = outputs[module.CURRENT / "developer.html"].decode("utf-8")
+    scientist = outputs[module.CURRENT / "documentation.html"].decode("utf-8")
+    developer = outputs[module.CURRENT / "developer-view.html"].decode("utf-8")
 
-    assert '<meta http-equiv="refresh" content="0;url=scientist.html">' in index
+    assert '<meta http-equiv="refresh" content="0;url=documentation.html">' in index
     assert "<body></body>" in index
     assert "<nav" not in index
     assert "<iframe" not in scientist
@@ -105,6 +107,11 @@ def test_html_atlas_surfaces_two_audience_homes_and_keeps_index_internal() -> No
     assert 'id="btn-export"' in developer
     assert 'id="atlas-docs-drawer"' in scientist
     assert 'id="atlas-docs-drawer"' in developer
+    assert '<nav class="atlas-view-switch"' in scientist
+    assert '<a href="documentation.html" aria-current="page">Scientist</a>' in scientist
+    assert '<a href="developer-view.html#developer">Developer</a>' in scientist
+    assert "if (location.hash === '#developer')" in scientist
+    assert "history.replaceState(null, '', 'documentation.html#developer')" in developer
     assert "phase3_application.nf" in developer
     assert "sole public <code>main.nf</code>" in developer
     assert "prepare_databases.nf" in developer
@@ -117,14 +124,16 @@ def test_html_atlas_surfaces_two_audience_homes_and_keeps_index_internal() -> No
         if path.suffix == ".html"
     )
     assert re.search(r'href=["\'][^"\']*index\.html', generated_html) is None
+    assert 'href="scientist.html"' not in generated_html
+    assert 'href="developer.html"' not in generated_html
 
 
 def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     module = _html_module()
     outputs = module.build_outputs(REPOSITORY)
-    scientist = outputs[module.CURRENT / "scientist.html"].decode("utf-8")
+    scientist = outputs[module.CURRENT / "documentation.html"].decode("utf-8")
     expected = [
-        "stages/authorities.html",
+        "stages/inputs-records.html",
         "stages/preflight.html",
         "stages/discovery-models.html",
         "stages/rank-mr.html",
@@ -135,7 +144,8 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
 
     positions = [scientist.index(target) for target in expected]
     assert positions == sorted(positions)
-    assert "Cross-cutting localisation and gel evidence" in scientist
+    assert "User-provided localisation and gel evidence" in scientist
+    assert "supplies these observations at the beginning" in scientist
     assert "depths four through six remain provisional" in scientist
 
     composition = outputs[module.CURRENT / "stages/composition.html"].decode("utf-8")
@@ -145,6 +155,10 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     )
     assert "phase3-composition-beam-stub" in composition
     assert "Depths 4-6 remain visible but unvalidated" in composition
+    assert 'class="stage-navigator"' in composition
+    assert "data-stage-select" in composition
+    assert composition.count('aria-current="step"') == 1
+    assert "../documentation.html" in composition
 
     module_pages = [
         content.decode("utf-8")
@@ -168,5 +182,69 @@ def test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts() -> No
     assert outputs[developer_base_path] == developer_base
     assert b"atlas-docs-drawer" not in scientist_base
     assert b"atlas-docs-drawer" not in developer_base
-    assert b"atlas-docs-drawer" in outputs[module.CURRENT / "scientist.html"]
-    assert b"atlas-docs-drawer" in outputs[module.CURRENT / "developer.html"]
+    assert b"atlas-docs-drawer" in outputs[module.CURRENT / "documentation.html"]
+    assert b"atlas-docs-drawer" in outputs[module.CURRENT / "developer-view.html"]
+
+
+def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
+    module = _html_module()
+    outputs = module.build_outputs(REPOSITORY)
+    scientist = outputs[module.CURRENT / "documentation.html"].decode("utf-8")
+    developer = outputs[module.CURRENT / "developer-view.html"].decode("utf-8")
+
+    for node_id in (
+        "inputs",
+        "preflight",
+        "discover_prepare",
+        "rank_mr",
+        "review_refine",
+        "conclusion",
+        "localisation_gel",
+        "needs_review",
+    ):
+        assert f'data-atlas-node-doc="{node_id}"' in scientist
+    for node_id in (
+        "control_plane",
+        "public_entrypoints",
+        "phase3_entrypoint",
+        "nextflow",
+        "process_modules",
+        "python_services",
+        "contracts",
+        "external_tools",
+        "human_review",
+        "evidence_store",
+        "publication",
+        "validation_plane",
+    ):
+        assert f'data-atlas-node-doc="{node_id}"' in developer
+
+    assert "node.hasAttribute('data-focus-selected')" in scientist
+    assert "showNode(node.dataset.nodeId)" in scientist
+    assert ".focus-chip" in scientist
+    assert "display: none !important" in scientist
+    assert "body { padding-right: 440px; }" in scientist
+    assert "@media (max-width: 700px)" in scientist
+    assert ".atlas-docs-drawer { width: 100vw; }" in scientist
+    assert "overflow-x: clip" in scientist
+    assert "forceDark" in scientist
+
+    stage = outputs[module.CURRENT / "stages/preflight.html"].decode("utf-8")
+    assert 'data-theme="dark"' in stage
+    assert "data-theme-toggle" not in stage
+    assert "Needs Review" in stage
+    assert "Paused before MR" in stage
+
+
+def test_developer_legend_uses_domain_labels() -> None:
+    module = _html_module()
+    outputs = module.build_outputs(REPOSITORY)
+    developer = outputs[module.CURRENT / "developer-view.html"].decode("utf-8")
+
+    assert "Executable / orchestration layer" in developer
+    assert "Contract / review gate" in developer
+    assert "Evidence / output" in developer
+    assert "External runtime" in developer
+    assert ">Frontend<" not in developer
+    assert ">Cloud service<" not in developer
+    assert ">Message bus<" not in developer

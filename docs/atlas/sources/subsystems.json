@@ -2,10 +2,10 @@
   "schema_version": "1.0",
   "subsystems": [
     {
-      "id": "contracts_provenance",
-      "title": "Contracts, Identity & Provenance",
+      "id": "contracts_traceability",
+      "title": "Contracts, Identity & Traceability",
       "scientific_summary": "Defines immutable identities, status semantics, checksums, and evidence boundaries used by every scientific stage.",
-      "developer_summary": "Owns versioned schemas, typed validation, content-addressed identifiers, and provenance utilities.",
+      "developer_summary": "Owns versioned schemas, typed validation, content-addressed identifiers, and source-trace utilities.",
       "patterns": [
         "src/genome_to_diffraction/schemas/**",
         "src/genome_to_diffraction/ids.py",
@@ -23,9 +23,9 @@
     },
     {
       "id": "crystallography",
-      "title": "Crystallography & Dataset Authority",
+      "title": "Crystallography & Dataset Selection",
       "scientific_summary": "Selects and reviews diffraction observations, symmetry, resolution, anisotropy, Patterson evidence, and Free-R identity.",
-      "developer_summary": "Validates MTZ inputs and propagates exact observation and Free-R authority into downstream execution records.",
+      "developer_summary": "Validates MTZ inputs and propagates the selected observations and exact Free-R identity into downstream execution records.",
       "patterns": ["src/genome_to_diffraction/diffraction/**", "modules/local/mtz_preflight.nf"]
     },
     {

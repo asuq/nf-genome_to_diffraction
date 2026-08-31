@@ -5533,7 +5533,7 @@
       "sha256": "6adfe5fca8849f39f14f0da412ef8e98d5e6330256cb25285fa7668be6a03c51"
     }
   ],
-  "inventory_id": "atlasinv_b872c6f1259f36488be8920f4ec7bd64a4e70f9f20acb57f16a3e8084c8a272d",
+  "inventory_id": "atlasinv_78d17893e727ff59f14f4a07eb24635224782e0cd848674a8b55b0780ed35665",
   "nextflow_files": [
     {
       "declarations": [],
@@ -16823,7 +16823,7 @@
       "path": "src/genome_to_diffraction/checksums.py",
       "sha256": "b334beffc9726ce419dbe990ba5b51778b2f92f86d43acf9f50f2919c0490093",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "calls": [
@@ -30103,7 +30103,7 @@
       "path": "src/genome_to_diffraction/ids.py",
       "sha256": "fec695c421c05b608769385ce22b8d05b63dfa9964cbad26aab32482a311eee8",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "calls": [
@@ -45899,7 +45899,7 @@
       "path": "src/genome_to_diffraction/schema_check.py",
       "sha256": "43245c19ff84d1e8b6862a3d4caaab86f99a8d2fa479dc619d8f78caab0868ee",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "calls": [
@@ -45998,7 +45998,7 @@
       "path": "src/genome_to_diffraction/schemas/__init__.py",
       "sha256": "819db4991023a6265436afd8fd80f76a16e5ceda6831ff271dd19a140a759999",
       "substantive": false,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": []
     },
     {
@@ -46014,7 +46014,7 @@
       "path": "src/genome_to_diffraction/schemas/base.py",
       "sha256": "9ff13a65a7beeeb62d7ddea976933227bb34d1a3c3841097cea2b5c8a96a684e",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "calls": [
@@ -46097,7 +46097,7 @@
       "path": "src/genome_to_diffraction/schemas/io.py",
       "sha256": "50ce4156be9bfe965edabd2d913901d20436d9f03889c4eaf6252118df7b4c0a",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -46818,7 +46818,7 @@
       "path": "src/genome_to_diffraction/schemas/manifests.py",
       "sha256": "cf7c08a05c16e2ef4aac6bfff86c3bfc4edf169b24549c5931a9d87ad85c950f",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -47490,7 +47490,7 @@
       "path": "src/genome_to_diffraction/schemas/providers.py",
       "sha256": "e3ab77a1190075de0122aa713fff6feca17920858e90e21edbf2be0be5f594c1",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -47676,7 +47676,7 @@
       "path": "src/genome_to_diffraction/schemas/results.py",
       "sha256": "23bf882ee8a5cfb5d2bcb6fef25391e1d95ba0320d6383400d42a0315d2bcae6",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -48658,7 +48658,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/__init__.py",
       "sha256": "996f25d222c7c455bc64307e08937df5830fdc14e597f7587521918faa89e595",
       "substantive": false,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": []
     },
     {
@@ -48677,7 +48677,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/component_execution_input.py",
       "sha256": "b9928897845f9447033ce5af1bcd2646819885f02294ff74c8cf93e6645bb95a",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -48842,7 +48842,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/composition.py",
       "sha256": "0279d8ee4a70791c2a0b8b33228f768b905bb9609e1b20cbc0b73c8298db12b2",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -49592,7 +49592,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/composition_attempts.py",
       "sha256": "191d1b35bd9280bc80312cbe55b2c9986387ae1517149028be80658ed602912d",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -49750,7 +49750,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/diffraction.py",
       "sha256": "019f5c317248ddfe9dc5a983be7d332aa4bc9514278c41ae768acbb66f580298",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -50041,7 +50041,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/execution.py",
       "sha256": "8f9cb1debfc1e2049d73a176b1a7e66eb0fb76998b249c8146c28b0a12c6b9df",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -50126,7 +50126,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/owned_run.py",
       "sha256": "edbbcc7245b0797036a8c7387e190815eee5c14108cb0ce77269f1d92efce937",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -50190,7 +50190,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/phaser_placements.py",
       "sha256": "17e2bd5723e472b78fb84f4db694b089337ff8fcaa6d1f1517fc7fbddcad8204",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "calls": [
@@ -50334,7 +50334,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/review.py",
       "sha256": "bee420227f2d92a495abf1d06c82cf43f3022db515174fdcf411d2d24bc0ab1e",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -50594,7 +50594,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/unknown_assessment.py",
       "sha256": "c5f061e74fce8849404fd6c18067f46e81ff24d0774badc37713897fc30a9362",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -50856,7 +50856,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/unknown_collection.py",
       "sha256": "614f5eb5dfba07fde5a0775fb62b48bb90502ed33e81ed6f045e4f5748314ada",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -50989,7 +50989,7 @@
       "path": "src/genome_to_diffraction/schemas/v2/unknown_screen.py",
       "sha256": "95db4551e5fcd546ac3d595b0b1b820c7b0a3e31b36b7322f2f4d8ac841afdc7",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -51207,7 +51207,7 @@
       "path": "src/genome_to_diffraction/status.py",
       "sha256": "8aa21d97e36425de2ac5a2d1b72ce9c6608cea28fed00f428951877d5190a0ee",
       "substantive": true,
-      "subsystem": "contracts_provenance",
+      "subsystem": "contracts_traceability",
       "symbols": [
         {
           "bases": [
@@ -55405,8 +55405,8 @@
   ],
   "subsystems": [
     {
-      "id": "contracts_provenance",
-      "title": "Contracts, Identity & Provenance"
+      "id": "contracts_traceability",
+      "title": "Contracts, Identity & Traceability"
     },
     {
       "id": "catalogue_identity",
@@ -55414,7 +55414,7 @@
     },
     {
       "id": "crystallography",
-      "title": "Crystallography & Dataset Authority"
+      "title": "Crystallography & Dataset Selection"
     },
     {
       "id": "provider_discovery",
@@ -72427,7 +72427,7 @@
         "types"
       ],
       "path": "tests/unit/test_docs_atlas_inventory.py",
-      "sha256": "a5140e7d766019a5559e51707964428b2392ec52dd082e26dcfd75c6936c7e50",
+      "sha256": "4ceff6a8cebc53a019d28132dc51363680f67f2ffdc1283a188df76e4663f6af",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -72507,7 +72507,7 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 85,
+          "end_line": 87,
           "kind": "function",
           "line": 67,
           "name": "test_html_atlas_is_deterministic_and_private_path_free",
@@ -72527,19 +72527,20 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 119,
+          "end_line": 128,
           "kind": "function",
-          "line": 88,
-          "name": "test_html_atlas_surfaces_two_audience_homes_and_keeps_index_internal",
+          "line": 90,
+          "name": "test_html_atlas_has_one_canonical_home_and_internal_developer_view",
           "public": true,
-          "qualname": "test_html_atlas_surfaces_two_audience_homes_and_keeps_index_internal",
-          "signature": "def test_html_atlas_surfaces_two_audience_homes_and_keeps_index_internal() -> None"
+          "qualname": "test_html_atlas_has_one_canonical_home_and_internal_developer_view",
+          "signature": "def test_html_atlas_has_one_canonical_home_and_internal_developer_view() -> None"
         },
         {
           "calls": [
             "_html_module",
             "all",
             "any",
+            "composition.count",
             "content.decode",
             "decode",
             "module.build_outputs",
@@ -72550,9 +72551,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 156,
+          "end_line": 170,
           "kind": "function",
-          "line": 122,
+          "line": 131,
           "name": "test_scientist_home_stage_order_and_progressive_disclosure",
           "public": true,
           "qualname": "test_scientist_home_stage_order_and_progressive_disclosure",
@@ -72566,13 +72567,45 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 172,
+          "end_line": 186,
           "kind": "function",
-          "line": 159,
+          "line": 173,
           "name": "test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts",
           "public": true,
           "qualname": "test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts",
           "signature": "def test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts() -> None"
+        },
+        {
+          "calls": [
+            "_html_module",
+            "decode",
+            "module.build_outputs"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 236,
+          "kind": "function",
+          "line": 189,
+          "name": "test_node_focus_opens_dark_reserved_documentation_panel",
+          "public": true,
+          "qualname": "test_node_focus_opens_dark_reserved_documentation_panel",
+          "signature": "def test_node_focus_opens_dark_reserved_documentation_panel() -> None"
+        },
+        {
+          "calls": [
+            "_html_module",
+            "decode",
+            "module.build_outputs"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 250,
+          "kind": "function",
+          "line": 239,
+          "name": "test_developer_legend_uses_domain_labels",
+          "public": true,
+          "qualname": "test_developer_legend_uses_domain_labels",
+          "signature": "def test_developer_legend_uses_domain_labels() -> None"
         }
       ]
     },

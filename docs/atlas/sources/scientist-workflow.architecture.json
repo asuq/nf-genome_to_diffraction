@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Genome-to-Diffraction Scientific Workflow",
+    "locale": "en",
+    "output": "docs/atlas/current/diagrams/scientist-workflow.html",
+    "quality_profile": "showcase",
+    "viewBox": [1120, 560],
+    "legend": {
+      "mode": "auto",
+      "entries": {
+        "backend": {"label": "Analysis step"},
+        "database": {"label": "Input / evidence"},
+        "security": {"label": "Human / validation gate"}
+      }
+    },
+    "views": [
+      {
+        "id": "end_to_end",
+        "label": "End-to-end analysis",
+        "focus": ["inputs", "preflight", "discover_prepare", "rank_mr", "review_refine", "conclusion"],
+        "note": "Follow one crystal from fixed source inputs to a bounded scientific report."
+      },
+      {
+        "id": "inputs_records",
+        "label": "Inputs and evidence",
+        "focus": ["localisation_gel", "inputs", "preflight", "needs_review"],
+        "note": "Required inputs and optional localisation or gel evidence are supplied before analysis; missing optional evidence is neutral."
+      },
+      {
+        "id": "search_and_review",
+        "label": "Search and review",
+        "focus": ["discover_prepare", "rank_mr", "review_refine", "conclusion"],
+        "note": "Model discovery and evidence-informed ordering lead to human review and an honestly bounded conclusion."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "inputs",
+      "type": "database",
+      "label": "Inputs",
+      "sublabel": "catalogue + MTZ",
+      "tag": "annotation fixed",
+      "pos": [30, 250],
+      "size": [130, 68]
+    },
+    {
+      "id": "preflight",
+      "type": "security",
+      "label": "MTZ Preflight",
+      "sublabel": "symmetry + Free-R",
+      "tag": "proceed / review",
+      "pos": [205, 250],
+      "size": [130, 68]
+    },
+    {
+      "id": "discover_prepare",
+      "type": "backend",
+      "label": "Find + Prepare Models",
+      "sublabel": "PDB + local Foldseek",
+      "tag": "offline compute",
+      "pos": [380, 250],
+      "size": [150, 68]
+    },
+    {
+      "id": "rank_mr",
+      "type": "backend",
+      "label": "Rank + MR",
+      "sublabel": "Matthews + Phaser",
+      "tag": "search evidence",
+      "pos": [555, 250],
+      "size": [130, 68]
+    },
+    {
+      "id": "review_refine",
+      "type": "security",
+      "label": "Review + Maps",
+      "sublabel": "seed + sequence + claims",
+      "tag": "human gates",
+      "pos": [730, 250],
+      "size": [130, 68]
+    },
+    {
+      "id": "conclusion",
+      "type": "database",
+      "label": "Conclude",
+      "sublabel": "B-F + report",
+      "tag": "depth 4-6 tentative",
+      "pos": [905, 250],
+      "size": [130, 68]
+    },
+    {
+      "id": "localisation_gel",
+      "type": "database",
+      "label": "Localisation + Gel",
+      "sublabel": "user-supplied prior",
+      "tag": "missing is neutral",
+      "pos": [30, 70],
+      "size": [150, 68]
+    },
+    {
+      "id": "needs_review",
+      "type": "security",
+      "label": "Needs Review",
+      "sublabel": "check diffraction before MR",
+      "tag": "no MR yet",
+      "pos": [200, 410],
+      "size": [140, 68]
+    }
+  ],
+  "connections": [
+    {
+      "id": "inputs_preflight",
+      "from": "inputs",
+      "to": "preflight",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "preflight_discovery",
+      "from": "preflight",
+      "to": "discover_prepare",
+      "label": "proceed",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "discovery_mr",
+      "from": "discover_prepare",
+      "to": "rank_mr",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "mr_review",
+      "from": "rank_mr",
+      "to": "review_refine",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "review_conclusion",
+      "from": "review_refine",
+      "to": "conclusion",
+      "label": "reviewed",
+      "variant": "security",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "preflight_review",
+      "from": "preflight",
+      "to": "needs_review",
+      "label": "needs review",
+      "labelAt": [270, 364],
+      "variant": "security",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "localisation_ranking",
+      "from": "localisation_gel",
+      "to": "rank_mr",
+      "label": "orders candidates",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [[620, 104]]
+    }
+  ]
+}
