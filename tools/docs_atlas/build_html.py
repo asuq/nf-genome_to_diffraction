@@ -622,13 +622,14 @@ VIEWER_DRAWER_STYLE = """
     .atlas-workflow-inputs ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .2rem .8rem; margin: 0; padding-left: 1rem; }
     .atlas-workflow-inputs li { padding-left: .08rem; font: .7rem/1.4 ui-sans-serif, system-ui, sans-serif; }
     html[data-atlas-docs-open="true"] .atlas-workflow-intro { margin-right: -210px; }
-    .atlas-arrow-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: .25rem -29.5rem 0 0; padding: .55rem .75rem; border: 1px solid var(--toolbar-border); border-radius: .75rem; background: color-mix(in srgb, var(--toolbar-bg) 88%, transparent); color: var(--toolbar-text); font: 600 .68rem/1.35 ui-sans-serif, system-ui, sans-serif; }
-    html[data-atlas-docs-open="true"] .atlas-arrow-legend { margin-right: -210px; }
+    .atlas-legend-row { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: .35rem; margin: .25rem -29.5rem 0 0; }
+    html[data-atlas-docs-open="true"] .atlas-legend-row { margin-right: -210px; }
+    .atlas-arrow-legend, .atlas-box-legend { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0; padding: .55rem .75rem; border: 1px solid var(--toolbar-border); border-radius: .75rem; background: color-mix(in srgb, var(--toolbar-bg) 88%, transparent); color: var(--toolbar-text); font: 600 .68rem/1.35 ui-sans-serif, system-ui, sans-serif; }
+    .atlas-legend-title { color: color-mix(in srgb, var(--toolbar-text) 66%, transparent); font-weight: 800; }
     .atlas-arrow-key { display: inline-flex; gap: 7px; align-items: center; }
     .atlas-arrow-key::before { content: ""; width: 26px; border-top: 3px solid var(--arrow-emphasis); }
     .atlas-arrow-key.decision::before { border-top-color: var(--security-stroke); border-top-style: dashed; }
     .atlas-arrow-key.context::before { border-top-color: var(--database-stroke); border-top-style: dashed; }
-    .atlas-legend-divider { color: color-mix(in srgb, var(--toolbar-text) 58%, transparent); font-weight: 700; }
     .atlas-box-key { display: inline-flex; gap: 6px; align-items: center; }
     .atlas-box-key::before { content: ""; width: 12px; height: 12px; border: 1px solid var(--database-stroke); border-radius: 3px; background: var(--database-fill); }
     .atlas-box-key.analysis::before { border-color: var(--backend-stroke); background: var(--backend-fill); }
@@ -651,7 +652,7 @@ VIEWER_DRAWER_STYLE = """
       .atlas-workflow-steps strong { font-size: .65rem; }
       .atlas-workflow-inputs ul { grid-template-columns: 1fr; }
       .atlas-workflow-inputs li { font-size: .76rem; }
-      .atlas-arrow-legend { margin-right: 0; }
+      .atlas-legend-row { grid-template-columns: 1fr; margin-right: 0; }
     }
     @media print { .atlas-docs-drawer, .atlas-docs-toggle, .atlas-view-switch { display: none !important; } }
 """
@@ -804,15 +805,18 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
             '<ol class="atlas-workflow-steps"><li><strong>1 · Check data</strong>Check the MTZ diffraction measurements.</li><li><strong>2 · Find models</strong>Find protein structure models for proteins on the supplied list.</li><li><strong>3 · Choose copy counts</strong>Use Matthews analysis to keep copy counts that physically fit.</li><li><strong>4 · Test and review</strong>Place each model hypothesis with Molecular Replacement, then inspect maps.</li><li><strong>5 · Expand or finish</strong>Evaluate candidate gene products as possible heteromer partners, then write a reviewed report.</li></ol>'
             '<div class="atlas-workflow-inputs"><strong>Inputs</strong><ul><li>Organism or sample name</li><li><strong>Required:</strong> protein FASTA (.faa), annotation source/version, and MTZ file with crystal name</li><li><strong>Optional:</strong> genome FASTA (.fna), GFF/GBFF, protein-to-locus map, and molecular-weight evidence</li><li><strong>Derived internally:</strong> PSORTb and DeepTMHMM localisation predictions from the protein FASTA</li></ul></div></div>'
             '</section>\n'
-            '      <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
+            '      <div class="atlas-legend-row no-print">'
+            '<div class="atlas-arrow-legend" aria-label="Arrow meanings">'
+            '<strong class="atlas-legend-title">Arrows</strong>'
             '<span class="atlas-arrow-key">Solid green: workflow step</span>'
             '<span class="atlas-arrow-key decision">Dashed red: review or stop</span>'
             '<span class="atlas-arrow-key context">Dashed purple: context, evidence, or repeat</span>'
-            '<span class="atlas-legend-divider">Boxes:</span>'
+            '</div><div class="atlas-box-legend" aria-label="Box colours">'
+            '<strong class="atlas-legend-title">Box colours</strong>'
             '<span class="atlas-box-key">Input / evidence</span>'
             '<span class="atlas-box-key analysis">Analysis step</span>'
             '<span class="atlas-box-key review">Review / validation</span>'
-            "</div>\n"
+            "</div></div>\n"
         )
         document = document.replace(
             header_marker,
@@ -968,16 +972,33 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
             by_id["preflight"],
             [("Open full detail", "stages/preflight.html")],
         ),
-        "discover_prepare": (
-            by_id["discovery-models"],
-            [("Open full detail", "stages/discovery-models.html")],
-        ),
     }
     discovery = dict(by_id["discovery-models"])
     discovery["extra_html"] = _model_discovery_guide()
-    mapping["discover_prepare"] = (
-        discovery,
-        [("Open full detail", "stages/discovery-models.html")],
+    for node_id in (
+        "pdb_sequence_search",
+        "pdb_structure_search",
+        "prepare_models",
+    ):
+        mapping[node_id] = (
+            discovery,
+            [("Open full detail", "stages/discovery-models.html")],
+        )
+    localisation = {
+        "title": "Internally derived protein localisation",
+        "summary": "The workflow runs PSORTb and DeepTMHMM on the supplied protein FASTA; localisation is not an additional user input.",
+        "purpose": "Order the first search wave while keeping localisation predictions separate from identity and composition claims.",
+        "inputs": ["Supplied protein FASTA", "Pinned offline PSORTb and DeepTMHMM container images"],
+        "outputs": ["Per-protein localisation and membrane-topology evidence", "First-search-wave ordering policy"],
+        "decisions": ["Defer explicit membrane, surface, extracellular, or transmembrane predictions", "Keep unknown, signal-peptide-only, conflicting, or failed predictions neutral"],
+        "boundaries": ["SignalP is not the implemented tool", "Localisation changes search order only", "Protein sequences are not sent to a public service"],
+        "maturity": "implemented offline PSORTb and DeepTMHMM analysis",
+        "warning": "A localisation prediction cannot prove protein identity or crystal composition.",
+        "extra_html": _localisation_guide(),
+    }
+    mapping["localisation_tools"] = (
+        localisation,
+        [("Open full detail", f"subsystems/{_slug('localisation_weight')}.html")],
     )
     first_component = {
         "title": "First-component joint search and review",
@@ -991,7 +1012,6 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         + by_id["review-refine-maps"]["boundaries"],
         "maturity": "joint copy-count search implemented; reviewed solutions retained",
         "warning": "Matthews analysis selects plausible copy counts for direct joint testing; sequential same-component placement is rescue-only.",
-        "extra_html": _localisation_guide(),
     }
     mapping["first_component_search_review"] = (
         first_component,
@@ -1012,11 +1032,11 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         "warning": "Depths four through six remain provisional, and deeper private analysis still requires complete review evidence.",
         "extra_html": _composition_loop(),
     }
-    mapping["next_distinct_component"] = (
+    mapping["heteromer_partner"] = (
         composition,
         [("Open composition detail", "stages/composition.html")],
     )
-    mapping["additional_component_copy_search"] = (
+    mapping["partner_copy_search"] = (
         composition,
         [("Open composition detail", "stages/composition.html")],
     )

@@ -171,7 +171,10 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     assert "Solid green: workflow step" in scientist
     assert "Dashed red: review or stop" in scientist
     assert "Dashed purple: context, evidence, or repeat" in scientist
-    assert "Boxes:" in scientist
+    assert '<strong class="atlas-legend-title">Arrows</strong>' in scientist
+    assert '<strong class="atlas-legend-title">Box colours</strong>' in scientist
+    assert 'class="atlas-arrow-legend"' in scientist
+    assert 'class="atlas-box-legend"' in scientist
     assert "Input / evidence" in scientist
     assert "Analysis step" in scientist
     assert "Review / validation" in scientist
@@ -235,10 +238,13 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
         "protein_sequences",
         "molecular_weight_evidence",
         "preflight",
-        "discover_prepare",
+        "localisation_tools",
+        "pdb_sequence_search",
+        "pdb_structure_search",
+        "prepare_models",
         "first_component_search_review",
-        "next_distinct_component",
-        "additional_component_copy_search",
+        "heteromer_partner",
+        "partner_copy_search",
         "report",
     ):
         assert f'data-atlas-node-doc="{node_id}"' in scientist
@@ -269,7 +275,7 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "forceDark" in scientist
     assert "body { padding-top: 4rem; padding-bottom: .5rem; }" in scientist
     assert scientist.index('class="header"') < scientist.index(
-        'class="atlas-arrow-legend no-print"'
+        'class="atlas-legend-row no-print"'
     ) < scientist.index('id="archify-guided-views-data"')
 
     stage = outputs[module.CURRENT / "stages/preflight.html"].decode("utf-8")
@@ -299,20 +305,36 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "protein FASTA (.faa)" in scientist
     assert "Molecular-Weight Evidence" in scientist
     assert "apparent mass observations" in scientist
-    assert "internal PSORTb + DeepTMHMM" in scientist
+    assert "Predict Localisation" in scientist
+    assert "PSORTb 3.0.6 + DeepTMHMM 1.0" in scientist
+    assert "PDB Sequence Search" in scientist
+    assert "MMseqs2 → PDB SEQRES" in scientist
+    assert "Structure-Sensitive Search" in scientist
+    assert "ProstT5 → Foldseek → PDB100" in scientist
+    assert "Validate + Prepare Models" in scientist
     assert "Localisation is derived inside the workflow" in scientist
     assert "SignalP is not the implemented tool" in scientist
     assert "labels protein list" in scientist
     assert "genome context" in scientist
     assert "gene mapping" in scientist
-    assert "changes test order" in scientist
+    assert "orders first search wave" in scientist
     assert "Components B-F" not in scientist
     assert "Additional Slots" not in scientist
     assert "Input Error" not in scientist
     assert "Held Dataset" not in scientist
-    assert scientist.index("MTZ Preflight") < scientist.index(
-        "Find Protein Structure Models"
-    ) < scientist.index("First-Component Search + Review")
+    assert 'data-edge-from="diffraction_data" data-edge-to="preflight"' in scientist
+    assert (
+        'data-edge-from="protein_sequences" data-edge-to="localisation_tools"'
+        in scientist
+    )
+    assert (
+        'data-edge-from="protein_sequences" data-edge-to="pdb_sequence_search"'
+        in scientist
+    )
+    assert (
+        'data-edge-from="protein_sequences" data-edge-to="pdb_structure_search"'
+        in scientist
+    )
 
     assert "MMseqs2 searches the local PDB SEQRES database" in scientist
     assert "E-value ≤ 1e-5" in scientist
@@ -326,6 +348,8 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "Provide organism, sequence, annotation, and diffraction inputs" in inputs
     assert "Protein FASTA (.faa) — required" in inputs
     assert "Genome FASTA (.fna) — optional" in inputs
+    assert "Molecular-weight observations — optional" in inputs
+    assert "Localisation and molecular-weight observations" not in inputs
     assert "not yet a dedicated manifest field" in inputs
     assert "immutable identities" not in inputs
 

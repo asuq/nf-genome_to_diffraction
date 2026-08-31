@@ -14762,7 +14762,9 @@ with a collapsed combined parent or a guessed command.
   ESM Atlas route, and coordinate/sequence validation before model testing.
 - Input arrows now distinguish context from processing: organism name, genome,
   and annotation describe the supplied protein list; the protein FASTA feeds
-  model discovery and internally derived PSORTb/DeepTMHMM localisation;
+  explicit PSORTb/DeepTMHMM, MMseqs2/PDB SEQRES, and
+  ProstT5/Foldseek/PDB100 boxes; both model-search routes feed a separate model-
+  validation/preparation box;
   the MTZ feeds preflight; molecular-weight evidence changes search order.
   Required paths are solid and context/optional paths are dashed.
 - The composition wording now describes the actual heteromer mechanism: each
@@ -14773,6 +14775,8 @@ with a collapsed combined parent or a guessed command.
   newcomer workflow summary; no workflow semantics changed.
 - Replaced "You provide" with an Inputs heading and separate bullets for sample
   identity, required files, and optional files/evidence.
-- Tightened the authored viewBox to enlarge the diagram and added a compact box-
-  colour legend for input/evidence, analysis, and review/validation nodes. Next
-  inspect the live prototype before further workflow-documentation changes.
+- Re-authored the scientist map as a larger, taller workflow so internal
+  localisation and model-search computations are boxes rather than long labelled
+  arrows. Separate Arrow and Box colours panels identify relationship and node
+  semantics. Next inspect the live prototype before further workflow-
+  documentation changes.
