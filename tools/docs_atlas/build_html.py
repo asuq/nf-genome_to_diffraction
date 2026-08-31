@@ -462,6 +462,19 @@ def _composition_loop() -> str:
     )
 
 
+def _model_discovery_guide() -> str:
+    return (
+        '<section class="composition-loop" aria-label="Protein structure model search routes">'
+        '<h3>Where protein structure models come from</h3>'
+        '<p><strong>PDB sequence route:</strong> MMseqs2 searches the local PDB SEQRES database. Keep E-value ≤ 1e-5, query coverage ≥ 50%, and at most three hits per supplied protein.</p>'
+        '<p><strong>PDB structure-sensitive route:</strong> ProstT5 converts a protein sequence into a predicted 3Di structural alphabet; Foldseek searches local PDB100. Keep E-value ≤ 1e-3, query coverage ≥ 50%, and at most three hits per supplied protein.</p>'
+        '<p><strong>Exact prediction route:</strong> AlphaFold DB is used only when an explicit accession map links a supplied protein to the prediction. Public ESM Atlas is disabled by default.</p>'
+        '<h3>What must pass before testing</h3>'
+        '<p>The hit must map back to a supplied protein sequence. Its coordinate file, checksum, chain, residue sequence, and supported single-model structure must validate. A normal no-hit remains a valid search result.</p>'
+        '</section>'
+    )
+
+
 def _stage_page(
     stage: dict[str, Any],
     stages: list[dict[str, Any]],
@@ -768,7 +781,7 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
             '      <section class="atlas-workflow-intro" aria-labelledby="atlas-workflow-intro-title">'
             '<h2 id="atlas-workflow-intro-title">What this workflow does</h2>'
             '<div class="atlas-workflow-copy"><p>The workflow narrows many possible proteins into a small set of structural explanations that scientists can inspect.</p>'
-            '<ol class="atlas-workflow-steps"><li><strong>1 · Check data</strong>Check the MTZ diffraction measurements.</li><li><strong>2 · Find models</strong>Find three-dimensional models for proteins on the supplied list.</li><li><strong>3 · Choose copy counts</strong>Use Matthews analysis to keep copy counts that physically fit.</li><li><strong>4 · Test and review</strong>Place each model hypothesis with Molecular Replacement, then inspect maps.</li><li><strong>5 · Expand or finish</strong>Test other proteins if needed, then write a reviewed report.</li></ol>'
+            '<ol class="atlas-workflow-steps"><li><strong>1 · Check data</strong>Check the MTZ diffraction measurements.</li><li><strong>2 · Find models</strong>Find protein structure models for proteins on the supplied list.</li><li><strong>3 · Choose copy counts</strong>Use Matthews analysis to keep copy counts that physically fit.</li><li><strong>4 · Test and review</strong>Place each model hypothesis with Molecular Replacement, then inspect maps.</li><li><strong>5 · Expand or finish</strong>Test other proteins if needed, then write a reviewed report.</li></ol>'
             '<p class="atlas-workflow-inputs"><strong>You provide:</strong> an organism or sample name; a required protein FASTA, annotation source/version, and MTZ file; and optional genome FASTA, GFF/GBFF, localisation, and molecular-weight evidence. The input boxes below mark required and optional items separately.</p></div>'
             '</section>\n'
             '      <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
@@ -936,6 +949,12 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
             [("Open full detail", "stages/discovery-models.html")],
         ),
     }
+    discovery = dict(by_id["discovery-models"])
+    discovery["extra_html"] = _model_discovery_guide()
+    mapping["discover_prepare"] = (
+        discovery,
+        [("Open full detail", "stages/discovery-models.html")],
+    )
     first_component = {
         "title": "First-component joint search and review",
         "summary": f"{by_id['rank-mr']['summary']} {by_id['review-refine-maps']['summary']}",

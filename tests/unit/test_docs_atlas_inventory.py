@@ -287,8 +287,16 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "Input Error" not in scientist
     assert "Held Dataset" not in scientist
     assert scientist.index("MTZ Preflight") < scientist.index(
-        "Find + Prepare Models"
+        "Find Protein Structure Models"
     ) < scientist.index("First-Component Search + Review")
+
+    assert "MMseqs2 searches the local PDB SEQRES database" in scientist
+    assert "E-value ≤ 1e-5" in scientist
+    assert "ProstT5 converts a protein sequence" in scientist
+    assert "Foldseek searches local PDB100" in scientist
+    assert "E-value ≤ 1e-3" in scientist
+    assert "AlphaFold DB is used only when an explicit accession map" in scientist
+    assert "Public ESM Atlas is disabled by default" in scientist
 
     inputs = outputs[module.CURRENT / "stages/inputs-records.html"].decode("utf-8")
     assert "Provide organism, sequence, annotation, and diffraction inputs" in inputs

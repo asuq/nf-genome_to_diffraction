@@ -14755,5 +14755,9 @@ with a collapsed combined parent or a guessed command.
   genome FASTA, gene annotation, MTZ diffraction data, and optional localisation
   or molecular-weight evidence. It marks required and optional inputs explicitly.
   The current manifest's missing dedicated organism/sample-name field is shown
-  as an input-contract gap; no schema or workflow code changed. Next inspect the
-  live prototype before further workflow-documentation changes.
+  as an input-contract gap; no schema or workflow code changed.
+- The model-discovery stage now names MMseqs2/PDB SEQRES and
+  ProstT5/Foldseek/PDB100, their current E-value and 50% query-coverage filters,
+  the three-hit caps, explicit-only AlphaFold DB mapping, disabled-by-default
+  ESM Atlas route, and coordinate/sequence validation before model testing.
+  Next inspect the live prototype before further workflow-documentation changes.

@@ -78,7 +78,7 @@
       "label": "Protein Sequences",
       "sublabel": "protein FASTA (.faa)",
       "tag": "required",
-      "pos": [260, 150],
+      "pos": [290, 150],
       "size": [190, 68]
     },
     {
@@ -87,7 +87,7 @@
       "label": "Optional Evidence",
       "sublabel": "localisation + molecular weight",
       "tag": "missing is neutral",
-      "pos": [520, 150],
+      "pos": [570, 150],
       "size": [220, 68]
     },
     {
@@ -102,11 +102,11 @@
     {
       "id": "discover_prepare",
       "type": "backend",
-      "label": "Find + Prepare Models",
-      "sublabel": "PDB + local Foldseek",
-      "tag": "offline compute",
+      "label": "Find Protein Structure Models",
+      "sublabel": "PDB: MMseqs2 + ProstT5/Foldseek",
+      "tag": "E-value + ≥50% coverage filters",
       "pos": [265, 320],
-      "size": [180, 68]
+      "size": [240, 68]
     },
     {
       "id": "first_component_search_review",
@@ -114,7 +114,7 @@
       "label": "First-Component Search + Review",
       "sublabel": "Matthews count → joint search → maps",
       "tag": "retain up to three states",
-      "pos": [500, 320],
+      "pos": [550, 320],
       "size": [260, 68]
     },
     {
@@ -123,7 +123,7 @@
       "label": "Choose Another Protein",
       "sublabel": "from the supplied list",
       "tag": "up to six total components",
-      "pos": [520, 460],
+      "pos": [570, 460],
       "size": [220, 68]
     },
     {
@@ -132,7 +132,7 @@
       "label": "Test Copy Count + Review",
       "sublabel": "1, 2, 3, or 4 copies",
       "tag": "repeat when another protein may fit",
-      "pos": [530, 590],
+      "pos": [580, 590],
       "size": [200, 68]
     },
     {
@@ -141,7 +141,7 @@
       "label": "Reviewed Report",
       "sublabel": "supported + uncertain findings",
       "tag": "bounded conclusion",
-      "pos": [250, 590],
+      "pos": [300, 590],
       "size": [180, 68]
     }
   ],
@@ -211,14 +211,14 @@
       "route": "straight",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelAt": [630, 270]
+      "labelAt": [680, 270]
     },
     {
       "id": "review_next_component",
       "from": "first_component_search_review",
       "to": "next_distinct_component",
       "label": "reviewed first component",
-      "labelAt": [630, 420],
+      "labelAt": [680, 420],
       "variant": "security",
       "route": "straight",
       "fromSide": "bottom",
@@ -238,18 +238,18 @@
       "from": "additional_component_copy_search",
       "to": "next_distinct_component",
       "label": "another distinct protein",
-      "labelAt": [850, 555],
+      "labelAt": [900, 555],
       "variant": "dashed",
       "fromSide": "right",
       "toSide": "right",
-      "via": [[850, 624], [850, 494]]
+      "via": [[900, 624], [900, 494]]
     },
     {
       "id": "copy_search_report",
       "from": "additional_component_copy_search",
       "to": "report",
       "label": "stop",
-      "labelAt": [490, 570],
+      "labelAt": [540, 570],
       "variant": "security",
       "route": "straight",
       "fromSide": "left",
