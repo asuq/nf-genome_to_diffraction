@@ -1,7 +1,7 @@
 (() => {
   const root = document.documentElement;
   const stored = localStorage.getItem('nf-gtd-atlas-theme');
-  if (stored) root.dataset.theme = stored;
+  if (stored === 'light' || stored === 'dark') root.dataset.theme = stored;
   document.querySelector('[data-theme-toggle]')?.addEventListener('click', () => {
     const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
     root.dataset.theme = next;

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Genome-to-Diffraction Developer Architecture",
+    "locale": "en",
+    "output": "docs/atlas/current/diagrams/developer-architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [1300, 720],
+    "views": [
+      {"id": "ownership", "label": "Code ownership", "focus": ["control_plane", "public_entrypoints", "nextflow", "process_modules", "python_services"], "note": "Follow responsibility from reviewed launch through orchestration into scientific code."},
+      {"id": "contracts", "label": "Contracts and evidence", "focus": ["contracts", "python_services", "human_review", "evidence_store", "publication"], "note": "See how typed identities, decisions and checksums bind every published result."},
+      {"id": "external_boundary", "label": "External tool boundary", "focus": ["process_modules", "python_services", "external_tools", "evidence_store"], "note": "Inspect the narrow adapters around licensed, database-backed and localisation tools."},
+      {"id": "clean_break", "label": "Transitional clean break", "focus": ["phase3_entrypoint", "public_entrypoints", "validation_plane"], "note": "Distinguish the current Phase III owner from the final public main.nf architecture."}
+    ]
+  },
+  "components": [
+    {"id": "control_plane", "type": "external", "label": "Reviewed Control Plane", "sublabel": "clean commit + fixed profile", "pos": [20, 340], "size": [170, 70]},
+    {"id": "public_entrypoints", "type": "frontend", "label": "Final Public Entrypoints", "sublabel": "main.nf + prepare_databases.nf", "pos": [220, 340], "size": [180, 70], "tag": "v0.3 clean break"},
+    {"id": "phase3_entrypoint", "type": "frontend", "label": "Phase III Entrypoint", "sublabel": "phase3_application.nf", "pos": [220, 110], "size": [180, 68], "tag": "transitional owner"},
+    {"id": "nextflow", "type": "messagebus", "label": "Nextflow DSL2 Workflows", "sublabel": "fan-out + scheduling + resume", "pos": [430, 340], "size": [190, 70]},
+    {"id": "process_modules", "type": "backend", "label": "Thin Process Modules", "sublabel": "typed I/O + one CLI task", "pos": [650, 340], "size": [180, 70]},
+    {"id": "python_services", "type": "backend", "label": "Python Scientific Services", "sublabel": "policy + planning + parsing", "pos": [860, 340], "size": [190, 70]},
+    {"id": "contracts", "type": "security", "label": "Typed Contracts", "sublabel": "schemas + IDs + checksums", "pos": [860, 100], "size": [190, 68]},
+    {"id": "external_tools", "type": "external", "label": "External Tool Adapters", "sublabel": "Phenix + Foldseek + localisation", "pos": [860, 570], "size": [190, 70]},
+    {"id": "human_review", "type": "security", "label": "File-based Review Gates", "sublabel": "crystal + A + claims", "pos": [1090, 100], "size": [200, 68]},
+    {"id": "evidence_store", "type": "database", "label": "Owned Evidence Packages", "sublabel": "attempts + immutable manifests", "pos": [1090, 340], "size": [200, 70]},
+    {"id": "publication", "type": "cloud", "label": "Publication and Collection", "sublabel": "cache + trace + verified reports", "pos": [1090, 570], "size": [200, 70]},
+    {"id": "validation_plane", "type": "security", "label": "Internal Validation Plane", "sublabel": "role-named validation.nf", "pos": [430, 100], "size": [190, 68], "tag": "outside normal analysis"}
+  ],
+  "connections": [
+    {"id": "control_launch", "from": "control_plane", "to": "public_entrypoints", "label": "reviewed launch", "labelAt": [205, 424], "variant": "emphasis"},
+    {"id": "phase3_migration", "from": "phase3_entrypoint", "to": "public_entrypoints", "label": "large clean break", "labelAt": [310, 215], "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
+    {"id": "entrypoints_workflows", "from": "public_entrypoints", "to": "nextflow", "label": "operations", "labelAt": [415, 424], "variant": "emphasis"},
+    {"id": "workflows_processes", "from": "nextflow", "to": "process_modules", "label": "complete channel items", "labelAt": [635, 424], "variant": "emphasis"},
+    {"id": "processes_python", "from": "process_modules", "to": "python_services", "label": "one task", "labelAt": [845, 424], "variant": "emphasis"},
+    {"id": "contracts_services", "from": "contracts", "to": "python_services", "label": "validate + identify", "variant": "security", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
+    {"id": "services_tools", "from": "python_services", "to": "external_tools", "label": "command + raw output", "labelAt": [955, 490], "variant": "dashed", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
+    {"id": "services_evidence", "from": "python_services", "to": "evidence_store", "label": "typed records", "labelAt": [1070, 424], "variant": "emphasis"},
+    {"id": "review_evidence", "from": "human_review", "to": "evidence_store", "label": "owned decisions", "labelAt": [1190, 250], "variant": "security", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
+    {"id": "evidence_publication", "from": "evidence_store", "to": "publication", "label": "checksums + status", "labelAt": [1190, 490], "variant": "emphasis", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"},
+    {"id": "validation_entrypoints", "from": "validation_plane", "to": "public_entrypoints", "label": "release gates", "labelAt": [420, 250], "variant": "security", "route": "orthogonal-v", "fromSide": "bottom", "toSide": "top"}
+  ]
+}

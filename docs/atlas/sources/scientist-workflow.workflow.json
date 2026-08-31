@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Genome-to-Diffraction Scientific Workflow",
+    "locale": "en",
+    "output": "docs/atlas/current/diagrams/scientist-workflow.html",
+    "quality_profile": "showcase",
+    "viewBox": [1050, 650],
+    "views": [
+      {
+        "id": "end_to_end",
+        "label": "End-to-end analysis",
+        "focus": ["authorities", "preflight", "discover_prepare", "rank_mr", "review_refine", "conclusion"],
+        "note": "Follow one crystal from immutable input authorities to an honestly bounded report."
+      },
+      {
+        "id": "inputs_authority",
+        "label": "Inputs and authority",
+        "focus": ["authorities", "preflight", "held"],
+        "note": "See which inputs are authoritative and where crystallographic review can hold execution."
+      },
+      {
+        "id": "discovery_ranking",
+        "label": "Discovery and ranking",
+        "focus": ["discover_prepare", "localisation_gel", "rank_mr"],
+        "note": "Trace model discovery and cross-cutting localisation or gel evidence into ranked MR attempts."
+      },
+      {
+        "id": "review_composition",
+        "label": "Review and composition",
+        "focus": ["rank_mr", "review_refine", "conclusion"],
+        "note": "Inspect the human checkpoints and bounded multi-component continuation."
+      },
+      {
+        "id": "claims_failures",
+        "label": "Claims and stop states",
+        "focus": ["held", "review_refine", "conclusion"],
+        "note": "Separate valid holds and no-hits from execution failures and supported scientific claims."
+      }
+    ]
+  },
+  "lanes": [
+    {"id": "path_a", "label": "Authority, Models and Review"},
+    {"id": "path_b", "label": "Qualification, Search and Conclusion"},
+    {"id": "evidence", "label": "Cross-cutting Evidence"},
+    {"id": "outcomes", "label": "Retained Stops", "variant": "exception"}
+  ],
+  "phases": [
+    {"id": "qualify", "label": "Qualify", "fromCol": 0, "toCol": 1},
+    {"id": "discover", "label": "Discover and test", "fromCol": 2, "toCol": 3, "variant": "emphasis"},
+    {"id": "decide", "label": "Review and conclude", "fromCol": 4, "toCol": 5, "variant": "dashed"}
+  ],
+  "groups": [
+    {"id": "review_gates", "label": "File-based decisions", "lane": "path_a", "fromCol": 4, "toCol": 4, "variant": "security"},
+    {"id": "evidence_rails", "label": "Evidence orders search; it does not prove identity", "lane": "evidence", "fromCol": 0, "toCol": 3, "variant": "dashed"}
+  ],
+  "mainPath": ["authorities", "preflight", "discover_prepare", "rank_mr", "review_refine", "conclusion"],
+  "nodes": [
+    {"id": "authorities", "lane": "path_a", "col": 0, "type": "database", "label": "Authorities", "sublabel": "catalogue + MTZ", "tag": "annotation fixed"},
+    {"id": "preflight", "lane": "path_b", "col": 1, "width": 120, "type": "security", "label": "MTZ Preflight", "sublabel": "symmetry + Free-R", "tag": "proceed / hold"},
+    {"id": "discover_prepare", "lane": "path_a", "col": 2, "width": 140, "type": "backend", "label": "Find + Prepare Models", "sublabel": "PDB + local Foldseek", "tag": "offline compute"},
+    {"id": "rank_mr", "lane": "path_b", "col": 3, "width": 140, "type": "backend", "label": "Rank + MR", "sublabel": "Matthews + Phaser", "tag": "search evidence"},
+    {"id": "review_refine", "lane": "path_a", "col": 4, "width": 140, "type": "security", "label": "Review + Maps", "sublabel": "seed + sequence + claims", "tag": "human gates"},
+    {"id": "conclusion", "lane": "path_b", "col": 5, "type": "cloud", "label": "Conclude", "sublabel": "B-F + report", "tag": "depth 4-6 tentative"},
+    {"id": "localisation_gel", "lane": "evidence", "col": 2, "width": 180, "type": "external", "label": "Localisation + Gel", "sublabel": "cross-cutting search prior", "tag": "missing is neutral"},
+    {"id": "held", "lane": "outcomes", "col": 1, "width": 140, "type": "security", "label": "Retained Hold", "sublabel": "review before MR", "tag": "valid completion"}
+  ],
+  "edges": [
+    {"id": "authorities_preflight", "from": "authorities", "to": "preflight", "variant": "emphasis", "role": "main"},
+    {"id": "preflight_discovery", "from": "preflight", "to": "discover_prepare", "label": "proceed", "variant": "emphasis", "role": "main"},
+    {"id": "discovery_mr", "from": "discover_prepare", "to": "rank_mr", "variant": "emphasis", "role": "main"},
+    {"id": "mr_review", "from": "rank_mr", "to": "review_refine", "variant": "emphasis", "role": "main", "fromSide": "top", "toSide": "bottom", "via": [[430, 181], [500, 181]]},
+    {"id": "review_conclusion", "from": "review_refine", "to": "conclusion", "label": "approved", "variant": "security", "role": "main"},
+    {"id": "preflight_hold", "from": "preflight", "to": "held", "label": "hold", "labelAt": [85, 481], "variant": "security", "role": "error", "fromSide": "left", "toSide": "left", "via": [[20, 243], [20, 491]]},
+    {"id": "localisation_ranking", "from": "localisation_gel", "to": "rank_mr", "label": "orders candidates", "variant": "dashed", "role": "async"}
+  ]
+}

@@ -5533,7 +5533,7 @@
       "sha256": "6adfe5fca8849f39f14f0da412ef8e98d5e6330256cb25285fa7668be6a03c51"
     }
   ],
-  "inventory_id": "atlasinv_d311880835aea52e15be518b97bc48456996add7f216003a1a0185242972bfee",
+  "inventory_id": "atlasinv_b872c6f1259f36488be8920f4ec7bd64a4e70f9f20acb57f16a3e8084c8a272d",
   "nextflow_files": [
     {
       "declarations": [],
@@ -72422,11 +72422,12 @@
         "__future__",
         "importlib.util",
         "pathlib",
+        "re",
         "sys",
         "types"
       ],
       "path": "tests/unit/test_docs_atlas_inventory.py",
-      "sha256": "e8d8d027ee764005da8c29013e4978c74a9d0b0ab3a0f45a0be774efe2c2ca8e",
+      "sha256": "a5140e7d766019a5559e51707964428b2392ec52dd082e26dcfd75c6936c7e50",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -72438,9 +72439,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 22,
+          "end_line": 23,
           "kind": "function",
-          "line": 13,
+          "line": 14,
           "name": "_module",
           "public": false,
           "qualname": "_module",
@@ -72456,9 +72457,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 35,
+          "end_line": 36,
           "kind": "function",
-          "line": 25,
+          "line": 26,
           "name": "_html_module",
           "public": false,
           "qualname": "_html_module",
@@ -72473,9 +72474,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 55,
+          "end_line": 56,
           "kind": "function",
-          "line": 38,
+          "line": 39,
           "name": "test_inventory_covers_all_executable_surface_kinds",
           "public": true,
           "qualname": "test_inventory_covers_all_executable_surface_kinds",
@@ -72489,9 +72490,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 63,
+          "end_line": 64,
           "kind": "function",
-          "line": 58,
+          "line": 59,
           "name": "test_inventory_is_byte_deterministic",
           "public": true,
           "qualname": "test_inventory_is_byte_deterministic",
@@ -72500,19 +72501,78 @@
         {
           "calls": [
             "_html_module",
-            "first.items",
+            "first.values",
             "join",
             "module.build_outputs"
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 81,
+          "end_line": 85,
           "kind": "function",
-          "line": 66,
+          "line": 67,
           "name": "test_html_atlas_is_deterministic_and_private_path_free",
           "public": true,
           "qualname": "test_html_atlas_is_deterministic_and_private_path_free",
           "signature": "def test_html_atlas_is_deterministic_and_private_path_free() -> None"
+        },
+        {
+          "calls": [
+            "_html_module",
+            "content.decode",
+            "decode",
+            "join",
+            "module.build_outputs",
+            "outputs.items",
+            "re.search"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 119,
+          "kind": "function",
+          "line": 88,
+          "name": "test_html_atlas_surfaces_two_audience_homes_and_keeps_index_internal",
+          "public": true,
+          "qualname": "test_html_atlas_surfaces_two_audience_homes_and_keeps_index_internal",
+          "signature": "def test_html_atlas_surfaces_two_audience_homes_and_keeps_index_internal() -> None"
+        },
+        {
+          "calls": [
+            "_html_module",
+            "all",
+            "any",
+            "content.decode",
+            "decode",
+            "module.build_outputs",
+            "outputs.items",
+            "path.is_relative_to",
+            "scientist.index",
+            "sorted"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 156,
+          "kind": "function",
+          "line": 122,
+          "name": "test_scientist_home_stage_order_and_progressive_disclosure",
+          "public": true,
+          "qualname": "test_scientist_home_stage_order_and_progressive_disclosure",
+          "signature": "def test_scientist_home_stage_order_and_progressive_disclosure() -> None"
+        },
+        {
+          "calls": [
+            "_html_module",
+            "module.build_outputs",
+            "read_bytes"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 172,
+          "kind": "function",
+          "line": 159,
+          "name": "test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts",
+          "public": true,
+          "qualname": "test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts",
+          "signature": "def test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts() -> None"
         }
       ]
     },
