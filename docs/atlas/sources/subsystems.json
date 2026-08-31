@@ -43,10 +43,10 @@
       ]
     },
     {
-      "id": "localisation_gel",
-      "title": "Localisation & Gel Evidence",
-      "scientific_summary": "Uses localisation, membrane-topology, and gel evidence to order search waves without fabricating missing observations.",
-      "developer_summary": "Validates offline PSORTb/DeepTMHMM bundles, neutral gel contracts, wave policy, and deterministic reopen plans.",
+      "id": "localisation_weight",
+      "title": "Localisation & Molecular-Weight Evidence",
+      "scientific_summary": "Uses localisation, membrane-topology, and molecular-weight evidence to change which candidates are tested first without fabricating missing observations.",
+      "developer_summary": "Validates offline PSORTb/DeepTMHMM bundles, neutral molecular-weight records, wave policy, and deterministic reopen plans.",
       "patterns": [
         "src/genome_to_diffraction/localisation/**",
         "workflows/localisation_wave_workflow.nf",
@@ -63,7 +63,7 @@
     {
       "id": "candidate_ranking",
       "title": "Candidate Ranking & Matthews Priors",
-      "scientific_summary": "Combines catalogue evidence, model quality, localisation, gel observations, and Matthews plausibility without treating rank as proof.",
+      "scientific_summary": "Combines catalogue evidence, model quality, localisation, molecular-weight observations, and Matthews plausibility without treating rank as proof.",
       "developer_summary": "Constructs deterministic funnels, candidate inventories, copy hypotheses, and retained/deferred reasons.",
       "patterns": [
         "src/genome_to_diffraction/ranking/**",

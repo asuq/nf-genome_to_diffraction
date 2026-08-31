@@ -36,7 +36,7 @@
 - Remove milestone/gate identifiers from active executable names and schemas.
   Keep established domain acronyms. Preserve old identifiers only in immutable
   history and explicitly required historical evidence readers.
-- Replace `M6` with role-based robustness/leakage validation terminology.
+- Use role-based robustness/leakage validation terminology in the active interface.
 - Remove obsolete entrypoints, adapters, aliases, tests, fixtures, and duplicate
   documentation without compatibility shims.
 - Retain active-contract tests plus isolated tests for required historical
@@ -54,7 +54,7 @@
    migrations.
 5. Regenerate the final atlas from the cleaned source and curate critical call,
    workflow, data-flow, and validation diagrams with Archify.
-6. Close remaining Phase III findings, M6/robustness validation, pass 2, reports,
+6. Close remaining Phase III findings, robustness/leakage validation, deeper analysis, reports,
    packaging, and release gates.
 7. Freeze the accepted atlas and release evidence as the v0.3.0 snapshot.
 

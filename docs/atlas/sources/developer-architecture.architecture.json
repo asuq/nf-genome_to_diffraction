@@ -32,7 +32,7 @@
     {"id": "python_services", "type": "backend", "label": "Python Scientific Services", "sublabel": "policy + planning + parsing", "pos": [860, 340], "size": [190, 70]},
     {"id": "contracts", "type": "security", "label": "Typed Contracts", "sublabel": "schemas + IDs + checksums", "pos": [860, 100], "size": [190, 68]},
     {"id": "external_tools", "type": "external", "label": "External Runtimes", "sublabel": "Phenix + Foldseek + localisation", "pos": [860, 570], "size": [190, 70]},
-    {"id": "human_review", "type": "security", "label": "File-based Review Gates", "sublabel": "crystal + A + claims", "pos": [1090, 100], "size": [200, 68]},
+    {"id": "human_review", "type": "security", "label": "Review Checkpoints", "sublabel": "diffraction + components + claims", "pos": [1090, 100], "size": [200, 68]},
     {"id": "evidence_store", "type": "database", "label": "Owned Evidence Packages", "sublabel": "attempts + immutable manifests", "pos": [1090, 340], "size": [200, 70]},
     {"id": "publication", "type": "database", "label": "Publication and Collection", "sublabel": "cache + trace + verified reports", "pos": [1090, 570], "size": [200, 70]},
     {"id": "validation_plane", "type": "security", "label": "Internal Validation Plane", "sublabel": "role-named validation.nf", "pos": [430, 100], "size": [190, 68], "tag": "outside normal analysis"}

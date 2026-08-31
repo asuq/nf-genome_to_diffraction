@@ -6,7 +6,7 @@
     "locale": "en",
     "output": "docs/atlas/current/diagrams/scientist-workflow.html",
     "quality_profile": "showcase",
-    "viewBox": [1120, 560],
+    "viewBox": [1250, 560],
     "legend": {
       "mode": "auto",
       "entries": {
@@ -19,20 +19,20 @@
       {
         "id": "end_to_end",
         "label": "End-to-end analysis",
-        "focus": ["inputs", "preflight", "discover_prepare", "rank_mr", "review_refine", "conclusion"],
+        "focus": ["inputs", "preflight", "preflight_review", "discover_prepare", "rank_mr", "review_refine", "conclusion"],
         "note": "Follow one crystal from fixed source inputs to a bounded scientific report."
       },
       {
         "id": "inputs_records",
         "label": "Inputs and evidence",
-        "focus": ["localisation_gel", "inputs", "preflight", "needs_review"],
-        "note": "Required inputs and optional localisation or gel evidence are supplied before analysis; missing optional evidence is neutral."
+        "focus": ["localisation_weight", "inputs", "preflight", "preflight_review", "needs_review"],
+        "note": "This evidence may change which candidates are tested first; it cannot exclude candidates or prove identity/composition."
       },
       {
         "id": "search_and_review",
         "label": "Search and review",
         "focus": ["discover_prepare", "rank_mr", "review_refine", "conclusion"],
-        "note": "Model discovery and evidence-informed ordering lead to human review and an honestly bounded conclusion."
+        "note": "Model discovery leads to candidate testing, human review, and an honestly bounded conclusion."
       }
     ]
   },
@@ -51,9 +51,18 @@
       "type": "security",
       "label": "MTZ Preflight",
       "sublabel": "symmetry + Free-R",
-      "tag": "proceed / review",
-      "pos": [205, 250],
+      "tag": "checks evidence",
+      "pos": [185, 250],
       "size": [130, 68]
+    },
+    {
+      "id": "preflight_review",
+      "type": "security",
+      "label": "Preflight Review",
+      "sublabel": "proceed / needs review",
+      "tag": "human checkpoint",
+      "pos": [340, 250],
+      "size": [150, 68]
     },
     {
       "id": "discover_prepare",
@@ -61,17 +70,17 @@
       "label": "Find + Prepare Models",
       "sublabel": "PDB + local Foldseek",
       "tag": "offline compute",
-      "pos": [380, 250],
+      "pos": [515, 250],
       "size": [150, 68]
     },
     {
       "id": "rank_mr",
       "type": "backend",
-      "label": "Rank + MR",
+      "label": "Rank + Molecular Replacement",
       "sublabel": "Matthews + Phaser",
       "tag": "search evidence",
-      "pos": [555, 250],
-      "size": [130, 68]
+      "pos": [690, 250],
+      "size": [210, 68]
     },
     {
       "id": "review_refine",
@@ -79,22 +88,22 @@
       "label": "Review + Maps",
       "sublabel": "seed + sequence + claims",
       "tag": "human gates",
-      "pos": [730, 250],
+      "pos": [925, 250],
       "size": [130, 68]
     },
     {
       "id": "conclusion",
       "type": "database",
       "label": "Conclude",
-      "sublabel": "B-F + report",
+      "sublabel": "composition + report",
       "tag": "depth 4-6 tentative",
-      "pos": [905, 250],
+      "pos": [1080, 250],
       "size": [130, 68]
     },
     {
-      "id": "localisation_gel",
+      "id": "localisation_weight",
       "type": "database",
-      "label": "Localisation + Gel",
+      "label": "Localisation + MW",
       "sublabel": "user-supplied prior",
       "tag": "missing is neutral",
       "pos": [30, 70],
@@ -104,10 +113,10 @@
       "id": "needs_review",
       "type": "security",
       "label": "Needs Review",
-      "sublabel": "check diffraction before MR",
-      "tag": "no MR yet",
-      "pos": [200, 410],
-      "size": [140, 68]
+      "sublabel": "check diffraction before Molecular Replacement",
+      "tag": "not started",
+      "pos": [280, 410],
+      "size": [270, 68]
     }
   ],
   "connections": [
@@ -121,10 +130,20 @@
       "toSide": "left"
     },
     {
-      "id": "preflight_discovery",
+      "id": "preflight_checkpoint",
       "from": "preflight",
+      "to": "preflight_review",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "review_discovery",
+      "from": "preflight_review",
       "to": "discover_prepare",
       "label": "proceed",
+      "labelAt": [502, 230],
       "variant": "emphasis",
       "route": "straight",
       "fromSide": "right",
@@ -153,17 +172,18 @@
       "from": "review_refine",
       "to": "conclusion",
       "label": "reviewed",
+      "labelAt": [1068, 230],
       "variant": "security",
       "route": "straight",
       "fromSide": "right",
       "toSide": "left"
     },
     {
-      "id": "preflight_review",
-      "from": "preflight",
+      "id": "review_needs_review",
+      "from": "preflight_review",
       "to": "needs_review",
       "label": "needs review",
-      "labelAt": [270, 364],
+      "labelAt": [415, 364],
       "variant": "security",
       "route": "straight",
       "fromSide": "bottom",
@@ -171,13 +191,13 @@
     },
     {
       "id": "localisation_ranking",
-      "from": "localisation_gel",
+      "from": "localisation_weight",
       "to": "rank_mr",
-      "label": "orders candidates",
+      "label": "changes test order",
       "variant": "dashed",
       "fromSide": "right",
       "toSide": "top",
-      "via": [[620, 104]]
+      "via": [[795, 104]]
     }
   ]
 }

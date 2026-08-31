@@ -5533,7 +5533,7 @@
       "sha256": "6adfe5fca8849f39f14f0da412ef8e98d5e6330256cb25285fa7668be6a03c51"
     }
   ],
-  "inventory_id": "atlasinv_78d17893e727ff59f14f4a07eb24635224782e0cd848674a8b55b0780ed35665",
+  "inventory_id": "atlasinv_2d00f0f9a9b29fc2cc7dc0159f169bbae33a3ea9d0394e1d903d0021610b636c",
   "nextflow_files": [
     {
       "declarations": [],
@@ -5719,7 +5719,7 @@
       "includes": [],
       "path": "modules/local/localisation_wave_tasks.nf",
       "sha256": "3dc6b4b23d74417bcbb0ccb08a69b43a5696f55b18ef0ce8c0707fab22321463",
-      "subsystem": "localisation_gel"
+      "subsystem": "localisation_weight"
     },
     {
       "declarations": [
@@ -5999,7 +5999,7 @@
       "includes": [],
       "path": "modules/local/plan_phase3_localisation_reopen.nf",
       "sha256": "d6c0af21bfba6dfaa3bb799f6b7a9814a05cc8aea01acb6afe564254067b2efe",
-      "subsystem": "localisation_gel"
+      "subsystem": "localisation_weight"
     },
     {
       "declarations": [
@@ -6170,7 +6170,7 @@
       "includes": [],
       "path": "modules/local/run_offline_localisation_task.nf",
       "sha256": "94307424ae4539807764c700dec8f63aa8e326641a24bc1fbb0f1dffde1049ef",
-      "subsystem": "localisation_gel"
+      "subsystem": "localisation_weight"
     },
     {
       "declarations": [
@@ -6333,7 +6333,7 @@
       "includes": [],
       "path": "modules/local/validate_phase3_localisation_bundle.nf",
       "sha256": "fa620ce8022337f57e8236e67a74214ac0642fd0e3eef1e780a702fc865dddc1",
-      "subsystem": "localisation_gel"
+      "subsystem": "localisation_weight"
     },
     {
       "declarations": [
@@ -6562,7 +6562,7 @@
       ],
       "path": "workflows/localisation_wave_workflow.nf",
       "sha256": "4214150bfff7e600980c69696337c6dca13522d9bb51deb2f9c67b5f8b221b19",
-      "subsystem": "localisation_gel"
+      "subsystem": "localisation_weight"
     },
     {
       "declarations": [
@@ -30289,7 +30289,7 @@
       "path": "src/genome_to_diffraction/localisation/__init__.py",
       "sha256": "2a0f2e2c28d81296a0066b1019aaf4d478d6fea5d50006b2a2b3e1d4cf472c00",
       "substantive": false,
-      "subsystem": "localisation_gel",
+      "subsystem": "localisation_weight",
       "symbols": []
     },
     {
@@ -30310,7 +30310,7 @@
       "path": "src/genome_to_diffraction/localisation/adapters.py",
       "sha256": "e39baf5fbceec5f29597e56ae3d062227904ab978e04d0966fd1573519ca28d1",
       "substantive": true,
-      "subsystem": "localisation_gel",
+      "subsystem": "localisation_weight",
       "symbols": [
         {
           "bases": [],
@@ -30565,7 +30565,7 @@
       "path": "src/genome_to_diffraction/localisation/batch.py",
       "sha256": "20f24f759965ff69ed20f9da85b13153fb2aa9292f67a3d4d861ae55d2ae9992",
       "substantive": true,
-      "subsystem": "localisation_gel",
+      "subsystem": "localisation_weight",
       "symbols": [
         {
           "bases": [
@@ -31011,7 +31011,7 @@
       "path": "src/genome_to_diffraction/localisation/container_execution.py",
       "sha256": "f3bddcb813a94b11b267cbdca1ad2ae13e644088c7753cde3c68a11bb487b072",
       "substantive": true,
-      "subsystem": "localisation_gel",
+      "subsystem": "localisation_weight",
       "symbols": [
         {
           "bases": [
@@ -31279,7 +31279,7 @@
       "path": "src/genome_to_diffraction/localisation/contracts.py",
       "sha256": "b55c3f20e54ef5f274f10a8d5a72a68c51de127a16513bced642890b386cd525",
       "substantive": true,
-      "subsystem": "localisation_gel",
+      "subsystem": "localisation_weight",
       "symbols": [
         {
           "bases": [
@@ -31544,7 +31544,7 @@
       "path": "src/genome_to_diffraction/localisation/policy.py",
       "sha256": "470dc8824f0c92694b5e6e5afb97a507f90b67cc0f421421bbdede70c3351452",
       "substantive": true,
-      "subsystem": "localisation_gel",
+      "subsystem": "localisation_weight",
       "symbols": [
         {
           "calls": [],
@@ -32410,7 +32410,7 @@
       "path": "src/genome_to_diffraction/localisation/reopen_batch.py",
       "sha256": "7fa7eb8586abfb73f9d7857350f706d2820da4776af39aa7da6329a5799e03be",
       "substantive": true,
-      "subsystem": "localisation_gel",
+      "subsystem": "localisation_weight",
       "symbols": [
         {
           "bases": [
@@ -55421,8 +55421,8 @@
       "title": "Databases & Provider Discovery"
     },
     {
-      "id": "localisation_gel",
-      "title": "Localisation & Gel Evidence"
+      "id": "localisation_weight",
+      "title": "Localisation & Molecular-Weight Evidence"
     },
     {
       "id": "model_registry",
@@ -72427,7 +72427,7 @@
         "types"
       ],
       "path": "tests/unit/test_docs_atlas_inventory.py",
-      "sha256": "4ceff6a8cebc53a019d28132dc51363680f67f2ffdc1283a188df76e4663f6af",
+      "sha256": "5a6a05216737bab70d227e98a3b10a90edf46971693fb31d9c2f9eefff525714",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [

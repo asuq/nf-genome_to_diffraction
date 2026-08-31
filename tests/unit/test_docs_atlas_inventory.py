@@ -144,7 +144,7 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
 
     positions = [scientist.index(target) for target in expected]
     assert positions == sorted(positions)
-    assert "User-provided localisation and gel evidence" in scientist
+    assert "User-provided localisation and molecular-weight evidence" in scientist
     assert "supplies these observations at the beginning" in scientist
     assert "depths four through six remain provisional" in scientist
 
@@ -199,7 +199,7 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
         "rank_mr",
         "review_refine",
         "conclusion",
-        "localisation_gel",
+        "localisation_weight",
         "needs_review",
     ):
         assert f'data-atlas-node-doc="{node_id}"' in scientist
@@ -233,7 +233,7 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert 'data-theme="dark"' in stage
     assert "data-theme-toggle" not in stage
     assert "Needs Review" in stage
-    assert "Paused before MR" in stage
+    assert "Paused before Molecular Replacement" in stage
 
 
 def test_developer_legend_uses_domain_labels() -> None:

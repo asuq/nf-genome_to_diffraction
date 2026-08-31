@@ -34,6 +34,15 @@ p.lead { color:var(--muted); max-width:76ch; font-size:1.12rem; }
 .rail { border-left:5px solid var(--accent2); box-shadow:none; }
 .detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .detail-panel h2,.detail-panel h3 { margin-top:0; }
+.composition-loop { margin:18px 0; padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+.composition-loop h2,.composition-loop h3 { margin:0 0 8px; }
+.composition-slots,.composition-cycle { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.composition-slot,.composition-cycle-step { padding:6px 9px; border:1px solid var(--line); border-radius:8px; background:var(--panel2); }
+.composition-slot.reviewed { border-color:var(--accent2); color:var(--accent2); }
+.composition-arrow { color:var(--accent); font-weight:800; }
+.composition-cycle { margin-top:12px; }
+.composition-loopback { margin-top:10px; padding:8px 10px; border-left:3px solid var(--accent); background:var(--panel2); }
+.composition-limits { color:var(--muted); font-size:.88rem; }
 details { margin:14px 0; }
 summary { cursor:pointer; font-weight:700; }
 details.symbol { padding:0; overflow:hidden; }

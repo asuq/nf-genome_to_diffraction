@@ -13,7 +13,7 @@ documentation entrypoint.
 ## Current status
 
 Version `0.2.0` is the experimental bounded two-component heteromer prototype.
-It fixes a retained A state and searches explicit B copies for `ASU = nA + mB`.
+It fixes one reviewed first-component structure and searches explicit copy counts for a second component.
 Real Phenix controls cover 6RTZ `1A + 1B`, 3U7Q `2A + 2B`, and the full
 1,846-protein Thermotoga catalogue search. The small P6 control slice adds
 missing-B, wrong-B, homomer-route non-regression, and explicit 9ECN
@@ -42,7 +42,7 @@ Exact-accession AlphaFold DB retrieval
 is implemented with API/mmCIF sequence verification and immutable coordinate
 caching, and the exact pilot-derived `WP_042685700.1` to `A0A832VZP6` retrieval
 is qualified. The first M2 vertical slice now converts that exact pilot model
-into a residue-mapped, confidence-pruned, content-addressed MR model through
+into a residue-mapped, confidence-pruned, content-addressed Molecular Replacement model through
 verified Phenix 2.1-6048. The checksum-bound fixed Marmic path passed on commit
 `c901dafe585d1b68b117d7d216e5053ef4985230`: login-node staging retrieved one
 sequence-exact AFDB model, the Slurm task retained 429 of 442 residues, and the
@@ -67,7 +67,7 @@ PDB/ProstT5/AFDB searches, bounded direct-PDB coordinate registration, and
 predicted/experimental model preparation. `--analysis_stage first_copy`
 requires a one-crystal manifest, verifies its manifest-owned MTZ against the
 completed preflight, runs the retain-all diverse Phaser fan-out, and publishes
-an MR-seed review package with an empty approval template. It deliberately
+a Molecular Replacement seed-review package with an empty approval template. It deliberately
 stops at that file-based human checkpoint. `--analysis_stage additional_copy`
 requires an explicitly edited `--approved_mr_seeds` file, validates it against
 the exact regenerated package, and advances every approved seed one
@@ -423,15 +423,15 @@ for debugging; an existing versioned installation is never overwritten.
   network acquisition. The fixed login controller uses
   `structure-search stage-phase3-provider-coordinates` on the resulting owned
   package; both operations require the complete checksum-pinned offline
-  localisation/gel bundle. `first_copy` then requires all three exact
-  input records and executes model preparation plus MR without network access.
+  localisation/molecular-weight bundle. `first_copy` then requires all three exact
+  input records and executes model preparation plus Molecular Replacement without network access.
 
 The reviewed `unknown-discovery` wrapper exposes no input paths. It reads one
 owned mode-0600 untracked specification at
 `.untracked/phase3-unknown-pass1/unknown-discovery-inputs.json`; the tracked
 shape is [examples/unknown_discovery_inputs.example.json](examples/unknown_discovery_inputs.example.json).
 The controller validates the exact review/execution identity, AFDB map, and
-PSORTb/DeepTMHMM localisation/gel runtime evidence, streams a path-free
+PSORTb/DeepTMHMM localisation/molecular-weight runtime evidence, streams a path-free
 immutable archive, and requests a fixed 8-CPU, 32-GB, 24-hour Slurm allocation.
 Staging and submitting remain separate operations.
 After that run completes successfully, `stage unknown-screen --parent-run ...`
@@ -440,7 +440,7 @@ on the login node, and records the preparation checksum in the child run. The
 screen cannot submit until that step succeeds; its Slurm job runs only the
 offline application and requires a fully cached replay.
 
-After A-seed review, `stage unknown-single-component --parent-run ...` reads
+After the first-component review, `stage unknown-single-component --parent-run ...` reads
 the second mode-0600 fixed spec at
 `.untracked/phase3-unknown-pass1/unknown-single-component-inputs.json`; its
 tracked shape is

@@ -75,6 +75,15 @@ p.lead { color:var(--muted); max-width:76ch; font-size:1.12rem; }
 .rail { border-left:5px solid var(--accent2); box-shadow:none; }
 .detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
 .detail-panel h2,.detail-panel h3 { margin-top:0; }
+.composition-loop { margin:18px 0; padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--panel); }
+.composition-loop h2,.composition-loop h3 { margin:0 0 8px; }
+.composition-slots,.composition-cycle { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.composition-slot,.composition-cycle-step { padding:6px 9px; border:1px solid var(--line); border-radius:8px; background:var(--panel2); }
+.composition-slot.reviewed { border-color:var(--accent2); color:var(--accent2); }
+.composition-arrow { color:var(--accent); font-weight:800; }
+.composition-cycle { margin-top:12px; }
+.composition-loopback { margin-top:10px; padding:8px 10px; border-left:3px solid var(--accent); background:var(--panel2); }
+.composition-limits { color:var(--muted); font-size:.88rem; }
 details { margin:14px 0; }
 summary { cursor:pointer; font-weight:700; }
 details.symbol { padding:0; overflow:hidden; }
@@ -427,6 +436,32 @@ def _list(items: list[str]) -> str:
     return "<ul>" + "".join(f"<li>{_escape(item)}</li>" for item in items) + "</ul>"
 
 
+def _composition_loop() -> str:
+    slots = '<span class="composition-arrow">→</span>'.join(
+        f'<span class="composition-slot{(" reviewed" if label == "A" else "")}">{label}</span>'
+        for label in ("A", "B", "C", "D", "E", "F")
+    )
+    cycle = '<span class="composition-arrow">→</span>'.join(
+        f'<span class="composition-cycle-step">{label}</span>'
+        for label in (
+            "Plan candidates",
+            "Run Molecular Replacement attempts",
+            "Collect states",
+            "Human review",
+        )
+    )
+    return (
+        '<section class="composition-loop" aria-label="B through F additional-component search loop">'
+        '<h3>How the B-F loop works</h3>'
+        '<p><strong>A</strong> is the first reviewed component. <strong>B-F</strong> means up to five additional component slots tested one depth at a time.</p>'
+        f'<div class="composition-slots" aria-label="Component depth progression">{slots}</div>'
+        f'<div class="composition-cycle" aria-label="Work repeated at each additional-component depth">{cycle}</div>'
+        '<div class="composition-loopback"><strong>Stop</strong> → publish the reviewed result &nbsp; | &nbsp; <strong>Continue</strong> ↻ repeat the cycle for the next slot.</div>'
+        '<p class="composition-limits">Limits: at most 25 attempts per depth, up to three retained parent states, 100 additional-component attempts per crystal, and six total component slots. Depths four through six remain provisional.</p>'
+        '</section>'
+    )
+
+
 def _stage_page(
     stage: dict[str, Any],
     stages: list[dict[str, Any]],
@@ -456,12 +491,14 @@ def _stage_page(
         f'<option value="{item["id"]}.html"{(" selected" if item["id"] == stage["id"] else "")}>{_escape(item["number"])}. {_escape(item["title"])}</option>'
         for item in stages
     )
+    composition_visual = _composition_loop() if stage["id"] == "composition" else ""
     content_body = (
         '<div class="breadcrumbs"><a href="../documentation.html">Documentation</a> / Workflow stage</div>'
         f'<div class="eyebrow">Stage {_escape(stage["number"])}</div><h1>{_escape(stage["title"])}</h1>'
         f'<p class="lead">{_escape(stage["summary"])}</p>'
         f'<p><span class="badge maturity">Current maturity: {_escape(stage["maturity"])}</span></p>'
         f'<aside class="warning" role="note"><strong>Visible limitation.</strong> {_escape(stage["warning"])}</aside>'
+        f"{composition_visual}"
         '<div class="detail-grid">'
         f'<section class="detail-panel"><h2>Purpose</h2><p>{_escape(stage["purpose"])}</p></section>'
         f'<section class="detail-panel"><h2>Inputs</h2>{_list(stage["inputs"])}</section>'
@@ -488,6 +525,7 @@ def _stage_page(
 VIEWER_DRAWER_STYLE = """
     /* Documentation navigation injected by the deterministic atlas builder. */
     html, body { max-width: 100%; overflow-x: clip; }
+    @media (min-width: 701px) { .container { padding-top: 72px; } }
     html[data-atlas-docs-open="true"] body { padding-right: 440px; }
     html[data-atlas-docs-open="true"] .toolbar { right: calc(440px + 1rem); }
     html[data-atlas-docs-open="true"] .toolbar .preset-wrap,
@@ -535,11 +573,24 @@ VIEWER_DRAWER_STYLE = """
     .atlas-node-detail h3 { margin-top: 18px; }
     .atlas-node-detail ul { margin: 6px 0 12px; padding-left: 20px; color: color-mix(in srgb, var(--toolbar-text) 78%, transparent); }
     .atlas-node-detail li { margin: 4px 0; }
+    .composition-loop { margin: 18px 0; padding: 13px; border: 1px solid var(--toolbar-border); border-radius: 10px; background: var(--toolbar-bg); }
+    .composition-loop h3 { margin-top: 0; }
+    .composition-slots, .composition-cycle { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .composition-slot, .composition-cycle-step { padding: 5px 7px; border: 1px solid var(--toolbar-border); border-radius: 7px; background: color-mix(in srgb, var(--toolbar-bg) 80%, transparent); }
+    .composition-slot.reviewed { border-color: var(--database-stroke); color: var(--database-stroke); }
+    .composition-arrow { color: var(--frontend-stroke); font-weight: 800; }
+    .composition-cycle { margin-top: 10px; }
+    .composition-loopback { margin-top: 9px; padding: 7px 9px; border-left: 3px solid var(--frontend-stroke); background: color-mix(in srgb, var(--frontend-fill) 26%, transparent); }
+    .composition-limits { font-size: 11px; color: color-mix(in srgb, var(--toolbar-text) 68%, transparent) !important; }
     .atlas-node-back { border: 0; padding: 0; background: transparent; color: var(--frontend-stroke); cursor: pointer; font: inherit; }
     .atlas-node-detail[hidden], .atlas-docs-index-panel[hidden] { display: none !important; }
     @media (max-width: 700px) {
       html[data-atlas-docs-open="true"] body { padding-right: 0; }
       html[data-atlas-docs-open="true"] .toolbar { right: 1rem; }
+      .toolbar .preset-wrap,
+      .toolbar #btn-motion,
+      .toolbar #btn-present,
+      .toolbar .export-wrap { display: none !important; }
       .atlas-docs-drawer { width: 100vw; }
       .atlas-view-switch a { padding-inline: .52rem; }
     }
@@ -708,6 +759,7 @@ def _node_detail(
         f"<h2>{_escape(record['title'])}</h2><p>{_escape(record['summary'])}</p>"
         f'<span class="atlas-docs-maturity">{_escape(record["maturity"])}</span>'
         f'<p class="atlas-docs-warning">{_escape(record["warning"])}</p>'
+        f'{record.get("extra_html", "")}'
         f"<h3>Purpose</h3><p>{_escape(record['purpose'])}</p>"
         f"<h3>Key inputs</h3>{_list(record['inputs'])}"
         f"<h3>Key outputs</h3>{_list(record['outputs'])}"
@@ -747,8 +799,9 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         "decisions": by_id["composition"]["decisions"] + by_id["report"]["decisions"],
         "boundaries": by_id["composition"]["boundaries"]
         + by_id["report"]["boundaries"],
-        "maturity": "depth three validated; deeper composition and pass 2 restricted",
-        "warning": "Depths four through six remain provisional, and private pass 2 still requires final RG0-RG7 evidence.",
+        "maturity": "depth three validated; deeper component searches restricted",
+        "warning": "Depths four through six remain provisional, and deeper private analysis still requires complete review evidence.",
+        "extra_html": _composition_loop(),
     }
     mapping["conclusion"] = (
         conclusion,
@@ -758,45 +811,45 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         ],
     )
     localisation = {
-        "title": "User-provided localisation and gel evidence",
+        "title": "User-provided localisation and molecular-weight evidence",
         "summary": "The user supplies these observations with the input data; they then remain available across discovery, ranking, review, and composition.",
-        "purpose": "Order search waves without turning localisation or apparent gel mass into identity, ASU-mass, or oligomeric-state proof.",
+        "purpose": "Order search waves without turning localisation or apparent molecular weight into identity, ASU-mass, or oligomeric-state proof.",
         "inputs": [
-            "User-provided gel observations",
+            "User-provided molecular-weight observations",
             "User-provided or offline-derived localisation evidence",
             "Missing-evidence state when either input is unavailable",
         ],
         "outputs": [
-            "Cross-cutting search-order priors",
+            "Inputs that can change which candidates are tested first",
             "Neutral missing-evidence records",
             "Traceable localisation and topology evidence",
         ],
         "decisions": [
             "Bind supplied evidence at the beginning",
-            "Use it throughout candidate ordering",
+            "Use it to change which candidates are tested first",
             "Keep missing evidence neutral",
         ],
         "boundaries": [
             "This evidence is supplied before staged processing begins",
-            "Apparent gel mass is a monomer prior",
+            "Apparent molecular weight is a monomer prior",
             "Localisation cannot establish exact identity",
         ],
         "maturity": "implemented as cross-cutting input evidence",
         "warning": "Evidence can change search order but cannot prove identity or composition.",
     }
-    mapping["localisation_gel"] = (
+    mapping["localisation_weight"] = (
         localisation,
-        [("Open full detail", f"subsystems/{_slug('localisation_gel')}.html")],
+        [("Open full detail", f"subsystems/{_slug('localisation_weight')}.html")],
     )
     needs_review = {
-        "title": "Needs Review — paused before MR",
-        "summary": "Diffraction preflight could not proceed. The data and findings are kept for human inspection, and no MR job starts until the issue is resolved.",
+        "title": "Needs Review — paused before Molecular Replacement",
+        "summary": "Diffraction preflight could not proceed. The data and findings are kept for human inspection, and no Molecular Replacement job starts until the issue is resolved.",
         "purpose": "Preserve a valid review-required outcome without scheduling downstream molecular replacement.",
         "inputs": by_id["preflight"]["inputs"],
         "outputs": [
             "Needs Review status",
             "Retained preflight findings",
-            "Human-readable reason no MR was scheduled",
+            "Human-readable reason no Molecular Replacement job was scheduled",
         ],
         "decisions": [
             "Inspect the preserved findings",
@@ -804,7 +857,7 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
             "Proceed only through an authenticated review decision",
         ],
         "boundaries": [
-            "No MR job starts while this status is active",
+            "No Molecular Replacement job starts while this status is active",
             "Needs Review is not an execution crash",
             "No protein identity is inferred",
         ],
@@ -872,7 +925,7 @@ def _developer_node_details(
             "Incomplete validation remains visible",
         ],
         "maturity": "cross-cutting; final closure pending",
-        "warning": "Final RG0-RG7 evidence is still required before private pass 2.",
+        "warning": "All required review evidence must be complete before deeper private analysis.",
     }
     details.append(
         _node_detail(
@@ -898,11 +951,11 @@ def _scientist_page(
     content = (
         "<p>Use the guided workflow as the primary map. Open a stage below for purpose, inputs, outputs, decisions, claim limits, maturity, and deep operator commands.</p>"
         f'<ol class="atlas-docs-list">{items}</ol>'
-        '<section class="atlas-docs-rail"><strong>User-provided localisation and gel evidence</strong>'
-        "<p>The user supplies these observations at the beginning. They then remain cross-cutting and order search waves; missing evidence is neutral, and apparent gel mass is never ASU total mass.</p>"
-        f'<a href="subsystems/{_slug("localisation_gel")}.html">Inspect the evidence contract</a></section>'
+        '<section class="atlas-docs-rail"><strong>User-provided localisation and molecular-weight evidence</strong>'
+        "<p>The user supplies these observations at the beginning. They can change which candidates are tested first; missing evidence is neutral, and apparent molecular weight is never ASU total mass.</p>"
+        f'<a href="subsystems/{_slug("localisation_weight")}.html">Inspect the evidence contract</a></section>'
         '<section class="atlas-docs-clean-break"><strong>Visible maturity boundaries</strong>'
-        "<p>Pass 2 remains unauthorised pending final RG0-RG7 evidence. Depth three is positively qualified by 9ECN; depths four through six remain provisional.</p></section>"
+        "<p>Deeper private analysis remains unauthorised until every required review gate is complete. Depth three is positively qualified by the known three-component control (PDB 9ECN); depths four through six remain provisional.</p></section>"
     )
     drawer = _drawer_shell(
         "Scientist / Operator",
