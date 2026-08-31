@@ -446,6 +446,52 @@ IDs, SDS or native method, apparent mass, absolute uncertainty, condition, band
 role, replicate, notes, and source. SDS ranks component monomer mass; native
 PAGE ranks total composition mass. Missing evidence remains neutral.
 
+#### Deferred molecular-weight band-count prior (future development)
+
+This is a future design requirement, not current implementation or
+authorisation to change the planner. The current additional-component planner
+uses each supplied apparent molecular weight, uncertainty, method, and band
+role as soft ranking evidence. It does **not** use the number of visible bands
+as a component-count limit, require one component per band, consume a band
+after a placement, require every band to be explained, or stop expansion when
+the component depth reaches the band count.
+
+A future implementation may add a versioned `unexplained_band_count` soft prior
+at each additional-component depth, subject to all of these requirements:
+
+- Count unique observations without double-counting technical or biological
+  replicates; retain every contributing observation and replicate identifier.
+- Treat SDS-PAGE band count only as evidence for distinct apparent polypeptide
+  masses. It must not determine stoichiometry, total asymmetric-unit mass, or
+  the number of protein components because co-migration and multiple bands from
+  one protein remain possible.
+- Treat native-PAGE observations as total-composition or assembly-mass
+  evidence. Native band count must not be interpreted directly as protein-
+  component count.
+- Match proposed component masses to bands with their declared uncertainties
+  and roles. Preserve matched, unmatched, multiply matched, and ambiguous bands
+  explicitly; never force a one-to-one assignment.
+- Recalculate the unexplained-band summary after each reviewed component depth,
+  while retaining the original observations and every earlier assignment
+  possibility.
+- Use the result only as a deterministic ranking/tie-break prior. It may change
+  which candidate is tested first, but it may not exclude a physically possible
+  candidate, set the maximum search depth, establish identity or composition,
+  or override Matthews, diffraction, model, or human-review evidence.
+- Missing molecular-weight evidence remains neutral. Conflicting or unexplained
+  bands remain visible evidence rather than execution failure.
+- Predeclare and version the scoring rule, ambiguity handling, replicate
+  grouping, cache identity, and report fields before implementation.
+
+Required acceptance tests must cover at least: co-migrating proteins, multiple
+bands from one protein, replicated observations, overlapping uncertainty
+intervals, missing evidence, all bands explained, no bands explained, ambiguous
+many-to-many matches, deterministic ordering, and proof that band-count evidence
+cannot change hard physical eligibility or make a scientific claim.
+
+Do not begin this work until the current Phase III execution and review gates
+are complete and the user explicitly approves a separate implementation plan.
+
 ### PH5 - Unknown-dataset pass 1
 
 Stop gate: complete the applicable `RG1`-`RG3` scientific, provider, owned
