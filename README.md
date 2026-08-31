@@ -311,7 +311,7 @@ schemas or examples.
 | Surface | Status | Evidence |
 | --- | --- | --- |
 | `v0.2.0` | Experimental bounded two-component prototype | [Release notes](docs/releases/v0.2.0.md) |
-| `dev/phase3` | Unreleased development; not a stable user contract | [Phase III roadmap](docs/phase-iii-roadmap.md) |
+| `dev/phase3` | Unreleased development; not a stable user contract | [Canonical v0.3 roadmap](docs/v0.3-roadmap.md) |
 | Exact protein identity | Never inferred from MR scores alone | [Scientific safeguards](AGENTS.md#3-mandatory-scientific-safeguards) |
 | CI | Locked repository gate on the named branch/commit | [GitHub Actions](https://github.com/asuq/nf-genome_to_diffraction/actions/workflows/ci.yml) |
 

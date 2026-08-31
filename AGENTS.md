@@ -33,6 +33,16 @@ crystal. Depth three must be validated with 9ECN. Depths four through six remain
 provisional and cannot support a complete-composition claim. AF3 complex logic
 and unbounded assembly inference remain out of scope.
 
+On 2026-08-31 the user approved a candidate-confidence-first clean break for
+the unknown-crystal screen. Matthews retains the complete configured expected
+copy range, while every initial MR hypothesis searches exactly one copy. The
+active workflow must not impose a special four-copy or joint-copy admission
+limit. Only an explicitly approved one-copy A seed may add copies, one at a
+time, toward its retained expectation. Complete candidate assessment for all
+three frozen crystals now precedes the remaining M6, closure, pass-2, atlas,
+package, and v0.3.0 release programme. The canonical execution order is
+`docs/v0.3-roadmap.md`.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.
@@ -191,6 +201,12 @@ branches/worktrees derived from it. Do not reinterpret, mutate, or reuse a v0.2
 Marmic run as Phase III evidence. Do not launch Phase III controls, M6 reruns,
 localisation, or unknown-crystal analysis until the corresponding Phase III
 contracts and fixed profiles have passed their local integration gates.
+
+Complete the candidate-confidence critical path in `docs/v0.3-roadmap.md`
+before advancing M6, final finding closure, unknown pass 2, or release work.
+Each frozen crystal may terminate as exact, equivalent, family-level,
+unresolved, or no-supported-candidate; forcing an answer is never a completion
+criterion.
 
 At the start of each new development loop, read the newest entry in
 `docs/development-loop-journal.md` before changing code or running a new remote

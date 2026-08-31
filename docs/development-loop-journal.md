@@ -14840,3 +14840,31 @@ with a collapsed combined parent or a guessed command.
   active run changed. Next review and commit this focused onboarding/package
   boundary, refresh exact-source CI when requested, and continue the separate
   Phase III evidence and candidate-inventory findings before another screen.
+
+## 2026-08-31 - v0.3 goal is candidate-confidence first
+
+- The user changed the canonical development order. First complete
+  checksum-reconstructible candidate assessments and supervisor-ready reports
+  for all three frozen unknown crystals; only then continue M6, final finding
+  closure, unknown pass 2, atlas/package completion, and the `v0.3.0` release.
+- The initial screen now retains configured Matthews expected-copy hypotheses
+  but searches exactly one copy. The active scientific path must delete the
+  joint-copy option and special four-copy admission filter. Additional copies
+  are placed sequentially only after explicit A approval. An outcome-blind
+  frozen-input audit already produces at least 25 candidates per crystal under
+  this policy, supporting a 75-task pass-1 budget without threshold tuning.
+- `docs/v0.3-roadmap.md` now defines the ordered scientific, evidence,
+  human-review, report, and release acceptance conditions. `AGENTS.md`, the
+  documentation index, Phase III technical roadmap, finding ledger, sole
+  mutable pointer, and durable heartbeat all route to that order. The heartbeat
+  is active and still forbids subagents, raw SSH, direct Slurm, duplicate jobs,
+  failed-cache reuse, and inferred human approval.
+- The goal service retained its blocked historical objective and refused an
+  in-place replacement; it was not falsely marked complete. The new objective
+  is therefore recorded explicitly in the pointer and canonical tracked
+  policy. No executable source or scientific run changed in this documentation
+  wave.
+- Next implement the one-copy screen and deterministic one-copy resource plans,
+  then the bounded checksum-authenticated failed-child evidence collector.
+  Run focused and full local gates, commit/push exact source, require CI, and
+  only then build a fresh discovery/screen authority.

@@ -1,5 +1,11 @@
 # Phase III roadmap: hardening, general composition search, and unknowns
 
+> **Execution order:** the
+> [v0.3 candidate-confidence-first roadmap](v0.3-roadmap.md) is canonical.
+> Complete the three unknown-crystal candidate assessments and their human
+> reviews before advancing the remaining M6, closure, pass-2, atlas, package,
+> and release programme described here.
+
 ## Purpose and branch boundary
 
 Phase III turns the experimental v0.2 two-component prototype into a validated

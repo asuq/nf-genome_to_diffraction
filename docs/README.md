@@ -6,6 +6,11 @@ remain authoritative for scientific policy and interface contracts.
 
 ## Available documents
 
+- [Canonical v0.3 candidate-confidence-first roadmap](v0.3-roadmap.md): the
+  authoritative execution order from one-copy unknown screening through
+  A-seed review, sequential copy completion, refinement/map/sequence reports,
+  remaining M6 and finding closure, pass 2, atlas/package completion, and the
+  final release gates.
 - [v0.2.0 release notes](releases/v0.2.0.md): experimental two-component scope,
   known control outcomes, interpretation limits, and deferred hardening.
 - [v0.1.0 release notes](releases/v0.1.0.md): explicit archival release scope,
@@ -16,9 +21,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Software v0.2 roadmap](v0.2-roadmap.md): active minimal 6RTZ `1A + 1B`
   implementation, explicit `nA + mB`, small controls, milestone testing, and
   deferred robustness backlog.
-- [Phase III roadmap](phase-iii-roadmap.md): isolated `dev/phase3` hardening,
-  bounded general component search, M6 repair, and the two-pass exploratory
-  analysis of the three operator crystals.
+- [Phase III technical roadmap](phase-iii-roadmap.md): detailed isolated
+  `dev/phase3` hardening, bounded general component search, M6 repair, and
+  two-pass implementation context subordinate to the canonical v0.3 order.
 - [Phase III fail-closed and clean-break adverse review](adverse-code-review-2026-08-25-fail-closed-clean-break.md):
   independently verified scientific, scheduler/provider, reviewed-execution,
   and current-compatibility defects with concrete source evidence.
