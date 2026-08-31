@@ -1364,7 +1364,7 @@ def test_m6_input_qualification_uses_small_fixed_resources(tmp_path: Path) -> No
     assert "benchmark verify-m6-runner" in m6_body
 
 
-def test_unknown_pass2_submit_requires_rg7_authority_and_72_hour_bound(
+def test_unknown_pass2_submit_requires_rg7_authority_and_384_hour_bound(
     tmp_path: Path,
 ) -> None:
     dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
@@ -1417,7 +1417,7 @@ def test_unknown_pass2_submit_requires_rg7_authority_and_72_hour_bound(
     arguments = (tmp_path / "sbatch-args").read_text().splitlines()
     assert "--cpus-per-task=8" in arguments
     assert "--mem=32G" in arguments
-    assert "--time=72:00:00" in arguments
+    assert "--time=384:00:00" in arguments
     stage_body = (
         dispatcher.read_text(encoding="utf-8")
         .split("unknown_pass2_inputs_stage_run() {", maxsplit=1)[1]
@@ -4290,7 +4290,7 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     child_sbatch = (tmp_path / "sbatch-args").read_text(encoding="utf-8")
     assert "--cpus-per-task=8" in child_sbatch
     assert "--mem=32G" in child_sbatch
-    assert "--time=48:00:00" in child_sbatch
+    assert "--time=96:00:00" in child_sbatch
     fake_nextflow = child / "source/.pixi/envs/hpc/bin/nextflow"
     _write_executable(
         fake_nextflow,
@@ -4516,7 +4516,7 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         "unknown-single-component"
     )
     single_sbatch = (tmp_path / "sbatch-args").read_text(encoding="utf-8")
-    assert "--time=48:00:00" in single_sbatch
+    assert "--time=120:00:00" in single_sbatch
     single_nextflow = single / "source/.pixi/envs/hpc/bin/nextflow"
     _write_executable(
         single_nextflow,

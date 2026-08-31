@@ -38,12 +38,17 @@ from genome_to_diffraction.model_registry.all_eligible import (
     ValidatedProcessedModelInput,
     build_all_eligible_model_registry,
 )
+from genome_to_diffraction.mr_resources import (
+    build_mr_resource_plan,
+    count_polymer_atoms,
+)
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
     load_contract,
     load_json_document,
 )
 from genome_to_diffraction.schemas.manifests import PipelineConfig, PrototypeProfile
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
@@ -63,7 +68,7 @@ from genome_to_diffraction.time import utc_now_iso
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
 _ADAPTER_VERSION = "exact-predicted-funnel-v1"
 _DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v1"
-_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v4-phase3-evidence"
+_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v5-dynamic-resources"
 _PHASE3_MAXIMUM_COPY_COUNT = 4
 _PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
@@ -139,6 +144,7 @@ class DiverseFirstCopyFunnelOutput:
     hypotheses_tsv: Path
     deferred_cap_hypotheses_jsonl: Path
     deferred_localisation_hypotheses_jsonl: Path
+    resource_plans_jsonl: Path | None
     model_registry_directory: Path
     manifest_json: Path
 
@@ -161,6 +167,7 @@ class _Candidate:
     coordinate: CoordinateSourceRecord
     model: ProcessedModelRecord
     matthews: MatthewsHypothesis
+    resource_plan: MrResourcePlan | None = None
 
 
 def _read_jsonl[T: BaseModel](
@@ -937,7 +944,27 @@ def _make_diverse_candidate(
         priority_features=features,
         status=MrHypothesisStatus.QUEUED,
     )
-    return _Candidate(hypothesis, model_path, coordinate, model, matthews)
+    resource_plan = (
+        build_mr_resource_plan(
+            owner_kind="mr_hypothesis",
+            owner_id=hypothesis.hypothesis_id,
+            reflection_count=preflight.reflection_count,
+            moving_atom_count=count_polymer_atoms(model_path.absolute_path),
+            searched_copy_count=copy_number_to_search,
+            fixed_atom_count=0,
+            symmetry_multiplicity=preflight.general_position_multiplicity,
+        )
+        if joint_copy_search
+        else None
+    )
+    return _Candidate(
+        hypothesis,
+        model_path,
+        coordinate,
+        model,
+        matthews,
+        resource_plan,
+    )
 
 
 def _join_diverse_candidates(
@@ -1374,6 +1401,45 @@ def build_diverse_first_copy_funnel(
             f"diverse-funnel output directory is not empty: {output}"
         )
     output.mkdir(parents=True, exist_ok=True)
+    resource_plan_by_hypothesis = {
+        candidate.hypothesis.hypothesis_id: candidate.resource_plan
+        for candidate in all_candidates
+        if candidate.resource_plan is not None
+    }
+    resource_plans_jsonl: Path | None = None
+    if request.joint_copy_search:
+        if len(resource_plan_by_hypothesis) != len(all_candidates):
+            raise FunnelInputError(
+                "Phase III hypothesis lacks its deterministic MR resource plan"
+            )
+        resource_plans_jsonl = output / "mr_resource_plans.jsonl"
+        plan_directory = output / "resource_plans"
+        plan_directory.mkdir()
+        resource_rows = tuple(
+            (
+                hypothesis_id,
+                resource_plan_by_hypothesis[hypothesis_id],
+            )
+            for hypothesis_id in sorted(resource_plan_by_hypothesis)
+        )
+        atomic_write_text(
+            resource_plans_jsonl,
+            "".join(
+                canonical_json_text(
+                    {
+                        "hypothesis_id": hypothesis_id,
+                        "resource_plan": plan.model_dump(mode="json"),
+                    }
+                )
+                + "\n"
+                for hypothesis_id, plan in resource_rows
+            ),
+        )
+        for hypothesis_id, plan in resource_rows:
+            atomic_write_json(
+                plan_directory / f"{hypothesis_id}.json",
+                plan.model_dump(mode="json"),
+            )
     input_sha256 = _diverse_input_digests(request)
     registry_output, aggregate_paths = _publish_all_eligible_models(
         output,
@@ -1437,6 +1503,12 @@ def build_diverse_first_copy_funnel(
             "deferred_cap_hypotheses_sha256": sha256_file(deferred_cap_jsonl),
             "deferred_localisation_hypotheses_sha256": sha256_file(
                 deferred_localisation_jsonl,
+                progress=False,
+            ),
+            "mr_resource_plan_adapter": "phase3-mr-resource-allocation-v1",
+            "mr_resource_plan_count": len(resource_plan_by_hypothesis),
+            "mr_resource_plans_sha256": sha256_file(
+                cast(Path, resource_plans_jsonl),
                 progress=False,
             ),
             "gel_observation_count": (
@@ -1525,6 +1597,15 @@ def build_diverse_first_copy_funnel(
                     "coordinate_id": item.coordinate.coordinate_id,
                     "coordinate_provider": item.coordinate.provider,
                     "matthews_hypothesis_id": item.matthews.hypothesis_id,
+                    **(
+                        {
+                            "resource_plan_id": resource_plan_by_hypothesis[
+                                item.hypothesis.hypothesis_id
+                            ].resource_plan_id,
+                        }
+                        if request.joint_copy_search
+                        else {}
+                    ),
                 }
                 for item in selected
             ],
@@ -1546,6 +1627,7 @@ def build_diverse_first_copy_funnel(
         hypotheses_tsv=hypotheses_tsv,
         deferred_cap_hypotheses_jsonl=deferred_cap_jsonl,
         deferred_localisation_hypotheses_jsonl=deferred_localisation_jsonl,
+        resource_plans_jsonl=resource_plans_jsonl,
         model_registry_directory=registry,
         manifest_json=manifest_path,
     )

@@ -169,6 +169,8 @@ def _packed_attempt(root: Path, inventory) -> Path:
     atomic_write_json(free_r, {"comparison_id": "freercompare_test"})
     result = CompositionAttemptExecutionResult.from_content(
         attempt_id=task.attempt_id,
+        resource_plan_id=task.resource_plan.resource_plan_id,
+        resource_attempt=1,
         execution_input_id=execution_input.execution_input_id,
         crystal_id=parent.crystal_id,
         parent_state_id=parent.state_id,
@@ -203,6 +205,8 @@ def _no_hit_attempt(root: Path, inventory, task) -> Path:
     atomic_write_json(search, {"execution_status": "completed_no_hit"})
     result = CompositionAttemptExecutionResult.from_content(
         attempt_id=task.attempt_id,
+        resource_plan_id=task.resource_plan.resource_plan_id,
+        resource_attempt=1,
         execution_input_id=execution_input.execution_input_id,
         crystal_id=execution_input.parent_state.crystal_id,
         parent_state_id=execution_input.parent_state.state_id,

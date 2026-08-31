@@ -47,6 +47,7 @@ AUTHORITATIVE_SCHEMAS = {
     "database-manifest": "database_manifest.schema.json",
     "gel-evidence-manifest": "gel_evidence_manifest.schema.json",
     "mr-hypothesis": "mr_hypothesis.schema.json",
+    "mr-resource-plan": "mr_resource_plan.schema.json",
     "phenix-install-manifest": "phenix_install_manifest.schema.json",
     "pipeline-config": "pipeline_config.schema.json",
     "review-decisions": "review_decision.schema.json",
@@ -78,6 +79,7 @@ class _JsonWireDecodingProbe(ContractModel):
             "tests/fixtures/stubs/phenix_install_manifest.json",
         ),
         ("mr-hypothesis", "tests/fixtures/stubs/mr_hypothesis.json"),
+        ("mr-resource-plan", "tests/fixtures/stubs/mr_resource_plan.json"),
         ("review-decisions", "examples/approvals/approved_mr_seeds.tsv"),
     ),
 )
@@ -85,7 +87,9 @@ def test_approved_examples_validate_with_application_models(
     kind: str, relative_path: str
 ) -> None:
     model = load_contract(REPOSITORY / relative_path, kind, progress=False)
-    expected_version = "2.0" if kind == "gel-evidence-manifest" else "1.0"
+    expected_version = (
+        "2.0" if kind in {"gel-evidence-manifest", "mr-resource-plan"} else "1.0"
+    )
     assert model.model_dump(mode="json")["schema_version"] == expected_version
 
 

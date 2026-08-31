@@ -1,5 +1,9 @@
 """Schema-v2 public contracts for Phase III composition search."""
 
+from genome_to_diffraction.schemas.mr_resources import (
+    MrResourcePlan,
+    MrResourceTier,
+)
 from genome_to_diffraction.schemas.v2.component_execution_input import (
     ComponentCoordinateDerivationBoundary,
     ComponentCoordinateDerivationGap,
@@ -143,6 +147,8 @@ __all__ = [
     "FreeRIdentity",
     "FreeRMembershipComparison",
     "ModelUnavailableReason",
+    "MrResourcePlan",
+    "MrResourceTier",
     "PhaseIIIExecutionIdentity",
     "PhaseIIIOwnedReviewPackage",
     "PhaseIIIOwnedRunRegistry",

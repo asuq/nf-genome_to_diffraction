@@ -298,7 +298,28 @@ def test_phase3_diverse_funnel_searches_all_declared_copies_jointly(
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["adapter_version"] == (
-        "multi-source-first-copy-funnel-v4-phase3-evidence"
+        "multi-source-first-copy-funnel-v5-dynamic-resources"
+    )
+    assert result.resource_plans_jsonl is not None
+    resource_rows = tuple(
+        json.loads(line)
+        for line in result.resource_plans_jsonl.read_text(encoding="utf-8").splitlines()
+    )
+    assert {row["resource_plan"]["base_cpus"] for row in resource_rows} <= {4, 6, 8}
+    assert {row["resource_plan"]["owner_id"] for row in resource_rows} == {
+        item.hypothesis_id for item in result.hypotheses
+    } | {
+        json.loads(line)["hypothesis_id"]
+        for path in (
+            result.deferred_cap_hypotheses_jsonl,
+            result.deferred_localisation_hypotheses_jsonl,
+        )
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line
+    }
+    assert all(
+        "resource_plan" not in item.model_dump(mode="json")
+        for item in result.hypotheses
     )
     assert manifest["copy_search_mode"] == "joint_declared_copies"
     assert manifest["maximum_joint_copy_count"] == 4

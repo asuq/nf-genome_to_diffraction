@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import ClassVar, Literal, Self
 
-from pydantic import ValidationError, model_validator
+from pydantic import Field, ValidationError, model_validator
 
 from genome_to_diffraction.checksums import (
     atomic_write_json,
@@ -54,6 +54,10 @@ from genome_to_diffraction.mr import (
     run_multi_fixed_search,
     run_partner_search,
 )
+from genome_to_diffraction.mr_resources import (
+    MrResourcePlanError,
+    verify_mr_thread_allocation,
+)
 from genome_to_diffraction.schemas.base import NonEmptyString, Sha256Hex
 from genome_to_diffraction.schemas.manifests import PhenixInstallManifest
 from genome_to_diffraction.schemas.results import (
@@ -78,7 +82,7 @@ from genome_to_diffraction.schemas.v2.composition_attempts import (
 )
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
-_ADAPTER_VERSION = "phase3-composition-attempt-execution-v1"
+_ADAPTER_VERSION = "phase3-composition-attempt-execution-v2-resource-plan"
 _PARTNER_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v8-phase3-diffraction"
 _MULTI_FIXED_ADAPTER_VERSION = "phenix-multi-fixed-joint-component-v2-diffraction"
 _PLACEMENT_ADAPTER_VERSION = "phaser-component-coordinate-inventory-v2"
@@ -104,11 +108,13 @@ class CompositionAttemptExecutionResult(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "compattemptresult_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["phase3-composition-attempt-execution-v1"] = (
-        _ADAPTER_VERSION
-    )
+    adapter_version: Literal[
+        "phase3-composition-attempt-execution-v2-resource-plan"
+    ] = _ADAPTER_VERSION
     attempt_result_id: NonEmptyString
     attempt_id: CompositionAttemptIdentifier
+    resource_plan_id: NonEmptyString
+    resource_attempt: int = Field(ge=1, le=2)
     execution_input_id: NonEmptyString
     crystal_id: NonEmptyString
     parent_state_id: NonEmptyString
@@ -166,6 +172,7 @@ class CompositionAttemptExecutionRequest:
     execution_identity: Path
     output_directory: Path
     threads: int = 1
+    resource_attempt: int = 1
     timeout_seconds: float | None = None
 
 
@@ -232,6 +239,7 @@ def _verify_execution_authority(
         "phase3_all_model_registry": "all-eligible-model-registry-v3",
         "phase3_composition_attempt": _ADAPTER_VERSION,
         "phase3_component_coordinates": _PLACEMENT_ADAPTER_VERSION,
+        "phase3_mr_resources": "phase3-mr-resource-allocation-v1",
         route_name: route_version,
     }
     if any(
@@ -507,6 +515,14 @@ def execute_composition_attempt(
             "attempt inventory lacks one exact selected attempt"
         )
     attempt = attempts[0]
+    try:
+        verify_mr_thread_allocation(
+            plan=attempt.resource_plan,
+            resource_attempt=request.resource_attempt,
+            threads=request.threads,
+        )
+    except MrResourcePlanError as error:
+        raise CompositionAttemptExecutionError(str(error)) from error
     execution_inputs = tuple(
         item
         for item in inventory.execution_inputs
@@ -768,6 +784,8 @@ def execute_composition_attempt(
     if execution_status is not ExecutionStatus.COMPLETED_HIT:
         result = CompositionAttemptExecutionResult.from_content(
             attempt_id=attempt.attempt_id,
+            resource_plan_id=attempt.resource_plan.resource_plan_id,
+            resource_attempt=request.resource_attempt,
             execution_input_id=execution_input.execution_input_id,
             crystal_id=parent.crystal_id,
             parent_state_id=parent.state_id,
@@ -888,6 +906,8 @@ def execute_composition_attempt(
     )
     result = CompositionAttemptExecutionResult.from_content(
         attempt_id=attempt.attempt_id,
+        resource_plan_id=attempt.resource_plan.resource_plan_id,
+        resource_attempt=request.resource_attempt,
         execution_input_id=execution_input.execution_input_id,
         crystal_id=parent.crystal_id,
         parent_state_id=parent.state_id,

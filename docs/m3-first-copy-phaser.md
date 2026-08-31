@@ -218,13 +218,14 @@ pixi run -e hpc nextflow run qualification.nf \
   --cache_root /absolute/cache/diverse-first-copy
 ```
 
-On Marmic, each `process_mr` task requests four CPUs and passes all four to
-`phaser.keywords.general.jobs`. The diverse prototype schedules at most 25
-hypotheses, so its maximum simultaneous Phaser allocation is 100 CPUs, matching
-the site profile's declared cap. Each task retains 8 GB because excess memory
-does not accelerate Phaser and no out-of-memory evidence has been observed.
-The small outer Slurm job is only the Nextflow driver; increasing its allocation
-would not increase the child Phaser tasks' usable resources.
+Each Phase III hypothesis carries the deterministic
+[MR resource plan](mr-resource-allocation.md). Marmic first attempts request
+4/6/8 CPUs, 16/24/32 GB, and 12/18/24 hours according to reflection,
+coordinate, copy-count, and bounded symmetry workload. The allocated CPUs are
+passed to `phaser.keywords.general.jobs`. One classified infrastructure or
+resource retry multiplies all three requests by `task.attempt` under the
+16-CPU/64-GB/48-hour caps. Slurm owns aggregate admission; no process-local
+concurrency cap is imposed.
 
 Selection reserves exact mappings, then round-robins deterministically over
 `(sequence_group_id, coordinate_provider, model_variant_type)` buckets so one

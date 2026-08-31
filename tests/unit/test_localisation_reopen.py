@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.localisation import (
     BatchLocalisationReopenRequest,
@@ -12,6 +13,7 @@ from genome_to_diffraction.localisation import (
     import_catalogue_localisation_batch,
     plan_batch_localisation_reopen,
 )
+from genome_to_diffraction.mr_resources import build_mr_resource_plan
 from genome_to_diffraction.schemas.manifests import PrototypeProfile
 from genome_to_diffraction.schemas.results import (
     MrHypothesis,
@@ -78,13 +80,38 @@ def _case(
         f"{canonical_json_text(deferred)}\n",
         encoding="utf-8",
     )
+    resource_plan_path = funnel / "mr_resource_plans.jsonl"
+    resource_plan_path.write_text(
+        "".join(
+            canonical_json_text(
+                {
+                    "hypothesis_id": hypothesis.hypothesis_id,
+                    "resource_plan": build_mr_resource_plan(
+                        owner_kind="mr_hypothesis",
+                        owner_id=hypothesis.hypothesis_id,
+                        reflection_count=1_000,
+                        moving_atom_count=100,
+                        searched_copy_count=1,
+                        fixed_atom_count=0,
+                        symmetry_multiplicity=1,
+                    ).model_dump(mode="json"),
+                }
+            )
+            + "\n"
+            for hypothesis in (active, deferred)
+        ),
+        encoding="utf-8",
+    )
     (funnel / "diverse_first_copy_funnel_manifest.json").write_text(
         json.dumps(
             {
                 "adapter_version": (
-                    "multi-source-first-copy-funnel-v4-phase3-evidence"
+                    "multi-source-first-copy-funnel-v5-dynamic-resources"
                 ),
                 "localisation_policy_id": policy.policy_id,
+                "mr_resource_plan_adapter": "phase3-mr-resource-allocation-v1",
+                "mr_resource_plan_count": 2,
+                "mr_resource_plans_sha256": sha256_file(resource_plan_path),
             }
         )
         + "\n",
@@ -169,6 +196,31 @@ def test_no_a_expansion_prioritises_initial_cap_before_localisation_exclusion(
         f"{canonical_json_text(cap_deferred)}\n",
         encoding="utf-8",
     )
+    resource_path = request.funnel_directory / "mr_resource_plans.jsonl"
+    resource_path.write_text(
+        resource_path.read_text()
+        + canonical_json_text(
+            {
+                "hypothesis_id": cap_deferred.hypothesis_id,
+                "resource_plan": build_mr_resource_plan(
+                    owner_kind="mr_hypothesis",
+                    owner_id=cap_deferred.hypothesis_id,
+                    reflection_count=1_000,
+                    moving_atom_count=100,
+                    searched_copy_count=1,
+                    fixed_atom_count=0,
+                    symmetry_multiplicity=1,
+                ).model_dump(mode="json"),
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = request.funnel_directory / "diverse_first_copy_funnel_manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["mr_resource_plan_count"] = 3
+    manifest["mr_resource_plans_sha256"] = sha256_file(resource_path)
+    manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
 
     output = plan_batch_localisation_reopen(request)
     reopened = tuple(

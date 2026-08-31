@@ -2,7 +2,7 @@ nextflow.enable.types = true
 
 process RUN_PLANNED_PARTNER_PHASER {
     tag "planned-partner:${candidate_id}"
-    label 'process_mr'
+    label 'process_mr_fixed'
     errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }
     publishDir params.outdir, mode: 'copy', overwrite: true
     stageInMode 'copy'

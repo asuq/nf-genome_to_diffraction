@@ -283,7 +283,10 @@ def _validate_source(
             "phase3_component_coordinates": (
                 "phaser-component-coordinate-inventory-v2"
             ),
-            "phase3_composition_attempt": ("phase3-composition-attempt-execution-v1"),
+            "phase3_composition_attempt": (
+                "phase3-composition-attempt-execution-v2-resource-plan"
+            ),
+            "phase3_mr_resources": "phase3-mr-resource-allocation-v1",
             "phase3_composition_beam": "phase3-composition-beam-depth-v1",
             "phase3_composition_depth": "phase3-composition-depth-input-v1",
             "phase3_no_a_expansion": "phase3-no-a-expansion-v2",

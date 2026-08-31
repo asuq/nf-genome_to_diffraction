@@ -77,6 +77,11 @@ workflow PHASE3_ADDITIONAL_COPY_WORKFLOW {
             if (columns.size() < 3) {
                 error "Phase III approved seed row is incomplete for ${crystalId}"
             }
+            def modelSource = stageManifest.model_sources[columns[0]]
+            if (!(modelSource instanceof Map) ||
+                !(modelSource.resource_plan instanceof Map)) {
+                error "Phase III approved seed lacks its MR resource plan: ${columns[0]}"
+            }
             tuple(
                 crystalId,
                 columns[0],
@@ -91,7 +96,8 @@ workflow PHASE3_ADDITIONAL_COPY_WORKFLOW {
                 file(item[4], checkIfExists: true),
                 file(item[5], checkIfExists: true),
                 file(item[6], checkIfExists: true),
-                file(item[7], checkIfExists: true)
+                file(item[7], checkIfExists: true),
+                modelSource.resource_plan
             )
         }
     }

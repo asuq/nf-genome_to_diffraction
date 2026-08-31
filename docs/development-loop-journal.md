@@ -14739,3 +14739,31 @@ with a collapsed combined parent or a guessed command.
   CI intentionally skipped, deploy that exact source, build a fresh source-
   bound private authority, and run one fresh discovery/screen successor. Never
   reuse job `636956` or any of its killed scientific children.
+
+## 2026-08-31 - Phase III MR resources become workload-bound and retryable
+
+- The user approved deterministic first-attempt allocation for every current
+  Phase III MR route while leaving M6 and immutable historical routes fixed.
+  Scientific hypothesis IDs remain independent: one separate schema-v2
+  `MrResourcePlan` is content-addressed and bound one-way to its hypothesis or
+  composition execution input.
+- The version-1 workload is reflections multiplied by moving-copy plus fixed
+  polymer atoms and a symmetry factor capped at eight. Standard, heavy, and
+  very-heavy first attempts request 4/16/12, 6/24/18, and 8/32/24 CPU/GB/hour.
+  One retry uses linear `task.attempt` scaling under 16 CPU, 64 GB, and 48 hour
+  caps. Only exit 75 and scheduler/resource interruption codes 104, 130--145,
+  and 175--177 retry; scientific no-hit and contract/parse failures do not.
+- Screen, reviewed-single-component, and five-depth pass-2 controllers now
+  request 96, 120, and 384 hours. Slurm still owns aggregate concurrency; no
+  active Phase III `maxForks` was introduced. The running earlier-source
+  unknown screen `637180`, its pointer, allocation, and caches were untouched.
+- A live local Nextflow fixture proves attempt one exits 75, attempt two receives
+  doubled resources, and canonical resume reuses that successful retry as
+  `CACHED`. The full locked gate passes: 1,410 unit, 145 contract, and 98
+  integration tests; all schemas (now ten packaged contracts), documentation,
+  action, Nextflow syntax/stub/resume, scientific fan-out, M6 mutation,
+  packaging, wrapper, formatting, lint, type, and diff checks are green.
+- Next commit and push the isolated dynamic-resource branch, run CI as the user
+  requested, and retain it as the successor to the unintegrated blanket
+  eight-CPU change. Do not deploy or alter the current Marmic chain; integrate
+  and build a new source-bound authority only after its mandatory checkpoint.

@@ -1,5 +1,6 @@
 """Exercise control-independent catalogue partner search and fixed controls."""
 
+import json
 import sys
 import tempfile
 from collections import Counter
@@ -126,8 +127,23 @@ def _scientific_fanout_command(root: Path) -> tuple[list[str], Path]:
     phase3_seed_stage = inputs / "phase3-seed-stage"
     phase3_seed_stage.mkdir()
     copy2(seeds, phase3_seed_stage / "additional_copy_seeds.tsv")
+    resource_plan = json.loads(
+        (
+            STUBS / "exact_predicted_funnel/resource_plans/"
+            "mrhyp_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd.json"
+        ).read_text(encoding="utf-8")
+    )
     (phase3_seed_stage / "phase3_seed_stage_manifest.json").write_text(
-        '{"approval_provenance":{"crystal_id":"test_crystal_01"}}\n',
+        json.dumps(
+            {
+                "approval_provenance": {"crystal_id": "test_crystal_01"},
+                "model_sources": {
+                    seed_id: {"resource_plan": resource_plan}
+                    for seed_id in ("sol_seed_a", "sol_seed_b")
+                },
+            }
+        )
+        + "\n",
         encoding="ascii",
     )
     output = root / "scientific-fanout-results"

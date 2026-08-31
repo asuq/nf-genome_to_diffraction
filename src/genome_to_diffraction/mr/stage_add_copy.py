@@ -43,6 +43,7 @@ from genome_to_diffraction.review.phase3_stage import PhaseIIIReviewStageManifes
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import MrHypothesis, NormalisedMrResult
 from genome_to_diffraction.schemas.v2 import (
+    MrResourcePlan,
     PhaseIIIExecutionIdentity,
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecisionFile,
@@ -511,6 +512,21 @@ def _stage_approved_seed_models(
             _owned_review_asset(review_root, command_relative, "first-copy command"),
             "first-copy command",
         )
+        resource_plan: MrResourcePlan | None = None
+        if derive_placed_copy_count:
+            try:
+                resource_plan = MrResourcePlan.model_validate(
+                    command.get("resource_plan")
+                )
+                if (
+                    resource_plan.owner_kind != "mr_hypothesis"
+                    or resource_plan.owner_id != hypothesis.hypothesis_id
+                ):
+                    raise ValueError("resource plan owns another hypothesis")
+            except (ValidationError, ValueError) as error:
+                raise ValueError(
+                    f"Phase III command lacks its MR resource plan: {solution_id}"
+                ) from error
         original_model_sha = command.get("model_sha256")
         identity_percent = command.get("model_identity_percent")
         if (
@@ -587,6 +603,11 @@ def _stage_approved_seed_models(
             "original_first_copy_model_sha256": original_model_sha,
             "staged_search_model": model_relative.as_posix(),
             "staged_search_model_sha256": coordinate_sha,
+            "resource_plan": (
+                resource_plan.model_dump(mode="json")
+                if resource_plan is not None
+                else None
+            ),
         }
         if derive_placed_copy_count:
             model_sources[solution_id].update(
@@ -699,7 +720,7 @@ def prepare_phase3_seed_stage(
 
     provenance = _phase3_approval_provenance(approval)
     stage_identity: dict[str, object] = {
-        "adapter_version": "phase3-owned-a-seed-stage-v3",
+        "adapter_version": "phase3-owned-a-seed-stage-v4",
         "stage_kind": "phase3_owned_a_seed",
         "approval_provenance": provenance,
         "review_package_path": "review_package",
@@ -788,7 +809,7 @@ def validate_phase3_seed_stage(
     allowlist = document.get("output_allowlist")
     if (
         document.get("schema_version") != "2.0"
-        or document.get("adapter_version") != "phase3-owned-a-seed-stage-v3"
+        or document.get("adapter_version") != "phase3-owned-a-seed-stage-v4"
         or document.get("stage_kind") != "phase3_owned_a_seed"
         or document.get("execution_status") != ExecutionStatus.COMPLETED_SUCCESS.value
         or not isinstance(allowlist, list)
@@ -883,10 +904,12 @@ def validate_phase3_seed_stage(
     )
     if document.get("approved_solution_ids") != list(approved_ids):
         raise ValueError("Phase III seed-stage approved identities differ")
-    if hypotheses_jsonl is not None and sha256_file(
-        _regular_file(hypotheses_jsonl, "MR hypotheses")
-    ) != document.get("hypotheses_sha256"):
-        raise ValueError("Phase III seed-stage hypotheses differ")
+    hypotheses: dict[str, MrHypothesis] | None = None
+    if hypotheses_jsonl is not None:
+        hypotheses_path = _regular_file(hypotheses_jsonl, "MR hypotheses")
+        if sha256_file(hypotheses_path) != document.get("hypotheses_sha256"):
+            raise ValueError("Phase III seed-stage hypotheses differ")
+        hypotheses = _load_hypotheses(hypotheses_path)
 
     approved_seeds = _regular_file(root / "approved_seeds.tsv", "approved seeds")
     additional_seeds = _regular_file(
@@ -925,6 +948,25 @@ def validate_phase3_seed_stage(
         if not isinstance(raw_source, dict):
             raise ValueError(f"Phase III model source is invalid: {seed_id}")
         source = cast(dict[str, object], raw_source)
+        try:
+            resource_plan = MrResourcePlan.model_validate(source.get("resource_plan"))
+        except ValidationError as error:
+            raise ValueError(
+                f"Phase III MR resource plan is invalid: {seed_id}"
+            ) from error
+        hypothesis_id = source.get("hypothesis_id")
+        if (
+            resource_plan.owner_kind != "mr_hypothesis"
+            or resource_plan.owner_id != hypothesis_id
+            or (
+                hypotheses is not None
+                and (
+                    not isinstance(hypothesis_id, str)
+                    or hypothesis_id not in hypotheses
+                )
+            )
+        ):
+            raise ValueError(f"Phase III MR resource plan owner differs: {seed_id}")
         model = _owned_review_asset(
             root, source.get("staged_search_model"), "staged search model"
         )

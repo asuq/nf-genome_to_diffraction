@@ -2,7 +2,7 @@ nextflow.enable.types = true
 
 process RUN_ADDITIONAL_COPY_PHASER {
     tag "add-copy:${seed[0]}"
-    label 'process_mr'
+    label 'process_mr_fixed'
     errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }
     publishDir params.outdir, mode: 'copy', overwrite: true
 
@@ -73,6 +73,9 @@ process RUN_PHASE3_ADDITIONAL_COPY_PHASER {
     cache 'deep'
     errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }
     publishDir params.outdir, mode: 'copy', overwrite: true
+    cpus { (item[11].base_cpus as int) * task.attempt }
+    memory { "${(item[11].base_memory_gb as int) * task.attempt} GB" }
+    time { "${(item[11].base_time_hours as int) * task.attempt} hours" }
 
     input:
     item: Tuple
@@ -102,6 +105,7 @@ process RUN_PHASE3_ADDITIONAL_COPY_PHASER {
         --phenix-manifest '${item[9]}' \
         --diffraction-selection '${item[10]}' \
         --threads '${task.cpus}' \
+        --resource-attempt '${task.attempt}' \
         --until-expected \
         --outdir '${outputName}'
     """

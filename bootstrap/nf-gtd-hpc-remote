@@ -3779,11 +3779,12 @@ submit_run() {
           "$profile" == t12 ]]; then
         walltime=24:00:00
     fi
-    if [[ "$profile" == unknown-screen || \
-          "$profile" == unknown-single-component ]]; then
-        walltime=48:00:00
-    fi
-    [[ "$profile" != unknown-pass2 ]] || walltime=72:00:00
+    [[ "$profile" != unknown-screen ]] || walltime=96:00:00
+    [[ "$profile" != unknown-single-component ]] || walltime=120:00:00
+    # Five sequential B--F depths can each consume a 24-hour first attempt and
+    # one 48-hour retry. Retain one additional day for orchestration and the
+    # canonical cached replay; Marmic's reviewed site ceiling is 1000 hours.
+    [[ "$profile" != unknown-pass2 ]] || walltime=384:00:00
 
     exec 9>"$LOCKS/submit.lock"
     flock -x 9

@@ -45,6 +45,10 @@ from genome_to_diffraction.mr.fixed_components import (
     FixedComponentUncertainty,
     build_fixed_component_execution_evidence,
 )
+from genome_to_diffraction.mr_resources import (
+    build_mr_resource_plan,
+    count_polymer_atoms,
+)
 from genome_to_diffraction.ranking import (
     CompositionExpansionRequest,
     ParentExpansionInput,
@@ -65,6 +69,7 @@ from genome_to_diffraction.schemas.v2 import (
     CompositionState,
     DiffractionSelection,
     FreeRIdentity,
+    MrResourcePlan,
     PhaseIIIExecutionIdentity,
     PhaserPerPlacementInventory,
 )
@@ -237,10 +242,15 @@ def _execution_inputs(
     depth_plan,
     selected_attempts,
     registry: AllEligibleModelRegistry,
+    registry_root: Path,
     fixed_root: Path,
     selection: DiffractionSelection,
     free_r: FreeRIdentity,
-) -> tuple[ComponentExpansionExecutionInput, ...]:
+    preflight: MtzPreflightRecord,
+) -> tuple[
+    tuple[ComponentExpansionExecutionInput, ...],
+    tuple[MrResourcePlan, ...],
+]:
     parent_by_id = {parent.state.state_id: parent for parent in parents}
     candidates = {
         candidate.depth_candidate_id: candidate for candidate in depth_plan.candidates
@@ -250,6 +260,7 @@ def _execution_inputs(
         for item in depth_plan.model_resolutions
     }
     fixed_by_parent = {}
+    fixed_atom_counts: dict[str, int] = {}
     score_by_parent = {}
     for parent in parents:
         state = parent.state
@@ -274,6 +285,9 @@ def _execution_inputs(
             for component in state.components
         )
         try:
+            placement_inventory = PhaserPerPlacementInventory.model_validate_json(
+                inventory_path.read_bytes()
+            )
             fixed = build_fixed_component_execution_evidence(
                 FixedComponentEvidenceRequest(
                     parent_state=state,
@@ -281,14 +295,16 @@ def _execution_inputs(
                     uncertainties=uncertainties,
                 )
             )
-        except FixedComponentEvidenceError as error:
+        except (OSError, ValidationError, FixedComponentEvidenceError) as error:
             raise CompositionDepthInputError(
                 "parent fixed-component evidence is invalid"
             ) from error
         fixed_by_parent[state.state_id] = fixed.evidence
+        fixed_atom_counts[state.state_id] = placement_inventory.combined_atom_count
         score_by_parent[state.state_id] = _parent_score(fixed_root, state)
 
     outputs: list[ComponentExpansionExecutionInput] = []
+    resource_plans: list[MrResourcePlan] = []
     for attempt in selected_attempts:
         parent = parent_by_id[attempt.parent_state_id]
         candidate = candidates[attempt.depth_candidate_id]
@@ -305,25 +321,38 @@ def _execution_inputs(
             )
         resolution = resolutions[(parent.state.state_id, component.component_spec_id)]
         parent_llg, parent_score_sha = score_by_parent[parent.state.state_id]
-        outputs.append(
-            ComponentExpansionExecutionInput.from_content(
-                depth_plan_id=depth_plan.depth_plan_id,
-                selected_candidate=candidate,
-                parent_state=parent.state,
-                fixed_components=fixed_by_parent[parent.state.state_id],
-                candidate_model_resolution=resolution,
-                candidate_phaser_identity_fraction=entry.model_sequence_identity,
-                candidate_model_uncertainty_source=entry.model_uncertainty_source,
-                candidate_model_uncertainty_evidence_sha256=(
-                    component.model_evidence_sha256
-                ),
-                diffraction_selection=selection,
-                free_r_identity=free_r,
-                parent_combined_llg=parent_llg,
-                parent_score_evidence_sha256=parent_score_sha,
+        candidate_path = (registry_root / entry.model_path).resolve(strict=True)
+        if not candidate_path.is_relative_to(registry_root):
+            raise CompositionDepthInputError("candidate model escapes its registry")
+        execution_input = ComponentExpansionExecutionInput.from_content(
+            depth_plan_id=depth_plan.depth_plan_id,
+            selected_candidate=candidate,
+            parent_state=parent.state,
+            fixed_components=fixed_by_parent[parent.state.state_id],
+            candidate_model_resolution=resolution,
+            candidate_phaser_identity_fraction=entry.model_sequence_identity,
+            candidate_model_uncertainty_source=entry.model_uncertainty_source,
+            candidate_model_uncertainty_evidence_sha256=(
+                component.model_evidence_sha256
+            ),
+            diffraction_selection=selection,
+            free_r_identity=free_r,
+            parent_combined_llg=parent_llg,
+            parent_score_evidence_sha256=parent_score_sha,
+        )
+        outputs.append(execution_input)
+        resource_plans.append(
+            build_mr_resource_plan(
+                owner_kind="component_execution_input",
+                owner_id=execution_input.execution_input_id,
+                reflection_count=preflight.reflection_count,
+                moving_atom_count=count_polymer_atoms(candidate_path),
+                searched_copy_count=component.requested_copy_count,
+                fixed_atom_count=fixed_atom_counts[parent.state.state_id],
+                symmetry_multiplicity=preflight.general_position_multiplicity,
             )
         )
-    return tuple(outputs)
+    return tuple(outputs), tuple(resource_plans)
 
 
 def build_composition_depth_inputs(
@@ -353,7 +382,10 @@ def build_composition_depth_inputs(
     required_adapters = {
         "phase3_all_model_registry": "all-eligible-model-registry-v3",
         "phase3_component_coordinates": ("phaser-component-coordinate-inventory-v2"),
-        "phase3_composition_attempt": "phase3-composition-attempt-execution-v1",
+        "phase3_composition_attempt": (
+            "phase3-composition-attempt-execution-v2-resource-plan"
+        ),
+        "phase3_mr_resources": "phase3-mr-resource-allocation-v1",
         "phase3_composition_beam": "phase3-composition-beam-depth-v1",
         "phase3_composition_depth": _ADAPTER_VERSION,
     }
@@ -442,7 +474,8 @@ def build_composition_depth_inputs(
         model_registry_json=request.model_registry,
     )
     try:
-        registry = load_all_eligible_model_registry(request.model_registry)
+        registry_path = request.model_registry.resolve(strict=True)
+        registry = load_all_eligible_model_registry(registry_path)
     except (AllEligibleModelRegistryError, OSError) as error:
         raise CompositionDepthInputError("all-model registry is invalid") from error
     selection = _typed_json(
@@ -454,14 +487,16 @@ def build_composition_depth_inputs(
     fixed_root = request.fixed_coordinate_root.resolve(strict=True)
     if request.fixed_coordinate_root.is_symlink() or not fixed_root.is_dir():
         raise CompositionDepthInputError("fixed-coordinate root is invalid")
-    execution_inputs = _execution_inputs(
+    execution_inputs, resource_plans = _execution_inputs(
         parents=parent_inputs,
         depth_plan=planned.depth_plan,
         selected_attempts=planned.selected_attempts,
         registry=registry,
+        registry_root=registry_path.parent,
         fixed_root=fixed_root,
         selection=selection,
         free_r=free_r,
+        preflight=matching_preflight[0],
     )
     inventory = build_composition_attempt_inventory(
         depth_plan=planned.depth_plan,
@@ -471,6 +506,7 @@ def build_composition_depth_inputs(
         free_r_identity=free_r,
         execution_identity_id=identity.execution_identity_id,
         execution_inputs=execution_inputs,
+        resource_plans=resource_plans,
     )
     output = request.output_directory.resolve()
     if output.exists() or output.is_symlink():

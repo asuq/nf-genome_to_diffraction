@@ -29,6 +29,7 @@ from genome_to_diffraction.mr import (
     read_phaser_solution_metrics,
     run_first_copy_phaser,
 )
+from genome_to_diffraction.mr_resources import build_mr_resource_plan
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
     CrystalEntry,
@@ -150,6 +151,20 @@ def _phase3_inputs(
     )
     selection_path = tmp_path / "diffraction_selection.json"
     selection_path.write_text(canonical_json_text(selection), encoding="utf-8")
+    resource_plan = build_mr_resource_plan(
+        owner_kind="mr_hypothesis",
+        owner_id=HYPOTHESIS_ID,
+        reflection_count=1_000,
+        moving_atom_count=4,
+        searched_copy_count=1,
+        fixed_atom_count=0,
+        symmetry_multiplicity=4,
+    )
+    resource_plan_path = tmp_path / "mr_resource_plan.json"
+    resource_plan_path.write_text(
+        canonical_json_text(resource_plan),
+        encoding="utf-8",
+    )
     hypothesis = MrHypothesis.model_validate_json(
         request.hypotheses_jsonl.read_text(encoding="utf-8")
     )
@@ -195,6 +210,7 @@ def _phase3_inputs(
         model_preparation_manifest=None,
         all_model_registry_json=registry.registry_json,
         diffraction_selection_json=selection_path,
+        resource_plan_json=resource_plan_path,
         phase3_hypothesis_id=bound.hypothesis_id,
     )
 
@@ -544,7 +560,7 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
     binding = record["diffraction_command_binding"]
     selection = record["diffraction_selection"]
     assert record["schema_version"] == "2.0"
-    assert record["adapter_version"] == "phenix-first-copy-mr-v11-phase3-registry"
+    assert record["adapter_version"] == "phenix-first-copy-mr-v12-resource-plan"
     assert record["phase3_hypothesis_id"] == request.phase3_hypothesis_id
     assert record["phase3_command_id"].startswith("phasercmd_")
     command_identity = {
@@ -554,6 +570,8 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
         "diffraction_command_binding_id": binding["binding_id"],
         "arguments": record["arguments"],
         "threads": record["threads"],
+        "resource_attempt": record["resource_attempt"],
+        "resource_plan_id": record["resource_plan"]["resource_plan_id"],
         "timeout_seconds": record["timeout_seconds"],
         "mtz_sha256": record["mtz_sha256"],
         "model_sha256": record["model_sha256"],
@@ -609,6 +627,38 @@ def test_phase3_adapter_derives_bound_hypothesis_from_complete_task_inputs(
     assert record["all_model_registry_id"].startswith("allmodelreg_")
     assert record["diffraction_selection"]["observation_dataset_id"] == 1
     assert "phaser.crystal_symmetry.space_group=P 21 21 21" in commands[0]
+
+
+def test_phase3_adapter_requires_matching_resource_plan_and_threads(
+    tmp_path: Path,
+) -> None:
+    missing = _phase3_inputs(tmp_path / "missing")
+    missing = replace(missing, resource_plan_json=None)
+    with pytest.raises(PhaserInputError, match="must be paired"):
+        run_first_copy_phaser(missing)
+
+    mismatched = replace(_phase3_inputs(tmp_path / "mismatched"), threads=6)
+    with pytest.raises(PhaserInputError, match="threads differ"):
+        run_first_copy_phaser(mismatched)
+
+    swapped = _phase3_inputs(tmp_path / "swapped")
+    assert swapped.resource_plan_json is not None
+    swapped.resource_plan_json.write_text(
+        canonical_json_text(
+            build_mr_resource_plan(
+                owner_kind="mr_hypothesis",
+                owner_id="mrhyp_another_hypothesis",
+                reflection_count=1_000,
+                moving_atom_count=4,
+                searched_copy_count=1,
+                fixed_atom_count=0,
+                symmetry_multiplicity=4,
+            )
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(PhaserInputError, match="resource plan is invalid"):
+        run_first_copy_phaser(swapped)
 
 
 def test_production_phase3_nextflow_requires_bound_crystal_diffraction_inputs() -> None:
@@ -683,6 +733,7 @@ def test_phase3_adapter_rejects_ambiguous_hypothesis_identity_policy(
         request = replace(
             request,
             diffraction_selection_json=None,
+            resource_plan_json=None,
             phase3_hypothesis_id=None,
             derive_phase3_hypothesis_id=True,
         )

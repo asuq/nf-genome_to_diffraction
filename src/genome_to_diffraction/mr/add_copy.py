@@ -47,11 +47,16 @@ from genome_to_diffraction.mr.phaser import (
     parse_phaser_log,
     read_phaser_evidence_text,
 )
+from genome_to_diffraction.mr_resources import (
+    MrResourcePlanError,
+    verify_mr_thread_allocation,
+)
 from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
     validate_manifest_environment,
 )
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.results import (
     AdditionalCopyResult,
     MrHypothesis,
@@ -71,7 +76,7 @@ from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.add_copy")
 _ADAPTER_VERSION = "phenix-add-copy-mr-v6"
-_PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v7"
+_PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v8-resource-plan"
 _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
@@ -121,6 +126,7 @@ class AddCopyRunRequest:
     parent_coordinate: Path | None = None
     diffraction_selection_json: Path | None = None
     threads: int = 1
+    resource_attempt: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
     phase3_seed_stage_manifest: Path | None = None
@@ -166,6 +172,7 @@ class _Resolved:
     diffraction_selection: DiffractionSelection | None = None
     phase3_hypothesis: DiffractionBoundHypothesis | None = None
     diffraction_command_binding: DiffractionCommandBinding | None = None
+    resource_plan: MrResourcePlan | None = None
 
 
 def _json_object(path: Path, *, label: str) -> dict[str, object]:
@@ -467,6 +474,22 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         raise PhaserInputError("expected search model checksum is invalid")
     if search_model_sha != staged_model_sha:
         raise PhaserInputError("search model checksum differs from staged seed")
+    resource_plan: MrResourcePlan | None = None
+    if selection is not None:
+        raw_resource_plan = (
+            phase3_source.get("resource_plan")
+            if phase3_source is not None
+            else command.get("resource_plan")
+        )
+        try:
+            resource_plan = MrResourcePlan.model_validate(raw_resource_plan)
+            if (
+                resource_plan.owner_kind != "mr_hypothesis"
+                or resource_plan.owner_id != hypothesis.hypothesis_id
+            ):
+                raise ValueError("resource plan owns another hypothesis")
+        except (ValidationError, ValueError) as error:
+            raise PhaserInputError("Phase III seed resource plan is invalid") from error
     return _Resolved(
         review_id=review_id,
         hypothesis=hypothesis,
@@ -486,6 +509,7 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         diffraction_selection=selection,
         phase3_hypothesis=phase3_hypothesis,
         diffraction_command_binding=diffraction_binding,
+        resource_plan=resource_plan,
     )
 
 
@@ -581,6 +605,18 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
     if output.exists() and any(output.iterdir()):
         raise PhaserInputError(f"Phaser output directory is not empty: {output}")
     resolved = _resolve(request)
+    resource_plan = resolved.resource_plan
+    if resolved.diffraction_selection is not None:
+        if resource_plan is None:
+            raise PhaserInputError("Phase III hypothesis lacks an MR resource plan")
+        try:
+            verify_mr_thread_allocation(
+                plan=resource_plan,
+                resource_attempt=request.resource_attempt,
+                threads=request.threads,
+            )
+        except MrResourcePlanError as error:
+            raise PhaserInputError(str(error)) from error
     validate_manifest_environment(request.phenix_manifest.resolve(strict=True))
     output.mkdir(parents=True, exist_ok=True)
     sequence_fasta = output / "composition.fasta"
@@ -618,6 +654,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         resolved.diffraction_selection is not None
         and resolved.phase3_hypothesis is not None
         and resolved.diffraction_command_binding is not None
+        and resource_plan is not None
     ):
         attempt_identity.update(
             {
@@ -628,6 +665,8 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
                 "diffraction_command_binding_id": (
                     resolved.diffraction_command_binding.binding_id
                 ),
+                "resource_attempt": request.resource_attempt,
+                "resource_plan_id": (resource_plan.resource_plan_id),
             }
         )
     attempt_id = content_id("addcopy_", attempt_identity)
@@ -648,6 +687,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
     if (
         resolved.diffraction_selection is not None
         and resolved.diffraction_command_binding is not None
+        and resource_plan is not None
     ):
         command_record["diffraction_selection"] = (
             resolved.diffraction_selection.model_dump(mode="json")
@@ -655,6 +695,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         command_record["diffraction_command_binding"] = (
             resolved.diffraction_command_binding.model_dump(mode="json")
         )
+        command_record["resource_plan"] = resource_plan.model_dump(mode="json")
     atomic_write_json(command_json, command_record)
     _LOGGER.info(
         "additional-copy Phaser search started",

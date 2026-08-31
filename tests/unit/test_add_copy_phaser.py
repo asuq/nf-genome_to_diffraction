@@ -22,6 +22,7 @@ from genome_to_diffraction.mr import (
 )
 from genome_to_diffraction.mr.add_copy import _phaser_placement_count
 from genome_to_diffraction.mr.stage_add_copy import PhaseIIISeedStageEvidence
+from genome_to_diffraction.mr_resources import build_mr_resource_plan
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
     CrystalEntry,
@@ -122,6 +123,15 @@ def _request(
             {
                 "model_sha256": sha256_file(model),
                 "model_identity_percent": 85.0,
+                "resource_plan": build_mr_resource_plan(
+                    owner_kind="mr_hypothesis",
+                    owner_id=HYPOTHESIS_ID,
+                    reflection_count=1_000_000,
+                    moving_atom_count=4_000,
+                    searched_copy_count=2,
+                    fixed_atom_count=0,
+                    symmetry_multiplicity=2,
+                ).model_dump(mode="json"),
             }
         )
         + "\n",
@@ -319,7 +329,7 @@ def test_phase3_additional_copy_command_binds_selected_diffraction(
     binding = command["diffraction_command_binding"]
     parameters = output.parameters_file.read_text(encoding="utf-8")
     assert command["schema_version"] == "2.0"
-    assert command["adapter_version"] == "phenix-add-copy-mr-v7"
+    assert command["adapter_version"] == "phenix-add-copy-mr-v8-resource-plan"
     assert command["phase3_hypothesis_id"].startswith("mrhyp2_")
     assert binding["consumer"] == "phase3_additional_copy_phaser"
     assert binding["command_mtz_binding"] == "exact_selected_mtz"
@@ -354,6 +364,15 @@ def test_phase3_additional_copy_uses_only_canonical_seed_stage(
             SEED_ID: {
                 "original_first_copy_model_sha256": model_sha,
                 "staged_search_model_sha256": model_sha,
+                "resource_plan": build_mr_resource_plan(
+                    owner_kind="mr_hypothesis",
+                    owner_id=HYPOTHESIS_ID,
+                    reflection_count=1_000_000,
+                    moving_atom_count=4_000,
+                    searched_copy_count=2,
+                    fixed_atom_count=0,
+                    symmetry_multiplicity=2,
+                ).model_dump(mode="json"),
             }
         },
     )
@@ -374,7 +393,7 @@ def test_phase3_additional_copy_uses_only_canonical_seed_stage(
 
     assert output.result.review_id == REVIEW_ID
     command = json.loads(output.command_json.read_text(encoding="utf-8"))
-    assert command["adapter_version"] == "phenix-add-copy-mr-v7"
+    assert command["adapter_version"] == "phenix-add-copy-mr-v8-resource-plan"
 
 
 def test_phase3_additional_copy_rejects_dual_approval_authority(

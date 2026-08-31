@@ -15,6 +15,7 @@ from genome_to_diffraction.execution import (
     build_composition_attempt_inventory,
     write_composition_attempt_inventory,
 )
+from genome_to_diffraction.mr_resources import build_mr_resource_plan
 from genome_to_diffraction.ranking.composition import (
     ComponentExpansionInput,
     CompositionExpansionOutput,
@@ -299,6 +300,18 @@ def _inventory(*, no_model: bool = False) -> CompositionAttemptInventory:
         free_r_identity=free_r,
         execution_identity_id=EXECUTION_IDENTITY_ID,
         execution_inputs=execution_inputs,
+        resource_plans=tuple(
+            build_mr_resource_plan(
+                owner_kind="component_execution_input",
+                owner_id=execution_input.execution_input_id,
+                reflection_count=10_000,
+                moving_atom_count=1_000,
+                searched_copy_count=1,
+                fixed_atom_count=1_000,
+                symmetry_multiplicity=4,
+            )
+            for execution_input in execution_inputs
+        ),
     )
 
 

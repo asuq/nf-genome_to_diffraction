@@ -31,6 +31,7 @@ from pydantic import ValidationError
 
 from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.ranking.composition import PlannedCompositionAttempt
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.v2 import (
     ComponentExpansionExecutionInput,
     CompositionExpansionDepthPlan,
@@ -180,6 +181,7 @@ def build_composition_attempt_inventory(
     free_r_identity: FreeRIdentity,
     execution_identity_id: str,
     execution_inputs: tuple[ComponentExpansionExecutionInput, ...],
+    resource_plans: tuple[MrResourcePlan, ...],
 ) -> CompositionAttemptInventory:
     """Bind one selected shared-depth plan to complete immutable task identities."""
 
@@ -203,6 +205,10 @@ def build_composition_attempt_inventory(
     }
     if len(execution_input_by_candidate) != len(execution_inputs):
         raise CompositionAttemptInventoryError("duplicate component execution input")
+    if len(resource_plans) != len(selected):
+        raise CompositionAttemptInventoryError(
+            "MR resource plans do not match selected attempts"
+        )
     expected_execution_keys = {
         (candidate.parent_state_id, candidate.depth_candidate_id)
         for candidate in selected
@@ -215,7 +221,7 @@ def build_composition_attempt_inventory(
     tasks: list[CompositionAttemptTask] = []
     ordered_execution_inputs: list[ComponentExpansionExecutionInput] = []
     try:
-        for candidate in selected:
+        for candidate, resource_plan in zip(selected, resource_plans, strict=True):
             state = state_by_id.get(candidate.parent_state_id)
             if state is None:
                 raise CompositionAttemptInventoryError(
@@ -252,6 +258,7 @@ def build_composition_attempt_inventory(
                     model_registry_id=depth_plan.model_registry_id,
                     execution_identity_id=execution_identity_id,
                     component_execution_input_id=(execution_input.execution_input_id),
+                    resource_plan=resource_plan,
                 )
             )
         no_model_count = sum(

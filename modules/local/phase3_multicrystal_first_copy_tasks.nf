@@ -79,6 +79,9 @@ process RUN_PHASE3_FIRST_COPY_PHASER {
     tag "phase3-first-copy:${item[1]}:${item[13].baseName}"
     label 'process_mr'
     publishDir params.outdir, mode: 'copy', overwrite: true
+    cpus { (item[15].base_cpus as int) * task.attempt }
+    memory { "${(item[15].base_memory_gb as int) * task.attempt} GB" }
+    time { "${(item[15].base_time_hours as int) * task.attempt} hours" }
 
     input:
     item: Tuple
@@ -118,7 +121,9 @@ process RUN_PHASE3_FIRST_COPY_PHASER {
         --diffraction-selection '${item[3]}/phase3_diffraction_selection.json' \
         --derive-phase3-hypothesis-id \
         --phenix-manifest '${item[11]}' \
+        --resource-plan '${item[14]}' \
         --threads '${task.cpus}' \
+        --resource-attempt '${task.attempt}' \
         --outdir '${outputName}'
     """
 

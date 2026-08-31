@@ -552,7 +552,7 @@ def materialise_unknown_pass1_public_fixture(
                     ),
                     (
                         "phase3_composition_attempt",
-                        "phase3-composition-attempt-execution-v1",
+                        "phase3-composition-attempt-execution-v2-resource-plan",
                     ),
                     (
                         "phase3_composition_beam",
@@ -564,7 +564,11 @@ def materialise_unknown_pass1_public_fixture(
                     ),
                     (
                         "phase3_first_copy_funnel",
-                        "multi-source-first-copy-funnel-v4-phase3-evidence",
+                        "multi-source-first-copy-funnel-v5-dynamic-resources",
+                    ),
+                    (
+                        "phase3_mr_resources",
+                        "phase3-mr-resource-allocation-v1",
                     ),
                     (
                         "phase3_localisation_batch",

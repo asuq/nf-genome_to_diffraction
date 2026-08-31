@@ -19,6 +19,7 @@ from typing import Annotated, ClassVar, Literal, Self
 from pydantic import Field, model_validator
 
 from genome_to_diffraction.schemas.base import PositiveInt
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.v2.component_execution_input import (
     ComponentExpansionExecutionInput,
     ComponentExpansionExecutionInputIdentifier,
@@ -86,6 +87,7 @@ class CompositionAttemptTask(_ContentAddressedContract):
     model_registry_id: AllModelRegistryIdentifier
     execution_identity_id: ExecutionIdentityIdentifier
     component_execution_input_id: ComponentExpansionExecutionInputIdentifier
+    resource_plan: MrResourcePlan
 
     @model_validator(mode="after")
     def _validate_task_identity_set(self) -> Self:
@@ -93,6 +95,11 @@ class CompositionAttemptTask(_ContentAddressedContract):
             self.parent_model_resolution_ids
         ):
             raise ValueError("parent model resolution identities must be unique")
+        if (
+            self.resource_plan.owner_kind != "component_execution_input"
+            or self.resource_plan.owner_id != self.component_execution_input_id
+        ):
+            raise ValueError("MR resource plan does not own this execution input")
         return self
 
 

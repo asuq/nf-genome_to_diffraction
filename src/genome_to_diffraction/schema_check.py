@@ -29,6 +29,7 @@ _FIXTURE_MAP = {
     ),
     "gel_evidence_manifest.schema.json": Path("examples/gel_evidence_manifest.json"),
     "mr_hypothesis.schema.json": Path("tests/fixtures/stubs/mr_hypothesis.json"),
+    "mr_resource_plan.schema.json": Path("tests/fixtures/stubs/mr_resource_plan.json"),
     "phenix_install_manifest.schema.json": Path(
         "tests/fixtures/stubs/phenix_install_manifest.json"
     ),
@@ -62,6 +63,7 @@ _TYPED_FIXTURES = (
         Path("tests/fixtures/stubs/phenix_install_manifest.json"),
     ),
     ("mr-hypothesis", Path("tests/fixtures/stubs/mr_hypothesis.json")),
+    ("mr-resource-plan", Path("tests/fixtures/stubs/mr_resource_plan.json")),
     ("review-decisions", Path("examples/approvals/approved_mr_seeds.tsv")),
     (
         "review-decisions",

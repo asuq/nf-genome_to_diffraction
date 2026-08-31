@@ -11,6 +11,7 @@ from genome_to_diffraction.execution import (
     load_composition_attempt_inventory,
     write_composition_attempt_inventory,
 )
+from genome_to_diffraction.mr_resources import build_mr_resource_plan
 from genome_to_diffraction.ranking.composition import (
     ComponentExpansionInput,
     CompositionExpansionOutput,
@@ -274,6 +275,18 @@ def _inventory(
         free_r_identity=free_r,
         execution_identity_id=EXECUTION_IDENTITY_ID,
         execution_inputs=execution_inputs,
+        resource_plans=tuple(
+            build_mr_resource_plan(
+                owner_kind="component_execution_input",
+                owner_id=execution_input.execution_input_id,
+                reflection_count=10_000,
+                moving_atom_count=1_000,
+                searched_copy_count=1,
+                fixed_atom_count=1_000,
+                symmetry_multiplicity=4,
+            )
+            for execution_input in execution_inputs
+        ),
     )
     return output, inventory
 
@@ -362,6 +375,7 @@ def test_shared_25_attempt_budget_becomes_exact_complete_items() -> None:
         free_r_identity=inventory.free_r_identity,
         execution_identity_id=EXECUTION_IDENTITY_ID,
         execution_inputs=inventory.execution_inputs,
+        resource_plans=tuple(item.resource_plan for item in inventory.attempts),
     )
 
     assert inventory == repeated
@@ -401,17 +415,30 @@ def test_planned_attempt_inventory_cannot_be_omitted_or_reordered() -> None:
         )
     )
     selection = _diffraction_selection()
+    execution_inputs = _execution_inputs(
+        output=output,
+        parents=(parent,),
+        selection=selection,
+        free_r=_free_r_identity(selection),
+    )
     common = {
         "depth_plan": output.depth_plan,
         "parent_states": (parent.state,),
         "diffraction_selection": selection,
         "free_r_identity": _free_r_identity(selection),
         "execution_identity_id": EXECUTION_IDENTITY_ID,
-        "execution_inputs": _execution_inputs(
-            output=output,
-            parents=(parent,),
-            selection=selection,
-            free_r=_free_r_identity(selection),
+        "execution_inputs": execution_inputs,
+        "resource_plans": tuple(
+            build_mr_resource_plan(
+                owner_kind="component_execution_input",
+                owner_id=execution_input.execution_input_id,
+                reflection_count=10_000,
+                moving_atom_count=1_000,
+                searched_copy_count=1,
+                fixed_atom_count=1_000,
+                symmetry_multiplicity=4,
+            )
+            for execution_input in execution_inputs
         ),
     }
 

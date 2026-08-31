@@ -27,6 +27,7 @@ from genome_to_diffraction.schemas.manifests import (
     PipelineConfig,
     RunManifest,
 )
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.providers import ProviderExecutionPlan
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
@@ -377,6 +378,10 @@ CONTRACTS: dict[str, ContractSpec] = {
         ProviderExecutionPlan, "provider_execution_plan.schema.json"
     ),
     "mr-hypothesis": ContractSpec(MrHypothesis, "mr_hypothesis.schema.json"),
+    "mr-resource-plan": ContractSpec(
+        MrResourcePlan,
+        "mr_resource_plan.schema.json",
+    ),
     "review-decisions": ContractSpec(
         ReviewDecisionManifest,
         "review_decision.schema.json",

@@ -18,10 +18,20 @@ workflow PHASE3_NO_A_EXPANSION_WORKFLOW {
         def key = groupKey(item[0] as String, rows.size())
         rows.collect { line ->
             def hypothesis = new groovy.json.JsonSlurper().parseText(line)
+            Path resourcePlan = item[2].resolve('resource_plans').resolve(
+                "${hypothesis.hypothesis_id}.json"
+            )
+            if (!resourcePlan.toFile().isFile()) {
+                error "No-A hypothesis lacks its MR resource plan: ${hypothesis.hypothesis_id}"
+            }
+            def resourcePlanDocument = new groovy.json.JsonSlurper().parse(
+                resourcePlan.toFile()
+            )
             tuple(
                 item[0], hypothesis.hypothesis_id as String,
                 item[2], item[3], item[4], item[5], item[6], item[7],
-                item[8], item[9], key, item
+                item[8], item[9], key, item,
+                file(resourcePlan, checkIfExists: true), resourcePlanDocument
             )
         }
     }

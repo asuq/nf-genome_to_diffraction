@@ -2,7 +2,7 @@ nextflow.enable.types = true
 
 process RUN_FIRST_COPY_PHASER {
     tag "first-copy-phaser:${hypothesis.baseName}"
-    label 'process_mr'
+    label 'process_mr_fixed'
     publishDir params.outdir, mode: 'copy', overwrite: true
 
     input:

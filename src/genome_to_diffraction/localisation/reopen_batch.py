@@ -27,7 +27,9 @@ from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.localisation.batch import (
     validate_catalogue_localisation_batch,
 )
+from genome_to_diffraction.mr_resources import build_mr_resource_plan
 from genome_to_diffraction.schemas.base import NonEmptyString, Sha256Hex
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.results import (
     MrHypothesis,
     MrHypothesisStatus,
@@ -180,7 +182,7 @@ def plan_batch_localisation_reopen(
     if (
         not isinstance(manifest, dict)
         or manifest.get("adapter_version")
-        != "multi-source-first-copy-funnel-v4-phase3-evidence"
+        != "multi-source-first-copy-funnel-v5-dynamic-resources"
         or manifest.get("localisation_policy_id") != policy.policy_id
     ):
         raise BatchLocalisationReopenError(
@@ -198,6 +200,41 @@ def plan_batch_localisation_reopen(
         deferred_localisation_path,
         label="deferred localisation hypotheses",
     )
+    resource_plan_path = root / "mr_resource_plans.jsonl"
+    resource_plans: dict[str, MrResourcePlan] = {}
+    try:
+        for _line_number, line in enumerate(
+            resource_plan_path.read_text(encoding="utf-8").splitlines(),
+            start=1,
+        ):
+            if not line.strip():
+                continue
+            document = json.loads(line)
+            if not isinstance(document, dict) or set(document) != {
+                "hypothesis_id",
+                "resource_plan",
+            }:
+                raise ValueError("resource-plan mapping shape differs")
+            hypothesis_id = document["hypothesis_id"]
+            if not isinstance(hypothesis_id, str) or hypothesis_id in resource_plans:
+                raise ValueError("resource-plan hypothesis is invalid or duplicated")
+            resource_plan = MrResourcePlan.model_validate(document["resource_plan"])
+            if (
+                resource_plan.owner_kind != "mr_hypothesis"
+                or resource_plan.owner_id != hypothesis_id
+            ):
+                raise ValueError("resource plan owns another hypothesis")
+            resource_plans[hypothesis_id] = resource_plan
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        ValidationError,
+        ValueError,
+    ) as error:
+        raise BatchLocalisationReopenError(
+            f"first-wave MR resource plans are invalid: {error}"
+        ) from error
     if len(active) > 25 or any(
         item.status is not MrHypothesisStatus.QUEUED
         or item.sequence_group_id in policy.retained_excluded_group_ids
@@ -220,6 +257,17 @@ def plan_batch_localisation_reopen(
     ):
         raise BatchLocalisationReopenError("deferred localisation inventory differs")
     deferred = (*deferred_cap, *deferred_localisation)
+    complete_hypothesis_ids = {item.hypothesis_id for item in (*active, *deferred)}
+    if (
+        set(resource_plans) != complete_hypothesis_ids
+        or manifest.get("mr_resource_plan_count") != len(resource_plans)
+        or manifest.get("mr_resource_plan_adapter")
+        != "phase3-mr-resource-allocation-v1"
+        or manifest.get("mr_resource_plans_sha256") != sha256_file(resource_plan_path)
+    ):
+        raise BatchLocalisationReopenError(
+            "first-wave MR resource-plan inventory differs"
+        )
     deferred_ids = tuple(item.hypothesis_id for item in deferred)
     if len(deferred_ids) != len(set(deferred_ids)) or set(deferred_ids) & {
         item.hypothesis_id for item in active
@@ -341,6 +389,48 @@ def plan_batch_localisation_reopen(
         output / "mr_hypotheses.jsonl",
         hypotheses_jsonl.read_text(encoding="utf-8"),
     )
+    reopened_resource_rows = tuple(
+        (
+            reopened_item.hypothesis_id,
+            build_mr_resource_plan(
+                owner_kind="mr_hypothesis",
+                owner_id=reopened_item.hypothesis_id,
+                reflection_count=resource_plans[source.hypothesis_id].reflection_count,
+                moving_atom_count=resource_plans[
+                    source.hypothesis_id
+                ].moving_atom_count,
+                searched_copy_count=resource_plans[
+                    source.hypothesis_id
+                ].searched_copy_count,
+                fixed_atom_count=resource_plans[source.hypothesis_id].fixed_atom_count,
+                symmetry_multiplicity=resource_plans[
+                    source.hypothesis_id
+                ].symmetry_multiplicity,
+            ),
+        )
+        for source, reopened_item in zip(selected, reopened, strict=True)
+    )
+    resource_output = output / "resource_plans"
+    resource_output.mkdir()
+    reopened_resource_plans = output / "mr_resource_plans.jsonl"
+    atomic_write_text(
+        reopened_resource_plans,
+        "".join(
+            canonical_json_text(
+                {
+                    "hypothesis_id": hypothesis_id,
+                    "resource_plan": resource_plan.model_dump(mode="json"),
+                }
+            )
+            + "\n"
+            for hypothesis_id, resource_plan in reopened_resource_rows
+        ),
+    )
+    for hypothesis_id, resource_plan in reopened_resource_rows:
+        atomic_write_json(
+            resource_output / f"{hypothesis_id}.json",
+            resource_plan.model_dump(mode="json"),
+        )
     plan_json = output / "localisation_reopen_plan.json"
     atomic_write_json(plan_json, plan.model_dump(mode="json"))
     funnel_manifest = output / "reopened_funnel_manifest.json"
@@ -348,6 +438,7 @@ def plan_batch_localisation_reopen(
         "adapter_version": _ADAPTER_VERSION,
         "plan_id": plan.plan_id,
         "hypothesis_ids": list(plan.reopened_hypothesis_ids),
+        "mr_resource_plans_sha256": sha256_file(reopened_resource_plans),
     }
     atomic_write_json(
         funnel_manifest,
@@ -356,6 +447,9 @@ def plan_batch_localisation_reopen(
             "funnel_id": content_id("funnel_", funnel_identity),
             "adapter_version": _ADAPTER_VERSION,
             "selected_hypothesis_count": len(reopened),
+            "mr_resource_plan_adapter": "phase3-mr-resource-allocation-v1",
+            "mr_resource_plan_count": len(reopened_resource_rows),
+            "mr_resource_plans_sha256": sha256_file(reopened_resource_plans),
             "hypotheses": [{"hypothesis_id": item.hypothesis_id} for item in reopened],
             "execution_status": ExecutionStatus.COMPLETED_SUCCESS.value,
         },

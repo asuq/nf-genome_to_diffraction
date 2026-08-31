@@ -4,6 +4,9 @@ process RUN_PHASE3_NO_A_FIRST_COPY {
     tag "phase3-no-a:${item[0]}:${item[1]}"
     label 'process_mr'
     publishDir params.outdir, mode: 'copy', overwrite: false
+    cpus { (item[13].base_cpus as int) * task.attempt }
+    memory { "${(item[13].base_memory_gb as int) * task.attempt} GB" }
+    time { "${(item[13].base_time_hours as int) * task.attempt} hours" }
 
     input:
     item: Tuple
@@ -30,7 +33,9 @@ process RUN_PHASE3_NO_A_FIRST_COPY {
         --diffraction-selection '${item[7]}' \
         --derive-phase3-hypothesis-id \
         --phenix-manifest '${item[8]}' \
+        --resource-plan '${item[12]}' \
         --threads '${task.cpus}' \
+        --resource-attempt '${task.attempt}' \
         --outdir '${outputName}'
     """
 

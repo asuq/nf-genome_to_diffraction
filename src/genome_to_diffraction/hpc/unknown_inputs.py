@@ -232,7 +232,8 @@ def _validate_localisation_authority(
     if (
         adapters.get("phase3_localisation_batch") != policy.adapter_version
         or adapters.get("phase3_first_copy_funnel")
-        != "multi-source-first-copy-funnel-v4-phase3-evidence"
+        != "multi-source-first-copy-funnel-v5-dynamic-resources"
+        or adapters.get("phase3_mr_resources") != "phase3-mr-resource-allocation-v1"
         or adapters.get("phase3_all_model_registry") != "all-eligible-model-registry-v3"
         or adapters.get("phase3_composition_beam") != "phase3-composition-beam-depth-v1"
         or adapters.get("phase3_composition_depth")

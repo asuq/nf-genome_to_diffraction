@@ -265,13 +265,57 @@ def test_phase3_scientific_concurrency_is_scheduler_managed() -> None:
         "process RUN_PHASE3_BEAM_ATTEMPT",
         maxsplit=1,
     )[1].split("input:", maxsplit=1)[0]
+    additional = (REPOSITORY / "modules/local/run_additional_copy_phaser.nf").read_text(
+        encoding="utf-8"
+    )
+    additional_process = additional.split(
+        "process RUN_PHASE3_ADDITIONAL_COPY_PHASER",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    composition = (
+        REPOSITORY / "modules/local/run_phase3_composition_attempt.nf"
+    ).read_text(encoding="utf-8")
+    composition_process = composition.split(
+        "process RUN_PHASE3_COMPOSITION_ATTEMPT",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
     marmic = (REPOSITORY / "conf/marmic.config").read_text(encoding="utf-8")
 
     assert "maxForks" not in first_copy_process
     assert "maxForks" not in refinement_process
     assert "maxForks" not in no_a_process
     assert "maxForks" not in beam_process
+    for process in (
+        first_copy_process,
+        additional_process,
+        no_a_process,
+        beam_process,
+        composition_process,
+    ):
+        assert "base_cpus" in process
+        assert "base_memory_gb" in process
+        assert "base_time_hours" in process
+        assert "task.attempt" in process
     assert "queueSize = 0" in marmic
+
+
+def test_phase3_mr_retry_policy_is_bounded_and_resource_only() -> None:
+    base = (REPOSITORY / "conf/base.config").read_text(encoding="utf-8")
+    block = base.split("withLabel: process_mr", maxsplit=1)[1].split(
+        "withLabel: process_refine",
+        maxsplit=1,
+    )[0]
+
+    assert "task.exitStatus == 75" in block
+    assert "task.exitStatus == 104" in block
+    assert "task.exitStatus in (130..145)" in block
+    assert "task.exitStatus in (175..177)" in block
+    assert "maxRetries = 1" in block
+    assert "maxErrors = '-1'" in block
+    assert "cpus: 16" in block
+    assert "memory: 64.GB" in block
+    assert "time: 48.h" in block
+    assert "'retry' : 'finish'" in block
 
 
 def test_nextflow_process_scripts_avoid_parameterised_runtime_casts() -> None:
@@ -295,10 +339,11 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
     mr_block = wrapper.split("withLabel: process_mr", maxsplit=1)[1].split(
         "withLabel: process_prostt5_search", maxsplit=1
     )[0]
-    assert "cpus = 4" in mr_block
-    assert "memory = '16 GB'" in mr_block
-    assert "time = '24 hours'" in mr_block
-    assert "25-job prototype fanout" in wrapper
+    assert "resourceLimits" in mr_block
+    assert "cpus: 16" in mr_block
+    assert "memory: 64.GB" in mr_block
+    assert "time: 48.h" in mr_block
+    assert "Slurm owns aggregate" in wrapper
     database_block = wrapper.split("withLabel: process_database_download", maxsplit=1)[
         1
     ].split("withLabel: process_search", maxsplit=1)[0]
@@ -341,7 +386,10 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
     assert "max_memory = 192000.MB" in viper_wrapper
     assert "cpus: 64" in viper_wrapper
     assert "memory: 192000.MB" in viper_wrapper
-    assert "maxForks = 7" in viper_wrapper
+    assert "maxForks = 7" not in viper_wrapper
+    assert "cpus: 16" in viper_wrapper
+    assert "memory: 64.GB" in viper_wrapper
+    assert "time: 48.h" in viper_wrapper
     assert "--partition=datatransfer" not in viper_wrapper
     assert "workDir = \"/ptmp/${System.getenv('USER')}" in viper_wrapper
 

@@ -519,10 +519,24 @@ registry required by its registrar, and a complete wrapper-shaped success case
 materialises the registry, A stage, hypotheses, and reviewed route. The screen
 wrapper now conserves exactly three reviewed crystal outcomes across owned A
 packages and crystallographic holds instead of forcing three packages. Marmic
-screen and single-component controllers now retain 48 hours around their
-24-hour MR children. Focused real-record, mixed-outcome, duplicate-outcome,
+screen and single-component controllers originally retained 48 hours around
+24-hour MR children. The later dynamic-resource correction extends screen,
+single-component, and pass-2 controllers to 96, 120, and 384 hours so one
+bounded 48-hour retry and sequential pass-2 depths cannot outlive their owner.
+Focused real-record, mixed-outcome, duplicate-outcome,
 dispatcher, wrapper, lint, and type checks pass locally; exact-source CI,
 deployment, and fixed-HPC qualification remain.
+
+The user then approved content-addressed dynamic MR resources (`PH3-P1-74`).
+Every active Phase III first-copy, additional-copy, no-A, and B--F attempt now
+binds reflection count, moving/fixed polymer atoms, searched copies, and a
+bounded symmetry factor into a standard/heavy/very-heavy 4/6/8-CPU first
+attempt. One retry is limited to classified resource/infrastructure failures
+and applies the nf-core linear `task.attempt` multiplier under
+16-CPU/64-GB/48-hour caps. M6 resources remain fixed, unknown results do not
+tune the policy, and Slurm still owns aggregate concurrency. Focused local and
+exact-source CI evidence remain before a future Marmic qualification; the
+currently running earlier-source screen is unchanged.
 
 The first uncapped exact-source screen, Marmic job `636956`, subsequently
 validated the owned provider, review, localisation, diffraction, and strict
@@ -1180,7 +1194,10 @@ Release validated research version `v0.3.0` only when:
 - Run one CI workflow per pushed milestone.
 - Fixed wrappers expose no paths, crystal IDs, thresholds, or arbitrary
   commands.
-- Pass-1 MR: 75 attempts, 4 CPUs/16 GB each; Slurm owns concurrency.
+- Pass-1 MR: 75 hypotheses use deterministic 4/6/8-CPU first attempts from
+  content-addressed reflection/coordinate workload plans. One classified
+  resource/infrastructure retry scales to at most 16 CPUs/64 GB/48 hours;
+  Slurm owns concurrency.
 - Refinement: at most nine finalists, 4 CPUs/16 GB; Slurm owns concurrency.
 - Pass-2 expansion: at most 100 additional-component attempts per crystal, 25
   per depth, beam width three, depth six.

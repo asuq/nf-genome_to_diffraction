@@ -1417,6 +1417,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--execution-identity", type=Path, required=True
     )
     composition_run_parser.add_argument("--threads", type=int, default=1)
+    composition_run_parser.add_argument("--resource-attempt", type=int, default=1)
     composition_run_parser.add_argument("--timeout-seconds", type=float)
     composition_run_parser.add_argument("--outdir", type=Path, required=True)
     composition_plan_parser = composition_actions.add_parser(
@@ -1543,8 +1544,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="derive the bound identity from this complete hypothesis and selection",
     )
     first_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    first_copy_parser.add_argument("--resource-plan", type=Path)
     first_copy_parser.add_argument("--outdir", type=Path, required=True)
     first_copy_parser.add_argument("--threads", type=int, default=1)
+    first_copy_parser.add_argument("--resource-attempt", type=int, default=1)
     first_copy_parser.add_argument(
         "--timeout-seconds",
         type=float,
@@ -1591,6 +1594,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="advance one supported copy at a time to expected n or first stop",
     )
     add_copy_parser.add_argument("--threads", type=int, default=1)
+    add_copy_parser.add_argument("--resource-attempt", type=int, default=1)
     add_copy_parser.add_argument(
         "--timeout-seconds",
         type=float,
@@ -3484,6 +3488,7 @@ def _run_composition(args: argparse.Namespace) -> int:
                 execution_identity=args.execution_identity,
                 output_directory=args.outdir,
                 threads=args.threads,
+                resource_attempt=args.resource_attempt,
                 timeout_seconds=args.timeout_seconds,
             )
         )
@@ -3651,6 +3656,7 @@ def _run_mr(args: argparse.Namespace) -> int:
             parent_coordinate=args.parent_coordinate,
             diffraction_selection_json=args.diffraction_selection,
             threads=args.threads,
+            resource_attempt=args.resource_attempt,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,
             phase3_seed_stage_manifest=args.phase3_seed_stage_manifest,
@@ -3811,9 +3817,11 @@ def _run_mr(args: argparse.Namespace) -> int:
             output_directory=args.outdir,
             all_model_registry_json=args.all_model_registry,
             diffraction_selection_json=args.diffraction_selection,
+            resource_plan_json=args.resource_plan,
             phase3_hypothesis_id=args.phase3_hypothesis_id,
             derive_phase3_hypothesis_id=args.derive_phase3_hypothesis_id,
             threads=args.threads,
+            resource_attempt=args.resource_attempt,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,
         )

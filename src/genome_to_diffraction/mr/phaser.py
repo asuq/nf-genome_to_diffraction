@@ -62,11 +62,16 @@ from genome_to_diffraction.mr.policy import (
     SCORE_GATE_TFZ,
     passes_provisional_score_gate,
 )
+from genome_to_diffraction.mr_resources import (
+    MrResourcePlanError,
+    verify_mr_thread_allocation,
+)
 from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
     validate_manifest_environment,
 )
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.results import (
     MrHypothesis,
     MrHypothesisStatus,
@@ -92,7 +97,7 @@ from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
 _ADAPTER_VERSION = "phenix-first-copy-mr-v8"
-_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v11-phase3-registry"
+_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v12-resource-plan"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -157,9 +162,11 @@ class PhaserRunRequest:
     output_directory: Path
     all_model_registry_json: Path | None = None
     diffraction_selection_json: Path | None = None
+    resource_plan_json: Path | None = None
     phase3_hypothesis_id: str | None = None
     derive_phase3_hypothesis_id: bool = False
     threads: int = 1
+    resource_attempt: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
 
@@ -205,6 +212,7 @@ class _ResolvedInput:
     diffraction_selection: DiffractionSelection | None = None
     phase3_hypothesis: DiffractionBoundHypothesis | None = None
     diffraction_command_binding: DiffractionCommandBinding | None = None
+    resource_plan: MrResourcePlan | None = None
 
 
 def _read_jsonl[T: BaseModel](
@@ -446,6 +454,12 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
         request.all_model_registry_json is None
     ):
         raise PhaserInputError("Phase III requires its canonical all-model registry")
+    if (request.diffraction_selection_json is None) != (
+        request.resource_plan_json is None
+    ):
+        raise PhaserInputError(
+            "Phase III diffraction selection and MR resource plan must be paired"
+        )
     if request.diffraction_selection_json is None and (
         request.phase3_hypothesis_id is not None or request.derive_phase3_hypothesis_id
     ):
@@ -548,6 +562,7 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
     selection: DiffractionSelection | None = None
     phase3_hypothesis: DiffractionBoundHypothesis | None = None
     command_binding: DiffractionCommandBinding | None = None
+    resource_plan: MrResourcePlan | None = None
     if request.diffraction_selection_json is not None:
         selection = load_diffraction_selection(request.diffraction_selection_json)
         verify_diffraction_selection(selection, preflight)
@@ -563,6 +578,23 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
             command_owner_id=phase3_hypothesis.hypothesis_id,
             selection=selection,
         )
+        try:
+            resource_input = request.resource_plan_json
+            if resource_input is None:  # pragma: no cover - paired-input guard
+                raise ValueError("resource plan is absent")
+            resource_path = resource_input.resolve(strict=True)
+            if not resource_path.is_file() or resource_input.is_symlink():
+                raise OSError("resource plan is not a regular owned file")
+            resource_plan = MrResourcePlan.model_validate_json(
+                resource_path.read_bytes()
+            )
+            if (
+                resource_plan.owner_kind != "mr_hypothesis"
+                or resource_plan.owner_id != hypothesis.hypothesis_id
+            ):
+                raise ValueError("resource plan owns another hypothesis")
+        except (OSError, ValidationError, ValueError) as error:
+            raise PhaserInputError("Phase III MR resource plan is invalid") from error
     return _ResolvedInput(
         hypothesis=hypothesis,
         group=group,
@@ -577,6 +609,7 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
         diffraction_selection=selection,
         phase3_hypothesis=phase3_hypothesis,
         diffraction_command_binding=command_binding,
+        resource_plan=resource_plan,
     )
 
 
@@ -736,6 +769,7 @@ def _phase3_command_identity(
     arguments: list[str],
     resolved: _ResolvedInput,
     threads: int,
+    resource_attempt: int,
     timeout_seconds: float | None,
     phenix_manifest_sha256: str,
 ) -> str:
@@ -747,6 +781,7 @@ def _phase3_command_identity(
         or resolved.diffraction_command_binding is None
         or resolved.all_model_registry_id is None
         or resolved.all_model_registry_sha256 is None
+        or resolved.resource_plan is None
     ):
         raise PhaserInputError("Phase III command identity lacks its complete binding")
     return content_id(
@@ -762,6 +797,8 @@ def _phase3_command_identity(
             ),
             "arguments": arguments,
             "threads": threads,
+            "resource_attempt": resource_attempt,
+            "resource_plan_id": resolved.resource_plan.resource_plan_id,
             "timeout_seconds": timeout_seconds,
             "mtz_sha256": resolved.preflight.mtz_sha256,
             "model_sha256": resolved.model.model_sha256,
@@ -927,6 +964,17 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
     if output.exists() and any(output.iterdir()):
         raise PhaserInputError(f"Phaser output directory is not empty: {output}")
     resolved = _resolve_inputs(request)
+    if resolved.diffraction_selection is not None:
+        if resolved.resource_plan is None:
+            raise PhaserInputError("Phase III task lacks an MR resource plan")
+        try:
+            verify_mr_thread_allocation(
+                plan=resolved.resource_plan,
+                resource_attempt=request.resource_attempt,
+                threads=request.threads,
+            )
+        except MrResourcePlanError as error:
+            raise PhaserInputError(str(error)) from error
     phenix_manifest = validate_manifest_environment(
         request.phenix_manifest.resolve(strict=True)
     )
@@ -968,6 +1016,7 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
         resolved.diffraction_selection is not None
         and resolved.phase3_hypothesis is not None
         and resolved.diffraction_command_binding is not None
+        and resolved.resource_plan is not None
     ):
         command_record.update(
             {
@@ -978,6 +1027,7 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
                     arguments=arguments,
                     resolved=resolved,
                     threads=request.threads,
+                    resource_attempt=request.resource_attempt,
                     timeout_seconds=request.timeout_seconds,
                     phenix_manifest_sha256=phenix_manifest_sha256,
                 ),
@@ -987,6 +1037,8 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
                 "diffraction_command_binding": (
                     resolved.diffraction_command_binding.model_dump(mode="json")
                 ),
+                "resource_attempt": request.resource_attempt,
+                "resource_plan": resolved.resource_plan.model_dump(mode="json"),
             }
         )
     atomic_write_json(command_json, command_record)

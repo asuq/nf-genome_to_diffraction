@@ -49,7 +49,8 @@ workflow PHASE3_COMPOSITION_DEPTH_WORKFLOW {
                 sourceItem[13] as Path,
                 key,
                 bundle as Path,
-                sourceItem
+                sourceItem,
+                row
             )
         }
     }

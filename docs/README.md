@@ -48,6 +48,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Phase III Phaser component-coordinate recovery](phase-iii-phaser-placement-output.md):
   exact source-model-to-combined-chain assignment, `.sol` binding, grouped
   component PDBs, and atom-complete recombination without guessed chain order.
+- [Dynamic Phaser resource allocation](mr-resource-allocation.md): deterministic
+  reflection/coordinate workload tiers, nf-core-style retry multiplication,
+  hard site caps, provenance, failure semantics, and controller bounds.
 - [Phase III 9ECN control preparation](phase-iii-9ecn-control.md): frozen
   `2A+2B+2C` identities, expression-tag alignment, modified McrA residues,
   three component models, and the joint two-copy McrA hypothesis.

@@ -207,6 +207,15 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
             error "Phase III A-search cap changed for ${crystalId}"
         }
         records.collect { Path hypothesis ->
+            Path resourcePlan = funnel.resolve('resource_plans').resolve(
+                "${hypothesis.baseName}.json"
+            )
+            if (!resourcePlan.toFile().isFile()) {
+                error "Phase III hypothesis lacks its MR resource plan: ${hypothesis.name}"
+            }
+            def resourcePlanDocument = new groovy.json.JsonSlurper().parse(
+                resourcePlan.toFile()
+            )
             tuple(
                 groupKey(crystalId, records.size()),
                 crystalId,
@@ -221,7 +230,9 @@ workflow PHASE3_MULTICRYSTAL_FIRST_COPY_WORKFLOW {
                 config,
                 phenix,
                 reviewStage,
-                hypothesis
+                hypothesis,
+                file(resourcePlan, checkIfExists: true),
+                resourcePlanDocument
             )
         }
     }

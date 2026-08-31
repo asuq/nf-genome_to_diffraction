@@ -57,6 +57,9 @@ process PLAN_PHASE3_COMPOSITION_DEPTH {
 process RUN_PHASE3_BEAM_ATTEMPT {
     tag "composition-beam-attempt:${item[1]}"
     label 'process_mr'
+    cpus { (item[13].resource_plan.base_cpus as int) * task.attempt }
+    memory { "${(item[13].resource_plan.base_memory_gb as int) * task.attempt} GB" }
+    time { "${(item[13].resource_plan.base_time_hours as int) * task.attempt} hours" }
 
     input:
     item: Tuple
@@ -82,6 +85,7 @@ process RUN_PHASE3_BEAM_ATTEMPT {
         --phenix-manifest '${item[8]}' \
         --execution-identity '${item[9]}' \
         --threads '${task.cpus}' \
+        --resource-attempt '${task.attempt}' \
         --outdir '${outputName}'
     """
 

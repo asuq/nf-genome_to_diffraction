@@ -21,6 +21,7 @@ from genome_to_diffraction.mr.stage_add_copy import (
     prepare_live_add_copy_stage,
     prepare_phase3_seed_stage,
 )
+from genome_to_diffraction.mr_resources import build_mr_resource_plan
 from genome_to_diffraction.review import (
     MrSeedApprovalRequest,
     MrSeedReviewError,
@@ -208,6 +209,15 @@ def _request(
                 "arguments": ["phenix.phaser"],
                 "model_sha256": "a" * 64,
                 "model_identity_percent": 85.0,
+                "resource_plan": build_mr_resource_plan(
+                    owner_kind="mr_hypothesis",
+                    owner_id=hypothesis_id,
+                    reflection_count=1_000,
+                    moving_atom_count=100,
+                    searched_copy_count=1,
+                    fixed_atom_count=0,
+                    symmetry_multiplicity=1,
+                ).model_dump(mode="json"),
             }
         )
         + "\n",
