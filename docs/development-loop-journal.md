@@ -14718,3 +14718,17 @@ with a collapsed combined parent or a guessed command.
 - The active screen was already submitted and is unchanged. The focused policy
   regression now rejects process-local caps and requires the Marmic unlimited
   queue setting; exact-source syntax/config and future Marmic evidence remain.
+
+## 2026-08-31 - Documentation preflight flow and reader sizing corrected
+
+- Repository wiring confirms that preflight does not impose a routine human
+  approval before model discovery. Pass and pass-with-warning results continue;
+  only invalid diffraction input fails. The scientist diagram and stage text now
+  state those outcomes and no longer show a preflight checkpoint or paused state.
+- The documentation viewer previously alternated between two desktop widths
+  because custom top spacing and the arrow legend sat outside Archify's measured
+  reader frame. Both are now included in the measured layout. Browser probes at
+  1440 by 900 and a narrow viewport remained stable with no horizontal overflow.
+- Archify showcase validation passed all nine checks, the focused documentation
+  tests and lint pass, and no workflow code or HPC run changed. Next review the
+  corrected prototype before making further workflow-documentation changes.

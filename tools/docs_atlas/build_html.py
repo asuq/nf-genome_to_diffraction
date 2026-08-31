@@ -525,7 +525,7 @@ def _stage_page(
 VIEWER_DRAWER_STYLE = """
     /* Documentation navigation injected by the deterministic atlas builder. */
     html, body { max-width: 100%; overflow-x: clip; }
-    @media (min-width: 701px) { .container { padding-top: 72px; } }
+    @media (min-width: 701px) { html:not([data-embed="true"]) body { padding-top: 4.25rem; padding-bottom: .5rem; } }
     html[data-atlas-docs-open="true"] body { padding-right: 440px; }
     html[data-atlas-docs-open="true"] .toolbar { right: calc(440px + 1rem); }
     html[data-atlas-docs-open="true"] .toolbar .preset-wrap,
@@ -584,7 +584,10 @@ VIEWER_DRAWER_STYLE = """
     .composition-limits { font-size: 11px; color: color-mix(in srgb, var(--toolbar-text) 68%, transparent) !important; }
     .atlas-node-back { border: 0; padding: 0; background: transparent; color: var(--frontend-stroke); cursor: pointer; font: inherit; }
     .atlas-node-detail[hidden], .atlas-docs-index-panel[hidden] { display: none !important; }
-    .atlas-arrow-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 0 0 .75rem; padding: .55rem .75rem; border: 1px solid var(--toolbar-border); border-radius: .75rem; background: color-mix(in srgb, var(--toolbar-bg) 88%, transparent); color: var(--toolbar-text); font: 600 .68rem/1.35 ui-sans-serif, system-ui, sans-serif; }
+    .header { margin-bottom: .5rem; }
+    .guided-views { margin-bottom: .25rem; }
+    .atlas-arrow-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: .4rem -29.5rem 0 0; padding: .55rem .75rem; border: 1px solid var(--toolbar-border); border-radius: .75rem; background: color-mix(in srgb, var(--toolbar-bg) 88%, transparent); color: var(--toolbar-text); font: 600 .68rem/1.35 ui-sans-serif, system-ui, sans-serif; }
+    html[data-atlas-docs-open="true"] .atlas-arrow-legend { margin-right: -210px; }
     .atlas-arrow-key { display: inline-flex; gap: 7px; align-items: center; }
     .atlas-arrow-key::before { content: ""; width: 26px; border-top: 3px solid var(--arrow-emphasis); }
     .atlas-arrow-key.decision::before { border-top-color: var(--security-stroke); border-top-style: dashed; }
@@ -598,6 +601,7 @@ VIEWER_DRAWER_STYLE = """
       .toolbar .export-wrap { display: none !important; }
       .atlas-docs-drawer { width: 100vw; }
       .atlas-view-switch a { padding-inline: .52rem; }
+      .atlas-arrow-legend { margin-right: 0; }
     }
     @media print { .atlas-docs-drawer, .atlas-docs-toggle, .atlas-view-switch { display: none !important; } }
 """
@@ -730,20 +734,29 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
         1,
     )
     if audience == "scientist":
-        diagram_marker = '    <div class="diagram-container"'
-        if document.count(diagram_marker) != 1:
+        header_marker = (
+            '      </div>\n    </div>\n\n'
+            '    <script id="archify-guided-views-data"'
+        )
+        if document.count(header_marker) != 1:
             raise ValueError(
-                "unexpected Archify diagram container; refusing unsafe injection"
+                "unexpected Archify header; refusing unsafe legend injection"
             )
         arrow_legend = (
-            '    <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
+            '      <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
             '<span class="atlas-arrow-key">Solid green: forward workflow step</span>'
-            '<span class="atlas-arrow-key decision">Dashed red: reviewed decision, pause, or stop</span>'
+            '<span class="atlas-arrow-key decision">Dashed red: review decision, invalid input, or stop</span>'
             '<span class="atlas-arrow-key context">Dashed purple: evidence influence or repeat/continue</span>'
             "</div>\n"
         )
         document = document.replace(
-            diagram_marker, f"{arrow_legend}{diagram_marker}", 1
+            header_marker,
+            header_marker.replace(
+                '      </div>\n    </div>',
+                f'      </div>\n{arrow_legend}    </div>',
+                1,
+            ),
+            1,
         )
     if document.count("</body>") != 1:
         raise ValueError("unexpected Archify viewer body; refusing unsafe injection")
@@ -811,30 +824,6 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
             [("Open full detail", "stages/review-refine-maps.html")],
         ),
     }
-    checkpoint = {
-        "title": "Preflight Checkpoint",
-        "summary": "A recorded review decides whether the diffraction data can proceed or the analysis must pause.",
-        "purpose": "Make the proceed-or-pause decision explicit before model preparation begins.",
-        "inputs": by_id["preflight"]["outputs"],
-        "outputs": [
-            "Proceed decision that permits model preparation",
-            "Paused status with the diffraction issue and retained findings",
-        ],
-        "decisions": [
-            "Proceed only after reviewing the preflight evidence",
-            "Pause when symmetry, observations, or Free-R information needs resolution",
-        ],
-        "boundaries": [
-            "Model preparation cannot start automatically from preflight output",
-            "A paused analysis schedules no Molecular Replacement job",
-        ],
-        "maturity": by_id["preflight"]["maturity"],
-        "warning": by_id["preflight"]["warning"],
-    }
-    mapping["preflight_checkpoint"] = (
-        checkpoint,
-        [("Open preflight detail", "stages/preflight.html")],
-    )
     composition = {
         "title": "Additional-component search loop",
         "summary": by_id["composition"]["summary"],
@@ -890,31 +879,31 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         localisation,
         [("Open full detail", f"subsystems/{_slug('localisation_weight')}.html")],
     )
-    paused = {
-        "title": "Paused before Molecular Replacement",
-        "summary": "Diffraction preflight could not proceed. The data and findings are kept for human inspection, and no Molecular Replacement job starts until the issue is resolved.",
-        "purpose": "Preserve a valid review-required outcome without scheduling downstream molecular replacement.",
+    invalid_input = {
+        "title": "Invalid diffraction input",
+        "summary": "Preflight found no usable observation selection or detected a fatal diffraction-data problem, so the analysis stops with an explicit input error.",
+        "purpose": "Fail clearly on unusable diffraction input without presenting the failure as a request for routine approval.",
         "inputs": by_id["preflight"]["inputs"],
         "outputs": [
-            "Paused status",
-            "Retained preflight findings",
-            "Human-readable reason no Molecular Replacement job was scheduled",
+            "Failed-input status",
+            "Preflight findings and report",
+            "Actionable reason the analysis stopped",
         ],
         "decisions": [
-            "Inspect the preserved findings",
-            "Resolve or replace the problematic input",
-            "Proceed only through an authenticated review decision",
+            "Stop when no dataset-qualified observation selection is available",
+            "Stop when preflight detects a fatal condition",
+            "Continue automatically when preflight passes or completes with warnings",
         ],
         "boundaries": [
-            "No Molecular Replacement job starts while this status is active",
-            "Paused is not an execution crash",
+            "This is an input failure, not a routine human checkpoint",
+            "Warnings alone do not stop the workflow",
             "No protein identity is inferred",
         ],
-        "maturity": "implemented fail-closed outcome",
-        "warning": "Human resolution is required before the workflow can continue.",
+        "maturity": "implemented fail-closed input validation",
+        "warning": "Correct or replace invalid diffraction input before starting a new analysis.",
     }
-    mapping["paused"] = (
-        paused,
+    mapping["invalid_input"] = (
+        invalid_input,
         [("Open preflight detail", "stages/preflight.html")],
     )
     return "".join(_node_detail(node_id, *value) for node_id, value in mapping.items())

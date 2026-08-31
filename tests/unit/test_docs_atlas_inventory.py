@@ -148,7 +148,7 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     assert "supplies these observations at the beginning" in scientist
     assert "depths four through six remain provisional" in scientist
     assert "Solid green: forward workflow step" in scientist
-    assert "Dashed red: reviewed decision, pause, or stop" in scientist
+    assert "Dashed red: review decision, invalid input, or stop" in scientist
     assert "Dashed purple: evidence influence or repeat/continue" in scientist
 
     composition = outputs[module.CURRENT / "stages/composition.html"].decode("utf-8")
@@ -201,7 +201,6 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     for node_id in (
         "inputs",
         "preflight",
-        "preflight_checkpoint",
         "discover_prepare",
         "rank_mr",
         "review_refine",
@@ -209,7 +208,7 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
         "composition_cycle",
         "report",
         "localisation_weight",
-        "paused",
+        "invalid_input",
     ):
         assert f'data-atlas-node-doc="{node_id}"' in scientist
     for node_id in (
@@ -237,13 +236,18 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert ".atlas-docs-drawer { width: 100vw; }" in scientist
     assert "overflow-x: clip" in scientist
     assert "forceDark" in scientist
+    assert "body { padding-top: 4.25rem; padding-bottom: .5rem; }" in scientist
+    assert scientist.index('class="header"') < scientist.index(
+        'class="atlas-arrow-legend no-print"'
+    ) < scientist.index('id="archify-guided-views-data"')
 
     stage = outputs[module.CURRENT / "stages/preflight.html"].decode("utf-8")
     assert 'data-theme="dark"' in stage
     assert "data-theme-toggle" not in stage
-    assert "Preflight Checkpoint" in scientist
-    assert "Paused" in stage
-    assert "Paused before Molecular Replacement" in scientist
+    assert "Preflight Checkpoint" not in scientist
+    assert "Paused before Molecular Replacement" not in scientist
+    assert "Continue automatically after a pass" in stage
+    assert "Invalid diffraction input" in scientist
 
 
 def test_developer_legend_uses_domain_labels() -> None:

@@ -19,13 +19,13 @@
       {
         "id": "end_to_end",
         "label": "End-to-end analysis",
-        "focus": ["inputs", "preflight", "preflight_checkpoint", "discover_prepare", "rank_mr", "review_refine", "component_slots", "composition_cycle", "report"],
+        "focus": ["inputs", "preflight", "discover_prepare", "rank_mr", "review_refine", "component_slots", "composition_cycle", "report"],
         "note": "Follow one crystal from fixed source inputs to a bounded scientific report."
       },
       {
         "id": "inputs_records",
         "label": "Inputs and evidence",
-        "focus": ["localisation_weight", "inputs", "preflight", "preflight_checkpoint", "paused"],
+        "focus": ["localisation_weight", "inputs", "preflight", "invalid_input"],
         "note": "This evidence may change which candidates are tested first; it cannot exclude candidates or prove identity/composition."
       },
       {
@@ -49,7 +49,7 @@
       "label": "Inputs",
       "sublabel": "catalogue + MTZ",
       "tag": "annotation fixed",
-      "pos": [30, 180],
+      "pos": [30, 200],
       "size": [110, 68]
     },
     {
@@ -57,17 +57,8 @@
       "type": "security",
       "label": "MTZ Preflight",
       "sublabel": "symmetry + Free-R",
-      "tag": "checks evidence",
-      "pos": [165, 180],
-      "size": [110, 68]
-    },
-    {
-      "id": "preflight_checkpoint",
-      "type": "security",
-      "label": "Preflight Checkpoint",
-      "sublabel": "proceed or pause",
-      "tag": "human checkpoint",
-      "pos": [300, 180],
+      "tag": "automatic check",
+      "pos": [180, 110],
       "size": [140, 68]
     },
     {
@@ -76,8 +67,8 @@
       "label": "Find + Prepare Models",
       "sublabel": "PDB + local Foldseek",
       "tag": "offline compute",
-      "pos": [465, 180],
-      "size": [150, 68]
+      "pos": [180, 290],
+      "size": [170, 68]
     },
     {
       "id": "rank_mr",
@@ -85,8 +76,8 @@
       "label": "Rank + Molecular Replacement",
       "sublabel": "Matthews + Phaser",
       "tag": "search evidence",
-      "pos": [640, 180],
-      "size": [200, 68]
+      "pos": [450, 200],
+      "size": [210, 68]
     },
     {
       "id": "review_refine",
@@ -94,8 +85,8 @@
       "label": "Review + Maps",
       "sublabel": "seed + sequence + claims",
       "tag": "human gates",
-      "pos": [865, 180],
-      "size": [130, 68]
+      "pos": [730, 200],
+      "size": [140, 68]
     },
     {
       "id": "component_slots",
@@ -103,7 +94,7 @@
       "label": "Additional Slots",
       "sublabel": "B → C → D → E → F",
       "tag": "depth 4-6 tentative",
-      "pos": [850, 430],
+      "pos": [720, 430],
       "size": [160, 68]
     },
     {
@@ -112,7 +103,7 @@
       "label": "Repeat at Each Slot",
       "sublabel": "plan → run → collect → review",
       "tag": "one slot at a time",
-      "pos": [850, 560],
+      "pos": [720, 560],
       "size": [160, 68]
     },
     {
@@ -121,7 +112,7 @@
       "label": "Reviewed Report",
       "sublabel": "supported claims",
       "tag": "bounded conclusion",
-      "pos": [650, 560],
+      "pos": [510, 560],
       "size": [160, 68]
     },
     {
@@ -130,24 +121,24 @@
       "label": "Localisation + Molecular Weight",
       "sublabel": "user-supplied prior",
       "tag": "missing is neutral",
-      "pos": [30, 40],
+      "pos": [445, 30],
       "size": [220, 68]
     },
     {
-      "id": "paused",
+      "id": "invalid_input",
       "type": "security",
-      "label": "Paused",
-      "sublabel": "resolve diffraction issue",
-      "tag": "before Molecular Replacement",
-      "pos": [260, 310],
-      "size": [220, 68]
+      "label": "Input Error",
+      "sublabel": "invalid diffraction data",
+      "tag": "analysis stops",
+      "pos": [30, 420],
+      "size": [170, 68]
     }
   ],
   "boundaries": [
     {
       "kind": "region",
       "label": "Initial A screening",
-      "wraps": ["localisation_weight", "inputs", "preflight", "preflight_checkpoint", "discover_prepare", "rank_mr", "review_refine", "paused"],
+      "wraps": ["localisation_weight", "inputs", "preflight", "discover_prepare", "rank_mr", "review_refine", "invalid_input"],
       "pad": 16
     },
     {
@@ -162,28 +153,20 @@
       "id": "inputs_preflight",
       "from": "inputs",
       "to": "preflight",
-      "variant": "emphasis",
-      "route": "straight",
-      "fromSide": "right",
-      "toSide": "left"
+      "variant": "emphasis"
     },
     {
-      "id": "preflight_to_checkpoint",
-      "from": "preflight",
-      "to": "preflight_checkpoint",
-      "variant": "emphasis",
-      "route": "straight",
-      "fromSide": "right",
-      "toSide": "left"
-    },
-    {
-      "id": "checkpoint_discovery",
-      "from": "preflight_checkpoint",
+      "id": "inputs_discovery",
+      "from": "inputs",
       "to": "discover_prepare",
-      "label": "proceed",
-      "labelAt": [452, 150],
+      "variant": "emphasis"
+    },
+    {
+      "id": "preflight_mr",
+      "from": "preflight",
+      "to": "rank_mr",
+      "label": "usable; warnings retained",
       "variant": "emphasis",
-      "route": "straight",
       "fromSide": "right",
       "toSide": "left"
     },
@@ -192,7 +175,6 @@
       "from": "discover_prepare",
       "to": "rank_mr",
       "variant": "emphasis",
-      "route": "straight",
       "fromSide": "right",
       "toSide": "left"
     },
@@ -210,22 +192,22 @@
       "from": "review_refine",
       "to": "component_slots",
       "label": "first component approved",
-      "labelAt": [930, 340],
+      "labelAt": [800, 340],
       "variant": "security",
       "route": "straight",
       "fromSide": "bottom",
       "toSide": "top"
     },
     {
-      "id": "checkpoint_paused",
-      "from": "preflight_checkpoint",
-      "to": "paused",
-      "label": "pause",
-      "labelAt": [370, 280],
+      "id": "preflight_invalid",
+      "from": "preflight",
+      "to": "invalid_input",
+      "label": "invalid input",
+      "labelAt": [62, 380],
       "variant": "security",
-      "route": "straight",
       "fromSide": "bottom",
-      "toSide": "top"
+      "toSide": "top",
+      "via": [[250, 190], [10, 190], [10, 390], [115, 390]]
     },
     {
       "id": "localisation_ranking",
@@ -233,9 +215,10 @@
       "to": "rank_mr",
       "label": "changes test order",
       "variant": "dashed",
-      "fromSide": "right",
+      "route": "straight",
+      "fromSide": "bottom",
       "toSide": "top",
-      "via": [[740, 74]]
+      "labelAt": [555, 150]
     },
     {
       "id": "slots_cycle",
@@ -251,18 +234,18 @@
       "from": "composition_cycle",
       "to": "component_slots",
       "label": "continue to next slot",
-      "labelAt": [1100, 529],
+      "labelAt": [970, 529],
       "variant": "dashed",
       "fromSide": "right",
       "toSide": "right",
-      "via": [[1100, 594], [1100, 464]]
+      "via": [[970, 594], [970, 464]]
     },
     {
       "id": "cycle_report",
       "from": "composition_cycle",
       "to": "report",
       "label": "stop",
-      "labelAt": [830, 540],
+      "labelAt": [700, 540],
       "variant": "security",
       "route": "straight",
       "fromSide": "left",
