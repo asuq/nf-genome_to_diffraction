@@ -524,6 +524,19 @@ screen and single-component controllers now retain 48 hours around their
 dispatcher, wrapper, lint, and type checks pass locally; exact-source CI,
 deployment, and fixed-HPC qualification remain.
 
+The first uncapped exact-source screen, Marmic job `636956`, subsequently
+validated the owned provider, review, localisation, diffraction, and strict
+Phenix authorities and submitted 54 first-copy hypotheses. When the first
+complete 25-result crystal branch reached localisation reopen, its live
+Nextflow process script rejected the parameterised runtime cast
+`item[2] as List<Path>` before creating a task (`PH3-P1-73`). Ten remaining
+children were killed. This terminal execution failure supplies no scientific
+no-hit or A-seed evidence and the run is non-reusable. The focused correction
+removes that unsupported cast form from all five affected active process
+scripts, executes the formerly failing reopen script without `-stub-run`, and
+adds a structural contract against reintroduction. A fresh exact-source
+authority, discovery, and screen successor remain mandatory.
+
 The worker-offline boundary requires one explicit operational checkpoint. The
 user approved a compute-only `unknown-discovery` run, bounded reviewed
 login-side coordinate staging, and then an offline `unknown-screen` MR run.

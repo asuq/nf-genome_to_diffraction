@@ -14718,3 +14718,24 @@ with a collapsed combined parent or a guessed command.
 - The active screen was already submitted and is unchanged. The focused policy
   regression now rejects process-local caps and requires the Marmic unlimited
   queue setting; exact-source syntax/config and future Marmic evidence remain.
+
+## 2026-08-31 - Live localisation reopen exposed an invalid process cast
+
+- Exact-source unknown-screen job `636956` validated its provider, reviews,
+  localisation, diffraction, and seven-command Phenix authorities, then
+  submitted 54 first-copy hypotheses. The first complete 25-result branch
+  reached localisation reopen after about 19 hours.
+- Nextflow rejected `item[2] as List<Path>` while constructing that live process
+  script, before assigning it a work directory, and killed ten still-running
+  children. The collected failure signature is
+  `3fa1130c15f2ec0b4ac642c9986ad7e11960a96358616ce85210f0a0e698cb85`.
+  This is an execution failure, not a no-hit; no A checkpoint is valid.
+- Parameterised list casts are removed from all five affected active process
+  script blocks. A non-stub regression executes the formerly failing reopen
+  block through a fake CLI, and a repository contract rejects reintroduction.
+  The focused live multi-crystal gate, 26 policy tests, formatting, lint, type,
+  and Nextflow syntax pass locally.
+- Next start: complete diff/docs checks, commit and push the focused fix with
+  CI intentionally skipped, deploy that exact source, build a fresh source-
+  bound private authority, and run one fresh discovery/screen successor. Never
+  reuse job `636956` or any of its killed scientific children.

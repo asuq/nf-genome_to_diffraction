@@ -274,6 +274,14 @@ def test_phase3_scientific_concurrency_is_scheduler_managed() -> None:
     assert "queueSize = 0" in marmic
 
 
+def test_nextflow_process_scripts_avoid_parameterised_runtime_casts() -> None:
+    """Reject the cast form that failed live script construction on Marmic."""
+
+    for module_path in sorted((REPOSITORY / "modules/local").glob("*.nf")):
+        module = module_path.read_text(encoding="utf-8")
+        assert " as List<" not in module, module_path.relative_to(REPOSITORY)
+
+
 def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -> None:
     gitmodules = (REPOSITORY / ".gitmodules").read_text(encoding="utf-8")
     assert "path = external/nf-helper" in gitmodules

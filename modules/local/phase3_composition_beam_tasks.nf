@@ -110,7 +110,7 @@ process COLLECT_PHASE3_COMPOSITION_DEPTH {
         item[1].resolve('composition_depth_input_manifest.json').toFile().text
     )
     def outputName = "composition_beam_${item[0]}_depth${plan.target_depth}"
-    def resultArgs = (item[3] as List<Path>).collect { path ->
+    def resultArgs = item[3].collect { path ->
         "--attempt-result '${path}'"
     }.join(' ')
     """

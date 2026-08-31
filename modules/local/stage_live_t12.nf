@@ -97,7 +97,7 @@ process STAGE_PHASE3_CRYSTAL_T12 {
 
     script:
     def outputName = "phase3_live_t12_${item[0]}"
-    def resultFlags = (item[2] as List<Path>)
+    def resultFlags = item[2]
         .sort { left, right -> left.name <=> right.name }
         .collect { result -> "--additional-copy-result '${result}'" }
         .join(' ')

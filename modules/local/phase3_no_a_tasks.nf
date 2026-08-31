@@ -57,7 +57,7 @@ process BUILD_PHASE3_NO_A_REVIEW {
 
     script:
     def outputName = "phase3_no_a_review_${item[0]}"
-    def results = item[2] as List<Path>
+    def results = item[2]
     def resultJsonl = results.sort { left, right -> left.name <=> right.name }
         .collect { result -> "'${result}/normalised_mr_result.jsonl'" }
         .join(' ')

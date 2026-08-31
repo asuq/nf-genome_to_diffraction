@@ -29,6 +29,115 @@ CRYSTAL_IDS = (
 )
 
 
+def _check_localisation_reopen_live_script(
+    root: Path,
+    environment: dict[str, str],
+) -> None:
+    """Execute the live reopen process so its script block is type-checked."""
+
+    project = root / "localisation-reopen-live"
+    project.mkdir()
+    funnel = project / "funnel"
+    funnel.mkdir()
+    (funnel / "funnel_manifest.json").write_text("{}\n", encoding="ascii")
+    localisation = project / "localisation"
+    localisation.mkdir()
+    (localisation / "localisation_batch_manifest.json").write_text(
+        "{}\n",
+        encoding="ascii",
+    )
+    results: list[Path] = []
+    for rank in (2, 1):
+        result = project / f"result-{rank}"
+        result.mkdir()
+        (result / "normalised_mr_result.jsonl").write_text(
+            "{}\n",
+            encoding="ascii",
+        )
+        results.append(result)
+
+    module = REPOSITORY / "modules/local/plan_phase3_localisation_reopen.nf"
+    (project / "main.nf").write_text(
+        f"""nextflow.enable.dsl = 2
+
+include {{ PLAN_PHASE3_LOCALISATION_REOPEN }} from '{module}'
+
+workflow {{
+    reopen_inputs = channel.of(tuple(
+        'live_reopen_crystal',
+        file(params.funnel),
+        [file(params.result_a), file(params.result_b)]
+    ))
+    PLAN_PHASE3_LOCALISATION_REOPEN(
+        reopen_inputs,
+        channel.value(file(params.localisation_bundle))
+    )
+}}
+""",
+        encoding="ascii",
+    )
+    fake_bin = project / "bin"
+    fake_bin.mkdir()
+    fake_cli = fake_bin / "genome-to-diffraction"
+    fake_cli.write_text(
+        """#!/usr/bin/env bash
+set -Eeuo pipefail
+outdir=""
+while (( $# > 0 )); do
+    if [[ "$1" == "--outdir" ]]; then
+        outdir="$2"
+        shift 2
+    else
+        shift
+    fi
+done
+if [[ -z "$outdir" ]]; then
+    printf '%s\n' 'missing --outdir' >&2
+    exit 2
+fi
+mkdir -p "$outdir"
+printf '%s\n' '{"schema_version":"2.0","status":"test"}' \\
+    > "$outdir/localisation_reopen_plan.json"
+: > "$outdir/reopened_hypotheses.jsonl"
+""",
+        encoding="ascii",
+    )
+    fake_cli.chmod(0o755)
+    live_environment = dict(environment)
+    live_environment["PATH"] = f"{fake_bin}:{live_environment['PATH']}"
+    output = project / "results"
+    command = [
+        "nextflow",
+        "-C",
+        str(REPOSITORY / "tests/fixtures/stubs/p6_empty_partner/nextflow.config"),
+        "run",
+        str(project / "main.nf"),
+        "--funnel",
+        str(funnel),
+        "--result_a",
+        str(results[0]),
+        "--result_b",
+        str(results[1]),
+        "--localisation_bundle",
+        str(localisation),
+        "--outdir",
+        str(output),
+        "--cache_root",
+        str(project / "cache"),
+    ]
+    _run(command, live_environment)
+    trace = _read_trace(output / "pipeline_info/trace.tsv")
+    if len(trace) != 1 or _process_name(trace[0]) != (
+        "PLAN_PHASE3_LOCALISATION_REOPEN"
+    ):
+        raise RuntimeError("live localisation reopen scheduled the wrong task")
+    if trace[0]["status"] != "COMPLETED":
+        raise RuntimeError("live localisation reopen did not complete")
+    retained = output / "phase3_localisation_reopen_live_reopen_crystal"
+    if not (retained / "localisation_reopen_plan.json").is_file():
+        raise RuntimeError("live localisation reopen lost its retained plan")
+
+
 def _check_first_copy_application(root: Path, environment: dict[str, str]) -> None:
     """Require one shared preparation and three independent real workflow branches."""
 
@@ -511,6 +620,7 @@ def main() -> int:
             raise RuntimeError("cached resume changed per-crystal task identities")
         if _output_digests(output) != before_resume:
             raise RuntimeError("cached resume changed retained crystal evidence")
+        _check_localisation_reopen_live_script(root, environment)
         _check_first_copy_application(root, environment)
 
     print("Three-crystal dispatch, first-copy review, and cached resume passed.")

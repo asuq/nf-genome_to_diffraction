@@ -20,7 +20,7 @@ process PLAN_PHASE3_LOCALISATION_REOPEN {
     )
 
     script:
-    def resultArguments = (item[2] as List<Path>)
+    def resultArguments = item[2]
         .sort { left, right -> left.name <=> right.name }
         .collect { result -> "--result-directory '${result}'" }
         .join(' ')

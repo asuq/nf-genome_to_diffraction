@@ -152,7 +152,7 @@ process BUILD_PHASE3_MR_SEED_REVIEW {
 
     script:
     def outputName = "phase3_mr_seed_review_${item[0]}"
-    def results = item[2] as List<Path>
+    def results = item[2]
     def resultJsonl = results
         .sort { left, right -> left.name <=> right.name }
         .collect { result -> "'${result}/normalised_mr_result.jsonl'" }
