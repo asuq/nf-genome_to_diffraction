@@ -147,6 +147,16 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     assert "User-provided localisation and molecular-weight evidence" in scientist
     assert "supplies these observations at the beginning" in scientist
     assert "depths four through six remain provisional" in scientist
+    assert "What this workflow does" in scientist
+    assert "The workflow narrows many possible proteins" in scientist
+    assert "1 · Check data" in scientist
+    assert "3 · Choose copy counts" in scientist
+    assert "5 · Expand or finish" in scientist
+    assert "You provide:" in scientist
+    assert "proteins that could be in the sample and may be tested" in scientist
+    assert "protein catalogue" not in scientist.lower()
+    assert 'data-atlas-audience="scientist"' in scientist
+    assert 'html[data-atlas-audience="scientist"] .guided-views' in scientist
     assert "Solid green: forward workflow step" in scientist
     assert "Dashed red: review decision or stop" in scientist
     assert "Dashed purple: evidence influence or repeat/continue" in scientist
@@ -238,7 +248,7 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert ".atlas-docs-drawer { width: 100vw; }" in scientist
     assert "overflow-x: clip" in scientist
     assert "forceDark" in scientist
-    assert "body { padding-top: 4.25rem; padding-bottom: .5rem; }" in scientist
+    assert "body { padding-top: 4rem; padding-bottom: .5rem; }" in scientist
     assert scientist.index('class="header"') < scientist.index(
         'class="atlas-arrow-legend no-print"'
     ) < scientist.index('id="archify-guided-views-data"')
@@ -263,6 +273,11 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert scientist.index("MTZ Preflight") < scientist.index(
         "Find + Prepare Models"
     ) < scientist.index("First-Component Joint Search")
+
+    inputs = outputs[module.CURRENT / "stages/inputs-records.html"].decode("utf-8")
+    assert "Provide the protein list and diffraction data" in inputs
+    assert "trusted list of protein sequences that could be in the sample" in inputs
+    assert "immutable identities" not in inputs
 
 
 def test_developer_legend_uses_domain_labels() -> None:

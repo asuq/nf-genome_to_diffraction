@@ -47,8 +47,8 @@
       "id": "inputs",
       "type": "database",
       "label": "Inputs",
-      "sublabel": "catalogue + MTZ",
-      "tag": "annotation fixed",
+      "sublabel": "protein list + MTZ",
+      "tag": "exact files recorded",
       "pos": [30, 200],
       "size": [110, 68]
     },

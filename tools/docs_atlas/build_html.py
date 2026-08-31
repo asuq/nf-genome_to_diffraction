@@ -444,7 +444,7 @@ def _composition_loop() -> str:
     cycle = '<span class="composition-arrow">→</span>'.join(
         f'<span class="composition-cycle-step">{label}</span>'
         for label in (
-            "Choose an unrepresented catalogue component",
+            "Choose another protein from the supplied list",
             "Test 1, 2, 3, or 4 copies with Molecular Replacement",
             "Collect states",
             "Human review",
@@ -525,7 +525,7 @@ def _stage_page(
 VIEWER_DRAWER_STYLE = """
     /* Documentation navigation injected by the deterministic atlas builder. */
     html, body { max-width: 100%; overflow-x: clip; }
-    @media (min-width: 701px) { html:not([data-embed="true"]) body { padding-top: 4.25rem; padding-bottom: .5rem; } }
+    @media (min-width: 701px) { html:not([data-embed="true"]) body { padding-top: 4rem; padding-bottom: .5rem; } }
     html[data-atlas-docs-open="true"] body { padding-right: 440px; }
     html[data-atlas-docs-open="true"] .toolbar { right: calc(440px + 1rem); }
     html[data-atlas-docs-open="true"] .toolbar .preset-wrap,
@@ -584,9 +584,19 @@ VIEWER_DRAWER_STYLE = """
     .composition-limits { font-size: 11px; color: color-mix(in srgb, var(--toolbar-text) 68%, transparent) !important; }
     .atlas-node-back { border: 0; padding: 0; background: transparent; color: var(--frontend-stroke); cursor: pointer; font: inherit; }
     .atlas-node-detail[hidden], .atlas-docs-index-panel[hidden] { display: none !important; }
-    .header { margin-bottom: .5rem; }
+    .header { margin-bottom: .25rem; }
     .guided-views { margin-bottom: .25rem; }
-    .atlas-arrow-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: .4rem -29.5rem 0 0; padding: .55rem .75rem; border: 1px solid var(--toolbar-border); border-radius: .75rem; background: color-mix(in srgb, var(--toolbar-bg) 88%, transparent); color: var(--toolbar-text); font: 600 .68rem/1.35 ui-sans-serif, system-ui, sans-serif; }
+    html[data-atlas-audience="scientist"] .guided-views { display: none !important; }
+    .atlas-workflow-intro { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 8px 18px; margin: .25rem -29.5rem 0 0; padding: .7rem .8rem; border: 1px solid var(--toolbar-border); border-radius: .75rem; background: color-mix(in srgb, var(--toolbar-bg) 92%, transparent); color: var(--toolbar-text); }
+    .atlas-workflow-intro h2 { margin: 0; color: var(--frontend-stroke); font: 700 .82rem/1.35 ui-sans-serif, system-ui, sans-serif; }
+    .atlas-workflow-intro p { margin: 0; color: color-mix(in srgb, var(--toolbar-text) 82%, transparent); font: .74rem/1.45 ui-sans-serif, system-ui, sans-serif; }
+    .atlas-workflow-copy { min-width: 0; }
+    .atlas-workflow-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; list-style: none; margin: .45rem 0; padding: 0; }
+    .atlas-workflow-steps li { min-width: 0; padding: .35rem .45rem; border-left: 2px solid var(--frontend-stroke); background: color-mix(in srgb, var(--frontend-fill) 24%, transparent); color: color-mix(in srgb, var(--toolbar-text) 78%, transparent); font: .67rem/1.35 ui-sans-serif, system-ui, sans-serif; }
+    .atlas-workflow-steps strong { display: block; margin-bottom: .14rem; color: var(--frontend-stroke); font-size: .6rem; letter-spacing: .06em; text-transform: uppercase; }
+    .atlas-workflow-intro .atlas-workflow-inputs { color: color-mix(in srgb, var(--toolbar-text) 68%, transparent); }
+    html[data-atlas-docs-open="true"] .atlas-workflow-intro { margin-right: -210px; }
+    .atlas-arrow-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: .25rem -29.5rem 0 0; padding: .55rem .75rem; border: 1px solid var(--toolbar-border); border-radius: .75rem; background: color-mix(in srgb, var(--toolbar-bg) 88%, transparent); color: var(--toolbar-text); font: 600 .68rem/1.35 ui-sans-serif, system-ui, sans-serif; }
     html[data-atlas-docs-open="true"] .atlas-arrow-legend { margin-right: -210px; }
     .atlas-arrow-key { display: inline-flex; gap: 7px; align-items: center; }
     .atlas-arrow-key::before { content: ""; width: 26px; border-top: 3px solid var(--arrow-emphasis); }
@@ -601,6 +611,13 @@ VIEWER_DRAWER_STYLE = """
       .toolbar .export-wrap { display: none !important; }
       .atlas-docs-drawer { width: 100vw; }
       .atlas-view-switch a { padding-inline: .52rem; }
+      .atlas-workflow-intro { display: block; margin-right: 0; }
+      .atlas-workflow-intro h2 { margin-bottom: .35rem; }
+      .atlas-workflow-intro p { font-size: .78rem; }
+      .atlas-workflow-intro p + p { margin-top: .35rem; }
+      .atlas-workflow-steps { grid-template-columns: 1fr; }
+      .atlas-workflow-steps li { padding: .5rem .6rem; font-size: .75rem; }
+      .atlas-workflow-steps strong { font-size: .65rem; }
       .atlas-arrow-legend { margin-right: 0; }
     }
     @media print { .atlas-docs-drawer, .atlas-docs-toggle, .atlas-view-switch { display: none !important; } }
@@ -734,6 +751,11 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
         1,
     )
     if audience == "scientist":
+        if document.count("<html ") != 1:
+            raise ValueError("unexpected Archify root; refusing audience annotation")
+        document = document.replace(
+            "<html ", '<html data-atlas-audience="scientist" ', 1
+        )
         header_marker = (
             '      </div>\n    </div>\n\n'
             '    <script id="archify-guided-views-data"'
@@ -743,6 +765,12 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
                 "unexpected Archify header; refusing unsafe legend injection"
             )
         arrow_legend = (
+            '      <section class="atlas-workflow-intro" aria-labelledby="atlas-workflow-intro-title">'
+            '<h2 id="atlas-workflow-intro-title">What this workflow does</h2>'
+            '<div class="atlas-workflow-copy"><p>The workflow narrows many possible proteins into a small set of structural explanations that scientists can inspect.</p>'
+            '<ol class="atlas-workflow-steps"><li><strong>1 · Check data</strong>Check the MTZ diffraction measurements.</li><li><strong>2 · Find models</strong>Find three-dimensional models for proteins on the supplied list.</li><li><strong>3 · Choose copy counts</strong>Use Matthews analysis to keep copy counts that physically fit.</li><li><strong>4 · Test and review</strong>Place each model hypothesis with Molecular Replacement, then inspect maps.</li><li><strong>5 · Expand or finish</strong>Test other proteins if needed, then write a reviewed report.</li></ol>'
+            '<p class="atlas-workflow-inputs"><strong>You provide:</strong> a protein list—the proteins that could be in the sample and may be tested; MTZ files—the diffraction measurements; and optional localisation or molecular-weight observations.</p></div>'
+            '</section>\n'
             '      <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
             '<span class="atlas-arrow-key">Solid green: forward workflow step</span>'
             '<span class="atlas-arrow-key decision">Dashed red: review decision or stop</span>'
@@ -1046,10 +1074,10 @@ def _external_tools_page(inventory_id: str) -> tuple[Path, bytes]:
             "Phenix",
             "Licensed crystallographic preflight, Phaser, refinement, maps, and sequence mapping.",
         ),
-        ("MMseqs2", "Catalogue-wide PDB sequence discovery."),
+        ("MMseqs2", "Search the local PDB for sequences related to proteins in the supplied list."),
         (
             "ProstT5 + Foldseek",
-            "Whole-catalogue structural search against the local PDB resource.",
+            "Structural search for proteins in the supplied list against the local PDB resource.",
         ),
         ("PSORTb + DeepTMHMM", "Offline localisation and membrane-topology evidence."),
         ("Pixi + Apptainer", "Locked software environment and container execution."),

@@ -5533,7 +5533,7 @@
       "sha256": "6adfe5fca8849f39f14f0da412ef8e98d5e6330256cb25285fa7668be6a03c51"
     }
   ],
-  "inventory_id": "atlasinv_d24e1ab46cf8842ec8726edd5d932f8b89f9fa151c964545bd1709bb77e8e903",
+  "inventory_id": "atlasinv_434f3c83e35b86577edd3b7aee12e94761e2b165e60ee9a71966b7689d90df88",
   "nextflow_files": [
     {
       "declarations": [],
@@ -72427,7 +72427,7 @@
         "types"
       ],
       "path": "tests/unit/test_docs_atlas_inventory.py",
-      "sha256": "3b84f1388dadfdbf4290318102836130100658525a31f0c42f1213e7635632e7",
+      "sha256": "1a3a3c498ba0e7e440740f38675bd92c20717c7e6e939fc4b3f625f5dfd68da4",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -72547,11 +72547,12 @@
             "outputs.items",
             "path.is_relative_to",
             "scientist.index",
+            "scientist.lower",
             "sorted"
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 179,
+          "end_line": 189,
           "kind": "function",
           "line": 131,
           "name": "test_scientist_home_stage_order_and_progressive_disclosure",
@@ -72567,9 +72568,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 195,
+          "end_line": 205,
           "kind": "function",
-          "line": 182,
+          "line": 192,
           "name": "test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts",
           "public": true,
           "qualname": "test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts",
@@ -72584,9 +72585,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 265,
+          "end_line": 280,
           "kind": "function",
-          "line": 198,
+          "line": 208,
           "name": "test_node_focus_opens_dark_reserved_documentation_panel",
           "public": true,
           "qualname": "test_node_focus_opens_dark_reserved_documentation_panel",
@@ -72600,9 +72601,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 279,
+          "end_line": 294,
           "kind": "function",
-          "line": 268,
+          "line": 283,
           "name": "test_developer_legend_uses_domain_labels",
           "public": true,
           "qualname": "test_developer_legend_uses_domain_labels",

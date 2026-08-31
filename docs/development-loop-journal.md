@@ -14745,6 +14745,10 @@ with a collapsed combined parent or a guessed command.
   or slots. The diagram explicitly shows a joint 1--4-copy search for the first
   component, review retention of at most three solutions, and a separate loop
   that tests 1--4 copies for each additional distinct component through a maximum
-  of six total components. The corrected Archify artifact passes all nine
+  of six total components.
+- A five-step plain-language introduction now appears above the scientist
+  diagram and defines the supplied protein list and MTZ files. Scientist-facing
+  stage text no longer uses "protein catalogue" or assumes that readers know
+  file-identity terminology. The corrected Archify artifact passes all nine
   showcase checks. Next inspect the live prototype before further workflow-
   documentation changes.
