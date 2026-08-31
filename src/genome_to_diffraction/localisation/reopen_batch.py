@@ -174,7 +174,7 @@ def plan_batch_localisation_reopen(
         raise ValueError("maximum reopened attempts must be in 1..175")
     try:
         root = request.funnel_directory.resolve(strict=True)
-        manifest_path = root / "diverse_first_copy_funnel_manifest.json"
+        manifest_path = root / "funnel_manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise BatchLocalisationReopenError("first-wave funnel is invalid") from error

@@ -158,13 +158,24 @@ process BUILD_PHASE3_MR_SEED_REVIEW {
     script:
     def outputName = "phase3_mr_seed_review_${item[0]}"
     def results = item[2]
-    def resultJsonl = results
+    def orderedResults = results
         .sort { left, right -> left.name <=> right.name }
+    def resultPrefix = "phase3_first_copy_${item[0]}_"
+    def resultStaging = orderedResults
+        .collect { result ->
+            if (!result.name.startsWith(resultPrefix)) {
+                error "Phase III first-copy result name differs for ${item[0]}"
+            }
+            def hypothesisId = result.name.substring(resultPrefix.length())
+            "cp -R '${result}' 'first_copy_phaser_${hypothesisId}'"
+        }
+        .join('\n')
+    def resultJsonl = orderedResults
         .collect { result -> "'${result}/normalised_mr_result.jsonl'" }
         .join(' ')
     def resultCommand = results.isEmpty()
         ? 'touch normalised_mr_results.jsonl'
-        : "cat ${resultJsonl} > normalised_mr_results.jsonl"
+        : "${resultStaging}\ncat ${resultJsonl} > normalised_mr_results.jsonl"
     """
     ${resultCommand}
     genome-to-diffraction \

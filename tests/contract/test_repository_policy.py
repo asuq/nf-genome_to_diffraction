@@ -299,6 +299,21 @@ def test_phase3_scientific_concurrency_is_scheduler_managed() -> None:
     assert "queueSize = 0" in marmic
 
 
+def test_phase3_mr_review_stages_canonical_result_bundles() -> None:
+    module = (
+        REPOSITORY / "modules/local/phase3_multicrystal_first_copy_tasks.nf"
+    ).read_text(encoding="utf-8")
+    review_process = module.split(
+        "process BUILD_PHASE3_MR_SEED_REVIEW",
+        maxsplit=1,
+    )[1].split("stub:", maxsplit=1)[0]
+
+    assert 'def resultPrefix = "phase3_first_copy_${item[0]}_"' in review_process
+    assert "result.name.startsWith(resultPrefix)" in review_process
+    assert "first_copy_phaser_${hypothesisId}" in review_process
+    assert "--result-root ." in review_process
+
+
 def test_phase3_mr_retry_policy_is_bounded_and_resource_only() -> None:
     base = (REPOSITORY / "conf/base.config").read_text(encoding="utf-8")
     block = base.split("withLabel: process_mr", maxsplit=1)[1].split(

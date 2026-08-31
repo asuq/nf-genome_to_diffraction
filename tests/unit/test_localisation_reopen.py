@@ -102,7 +102,7 @@ def _case(
         ),
         encoding="utf-8",
     )
-    (funnel / "diverse_first_copy_funnel_manifest.json").write_text(
+    (funnel / "funnel_manifest.json").write_text(
         json.dumps(
             {
                 "adapter_version": (
@@ -216,7 +216,7 @@ def test_no_a_expansion_prioritises_initial_cap_before_localisation_exclusion(
         + "\n",
         encoding="utf-8",
     )
-    manifest_path = request.funnel_directory / "diverse_first_copy_funnel_manifest.json"
+    manifest_path = request.funnel_directory / "funnel_manifest.json"
     manifest = json.loads(manifest_path.read_text())
     manifest["mr_resource_plan_count"] = 3
     manifest["mr_resource_plans_sha256"] = sha256_file(resource_path)

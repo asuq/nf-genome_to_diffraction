@@ -14777,3 +14777,42 @@ with a collapsed combined parent or a guessed command.
   pass locally; production resource directives are unchanged. Next run one
   replacement exact-source CI and delete the temporary feature branch locally
   and remotely after it finishes.
+
+## 2026-08-31 - Successor screen exposes two live post-MR contract defects
+
+- Dynamic-resource commit `511bbcdfe61fe3009daaf172277ff8e40b126781`
+  is the exact remote `dev/phase3` tip accepted by replacement CI run
+  `33441583997`, job `99650836948`, in 23 minutes 47 seconds. The temporary
+  feature and obsolete blanket-eight-CPU branches and their worktrees are
+  deleted. The older-source screen remained untouched while it ran.
+- Owned screen `gtd-unknown-screen-20260831T015817Z-ec49354d0c0b-57ad1c1d`,
+  Slurm controller `637180`, ended `FAILED`/exit 1 after 18 hours 56 minutes.
+  Its collected signature is
+  `a2db930a99d66a7fb042ed5b06d3ee6b1ad763a95e24454370d70f76a42c1bf6`.
+  Static input and provider checksum inventories reverify completely.
+- Trace evidence is uncapped (`maxForks=0`, executor capacity zero), but the
+  funnel itself emitted only 54 hypotheses: 25 `AD4QS1P4G2_18`, four
+  `CD4QS2P2G1_15`, and 25 `CD6QS2P2G1_5`. Forty-five children exited zero:
+  20 AD4 and all 25 CD6. Nine were still running and killed at controller
+  abort; no CD4 child completed. The other 21 CD4 hypotheses were never in the
+  funnel and therefore were not scheduler-throttled.
+- Under the old fixed 4-CPU/16-GB/24-hour allocation, completed AD4 tasks ran
+  from 1:38:52 to 16:57:21 (median 5:10:55); completed CD6 tasks ran from
+  0:04:08 to 18:51:26 (median 1:14:42). No completed child timed out. The nine
+  killed jobs had run for about 18 hours 52 minutes, leaving about five hours
+  of their allocation, but their individual Phaser logs were not retained, so
+  timely completion cannot be asserted.
+- The first complete CD6 branch exposed two source defects simultaneously.
+  Localisation reopen requested nonexistent
+  `diverse_first_copy_funnel_manifest.json` instead of canonical
+  `funnel_manifest.json`; MR review did not stage its
+  `phase3_first_copy_<crystal>_<hypothesis>` outputs under the validator's
+  required `first_copy_phaser_<hypothesis>` names. Both are execution failures,
+  not scientific no-hits. No A checkpoint or identity claim exists.
+- The smallest clean fixes use the canonical manifest name and construct one
+  validated canonical review-result root. Thirty-three focused unit/contract
+  tests pass, and the live multi-crystal Nextflow gate now executes both
+  formerly failing process scripts non-stub before its cached application
+  replay. Failed-run child evidence omission and the 54-versus-75 scientific
+  funnel shortfall remain explicit open findings; do not submit a successor
+  until both are dispositioned and exact-source CI is green.
