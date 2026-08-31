@@ -769,7 +769,7 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
             '<h2 id="atlas-workflow-intro-title">What this workflow does</h2>'
             '<div class="atlas-workflow-copy"><p>The workflow narrows many possible proteins into a small set of structural explanations that scientists can inspect.</p>'
             '<ol class="atlas-workflow-steps"><li><strong>1 · Check data</strong>Check the MTZ diffraction measurements.</li><li><strong>2 · Find models</strong>Find three-dimensional models for proteins on the supplied list.</li><li><strong>3 · Choose copy counts</strong>Use Matthews analysis to keep copy counts that physically fit.</li><li><strong>4 · Test and review</strong>Place each model hypothesis with Molecular Replacement, then inspect maps.</li><li><strong>5 · Expand or finish</strong>Test other proteins if needed, then write a reviewed report.</li></ol>'
-            '<p class="atlas-workflow-inputs"><strong>You provide:</strong> a protein list—the proteins that could be in the sample and may be tested; MTZ files—the diffraction measurements; and optional localisation or molecular-weight observations.</p></div>'
+            '<p class="atlas-workflow-inputs"><strong>You provide:</strong> an organism or sample name; a required protein FASTA, annotation source/version, and MTZ file; and optional genome FASTA, GFF/GBFF, localisation, and molecular-weight evidence. The input boxes below mark required and optional items separately.</p></div>'
             '</section>\n'
             '      <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
             '<span class="atlas-arrow-key">Solid green: forward workflow step</span>'
@@ -833,10 +833,99 @@ def _node_detail(
 
 def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
     by_id = {stage["id"]: stage for stage in stages}
+    input_links = [("Open all input details", "stages/inputs-records.html")]
     mapping = {
-        "inputs": (
-            by_id["inputs-records"],
-            [("Open full detail", "stages/inputs-records.html")],
+        "organism_metadata": (
+            {
+                "title": "Organism or sample name",
+                "summary": "A human-readable name tells scientists which organism or sample the protein list describes.",
+                "purpose": "Keep the biological source understandable in reports and prevent similarly named input sets from being confused.",
+                "inputs": [
+                    "Human-readable organism or sample name",
+                    "Assembly accession and version, when available",
+                    "Internal protein-list identifier",
+                ],
+                "outputs": ["Biological-source metadata attached to the run"],
+                "decisions": [
+                    "Do not infer the organism name from search results",
+                    "Keep the name consistent with the supplied protein and genome files",
+                ],
+                "boundaries": [
+                    "The current manifest has no dedicated organism_name field",
+                    "It currently stores an internal identifier, assembly metadata, and notes",
+                ],
+                "maturity": "input-contract gap documented",
+                "warning": "Add a dedicated organism/sample-name field before the final workflow contract is considered complete.",
+            },
+            input_links,
+        ),
+        "protein_sequences": (
+            {
+                "title": "Protein sequences — required",
+                "summary": "A protein FASTA file lists every protein sequence the workflow is allowed to test.",
+                "purpose": "Define the identity space without allowing external model databases to invent new reportable proteins.",
+                "inputs": ["Protein FASTA file (.faa; manifest field proteome_faa)"],
+                "outputs": [
+                    "Checked protein records",
+                    "Groups of entries that have identical protein sequences",
+                ],
+                "decisions": ["Reject an absent, malformed, or changed protein FASTA"],
+                "boundaries": ["This file is required", "Use one annotation source per supplied protein list"],
+                "maturity": "implemented required input",
+                "warning": "A model hit can be reported as an identity only when it maps back to this supplied list.",
+            },
+            input_links,
+        ),
+        "genome_sequence": (
+            {
+                "title": "Genome sequence — optional",
+                "summary": "A genome FASTA file records the nucleotide sequence associated with the protein list.",
+                "purpose": "Preserve the genomic source and support traceable links between proteins and their genomic context.",
+                "inputs": ["Genome FASTA file (.fna; manifest field genome_fasta)"],
+                "outputs": ["Checksum-recorded optional genome source"],
+                "decisions": ["Keep the input explicitly missing when no genome FASTA is supplied"],
+                "boundaries": ["The current workflow does not predict genes from this genome"],
+                "maturity": "implemented optional input",
+                "warning": "The required protein FASTA remains the sequence source used for candidate testing.",
+            },
+            input_links,
+        ),
+        "annotation_input": (
+            {
+                "title": "Gene annotation",
+                "summary": "The annotation source and version are required; GFF, GBFF, and protein-to-locus mapping files are optional supporting files.",
+                "purpose": "Connect protein sequences to gene names, products, and genome locations without mixing annotation providers.",
+                "inputs": [
+                    "Annotation provider and version — required",
+                    "GFF or GFF3 file — optional",
+                    "GenBank flat file (GBFF) — optional",
+                    "Protein-to-locus mapping file — optional",
+                ],
+                "outputs": ["Traceable protein-to-gene annotation records"],
+                "decisions": ["Use exactly one annotation source for one protein list"],
+                "boundaries": ["The workflow does not merge competing annotations"],
+                "maturity": "implemented required metadata with optional files",
+                "warning": "Record the exact annotation release; a provider name alone is not enough.",
+            },
+            input_links,
+        ),
+        "diffraction_data": (
+            {
+                "title": "Diffraction data — required",
+                "summary": "Each crystal needs an MTZ file containing the measured diffraction data and a unique crystal name.",
+                "purpose": "Provide the experimental measurements used for preflight, Molecular Replacement, refinement, and map calculation.",
+                "inputs": [
+                    "Diffraction MTZ file",
+                    "Unique crystal name or identifier",
+                    "Optional observation, resolution, or space-group declarations",
+                ],
+                "outputs": ["Checked diffraction-file identity used throughout the analysis"],
+                "decisions": ["Reject a missing, changed, or internally inconsistent MTZ file"],
+                "boundaries": ["An MTZ file supplies diffraction evidence; it does not identify a protein by itself"],
+                "maturity": "implemented required input",
+                "warning": "Every crystal must remain linked to its own MTZ file throughout the run.",
+            },
+            input_links,
         ),
         "preflight": (
             by_id["preflight"],
@@ -846,15 +935,27 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
             by_id["discovery-models"],
             [("Open full detail", "stages/discovery-models.html")],
         ),
-        "first_component_copy_search": (
-            by_id["rank-mr"],
-            [("Open full detail", "stages/rank-mr.html")],
-        ),
-        "review_first_component": (
-            by_id["review-refine-maps"],
-            [("Open full detail", "stages/review-refine-maps.html")],
-        ),
     }
+    first_component = {
+        "title": "First-component joint search and review",
+        "summary": f"{by_id['rank-mr']['summary']} {by_id['review-refine-maps']['summary']}",
+        "purpose": f"{by_id['rank-mr']['purpose']} {by_id['review-refine-maps']['purpose']}",
+        "inputs": by_id["rank-mr"]["inputs"],
+        "outputs": by_id["review-refine-maps"]["outputs"],
+        "decisions": by_id["rank-mr"]["decisions"]
+        + by_id["review-refine-maps"]["decisions"],
+        "boundaries": by_id["rank-mr"]["boundaries"]
+        + by_id["review-refine-maps"]["boundaries"],
+        "maturity": "joint copy-count search implemented; reviewed solutions retained",
+        "warning": "Matthews analysis selects plausible copy counts for direct joint testing; sequential same-component placement is rescue-only.",
+    }
+    mapping["first_component_search_review"] = (
+        first_component,
+        [
+            ("Open copy-search detail", "stages/rank-mr.html"),
+            ("Open map-review detail", "stages/review-refine-maps.html"),
+        ],
+    )
     composition = {
         "title": "Additional-component search loop",
         "summary": by_id["composition"]["summary"],

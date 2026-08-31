@@ -153,7 +153,11 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     assert "3 · Choose copy counts" in scientist
     assert "5 · Expand or finish" in scientist
     assert "You provide:" in scientist
-    assert "proteins that could be in the sample and may be tested" in scientist
+    assert (
+        "required protein FASTA, annotation source/version, and MTZ file"
+        in scientist
+    )
+    assert "optional genome FASTA, GFF/GBFF" in scientist
     assert "protein catalogue" not in scientist.lower()
     assert 'data-atlas-audience="scientist"' in scientist
     assert 'html[data-atlas-audience="scientist"] .guided-views' in scientist
@@ -212,15 +216,18 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     developer = outputs[module.CURRENT / "developer-view.html"].decode("utf-8")
 
     for node_id in (
-        "inputs",
+        "organism_metadata",
+        "genome_sequence",
+        "annotation_input",
+        "diffraction_data",
+        "protein_sequences",
+        "localisation_weight",
         "preflight",
         "discover_prepare",
-        "first_component_copy_search",
-        "review_first_component",
+        "first_component_search_review",
         "next_distinct_component",
         "additional_component_copy_search",
         "report",
-        "localisation_weight",
     ):
         assert f'data-atlas-node-doc="{node_id}"' in scientist
     for node_id in (
@@ -261,22 +268,33 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "no interactive pause between preflight and model discovery" in stage
     assert "Crystallographic Review" not in scientist
     assert "proceed decision" not in scientist
-    assert "First-Component Joint Search" in scientist
-    assert "Matthews-retained copy count" in scientist
-    assert "sequential rescue only" in scientist
-    assert "Next Distinct Component" in scientist
-    assert "component 2 → 3 → 4 → 5 → 6" in scientist
+    assert "First-Component Search + Review" in scientist
+    assert "Matthews count → joint search → maps" in scientist
+    assert "Choose Another Protein" in scientist
+    assert "Test Copy Count + Review" in scientist
+    assert "Organism / Sample Name" in scientist
+    assert "dedicated field not yet implemented" in scientist
+    assert "Genome Sequence" in scientist
+    assert "genome FASTA (.fna)" in scientist
+    assert "Gene Annotation" in scientist
+    assert "GFF / GBFF + source version" in scientist
+    assert "Diffraction Data" in scientist
+    assert "MTZ + crystal name" in scientist
+    assert "Protein Sequences" in scientist
+    assert "protein FASTA (.faa)" in scientist
     assert "Components B-F" not in scientist
     assert "Additional Slots" not in scientist
     assert "Input Error" not in scientist
     assert "Held Dataset" not in scientist
     assert scientist.index("MTZ Preflight") < scientist.index(
         "Find + Prepare Models"
-    ) < scientist.index("First-Component Joint Search")
+    ) < scientist.index("First-Component Search + Review")
 
     inputs = outputs[module.CURRENT / "stages/inputs-records.html"].decode("utf-8")
-    assert "Provide the protein list and diffraction data" in inputs
-    assert "trusted list of protein sequences that could be in the sample" in inputs
+    assert "Provide organism, sequence, annotation, and diffraction inputs" in inputs
+    assert "Protein FASTA (.faa) — required" in inputs
+    assert "Genome FASTA (.fna) — optional" in inputs
+    assert "not yet a dedicated manifest field" in inputs
     assert "immutable identities" not in inputs
 
 

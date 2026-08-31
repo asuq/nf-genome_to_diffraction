@@ -14750,5 +14750,10 @@ with a collapsed combined parent or a guessed command.
   diagram and defines the supplied protein list and MTZ files. Scientist-facing
   stage text no longer uses "protein catalogue" or assumes that readers know
   file-identity terminology. The corrected Archify artifact passes all nine
-  showcase checks. Next inspect the live prototype before further workflow-
-  documentation changes.
+  showcase checks.
+- The scientist diagram now separates organism/sample name, protein FASTA,
+  genome FASTA, gene annotation, MTZ diffraction data, and optional localisation
+  or molecular-weight evidence. It marks required and optional inputs explicitly.
+  The current manifest's missing dedicated organism/sample-name field is shown
+  as an input-contract gap; no schema or workflow code changed. Next inspect the
+  live prototype before further workflow-documentation changes.

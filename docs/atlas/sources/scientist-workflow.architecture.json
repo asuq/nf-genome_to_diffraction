@@ -6,51 +6,89 @@
     "locale": "en",
     "output": "docs/atlas/current/diagrams/scientist-workflow.html",
     "quality_profile": "showcase",
-    "viewBox": [1250, 730],
-    "legend": {
-      "mode": "auto",
-      "entries": {
-        "backend": {"label": "Analysis step"},
-        "database": {"label": "Input / evidence"},
-        "security": {"label": "Human / validation gate"}
-      }
-    },
+    "viewBox": [1250, 710],
+    "legend": {"mode": "hidden"},
     "views": [
       {
         "id": "end_to_end",
         "label": "End-to-end analysis",
-        "focus": ["inputs", "preflight", "discover_prepare", "first_component_copy_search", "review_first_component", "next_distinct_component", "additional_component_copy_search", "report"],
-        "note": "Follow one crystal from fixed source inputs to a bounded scientific report."
+        "focus": ["diffraction_data", "protein_sequences", "preflight", "discover_prepare", "first_component_search_review", "next_distinct_component", "additional_component_copy_search", "report"],
+        "note": "Follow the required scientific inputs through model testing and a reviewed report."
       },
       {
         "id": "inputs_records",
         "label": "Inputs and evidence",
-        "focus": ["localisation_weight", "inputs", "preflight"],
-        "note": "This evidence may change which candidates are tested first; it cannot exclude candidates or prove identity/composition."
+        "focus": ["organism_metadata", "protein_sequences", "genome_sequence", "annotation_input", "diffraction_data", "localisation_weight"],
+        "note": "Required and optional inputs are shown separately so missing optional evidence is not mistaken for missing required data."
       },
       {
         "id": "search_and_review",
         "label": "Search and review",
-        "focus": ["discover_prepare", "first_component_copy_search", "review_first_component", "next_distinct_component", "additional_component_copy_search", "report"],
-        "note": "Model discovery leads to candidate testing, human review, and an honestly bounded conclusion."
+        "focus": ["preflight", "discover_prepare", "first_component_search_review", "next_distinct_component", "additional_component_copy_search", "report"],
+        "note": "Model discovery leads to copy-count testing, map review, and a bounded conclusion."
       },
       {
         "id": "composition_loop",
-        "label": "Additional distinct-component loop",
-        "focus": ["review_first_component", "next_distinct_component", "additional_component_copy_search", "report"],
-        "note": "Test each additional component in order, repeat the run-and-review cycle, then stop with a reviewed report."
+        "label": "Additional-component loop",
+        "focus": ["first_component_search_review", "next_distinct_component", "additional_component_copy_search", "report"],
+        "note": "Choose another protein, test plausible copy counts, review the result, and either repeat or stop."
       }
     ]
   },
   "components": [
     {
-      "id": "inputs",
+      "id": "organism_metadata",
       "type": "database",
-      "label": "Inputs",
-      "sublabel": "protein list + MTZ",
-      "tag": "exact files recorded",
-      "pos": [30, 200],
-      "size": [110, 68]
+      "label": "Organism / Sample Name",
+      "sublabel": "human-readable identity",
+      "tag": "dedicated field not yet implemented",
+      "pos": [30, 40],
+      "size": [200, 68]
+    },
+    {
+      "id": "genome_sequence",
+      "type": "database",
+      "label": "Genome Sequence",
+      "sublabel": "genome FASTA (.fna)",
+      "tag": "optional",
+      "pos": [260, 40],
+      "size": [190, 68]
+    },
+    {
+      "id": "annotation_input",
+      "type": "database",
+      "label": "Gene Annotation",
+      "sublabel": "GFF / GBFF + source version",
+      "tag": "source + version required",
+      "pos": [500, 40],
+      "size": [230, 68]
+    },
+    {
+      "id": "diffraction_data",
+      "type": "database",
+      "label": "Diffraction Data",
+      "sublabel": "MTZ + crystal name",
+      "tag": "required",
+      "pos": [30, 150],
+      "size": [190, 68]
+    },
+    {
+      "id": "protein_sequences",
+      "type": "database",
+      "label": "Protein Sequences",
+      "sublabel": "protein FASTA (.faa)",
+      "tag": "required",
+      "pos": [260, 150],
+      "size": [190, 68]
+    },
+    {
+      "id": "localisation_weight",
+      "type": "database",
+      "label": "Optional Evidence",
+      "sublabel": "localisation + molecular weight",
+      "tag": "missing is neutral",
+      "pos": [520, 150],
+      "size": [220, 68]
     },
     {
       "id": "preflight",
@@ -58,8 +96,8 @@
       "label": "MTZ Preflight",
       "sublabel": "symmetry + Free-R",
       "tag": "automatic check",
-      "pos": [170, 200],
-      "size": [130, 68]
+      "pos": [50, 320],
+      "size": [150, 68]
     },
     {
       "id": "discover_prepare",
@@ -67,84 +105,84 @@
       "label": "Find + Prepare Models",
       "sublabel": "PDB + local Foldseek",
       "tag": "offline compute",
-      "pos": [330, 200],
-      "size": [170, 68]
+      "pos": [265, 320],
+      "size": [180, 68]
     },
     {
-      "id": "first_component_copy_search",
+      "id": "first_component_search_review",
       "type": "backend",
-      "label": "First-Component Joint Search",
-      "sublabel": "Matthews-retained copy count",
-      "tag": "1-4 copies; sequential rescue only",
-      "pos": [530, 200],
-      "size": [220, 68]
-    },
-    {
-      "id": "review_first_component",
-      "type": "security",
-      "label": "Review First-Component Solutions",
-      "sublabel": "retain up to three states",
-      "tag": "maps + file-based decision",
-      "pos": [780, 200],
-      "size": [220, 68]
+      "label": "First-Component Search + Review",
+      "sublabel": "Matthews count → joint search → maps",
+      "tag": "retain up to three states",
+      "pos": [500, 320],
+      "size": [260, 68]
     },
     {
       "id": "next_distinct_component",
       "type": "database",
-      "label": "Next Distinct Component",
-      "sublabel": "component 2 → 3 → 4 → 5 → 6",
-      "tag": "depth 4-6 tentative",
-      "pos": [790, 430],
-      "size": [200, 68]
+      "label": "Choose Another Protein",
+      "sublabel": "from the supplied list",
+      "tag": "up to six total components",
+      "pos": [520, 460],
+      "size": [220, 68]
     },
     {
       "id": "additional_component_copy_search",
       "type": "backend",
-      "label": "Test Its Copy Count",
+      "label": "Test Copy Count + Review",
       "sublabel": "1, 2, 3, or 4 copies",
-      "tag": "then collect + review",
-      "pos": [800, 560],
-      "size": [180, 68]
+      "tag": "repeat when another protein may fit",
+      "pos": [530, 590],
+      "size": [200, 68]
     },
     {
       "id": "report",
       "type": "database",
       "label": "Reviewed Report",
-      "sublabel": "supported claims",
+      "sublabel": "supported + uncertain findings",
       "tag": "bounded conclusion",
-      "pos": [520, 560],
-      "size": [160, 68]
-    },
-    {
-      "id": "localisation_weight",
-      "type": "database",
-      "label": "Localisation + Molecular Weight",
-      "sublabel": "user-supplied prior",
-      "tag": "missing is neutral",
-      "pos": [530, 30],
-      "size": [220, 68]
+      "pos": [250, 590],
+      "size": [180, 68]
     }
   ],
   "boundaries": [
     {
       "kind": "region",
-      "label": "First-component screening",
-      "wraps": ["localisation_weight", "inputs", "preflight", "discover_prepare", "first_component_copy_search", "review_first_component"],
+      "label": "Inputs supplied before the run",
+      "wraps": ["organism_metadata", "protein_sequences", "genome_sequence", "annotation_input", "diffraction_data", "localisation_weight"],
       "pad": 16
     },
     {
       "kind": "region",
-      "label": "Additional distinct components 2-6",
-      "wraps": ["next_distinct_component", "additional_component_copy_search", "report"],
+      "label": "First-component screening",
+      "wraps": ["preflight", "discover_prepare", "first_component_search_review"],
       "pad": 16
+    },
+    {
+      "kind": "region",
+      "label": "Additional proteins, up to six total",
+      "wraps": ["next_distinct_component", "additional_component_copy_search", "report"],
+      "pad": 30
     }
   ],
   "connections": [
     {
-      "id": "inputs_preflight",
-      "from": "inputs",
+      "id": "diffraction_preflight",
+      "from": "diffraction_data",
       "to": "preflight",
-      "variant": "emphasis"
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "protein_discovery",
+      "from": "protein_sequences",
+      "to": "discover_prepare",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
     },
     {
       "id": "preflight_discovery",
@@ -156,43 +194,35 @@
       "toSide": "left"
     },
     {
-      "id": "discovery_first_component_copy_search",
+      "id": "discovery_first_component_search_review",
       "from": "discover_prepare",
-      "to": "first_component_copy_search",
-      "variant": "emphasis",
-      "fromSide": "right",
-      "toSide": "left"
-    },
-    {
-      "id": "copy_search_review",
-      "from": "first_component_copy_search",
-      "to": "review_first_component",
+      "to": "first_component_search_review",
       "variant": "emphasis",
       "route": "straight",
       "fromSide": "right",
       "toSide": "left"
     },
     {
-      "id": "review_next_distinct_component",
-      "from": "review_first_component",
+      "id": "evidence_copy_search",
+      "from": "localisation_weight",
+      "to": "first_component_search_review",
+      "label": "changes test order",
+      "variant": "dashed",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [630, 270]
+    },
+    {
+      "id": "review_next_component",
+      "from": "first_component_search_review",
       "to": "next_distinct_component",
       "label": "reviewed first component",
-      "labelAt": [890, 340],
+      "labelAt": [630, 420],
       "variant": "security",
       "route": "straight",
       "fromSide": "bottom",
       "toSide": "top"
-    },
-    {
-      "id": "localisation_ranking",
-      "from": "localisation_weight",
-      "to": "first_component_copy_search",
-      "label": "changes test order",
-      "variant": "dashed",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "route": "straight",
-      "labelAt": [640, 142]
     },
     {
       "id": "component_copy_search",
@@ -207,19 +237,19 @@
       "id": "copy_search_next_component",
       "from": "additional_component_copy_search",
       "to": "next_distinct_component",
-      "label": "continue with next component",
-      "labelAt": [1120, 529],
+      "label": "another distinct protein",
+      "labelAt": [850, 555],
       "variant": "dashed",
       "fromSide": "right",
       "toSide": "right",
-      "via": [[1120, 594], [1120, 464]]
+      "via": [[850, 624], [850, 494]]
     },
     {
-      "id": "cycle_report",
+      "id": "copy_search_report",
       "from": "additional_component_copy_search",
       "to": "report",
       "label": "stop",
-      "labelAt": [780, 540],
+      "labelAt": [490, 570],
       "variant": "security",
       "route": "straight",
       "fromSide": "left",
