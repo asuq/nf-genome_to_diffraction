@@ -14760,4 +14760,9 @@ with a collapsed combined parent or a guessed command.
   ProstT5/Foldseek/PDB100, their current E-value and 50% query-coverage filters,
   the three-hit caps, explicit-only AlphaFold DB mapping, disabled-by-default
   ESM Atlas route, and coordinate/sequence validation before model testing.
-  Next inspect the live prototype before further workflow-documentation changes.
+- Input arrows now distinguish context from processing: organism name, genome,
+  and annotation describe the supplied protein list; the protein FASTA feeds
+  model discovery; the MTZ feeds preflight; localisation and molecular-weight
+  evidence changes search order. Required paths are solid and context/optional
+  paths are dashed. Next inspect the live prototype before further workflow-
+  documentation changes.

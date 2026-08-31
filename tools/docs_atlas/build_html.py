@@ -787,7 +787,7 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
             '      <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
             '<span class="atlas-arrow-key">Solid green: forward workflow step</span>'
             '<span class="atlas-arrow-key decision">Dashed red: review decision or stop</span>'
-            '<span class="atlas-arrow-key context">Dashed purple: evidence influence or repeat/continue</span>'
+            '<span class="atlas-arrow-key context">Dashed purple: optional/context input, evidence influence, or repeat</span>'
             "</div>\n"
         )
         document = document.replace(

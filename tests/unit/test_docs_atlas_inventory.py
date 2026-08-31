@@ -163,7 +163,10 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     assert 'html[data-atlas-audience="scientist"] .guided-views' in scientist
     assert "Solid green: forward workflow step" in scientist
     assert "Dashed red: review decision or stop" in scientist
-    assert "Dashed purple: evidence influence or repeat/continue" in scientist
+    assert (
+        "Dashed purple: optional/context input, evidence influence, or repeat"
+        in scientist
+    )
 
     composition = outputs[module.CURRENT / "stages/composition.html"].decode("utf-8")
     assert (
@@ -282,6 +285,10 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "MTZ + crystal name" in scientist
     assert "Protein Sequences" in scientist
     assert "protein FASTA (.faa)" in scientist
+    assert "labels protein list" in scientist
+    assert "genome context" in scientist
+    assert "gene mapping" in scientist
+    assert "changes test order" in scientist
     assert "Components B-F" not in scientist
     assert "Additional Slots" not in scientist
     assert "Input Error" not in scientist

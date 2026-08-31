@@ -42,7 +42,7 @@
       "label": "Organism / Sample Name",
       "sublabel": "human-readable identity",
       "tag": "dedicated field not yet implemented",
-      "pos": [30, 40],
+      "pos": [30, 30],
       "size": [200, 68]
     },
     {
@@ -51,7 +51,7 @@
       "label": "Genome Sequence",
       "sublabel": "genome FASTA (.fna)",
       "tag": "optional",
-      "pos": [260, 40],
+      "pos": [260, 30],
       "size": [190, 68]
     },
     {
@@ -60,7 +60,7 @@
       "label": "Gene Annotation",
       "sublabel": "GFF / GBFF + source version",
       "tag": "source + version required",
-      "pos": [500, 40],
+      "pos": [500, 30],
       "size": [230, 68]
     },
     {
@@ -69,7 +69,7 @@
       "label": "Diffraction Data",
       "sublabel": "MTZ + crystal name",
       "tag": "required",
-      "pos": [30, 150],
+      "pos": [30, 180],
       "size": [190, 68]
     },
     {
@@ -78,7 +78,7 @@
       "label": "Protein Sequences",
       "sublabel": "protein FASTA (.faa)",
       "tag": "required",
-      "pos": [290, 150],
+      "pos": [290, 180],
       "size": [190, 68]
     },
     {
@@ -87,7 +87,7 @@
       "label": "Optional Evidence",
       "sublabel": "localisation + molecular weight",
       "tag": "missing is neutral",
-      "pos": [570, 150],
+      "pos": [570, 180],
       "size": [220, 68]
     },
     {
@@ -96,7 +96,7 @@
       "label": "MTZ Preflight",
       "sublabel": "symmetry + Free-R",
       "tag": "automatic check",
-      "pos": [50, 320],
+      "pos": [50, 340],
       "size": [150, 68]
     },
     {
@@ -105,7 +105,7 @@
       "label": "Find Protein Structure Models",
       "sublabel": "PDB: MMseqs2 + ProstT5/Foldseek",
       "tag": "E-value + ≥50% coverage filters",
-      "pos": [265, 320],
+      "pos": [265, 340],
       "size": [240, 68]
     },
     {
@@ -114,7 +114,7 @@
       "label": "First-Component Search + Review",
       "sublabel": "Matthews count → joint search → maps",
       "tag": "retain up to three states",
-      "pos": [550, 320],
+      "pos": [550, 340],
       "size": [260, 68]
     },
     {
@@ -123,7 +123,7 @@
       "label": "Choose Another Protein",
       "sublabel": "from the supplied list",
       "tag": "up to six total components",
-      "pos": [570, 460],
+      "pos": [570, 470],
       "size": [220, 68]
     },
     {
@@ -166,6 +166,39 @@
     }
   ],
   "connections": [
+    {
+      "id": "organism_protein_list",
+      "from": "organism_metadata",
+      "to": "protein_sequences",
+      "label": "labels protein list",
+      "labelAt": [190, 118],
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "via": [[130, 130], [250, 130], [250, 214]]
+    },
+    {
+      "id": "genome_protein_list",
+      "from": "genome_sequence",
+      "to": "protein_sequences",
+      "label": "genome context",
+      "labelAt": [370, 128],
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [[355, 140], [385, 140]]
+    },
+    {
+      "id": "annotation_protein_list",
+      "from": "annotation_input",
+      "to": "protein_sequences",
+      "label": "gene mapping",
+      "labelAt": [565, 138],
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "via": [[615, 150], [520, 150], [520, 214]]
+    },
     {
       "id": "diffraction_preflight",
       "from": "diffraction_data",
@@ -211,14 +244,14 @@
       "route": "straight",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelAt": [680, 270]
+      "labelAt": [680, 290]
     },
     {
       "id": "review_next_component",
       "from": "first_component_search_review",
       "to": "next_distinct_component",
       "label": "reviewed first component",
-      "labelAt": [680, 420],
+      "labelAt": [680, 435],
       "variant": "security",
       "route": "straight",
       "fromSide": "bottom",
@@ -242,7 +275,7 @@
       "variant": "dashed",
       "fromSide": "right",
       "toSide": "right",
-      "via": [[900, 624], [900, 494]]
+      "via": [[900, 624], [900, 504]]
     },
     {
       "id": "copy_search_report",
