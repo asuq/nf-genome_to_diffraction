@@ -144,29 +144,37 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
 
     positions = [scientist.index(target) for target in expected]
     assert positions == sorted(positions)
-    assert "User-provided localisation and molecular-weight evidence" in scientist
-    assert "supplies these observations at the beginning" in scientist
+    assert (
+        "Internally derived localisation and optional molecular-weight evidence"
+        in scientist
+    )
+    assert "derives localisation with offline PSORTb and DeepTMHMM" in scientist
     assert "depths four through six remain provisional" in scientist
     assert "What this workflow does" in scientist
     assert "The workflow narrows many possible proteins" in scientist
+    assert "that scientists can inspect" not in scientist
     assert "1 · Check data" in scientist
     assert "3 · Choose copy counts" in scientist
     assert "5 · Expand or finish" in scientist
-    assert "You provide:" in scientist
+    assert "You provide:" not in scientist
+    assert '<div class="atlas-workflow-inputs"><strong>Inputs</strong><ul>' in scientist
     assert (
-        "required protein FASTA, annotation source/version, and MTZ file"
+        "Required:</strong> protein FASTA (.faa), annotation source/version, "
+        "and MTZ file"
         in scientist
     )
-    assert "optional genome FASTA, GFF/GBFF" in scientist
+    assert "Optional:</strong> genome FASTA (.fna), GFF/GBFF" in scientist
+    assert "Derived internally:</strong> PSORTb and DeepTMHMM" in scientist
     assert "protein catalogue" not in scientist.lower()
     assert 'data-atlas-audience="scientist"' in scientist
     assert 'html[data-atlas-audience="scientist"] .guided-views' in scientist
-    assert "Solid green: forward workflow step" in scientist
-    assert "Dashed red: review decision or stop" in scientist
-    assert (
-        "Dashed purple: optional/context input, evidence influence, or repeat"
-        in scientist
-    )
+    assert "Solid green: workflow step" in scientist
+    assert "Dashed red: review or stop" in scientist
+    assert "Dashed purple: context, evidence, or repeat" in scientist
+    assert "Boxes:" in scientist
+    assert "Input / evidence" in scientist
+    assert "Analysis step" in scientist
+    assert "Review / validation" in scientist
 
     composition = outputs[module.CURRENT / "stages/composition.html"].decode("utf-8")
     assert (
@@ -225,7 +233,7 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
         "annotation_input",
         "diffraction_data",
         "protein_sequences",
-        "localisation_weight",
+        "molecular_weight_evidence",
         "preflight",
         "discover_prepare",
         "first_component_search_review",
@@ -289,6 +297,11 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "MTZ + crystal name" in scientist
     assert "Protein Sequences" in scientist
     assert "protein FASTA (.faa)" in scientist
+    assert "Molecular-Weight Evidence" in scientist
+    assert "apparent mass observations" in scientist
+    assert "internal PSORTb + DeepTMHMM" in scientist
+    assert "Localisation is derived inside the workflow" in scientist
+    assert "SignalP is not the implemented tool" in scientist
     assert "labels protein list" in scientist
     assert "genome context" in scientist
     assert "gene mapping" in scientist

@@ -14752,8 +14752,8 @@ with a collapsed combined parent or a guessed command.
   file-identity terminology. The corrected Archify artifact passes all nine
   showcase checks.
 - The scientist diagram now separates organism/sample name, protein FASTA,
-  genome FASTA, gene annotation, MTZ diffraction data, and optional localisation
-  or molecular-weight evidence. It marks required and optional inputs explicitly.
+  genome FASTA, gene annotation, MTZ diffraction data, and optional
+  molecular-weight evidence. It marks required and optional inputs explicitly.
   The current manifest's missing dedicated organism/sample-name field is shown
   as an input-contract gap; no schema or workflow code changed.
 - The model-discovery stage now names MMseqs2/PDB SEQRES and
@@ -14762,11 +14762,17 @@ with a collapsed combined parent or a guessed command.
   ESM Atlas route, and coordinate/sequence validation before model testing.
 - Input arrows now distinguish context from processing: organism name, genome,
   and annotation describe the supplied protein list; the protein FASTA feeds
-  model discovery; the MTZ feeds preflight; localisation and molecular-weight
-  evidence changes search order. Required paths are solid and context/optional
-  paths are dashed.
+  model discovery and internally derived PSORTb/DeepTMHMM localisation;
+  the MTZ feeds preflight; molecular-weight evidence changes search order.
+  Required paths are solid and context/optional paths are dashed.
 - The composition wording now describes the actual heteromer mechanism: each
   hypothesis adds one candidate gene product to a retained component set and
   tests whether they work together. Competing hypotheses may evaluate different
-  partner candidates; no arbitrary single protein is chosen in advance. Next
+  partner candidates; no arbitrary single protein is chosen in advance.
+- Removed the user-rejected phrase "that scientists can inspect" from the
+  newcomer workflow summary; no workflow semantics changed.
+- Replaced "You provide" with an Inputs heading and separate bullets for sample
+  identity, required files, and optional files/evidence.
+- Tightened the authored viewBox to enlarge the diagram and added a compact box-
+  colour legend for input/evidence, analysis, and review/validation nodes. Next
   inspect the live prototype before further workflow-documentation changes.

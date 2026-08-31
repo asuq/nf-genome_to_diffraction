@@ -6,7 +6,7 @@
     "locale": "en",
     "output": "docs/atlas/current/diagrams/scientist-workflow.html",
     "quality_profile": "showcase",
-    "viewBox": [1250, 710],
+    "viewBox": [1160, 710],
     "legend": {"mode": "hidden"},
     "views": [
       {
@@ -18,7 +18,7 @@
       {
         "id": "inputs_records",
         "label": "Inputs and evidence",
-        "focus": ["organism_metadata", "protein_sequences", "genome_sequence", "annotation_input", "diffraction_data", "localisation_weight"],
+        "focus": ["organism_metadata", "protein_sequences", "genome_sequence", "annotation_input", "diffraction_data", "molecular_weight_evidence"],
         "note": "Required and optional inputs are shown separately so missing optional evidence is not mistaken for missing required data."
       },
       {
@@ -82,12 +82,12 @@
       "size": [190, 68]
     },
     {
-      "id": "localisation_weight",
+      "id": "molecular_weight_evidence",
       "type": "database",
-      "label": "Optional Evidence",
-      "sublabel": "localisation + molecular weight",
-      "tag": "missing is neutral",
-      "pos": [570, 180],
+      "label": "Molecular-Weight Evidence",
+      "sublabel": "apparent mass observations",
+      "tag": "optional; missing is neutral",
+      "pos": [820, 180],
       "size": [220, 68]
     },
     {
@@ -149,7 +149,7 @@
     {
       "kind": "region",
       "label": "Inputs supplied before the run",
-      "wraps": ["organism_metadata", "protein_sequences", "genome_sequence", "annotation_input", "diffraction_data", "localisation_weight"],
+      "wraps": ["organism_metadata", "protein_sequences", "genome_sequence", "annotation_input", "diffraction_data", "molecular_weight_evidence"],
       "pad": 16
     },
     {
@@ -236,15 +236,26 @@
       "toSide": "left"
     },
     {
-      "id": "evidence_copy_search",
-      "from": "localisation_weight",
+      "id": "internal_localisation_order",
+      "from": "protein_sequences",
       "to": "first_component_search_review",
-      "label": "changes test order",
+      "label": "internal PSORTb + DeepTMHMM",
+      "labelAt": [600, 288],
       "variant": "dashed",
-      "route": "straight",
+      "fromSide": "right",
+      "toSide": "top",
+      "via": [[520, 214], [520, 300], [680, 300]]
+    },
+    {
+      "id": "molecular_weight_order",
+      "from": "molecular_weight_evidence",
+      "to": "first_component_search_review",
+      "label": "apparent mass changes test order",
+      "labelAt": [825, 263],
+      "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelAt": [680, 290]
+      "via": [[930, 275], [720, 275], [720, 315], [680, 315]]
     },
     {
       "id": "review_next_component",

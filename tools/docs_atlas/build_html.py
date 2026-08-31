@@ -475,6 +475,16 @@ def _model_discovery_guide() -> str:
     )
 
 
+def _localisation_guide() -> str:
+    return (
+        '<section class="composition-loop" aria-label="Internally derived localisation evidence">'
+        '<h3>Localisation is derived inside the workflow</h3>'
+        '<p>The workflow runs PSORTb 3.0.6 and DeepTMHMM 1.0 on the supplied protein FASTA in local containers with networking disabled. SignalP is not the implemented tool.</p>'
+        '<p>Membrane, surface, extracellular, or transmembrane predictions are deferred from the first search wave. Unknown, signal-peptide-only, conflicting, or failed predictions remain neutral. Localisation changes search order only; it does not prove protein identity or crystal composition.</p>'
+        '</section>'
+    )
+
+
 def _stage_page(
     stage: dict[str, Any],
     stages: list[dict[str, Any]],
@@ -608,6 +618,9 @@ VIEWER_DRAWER_STYLE = """
     .atlas-workflow-steps li { min-width: 0; padding: .35rem .45rem; border-left: 2px solid var(--frontend-stroke); background: color-mix(in srgb, var(--frontend-fill) 24%, transparent); color: color-mix(in srgb, var(--toolbar-text) 78%, transparent); font: .67rem/1.35 ui-sans-serif, system-ui, sans-serif; }
     .atlas-workflow-steps strong { display: block; margin-bottom: .14rem; color: var(--frontend-stroke); font-size: .6rem; letter-spacing: .06em; text-transform: uppercase; }
     .atlas-workflow-intro .atlas-workflow-inputs { color: color-mix(in srgb, var(--toolbar-text) 68%, transparent); }
+    .atlas-workflow-inputs > strong { display: block; margin-bottom: .18rem; color: var(--toolbar-text); }
+    .atlas-workflow-inputs ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .2rem .8rem; margin: 0; padding-left: 1rem; }
+    .atlas-workflow-inputs li { padding-left: .08rem; font: .7rem/1.4 ui-sans-serif, system-ui, sans-serif; }
     html[data-atlas-docs-open="true"] .atlas-workflow-intro { margin-right: -210px; }
     .atlas-arrow-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: .25rem -29.5rem 0 0; padding: .55rem .75rem; border: 1px solid var(--toolbar-border); border-radius: .75rem; background: color-mix(in srgb, var(--toolbar-bg) 88%, transparent); color: var(--toolbar-text); font: 600 .68rem/1.35 ui-sans-serif, system-ui, sans-serif; }
     html[data-atlas-docs-open="true"] .atlas-arrow-legend { margin-right: -210px; }
@@ -615,6 +628,11 @@ VIEWER_DRAWER_STYLE = """
     .atlas-arrow-key::before { content: ""; width: 26px; border-top: 3px solid var(--arrow-emphasis); }
     .atlas-arrow-key.decision::before { border-top-color: var(--security-stroke); border-top-style: dashed; }
     .atlas-arrow-key.context::before { border-top-color: var(--database-stroke); border-top-style: dashed; }
+    .atlas-legend-divider { color: color-mix(in srgb, var(--toolbar-text) 58%, transparent); font-weight: 700; }
+    .atlas-box-key { display: inline-flex; gap: 6px; align-items: center; }
+    .atlas-box-key::before { content: ""; width: 12px; height: 12px; border: 1px solid var(--database-stroke); border-radius: 3px; background: var(--database-fill); }
+    .atlas-box-key.analysis::before { border-color: var(--backend-stroke); background: var(--backend-fill); }
+    .atlas-box-key.review::before { border-color: var(--security-stroke); background: var(--security-fill); }
     @media (max-width: 700px) {
       html[data-atlas-docs-open="true"] body { padding-right: 0; }
       html[data-atlas-docs-open="true"] .toolbar { right: 1rem; }
@@ -631,6 +649,8 @@ VIEWER_DRAWER_STYLE = """
       .atlas-workflow-steps { grid-template-columns: 1fr; }
       .atlas-workflow-steps li { padding: .5rem .6rem; font-size: .75rem; }
       .atlas-workflow-steps strong { font-size: .65rem; }
+      .atlas-workflow-inputs ul { grid-template-columns: 1fr; }
+      .atlas-workflow-inputs li { font-size: .76rem; }
       .atlas-arrow-legend { margin-right: 0; }
     }
     @media print { .atlas-docs-drawer, .atlas-docs-toggle, .atlas-view-switch { display: none !important; } }
@@ -780,14 +800,18 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
         arrow_legend = (
             '      <section class="atlas-workflow-intro" aria-labelledby="atlas-workflow-intro-title">'
             '<h2 id="atlas-workflow-intro-title">What this workflow does</h2>'
-            '<div class="atlas-workflow-copy"><p>The workflow narrows many possible proteins into a small set of structural explanations that scientists can inspect.</p>'
+            '<div class="atlas-workflow-copy"><p>The workflow narrows many possible proteins into a small set of structural explanations.</p>'
             '<ol class="atlas-workflow-steps"><li><strong>1 · Check data</strong>Check the MTZ diffraction measurements.</li><li><strong>2 · Find models</strong>Find protein structure models for proteins on the supplied list.</li><li><strong>3 · Choose copy counts</strong>Use Matthews analysis to keep copy counts that physically fit.</li><li><strong>4 · Test and review</strong>Place each model hypothesis with Molecular Replacement, then inspect maps.</li><li><strong>5 · Expand or finish</strong>Evaluate candidate gene products as possible heteromer partners, then write a reviewed report.</li></ol>'
-            '<p class="atlas-workflow-inputs"><strong>You provide:</strong> an organism or sample name; a required protein FASTA, annotation source/version, and MTZ file; and optional genome FASTA, GFF/GBFF, localisation, and molecular-weight evidence. The input boxes below mark required and optional items separately.</p></div>'
+            '<div class="atlas-workflow-inputs"><strong>Inputs</strong><ul><li>Organism or sample name</li><li><strong>Required:</strong> protein FASTA (.faa), annotation source/version, and MTZ file with crystal name</li><li><strong>Optional:</strong> genome FASTA (.fna), GFF/GBFF, protein-to-locus map, and molecular-weight evidence</li><li><strong>Derived internally:</strong> PSORTb and DeepTMHMM localisation predictions from the protein FASTA</li></ul></div></div>'
             '</section>\n'
             '      <div class="atlas-arrow-legend no-print" aria-label="Arrow meanings">'
-            '<span class="atlas-arrow-key">Solid green: forward workflow step</span>'
-            '<span class="atlas-arrow-key decision">Dashed red: review decision or stop</span>'
-            '<span class="atlas-arrow-key context">Dashed purple: optional/context input, evidence influence, or repeat</span>'
+            '<span class="atlas-arrow-key">Solid green: workflow step</span>'
+            '<span class="atlas-arrow-key decision">Dashed red: review or stop</span>'
+            '<span class="atlas-arrow-key context">Dashed purple: context, evidence, or repeat</span>'
+            '<span class="atlas-legend-divider">Boxes:</span>'
+            '<span class="atlas-box-key">Input / evidence</span>'
+            '<span class="atlas-box-key analysis">Analysis step</span>'
+            '<span class="atlas-box-key review">Review / validation</span>'
             "</div>\n"
         )
         document = document.replace(
@@ -967,6 +991,7 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         + by_id["review-refine-maps"]["boundaries"],
         "maturity": "joint copy-count search implemented; reviewed solutions retained",
         "warning": "Matthews analysis selects plausible copy counts for direct joint testing; sequential same-component placement is rescue-only.",
+        "extra_html": _localisation_guide(),
     }
     mapping["first_component_search_review"] = (
         first_component,
@@ -999,35 +1024,33 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
         by_id["report"],
         [("Open report detail", "stages/report.html")],
     )
-    localisation = {
-        "title": "User-provided localisation and molecular-weight evidence",
-        "summary": "The user supplies these observations with the input data; they then remain available across discovery, ranking, review, and composition.",
-        "purpose": "Order search waves without turning localisation or apparent molecular weight into identity, ASU-mass, or oligomeric-state proof.",
+    molecular_weight = {
+        "title": "Molecular-weight evidence — optional",
+        "summary": "The user may supply apparent molecular-weight observations. Missing observations remain neutral.",
+        "purpose": "Change candidate test order without turning apparent molecular weight into identity, total crystal mass, or oligomeric-state proof.",
         "inputs": [
             "User-provided molecular-weight observations",
-            "User-provided or offline-derived localisation evidence",
-            "Missing-evidence state when either input is unavailable",
+            "Measurement method and uncertainty, when known",
+            "Missing-evidence state when no observation is available",
         ],
         "outputs": [
-            "Inputs that can change which candidates are tested first",
+            "Apparent-mass evidence that can change which candidates are tested first",
             "Neutral missing-evidence records",
-            "Traceable localisation and topology evidence",
         ],
         "decisions": [
-            "Bind supplied evidence at the beginning",
-            "Use it to change which candidates are tested first",
+            "Bind supplied observations at the beginning",
+            "Compare SDS measurements with monomer mass and native measurements with total composition mass",
             "Keep missing evidence neutral",
         ],
         "boundaries": [
-            "This evidence is supplied before staged processing begins",
-            "Apparent molecular weight is a monomer prior",
-            "Localisation cannot establish exact identity",
+            "SDS apparent molecular weight is a monomer prior",
+            "Molecular-weight evidence cannot establish exact identity or copy count",
         ],
-        "maturity": "implemented as cross-cutting input evidence",
-        "warning": "Evidence can change search order but cannot prove identity or composition.",
+        "maturity": "implemented optional cross-cutting evidence",
+        "warning": "Apparent molecular weight can change search order but cannot prove identity or composition.",
     }
-    mapping["localisation_weight"] = (
-        localisation,
+    mapping["molecular_weight_evidence"] = (
+        molecular_weight,
         [("Open full detail", f"subsystems/{_slug('localisation_weight')}.html")],
     )
     return "".join(_node_detail(node_id, *value) for node_id, value in mapping.items())
@@ -1113,8 +1136,8 @@ def _scientist_page(
     content = (
         "<p>Use the guided workflow as the primary map. Open a stage below for purpose, inputs, outputs, decisions, claim limits, maturity, and detailed run commands.</p>"
         f'<ol class="atlas-docs-list">{items}</ol>'
-        '<section class="atlas-docs-rail"><strong>User-provided localisation and molecular-weight evidence</strong>'
-        "<p>The user supplies these observations at the beginning. They can change which candidates are tested first; missing evidence is neutral, and apparent molecular weight is never ASU total mass.</p>"
+        '<section class="atlas-docs-rail"><strong>Internally derived localisation and optional molecular-weight evidence</strong>'
+        "<p>The workflow derives localisation with offline PSORTb and DeepTMHMM runs. The user may separately supply molecular-weight observations. Both can change search order; missing or inconclusive evidence remains neutral, and apparent molecular weight is never total crystal mass.</p>"
         f'<a href="subsystems/{_slug("localisation_weight")}.html">Inspect the evidence contract</a></section>'
         '<section class="atlas-docs-clean-break"><strong>Visible maturity boundaries</strong>'
         "<p>Deeper private analysis remains unauthorised until every required review gate is complete. Depth three is positively qualified by the known three-component control (PDB 9ECN); depths four through six remain provisional.</p></section>"
