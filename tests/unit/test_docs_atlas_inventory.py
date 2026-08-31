@@ -314,15 +314,24 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "Validate + Prepare Models" in scientist
     assert "Localisation is derived inside the workflow" in scientist
     assert "SignalP is not the implemented tool" in scientist
-    assert "labels protein list" in scientist
-    assert "genome context" in scientist
-    assert "gene mapping" in scientist
     assert "orders first search wave" in scientist
     assert "Components B-F" not in scientist
     assert "Additional Slots" not in scientist
     assert "Input Error" not in scientist
     assert "Held Dataset" not in scientist
     assert 'data-edge-from="diffraction_data" data-edge-to="preflight"' in scientist
+    assert (
+        'data-edge-from="organism_metadata" data-edge-to="protein_sequences"'
+        in scientist
+    )
+    assert (
+        'data-edge-from="genome_sequence" data-edge-to="protein_sequences"'
+        in scientist
+    )
+    assert (
+        'data-edge-from="annotation_input" data-edge-to="protein_sequences"'
+        in scientist
+    )
     assert (
         'data-edge-from="protein_sequences" data-edge-to="localisation_tools"'
         in scientist
