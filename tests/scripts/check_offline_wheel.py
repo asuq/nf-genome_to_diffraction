@@ -21,13 +21,12 @@ _DISTRIBUTION = "nf-genome-to-diffraction"
 _PACKAGE = "genome_to_diffraction"
 _ENTRY_POINTS = {
     "genome-to-diffraction": "genome_to_diffraction.cli:main",
-    "nf-gtd-hpc-test": "genome_to_diffraction.hpc.cli:entrypoint",
 }
 _REQUIRED_CODE = (
     "genome_to_diffraction/__init__.py",
     "genome_to_diffraction/cli.py",
-    "genome_to_diffraction/hpc/cli.py",
 )
+_INTERNAL_HPC_PREFIX = "genome_to_diffraction/hpc/"
 _NEXTFLOW_VERSION = re.compile(r"^\s*version\s*=\s*'([^']+)'\s*$", re.MULTILINE)
 _SOURCE_VERSION = re.compile(r'^__version__\s*=\s*"([^"]+)"\s*$', re.MULTILINE)
 _HATCHLING_PIN = re.compile(r"^hatchling==([^;\s]+)$")
@@ -199,6 +198,14 @@ def inspect_wheel(wheel: Path, repository: Path, spec: DistributionSpec) -> str:
         if missing_code:
             raise WheelGateError(
                 f"wheel is missing package code: {', '.join(missing_code)}"
+            )
+        internal_hpc_members = sorted(
+            name for name in names if name.startswith(_INTERNAL_HPC_PREFIX)
+        )
+        if internal_hpc_members:
+            raise WheelGateError(
+                "wheel contains the internal HPC client: "
+                f"{', '.join(internal_hpc_members)}"
             )
         schemas = {
             f"{_PACKAGE}/_schemas/{path.name}": path

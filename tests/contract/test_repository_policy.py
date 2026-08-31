@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import subprocess
+import tomllib
 from pathlib import Path
 
 import gemmi
@@ -43,6 +44,24 @@ def test_packaging_only_handoff_files_are_absent() -> None:
         "SHA256SUMS",
     ):
         assert not (REPOSITORY / name).exists()
+
+
+def test_public_distribution_has_one_cli_and_excludes_internal_hpc() -> None:
+    pyproject = tomllib.loads(
+        (REPOSITORY / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    pixi = tomllib.loads((REPOSITORY / "pixi.toml").read_text(encoding="utf-8"))
+
+    assert pyproject["project"]["scripts"] == {
+        "genome-to-diffraction": "genome_to_diffraction.cli:main"
+    }
+    assert (
+        "/src/genome_to_diffraction/hpc"
+        in (pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["exclude"])
+    )
+    assert pixi["tasks"]["nf-gtd-hpc-test"] == (
+        "python -m genome_to_diffraction.hpc.cli"
+    )
 
 
 def test_pilot_afdb_mapping_is_explicit_and_narrow() -> None:

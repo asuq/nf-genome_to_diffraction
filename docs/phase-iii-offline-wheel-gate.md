@@ -25,23 +25,24 @@ ready for general PyPI publication or arbitrary production installation.
 ## Inputs and checks
 
 The exact inputs are `pyproject.toml`, `pixi.toml`, `pixi.lock`,
-`nextflow.config`, all Python files below `src/genome_to_diffraction`, and every
-tracked `schemas/*.schema.json` file. The gate requires:
+`nextflow.config`, the public Python package below
+`src/genome_to_diffraction`, and every tracked `schemas/*.schema.json` file.
+The repository-only `src/genome_to_diffraction/hpc/` client is deliberately
+outside the wheel. The gate requires:
 
 - one exact `hatchling==1.32.0` build-system requirement and the same installed
   backend version from the locked runtime;
-- one pure-Python wheel with every source Python file byte-identical to the
-  checkout;
+- one pure-Python wheel with the public source package and no internal HPC
+  client files;
 - every tracked JSON Schema under `genome_to_diffraction/_schemas`, with bytes
   identical to the authoritative tracked schema;
-- exactly the two declared console entry points,
-  `genome-to-diffraction` and `nf-gtd-hpc-test`, with their expected callable
-  targets;
+- exactly one declared console entry point, `genome-to-diffraction`, with its
+  expected callable target;
 - identical versions in `pyproject.toml`, the Pixi workspace, package source,
   Nextflow manifest, wheel metadata, installed package metadata, and installed
   CLI `--version` output; and
-- successful `--help` execution for both console entry points after the wheel
-  is installed.
+- successful `--help` execution for the public console entry point after the
+  wheel is installed.
 
 The wheel is required to be `Root-Is-Purelib: true` and to contain no wheel
 `.data` scheme. After validating every archive path, the checker installs this
@@ -55,7 +56,8 @@ the tested package.
 ## Outputs and failure semantics
 
 Success writes one JSON summary to standard output with the common release
-version, exact build backend, two entry-point names, and packaged-schema count.
+version, exact build backend, public entry-point name, and packaged-schema
+count.
 There are no scientific statuses or workflow outputs. Any missing or changed
 source module/schema, unexpected or missing entry point, divergent version,
 non-pure wheel, unsafe archive path, failed isolated import, or non-zero help
@@ -68,13 +70,9 @@ change to any of them requires a new wheel and checker result.
 ## Focused regression coverage
 
 `tests/unit/test_offline_wheel_gate.py` covers missing packaged schemas,
-missing console entry points, wheel/source version mismatch, and empty or
-divergent release-version surfaces. The real Pixi task supplies the positive
-build, install, import, entry-point, schema-byte, and version-parity evidence.
-
-The source, exact dependency pin, lock entries, checker, and focused negative
-regressions are implemented locally. The positive task remains pending: this
-development host's offline Pixi cache does not contain one locked transitive
-Hatchling wheel, and the missing artefact was deliberately not fetched. Run the
-exact command above in CI or another already provisioned locked environment
-before changing `PIPE-P3-01` to `Fixed`.
+missing public entry points, accidental inclusion of the internal HPC client,
+wheel/source version mismatch, and empty or divergent release-version
+surfaces. The real Pixi task supplies the positive build, install, import,
+entry-point, schema-byte, and version-parity evidence. Exact-source acceptance
+is recorded in the Phase III finding ledger and must be refreshed for the
+release candidate.

@@ -29,14 +29,13 @@ def _write_wheel(
     repository: Path,
     *,
     include_schema: bool = True,
+    include_internal_hpc: bool = False,
     entry_points: str | None = None,
     version: str = "0.2.0",
 ) -> None:
     dist_info = "nf_genome_to_diffraction-0.2.0.dist-info"
     default_entry_points = (
-        "[console_scripts]\n"
-        "genome-to-diffraction = genome_to_diffraction.cli:main\n"
-        "nf-gtd-hpc-test = genome_to_diffraction.hpc.cli:entrypoint\n"
+        "[console_scripts]\ngenome-to-diffraction = genome_to_diffraction.cli:main\n"
     )
     with zipfile.ZipFile(wheel, "w") as archive:
         archive.writestr(
@@ -44,7 +43,8 @@ def _write_wheel(
             (repository / "src/genome_to_diffraction/__init__.py").read_bytes(),
         )
         archive.writestr("genome_to_diffraction/cli.py", "")
-        archive.writestr("genome_to_diffraction/hpc/cli.py", "")
+        if include_internal_hpc:
+            archive.writestr("genome_to_diffraction/hpc/cli.py", "")
         if include_schema:
             archive.writestr(
                 "genome_to_diffraction/_schemas/example.schema.json",
@@ -73,7 +73,6 @@ def distribution_spec() -> DistributionSpec:
         build_backend_version="1.32.0",
         entry_points={
             "genome-to-diffraction": "genome_to_diffraction.cli:main",
-            "nf-gtd-hpc-test": "genome_to_diffraction.hpc.cli:entrypoint",
         },
     )
 
@@ -99,13 +98,22 @@ def test_wheel_rejects_missing_console_entry_point(
     _write_wheel(
         wheel,
         tmp_path,
-        entry_points=(
-            "[console_scripts]\n"
-            "genome-to-diffraction = genome_to_diffraction.cli:main\n"
-        ),
+        entry_points=("[console_scripts]\n"),
     )
 
     with pytest.raises(WheelGateError, match="console entry points"):
+        inspect_wheel(wheel, tmp_path, distribution_spec)
+
+
+def test_wheel_rejects_internal_hpc_client(
+    tmp_path: Path,
+    distribution_spec: DistributionSpec,
+) -> None:
+    _write_repository(tmp_path)
+    wheel = tmp_path / "internal_hpc_client.whl"
+    _write_wheel(wheel, tmp_path, include_internal_hpc=True)
+
+    with pytest.raises(WheelGateError, match="internal HPC client"):
         inspect_wheel(wheel, tmp_path, distribution_spec)
 
 

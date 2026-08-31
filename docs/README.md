@@ -56,7 +56,8 @@ remain authoritative for scientific policy and interface contracts.
   three component models, and the joint two-copy McrA hypothesis.
 - [Phase III locked offline wheel gate](phase-iii-offline-wheel-gate.md): exact
   locked backend, purelib wheel inspection/install, packaged schema and source
-  parity, both console entry points, and cross-surface version parity.
+  parity, the sole public console entry point, internal-HPC exclusion, and
+  cross-surface version parity.
 - [Phase III composition-attempt fan-out](phase-iii-composition-attempt-fanout.md):
   complete immutable selected-attempt items, typed empty paths, stub-only
   Nextflow execution, and byte-identical cached-resume evidence.

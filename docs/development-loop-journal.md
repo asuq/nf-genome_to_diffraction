@@ -14816,3 +14816,27 @@ with a collapsed combined parent or a guessed command.
   replay. Failed-run child evidence omission and the 54-versus-75 scientific
   funnel shortfall remain explicit open findings; do not submit a successor
   until both are dispositioned and exact-source CI is green.
+
+## 2026-08-31 - Root onboarding and public package boundary are clean
+
+- The root README is now a user-first guide rather than a chronological
+  development report. It leads from locked installation through validated
+  examples, catalogue import, diffraction preflight, and Matthews hypotheses;
+  it then states the scientific interpretation boundary, external Phenix and
+  database requirements, outputs, privacy policy, validation, and stable
+  documentation entry points. Historical reports remain isolated under
+  `docs/`.
+- The installed research wheel now exposes only `genome-to-diffraction` and
+  excludes the repository-internal HPC client package. The client remains
+  available from a source checkout through the named `nf-gtd-hpc-test` Pixi
+  task and through its separately built immutable validation zipapp.
+- All three README contract-validation commands pass as written. The internal
+  Pixi task emits its help, 35 focused packaging/policy tests pass, and the
+  locked offline wheel gate builds and installs version `0.2.0` with one public
+  entry point and all ten packaged schemas while proving that no HPC client
+  files entered the wheel. Formatting, lint, type, documentation-link, and
+  diff-hygiene checks pass.
+- No scientific threshold, candidate decision, private input, HPC state, or
+  active run changed. Next review and commit this focused onboarding/package
+  boundary, refresh exact-source CI when requested, and continue the separate
+  Phase III evidence and candidate-inventory findings before another screen.
