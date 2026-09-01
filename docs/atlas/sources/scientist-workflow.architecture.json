@@ -105,7 +105,7 @@
       "label": "Structure-Sensitive Search",
       "sublabel": "ProstT5 → Foldseek → PDB100",
       "tag": "E≤1e-3; ≥50% coverage",
-      "pos": [600, 290],
+      "pos": [540, 290],
       "size": [280, 68]
     },
     {
@@ -123,7 +123,7 @@
       "label": "Validate + Prepare Models",
       "sublabel": "chain + sequence + checksum checks",
       "tag": "Gemmi; Phenix for predictions",
-      "pos": [470, 410],
+      "pos": [420, 410],
       "size": [260, 68]
     },
     {
@@ -277,7 +277,6 @@
       "from": "prepare_models",
       "to": "first_component_search_review",
       "variant": "emphasis",
-      "route": "straight",
       "fromSide": "bottom",
       "toSide": "top"
     },
@@ -297,20 +296,18 @@
       "from": "preflight",
       "to": "first_component_search_review",
       "label": "qualified diffraction",
-      "labelAt": [900, 465],
       "variant": "emphasis",
       "fromSide": "bottom",
-      "toSide": "right",
-      "via": [[1025, 480], [790, 480], [790, 554]]
+      "toSide": "top"
     },
     {
       "id": "molecular_weight_first_search",
       "from": "molecular_weight_evidence",
       "to": "first_component_search_review",
       "variant": "dashed",
+      "route": "straight",
       "fromSide": "left",
-      "toSide": "bottom",
-      "via": [[775, 554], [775, 615], [600, 615]]
+      "toSide": "right"
     },
     {
       "id": "first_search_partner",

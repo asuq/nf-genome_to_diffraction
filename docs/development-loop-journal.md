@@ -14778,5 +14778,8 @@ with a collapsed combined parent or a guessed command.
 - Re-authored the scientist map as a larger, taller workflow so internal
   localisation and model-search computations are boxes rather than long labelled
   arrows. Separate Arrow and Box colours panels identify relationship and node
-  semantics. Next inspect the live prototype before further workflow-
-  documentation changes.
+  semantics.
+- Molecular-weight evidence now enters first-component search horizontally from
+  the right; preflight and prepared models use separate top ports. The two PDB
+  search boxes are closer together and model preparation is shifted left. Next
+  inspect the live prototype before further workflow-documentation changes.
