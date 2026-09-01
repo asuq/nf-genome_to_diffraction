@@ -5533,7 +5533,7 @@
       "sha256": "6adfe5fca8849f39f14f0da412ef8e98d5e6330256cb25285fa7668be6a03c51"
     }
   ],
-  "inventory_id": "atlasinv_c13892ac6fa927b7e57147bd729416467d64edfc1597a28b3d903f6a47804eba",
+  "inventory_id": "atlasinv_83e78febea6e1d3296036fcb894f18b1aaa803b6a21789546986878e26e8dcf2",
   "nextflow_files": [
     {
       "declarations": [],
@@ -72427,7 +72427,7 @@
         "types"
       ],
       "path": "tests/unit/test_docs_atlas_inventory.py",
-      "sha256": "f5e1c4545ecd815083b93900450a8d59874d465066eb08c0ac751ce2a271dc9c",
+      "sha256": "fde18b09442088b0feedc1a37699d284afd45b3a5080c23225f841bff5119d2d",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [

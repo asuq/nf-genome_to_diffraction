@@ -14797,5 +14797,8 @@ with a collapsed combined parent or a guessed command.
   and right corridors without sharing segments.
 - The main search-and-review spine is shifted left to favour straight vertical
   connections rather than centring the diagram's visual weight. The floating
-  "stop" label has been removed from the Reviewed Report connection. Next
-  inspect the live prototype before further workflow-documentation changes.
+  "stop" label has been removed from the Reviewed Report connection.
+- The source-organism input is labelled "Organism Name" and aligned directly
+  above Protein Sequences. Scientist-facing summaries and node documentation use
+  the same term. Next inspect the live prototype before further workflow-
+  documentation changes.

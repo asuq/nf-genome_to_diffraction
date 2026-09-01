@@ -294,7 +294,7 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "next partner candidate" in scientist
     assert "Choose Another Protein" not in scientist
     assert "Test Copy Count + Review" in scientist
-    assert "Scientific Species Name" in scientist
+    assert "Organism Name" in scientist
     assert "species taxon + assembly identity" in scientist
     assert "source resolution not yet implemented" in scientist
     assert "human-readable" not in scientist.lower()

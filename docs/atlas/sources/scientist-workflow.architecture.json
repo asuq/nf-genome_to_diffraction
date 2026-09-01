@@ -39,10 +39,10 @@
     {
       "id": "organism_metadata",
       "type": "database",
-      "label": "Scientific Species Name",
+      "label": "Organism Name",
       "sublabel": "species taxon + assembly identity",
       "tag": "source resolution not yet implemented",
-      "pos": [420, 40],
+      "pos": [290, 40],
       "size": [220, 68]
     },
     {
