@@ -5533,7 +5533,7 @@
       "sha256": "6adfe5fca8849f39f14f0da412ef8e98d5e6330256cb25285fa7668be6a03c51"
     }
   ],
-  "inventory_id": "atlasinv_38d4af8251579bf6338ac060a9b3c8ba733aee7e0051a1fae9ebe97de00bf67a",
+  "inventory_id": "atlasinv_b6ed66ceed102a11d77e9fa830028d4630a7b07652db995b65878ce18a5898c2",
   "nextflow_files": [
     {
       "declarations": [],
@@ -72427,7 +72427,7 @@
         "types"
       ],
       "path": "tests/unit/test_docs_atlas_inventory.py",
-      "sha256": "56a4c336b079b0c707361b45b5ac9b62e084205eba2876400e3776fc4d0710f0",
+      "sha256": "17179355a0bcb1e83478804e283aa5d2c4db6f6b4cc8c3def55ccc19b8f8f7bb",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -72581,11 +72581,12 @@
             "_html_module",
             "decode",
             "module.build_outputs",
-            "scientist.index"
+            "scientist.index",
+            "scientist.lower"
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 363,
+          "end_line": 366,
           "kind": "function",
           "line": 227,
           "name": "test_node_focus_opens_dark_reserved_documentation_panel",
@@ -72601,9 +72602,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 377,
+          "end_line": 380,
           "kind": "function",
-          "line": 366,
+          "line": 369,
           "name": "test_developer_legend_uses_domain_labels",
           "public": true,
           "qualname": "test_developer_legend_uses_domain_labels",

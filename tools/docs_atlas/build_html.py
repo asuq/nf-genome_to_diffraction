@@ -803,7 +803,7 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
             '<h2 id="atlas-workflow-intro-title">What this workflow does</h2>'
             '<div class="atlas-workflow-copy"><p>The workflow narrows many possible proteins into a small set of structural explanations.</p>'
             '<ol class="atlas-workflow-steps"><li><strong>1 · Check data</strong>Check the MTZ diffraction measurements.</li><li><strong>2 · Find models</strong>Find protein structure models for proteins on the supplied list.</li><li><strong>3 · Choose copy counts</strong>Use Matthews analysis to keep copy counts that physically fit.</li><li><strong>4 · Test and review</strong>Place each model hypothesis with Molecular Replacement, then inspect maps.</li><li><strong>5 · Expand or finish</strong>Evaluate candidate gene products as possible heteromer partners, then write a reviewed report.</li></ol>'
-            '<div class="atlas-workflow-inputs"><strong>Inputs</strong><ul><li>Organism or sample name</li><li><strong>Required:</strong> protein FASTA (.faa), annotation source/version, and MTZ file with crystal name</li><li><strong>Optional:</strong> genome FASTA (.fna), GFF/GBFF, protein-to-locus map, and molecular-weight evidence</li><li><strong>Derived internally:</strong> PSORTb and DeepTMHMM localisation predictions from the protein FASTA</li></ul></div></div>'
+            '<div class="atlas-workflow-inputs"><strong>Inputs</strong><ul><li>Scientific species name and source assembly identity</li><li><strong>Required:</strong> protein FASTA (.faa), annotation source/version, and MTZ file with crystal name</li><li><strong>Optional:</strong> genome FASTA (.fna), GFF/GBFF, protein-to-locus map, and molecular-weight evidence</li><li><strong>Derived internally:</strong> PSORTb and DeepTMHMM localisation predictions from the protein FASTA</li></ul></div></div>'
             '</section>\n'
             '      <div class="atlas-legend-row no-print">'
             '<div class="atlas-arrow-legend" aria-label="Arrow meanings">'
@@ -878,25 +878,29 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
     mapping = {
         "organism_metadata": (
             {
-                "title": "Organism or sample name",
-                "summary": "A human-readable name tells scientists which organism or sample the protein list describes.",
-                "purpose": "Keep the biological source understandable in reports and prevent similarly named input sets from being confused.",
+                "title": "Scientific species name",
+                "summary": "The scientific species name identifies the species from which the crystal sample originates.",
+                "purpose": "Use the species identity to obtain and bind the correct genome sequence, gene annotation, and proteome for the crystal-source organism.",
                 "inputs": [
-                    "Human-readable organism or sample name",
-                    "Assembly accession and version, when available",
-                    "Internal protein-list identifier",
+                    "Scientific species name",
+                    "Strain or isolate identity, when applicable",
+                    "Assembly accession and version needed to select the exact genome/proteome source",
                 ],
-                "outputs": ["Biological-source metadata attached to the run"],
+                "outputs": [
+                    "Resolved genome source",
+                    "Resolved annotation source",
+                    "Resolved proteome source",
+                ],
                 "decisions": [
-                    "Do not infer the organism name from search results",
-                    "Keep the name consistent with the supplied protein and genome files",
+                    "Do not infer the species name from structure-search results",
+                    "Require an assembly accession or reviewed reference when a species has multiple strains or assemblies",
                 ],
                 "boundaries": [
-                    "The current manifest has no dedicated organism_name field",
-                    "It currently stores an internal identifier, assembly metadata, and notes",
+                    "The current manifest has no dedicated scientific_species_name field",
+                    "Species-to-genome/proteome source resolution is not yet implemented",
                 ],
                 "maturity": "input-contract gap documented",
-                "warning": "Add a dedicated organism/sample-name field before the final workflow contract is considered complete.",
+                "warning": "A species name identifies a species taxon, but the exact genome/proteome still requires strain or assembly identity when multiple references exist.",
             },
             input_links,
         ),

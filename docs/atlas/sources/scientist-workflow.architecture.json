@@ -39,11 +39,11 @@
     {
       "id": "organism_metadata",
       "type": "database",
-      "label": "Organism / Sample Name",
-      "sublabel": "human-readable identity",
-      "tag": "dedicated field not yet implemented",
-      "pos": [30, 30],
-      "size": [200, 68]
+      "label": "Scientific Species Name",
+      "sublabel": "species taxon + assembly identity",
+      "tag": "source resolution not yet implemented",
+      "pos": [290, 40],
+      "size": [220, 68]
     },
     {
       "id": "genome_sequence",
@@ -51,7 +51,7 @@
       "label": "Genome Sequence",
       "sublabel": "genome FASTA (.fna)",
       "tag": "optional",
-      "pos": [260, 30],
+      "pos": [30, 140],
       "size": [190, 68]
     },
     {
@@ -60,7 +60,7 @@
       "label": "Gene Annotation",
       "sublabel": "GFF / GBFF + source version",
       "tag": "source + version required",
-      "pos": [500, 30],
+      "pos": [260, 140],
       "size": [230, 68]
     },
     {
@@ -69,7 +69,7 @@
       "label": "Protein Sequences",
       "sublabel": "protein FASTA (.faa)",
       "tag": "required",
-      "pos": [290, 170],
+      "pos": [520, 140],
       "size": [190, 68]
     },
     {
@@ -78,7 +78,7 @@
       "label": "Diffraction Data",
       "sublabel": "MTZ + crystal name",
       "tag": "required",
-      "pos": [930, 170],
+      "pos": [930, 140],
       "size": [190, 68]
     },
     {
@@ -200,24 +200,24 @@
   ],
   "connections": [
     {
-      "id": "organism_protein_list",
+      "id": "species_genome_source",
       "from": "organism_metadata",
-      "to": "protein_sequences",
+      "to": "genome_sequence",
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "top"
     },
     {
-      "id": "genome_protein_list",
-      "from": "genome_sequence",
-      "to": "protein_sequences",
+      "id": "species_annotation_source",
+      "from": "organism_metadata",
+      "to": "annotation_input",
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "top"
     },
     {
-      "id": "annotation_protein_list",
-      "from": "annotation_input",
+      "id": "species_proteome_source",
+      "from": "organism_metadata",
       "to": "protein_sequences",
       "variant": "dashed",
       "fromSide": "bottom",

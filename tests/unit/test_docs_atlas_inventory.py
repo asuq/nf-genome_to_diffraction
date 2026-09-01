@@ -293,8 +293,10 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "next partner candidate" in scientist
     assert "Choose Another Protein" not in scientist
     assert "Test Copy Count + Review" in scientist
-    assert "Organism / Sample Name" in scientist
-    assert "dedicated field not yet implemented" in scientist
+    assert "Scientific Species Name" in scientist
+    assert "species taxon + assembly identity" in scientist
+    assert "source resolution not yet implemented" in scientist
+    assert "human-readable" not in scientist.lower()
     assert "Genome Sequence" in scientist
     assert "genome FASTA (.fna)" in scientist
     assert "Gene Annotation" in scientist
@@ -321,15 +323,15 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "Held Dataset" not in scientist
     assert 'data-edge-from="diffraction_data" data-edge-to="preflight"' in scientist
     assert (
+        'data-edge-from="organism_metadata" data-edge-to="genome_sequence"'
+        in scientist
+    )
+    assert (
+        'data-edge-from="organism_metadata" data-edge-to="annotation_input"'
+        in scientist
+    )
+    assert (
         'data-edge-from="organism_metadata" data-edge-to="protein_sequences"'
-        in scientist
-    )
-    assert (
-        'data-edge-from="genome_sequence" data-edge-to="protein_sequences"'
-        in scientist
-    )
-    assert (
-        'data-edge-from="annotation_input" data-edge-to="protein_sequences"'
         in scientist
     )
     assert (
@@ -359,7 +361,8 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "Genome FASTA (.fna) — optional" in inputs
     assert "Molecular-weight observations — optional" in inputs
     assert "Localisation and molecular-weight observations" not in inputs
-    assert "not yet a dedicated manifest field" in inputs
+    assert "not yet dedicated manifest fields" in inputs
+    assert "Species-to-genome/proteome source resolution" in inputs
     assert "immutable identities" not in inputs
 
 

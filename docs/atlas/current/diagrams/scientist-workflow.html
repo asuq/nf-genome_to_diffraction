@@ -5030,7 +5030,7 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Boundaries (behind everything) -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="Inputs supplied before the run" x="14" y="6" width="1122" height="252" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="Inputs supplied before the run" x="14" y="16" width="1122" height="212" rx="12" class="c-region" stroke-width="1"/>
 
         <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="1" data-composition-frame-label="Internal checks, localisation, and model preparation" x="20" y="266" width="1110" height="232" rx="12" class="c-region" stroke-width="1"/>
 
@@ -5039,13 +5039,13 @@
         <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="3" data-composition-frame-label="Heteromer partners, up to six components total" x="190" y="640" width="570" height="248" rx="12" class="c-region" stroke-width="1"/>
 
         <!-- Connection paths (before components for correct z-order) -->
-        <path data-edge-from="organism_metadata" data-edge-to="protein_sequences" data-edge-key="0" data-edge-id="organism_protein_list" data-composition-points="130,98;130,134;371,134;371,170" d="M 130 98 L 130 126 Q 130 134 138 134 L 363 134 Q 371 134 371 142 L 371 170" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="genome_sequence" data-edge-to="protein_sequences" data-edge-key="1" data-edge-id="genome_protein_list" data-composition-points="355,98;355,134;385,134;385,170" d="M 355 98 L 355 126 Q 355 134 363 134 L 377 134 Q 385 134 385 142 L 385 170" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="annotation_input" data-edge-to="protein_sequences" data-edge-key="2" data-edge-id="annotation_protein_list" data-composition-points="615,98;615,134;399,134;399,170" d="M 615 98 L 615 126 Q 615 134 607 134 L 407 134 Q 399 134 399 142 L 399 170" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="diffraction_data" data-edge-to="preflight" data-edge-key="3" data-edge-id="diffraction_preflight" data-composition-points="1025,238;1025,290" d="M 1025 238 L 1025 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="protein_sequences" data-edge-to="pdb_sequence_search" data-edge-key="4" data-edge-id="protein_pdb_sequence" data-composition-points="385,238;385,290" d="M 385 238 L 385 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="protein_sequences" data-edge-to="localisation_tools" data-edge-key="5" data-edge-id="protein_localisation" data-composition-points="371,238;371,264;140,264;140,290" d="M 371 238 L 371 256 Q 371 264 363 264 L 148 264 Q 140 264 140 272 L 140 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="protein_sequences" data-edge-to="pdb_structure_search" data-edge-key="6" data-edge-id="protein_structure_search" data-composition-points="399,238;399,264;680,264;680,290" d="M 399 238 L 399 256 Q 399 264 407 264 L 672 264 Q 680 264 680 272 L 680 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="organism_metadata" data-edge-to="genome_sequence" data-edge-key="0" data-edge-id="species_genome_source" data-composition-points="386,108;386,124;125,124;125,140" d="M 386 108 L 386 116 Q 386 124 378 124 L 133 124 Q 125 124 125 132 L 125 140" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="organism_metadata" data-edge-to="annotation_input" data-edge-key="1" data-edge-id="species_annotation_source" data-composition-points="400,108;400,124;375,124;375,140" d="M 400 108 L 400 116 Q 400 124 392 124 L 383 124 Q 375 124 375 132 L 375 140" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="organism_metadata" data-edge-to="protein_sequences" data-edge-key="2" data-edge-id="species_proteome_source" data-composition-points="414,108;414,124;615,124;615,140" d="M 414 108 L 414 116 Q 414 124 422 124 L 607 124 Q 615 124 615 132 L 615 140" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="diffraction_data" data-edge-to="preflight" data-edge-key="3" data-edge-id="diffraction_preflight" data-composition-points="1025,208;1025,290" d="M 1025 208 L 1025 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="protein_sequences" data-edge-to="pdb_sequence_search" data-edge-key="4" data-edge-id="protein_pdb_sequence" data-composition-points="615,208;615,249;385,249;385,290" d="M 615 208 L 615 241 Q 615 249 607 249 L 393 249 Q 385 249 385 257 L 385 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="protein_sequences" data-edge-to="localisation_tools" data-edge-key="5" data-edge-id="protein_localisation" data-composition-points="601,208;601,249;140,249;140,290" d="M 601 208 L 601 241 Q 601 249 593 249 L 148 249 Q 140 249 140 257 L 140 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="protein_sequences" data-edge-to="pdb_structure_search" data-edge-key="6" data-edge-id="protein_structure_search" data-composition-points="629,208;629,249;680,249;680,290" d="M 629 208 L 629 241 Q 629 249 637 249 L 672 249 Q 680 249 680 257 L 680 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="pdb_sequence_search" data-edge-to="prepare_models" data-edge-key="7" data-edge-id="pdb_sequence_prepare" data-composition-points="385,358;385,384;543,384;543,410" d="M 385 358 L 385 376 Q 385 384 393 384 L 535 384 Q 543 384 543 392 L 543 410" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="pdb_structure_search" data-edge-to="prepare_models" data-edge-key="8" data-edge-id="pdb_structure_prepare" data-composition-points="680,358;680,384;557,384;557,410" d="M 680 358 L 680 376 Q 680 384 672 384 L 565 384 Q 557 384 557 392 L 557 410" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="prepare_models" data-edge-to="first_component_search_review" data-edge-key="9" data-edge-id="prepare_first_search" data-composition-points="550,478;550,499;593,499;593,520" d="M 550 478 L 550 491 Q 550 499 558 499 L 585 499 Q 593 499 593 507 L 593 520" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
@@ -5058,69 +5058,69 @@
         <path data-edge-from="partner_copy_search" data-edge-to="report" data-edge-label="stop" data-edge-key="16" data-edge-id="copy_search_report" data-composition-points="490,834;420,834" d="M 490 834 L 420 834" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
 
         <!-- Components -->
-        <g id="node-organism_metadata" data-node-id="organism_metadata" data-node-label="Organism / Sample Name" tabindex="0" role="button" aria-label="Focus Organism / Sample Name, human-readable identity, Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="human-readable identity" data-node-tag="dedicated field not yet implemented" data-node-context="Inputs supplied before the run">
-          <title>Organism / Sample Name · human-readable identity · Inputs supplied before the run · dedicated field not yet implemented</title>
-          <rect x="30" y="30" width="200" height="68" rx="6" class="c-mask"/>
-          <rect x="30" y="30" width="200" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(36 36) scale(0.6875)">
+        <g id="node-organism_metadata" data-node-id="organism_metadata" data-node-label="Scientific Species Name" tabindex="0" role="button" aria-label="Focus Scientific Species Name, species taxon + assembly identity, Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="species taxon + assembly identity" data-node-tag="source resolution not yet implemented" data-node-context="Inputs supplied before the run">
+          <title>Scientific Species Name · species taxon + assembly identity · Inputs supplied before the run · source resolution not yet implemented</title>
+          <rect x="290" y="40" width="220" height="68" rx="6" class="c-mask"/>
+          <rect x="290" y="40" width="220" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(296 46) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="130" y="62" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Organism / Sample Name</text>
-        <text data-detail="context" x="130" y="78" class="t-muted" font-size="9" text-anchor="middle">human-readable identity</text>
-        <text data-detail="fine" x="130" y="90" class="t-database" font-size="7" text-anchor="middle">dedicated field not yet implemented</text>
+          <text data-node-label="" data-detail-anchor="" x="400" y="72" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Scientific Species Name</text>
+        <text data-detail="context" x="400" y="88" class="t-muted" font-size="9" text-anchor="middle">species taxon + assembly identity</text>
+        <text data-detail="fine" x="400" y="100" class="t-database" font-size="7" text-anchor="middle">source resolution not yet implemented</text>
         </g>
 
         <g id="node-genome_sequence" data-node-id="genome_sequence" data-node-label="Genome Sequence" tabindex="0" role="button" aria-label="Focus Genome Sequence, genome FASTA (.fna), Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="genome FASTA (.fna)" data-node-tag="optional" data-node-context="Inputs supplied before the run">
           <title>Genome Sequence · genome FASTA (.fna) · Inputs supplied before the run · optional</title>
-          <rect x="260" y="30" width="190" height="68" rx="6" class="c-mask"/>
-          <rect x="260" y="30" width="190" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(266 36) scale(0.6875)">
+          <rect x="30" y="140" width="190" height="68" rx="6" class="c-mask"/>
+          <rect x="30" y="140" width="190" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(36 146) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="355" y="62" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Genome Sequence</text>
-        <text data-detail="context" x="355" y="78" class="t-muted" font-size="9" text-anchor="middle">genome FASTA (.fna)</text>
-        <text data-detail="fine" x="355" y="90" class="t-database" font-size="7" text-anchor="middle">optional</text>
+          <text data-node-label="" data-detail-anchor="" x="125" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Genome Sequence</text>
+        <text data-detail="context" x="125" y="188" class="t-muted" font-size="9" text-anchor="middle">genome FASTA (.fna)</text>
+        <text data-detail="fine" x="125" y="200" class="t-database" font-size="7" text-anchor="middle">optional</text>
         </g>
 
         <g id="node-annotation_input" data-node-id="annotation_input" data-node-label="Gene Annotation" tabindex="0" role="button" aria-label="Focus Gene Annotation, GFF / GBFF + source version, Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="GFF / GBFF + source version" data-node-tag="source + version required" data-node-context="Inputs supplied before the run">
           <title>Gene Annotation · GFF / GBFF + source version · Inputs supplied before the run · source + version required</title>
-          <rect x="500" y="30" width="230" height="68" rx="6" class="c-mask"/>
-          <rect x="500" y="30" width="230" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(506 36) scale(0.6875)">
+          <rect x="260" y="140" width="230" height="68" rx="6" class="c-mask"/>
+          <rect x="260" y="140" width="230" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(266 146) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="615" y="62" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Gene Annotation</text>
-        <text data-detail="context" x="615" y="78" class="t-muted" font-size="9" text-anchor="middle">GFF / GBFF + source version</text>
-        <text data-detail="fine" x="615" y="90" class="t-database" font-size="7" text-anchor="middle">source + version required</text>
+          <text data-node-label="" data-detail-anchor="" x="375" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Gene Annotation</text>
+        <text data-detail="context" x="375" y="188" class="t-muted" font-size="9" text-anchor="middle">GFF / GBFF + source version</text>
+        <text data-detail="fine" x="375" y="200" class="t-database" font-size="7" text-anchor="middle">source + version required</text>
         </g>
 
         <g id="node-protein_sequences" data-node-id="protein_sequences" data-node-label="Protein Sequences" tabindex="0" role="button" aria-label="Focus Protein Sequences, protein FASTA (.faa), Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="protein FASTA (.faa)" data-node-tag="required" data-node-context="Inputs supplied before the run">
           <title>Protein Sequences · protein FASTA (.faa) · Inputs supplied before the run · required</title>
-          <rect x="290" y="170" width="190" height="68" rx="6" class="c-mask"/>
-          <rect x="290" y="170" width="190" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(296 176) scale(0.6875)">
+          <rect x="520" y="140" width="190" height="68" rx="6" class="c-mask"/>
+          <rect x="520" y="140" width="190" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(526 146) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="385" y="202" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Protein Sequences</text>
-        <text data-detail="context" x="385" y="218" class="t-muted" font-size="9" text-anchor="middle">protein FASTA (.faa)</text>
-        <text data-detail="fine" x="385" y="230" class="t-database" font-size="7" text-anchor="middle">required</text>
+          <text data-node-label="" data-detail-anchor="" x="615" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Protein Sequences</text>
+        <text data-detail="context" x="615" y="188" class="t-muted" font-size="9" text-anchor="middle">protein FASTA (.faa)</text>
+        <text data-detail="fine" x="615" y="200" class="t-database" font-size="7" text-anchor="middle">required</text>
         </g>
 
         <g id="node-diffraction_data" data-node-id="diffraction_data" data-node-label="Diffraction Data" tabindex="0" role="button" aria-label="Focus Diffraction Data, MTZ + crystal name, Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="MTZ + crystal name" data-node-tag="required" data-node-context="Inputs supplied before the run">
           <title>Diffraction Data · MTZ + crystal name · Inputs supplied before the run · required</title>
-          <rect x="930" y="170" width="190" height="68" rx="6" class="c-mask"/>
-          <rect x="930" y="170" width="190" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(936 176) scale(0.6875)">
+          <rect x="930" y="140" width="190" height="68" rx="6" class="c-mask"/>
+          <rect x="930" y="140" width="190" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(936 146) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="1025" y="202" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Diffraction Data</text>
-        <text data-detail="context" x="1025" y="218" class="t-muted" font-size="9" text-anchor="middle">MTZ + crystal name</text>
-        <text data-detail="fine" x="1025" y="230" class="t-database" font-size="7" text-anchor="middle">required</text>
+          <text data-node-label="" data-detail-anchor="" x="1025" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Diffraction Data</text>
+        <text data-detail="context" x="1025" y="188" class="t-muted" font-size="9" text-anchor="middle">MTZ + crystal name</text>
+        <text data-detail="fine" x="1025" y="200" class="t-database" font-size="7" text-anchor="middle">required</text>
         </g>
 
         <g id="node-localisation_tools" data-node-id="localisation_tools" data-node-label="Predict Localisation" tabindex="0" role="button" aria-label="Focus Predict Localisation, PSORTb 3.0.6 + DeepTMHMM 1.0, Internal checks, localisation, and model preparation" aria-pressed="false" data-node-kind="backend" data-node-sublabel="PSORTb 3.0.6 + DeepTMHMM 1.0" data-node-tag="offline; network disabled" data-node-context="Internal checks, localisation, and model preparation">
@@ -5282,8 +5282,8 @@
 
         <!-- Boundary labels (foreground masks keep routes out of titles) -->
         <g data-graph-role="structural-frame-label" data-composition-frame-id="0" data-composition-frame-kind="region" data-composition-frame-label="Inputs supplied before the run">
-          <rect data-graph-role="structural-frame-label-mask" x="18" y="10" width="172" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="22" y="23" class="t-cloud" font-size="9" font-weight="600">Inputs supplied before the run</text>
+          <rect data-graph-role="structural-frame-label-mask" x="18" y="20" width="172" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="22" y="33" class="t-cloud" font-size="9" font-weight="600">Inputs supplied before the run</text>
         </g>
 
         <g data-graph-role="structural-frame-label" data-composition-frame-id="1" data-composition-frame-kind="region" data-composition-frame-label="Internal checks, localisation, and model preparation">

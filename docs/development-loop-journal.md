@@ -14760,8 +14760,9 @@ with a collapsed combined parent or a guessed command.
   ProstT5/Foldseek/PDB100, their current E-value and 50% query-coverage filters,
   the three-hit caps, explicit-only AlphaFold DB mapping, disabled-by-default
   ESM Atlas route, and coordinate/sequence validation before model testing.
-- Input arrows now distinguish context from processing: organism name, genome,
-  and annotation describe the supplied protein list; the protein FASTA feeds
+- Input arrows now distinguish context from processing: the scientific species
+  name is intended to resolve the genome, annotation, and proteome sources; the
+  protein FASTA feeds
   explicit PSORTb/DeepTMHMM, MMseqs2/PDB SEQRES, and
   ProstT5/Foldseek/PDB100 boxes; both model-search routes feed a separate model-
   validation/preparation box;
@@ -14781,5 +14782,9 @@ with a collapsed combined parent or a guessed command.
   semantics.
 - Molecular-weight evidence now enters first-component search horizontally from
   the right; preflight and prepared models use separate top ports. The two PDB
-  search boxes are closer together and model preparation is shifted left. Next
-  inspect the live prototype before further workflow-documentation changes.
+  search boxes are closer together and model preparation is shifted left.
+- Scientist-facing copy no longer calls the species identity or reviewed report
+  "human-readable". It records that species-to-reference resolution is not yet
+  implemented and that exact genome/proteome selection may additionally require
+  strain or assembly identity. Next inspect the live prototype before further
+  workflow-documentation changes.
