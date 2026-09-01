@@ -4354,6 +4354,9 @@ collect_run() {
     local unknown_provider_digest="" unknown_provider_relative=""
     local unknown_provider_extra="" unknown_provider_count=0
     local unknown_provider_expected_count=""
+    local failed_mr_root="" failed_mr_checksums="" failed_mr_digest=""
+    local failed_mr_relative="" failed_mr_extra="" failed_mr_count=0
+    local failed_mr_expected_count=""
     local -a files=()
     local -a diagnostic_omissions=()
     local -a p6_dynamic_models=()
@@ -4475,6 +4478,7 @@ collect_run() {
         logs/unknown-screen-provider-validation.log \
         logs/unknown-screen-nextflow-first.log \
         logs/unknown-screen-nextflow-resume.log \
+        logs/unknown-screen-failed-mr-children.log \
         logs/unknown-single-component.log \
         logs/unknown-single-component-input-members.log \
         logs/unknown-single-component-input-extract.log \
@@ -4634,6 +4638,8 @@ collect_run() {
         artifacts/qualification/unknown-screen-first-task-identities.tsv \
         artifacts/qualification/unknown-screen-resume-task-identities.tsv \
         artifacts/qualification/unknown-screen-first-mr-inventory.tsv \
+        artifacts/qualification/unknown-screen-failed-mr-children/checksums.sha256 \
+        artifacts/qualification/unknown-screen-failed-mr-children/file-count \
         artifacts/qualification/unknown-screen-first-pipeline-info/report.html \
         artifacts/qualification/unknown-screen-first-pipeline-info/timeline.html \
         artifacts/qualification/unknown-screen-first-pipeline-info/trace.tsv \
@@ -5223,6 +5229,49 @@ collect_run() {
             fail transfer_failure "unknown provider file count differs"
     elif [[ -n "$unknown_provider_checksums" && "$failure_class" == success ]]; then
         fail transfer_failure "unknown provider inventory is unavailable"
+    fi
+    if [[ "$profile" == unknown-screen && "$failure_class" != success ]]; then
+        failed_mr_root="$run/artifacts/qualification/unknown-screen-failed-mr-children"
+        failed_mr_checksums="$failed_mr_root/checksums.sha256"
+        if [[ -f "$failed_mr_root/file-count" ]]; then
+            failed_mr_expected_count="$(<"$failed_mr_root/file-count")"
+        fi
+    fi
+    if [[ -n "$failed_mr_checksums" && -f "$failed_mr_checksums" ]]; then
+        [[ ! -L "$failed_mr_checksums" && -O "$failed_mr_checksums" && \
+           -d "$failed_mr_root" && ! -L "$failed_mr_root" && \
+           "$failed_mr_expected_count" =~ $INTEGER_RE && \
+           "$failed_mr_expected_count" -ge 1 && \
+           "$failed_mr_expected_count" -le 5000 ]] || \
+            fail transfer_failure "failed MR child inventory is unsafe"
+        while read -r failed_mr_digest failed_mr_relative failed_mr_extra; do
+            [[ -n "$failed_mr_digest" && -n "$failed_mr_relative" && \
+               -z "$failed_mr_extra" && \
+               "$failed_mr_digest" =~ $CHECKSUM_RE && \
+               "$failed_mr_relative" =~ ^[A-Za-z0-9._/-]+$ && \
+               "$failed_mr_relative" != /* && \
+               "$failed_mr_relative" != *..* ]] || \
+                fail transfer_failure "failed MR child checksum row is unsafe"
+            candidate="$failed_mr_root/$failed_mr_relative"
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" && \
+               "$(stat -c '%h' "$candidate")" -eq 1 ]] || \
+                fail transfer_failure "failed MR child file is unsafe"
+            [[ "$(sha256sum "$candidate" | awk '{print $1}')" == \
+               "$failed_mr_digest" ]] || \
+                fail transfer_failure "failed MR child checksum differs"
+            size="$(file_size "$candidate")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "failed MR child file exceeds limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "artefacts exceed total limit"
+            files+=(
+                "artifacts/qualification/unknown-screen-failed-mr-children/$failed_mr_relative"
+            )
+            failed_mr_count=$((failed_mr_count + 1))
+        done < "$failed_mr_checksums"
+        [[ "$failed_mr_count" -eq "$failed_mr_expected_count" ]] || \
+            fail transfer_failure "failed MR child file count differs"
     fi
     if [[ "$profile" == unknown-single-component ]]; then
         unknown_single_authority_root="$run/artifacts/unknown-single-component"

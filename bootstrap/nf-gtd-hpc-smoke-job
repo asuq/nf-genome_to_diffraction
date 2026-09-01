@@ -1542,9 +1542,11 @@ run_p2_control() {
         return 2
     }
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
     NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
     JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
-    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    [[ -x "$GTD" && -x "$PYTHON" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || \
+        return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
 
@@ -2121,7 +2123,15 @@ run_unknown_screen() {
     cd "$RUN/execution"
     PHASE=test
     printf 'phase=unknown_screen_first profile=unknown-screen\n'
-    run_unknown_screen_nextflow first
+    if ! run_unknown_screen_nextflow first; then
+        "$PYTHON" -m genome_to_diffraction.hpc.mr_failure_evidence \
+            --run-id "$RUN_ID" \
+            --nextflow-log "$RUN/logs/unknown-screen-nextflow-first.log" \
+            --work-root "$RUN/cache/unknown-screen-nextflow/work" \
+            --outdir "$qualification/unknown-screen-failed-mr-children" \
+            >"$RUN/logs/unknown-screen-failed-mr-children.log" 2>&1 || return 4
+        return 4
+    fi
     cp -a "$UNKNOWN_SCREEN_OUT/pipeline_info" \
         "$qualification/unknown-screen-first-pipeline-info"
     (
@@ -2132,7 +2142,15 @@ run_unknown_screen() {
         done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
     ) > "$qualification/unknown-screen-before-resume.sha256"
     printf 'phase=unknown_screen_resume profile=unknown-screen\n'
-    run_unknown_screen_nextflow resume -resume
+    if ! run_unknown_screen_nextflow resume -resume; then
+        "$PYTHON" -m genome_to_diffraction.hpc.mr_failure_evidence \
+            --run-id "$RUN_ID" \
+            --nextflow-log "$RUN/logs/unknown-screen-nextflow-resume.log" \
+            --work-root "$RUN/cache/unknown-screen-nextflow/work" \
+            --outdir "$qualification/unknown-screen-failed-mr-children" \
+            >"$RUN/logs/unknown-screen-failed-mr-children.log" 2>&1 || return 4
+        return 4
+    fi
     cp -a "$UNKNOWN_SCREEN_OUT/pipeline_info" \
         "$qualification/unknown-screen-resume-pipeline-info"
     (

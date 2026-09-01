@@ -571,6 +571,36 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert "database administration" in runbook.lower()
 
 
+def test_failed_unknown_screen_retains_bounded_child_evidence() -> None:
+    """Keep failed MR diagnostics private, bounded, and checksum-authenticated."""
+
+    dispatcher = (REPOSITORY / "bootstrap/nf-gtd-hpc-remote").read_text(
+        encoding="utf-8"
+    )
+    job = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(encoding="utf-8")
+    unknown_screen = job.split("run_unknown_screen() {", maxsplit=1)[1].split(
+        "run_unknown_single_component_nextflow() {", maxsplit=1
+    )[0]
+
+    assert unknown_screen.count("genome_to_diffraction.hpc.mr_failure_evidence") == 2
+    assert '--nextflow-log "$RUN/logs/unknown-screen-nextflow-first.log"' in (
+        unknown_screen
+    )
+    assert '--nextflow-log "$RUN/logs/unknown-screen-nextflow-resume.log"' in (
+        unknown_screen
+    )
+    assert '--work-root "$RUN/cache/unknown-screen-nextflow/work"' in unknown_screen
+    assert (
+        '--outdir "$qualification/unknown-screen-failed-mr-children"' in unknown_screen
+    )
+    assert "scientific_evidence_accepted" not in unknown_screen
+    assert "failed MR child checksum row is unsafe" in dispatcher
+    assert "failed MR child checksum differs" in dispatcher
+    assert "failed MR child file count differs" in dispatcher
+    assert "unknown-screen-failed-mr-children/checksums.sha256" in dispatcher
+    assert "unknown-screen-failed-mr-children/file-count" in dispatcher
+
+
 def test_m6_scientific_stage_uses_viper_runtime_manifests() -> None:
     """Keep M6 independent of the legacy single-root P0 site contract."""
 

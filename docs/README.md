@@ -56,6 +56,9 @@ remain authoritative for scientific policy and interface contracts.
 - [Dynamic Phaser resource allocation](mr-resource-allocation.md): deterministic
   reflection/coordinate workload tiers, nf-core-style retry multiplication,
   hard site caps, provenance, failure semantics, and controller bounds.
+- [Failed MR child evidence](failed-mr-child-evidence.md): private bounded
+  post-failure task inventory, resource/log/result retention, checksum-authenticated
+  collection, and the explicit prohibition on scientific or cache promotion.
 - [Phase III 9ECN control preparation](phase-iii-9ecn-control.md): frozen
   `2A+2B+2C` identities, expression-tag alignment, modified McrA residues,
   three component models, and the joint two-copy McrA hypothesis.

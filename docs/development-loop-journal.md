@@ -14895,3 +14895,32 @@ with a collapsed combined parent or a guessed command.
   unknown-screen stub, wrapper syntax, formatting, lint, type and documentation
   checks pass locally. Next commit this focused scientific policy, then
   implement failed-run child evidence collection before any successor run.
+
+## 2026-09-01 - Failed MR children become a bounded diagnostic contract
+
+- Either first-run or resume failure in the unknown-screen wrapper now invokes
+  one source-bound collector over the exact controller log and run-local
+  Nextflow work tree before terminal publication. The successful path and the
+  current Marmic run are unchanged.
+- The package conserves the funnel's complete hypothesis inventory and records
+  submitted, completed, unfinished-at-abort, and unsubmitted states. Per
+  attempt it retains native job identity, observed exit/timing state, Slurm
+  CPU/memory/time directives, schema-validated normalised-result state,
+  bounded command evidence, Phaser assets, and the hypothesis resource plan.
+- At most 75 hypotheses and 150 attempts are accepted; each file is limited to
+  128 MiB and the package to 2 GiB. Symlinks, path escapes, contradictory or
+  cross-funnel records, unsafe collection paths, checksum differences, and
+  count mismatches fail closed.
+- The manifest fixes `scientific_evidence_accepted=false` and
+  `cache_reusable=false`. Therefore a completed child from a failed controller
+  remains diagnostic execution evidence and can never become a hit, no-hit,
+  identity claim, or cache authority.
+- Focused collector tests pass for completed, unfinished, and unsubmitted
+  children, valid result parsing, allocated-resource capture, checksum
+  conservation, and cross-funnel rejection. The two-path remote lifecycle
+  passes authenticated collection and deliberate tamper rejection; wrapper
+  syntax, policy, formatting, lint, and type checks pass.
+- Next run documentation and exact full local gates, commit this review point,
+  push all candidate-first commits to `dev/phase3`, require CI, and deploy only
+  the resulting exact source before staging a fresh owned discovery/screen
+  chain. The historical failed and cancelled caches remain non-reusable.

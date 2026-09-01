@@ -4366,6 +4366,41 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         assert not (
             child / "artifacts/qualification/unknown-screen-output-checksums.sha256"
         ).exists()
+        failed_package = (
+            child / "artifacts/qualification/unknown-screen-failed-mr-children"
+        )
+        failed_package.mkdir()
+        failed_manifest = failed_package / "manifest.json"
+        failed_manifest.write_text(
+            '{"cache_reusable":false,"scientific_evidence_accepted":false}\n',
+            encoding="ascii",
+        )
+        failed_digest = hashlib.sha256(failed_manifest.read_bytes()).hexdigest()
+        (failed_package / "checksums.sha256").write_text(
+            f"{failed_digest}  manifest.json\n",
+            encoding="ascii",
+        )
+        (failed_package / "file-count").write_text("1\n", encoding="ascii")
+        failed_archive = _run(
+            [str(dispatcher), "collect", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+        with tarfile.open(fileobj=io.BytesIO(failed_archive), mode="r:gz") as collected:
+            failed_members = set(collected.getnames())
+        assert {
+            "artifacts/qualification/unknown-screen-failed-mr-children/manifest.json",
+            "artifacts/qualification/unknown-screen-failed-mr-children/checksums.sha256",
+            "artifacts/qualification/unknown-screen-failed-mr-children/file-count",
+        } <= failed_members
+        failed_manifest.write_text("tampered\n", encoding="ascii")
+        rejected = _run(
+            [str(dispatcher), "collect", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
+            cwd=tmp_path,
+            environment=environment,
+            success=False,
+        )
+        assert _decode_protocol(rejected.stdout)["failure_class"] == "transfer_failure"
         return
     assert screen_result["failure_class"] == "success"
     assert screen_result["scheduler_state"] == "COMPLETED"
