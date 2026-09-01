@@ -59,7 +59,6 @@ params {
     maximum_hits_per_sequence_group: Integer = 3
     maximum_mappings: Integer = 25
     maximum_first_copy_jobs: Integer = 25
-    phase3_joint_first_copy: Boolean = false
     outer_job_id: String? = null
     outer_network_namespace: String? = null
 }
@@ -209,7 +208,6 @@ workflow {
             params.config as Path,
             params.crystal_id as String,
             params.maximum_first_copy_jobs,
-            params.phase3_joint_first_copy,
             params.mtz as Path,
             params.phenix_manifest as Path
         )

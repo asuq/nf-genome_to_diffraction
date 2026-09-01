@@ -95,7 +95,9 @@ def test_credible_pass1_builds_claim_free_refined_a_parent(tmp_path: Path) -> No
         obs_labels="F,SIGF",
         search_stage=MrSearchStage.FIRST_COPY,
         resource_profile=PrototypeProfile.SMOKE,
-        priority_features={"copy_search_mode": "joint_declared_copies"},
+        priority_features={
+            "copy_search_mode": "single_copy_then_sequential_completion"
+        },
         status=MrHypothesisStatus.QUEUED,
     )
     hypotheses = tmp_path / "hypotheses.jsonl"

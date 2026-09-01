@@ -201,7 +201,7 @@ class UnknownPass1AHypothesis(_ContentAddressedContract):
     candidate_rank: PositiveInt
     allocation_rank: Annotated[int, Field(gt=0, le=25)] | None = None
     sequence_group_id: SequenceGroupIdentifier
-    requested_copy_count: Annotated[int, Field(gt=0, le=4)]
+    requested_copy_count: PositiveInt
     model_id: NonEmptyString | None = None
     model_sha256: Sha256Hex | None = None
     disposition: UnknownPass1AHypothesisDisposition
@@ -333,7 +333,7 @@ class UnknownPass1AHypothesisTask(_ContentAddressedContract):
     crystal_item_id: UnknownPass1CrystalItemIdentifier
     hypothesis_id: UnknownPass1AHypothesisIdentifier
     allocation_rank: Annotated[int, Field(gt=0, le=25)]
-    requested_copy_count: Annotated[int, Field(gt=0, le=4)]
+    requested_copy_count: PositiveInt
     model_id: NonEmptyString
     model_sha256: Sha256Hex
     mtz_sha256: Sha256Hex

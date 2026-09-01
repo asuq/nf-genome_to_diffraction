@@ -56,16 +56,15 @@ three-crystal inventory is retained once at the run boundary rather than copied
 into independent child tasks. The stub A adapter emits only
 `stub_only_no_scientific_result`; non-stub invocation fails deliberately.
 
-Each selected A task explicitly carries its parent hypothesis's exact
-`requested_copy_count` in `1..4`. This field participates in the task's
-content-addressed identity, and the complete screen refuses a task whose copy
-count differs from its selected hypothesis. The ordinary diverse-model funnel
-retains the corresponding explicit `--joint-copy-search` mode. Current
-application execution enters through `phase3_application.nf`, where joint mode
-is mandatory and has no compatibility switch. It retains all four configured
-physically possible alternatives, ignores copy counts above four, and bounds
-all selected A hypotheses to 25 per crystal. Historical single-copy execution
-remains isolated under the archival root.
+Each selected A task carries the complete Matthews expected-copy hypothesis and
+an independently explicit initial searched-copy count of one. Both fields
+participate in the content-addressed hypothesis identity, and the screen refuses
+a task that changes either value. Current application execution enters through
+`phase3_application.nf`; there is no joint-copy compatibility switch or special
+four-copy admission filter. Expected copy counts remain eligible through the
+configured Matthews range, while execution remains bounded to 25 ranked
+one-copy A hypotheses per crystal. Only a separately approved A seed may add
+copies sequentially.
 
 ## Status, failure, and cache semantics
 

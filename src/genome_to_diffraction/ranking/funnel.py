@@ -68,8 +68,7 @@ from genome_to_diffraction.time import utc_now_iso
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
 _ADAPTER_VERSION = "exact-predicted-funnel-v1"
 _DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v1"
-_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v5-dynamic-resources"
-_PHASE3_MAXIMUM_COPY_COUNT = 4
+_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v6-single-copy"
 _PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
     PrototypeProfile.SMOKE: 1,
@@ -129,7 +128,6 @@ class DiverseFirstCopyFunnelRequest:
     source_records_jsonl: Path | None = None
     crystal_ids: tuple[str, ...] = ()
     maximum_first_copy_jobs: int | None = None
-    joint_copy_search: bool = False
     localisation_bundle: Path | None = None
     require_localisation_policy: bool = False
     progress: bool = True
@@ -902,9 +900,9 @@ def _make_diverse_candidate(
     profile: PrototypeProfile,
     mapping: CoordinateHitMappingRecord | None,
     localisation: BatchLocalisationGroupEvidence | None,
-    joint_copy_search: bool,
+    build_resource_plan: bool,
 ) -> _Candidate:
-    copy_number_to_search = matthews.copy_count if joint_copy_search else 1
+    copy_number_to_search = 1
     identity = {
         "crystal_id": preflight.crystal_id,
         "sequence_group_id": group.sequence_group_id,
@@ -921,11 +919,11 @@ def _make_diverse_candidate(
     )
     if localisation is not None:
         identity["localisation_evidence_id"] = localisation.evidence_id
-    if joint_copy_search:
+    if build_resource_plan:
         features.update(
             {
                 "funnel_adapter": _PHASE3_DIVERSE_ADAPTER_VERSION,
-                "copy_search_mode": "joint_declared_copies",
+                "copy_search_mode": "single_copy_then_sequential_completion",
             }
         )
     hypothesis = MrHypothesis(
@@ -954,7 +952,7 @@ def _make_diverse_candidate(
             fixed_atom_count=0,
             symmetry_multiplicity=preflight.general_position_multiplicity,
         )
-        if joint_copy_search
+        if build_resource_plan
         else None
     )
     return _Candidate(
@@ -978,7 +976,7 @@ def _join_diverse_candidates(
     matthews_rows: Sequence[MatthewsHypothesis],
     preflights: Sequence[MtzPreflightRecord],
     crystal_ids: Sequence[str],
-    joint_copy_search: bool,
+    build_resource_plans: bool,
     localisation_by_group: dict[str, BatchLocalisationGroupEvidence] | None,
 ) -> list[_Candidate]:
     coordinate_index = _unique_index(
@@ -1000,11 +998,7 @@ def _join_diverse_candidates(
             "requested crystals lack MTZ preflight records: "
             + ", ".join(sorted(unknown_crystals))
         )
-    per_model_copy_cap = (
-        min(_PHASE3_MAXIMUM_COPY_COUNT, config.matthews.max_hypotheses_per_candidate)
-        if joint_copy_search
-        else _copy_cap(config)
-    )
+    per_model_copy_cap = _copy_cap(config)
     candidates: list[_Candidate] = []
     for model in models:
         coordinate = coordinate_index.get(model.coordinate_id)
@@ -1058,10 +1052,6 @@ def _join_diverse_candidates(
                 and row.crystal_id in selected_crystals
                 and row.retained
                 and row.physical_status is not PhysicalStatus.IMPOSSIBLE
-                and (
-                    not joint_copy_search
-                    or row.copy_count <= _PHASE3_MAXIMUM_COPY_COUNT
-                )
             ),
             key=lambda row: (
                 row.crystal_id,
@@ -1098,7 +1088,7 @@ def _join_diverse_candidates(
                     profile=config.prototype.profile,
                     mapping=mapping,
                     localisation=localisation,
-                    joint_copy_search=joint_copy_search,
+                    build_resource_plan=build_resource_plans,
                 )
             )
             per_crystal_counts[row.crystal_id] = used + 1
@@ -1111,11 +1101,11 @@ def _select_diverse_candidates(
     config: PipelineConfig,
     execution_cap: int | None,
     *,
-    joint_copy_search: bool,
+    phase3_screen: bool,
 ) -> tuple[tuple[_Candidate, ...], int]:
     if execution_cap is not None and not 1 <= execution_cap <= 1000:
         raise ValueError("maximum_first_copy_jobs must be between 1 and 1000")
-    maximum_cap = _PHASE3_MAXIMUM_FIRST_COPY_JOBS if joint_copy_search else 1000
+    maximum_cap = _PHASE3_MAXIMUM_FIRST_COPY_JOBS if phase3_screen else 1000
     requested_cap = (
         min(execution_cap, maximum_cap) if execution_cap is not None else maximum_cap
     )
@@ -1333,6 +1323,7 @@ def build_diverse_first_copy_funnel(
     models = tuple(item for batch in model_batches for item in batch)
     _unique_index(models, lambda item: item.model_id, label="model ID")
     localisation_policy = _load_diverse_localisation(request, groups)
+    phase3_screen = request.require_localisation_policy
     localisation_by_group = (
         {row.sequence_group_id: row for row in localisation_policy.group_evidence}
         if localisation_policy is not None
@@ -1348,7 +1339,7 @@ def build_diverse_first_copy_funnel(
         matthews_rows=matthews_rows,
         preflights=preflights,
         crystal_ids=request.crystal_ids,
-        joint_copy_search=request.joint_copy_search,
+        build_resource_plans=phase3_screen,
         localisation_by_group=localisation_by_group,
     )
     candidates = [
@@ -1377,7 +1368,7 @@ def build_diverse_first_copy_funnel(
         candidates,
         config,
         request.maximum_first_copy_jobs,
-        joint_copy_search=request.joint_copy_search,
+        phase3_screen=phase3_screen,
     )
     selected_ids = {item.hypothesis.hypothesis_id for item in selected}
     deferred_cap = tuple(
@@ -1407,7 +1398,7 @@ def build_diverse_first_copy_funnel(
         if candidate.resource_plan is not None
     }
     resource_plans_jsonl: Path | None = None
-    if request.joint_copy_search:
+    if phase3_screen:
         if len(resource_plan_by_hypothesis) != len(all_candidates):
             raise FunnelInputError(
                 "Phase III hypothesis lacks its deterministic MR resource plan"
@@ -1479,14 +1470,14 @@ def build_diverse_first_copy_funnel(
         crystal_id = item.hypothesis.crystal_id
         per_crystal_counts[crystal_id] = per_crystal_counts.get(crystal_id, 0) + 1
     adapter_version = (
-        _PHASE3_DIVERSE_ADAPTER_VERSION
-        if request.joint_copy_search
-        else _DIVERSE_ADAPTER_VERSION
+        _PHASE3_DIVERSE_ADAPTER_VERSION if phase3_screen else _DIVERSE_ADAPTER_VERSION
     )
     phase3_copy_details = (
         {
-            "copy_search_mode": "joint_declared_copies",
-            "maximum_joint_copy_count": _PHASE3_MAXIMUM_COPY_COUNT,
+            "copy_search_mode": "single_copy_then_sequential_completion",
+            "initial_searched_copy_count": 1,
+            "expected_copy_count_minimum": config.matthews.min_copy_count,
+            "expected_copy_count_maximum": config.matthews.max_copy_count,
             "localisation_policy_id": (
                 localisation_policy.policy_id
                 if localisation_policy is not None
@@ -1517,7 +1508,7 @@ def build_diverse_first_copy_funnel(
                 else 0
             ),
         }
-        if request.joint_copy_search
+        if phase3_screen
         else {}
     )
     manifest_identity = {
@@ -1546,14 +1537,7 @@ def build_diverse_first_copy_funnel(
             "global_structural_cap": config.search_limits.max_structural_hypotheses,
             "global_first_copy_cap": config.search_limits.max_first_copy_jobs,
             "requested_execution_cap": request.maximum_first_copy_jobs,
-            "per_model_copy_cap": (
-                min(
-                    _PHASE3_MAXIMUM_COPY_COUNT,
-                    config.matthews.max_hypotheses_per_candidate,
-                )
-                if request.joint_copy_search
-                else _copy_cap(config)
-            ),
+            "per_model_copy_cap": _copy_cap(config),
             **phase3_copy_details,
             "diversity_buckets": [
                 "sequence_group_id",
@@ -1603,7 +1587,7 @@ def build_diverse_first_copy_funnel(
                                 item.hypothesis.hypothesis_id
                             ].resource_plan_id,
                         }
-                        if request.joint_copy_search
+                        if phase3_screen
                         else {}
                     ),
                 }

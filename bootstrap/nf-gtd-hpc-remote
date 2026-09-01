@@ -4633,6 +4633,7 @@ collect_run() {
         artifacts/qualification/unknown-screen-after-resume.sha256 \
         artifacts/qualification/unknown-screen-first-task-identities.tsv \
         artifacts/qualification/unknown-screen-resume-task-identities.tsv \
+        artifacts/qualification/unknown-screen-first-mr-inventory.tsv \
         artifacts/qualification/unknown-screen-first-pipeline-info/report.html \
         artifacts/qualification/unknown-screen-first-pipeline-info/timeline.html \
         artifacts/qualification/unknown-screen-first-pipeline-info/trace.tsv \

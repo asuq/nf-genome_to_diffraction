@@ -2068,7 +2068,8 @@ run_unknown_screen() {
     local qualification="$RUN/artifacts/qualification"
     local first_trace resume_trace cache_counts total cached
     local legacy_phenix_manifest refreshed_phenix_manifest expected_phenix_sha256
-    local directory outcome_name
+    local mr_inventory directory outcome_name crystal_id count
+    local expected_mr_total=0 actual_mr_total=0
     local -a owned_a_packages=()
     local -a crystallographic_holds=()
     local -a expected_review_stages=()
@@ -2147,6 +2148,29 @@ run_unknown_screen() {
     first_trace="$qualification/unknown-screen-first-pipeline-info/trace.tsv"
     resume_trace="$qualification/unknown-screen-resume-pipeline-info/trace.tsv"
     [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    mr_inventory="$qualification/unknown-screen-first-mr-inventory.tsv"
+    printf 'crystal_id\tinitial_mr_task_count\n' > "$mr_inventory"
+    awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "process") process_column = i
+                if ($i == "tag") tag_column = i
+            }
+            next
+        }
+        process_column > 0 && tag_column > 0 &&
+        $process_column ~ /RUN_PHASE3_FIRST_COPY_PHASER$/ {
+            parts_count = split($tag_column, parts, ":")
+            if (parts_count == 3 && parts[1] == "phase3-first-copy") {
+                counts[parts[2]]++
+            }
+        }
+        END {
+            for (crystal_id in counts) {
+                print crystal_id "\t" counts[crystal_id]
+            }
+        }
+    ' "$first_trace" | LC_ALL=C sort >> "$mr_inventory"
     write_trace_identity_manifest "$first_trace" \
         "$qualification/unknown-screen-first-task-identities.tsv"
     write_trace_identity_manifest "$resume_trace" \
@@ -2207,6 +2231,24 @@ run_unknown_screen() {
     mapfile -t expected_ids < <(printf '%s\n' "${expected_ids[@]}" | LC_ALL=C sort -u)
     [[ "${#outcome_ids[@]}" -eq 3 && "${#expected_ids[@]}" -eq 3 && \
        "${outcome_ids[*]}" == "${expected_ids[*]}" ]] || return 4
+    for directory in "${owned_a_packages[@]}"; do
+        outcome_name="${directory##*/}"
+        crystal_id="${outcome_name#phase3_owned_a_review_}"
+        count="$(awk -F '\t' -v crystal_id="$crystal_id" \
+            'NR > 1 && $1 == crystal_id { print $2 }' "$mr_inventory")"
+        [[ "$count" == 25 ]] || return 4
+        expected_mr_total=$((expected_mr_total + 25))
+    done
+    for directory in "${crystallographic_holds[@]}"; do
+        outcome_name="${directory##*/}"
+        crystal_id="${outcome_name#phase3_crystallographic_hold_}"
+        count="$(awk -F '\t' -v crystal_id="$crystal_id" \
+            'NR > 1 && $1 == crystal_id { print $2 }' "$mr_inventory")"
+        [[ -z "$count" || "$count" == 0 ]] || return 4
+    done
+    actual_mr_total="$(awk -F '\t' \
+        'NR > 1 { total += $2 } END { print total + 0 }' "$mr_inventory")"
+    [[ "$actual_mr_total" == "$expected_mr_total" ]] || return 4
     (
         cd "$UNKNOWN_SCREEN_OUT"
         while IFS= read -r relative; do
@@ -2241,6 +2283,7 @@ run_unknown_screen() {
         "$qualification/unknown-screen-output-checksums.sha256" \
         "$qualification/unknown-screen-first-task-identities.tsv" \
         "$qualification/unknown-screen-resume-task-identities.tsv" \
+        "$mr_inventory" \
         "$first_trace" \
         "$resume_trace" \
         > "$qualification/unknown-screen-checksums.sha256"

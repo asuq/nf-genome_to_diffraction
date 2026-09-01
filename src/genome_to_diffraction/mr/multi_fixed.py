@@ -104,8 +104,6 @@ class FixedSearchComponent(ContractModel):
 
     @model_validator(mode="after")
     def _validate_copies(self) -> Self:
-        if self.requested_copy_count > 4:
-            raise ValueError("fixed component copy count exceeds four")
         if self.observed_copy_count != self.requested_copy_count:
             raise ValueError("fixed component lacks every requested copy")
         return self
@@ -124,12 +122,6 @@ class CandidateSearchComponent(ContractModel):
     phaser_identity_fraction: float = Field(gt=0, le=1)
     model_uncertainty_source: NonEmptyString
     model_uncertainty_evidence_sha256: Sha256Hex
-
-    @model_validator(mode="after")
-    def _validate_copies(self) -> Self:
-        if self.requested_copy_count > 4:
-            raise ValueError("candidate component copy count exceeds four")
-        return self
 
 
 class MultiFixedSearchManifest(ContractModel):

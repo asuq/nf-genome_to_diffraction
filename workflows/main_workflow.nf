@@ -180,7 +180,6 @@ workflow MAIN_WORKFLOW {
                 pipeline_config,
                 crystal_id,
                 maximum_first_copy_jobs,
-                false,
                 selected_mtz,
                 phenix_manifest
             )

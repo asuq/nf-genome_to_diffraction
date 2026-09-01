@@ -169,8 +169,6 @@ class ComponentCoordinateDerivationBoundary(_ContentAddressedContract):
             raise ValueError("parent components are not the ordered A--F prefix")
         if len(self.observed_copy_counts) != len(labels):
             raise ValueError("copy counts do not cover every parent component")
-        if any(count > 4 for count in self.observed_copy_counts):
-            raise ValueError("parent component copy count exceeds four")
         if self.missing_evidence != _REQUIRED_DERIVATION_GAPS:
             raise ValueError("blocked derivation does not retain every evidence gap")
         if (
@@ -263,9 +261,6 @@ class ComponentExpansionExecutionInput(_ContentAddressedContract):
             item.sequence_group_id for item in parent.components
         }:
             raise ValueError("candidate repeats a parent sequence group")
-        if candidate.requested_copy_count > 4:
-            raise ValueError("candidate copy count exceeds four")
-
         if len(self.fixed_components) != parent.depth:
             raise ValueError("fixed evidence does not cover every parent component")
         fixed_digests: list[str] = []

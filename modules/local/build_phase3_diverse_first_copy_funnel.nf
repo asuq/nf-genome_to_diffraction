@@ -57,7 +57,6 @@ process BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL {
         --require-localisation-policy \
         --crystal-id '${crystal_id}' \
         --maximum-first-copy-jobs ${maximum_first_copy_jobs} \
-        --joint-copy-search \
         --outdir diverse_first_copy_funnel
     """
 

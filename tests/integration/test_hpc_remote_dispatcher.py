@@ -4329,11 +4329,19 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         "for process in VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT "
         "VALIDATE_TASK05_INPUTS MTZ_PREFLIGHT ENUMERATE_MATTHEWS "
         "PREPARE_PREDICTED_MODELS PREPARE_EXPERIMENTAL_MODELS "
-        "DISPATCH_CRYSTAL_ITEM RUN_PHASE3_FIRST_COPY_PHASER "
+        "DISPATCH_CRYSTAL_ITEM "
         "BUILD_PHASE3_MR_SEED_REVIEW PLAN_PHASE3_LOCALISATION_REOPEN; do\n"
         '  printf "%s\\t%s\\t%s\\t%s\\n" "hash-${process}" '
         '"$process" "$process" "$status" '
         '>> "$outdir/pipeline_info/trace.tsv"\n'
+        "done\n"
+        "for crystal in public_stub_01 public_stub_03; do\n"
+        "  for rank in $(seq 1 25); do\n"
+        '    printf "%s\\t%s\\t%s\\t%s\\n" '
+        '"hash-mr-${crystal}-${rank}" "RUN_PHASE3_FIRST_COPY_PHASER" '
+        '"phase3-first-copy:${crystal}:mrhyp_${rank}" "$status" '
+        '>> "$outdir/pipeline_info/trace.tsv"\n'
+        "  done\n"
         "done\n"
         "for name in report.html timeline.html dag.html; do\n"
         '  printf "stub\\n" > "$outdir/pipeline_info/$name"\n'
@@ -4366,7 +4374,7 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     ).read_text(encoding="utf-8")
     assert "RETRIEVE_AFDB_EXACT" not in screen_trace
     assert "REGISTER_PDB_COORDINATES" not in screen_trace
-    assert screen_trace.count("CACHED") == 10
+    assert screen_trace.count("CACHED") == 59
     screen_archive = _run(
         [str(dispatcher), "collect", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
         cwd=tmp_path,
@@ -4407,6 +4415,10 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
     )
     assert (
         "artifacts/qualification/unknown-screen-resume-task-identities.tsv"
+        in screen_members
+    )
+    assert (
+        "artifacts/qualification/unknown-screen-first-mr-inventory.tsv"
         in screen_members
     )
 

@@ -14868,3 +14868,30 @@ with a collapsed combined parent or a guessed command.
   then the bounded checksum-authenticated failed-child evidence collector.
   Run focused and full local gates, commit/push exact source, require CI, and
   only then build a fresh discovery/screen authority.
+
+## 2026-08-31 - Initial unknown screening is one copy without a static ceiling
+
+- The user-approved clean break removes the active joint-copy CLI/workflow
+  option and special four-copy funnel filter. Phase III funnel adapter v6
+  retains the Matthews expected copy count while every initial hypothesis and
+  resource plan searches one copy. Static four-copy restrictions are also
+  removed from the A-screen, assessment, per-placement, fixed-component, and
+  current component-execution contracts needed by later sequential completion.
+- The deterministic one-copy resource plan remains a separate schema-v2 record
+  and does not enter the scientific hypothesis payload. Expected copy counts
+  greater than four are therefore visible scientific alternatives without
+  making the first Phaser task a simultaneous high-copy search.
+- The outcome-blind checksum-frozen audit now selects 25 hypotheses for each of
+  AD4, CD4, and CD6. CD4 retains expected copy counts 4--12 and 16; every
+  selected hypothesis and resource plan records one searched copy. This is
+  exactly the required 75-task pass-1 inventory and does not use unknown MR
+  outcomes to alter ranking.
+- The successful fixed wrapper now writes a deterministic per-crystal MR task
+  inventory and requires 25 tasks for each proceeding crystal and zero for a
+  crystallographic hold. That inventory is checksum-bound and collected. The
+  mixed two-proceed/one-hold real-dispatcher regression remains valid.
+- One hundred sixty focused scientific/contract tests, the two-case remote
+  lifecycle, Nextflow syntax, the live/cached multi-crystal gate, the isolated
+  unknown-screen stub, wrapper syntax, formatting, lint, type and documentation
+  checks pass locally. Next commit this focused scientific policy, then
+  implement failed-run child evidence collection before any successor run.

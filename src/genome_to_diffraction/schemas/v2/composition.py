@@ -175,7 +175,7 @@ class RegistryModelResolution(_ContentAddressedContract):
     parent_rank: PositiveInt = Field(le=3)
     candidate_rank: PositiveInt | None = None
     component_spec_id: ComponentSpecIdentifier
-    requested_copy_count: PositiveInt = Field(le=4)
+    requested_copy_count: PositiveInt
     sequence_group_id: SequenceGroupIdentifier
     sequence_sha256: Sha256Hex
     model_id: NonEmptyString
@@ -1008,8 +1008,6 @@ class CompositionExpansionPlan(_ContentAddressedContract):
                 raise ValueError(
                     "candidate sequence-equivalence group already exists in parent"
                 )
-            if candidate.component.requested_copy_count > 4:
-                raise ValueError("Phase III expansion copy count exceeds four")
         return self
 
 

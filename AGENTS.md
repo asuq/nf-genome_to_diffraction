@@ -55,10 +55,11 @@ Use one annotation source per catalogue. Do not merge Prokka, RefSeq, PGAP, GenB
 - External PDB, AlphaFold DB, and ESM Atlas hits may provide coordinates or family evidence, but may not become reportable identities unless mapped to a supplied catalogue sequence.
 - Treat SDS–PAGE molecular weight as an apparent monomer/polypeptide-mass prior only. Never use it as ASU total mass or oligomeric-state evidence.
 - Use sequence-derived mass for Matthews calculations.
-- Retain multiple plausible ASU copy counts. The current pilot cap is the top
-  four per candidate or candidate group because that is the smallest
-  predeclared cap that retains the known two-copy 8OOX control; keep the cap
-  configurable and do not treat rank as evidence of the true copy count.
+- Retain multiple plausible ASU copy counts through the configured Matthews
+  range. Do not impose a separate static copy-count ceiling. Bound execution by
+  ranked hypothesis budgets, search one copy in the initial screen, and add
+  further copies sequentially only after review. Never treat copy rank as
+  evidence of the true copy count.
 - Matthews probability is a prior, not proof. Never reject a candidate solely because its Matthews probability is low unless the hypothesis is physically impossible.
 - Scientific no-hit outcomes are valid completed analyses. Separate execution failure from scientific status.
 - Do not use `R_free` as a high-throughput screening objective across large candidate sets.

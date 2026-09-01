@@ -268,7 +268,7 @@ def test_diverse_funnel_preserves_predicted_and_experimental_sources(
     ]
 
 
-def test_phase3_diverse_funnel_searches_all_declared_copies_jointly(
+def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
     tmp_path: Path,
 ) -> None:
     request = _diverse_request(tmp_path)
@@ -284,21 +284,33 @@ def test_phase3_diverse_funnel_searches_all_declared_copies_jointly(
         "".join(f"{canonical_json_text(row)}\n" for row in rows),
         encoding="utf-8",
     )
+    localisation = _phase3_localisation_bundle(
+        tmp_path,
+        sequence_groups_jsonl=request.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
+    )
 
-    result = build_diverse_first_copy_funnel(replace(request, joint_copy_search=True))
+    result = build_diverse_first_copy_funnel(
+        replace(
+            request,
+            require_localisation_policy=True,
+            localisation_bundle=localisation,
+        )
+    )
 
-    assert len(result.hypotheses) == 8
+    assert len(result.hypotheses) == 6
     assert {
         (item.copy_count_expected, item.copy_number_to_search)
         for item in result.hypotheses
-    } == {(1, 1), (2, 2), (3, 3), (4, 4)}
+    } == {(1, 1), (2, 1), (5, 1)}
     assert all(
-        item.priority_features["copy_search_mode"] == "joint_declared_copies"
+        item.priority_features["copy_search_mode"]
+        == "single_copy_then_sequential_completion"
         for item in result.hypotheses
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["adapter_version"] == (
-        "multi-source-first-copy-funnel-v5-dynamic-resources"
+        "multi-source-first-copy-funnel-v6-single-copy"
     )
     assert result.resource_plans_jsonl is not None
     resource_rows = tuple(
@@ -306,6 +318,7 @@ def test_phase3_diverse_funnel_searches_all_declared_copies_jointly(
         for line in result.resource_plans_jsonl.read_text(encoding="utf-8").splitlines()
     )
     assert {row["resource_plan"]["base_cpus"] for row in resource_rows} <= {4, 6, 8}
+    assert {row["resource_plan"]["searched_copy_count"] for row in resource_rows} == {1}
     assert {row["resource_plan"]["owner_id"] for row in resource_rows} == {
         item.hypothesis_id for item in result.hypotheses
     } | {
@@ -321,9 +334,12 @@ def test_phase3_diverse_funnel_searches_all_declared_copies_jointly(
         "resource_plan" not in item.model_dump(mode="json")
         for item in result.hypotheses
     )
-    assert manifest["copy_search_mode"] == "joint_declared_copies"
-    assert manifest["maximum_joint_copy_count"] == 4
-    assert manifest["per_model_copy_cap"] == 4
+    assert manifest["copy_search_mode"] == ("single_copy_then_sequential_completion")
+    assert manifest["initial_searched_copy_count"] == 1
+    assert manifest["expected_copy_count_minimum"] == 1
+    assert manifest["expected_copy_count_maximum"] == 16
+    assert "maximum_joint_copy_count" not in manifest
+    assert manifest["per_model_copy_cap"] == 3
     assert manifest["per_crystal_first_copy_cap"] == 25
 
 
@@ -359,7 +375,6 @@ def test_phase3_diverse_funnel_requires_complete_localisation_authority(
 ) -> None:
     request = replace(
         _diverse_request(tmp_path),
-        joint_copy_search=True,
         require_localisation_policy=True,
     )
 
@@ -381,7 +396,6 @@ def test_phase3_diverse_funnel_binds_active_localisation_evidence(
     result = build_diverse_first_copy_funnel(
         replace(
             request,
-            joint_copy_search=True,
             require_localisation_policy=True,
             localisation_bundle=bundle,
         )
@@ -415,7 +429,6 @@ def test_phase3_diverse_funnel_requires_bound_source_records(tmp_path: Path) -> 
         build_diverse_first_copy_funnel(
             replace(
                 request,
-                joint_copy_search=True,
                 require_localisation_policy=True,
                 localisation_bundle=bundle,
                 source_records_jsonl=None,
@@ -439,7 +452,6 @@ def test_phase3_diverse_funnel_retains_but_skips_first_wave_exclusions(
     result = build_diverse_first_copy_funnel(
         replace(
             request,
-            joint_copy_search=True,
             require_localisation_policy=True,
             localisation_bundle=bundle,
         )
@@ -552,15 +564,8 @@ def test_diverse_funnel_reserves_exact_mapping_before_homologue(
     )
 
 
-@pytest.mark.parametrize(
-    ("joint_copy_search", "expected_candidate_count"),
-    ((False, 30), (True, 60)),
-)
 def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
     tmp_path: Path,
-    *,
-    joint_copy_search: bool,
-    expected_candidate_count: int,
 ) -> None:
     base = _request(tmp_path)
     preparation = base.model_preparation_manifest.parent
@@ -601,7 +606,6 @@ def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
         pipeline_config=smoke_config,
         output_directory=tmp_path / "hard capped smoke funnel",
         crystal_ids=base.crystal_ids,
-        joint_copy_search=joint_copy_search,
         progress=False,
     )
 
@@ -609,10 +613,10 @@ def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
 
     assert len(result.hypotheses) == 25
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
-    assert manifest["candidate_count_before_caps"] == expected_candidate_count
+    assert manifest["candidate_count_before_caps"] == 30
     assert manifest["per_crystal_first_copy_cap"] == 25
     assert manifest["per_crystal_selected_counts"] == {"test_crystal_01": 25}
-    assert manifest["excluded_by_caps_count"] == expected_candidate_count - 25
+    assert manifest["excluded_by_caps_count"] == 5
     registry = load_all_eligible_model_registry(
         result.model_registry_directory / "all_model_registry.json"
     )

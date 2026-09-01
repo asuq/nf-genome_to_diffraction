@@ -288,9 +288,9 @@ def _expected_phaser_component(value: str) -> ExpectedPhaserComponent:
         raise argparse.ArgumentTypeError(
             "expected component copy count must be an integer"
         ) from error
-    if not label or not ensemble_id or not 1 <= copy_count <= 4:
+    if not label or not ensemble_id or copy_count < 1:
         raise argparse.ArgumentTypeError(
-            "expected component requires non-empty IDs and copy count 1..4"
+            "expected component requires non-empty IDs and a positive copy count"
         )
     return ExpectedPhaserComponent(label, ensemble_id, copy_count)
 
@@ -1343,11 +1343,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--maximum-first-copy-jobs",
         type=int,
         help="optional additional hard cap applied after configured profile limits",
-    )
-    diverse_parser.add_argument(
-        "--joint-copy-search",
-        action="store_true",
-        help="search up to four declared copies jointly under the Phase III 25-job cap",
     )
     diverse_parser.add_argument("--localisation-bundle", type=Path)
     diverse_parser.add_argument(
@@ -3439,7 +3434,6 @@ def _run_ranking(args: argparse.Namespace) -> int:
                 output_directory=args.outdir,
                 crystal_ids=tuple(args.crystal_id),
                 maximum_first_copy_jobs=args.maximum_first_copy_jobs,
-                joint_copy_search=args.joint_copy_search,
                 localisation_bundle=args.localisation_bundle,
                 require_localisation_policy=args.require_localisation_policy,
                 progress=not args.no_progress,

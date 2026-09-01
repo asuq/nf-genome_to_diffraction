@@ -76,8 +76,8 @@ class PhaserPlacementComponentGroup(_ContentAddressedContract):
     ]
     component_label: ComponentLabel
     ensemble_id: NonEmptyString
-    expected_copy_count: PositiveInt = Field(le=4)
-    observed_copy_count: PositiveInt = Field(le=4)
+    expected_copy_count: PositiveInt
+    observed_copy_count: PositiveInt
     placement_ordinals: tuple[PositiveInt, ...] = Field(min_length=1, max_length=4)
     combined_chain_ids: tuple[NonEmptyString, ...] = Field(min_length=1, max_length=4)
     source_model_sha256: Sha256Hex

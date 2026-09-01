@@ -135,7 +135,6 @@ def _expected_components(
             not item.component_label
             or not item.ensemble_id
             or item.expected_copy_count < 1
-            or item.expected_copy_count > 4
         ):
             raise PhaserPerPlacementError("expected component mapping is invalid")
     return ordered

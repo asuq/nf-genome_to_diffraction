@@ -136,8 +136,8 @@ class UnknownPass1SolutionEvidence(ContractModel):
     state_id: OperatorIdentifier
     search_sequence_group_id: SequenceGroupIdentifier | None = None
     sequence_group_id: SequenceGroupIdentifier
-    requested_copy_count: Annotated[int, Field(gt=0, le=4)] | None = None
-    observed_copy_count: Annotated[int, Field(ge=0, le=4)] | None = None
+    requested_copy_count: Annotated[int, Field(gt=0)] | None = None
+    observed_copy_count: Annotated[int, Field(ge=0)] | None = None
     copy_counts_supported: bool
     copy_support_evidence_sha256: Sha256Hex | None = None
     packing_passed: bool

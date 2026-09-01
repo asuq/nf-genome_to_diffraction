@@ -318,6 +318,43 @@ def test_phase3_scientific_concurrency_is_scheduler_managed() -> None:
     assert "queueSize = 0" in marmic
 
 
+def test_phase3_initial_screen_has_no_joint_copy_admission_limit() -> None:
+    funnel = (REPOSITORY / "src/genome_to_diffraction/ranking/funnel.py").read_text(
+        encoding="utf-8"
+    )
+    cli = (REPOSITORY / "src/genome_to_diffraction/cli.py").read_text(encoding="utf-8")
+    module = (
+        REPOSITORY / "modules/local/build_phase3_diverse_first_copy_funnel.nf"
+    ).read_text(encoding="utf-8")
+
+    for source in (funnel, cli, module):
+        assert "joint-copy-search" not in source
+        assert "joint_copy_search" not in source
+        assert "maximum_joint_copy_count" not in source
+    assert "copy_number_to_search = 1" in funnel
+    assert '"single_copy_then_sequential_completion"' in funnel
+    assert '"searched_copy_count": 1' not in funnel
+    assert "searched_copy_count=copy_number_to_search" in funnel
+
+
+def test_candidate_confidence_path_has_no_static_four_copy_contract() -> None:
+    for relative in (
+        "src/genome_to_diffraction/cli.py",
+        "src/genome_to_diffraction/mr/multi_fixed.py",
+        "src/genome_to_diffraction/mr/per_placement.py",
+        "src/genome_to_diffraction/schemas/v2/component_execution_input.py",
+        "src/genome_to_diffraction/schemas/v2/composition.py",
+        "src/genome_to_diffraction/schemas/v2/phaser_placements.py",
+        "src/genome_to_diffraction/schemas/v2/unknown_assessment.py",
+        "src/genome_to_diffraction/schemas/v2/unknown_screen.py",
+    ):
+        source = (REPOSITORY / relative).read_text(encoding="utf-8")
+        assert "copy count 1..4" not in source
+        assert "copy count exceeds four" not in source
+        assert "copy_count > 4" not in source
+        assert "Field(le=4)" not in source
+
+
 def test_phase3_mr_review_stages_canonical_result_bundles() -> None:
     module = (
         REPOSITORY / "modules/local/phase3_multicrystal_first_copy_tasks.nf"
